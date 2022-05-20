@@ -9,7 +9,7 @@ use xi_rope::Rope;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, EditorConfig, LapceTheme, Themes},
+    config::{Config, LapceTheme},
     document::Document,
     proxy::LapceProxy,
     rich_text::{AttributesAdder, RichText, RichTextBuilder},
@@ -121,8 +121,6 @@ impl HoverData {
     ) {
         let buffer_id = doc.id();
         let syntax = doc.syntax().cloned();
-        let editor_config = config.editor.clone();
-        let themes = config.themes.clone();
 
         proxy.get_hover(
             request_id,
@@ -131,12 +129,7 @@ impl HoverData {
             Box::new(move |result| {
                 if let Ok(resp) = result {
                     if let Ok(resp) = serde_json::from_value::<Hover>(resp) {
-                        let items = parse_hover_resp(
-                            syntax.as_ref(),
-                            resp,
-                            &editor_config,
-                            &themes,
-                        );
+                        let items = parse_hover_resp(syntax.as_ref(), resp, &config);
 
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
@@ -172,8 +165,7 @@ impl Default for HoverData {
 fn parse_hover_markdown(
     syntax: Option<&Syntax>,
     text: &str,
-    config: &EditorConfig,
-    themes: &Themes,
+    config: &Config,
 ) -> RichText {
     use pulldown_cmark::{CowStr, Event, Options, Parser};
 
@@ -220,7 +212,6 @@ fn parse_hover_markdown(
                         &tag,
                         builder.add_attributes_for_range(start_offset..pos),
                         config,
-                        themes,
                     );
 
                     if let Tag::CodeBlock(_) = &tag {
@@ -232,7 +223,7 @@ fn parse_hover_markdown(
                                     if let Some(color) = style
                                         .fg_color
                                         .as_ref()
-                                        .and_then(|fg| themes.style_color(fg))
+                                        .and_then(|fg| config.themes.style_color(fg))
                                     {
                                         builder
                                             .add_attributes_for_range(
@@ -260,7 +251,7 @@ fn parse_hover_markdown(
                 last_text = text;
             }
             Event::Code(text) => {
-                builder.push(&text).font_family(config.font_family());
+                builder.push(&text).font_family(config.editor.font_family());
                 code_block_indices.push(pos..(pos + text.len()));
                 pos += text.len();
             }
@@ -269,9 +260,10 @@ fn parse_hover_markdown(
             Event::Html(text) => {
                 builder
                     .push(&text)
-                    .font_family(config.font_family())
+                    .font_family(config.editor.font_family())
                     .text_color(
-                        themes
+                        config
+                            .themes
                             .color(LapceTheme::MARKDOWN_BLOCKQUOTE)
                             .cloned()
                             .unwrap(),
@@ -298,13 +290,10 @@ fn parse_hover_markdown(
 fn from_marked_string(
     syntax: Option<&Syntax>,
     text: MarkedString,
-    config: &EditorConfig,
-    themes: &Themes,
+    config: &Config,
 ) -> RichText {
     match text {
-        MarkedString::String(text) => {
-            parse_hover_markdown(syntax, &text, config, themes)
-        }
+        MarkedString::String(text) => parse_hover_markdown(syntax, &text, config),
         // This is a short version of a code block
         MarkedString::LanguageString(code) => {
             // TODO: We could simply construct the MarkdownText directly
@@ -313,7 +302,6 @@ fn from_marked_string(
                 syntax,
                 &format!("```{}\n{}\n```", code.language, code.value),
                 config,
-                themes,
             )
         }
     }
@@ -322,24 +310,22 @@ fn from_marked_string(
 fn parse_hover_resp(
     syntax: Option<&Syntax>,
     hover: lsp_types::Hover,
-    config: &EditorConfig,
-    themes: &Themes,
+    config: &Config,
 ) -> Vec<RichText> {
     match hover.contents {
         HoverContents::Scalar(text) => match text {
             MarkedString::String(text) => {
-                vec![parse_hover_markdown(syntax, &text, config, themes)]
+                vec![parse_hover_markdown(syntax, &text, config)]
             }
             MarkedString::LanguageString(code) => vec![parse_hover_markdown(
                 syntax,
                 &format!("```{}\n{}\n```", code.language, code.value),
                 config,
-                themes,
             )],
         },
         HoverContents::Array(array) => array
             .into_iter()
-            .map(|t| from_marked_string(syntax, t, config, themes))
+            .map(|t| from_marked_string(syntax, t, config))
             .collect(),
         HoverContents::Markup(content) => match content.kind {
             MarkupKind::PlainText => {
@@ -349,18 +335,13 @@ fn parse_hover_resp(
                 vec![builder.build()]
             }
             MarkupKind::Markdown => {
-                vec![parse_hover_markdown(syntax, &content.value, config, themes)]
+                vec![parse_hover_markdown(syntax, &content.value, config)]
             }
         },
     }
 }
 
-fn add_attribute_for_tag(
-    tag: &Tag,
-    mut attrs: AttributesAdder,
-    config: &EditorConfig,
-    themes: &Themes,
-) {
+fn add_attribute_for_tag(tag: &Tag, mut attrs: AttributesAdder, config: &Config) {
     use pulldown_cmark::HeadingLevel;
     match tag {
         Tag::Heading(level, _, _) => {
@@ -374,12 +355,13 @@ fn add_attribute_for_tag(
                 HeadingLevel::H5 => 0.83,
                 HeadingLevel::H6 => 0.75,
             };
-            let font_size = font_scale * config.font_size as f64;
+            let font_size = font_scale * config.ui.font_size() as f64;
             attrs.size(font_size).weight(FontWeight::BOLD);
         }
         Tag::BlockQuote => {
             attrs.style(FontStyle::Italic).text_color(
-                themes
+                config
+                    .themes
                     .color(LapceTheme::MARKDOWN_BLOCKQUOTE)
                     .cloned()
                     .unwrap(),
@@ -388,7 +370,7 @@ fn add_attribute_for_tag(
         // TODO: We could use the language paired with treesitter to highlight the code
         // within code blocks.
         Tag::CodeBlock(_) => {
-            attrs.font_family(config.font_family());
+            attrs.font_family(config.editor.font_family());
         }
         Tag::Emphasis => {
             attrs.style(FontStyle::Italic);
@@ -399,9 +381,13 @@ fn add_attribute_for_tag(
         // TODO: Strikethrough support
         Tag::Link(_link_type, _target, _title) => {
             // TODO: Link support
-            attrs
-                .underline(true)
-                .text_color(themes.color(LapceTheme::EDITOR_LINK).cloned().unwrap());
+            attrs.underline(true).text_color(
+                config
+                    .themes
+                    .color(LapceTheme::EDITOR_LINK)
+                    .cloned()
+                    .unwrap(),
+            );
         }
         // All other tags are currently ignored
         _ => {}

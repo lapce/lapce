@@ -3,6 +3,11 @@ modal = false
 color-theme = "Lapce Dark"
 icon-theme = ""
 
+[ui]
+font-family = ""
+font-size = 13
+drop-shadow = true
+
 [editor]
 font-family = "Cascadia Code"
 font-size = 13

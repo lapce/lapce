@@ -8,7 +8,7 @@ use crate::svg::logo_svg;
 use druid::{
     kurbo::{Line, Rect},
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    Command, FontFamily, Target, WidgetId,
+    Command, Target, WidgetId,
 };
 use druid::{
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
@@ -977,7 +977,10 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     .new_text_layout(
                         cmd.kind.desc().unwrap_or_else(|| cmd.kind.str()),
                     )
-                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

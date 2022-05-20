@@ -7,9 +7,9 @@ use alacritty_terminal::{
 };
 use druid::{
     piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, FontWeight,
-    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, FontWeight, LayoutCtx,
+    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
+    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_core::mode::Mode;
 use lapce_data::{
@@ -236,12 +236,14 @@ impl Widget<LapceTabData> for LapceTerminalView {
         ctx.with_save(|ctx| {
             ctx.clip(self_rect.inflate(0.0, 50.0));
             let rect = self.header.layout_rect();
-            ctx.blurred_rect(
-                rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
+            if data.config.ui.drop_shadow() {
+                ctx.blurred_rect(
+                    rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            }
             ctx.fill(
                 rect,
                 data.config
@@ -420,7 +422,10 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
             let text_layout = ctx
                 .text()
                 .new_text_layout(term.title.clone())
-                .font(FontFamily::SYSTEM_UI, data.config.editor.font_size as f64)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -482,7 +487,7 @@ impl LapceTerminal {
         for (pos, panel) in data.panels.iter_mut() {
             if panel.widgets.contains(&PanelKind::Terminal) {
                 Arc::make_mut(panel).active = PanelKind::Terminal;
-                data.panel_active = pos.clone();
+                data.panel_active = *pos;
                 break;
             }
         }

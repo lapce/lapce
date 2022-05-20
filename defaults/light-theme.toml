@@ -59,6 +59,9 @@ magenta = "#A626A4"
 
 "hover.background" = "#eaeaeb"
 
+"activity.background" = "$white"
+"activity.current" = "#eaeaeb"
+
 "panel.background" = "#eaeaeb"
 "panel.current" = "#dbdbdc"
 "panel.hovered" = "#E4E4E6"

@@ -3,7 +3,7 @@ use std::{iter::Iterator, sync::Arc};
 use druid::{
     kurbo::Line,
     piet::{Text, TextLayout as TextLayoutTrait, TextLayoutBuilder},
-    BoxConstraints, Command, Env, Event, EventCtx, FontFamily, LayoutCtx, LifeCycle,
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetId,
 };
@@ -367,7 +367,10 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             let text_layout = ctx
                 .text()
                 .new_text_layout(text)
-                .font(FontFamily::SYSTEM_UI, 13.0)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontFamily,
-    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext,
-    Size, Target, UpdateCtx, Widget, WidgetExt,
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, LayoutCtx,
+    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size,
+    Target, UpdateCtx, Widget, WidgetExt,
 };
 use itertools::Itertools;
 use lapce_data::{
@@ -282,7 +282,10 @@ impl Widget<LapceTabData> for ProblemContent {
                 .new_text_layout(
                     path.file_name().unwrap().to_str().unwrap().to_string(),
                 )
-                .font(FontFamily::SYSTEM_UI, 13.0)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -317,7 +320,10 @@ impl Widget<LapceTabData> for ProblemContent {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(folder)
-                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_DIM)
@@ -393,7 +399,10 @@ impl Widget<LapceTabData> for ProblemContent {
                     let text_layout = ctx
                         .text()
                         .new_text_layout(line.to_string())
-                        .font(FontFamily::SYSTEM_UI, 13.0)
+                        .font(
+                            data.config.ui.font_family(),
+                            data.config.ui.font_size() as f64,
+                        )
                         .text_color(
                             data.config
                                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -464,7 +473,10 @@ impl Widget<LapceTabData> for ProblemContent {
                     let text_layout = ctx
                         .text()
                         .new_text_layout(text)
-                        .font(FontFamily::SYSTEM_UI, 13.0)
+                        .font(
+                            data.config.ui.font_family(),
+                            data.config.ui.font_size() as f64,
+                        )
                         .text_color(
                             data.config
                                 .get_color_unchecked(LapceTheme::EDITOR_DIM)
@@ -486,7 +498,10 @@ impl Widget<LapceTabData> for ProblemContent {
                         let text_layout = ctx
                             .text()
                             .new_text_layout(line.to_string())
-                            .font(FontFamily::SYSTEM_UI, 13.0)
+                            .font(
+                                data.config.ui.font_family(),
+                                data.config.ui.font_size() as f64,
+                            )
                             .text_color(
                                 data.config
                                     .get_color_unchecked(LapceTheme::EDITOR_DIM)

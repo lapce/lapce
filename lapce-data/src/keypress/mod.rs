@@ -7,8 +7,8 @@ use anyhow::Result;
 use druid::piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder};
 use druid::{Command, KbKey};
 use druid::{
-    Env, EventCtx, ExtEventSink, FontFamily, KeyEvent, Modifiers, PaintCtx, Point,
-    Rect, RenderContext, Size, Target,
+    Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, PaintCtx, Point, Rect,
+    RenderContext, Size, Target,
 };
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -53,7 +53,7 @@ pub fn paint_key(
     let text_layout = ctx
         .text()
         .new_text_layout(text.to_string())
-        .font(FontFamily::SYSTEM_UI, 13.0)
+        .font(config.ui.font_family(), config.ui.font_size() as f64)
         .text_color(
             config
                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

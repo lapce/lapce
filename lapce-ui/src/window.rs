@@ -524,12 +524,14 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                 .with_origin(Point::new(0.0, title_height));
             ctx.with_save(|ctx| {
                 ctx.clip(clip_rect);
-                ctx.blurred_rect(
-                    rect,
-                    5.0,
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-                );
+                if data.config.ui.drop_shadow() {
+                    ctx.blurred_rect(
+                        rect,
+                        5.0,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                }
                 ctx.fill(
                     rect,
                     data.config

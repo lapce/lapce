@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use druid::{
     piet::{PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Env, Event, EventCtx, FontFamily, FontWeight,
-    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, TextAlignment, UpdateCtx, Widget, WidgetId, WidgetPod,
+    BoxConstraints, Command, Env, Event, EventCtx, FontWeight, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, TextAlignment,
+    UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
@@ -261,7 +261,10 @@ impl Widget<LapceTabData> for AlertBoxContent {
         let title_layout = ctx
             .text()
             .new_text_layout(data.alert.content.title.clone())
-            .font(FontFamily::SYSTEM_UI, 13.0)
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
             .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
             .alignment(TextAlignment::Center)
             .set_line_height(1.2)
@@ -280,7 +283,10 @@ impl Widget<LapceTabData> for AlertBoxContent {
         let msg_layout = ctx
             .text()
             .new_text_layout(data.alert.content.msg.clone())
-            .font(FontFamily::SYSTEM_UI, 12.0)
+            .font(
+                data.config.ui.font_family(),
+                (data.config.ui.font_size() - 1) as f64,
+            )
             .alignment(TextAlignment::Center)
             .set_line_height(1.2)
             .max_width(self.width - self.padding * 2.0)
@@ -325,13 +331,15 @@ impl Widget<LapceTabData> for AlertBoxContent {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let rect = ctx.size().to_rect();
-        let shadow_width = 5.0;
-        ctx.blurred_rect(
-            rect,
-            shadow_width,
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        );
+        if data.config.ui.drop_shadow() {
+            let shadow_width = 5.0;
+            ctx.blurred_rect(
+                rect,
+                shadow_width,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
+        }
         ctx.fill(
             rect,
             data.config
@@ -357,7 +365,10 @@ impl Widget<LapceTabData> for AlertBoxContent {
             let text_layout = ctx
                 .text()
                 .new_text_layout(text.to_string())
-                .font(FontFamily::SYSTEM_UI, 13.0)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -379,7 +390,10 @@ impl Widget<LapceTabData> for AlertBoxContent {
         let text_layout = ctx
             .text()
             .new_text_layout("Cancel")
-            .font(FontFamily::SYSTEM_UI, 13.0)
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
             .text_color(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

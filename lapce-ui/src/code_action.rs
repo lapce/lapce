@@ -1,9 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use druid::{
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontDescriptor, FontFamily,
-    LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, TextLayout, UpdateCtx, Widget,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, FontDescriptor, LayoutCtx,
+    LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect, RenderContext, Size,
+    Target, TextLayout, UpdateCtx, Widget,
 };
 use lapce_core::{command::FocusCommand, mode::Mode, movement::Movement};
 use lapce_data::{
@@ -349,12 +349,20 @@ impl Widget<LapceTabData> for CodeAction {
 
         let rect = ctx.size().to_rect();
         let shadow_width = 5.0;
-        ctx.blurred_rect(
-            rect,
-            shadow_width,
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        );
+        if data.config.ui.drop_shadow() {
+            ctx.blurred_rect(
+                rect,
+                shadow_width,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
+        } else {
+            ctx.stroke(
+                rect.inflate(0.5, 0.5),
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
+        }
         ctx.fill(
             rect,
             data.config
@@ -386,7 +394,8 @@ impl Widget<LapceTabData> for CodeAction {
                     };
                     let mut text_layout = TextLayout::<String>::from_text(title);
                     text_layout.set_font(
-                        FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
+                        FontDescriptor::new(data.config.ui.font_family())
+                            .with_size(data.config.ui.font_size() as f64),
                     );
                     text_layout.set_text_color(
                         data.config

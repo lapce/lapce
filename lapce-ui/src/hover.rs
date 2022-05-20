@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use druid::{
     theme, ArcStr, BoxConstraints, Command, Data, Env, Event, EventCtx,
-    FontDescriptor, FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point,
+    FontDescriptor, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point,
     RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_data::{
@@ -169,12 +169,20 @@ impl Widget<LapceTabData> for HoverContainer {
         if data.hover.status != HoverStatus::Inactive && !data.hover.is_empty() {
             let shadow_width = 5.0;
             let rect = self.content_size.to_rect();
-            ctx.blurred_rect(
-                rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
+            if data.config.ui.drop_shadow() {
+                ctx.blurred_rect(
+                    rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            } else {
+                ctx.stroke(
+                    rect.inflate(0.5, 0.5),
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
+            }
             self.hover.paint(ctx, data, env);
         }
     }
@@ -242,7 +250,8 @@ impl Widget<LapceTabData> for Hover {
             }
 
             self.active_layout.set_font(
-                FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+                FontDescriptor::new(data.config.ui.font_family())
+                    .with_size(data.config.ui.font_size() as f64),
             );
             self.active_layout.set_text_color(
                 data.config

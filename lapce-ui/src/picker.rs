@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use druid::{
     kurbo::Line,
     piet::{Svg, Text, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Env, Event, EventCtx, FontFamily, LayoutCtx, LifeCycle,
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
@@ -132,12 +132,20 @@ impl Widget<LapceTabData> for FilePicker {
         let rect = ctx.size().to_rect();
 
         let shadow_width = 5.0;
-        ctx.blurred_rect(
-            rect,
-            shadow_width,
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        );
+        if data.config.ui.drop_shadow() {
+            ctx.blurred_rect(
+                rect,
+                shadow_width,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
+        } else {
+            ctx.stroke(
+                rect.inflate(0.5, 0.5),
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
+        }
 
         ctx.fill(
             rect,
@@ -615,7 +623,7 @@ pub fn paint_file_node_item_by_index(
                     .unwrap()
                     .to_string(),
             )
-            .font(FontFamily::SYSTEM_UI, 13.0)
+            .font(config.ui.font_family(), config.ui.font_size() as f64)
             .text_color(
                 config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -793,7 +801,10 @@ impl Widget<LapceTabData> for FilePickerControl {
         let text_layout = ctx
             .text()
             .new_text_layout("Open")
-            .font(FontFamily::SYSTEM_UI, 13.0)
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
             .text_color(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -820,7 +831,10 @@ impl Widget<LapceTabData> for FilePickerControl {
         let text_layout = ctx
             .text()
             .new_text_layout("Cancel")
-            .font(FontFamily::SYSTEM_UI, 13.0)
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
             .text_color(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

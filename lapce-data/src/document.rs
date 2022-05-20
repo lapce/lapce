@@ -13,7 +13,7 @@ use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    ExtEventSink, FontFamily, Point, SingleUse, Size, Target, Vec2, WidgetId,
+    ExtEventSink, Point, SingleUse, Size, Target, Vec2, WidgetId,
 };
 use lapce_core::{
     buffer::{Buffer, DiffLines, InvalLines},
@@ -1003,12 +1003,12 @@ impl Document {
             config.tab_width(text, config.editor.font_family(), font_size);
 
         let font_family = if self.content.is_input() {
-            FontFamily::SYSTEM_UI
+            config.ui.font_family()
         } else {
             config.editor.font_family()
         };
         let font_size = if self.content.is_input() {
-            13
+            config.ui.font_size()
         } else {
             font_size
         };
@@ -1432,7 +1432,7 @@ impl Document {
                 };
 
                 text.new_text_layout(title)
-                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .font(config.ui.font_family(), config.ui.font_size() as f64)
                     .build()
                     .unwrap()
             })

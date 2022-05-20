@@ -4,7 +4,7 @@ pub enum PanelResizePosition {
     Bottom,
 }
 
-#[derive(Eq, PartialEq, Hash, Clone)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy)]
 pub enum PanelPosition {
     LeftTop,
     LeftBottom,

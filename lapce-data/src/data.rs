@@ -753,7 +753,7 @@ impl LapceTabData {
     pub fn panel_position(&self, kind: PanelKind) -> Option<PanelPosition> {
         for (pos, panels) in self.panels.iter() {
             if panels.widgets.contains(&kind) {
-                return Some(pos.clone());
+                return Some(*pos);
             }
         }
         None

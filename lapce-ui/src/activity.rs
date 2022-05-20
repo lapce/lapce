@@ -117,54 +117,19 @@ impl Widget<LapceTabData> for ActivityBar {
         let size = 50.0;
 
         let shadow_width = 5.0;
-        // if let Some((active_index, _)) =
-        //     data.panels.get(&PanelPosition::LeftTop).and_then(|panel| {
-        //         panel
-        //             .widgets
-        //             .iter()
-        //             .map(|(id, kind)| *id)
-        //             .enumerate()
-        //             .find(|(i, id)| id == &panel.active)
-        //     })
-        // {
-        //     let active_offset = size * active_index as f64;
-        //     let shadow_width = 5.0;
-        //     if active_offset > 0.0 {
-        //         ctx.with_save(|ctx| {
-        //             let clip_rect = Size::new(size + 100.0, active_offset).to_rect();
-        //             ctx.clip(clip_rect);
-        //             ctx.blurred_rect(
-        //                 rect,
-        //                 shadow_width,
-        //                 data.config
-        //                     .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        //             );
-        //         });
-        //     }
-        //     ctx.with_save(|ctx| {
-        //         let clip_rect =
-        //             Size::new(size + 100.0, rect.height() - size - active_offset)
-        //                 .to_rect()
-        //                 .with_origin(Point::new(0.0, size + active_offset));
-        //         ctx.clip(clip_rect);
-        //         ctx.blurred_rect(
-        //             rect,
-        //             shadow_width,
-        //             data.config
-        //                 .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        //         );
-        //     });
-        // }
-        ctx.blurred_rect(
-            rect,
-            shadow_width,
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        );
+        if data.config.ui.drop_shadow() {
+            ctx.blurred_rect(
+                rect,
+                shadow_width,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
+        }
+
         ctx.fill(
             rect,
             data.config
-                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                .get_color_unchecked(LapceTheme::ACTIVITY_BACKGROUND),
         );
 
         let mut offset = 0.0;
@@ -181,7 +146,7 @@ impl Widget<LapceTabData> for ActivityBar {
                             .to_rect()
                             .with_origin(Point::new(0.0, offset)),
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                            .get_color_unchecked(LapceTheme::ACTIVITY_CURRENT),
                     );
                 }
                 let svg_size = 25.0;

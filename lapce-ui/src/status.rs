@@ -1,7 +1,7 @@
 use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder},
-    Command, Event, EventCtx, FontFamily, MouseEvent, PaintCtx, Point,
-    RenderContext, Size, Target, Widget,
+    Command, Event, EventCtx, MouseEvent, PaintCtx, Point, RenderContext, Size,
+    Target, Widget,
 };
 use lapce_core::mode::Mode;
 use lapce_data::{
@@ -119,7 +119,7 @@ impl LapceStatusNew {
         let text_layout = ctx
             .text()
             .new_text_layout(label)
-            .font(FontFamily::SYSTEM_UI, 13.0)
+            .font(config.ui.font_family(), config.ui.font_size() as f64)
             .text_color(fg_color.clone())
             .build()
             .unwrap();
@@ -234,12 +234,14 @@ impl Widget<LapceTabData> for LapceStatusNew {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &druid::Env) {
         let size = ctx.size();
         let rect = size.to_rect();
-        ctx.blurred_rect(
-            rect,
-            5.0,
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        );
+        if data.config.ui.drop_shadow() {
+            ctx.blurred_rect(
+                rect,
+                5.0,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
+        }
         ctx.fill(
             rect,
             data.config
@@ -270,7 +272,10 @@ impl Widget<LapceTabData> for LapceStatusNew {
             let text_layout = ctx
                 .text()
                 .new_text_layout(mode)
-                .font(FontFamily::SYSTEM_UI, 13.0)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
@@ -314,7 +319,10 @@ impl Widget<LapceTabData> for LapceStatusNew {
             let text_layout = ctx
                 .text()
                 .new_text_layout(text)
-                .font(FontFamily::SYSTEM_UI, 13.0)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

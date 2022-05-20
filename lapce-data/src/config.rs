@@ -1,4 +1,4 @@
-use std::{cell::RefCell, io::Write, path::PathBuf, rc::Rc};
+use std::{io::Write, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use directories::ProjectDirs;
@@ -7,6 +7,7 @@ use druid::{
     Color, ExtEventSink, FontFamily, Size, Target,
 };
 use hashbrown::HashMap;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 use thiserror::Error;
@@ -73,6 +74,9 @@ impl LapceTheme {
     pub const COMPLETION_CURRENT: &'static str = "completion.current";
 
     pub const HOVER_BACKGROUND: &'static str = "hover.background";
+
+    pub const ACTIVITY_BACKGROUND: &'static str = "activity.background";
+    pub const ACTIVITY_CURRENT: &'static str = "activity.current";
 
     pub const PANEL_BACKGROUND: &'static str = "panel.background";
     pub const PANEL_CURRENT: &'static str = "panel.current";
@@ -144,6 +148,37 @@ pub struct EditorConfig {
 impl EditorConfig {
     pub fn font_family(&self) -> FontFamily {
         FontFamily::new_unchecked(self.font_family.clone())
+    }
+}
+
+#[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct UIConfig {
+    #[field_names(
+        desc = "Set the ui font family. If empty, it uses system default."
+    )]
+    font_family: String,
+    #[field_names(desc = "Set the ui base font size")]
+    font_size: usize,
+    #[field_names(desc = "Controls if the UI uses drop shadow")]
+    drop_shadow: bool,
+}
+
+impl UIConfig {
+    pub fn font_family(&self) -> FontFamily {
+        if self.font_family.is_empty() {
+            FontFamily::SYSTEM_UI
+        } else {
+            FontFamily::new_unchecked(self.font_family.clone())
+        }
+    }
+
+    pub fn font_size(&self) -> usize {
+        self.font_size.max(6).min(32)
+    }
+
+    pub fn drop_shadow(&self) -> bool {
+        self.drop_shadow
     }
 }
 
@@ -351,12 +386,13 @@ pub struct Config {
     #[serde(skip)]
     pub id: u64,
     pub lapce: LapceConfig,
+    pub ui: UIConfig,
     pub editor: EditorConfig,
     pub terminal: TerminalConfig,
     #[serde(skip)]
     pub themes: Themes,
     #[serde(skip)]
-    tab_layout_info: Rc<RefCell<HashMap<(FontFamily, usize), f64>>>,
+    tab_layout_info: Arc<RwLock<HashMap<(FontFamily, usize), f64>>>,
 }
 
 pub struct ConfigWatcher {
@@ -782,18 +818,25 @@ impl Config {
         font_family: FontFamily,
         font_size: usize,
     ) -> f64 {
-        let mut info = self.tab_layout_info.borrow_mut();
-        let width =
-            info.entry((font_family.clone(), font_size))
-                .or_insert_with(|| {
-                    text.new_text_layout(" a")
-                        .font(font_family.clone(), font_size as f64)
-                        .build()
-                        .unwrap()
-                        .hit_test_text_position(1)
-                        .point
-                        .x
-                });
-        self.editor.tab_width as f64 * *width
+        {
+            let info = self.tab_layout_info.read();
+            if let Some(width) = info.get(&(font_family.clone(), font_size)) {
+                return self.editor.tab_width as f64 * *width;
+            };
+        }
+
+        let width = text
+            .new_text_layout(" a")
+            .font(font_family.clone(), font_size as f64)
+            .build()
+            .unwrap()
+            .hit_test_text_position(1)
+            .point
+            .x;
+
+        self.tab_layout_info
+            .write()
+            .insert((font_family, font_size), width);
+        self.editor.tab_width as f64 * width
     }
 }

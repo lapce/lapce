@@ -4,9 +4,9 @@ use crate::svg::get_svg;
 use druid::{
     kurbo::Line,
     piet::{Text, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Env, Event, EventCtx, FontFamily, LayoutCtx,
-    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget, WindowConfig, WindowState,
+    BoxConstraints, Color, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    UpdateCtx, Widget, WindowConfig, WindowState,
 };
 use lapce_data::{
     command::{
@@ -161,7 +161,10 @@ impl Widget<LapceWindowData> for Title {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(text)
-                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
@@ -180,7 +183,10 @@ impl Widget<LapceWindowData> for Title {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(text)
-                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
@@ -309,7 +315,10 @@ impl Widget<LapceWindowData> for Title {
         let text_layout = ctx
             .text()
             .new_text_layout(text)
-            .font(FontFamily::SYSTEM_UI, 13.0)
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
             .text_color(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -383,7 +392,10 @@ impl Widget<LapceWindowData> for Title {
             let text_layout = ctx
                 .text()
                 .new_text_layout(branch)
-                .font(FontFamily::SYSTEM_UI, 13.0)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

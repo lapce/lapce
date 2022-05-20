@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use druid::{
+    kurbo::Line,
     piet::{Text, TextLayout, TextLayoutBuilder, TextStorage},
-    BoxConstraints, Command, Env, Event, EventCtx, FontFamily, LayoutCtx, LifeCycle,
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
@@ -103,11 +104,15 @@ impl LapcePanel {
         )>,
     ) -> Self {
         let mut split = LapceSplitNew::new(split_id).direction(split_direction);
+        match split_direction {
+            SplitDirection::Vertical => {}
+            SplitDirection::Horizontal => split = split.hide_border(),
+        };
         for (section_widget_id, header, content, size) in sections {
             let header = match header {
                 PanelHeaderKind::None => None,
                 PanelHeaderKind::Simple(s) => {
-                    Some(PanelSectionHeader::new(s).boxed())
+                    Some(PanelSectionHeader::new(s, kind).boxed())
                 }
                 PanelHeaderKind::Widget(w) => Some(w),
             };
@@ -279,11 +284,12 @@ impl Widget<LapceTabData> for PanelSection {
 
 pub struct PanelSectionHeader {
     text: ReadOnlyString,
+    kind: PanelKind,
 }
 
 impl PanelSectionHeader {
-    pub fn new(text: ReadOnlyString) -> Self {
-        Self { text }
+    pub fn new(text: ReadOnlyString, kind: PanelKind) -> Self {
+        Self { text, kind }
     }
 }
 
@@ -329,22 +335,42 @@ impl Widget<LapceTabData> for PanelSectionHeader {
         let shadow_width = 5.0;
         let rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {
-            ctx.blurred_rect(
-                rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
             ctx.fill(
                 rect,
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
             );
+            if data.config.ui.drop_shadow() {
+                ctx.blurred_rect(
+                    rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            } else if let Some(position) = data.panel_position(self.kind) {
+                match position {
+                    PanelPosition::BottomLeft | PanelPosition::BottomRight => {
+                        ctx.stroke(
+                            Line::new(
+                                Point::new(rect.x0, rect.y0 + 0.5),
+                                Point::new(rect.x1, rect.y0 + 0.5),
+                            ),
+                            data.config
+                                .get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                            1.0,
+                        );
+                    }
+                    _ => {}
+                }
+            }
 
             let text_layout = ctx
                 .text()
                 .new_text_layout(self.text.clone())
-                .font(FontFamily::SYSTEM_UI, data.config.editor.font_size as f64)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -405,8 +431,7 @@ impl PanelMainHeader {
         };
         icons.push(icon);
 
-        let position = data.panel_position(self.kind);
-        if let Some(position) = position {
+        if let Some(position) = data.panel_position(self.kind) {
             if position == PanelPosition::BottomLeft
                 || position == PanelPosition::BottomRight
             {
@@ -523,24 +548,46 @@ impl Widget<LapceTabData> for PanelMainHeader {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let shadow_width = 5.0;
         let rect = ctx.size().to_rect();
+        let position = data.panel_position(self.kind);
         ctx.with_save(|ctx| {
-            ctx.blurred_rect(
-                rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
+            if data.config.ui.drop_shadow() {
+                ctx.blurred_rect(
+                    rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            } else if let Some(position) = position {
+                match position {
+                    PanelPosition::BottomLeft | PanelPosition::BottomRight => {
+                        ctx.stroke(
+                            Line::new(
+                                Point::new(rect.x0, rect.y0 - 0.5),
+                                Point::new(rect.x1, rect.y0 - 0.5),
+                            ),
+                            data.config
+                                .get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                            1.0,
+                        );
+                    }
+                    _ => {}
+                }
+            }
 
-            ctx.fill(
-                rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-            );
+            let background = match position {
+                Some(PanelPosition::BottomLeft)
+                | Some(PanelPosition::BottomRight) => LapceTheme::EDITOR_BACKGROUND,
+                _ => LapceTheme::PANEL_BACKGROUND,
+            };
+            ctx.fill(rect, data.config.get_color_unchecked(background));
 
             let text_layout = ctx
                 .text()
                 .new_text_layout(self.text.clone())
-                .font(FontFamily::SYSTEM_UI, data.config.editor.font_size as f64)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

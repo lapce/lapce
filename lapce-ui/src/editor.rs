@@ -5,9 +5,9 @@ use druid::TimerToken;
 use druid::{
     kurbo::{BezPath, Line},
     piet::{PietText, PietTextLayout, Text, TextLayout as _, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Env, Event, EventCtx, FontFamily,
-    InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, MouseEvent,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
+    BoxConstraints, Color, Command, Env, Event, EventCtx, InternalLifeCycle,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point,
+    Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
 };
 use lapce_core::buffer::DiffLines;
 use lapce_core::{
@@ -766,7 +766,10 @@ impl LapceEditor {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(placeholder.to_string())
-                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_DIM)
@@ -1537,7 +1540,10 @@ impl LapceEditor {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(diagnostic.diagnostic.message.clone())
-                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -1559,7 +1565,10 @@ impl LapceEditor {
                                 let text_layout = ctx
                                     .text()
                                     .new_text_layout(i.message.clone())
-                                    .font(FontFamily::SYSTEM_UI, 14.0)
+                                    .font(
+                                        data.config.ui.font_family(),
+                                        data.config.ui.font_size() as f64,
+                                    )
                                     .text_color(
                                         data.config
                                             .get_color_unchecked(

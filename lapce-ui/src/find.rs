@@ -179,12 +179,20 @@ impl Widget<LapceTabData> for FindBox {
         ctx.with_save(|ctx| {
             ctx.clip(rect.inset((100.0, 0.0, 100.0, 100.0)));
             let shadow_width = 5.0;
-            ctx.blurred_rect(
-                rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
+            if data.config.ui.drop_shadow() {
+                ctx.blurred_rect(
+                    rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            } else {
+                ctx.stroke(
+                    rect.inflate(0.5, 0.5),
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
+            }
         });
         ctx.fill(
             rect,

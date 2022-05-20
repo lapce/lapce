@@ -1,8 +1,8 @@
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontFamily,
-    FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
-    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt,
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontWeight,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext,
+    Size, Target, UpdateCtx, Widget, WidgetExt,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -39,7 +39,8 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
                 .boxed(),
             None,
             1.0,
-        );
+        )
+        .hide_border();
     LapcePanel::new(
         PanelKind::Search,
         data.search.widget_id,
@@ -213,7 +214,10 @@ impl Widget<LapceTabData> for SearchContent {
                 .new_text_layout(
                     path.file_name().unwrap().to_str().unwrap().to_string(),
                 )
-                .font(FontFamily::SYSTEM_UI, 13.0)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -248,7 +252,10 @@ impl Widget<LapceTabData> for SearchContent {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(folder)
-                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_DIM)
@@ -276,7 +283,10 @@ impl Widget<LapceTabData> for SearchContent {
                     let mut text_layout = ctx
                         .text()
                         .new_text_layout(format!("{line_number}: {line}"))
-                        .font(FontFamily::SYSTEM_UI, 13.0)
+                        .font(
+                            data.config.ui.font_family(),
+                            data.config.ui.font_size() as f64,
+                        )
                         .text_color(
                             data.config
                                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

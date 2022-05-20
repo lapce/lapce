@@ -2,9 +2,9 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use druid::{
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily,
-    InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, InternalLifeCycle,
+    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
+    Target, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -216,12 +216,15 @@ impl LapceTabNew {
                     let rect = tab_rect.rect.with_origin(self.mouse_pos - *offset);
                     let size = rect.size();
                     let shadow_width = 5.0;
-                    ctx.blurred_rect(
-                        rect,
-                        shadow_width,
-                        data.config
-                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-                    );
+                    if data.config.ui.drop_shadow() {
+                        ctx.blurred_rect(
+                            rect,
+                            shadow_width,
+                            data.config.get_color_unchecked(
+                                LapceTheme::LAPCE_DROPDOWN_SHADOW,
+                            ),
+                        );
+                    }
                     ctx.fill(
                         rect,
                         &data
@@ -1610,13 +1613,15 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
                         };
                         let rect = panel.layout_rect();
-                        ctx.blurred_rect(
-                            rect,
-                            5.0,
-                            data.config.get_color_unchecked(
-                                LapceTheme::LAPCE_DROPDOWN_SHADOW,
-                            ),
-                        );
+                        if data.config.ui.drop_shadow() {
+                            ctx.blurred_rect(
+                                rect,
+                                5.0,
+                                data.config.get_color_unchecked(
+                                    LapceTheme::LAPCE_DROPDOWN_SHADOW,
+                                ),
+                            );
+                        }
                         ctx.fill(rect, bg);
                         panel.paint(ctx, data, env);
                     }
@@ -1792,7 +1797,10 @@ impl Widget<LapceTabData> for LapceTabHeader {
         let text_layout = ctx
             .text()
             .new_text_layout(dir)
-            .font(FontFamily::SYSTEM_UI, 13.0)
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
             .text_color(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

@@ -2,7 +2,7 @@ use std::{iter::Iterator, path::PathBuf};
 
 use druid::{
     piet::{Text, TextLayout as TextLayoutTrait, TextLayoutBuilder},
-    BoxConstraints, Command, Env, Event, EventCtx, FontFamily, LayoutCtx, LifeCycle,
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetId,
 };
@@ -117,12 +117,14 @@ impl LapceEditorHeader {
         let shadow_width = 5.0;
         let size = ctx.size();
         let rect = size.to_rect();
-        ctx.blurred_rect(
-            rect,
-            shadow_width,
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        );
+        if data.config.ui.drop_shadow() {
+            ctx.blurred_rect(
+                rect,
+                shadow_width,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
+        }
         ctx.fill(
             rect,
             data.config
@@ -171,7 +173,10 @@ impl LapceEditorHeader {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(file_name)
-                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -204,7 +209,10 @@ impl LapceEditorHeader {
                     let text_layout = ctx
                         .text()
                         .new_text_layout(folder)
-                        .font(FontFamily::SYSTEM_UI, 13.0)
+                        .font(
+                            data.config.ui.font_family(),
+                            data.config.ui.font_size() as f64,
+                        )
                         .text_color(
                             data.config
                                 .get_color_unchecked(LapceTheme::EDITOR_DIM)

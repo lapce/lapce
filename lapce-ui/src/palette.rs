@@ -6,9 +6,9 @@ use druid::piet::{Svg, TextAttribute, TextLayout};
 use druid::{
     kurbo::Rect,
     piet::{Text, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
+    WidgetExt, WidgetId, WidgetPod,
 };
 use druid::{FontWeight, Modifiers};
 use lapce_data::command::LAPCE_COMMAND;
@@ -389,12 +389,20 @@ impl Widget<LapceTabData> for PaletteContainer {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let shadow_width = 5.0;
         let rect = self.content_size.to_rect();
-        ctx.blurred_rect(
-            rect,
-            shadow_width,
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        );
+        if data.config.ui.drop_shadow() {
+            ctx.blurred_rect(
+                rect,
+                shadow_width,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
+        } else {
+            ctx.stroke(
+                rect.inflate(0.5, 0.5),
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
+        }
         ctx.fill(
             rect,
             data.config
@@ -479,7 +487,10 @@ impl Widget<PaletteViewData> for NewPaletteInput {
         {
             ctx.text()
                 .new_text_layout("Enter your SSH details, like user@host")
-                .font(FontFamily::SYSTEM_UI, 14.0)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_DIM)
@@ -490,7 +501,10 @@ impl Widget<PaletteViewData> for NewPaletteInput {
         } else {
             ctx.text()
                 .new_text_layout(text)
-                .font(FontFamily::SYSTEM_UI, 14.0)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -655,7 +669,7 @@ impl NewPaletteContent {
         let mut text_layout = ctx
             .text()
             .new_text_layout(full_text.clone())
-            .font(FontFamily::SYSTEM_UI, 14.0)
+            .font(config.ui.font_family(), config.ui.font_size() as f64)
             .text_color(
                 config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

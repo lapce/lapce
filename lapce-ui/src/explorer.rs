@@ -3,9 +3,9 @@ use std::{collections::HashMap, path::Path};
 
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Cursor, Env, Event, EventCtx, FontFamily, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
+    Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::LapceUICommand,
@@ -113,7 +113,7 @@ pub fn paint_file_node_item(
                     .unwrap()
                     .to_string(),
             )
-            .font(FontFamily::SYSTEM_UI, 13.0)
+            .font(config.ui.font_family(), config.ui.font_size() as f64)
             .text_color(
                 config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -285,52 +285,6 @@ impl Widget<LapceTabData> for FileExplorer {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.file_list.paint(ctx, data, env);
-
-        //  let line_height = data.config.editor.line_height as f64;
-
-        //  let shadow_width = 5.0;
-        //  let rect = Size::new(ctx.size().width, line_height)
-        //      .to_rect()
-        //      .with_origin(Point::new(0.0, 0.0));
-        //  ctx.blurred_rect(
-        //      rect,
-        //      shadow_width,
-        //      data.config
-        //          .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        //  );
-        //  ctx.fill(
-        //      rect,
-        //      data.config
-        //          .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
-        //  );
-
-        //  let dir = data
-        //      .workspace
-        //      .path
-        //      .as_ref()
-        //      .map(|p| {
-        //          let dir = p.file_name().unwrap().to_str().unwrap();
-        //          let dir = match &data.workspace.kind {
-        //              LapceWorkspaceType::Local => dir.to_string(),
-        //              LapceWorkspaceType::RemoteSSH(user, host) => {
-        //                  format!("{} [{}@{}]", dir, user, host)
-        //              }
-        //          };
-        //          dir
-        //      })
-        //      .unwrap_or("Lapce".to_string());
-        //  let text_layout = ctx
-        //      .text()
-        //      .new_text_layout(dir)
-        //      .font(FontFamily::SYSTEM_UI, 13.0)
-        //      .text_color(
-        //          data.config
-        //              .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-        //              .clone(),
-        //      )
-        //      .build()
-        //      .unwrap();
-        //  ctx.draw_text(&text_layout, Point::new(20.0, 4.0));
     }
 }
 
