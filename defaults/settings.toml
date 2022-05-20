@@ -2,7 +2,6 @@
 modal = false
 color-theme = "Lapce Dark"
 icon-theme = ""
-terminal-shell = ""
 
 [editor]
 font-family = "Cascadia Code"
@@ -12,3 +11,9 @@ line-height = 25
 tab-width = 4
 show-tab = true
 hover-delay = 300 # ms
+
+[terminal]
+font-family = ""
+font-size = 0
+line-height = 0
+shell = ""

@@ -533,7 +533,7 @@ impl LapceTerminalData {
 
         let local_proxy = proxy.clone();
         let local_raw = raw.clone();
-        let shell = config.lapce.terminal_shell.clone();
+        let shell = config.terminal.shell.clone();
         std::thread::spawn(move || {
             local_proxy.new_terminal(term_id, cwd, shell, local_raw);
         });

@@ -12,7 +12,9 @@ use lapce_data::{
 use crate::logging::override_log_levels;
 use crate::window::LapceWindowNew;
 
+#[cfg(target_os = "linux")]
 const LOGO_PNG: &[u8] = include_bytes!("../../extra/images/logo.png");
+#[cfg(target_os = "windows")]
 const LOGO_ICO: &[u8] = include_bytes!("../../extra/windows/lapce.ico");
 
 pub fn build_window(data: &LapceWindowData) -> impl Widget<LapceData> {

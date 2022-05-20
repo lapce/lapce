@@ -1222,6 +1222,10 @@ impl Widget<LapceTabData> for LapceTabNew {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if old_data.config.id != data.config.id {
+            ctx.request_layout();
+        }
+
         if old_data.focus != data.focus {
             ctx.request_paint();
         }

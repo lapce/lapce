@@ -118,20 +118,18 @@ pub struct LapceConfig {
     pub modal: bool,
     #[field_names(desc = "Set the color theme of Lapce")]
     pub color_theme: String,
-    #[field_names(desc = "Set the terminal Shell")]
-    pub terminal_shell: String,
 }
 
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct EditorConfig {
-    #[field_names(desc = "Set the font family")]
+    #[field_names(desc = "Set the editor font family")]
     pub font_family: String,
-    #[field_names(desc = "Set the font size")]
+    #[field_names(desc = "Set the editor font size")]
     pub font_size: usize,
     #[field_names(desc = "Set the font size in the code lens")]
     pub code_lens_font_size: usize,
-    #[field_names(desc = "Set the line height")]
+    #[field_names(desc = "Set the editor line height")]
     pub line_height: usize,
     #[field_names(desc = "Set the tab width")]
     pub tab_width: usize,
@@ -147,6 +145,25 @@ impl EditorConfig {
     pub fn font_family(&self) -> FontFamily {
         FontFamily::new_unchecked(self.font_family.clone())
     }
+}
+
+#[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct TerminalConfig {
+    #[field_names(
+        desc = "Set the termainl font family. If empty, it uses editor font famliy."
+    )]
+    pub font_family: String,
+    #[field_names(
+        desc = "Set the terminal font size, If 0, it uses editor font size."
+    )]
+    pub font_size: usize,
+    #[field_names(
+        desc = "Set the terminal line height, If 0, it uses editor line height"
+    )]
+    pub line_height: usize,
+    #[field_names(desc = "Set the terminal Shell")]
+    pub shell: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -335,6 +352,7 @@ pub struct Config {
     pub id: u64,
     pub lapce: LapceConfig,
     pub editor: EditorConfig,
+    pub terminal: TerminalConfig,
     #[serde(skip)]
     pub themes: Themes,
     #[serde(skip)]
@@ -568,6 +586,30 @@ impl Config {
             "W",
         )
         .width
+    }
+
+    pub fn terminal_font_family(&self) -> FontFamily {
+        if self.terminal.font_family.is_empty() {
+            self.editor.font_family()
+        } else {
+            FontFamily::new_unchecked(self.terminal.font_family.clone())
+        }
+    }
+
+    pub fn terminal_font_size(&self) -> usize {
+        if self.terminal.font_size > 0 {
+            self.terminal.font_size
+        } else {
+            self.editor.font_size
+        }
+    }
+
+    pub fn terminal_line_height(&self) -> usize {
+        if self.terminal.line_height > 0 {
+            self.terminal.line_height
+        } else {
+            self.editor.line_height
+        }
     }
 
     /// Calculate the width of the character "W" (being the widest character)

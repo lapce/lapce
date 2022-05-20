@@ -20,7 +20,7 @@ use lapce_data::{
         CommandExecuted, CommandKind, LapceUICommand, LAPCE_COMMAND,
         LAPCE_UI_COMMAND,
     },
-    config::{EditorConfig, LapceConfig, LapceTheme},
+    config::{EditorConfig, LapceConfig, LapceTheme, TerminalConfig},
     data::{LapceEditorData, LapceTabData},
     document::{BufferContent, Document},
     keypress::KeyPressFocus,
@@ -39,6 +39,7 @@ use crate::{
 enum LapceSettingsKind {
     Core,
     Editor,
+    Terminal,
 }
 
 #[derive(Clone)]
@@ -93,6 +94,10 @@ impl LapceSettingsPanel {
             WidgetPod::new(LapceSettings::new_split(LapceSettingsKind::Core, data)),
             WidgetPod::new(LapceSettings::new_split(
                 LapceSettingsKind::Editor,
+                data,
+            )),
+            WidgetPod::new(LapceSettings::new_split(
+                LapceSettingsKind::Terminal,
                 data,
             )),
             WidgetPod::new(LapceKeymap::new_split(data)),
@@ -209,7 +214,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     }
                     LapceUICommand::ShowKeybindings => {
                         ctx.request_focus();
-                        self.active = 2;
+                        self.active = 3;
                     }
                     LapceUICommand::Hide => {
                         Arc::make_mut(&mut data.settings).shown = false;
@@ -364,8 +369,12 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
             );
 
-            const SETTINGS_SECTIONS: [&str; 3] =
-                ["Core Settings", "Editor Settings", "Keybindings"];
+            const SETTINGS_SECTIONS: [&str; 4] = [
+                "Core Settings",
+                "Editor Settings",
+                "Terminal Settings",
+                "Keybindings",
+            ];
 
             for (i, text) in SETTINGS_SECTIONS.into_iter().enumerate() {
                 let text_layout = ctx
@@ -506,6 +515,19 @@ impl LapceSettings {
                     "editor".to_string(),
                     EditorConfig::FIELDS.to_vec(),
                     EditorConfig::DESCS.to_vec(),
+                    settings,
+                )
+            }
+            LapceSettingsKind::Terminal => {
+                let settings: HashMap<String, serde_json::Value> =
+                    serde_json::from_value(
+                        serde_json::to_value(&data.config.terminal).unwrap(),
+                    )
+                    .unwrap();
+                (
+                    "terminal".to_string(),
+                    TerminalConfig::FIELDS.to_vec(),
+                    TerminalConfig::DESCS.to_vec(),
                     settings,
                 )
             }
@@ -1009,7 +1031,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         let text = ctx.text();
         let name = self.name(text, data).size();
         let desc = self.desc(text, data).size();
-        let mut height = name.height + desc.height + (self.padding * 2.0 * 2.0);
+        let mut height = name.height + desc.height + (self.padding * 3.0);
         height = height.round();
 
         if let Some(input) = self.input_widget.as_mut() {
@@ -1036,7 +1058,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         let text = self.name(text, data);
         y += padding;
         ctx.draw_text(text, Point::new(0.0, y));
-        y += text.size().height + padding;
+        y += text.size().height;
 
         y += padding;
         let x = if let serde_json::Value::Bool(checked) = self.value {

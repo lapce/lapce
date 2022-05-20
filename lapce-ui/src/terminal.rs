@@ -401,8 +401,8 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
         ctx.with_save(|ctx| {
             ctx.clip(clip_rect);
             let svg = get_svg("terminal.svg").unwrap();
-            let width = data.config.editor.font_size as f64;
-            let height = data.config.editor.font_size as f64;
+            let width = data.config.terminal_font_size() as f64;
+            let height = data.config.terminal_font_size() as f64;
             let rect = Size::new(width, height).to_rect().with_origin(Point::new(
                 (self.height - width) / 2.0,
                 (self.height - height) / 2.0,
@@ -582,7 +582,7 @@ impl Widget<LapceTabData> for LapceTerminal {
             self.width = size.width;
             self.height = size.height;
             let width = data.config.editor_char_width(ctx.text());
-            let line_height = data.config.editor.line_height as f64;
+            let line_height = data.config.terminal_line_height() as f64;
             let width = if width > 0.0 {
                 (self.width / width).floor() as usize
             } else {
@@ -601,7 +601,7 @@ impl Widget<LapceTabData> for LapceTerminal {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let char_size = data.config.editor_text_size(ctx.text(), "W");
         let char_width = char_size.width;
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.terminal_line_height() as f64;
         let y_shift = (line_height - char_size.height) / 2.0;
 
         let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
@@ -734,8 +734,8 @@ impl Widget<LapceTabData> for LapceTerminal {
                     .text()
                     .new_text_layout(cell.c.to_string())
                     .font(
-                        data.config.editor.font_family(),
-                        data.config.editor.font_size as f64,
+                        data.config.terminal_font_family(),
+                        data.config.terminal_font_size() as f64,
                     )
                     .text_color(fg);
                 if bold {
