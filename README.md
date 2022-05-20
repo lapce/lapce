@@ -52,6 +52,10 @@ The guidelines about contributing to Lapce can be found in
 ```sh
 sudo apt install cmake pkg-config libfontconfig-dev libgtk-3-dev
 ```
+#### Fedora
+```sh
+sudo dnf install gcc-c++ perl-FindBin perl-File-Compare gtk3-devel
+```
 ### Building
 ```sh
 cargo build --release
@@ -61,4 +65,5 @@ The compiled executable will be available at `target/release/lapce`
 ## Feedback
 
 * Chat on [Discord](https://discord.gg/n8tGJ6Rn6D)
+* Join the [Matrix Space](https://matrix.to/#/#lapce-editor:matrix.org)
 * Or join the discussion on [Reddit](https://www.reddit.com/r/lapce/)
