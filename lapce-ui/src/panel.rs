@@ -539,8 +539,8 @@ impl Widget<LapceTabData> for PanelMainHeader {
         data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        let height = 30.0;
-        let self_size = Size::new(bc.max().width, height);
+        let self_size =
+            Size::new(bc.max().width, data.config.ui.header_height() as f64);
         self.update_icons(self_size, data);
         self_size
     }

@@ -6,6 +6,7 @@ icon-theme = ""
 [ui]
 font-family = ""
 font-size = 13
+header-height = 30
 drop-shadow = true
 
 [editor]

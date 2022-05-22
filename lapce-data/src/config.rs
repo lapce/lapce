@@ -160,6 +160,10 @@ pub struct UIConfig {
     font_family: String,
     #[field_names(desc = "Set the ui base font size")]
     font_size: usize,
+    #[field_names(
+        desc = "Set the header height for panel header and editor tab header"
+    )]
+    header_height: usize,
     #[field_names(desc = "Controls if the UI uses drop shadow")]
     drop_shadow: bool,
 }
@@ -175,6 +179,11 @@ impl UIConfig {
 
     pub fn font_size(&self) -> usize {
         self.font_size.max(6).min(32)
+    }
+
+    pub fn header_height(&self) -> usize {
+        let font_size = self.font_size();
+        self.header_height.max(font_size)
     }
 
     pub fn drop_shadow(&self) -> bool {

@@ -1,7 +1,7 @@
 use std::{iter::Iterator, path::PathBuf};
 
 use druid::{
-    piet::{Text, TextLayout as TextLayoutTrait, TextLayoutBuilder},
+    piet::{Text, TextAttribute, TextLayout as TextLayoutTrait, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetId,
@@ -26,7 +26,6 @@ pub struct LapceEditorHeader {
     cross_rect: Rect,
     mouse_pos: Point,
     pub view_is_hot: bool,
-    height: f64,
     icon_size: f64,
     icons: Vec<LapceIcon>,
     svg_padding: f64,
@@ -40,7 +39,6 @@ impl LapceEditorHeader {
             cross_rect: Rect::ZERO,
             mouse_pos: Point::ZERO,
             view_is_hot: false,
-            height: 30.0,
             icon_size: 24.0,
             svg_padding: 4.0,
             icons: Vec::new(),
@@ -49,7 +47,7 @@ impl LapceEditorHeader {
 
     pub fn get_icons(&self, self_size: Size, data: &LapceTabData) -> Vec<LapceIcon> {
         let _data = data.editor_view_content(self.view_id);
-        let gap = (self.height - self.icon_size) / 2.0;
+        let gap = (data.config.ui.header_height() as f64 - self.icon_size) / 2.0;
 
         let mut icons = Vec::new();
         let x =
@@ -152,11 +150,15 @@ impl LapceEditorHeader {
                 ctx.clip(clip_rect);
                 let svg = file_svg_new(&path);
 
-                let width = 13.0;
-                let height = 13.0;
-                let rect = Size::new(width, height).to_rect().with_origin(
-                    Point::new((30.0 - width) / 2.0, (30.0 - height) / 2.0),
-                );
+                let font_size = data.config.ui.font_size() as f64;
+
+                let width = font_size;
+                let height = font_size;
+                let rect =
+                    Size::new(width, height).to_rect().with_origin(Point::new(
+                        (size.height - width) / 2.0,
+                        (size.height - height) / 2.0,
+                    ));
                 ctx.draw_svg(&svg, rect, None);
 
                 let mut file_name = path
@@ -170,28 +172,6 @@ impl LapceEditorHeader {
                 if let Some(_compare) = data.editor.compare.as_ref() {
                     file_name += " (Working tree)";
                 }
-                let text_layout = ctx
-                    .text()
-                    .new_text_layout(file_name)
-                    .font(
-                        data.config.ui.font_family(),
-                        data.config.ui.font_size() as f64,
-                    )
-                    .text_color(
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                            .clone(),
-                    )
-                    .build()
-                    .unwrap();
-                ctx.draw_text(
-                    &text_layout,
-                    Point::new(
-                        30.0,
-                        (size.height - text_layout.size().height) / 2.0,
-                    ),
-                );
-
                 if let Some(workspace_path) = workspace.path.as_ref() {
                     path = path
                         .strip_prefix(workspace_path)
@@ -204,30 +184,36 @@ impl LapceEditorHeader {
                     .unwrap_or("")
                     .to_string();
                 if !folder.is_empty() {
-                    let x = text_layout.size().width;
-
-                    let text_layout = ctx
-                        .text()
-                        .new_text_layout(folder)
-                        .font(
-                            data.config.ui.font_family(),
-                            data.config.ui.font_size() as f64,
-                        )
-                        .text_color(
+                    file_name = format!("{} {}", file_name, folder);
+                }
+                let total_len = file_name.len();
+                let mut text_layout = ctx
+                    .text()
+                    .new_text_layout(file_name)
+                    .font(data.config.ui.font_family(), font_size)
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    );
+                if !folder.is_empty() {
+                    text_layout = text_layout.range_attribute(
+                        total_len - folder.len()..total_len,
+                        TextAttribute::TextColor(
                             data.config
                                 .get_color_unchecked(LapceTheme::EDITOR_DIM)
                                 .clone(),
-                        )
-                        .build()
-                        .unwrap();
-                    ctx.draw_text(
-                        &text_layout,
-                        Point::new(
-                            30.0 + x + 5.0,
-                            (size.height - text_layout.size().height) / 2.0,
                         ),
                     );
                 }
+                let text_layout = text_layout.build().unwrap();
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(
+                        size.height,
+                        (size.height - text_layout.size().height) / 2.0,
+                    ),
+                );
             });
         }
 
@@ -311,7 +297,8 @@ impl Widget<LapceTabData> for LapceEditorHeader {
             && (!data.config.editor.show_tab
                 || self.view_id == data.palette.preview_editor)
         {
-            let size = Size::new(bc.max().width, self.height);
+            let size =
+                Size::new(bc.max().width, data.config.ui.header_height() as f64);
             self.icons = self.get_icons(size, data);
             let cross_size = 20.0;
             let padding = (size.height - cross_size) / 2.0;

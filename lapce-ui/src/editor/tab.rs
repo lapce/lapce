@@ -539,8 +539,9 @@ impl TabRectRenderer for TabRect {
         size: Size,
         mouse_pos: Point,
     ) {
-        let width = 13.0;
-        let height = 13.0;
+        let font_size = data.config.ui.font_size() as f64;
+        let width = font_size;
+        let height = font_size;
         let padding = 4.0;
         let editor_tab = data.main_split.editor_tabs.get(&widget_id).unwrap();
 
