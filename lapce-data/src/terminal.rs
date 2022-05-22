@@ -638,6 +638,13 @@ impl LapceTerminalData {
     }
 
     pub fn resolve_key_event(key: &KeyEvent) -> Option<&str> {
+        let mut key = key.clone();
+        key.mods = (Modifiers::ALT
+            | Modifiers::CONTROL
+            | Modifiers::SHIFT
+            | Modifiers::META)
+            & key.mods;
+
         // Generates a `Modifiers` value to check against.
         macro_rules! modifiers {
             (ctrl) => {
