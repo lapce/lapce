@@ -10,6 +10,7 @@ use xi_rope::Rope;
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
+    data::EditorDiagnostic,
     document::Document,
     proxy::LapceProxy,
     rich_text::{AttributesAdder, RichText, RichTextBuilder},
@@ -47,6 +48,8 @@ pub struct HoverData {
     pub active_item_index: usize,
     /// The hover items that are currently loaded
     pub items: Arc<Vec<RichText>>,
+    /// The text for the diagnostic(s) at the position
+    pub diagnostic_content: Option<RichText>,
 }
 
 impl HoverData {
@@ -65,6 +68,7 @@ impl HoverData {
 
             active_item_index: 0,
             items: Arc::new(Vec::new()),
+            diagnostic_content: None,
         }
     }
 
@@ -110,10 +114,11 @@ impl HoverData {
     /// Send a request to update the hover at the given position anad file
     #[allow(clippy::too_many_arguments)]
     pub fn request(
-        &self,
+        &mut self,
         proxy: Arc<LapceProxy>,
         request_id: usize,
         doc: Arc<Document>,
+        diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
         position: Position,
         hover_widget_id: WidgetId,
         event_sink: ExtEventSink,
@@ -122,6 +127,9 @@ impl HoverData {
         let buffer_id = doc.id();
         let syntax = doc.syntax().cloned();
 
+        // Clone config for use inside the proxy callback
+        let p_config = config.clone();
+        // Get the information/documentation that should be shown on hover
         proxy.get_hover(
             request_id,
             buffer_id,
@@ -129,7 +137,8 @@ impl HoverData {
             Box::new(move |result| {
                 if let Ok(resp) = result {
                     if let Ok(resp) = serde_json::from_value::<Hover>(resp) {
-                        let items = parse_hover_resp(syntax.as_ref(), resp, &config);
+                        let items =
+                            parse_hover_resp(syntax.as_ref(), resp, &p_config);
 
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
@@ -140,6 +149,8 @@ impl HoverData {
                 }
             }),
         );
+
+        self.collect_diagnostics(position, diagnostics, config);
     }
 
     /// Receive the result of a hover request
@@ -153,6 +164,73 @@ impl HoverData {
 
         self.status = HoverStatus::Done;
         self.items = items;
+    }
+
+    fn collect_diagnostics(
+        &mut self,
+        position: Position,
+        diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
+        config: Arc<Config>,
+    ) {
+        if let Some(diagnostics) = diagnostics {
+            let diagnostics = diagnostics
+                .iter()
+                .map(|diag| &diag.diagnostic)
+                .filter(|diag| {
+                    position >= diag.range.start && position < diag.range.end
+                });
+
+            // Get the dim foreground color for extra information about the error that is typically
+            // not significant
+            let dim_color =
+                config.get_color_unchecked(LapceTheme::EDITOR_DIM).clone();
+
+            // Build up the text for all the diagnostics
+            let mut content = RichTextBuilder::new();
+            for diagnostic in diagnostics {
+                content.push(&diagnostic.message);
+
+                // If there's a source of the message (ex: it came from rustc or rust-analyzer)
+                // then include that
+                if let Some(source) = &diagnostic.source {
+                    content.push(" ");
+                    content.push(source).text_color(dim_color.clone());
+
+                    // If there's an available error code then include that
+                    if let Some(code) = &diagnostic.code {
+                        // TODO: code description field has information like documentation on the
+                        // error code which could be useful to provide as a link
+
+                        // formatted as  diagsource(code)
+                        content.push("(").text_color(dim_color.clone());
+                        match code {
+                            lsp_types::NumberOrString::Number(v) => {
+                                content
+                                    .push(&v.to_string())
+                                    .text_color(dim_color.clone());
+                            }
+                            lsp_types::NumberOrString::String(v) => {
+                                content
+                                    .push(v.as_str())
+                                    .text_color(dim_color.clone());
+                            }
+                        }
+                        content.push(")").text_color(dim_color.clone());
+                    }
+                }
+
+                // TODO: The Related information field has data that can give better insight into
+                // the causes of the error
+                // (ex: The place where a variable was moved into when the 'main' error is at where
+                // you tried using it. This would work the best with some way to link to files)
+
+                content.push("\n");
+            }
+
+            self.diagnostic_content = Some(content.build());
+        } else {
+            self.diagnostic_content = None;
+        }
     }
 }
 

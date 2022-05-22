@@ -505,6 +505,9 @@ impl LapceEditorBufferData {
             return;
         }
 
+        // Get the diagnostics for when we make the request
+        let diagnostics = self.diagnostics().map(Arc::clone);
+
         let mut hover = Arc::make_mut(&mut self.hover);
 
         if hover.status != HoverStatus::Inactive
@@ -527,6 +530,7 @@ impl LapceEditorBufferData {
             self.proxy.clone(),
             hover.request_id,
             self.doc.clone(),
+            diagnostics,
             self.doc.buffer().offset_to_position(start_offset),
             hover.id,
             event_sink,
