@@ -2970,7 +2970,7 @@ dependencies = [
 [[package]]
 name = "parley"
 version = "0.1.0"
-source = "git+https://github.com/lapce/parley#eb4a912c722c826af2ba8d4cd65c1377a9a916f2"
+source = "git+https://github.com/lapce/parley#bdbaecfbbd913b1b8f1b2bfc6fbd8c5e92bc0700"
 dependencies = [
  "fount",
  "swash",
