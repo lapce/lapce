@@ -411,6 +411,7 @@ impl ScrollComponentNew {
     pub fn calc_vertical_bar_bounds(
         &self,
         port: &ViewportNew,
+        config: &Config,
         env: &Env,
     ) -> Option<Rect> {
         let viewport_size = port.rect.size();
@@ -421,7 +422,7 @@ impl ScrollComponentNew {
             return None;
         }
 
-        let bar_width = env.get(theme::SCROLLBAR_WIDTH);
+        let bar_width = config.ui.scroll_width() as f64;
         let bar_pad = env.get(theme::SCROLLBAR_PAD);
 
         let percent_visible = viewport_size.height / content_size.height;
@@ -449,6 +450,7 @@ impl ScrollComponentNew {
     pub fn calc_horizontal_bar_bounds(
         &self,
         port: &ViewportNew,
+        config: &Config,
         env: &Env,
     ) -> Option<Rect> {
         let viewport_size = port.rect.size();
@@ -462,7 +464,7 @@ impl ScrollComponentNew {
         let bar_width = if viewport_size.height < 40.0 {
             5.0
         } else {
-            env.get(theme::SCROLLBAR_WIDTH)
+            config.ui.scroll_width() as f64
         };
         let bar_pad = env.get(theme::SCROLLBAR_PAD);
 
@@ -523,14 +525,14 @@ impl ScrollComponentNew {
         let edge_width = env.get(theme::SCROLLBAR_EDGE_WIDTH);
 
         // Vertical bar
-        if let Some(bounds) = self.calc_vertical_bar_bounds(port, env) {
+        if let Some(bounds) = self.calc_vertical_bar_bounds(port, config, env) {
             let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
             ctx.render_ctx.fill(rect, &brush);
             ctx.render_ctx.stroke(rect, &border_brush, edge_width);
         }
 
         // Horizontal bar
-        if let Some(bounds) = self.calc_horizontal_bar_bounds(port, env) {
+        if let Some(bounds) = self.calc_horizontal_bar_bounds(port, config, env) {
             let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
             ctx.render_ctx.fill(rect, &brush);
             ctx.render_ctx.stroke(rect, &border_brush, edge_width);
@@ -544,12 +546,13 @@ impl ScrollComponentNew {
         &self,
         port: &ViewportNew,
         pos: Point,
+        config: &Config,
         env: &Env,
     ) -> bool {
         let viewport_size = port.rect.size();
         let scroll_offset = port.rect.origin().to_vec2();
 
-        if let Some(mut bounds) = self.calc_vertical_bar_bounds(port, env) {
+        if let Some(mut bounds) = self.calc_vertical_bar_bounds(port, config, env) {
             // Stretch hitbox to edge of widget
             bounds.x1 = scroll_offset.x + viewport_size.width;
             bounds.contains(pos)
@@ -565,12 +568,14 @@ impl ScrollComponentNew {
         &self,
         port: &ViewportNew,
         pos: Point,
+        config: &Config,
         env: &Env,
     ) -> bool {
         let viewport_size = port.rect.size();
         let scroll_offset = port.rect.origin().to_vec2();
 
-        if let Some(mut bounds) = self.calc_horizontal_bar_bounds(port, env) {
+        if let Some(mut bounds) = self.calc_horizontal_bar_bounds(port, config, env)
+        {
             // Stretch hitbox to edge of widget
             bounds.y1 = scroll_offset.y + viewport_size.height;
             bounds.contains(pos)
@@ -587,6 +592,7 @@ impl ScrollComponentNew {
         port: &mut ViewportNew,
         ctx: &mut EventCtx,
         event: &Event,
+        config: &Config,
         env: &Env,
     ) {
         let viewport_size = port.rect.size();
@@ -596,8 +602,8 @@ impl ScrollComponentNew {
         let scrollbar_is_hovered = match event {
             Event::MouseMove(e) | Event::MouseUp(e) | Event::MouseDown(e) => {
                 let offset_pos = e.pos + scroll_offset;
-                self.point_hits_vertical_bar(port, offset_pos, env)
-                    || self.point_hits_horizontal_bar(port, offset_pos, env)
+                self.point_hits_vertical_bar(port, offset_pos, config, env)
+                    || self.point_hits_horizontal_bar(port, offset_pos, config, env)
             }
             _ => false,
         };
@@ -647,9 +653,11 @@ impl ScrollComponentNew {
             match event {
                 Event::MouseMove(event) => {
                     let offset_pos = event.pos + scroll_offset;
-                    if self.point_hits_vertical_bar(port, offset_pos, env) {
+                    if self.point_hits_vertical_bar(port, offset_pos, config, env) {
                         self.hovered = BarHoveredState::Vertical;
-                    } else if self.point_hits_horizontal_bar(port, offset_pos, env) {
+                    } else if self
+                        .point_hits_horizontal_bar(port, offset_pos, config, env)
+                    {
                         self.hovered = BarHoveredState::Horizontal;
                     } else {
                     }
@@ -662,14 +670,15 @@ impl ScrollComponentNew {
                 Event::MouseDown(event) => {
                     let pos = event.pos + scroll_offset;
 
-                    if self.point_hits_vertical_bar(port, pos, env) {
+                    if self.point_hits_vertical_bar(port, pos, config, env) {
                         ctx.set_active(true);
                         self.held = BarHeldState::Vertical(
                             // The bounds must be non-empty, because the point hits the scrollbar.
                             event.pos.y,
                             scroll_offset,
                         );
-                    } else if self.point_hits_horizontal_bar(port, pos, env) {
+                    } else if self.point_hits_horizontal_bar(port, pos, config, env)
+                    {
                         ctx.set_active(true);
                         self.held = BarHeldState::Horizontal(
                             // The bounds must be non-empty, because the point hits the scrollbar.
@@ -860,7 +869,7 @@ impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
         let scroll_component = &mut self.scroll_component;
         self.clip.with_port(|port| {
-            scroll_component.event(port, ctx, event, env);
+            scroll_component.event(port, ctx, event, data.get_config(), env);
         });
         if !ctx.is_handled() {
             self.clip.event(ctx, event, data, env);

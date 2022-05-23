@@ -33,10 +33,11 @@ impl Widget<LapceTabData> for ActivityBar {
         data: &mut LapceTabData,
         _env: &Env,
     ) {
+        let width = data.config.ui.activity_width() as f64;
         match event {
             Event::MouseDown(mouse) => {
                 if mouse.button.is_left() {
-                    let index = (mouse.pos.y / 50.0) as usize;
+                    let index = (mouse.pos.y / width) as usize;
                     if let Some(panel) = data.panels.get_mut(&PanelPosition::LeftTop)
                     {
                         if let Some(kind) = panel.widgets.get(index) {
@@ -73,7 +74,7 @@ impl Widget<LapceTabData> for ActivityBar {
                     .get(&PanelPosition::LeftTop)
                     .map(|panel| panel.widgets.len())
                     .unwrap_or(0);
-                if n > 0 && mouse.pos.y < 50.0 * n as f64 {
+                if n > 0 && mouse.pos.y < width * n as f64 {
                     ctx.set_cursor(&Cursor::Pointer);
                 } else {
                     ctx.clear_cursor();
@@ -105,16 +106,15 @@ impl Widget<LapceTabData> for ActivityBar {
         &mut self,
         _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        _data: &LapceTabData,
+        data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        Size::new(50.0, bc.max().height)
+        Size::new(data.config.ui.activity_width() as f64, bc.max().height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        let rect = ctx.size().to_rect();
-
-        let size = 50.0;
+        let size = ctx.size();
+        let rect = size.to_rect();
 
         let shadow_width = 5.0;
         if data.config.ui.drop_shadow() {
@@ -142,7 +142,7 @@ impl Widget<LapceTabData> for ActivityBar {
                 let svg = get_svg(kind.svg_name()).unwrap();
                 if &panel.active == kind && panel.shown {
                     ctx.fill(
-                        Size::new(size, size)
+                        Size::new(size.width, size.width)
                             .to_rect()
                             .with_origin(Point::new(0.0, offset)),
                         data.config
@@ -154,11 +154,11 @@ impl Widget<LapceTabData> for ActivityBar {
                     Size::new(svg_size, svg_size)
                         .to_rect()
                         .with_origin(Point::new(
-                            (size - svg_size) / 2.0,
-                            (size - svg_size) / 2.0 + offset,
+                            (size.width - svg_size) / 2.0,
+                            (size.width - svg_size) / 2.0 + offset,
                         ));
                 ctx.draw_svg(&svg, rect, Some(&svg_color));
-                offset += size;
+                offset += size.width;
             }
         }
     }

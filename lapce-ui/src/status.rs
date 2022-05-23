@@ -14,7 +14,6 @@ use lapce_data::{
 use crate::{svg::get_svg, tab::LapceIcon};
 
 pub struct LapceStatusNew {
-    height: f64,
     panel_icons: Vec<LapceIcon>,
     mouse_pos: Point,
     icon_size: f64,
@@ -23,7 +22,6 @@ pub struct LapceStatusNew {
 impl LapceStatusNew {
     pub fn new() -> Self {
         Self {
-            height: 25.0,
             panel_icons: Vec::new(),
             mouse_pos: Point::ZERO,
             icon_size: 13.0,
@@ -226,7 +224,8 @@ impl Widget<LapceTabData> for LapceStatusNew {
         data: &LapceTabData,
         _env: &druid::Env,
     ) -> Size {
-        let self_size = Size::new(bc.max().width, self.height);
+        let self_size =
+            Size::new(bc.max().width, data.config.ui.status_height() as f64);
         self.panel_icons = self.panel_icons(self_size, data);
         self_size
     }

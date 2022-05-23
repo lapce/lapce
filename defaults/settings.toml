@@ -7,6 +7,9 @@ icon-theme = ""
 font-family = ""
 font-size = 13
 header-height = 30
+status-height = 25
+activity-width = 50
+scroll-width = 10
 drop-shadow = true
 
 [editor]
