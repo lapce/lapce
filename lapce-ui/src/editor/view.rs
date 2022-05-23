@@ -656,7 +656,12 @@ impl Widget<LapceTabData> for LapceEditorView {
             find.update(ctx, data, env);
         }
 
-        if old_data.config.lapce.modal != data.config.lapce.modal {
+        let old_editor_data = old_data.editor_view_content(self.view_id);
+        let editor_data = data.editor_view_content(self.view_id);
+
+        if old_data.config.lapce.modal != data.config.lapce.modal
+            && !editor_data.doc.content().is_input()
+        {
             if !data.config.lapce.modal {
                 ctx.submit_command(Command::new(
                     LAPCE_COMMAND,
@@ -677,8 +682,6 @@ impl Widget<LapceTabData> for LapceEditorView {
                 ));
             }
         }
-        let old_editor_data = old_data.editor_view_content(self.view_id);
-        let editor_data = data.editor_view_content(self.view_id);
 
         if let Some(syntax) = editor_data.doc.syntax() {
             if syntax.line_height != data.config.editor.line_height
