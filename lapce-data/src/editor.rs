@@ -1224,6 +1224,12 @@ impl LapceEditorBufferData {
                         Target::Widget(self.palette.widget_id),
                     ));
                 }
+                if self.has_completions() {
+                    self.cancel_completion();
+                }
+                if self.has_hover() {
+                    self.cancel_hover();
+                }
             }
             SplitVertical => {
                 self.main_split.split_editor(
