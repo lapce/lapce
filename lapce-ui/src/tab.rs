@@ -983,7 +983,7 @@ impl LapceTabNew {
 
                         ctx.set_handled();
                     }
-                    LapceUICommand::ShowCodeActions
+                    LapceUICommand::ShowCodeActions(_)
                     | LapceUICommand::CancelCodeActions => {
                         self.code_action.event(ctx, event, data, env);
                     }

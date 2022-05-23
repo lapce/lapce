@@ -20,13 +20,13 @@ use uuid::Uuid;
 use crate::command::CommandKind;
 use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::document::BufferContent;
+use crate::editor::EditorLocationNew;
 use crate::{
     command::LAPCE_UI_COMMAND,
     command::{CommandExecuted, LAPCE_COMMAND},
     command::{LapceCommand, LapceUICommand},
     config::Config,
     data::{FocusArea, LapceMainSplitData, LapceTabData, PanelKind},
-    editor::EditorLocationNew,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
     proxy::LapceProxy,

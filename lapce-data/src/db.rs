@@ -157,7 +157,11 @@ impl EditorTabChildInfo {
                     config,
                     event_sink,
                 );
-                EditorTabChild::Editor(editor_data.view_id, editor_data.find_view_id)
+                EditorTabChild::Editor(
+                    editor_data.view_id,
+                    editor_data.editor_id,
+                    editor_data.find_view_id,
+                )
             }
         }
     }
@@ -255,6 +259,7 @@ impl EditorInfo {
         event_sink: ExtEventSink,
     ) -> LapceEditorData {
         let editor_data = LapceEditorData::new(
+            None,
             None,
             Some(editor_tab_id),
             self.content.clone(),

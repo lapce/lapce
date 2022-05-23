@@ -2,7 +2,7 @@ use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext,
-    Size, Target, UpdateCtx, Widget, WidgetExt,
+    Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -26,7 +26,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
         .editors
         .get(&data.search.editor_view_id)
         .unwrap();
-    let input = LapceEditorView::new(editor_data.view_id, None)
+    let input = LapceEditorView::new(editor_data.view_id, WidgetId::next(), None)
         .hide_header()
         .hide_gutter()
         .padding((15.0, 15.0));

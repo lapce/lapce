@@ -263,7 +263,7 @@ impl Widget<LapceTabData> for CodeAction {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
-                    LapceUICommand::ShowCodeActions => {
+                    LapceUICommand::ShowCodeActions(_) => {
                         data.main_split.show_code_actions = true;
                         data.main_split.current_code_actions = 0;
                         ctx.request_focus();

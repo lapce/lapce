@@ -26,11 +26,12 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
         .editors
         .get(&data.source_control.editor_view_id)
         .unwrap();
-    let input = LapceEditorView::new(editor_data.view_id, None)
-        .hide_header()
-        .hide_gutter()
-        .set_placeholder("Commit Message".to_string())
-        .padding((15.0, 15.0));
+    let input =
+        LapceEditorView::new(editor_data.view_id, editor_data.editor_id, None)
+            .hide_header()
+            .hide_gutter()
+            .set_placeholder("Commit Message".to_string())
+            .padding((15.0, 15.0));
     let content = SourceControlFileList::new(data.source_control.file_list_id);
     LapcePanel::new(
         PanelKind::SourceControl,

@@ -17,7 +17,7 @@ use lapce_core::{
     movement::Movement,
 };
 use lapce_data::command::CommandKind;
-use lapce_data::data::EditorView;
+use lapce_data::data::{EditorView, LapceData};
 use lapce_data::document::{BufferContent, LocalBufferKind};
 use lapce_data::keypress::KeyPressFocus;
 use lapce_data::{
@@ -30,7 +30,7 @@ use lapce_data::{
     menu::MenuItem,
     panel::PanelPosition,
 };
-use lsp_types::DiagnosticSeverity;
+use lsp_types::{CodeActionOrCommand, DiagnosticSeverity};
 
 pub mod container;
 pub mod gutter;
@@ -42,6 +42,7 @@ pub mod view;
 
 pub struct LapceEditor {
     view_id: WidgetId,
+    editor_id: WidgetId,
     placeholder: Option<String>,
 
     mouse_pos: Point,
@@ -52,9 +53,10 @@ pub struct LapceEditor {
 }
 
 impl LapceEditor {
-    pub fn new(view_id: WidgetId) -> Self {
+    pub fn new(view_id: WidgetId, editor_id: WidgetId) -> Self {
         Self {
             view_id,
+            editor_id,
             placeholder: None,
             mouse_pos: Point::ZERO,
             mouse_hover_timer: TimerToken::INVALID,
@@ -1688,6 +1690,10 @@ impl LapceEditor {
 }
 
 impl Widget<LapceTabData> for LapceEditor {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.editor_id)
+    }
+
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -1749,6 +1755,57 @@ impl Widget<LapceTabData> for LapceEditor {
                         &data.config,
                     );
                     data.update_from_editor_buffer_data(editor_data, &editor, &doc);
+                }
+            }
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let cmd = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                if let LapceUICommand::ShowCodeActions(point) = cmd {
+                    let editor_data = data.editor_view_content(self.view_id);
+                    if let Some(actions) = editor_data.current_code_actions() {
+                        if !actions.is_empty() {
+                            let mut menu = druid::Menu::new("");
+
+                            for action in actions.iter() {
+                                let title = match action {
+                                    CodeActionOrCommand::Command(c) => {
+                                        c.title.clone()
+                                    }
+                                    CodeActionOrCommand::CodeAction(a) => {
+                                        a.title.clone()
+                                    }
+                                };
+                                let mut item = druid::MenuItem::new(title);
+                                item = item.command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::RunCodeAction(action.clone()),
+                                    Target::Widget(editor_data.view_id),
+                                ));
+                                menu = menu.entry(item);
+                            }
+
+                            let point = point.unwrap_or_else(|| {
+                                let offset = editor_data.editor.new_cursor.offset();
+                                let (line, col) = editor_data
+                                    .doc
+                                    .buffer()
+                                    .offset_to_line_col(offset);
+                                let x = editor_data
+                                    .doc
+                                    .point_of_line_col(
+                                        ctx.text(),
+                                        line,
+                                        col,
+                                        editor_data.config.editor.font_size,
+                                        &editor_data.config,
+                                    )
+                                    .x;
+                                let y = editor_data.config.editor.line_height as f64
+                                    * (line + 1) as f64;
+                                ctx.to_window(Point::new(x, y))
+                            });
+                            ctx.show_context_menu::<LapceData>(menu, point);
+                        }
+                    }
                 }
             }
             _ => (),

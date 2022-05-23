@@ -239,10 +239,11 @@ impl PaletteContainer {
             .editors
             .get(&data.palette.preview_editor)
             .unwrap();
-        let input = LapceEditorView::new(data.palette.input_editor, None)
-            .hide_header()
-            .hide_gutter()
-            .padding(10.0);
+        let input =
+            LapceEditorView::new(data.palette.input_editor, WidgetId::next(), None)
+                .hide_header()
+                .hide_gutter()
+                .padding(10.0);
         let content = LapceIdentityWrapper::wrap(
             LapceScrollNew::new(
                 NewPaletteContent::new().lens(PaletteViewLens).boxed(),
@@ -250,7 +251,8 @@ impl PaletteContainer {
             .vertical(),
             data.palette.scroll_id,
         );
-        let preview = LapceEditorView::new(preview_editor.view_id, None);
+        let preview =
+            LapceEditorView::new(preview_editor.view_id, WidgetId::next(), None);
         Self {
             content_size: Size::ZERO,
             input: WidgetPod::new(input.boxed()),

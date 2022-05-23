@@ -22,11 +22,11 @@ pub struct LapceEditorContainer {
 }
 
 impl LapceEditorContainer {
-    pub fn new(view_id: WidgetId) -> Self {
+    pub fn new(view_id: WidgetId, editor_id: WidgetId) -> Self {
         let scroll_id = WidgetId::next();
         let gutter = LapceEditorGutter::new(view_id);
         let gutter = LapcePadding::new((10.0, 0.0, 0.0, 0.0), gutter);
-        let editor = LapceEditor::new(view_id);
+        let editor = LapceEditor::new(view_id, editor_id);
         let editor = LapceIdentityWrapper::wrap(
             LapceScrollNew::new(editor).vertical().horizontal(),
             scroll_id,

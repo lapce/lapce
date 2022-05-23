@@ -5,12 +5,10 @@ use druid::{
     LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
     Widget, WidgetId,
 };
-use lapce_core::{buffer::DiffLines, command::FocusCommand};
+use lapce_core::buffer::DiffLines;
 use lapce_data::{
-    command::{
-        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
-    },
-    config::{Config, LapceTheme},
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::LapceTheme,
     data::{EditorView, LapceTabData},
     editor::{LapceEditorBufferData, Syntax},
 };
@@ -51,15 +49,20 @@ impl Widget<LapceTabData> for LapceEditorGutter {
                         if rect.contains(self.mouse_down_pos)
                             && rect.contains(mouse_event.pos)
                         {
+                            let line_height = data.config.editor.line_height as f64;
+                            let offset = data.editor.new_cursor.offset();
+                            let (line, _) =
+                                data.doc.buffer().offset_to_line_col(offset);
                             ctx.submit_command(Command::new(
-                                LAPCE_COMMAND,
-                                LapceCommand {
-                                    kind: CommandKind::Focus(
-                                        FocusCommand::ShowCodeActions,
-                                    ),
-                                    data: None,
-                                },
-                                Target::Widget(*data.main_split.tab_id),
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ShowCodeActions(Some(
+                                    ctx.to_window(Point::new(
+                                        rect.x0,
+                                        (line + 1) as f64 * line_height
+                                            - data.editor.scroll_offset.y,
+                                    )),
+                                )),
+                                Target::Widget(data.editor.editor_id),
                             ))
                         }
                     }

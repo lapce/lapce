@@ -350,7 +350,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             let mut text = "".to_string();
             let mut svg = get_svg("default_file.svg").unwrap();
             match child {
-                EditorTabChild::Editor(view_id, _) => {
+                EditorTabChild::Editor(view_id, _, _) => {
                     let editor = data.main_split.editors.get(view_id).unwrap();
                     if let BufferContent::File(path) = &editor.content {
                         svg = file_svg_new(path);

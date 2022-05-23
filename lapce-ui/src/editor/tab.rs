@@ -53,7 +53,7 @@ impl LapceEditorTab {
         let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
         for child in editor_tab.children.iter() {
             match child {
-                EditorTabChild::Editor(view_id, _) => {
+                EditorTabChild::Editor(view_id, _, _) => {
                     data.main_split.editors.remove(view_id);
                 }
             }
@@ -121,7 +121,7 @@ impl LapceEditorTab {
         };
         if delete {
             match removed_child {
-                EditorTabChild::Editor(view_id, _) => {
+                EditorTabChild::Editor(view_id, _, _) => {
                     data.main_split.editors.remove(&view_id);
                 }
             }
@@ -597,7 +597,7 @@ impl TabRectRenderer for TabRect {
         if !(ctx.is_hot() && self.rect.contains(mouse_pos)) {
             // See if any of the children are dirty
             let is_pristine = match &editor_tab.children[i] {
-                EditorTabChild::Editor(editor_id, _) => {
+                EditorTabChild::Editor(editor_id, _, _) => {
                     let doc = data.main_split.editor_doc(*editor_id);
                     doc.buffer().is_pristine()
                 }

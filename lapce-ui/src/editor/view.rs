@@ -39,8 +39,8 @@ pub fn editor_tab_child_widget(
     child: &EditorTabChild,
 ) -> Box<dyn Widget<LapceTabData>> {
     match child {
-        EditorTabChild::Editor(view_id, find_view_id) => {
-            LapceEditorView::new(*view_id, *find_view_id).boxed()
+        EditorTabChild::Editor(view_id, editor_id, find_view_id) => {
+            LapceEditorView::new(*view_id, *editor_id, *find_view_id).boxed()
         }
     }
 }
@@ -48,12 +48,15 @@ pub fn editor_tab_child_widget(
 impl LapceEditorView {
     pub fn new(
         view_id: WidgetId,
-        find_view_id: Option<WidgetId>,
+        editor_id: WidgetId,
+        find_view_id: Option<(WidgetId, WidgetId)>,
     ) -> LapceEditorView {
         let header = LapceEditorHeader::new(view_id);
-        let editor = LapceEditorContainer::new(view_id);
-        let find =
-            find_view_id.map(|id| WidgetPod::new(FindBox::new(id, view_id)).boxed());
+        let editor = LapceEditorContainer::new(view_id, editor_id);
+        let find = find_view_id.map(|(find_view_id, find_editor_id)| {
+            WidgetPod::new(FindBox::new(find_view_id, find_editor_id, view_id))
+                .boxed()
+        });
         Self {
             view_id,
             header: WidgetPod::new(header),
@@ -152,6 +155,9 @@ impl LapceEditorView {
         env: &Env,
     ) {
         match cmd {
+            LapceUICommand::RunCodeAction(action) => {
+                data.run_code_action(action);
+            }
             LapceUICommand::EnsureCursorVisible(position) => {
                 self.ensure_cursor_visible(
                     ctx,

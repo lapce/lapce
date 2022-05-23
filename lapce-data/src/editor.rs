@@ -43,6 +43,12 @@ use lapce_core::mode::{Mode, MotionMode};
 pub use lapce_core::syntax::Syntax;
 use lsp_types::CodeActionOrCommand;
 use lsp_types::CompletionTextEdit;
+use lsp_types::DocumentChangeOperation;
+use lsp_types::DocumentChanges;
+use lsp_types::OneOf;
+use lsp_types::TextEdit;
+use lsp_types::Url;
+use lsp_types::WorkspaceEdit;
 use lsp_types::{
     CodeActionResponse, CompletionItem, DiagnosticSeverity, GotoDefinitionResponse,
     Location, Position,
@@ -216,6 +222,53 @@ impl LapceEditorBufferData {
 
     fn has_hover(&self) -> bool {
         self.hover.status != HoverStatus::Inactive && !self.hover.is_empty()
+    }
+
+    pub fn run_code_action(&mut self, action: &CodeActionOrCommand) {
+        if let BufferContent::File(path) = &self.editor.content {
+            match action {
+                CodeActionOrCommand::Command(_cmd) => {}
+                CodeActionOrCommand::CodeAction(action) => {
+                    if let Some(edit) = action.edit.as_ref() {
+                        if let Some(edits) = workspce_edits(edit) {
+                            if let Some(edits) =
+                                edits.get(&Url::from_file_path(&path).unwrap())
+                            {
+                                let path = path.clone();
+                                let doc = self
+                                    .main_split
+                                    .open_docs
+                                    .get_mut(&path)
+                                    .unwrap();
+                                let edits: Vec<(
+                                    lapce_core::selection::Selection,
+                                    &str,
+                                )> = edits
+                                    .iter()
+                                    .map(|edit| {
+                                        let selection =
+                                            lapce_core::selection::Selection::region(
+                                                doc.buffer().offset_of_position(
+                                                    &edit.range.start,
+                                                ),
+                                                doc.buffer().offset_of_position(
+                                                    &edit.range.end,
+                                                ),
+                                            );
+                                        (selection, edit.new_text.as_str())
+                                    })
+                                    .collect();
+                                self.main_split.edit(
+                                    &path,
+                                    &edits,
+                                    lapce_core::editor::EditType::Other,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub fn apply_completion_item(&mut self, item: &CompletionItem) -> Result<()> {
@@ -1628,36 +1681,11 @@ impl LapceEditorBufferData {
                 ));
             }
             ShowCodeActions => {
-                if let Some(actions) = self.current_code_actions() {
-                    if !actions.is_empty() {
-                        let mut menu = druid::Menu::new("");
-
-                        for action in actions.iter() {
-                            let title = match action {
-                                CodeActionOrCommand::Command(c) => c.title.clone(),
-                                CodeActionOrCommand::CodeAction(a) => {
-                                    a.title.clone()
-                                }
-                            };
-                            let mut item = druid::MenuItem::new(title);
-                            item = item.command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::RunCodeAction(action.clone()),
-                                Target::Widget(*self.main_split.tab_id),
-                            ));
-                            menu = menu.entry(item);
-                        }
-                        let offset = self.editor.new_cursor.offset();
-                        let point = self.doc.point_of_offset(
-                            ctx.text(),
-                            offset,
-                            self.config.editor.font_size,
-                            &self.config,
-                        );
-                        let point = ctx.to_window(point);
-                        ctx.show_context_menu::<LapceData>(menu, point);
-                    }
-                }
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ShowCodeActions(None),
+                    Target::Widget(self.editor.editor_id),
+                ));
             }
             GotoDefinition => {
                 let offset = self.editor.new_cursor.offset();
@@ -1819,7 +1847,7 @@ impl LapceEditorBufferData {
                         Target::Widget(*self.main_split.tab_id),
                     ));
                 }
-                if let Some(find_view_id) = self.editor.find_view_id {
+                if let Some((find_view_id, _)) = self.editor.find_view_id {
                     ctx.submit_command(Command::new(
                         LAPCE_COMMAND,
                         LapceCommand {
@@ -2088,4 +2116,46 @@ fn process_get_references(
         Target::Auto,
     );
     Ok(())
+}
+
+fn workspce_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> {
+    if let Some(changes) = edit.changes.as_ref() {
+        return Some(changes.clone());
+    }
+
+    let changes = edit.document_changes.as_ref()?;
+    let edits = match changes {
+        DocumentChanges::Edits(edits) => edits
+            .iter()
+            .map(|e| {
+                (
+                    e.text_document.uri.clone(),
+                    e.edits
+                        .iter()
+                        .map(|e| match e {
+                            OneOf::Left(e) => e.clone(),
+                            OneOf::Right(e) => e.text_edit.clone(),
+                        })
+                        .collect(),
+                )
+            })
+            .collect::<HashMap<Url, Vec<TextEdit>>>(),
+        DocumentChanges::Operations(ops) => ops
+            .iter()
+            .filter_map(|o| match o {
+                DocumentChangeOperation::Op(_op) => None,
+                DocumentChangeOperation::Edit(e) => Some((
+                    e.text_document.uri.clone(),
+                    e.edits
+                        .iter()
+                        .map(|e| match e {
+                            OneOf::Left(e) => e.clone(),
+                            OneOf::Right(e) => e.text_edit.clone(),
+                        })
+                        .collect(),
+                )),
+            })
+            .collect::<HashMap<Url, Vec<TextEdit>>>(),
+    };
+    Some(edits)
 }
