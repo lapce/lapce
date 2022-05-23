@@ -800,43 +800,6 @@ impl LapceTabData {
         }
     }
 
-    pub fn code_action_origin(
-        &self,
-        text: &mut PietText,
-        _tab_size: Size,
-        config: &Config,
-    ) -> Point {
-        let line_height = self.config.editor.line_height as f64;
-        let editor = self.main_split.active_editor();
-        let editor = match editor {
-            Some(editor) => editor,
-            None => return Point::ZERO,
-        };
-
-        match &editor.content {
-            BufferContent::Local(_) => {
-                *editor.window_origin.borrow()
-                    - self.window_origin.borrow().to_vec2()
-            }
-            BufferContent::Value(_) => {
-                *editor.window_origin.borrow()
-                    - self.window_origin.borrow().to_vec2()
-            }
-            BufferContent::File(_) | BufferContent::Scratch(_) => {
-                let doc = self.main_split.editor_doc(editor.view_id);
-                let offset = editor.new_cursor.offset();
-                let (line, col) = doc.buffer().offset_to_line_col(offset);
-                let width = config.editor_char_width(text);
-                let x = col as f64 * width;
-                let y = (line + 1) as f64 * line_height;
-
-                *editor.window_origin.borrow()
-                    - self.window_origin.borrow().to_vec2()
-                    + Vec2::new(x, y)
-            }
-        }
-    }
-
     pub fn completion_origin(
         &self,
         text: &mut PietText,
@@ -1798,8 +1761,6 @@ pub struct LapceMainSplitData {
     pub register: Arc<Register>,
     pub proxy: Arc<LapceProxy>,
     pub palette_preview_editor: Arc<WidgetId>,
-    pub show_code_actions: bool,
-    pub current_code_actions: usize,
     pub diagnostics: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
     pub error_count: usize,
     pub warning_count: usize,
@@ -2447,8 +2408,6 @@ impl LapceMainSplitData {
             current_save_as: None,
             proxy,
             palette_preview_editor: Arc::new(palette_preview_editor),
-            show_code_actions: false,
-            current_code_actions: 0,
             diagnostics: im::HashMap::new(),
             error_count: 0,
             warning_count: 0,

@@ -36,13 +36,12 @@ use serde::Deserialize;
 use xi_rope::Rope;
 
 use crate::{
-    activity::ActivityBar, alert::AlertBox, code_action::CodeAction,
-    completion::CompletionContainer, explorer::FileExplorer, hover::HoverContainer,
-    palette::NewPalette, picker::FilePicker, plugin::Plugin,
-    problem::new_problem_panel, search::new_search_panel,
-    settings::LapceSettingsPanel, source_control::new_source_control_panel,
-    split::split_data_widget, status::LapceStatusNew, svg::get_svg,
-    terminal::TerminalPanel,
+    activity::ActivityBar, alert::AlertBox, completion::CompletionContainer,
+    explorer::FileExplorer, hover::HoverContainer, palette::NewPalette,
+    picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
+    search::new_search_panel, settings::LapceSettingsPanel,
+    source_control::new_source_control_panel, split::split_data_widget,
+    status::LapceStatusNew, svg::get_svg, terminal::TerminalPanel,
 };
 
 pub struct LapceIcon {
@@ -64,7 +63,6 @@ pub struct LapceTabNew {
     completion: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     hover: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     palette: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
-    code_action: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     picker: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     settings: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
@@ -92,7 +90,6 @@ impl LapceTabNew {
         let hover = HoverContainer::new(&data.hover);
         let palette = NewPalette::new(data);
         let status = LapceStatusNew::new();
-        let code_action = CodeAction::new();
 
         let mut panels = HashMap::new();
         let file_explorer = FileExplorer::new_panel(data);
@@ -131,7 +128,6 @@ impl LapceTabNew {
             main_split: WidgetPod::new(main_split.boxed()),
             completion: WidgetPod::new(completion.boxed()),
             hover: WidgetPod::new(hover.boxed()),
-            code_action: WidgetPod::new(code_action.boxed()),
             picker: WidgetPod::new(picker.boxed()),
             palette: WidgetPod::new(palette.boxed()),
             status: WidgetPod::new(status.boxed()),
@@ -983,10 +979,6 @@ impl LapceTabNew {
 
                         ctx.set_handled();
                     }
-                    LapceUICommand::ShowCodeActions(_)
-                    | LapceUICommand::CancelCodeActions => {
-                        self.code_action.event(ctx, event, data, env);
-                    }
                     LapceUICommand::Focus => {
                         let dir = data
                             .workspace
@@ -1148,7 +1140,6 @@ impl Widget<LapceTabData> for LapceTabNew {
         {
             self.hover.event(ctx, event, data, env);
         }
-        self.code_action.event(ctx, event, data, env);
 
         if !event.should_propagate_to_hidden() && !ctx.is_handled() {
             self.handle_event(ctx, event, data, env);
@@ -1205,7 +1196,6 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.palette.lifecycle(ctx, event, data, env);
         self.activity.lifecycle(ctx, event, data, env);
         self.main_split.lifecycle(ctx, event, data, env);
-        self.code_action.lifecycle(ctx, event, data, env);
         self.status.lifecycle(ctx, event, data, env);
         self.completion.lifecycle(ctx, event, data, env);
         self.hover.lifecycle(ctx, event, data, env);
@@ -1270,7 +1260,6 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.main_split.update(ctx, data, env);
         self.completion.update(ctx, data, env);
         self.hover.update(ctx, data, env);
-        self.code_action.update(ctx, data, env);
         self.status.update(ctx, data, env);
         self.picker.update(ctx, data, env);
         self.settings.update(ctx, data, env);
@@ -1543,14 +1532,6 @@ impl Widget<LapceTabData> for LapceTabNew {
             self.hover.set_origin(ctx, data, env, hover_origin);
         }
 
-        if data.main_split.show_code_actions {
-            let code_action_origin =
-                data.code_action_origin(ctx.text(), self_size, &data.config);
-            self.code_action.layout(ctx, bc, data, env);
-            self.code_action
-                .set_origin(ctx, data, env, code_action_origin);
-        }
-
         if data.palette.status != PaletteStatus::Inactive {
             let palette_size = self.palette.layout(ctx, bc, data, env);
             self.palette.set_origin(
@@ -1654,7 +1635,6 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.status.paint(ctx, data, env);
         self.completion.paint(ctx, data, env);
         self.hover.paint(ctx, data, env);
-        self.code_action.paint(ctx, data, env);
         self.palette.paint(ctx, data, env);
         self.picker.paint(ctx, data, env);
         self.settings.paint(ctx, data, env);

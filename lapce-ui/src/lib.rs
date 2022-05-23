@@ -1,7 +1,6 @@
 pub mod activity;
 pub mod alert;
 pub mod app;
-pub mod code_action;
 pub mod completion;
 pub mod editor;
 pub mod explorer;
