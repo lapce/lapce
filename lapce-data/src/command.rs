@@ -407,7 +407,6 @@ pub enum LapceUICommand {
     CancelPalette,
     RunCodeAction(CodeActionOrCommand),
     ShowCodeActions(Option<Point>),
-    CancelCodeActions,
     Hide,
     ResignFocus,
     Focus,
