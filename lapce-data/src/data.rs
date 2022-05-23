@@ -2862,7 +2862,7 @@ impl LapceMainSplitData {
         if let Some(editor_tab_id) = editor.tab_id {
             let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
             let split_id = editor_tab.split;
-            let mut new_editor = editor.copy(WidgetId::next());
+            let mut new_editor = editor.copy();
             let mut new_editor_tab = LapceEditorTabData {
                 widget_id: WidgetId::next(),
                 split: split_id,
@@ -2916,12 +2916,14 @@ pub enum InlineFindDirection {
 #[derive(Clone, Debug, PartialEq)]
 pub enum EditorTabChild {
     Editor(WidgetId, WidgetId, Option<(WidgetId, WidgetId)>),
+    // Settings(WidgetId),
 }
 
 impl EditorTabChild {
     pub fn widget_id(&self) -> WidgetId {
         match &self {
             EditorTabChild::Editor(widget_id, _, _) => *widget_id,
+            // EditorTabChild::Settings(_) => todo!(),
         }
     }
 
@@ -2930,7 +2932,7 @@ impl EditorTabChild {
             EditorTabChild::Editor(view_id, _, _) => {
                 let editor_data = data.main_split.editors.get(view_id).unwrap();
                 EditorTabChildInfo::Editor(editor_data.editor_info(data))
-            }
+            } // EditorTabChild::Settings(_) => todo!(),
         }
     }
 
@@ -2940,7 +2942,7 @@ impl EditorTabChild {
                 let editor_data = data.main_split.editors.get_mut(view_id).unwrap();
                 let editor_data = Arc::make_mut(editor_data);
                 editor_data.tab_id = Some(editor_tab_id);
-            }
+            } // EditorTabChild::Settings(_) => todo!(),
         }
     }
 }
@@ -3050,9 +3052,10 @@ impl LapceEditorData {
         }
     }
 
-    pub fn copy(&self, new_view_id: WidgetId) -> LapceEditorData {
+    pub fn copy(&self) -> LapceEditorData {
         let mut new_editor = self.clone();
-        new_editor.view_id = new_view_id;
+        new_editor.view_id = WidgetId::next();
+        new_editor.editor_id = WidgetId::next();
         new_editor.find_view_id = new_editor
             .find_view_id
             .map(|_| (WidgetId::next(), WidgetId::next()));
