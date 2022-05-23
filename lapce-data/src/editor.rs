@@ -4,6 +4,7 @@ use crate::command::LAPCE_SAVE_FILE_AS;
 use crate::command::{CommandExecuted, CommandKind};
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::Config;
+use crate::data::LapceData;
 use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     SplitContent,
@@ -40,6 +41,7 @@ use lapce_core::command::{
 };
 use lapce_core::mode::{Mode, MotionMode};
 pub use lapce_core::syntax::Syntax;
+use lsp_types::CodeActionOrCommand;
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
     CodeActionResponse, CompletionItem, DiagnosticSeverity, GotoDefinitionResponse,
@@ -1628,11 +1630,32 @@ impl LapceEditorBufferData {
             ShowCodeActions => {
                 if let Some(actions) = self.current_code_actions() {
                     if !actions.is_empty() {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::ShowCodeActions,
-                            Target::Auto,
-                        ));
+                        let mut menu = druid::Menu::new("");
+
+                        for action in actions.iter() {
+                            let title = match action {
+                                CodeActionOrCommand::Command(c) => c.title.clone(),
+                                CodeActionOrCommand::CodeAction(a) => {
+                                    a.title.clone()
+                                }
+                            };
+                            let mut item = druid::MenuItem::new(title);
+                            item = item.command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::RunCodeAction(action.clone()),
+                                Target::Widget(*self.main_split.tab_id),
+                            ));
+                            menu = menu.entry(item);
+                        }
+                        let offset = self.editor.new_cursor.offset();
+                        let point = self.doc.point_of_offset(
+                            ctx.text(),
+                            offset,
+                            self.config.editor.font_size,
+                            &self.config,
+                        );
+                        let point = ctx.to_window(point);
+                        ctx.show_context_menu::<LapceData>(menu, point);
                     }
                 }
             }

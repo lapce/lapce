@@ -194,6 +194,7 @@ impl LapceEditor {
         match mouse_event.button {
             MouseButton::Left => {
                 self.left_click(ctx, mouse_event, editor_data, config);
+                editor_data.get_code_actions(ctx);
                 editor_data.cancel_completion();
                 // TODO: Don't cancel over here, because it would good to allow the user to
                 // select text inside the hover data
@@ -202,6 +203,7 @@ impl LapceEditor {
             MouseButton::Right => {
                 self.mouse_hover_timer = TimerToken::INVALID;
                 self.right_click(ctx, editor_data, mouse_event, config);
+                editor_data.get_code_actions(ctx);
                 editor_data.cancel_completion();
                 editor_data.cancel_hover();
             }

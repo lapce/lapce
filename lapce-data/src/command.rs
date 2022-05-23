@@ -13,8 +13,8 @@ use lapce_rpc::{
     source_control::DiffInfo, style::Style, terminal::TermId,
 };
 use lsp_types::{
-    CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
-    ProgressParams, PublishDiagnosticsParams, TextEdit,
+    CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
+    Location, Position, ProgressParams, PublishDiagnosticsParams, TextEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
@@ -405,6 +405,7 @@ pub enum LapceUICommand {
     UpdateHover(usize, Arc<Vec<RichText>>),
     UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,
+    RunCodeAction(CodeActionOrCommand),
     ShowCodeActions,
     CancelCodeActions,
     Hide,
