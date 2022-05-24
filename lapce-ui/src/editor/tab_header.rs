@@ -94,8 +94,9 @@ impl LapceEditorTabHeader {
         let mut svg = get_svg("default_file.svg").unwrap();
         match child {
             EditorTabChild::Editor(view_id, _, _) => {
-                let editor = data.main_split.editors.get(view_id).unwrap();
-                if let BufferContent::File(path) = &editor.content {
+                let editor_buffer = data.editor_view_content(*view_id);
+
+                if let BufferContent::File(path) = &editor_buffer.editor.content {
                     svg = file_svg_new(path);
                     if let Some(file_name) = path.file_name() {
                         if let Some(s) = file_name.to_str() {
@@ -114,8 +115,16 @@ impl LapceEditorTabHeader {
                         .and_then(|s| s.to_str())
                         .unwrap_or("")
                         .to_string();
-                } else if let BufferContent::Scratch(_) = &editor.content {
-                    text = editor.content.file_name().to_string();
+                } else if let BufferContent::Scratch(_) =
+                    &editor_buffer.editor.content
+                {
+                    text = editor_buffer.editor.content.file_name().to_string();
+                }
+                if !editor_buffer.doc.buffer().is_pristine() {
+                    text = format!("*{text}");
+                }
+                if let Some(_compare) = editor_buffer.editor.compare.as_ref() {
+                    text = format!("{text} (Working tree)");
                 }
             }
             EditorTabChild::Settings(_, _) => {
