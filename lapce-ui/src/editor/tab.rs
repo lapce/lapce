@@ -471,6 +471,8 @@ impl Widget<LapceTabData> for LapceEditorTab {
         );
 
         self.header.paint(ctx, data, env);
+        let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+        self.children[tab.active].paint(ctx, data, env);
         if ctx.is_hot() && data.drag.is_some() {
             let width = size.width;
             let header_rect = self.header.layout_rect();
@@ -520,8 +522,6 @@ impl Widget<LapceTabData> for LapceEditorTab {
                 );
             }
         }
-        let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
-        self.children[tab.active].paint(ctx, data, env);
     }
 }
 

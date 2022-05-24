@@ -1,7 +1,9 @@
+use std::time::Duration;
+
 use druid::{
     kurbo::Line, BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx,
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetId, WidgetPod,
+    Target, TimerToken, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
@@ -58,13 +60,29 @@ impl LapceEditorTabHeader {
             }
         }
     }
+
+    fn ensure_active_visible<F>(
+        &mut self,
+        data: &LapceTabData,
+        request_timer: F,
+        env: &Env,
+    ) where
+        F: FnOnce(Duration) -> TimerToken,
+    {
+        let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+        let active = editor_tab.active;
+        if active < self.content.widget().child().rects.len() {
+            let rect = self.content.widget().child().rects[active].rect;
+            if self.content.widget_mut().scroll_to_visible(rect, env) {
+                self.content
+                    .widget_mut()
+                    .reset_scrollbar_fade(|d| request_timer(d), env);
+            }
+        }
+    }
 }
 
 impl Widget<LapceTabData> for LapceEditorTabHeader {
-    fn id(&self) -> Option<WidgetId> {
-        Some(self.widget_id)
-    }
-
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -84,22 +102,6 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event);
-            }
-            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
-                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                if let LapceUICommand::EnsureEditorTabActiveVisble = command {
-                    let editor_tab =
-                        data.main_split.editor_tabs.get(&self.widget_id).unwrap();
-                    let active = editor_tab.active;
-                    if active < self.content.widget().child().rects.len() {
-                        let rect = self.content.widget().child().rects[active].rect;
-                        if self.content.widget_mut().scroll_to_visible(rect, env) {
-                            self.content
-                                .widget_mut()
-                                .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
-                        }
-                    }
-                }
             }
             _ => (),
         }
@@ -123,10 +125,24 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        _old_data: &LapceTabData,
+        old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
+        let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+        let old_editor_tab = old_data
+            .main_split
+            .editor_tabs
+            .get(&self.widget_id)
+            .unwrap();
+        if editor_tab.active != old_editor_tab.active {
+            let scroll_id = self.content.id();
+            self.ensure_active_visible(
+                data,
+                |d| ctx.request_timer(d, Some(scroll_id)),
+                env,
+            );
+        }
         self.content.update(ctx, data, env);
     }
 

@@ -131,7 +131,7 @@ impl LapceEditor {
                 Target::Widget(editor_data.view_id),
             ));
 
-            self.drag_timer = ctx.request_timer(Duration::from_millis(16));
+            self.drag_timer = ctx.request_timer(Duration::from_millis(16), None);
             return true;
         }
 
@@ -180,8 +180,10 @@ impl LapceEditor {
             && is_inside
             && within_scroll
         {
-            self.mouse_hover_timer =
-                ctx.request_timer(Duration::from_millis(config.editor.hover_delay));
+            self.mouse_hover_timer = ctx.request_timer(
+                Duration::from_millis(config.editor.hover_delay),
+                None,
+            );
         }
     }
 

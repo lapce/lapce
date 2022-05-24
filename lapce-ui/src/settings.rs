@@ -804,7 +804,8 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                     if rect.contains(mouse_event.pos) {
                         self.value = serde_json::json!(!checked);
                         self.value_changed = true;
-                        self.last_idle_timer = ctx.request_timer(Self::SAVE_DELAY);
+                        self.last_idle_timer =
+                            ctx.request_timer(Self::SAVE_DELAY, None);
                     }
                 }
             }
@@ -900,7 +901,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
 
                     self.value = new_value;
                     self.value_changed = true;
-                    self.last_idle_timer = ctx.request_timer(Self::SAVE_DELAY);
+                    self.last_idle_timer = ctx.request_timer(Self::SAVE_DELAY, None);
                 }
             }
         }

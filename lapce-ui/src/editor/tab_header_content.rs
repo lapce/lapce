@@ -93,7 +93,10 @@ impl LapceEditorTabHeaderContent {
                     .unwrap();
                 let editor_tab = Arc::make_mut(editor_tab);
 
-                if editor_tab.active != tab_idx {
+                if *data.main_split.active_tab != Some(self.widget_id)
+                    || editor_tab.active != tab_idx
+                {
+                    data.main_split.active_tab = Arc::new(Some(self.widget_id));
                     editor_tab.active = tab_idx;
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,

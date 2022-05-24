@@ -641,7 +641,10 @@ impl ScrollComponentNew {
 
                     if !scrollbar_is_hovered {
                         self.hovered = BarHoveredState::None;
-                        self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                        self.reset_scrollbar_fade(
+                            |d| ctx.request_timer(d, None),
+                            env,
+                        );
                     }
 
                     ctx.set_handled();
@@ -742,7 +745,7 @@ impl ScrollComponentNew {
             if let Event::Wheel(mouse) = event {
                 if port.pan_by(mouse.wheel_delta.round()) {}
                 ctx.request_paint();
-                self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                self.reset_scrollbar_fade(|d| ctx.request_timer(d, None), env);
                 ctx.set_handled();
             }
         }
@@ -759,12 +762,12 @@ impl ScrollComponentNew {
     ) {
         match event {
             LifeCycle::HotChanged(_) => {
-                self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                self.reset_scrollbar_fade(|d| ctx.request_timer(d, None), env);
             }
             LifeCycle::Size(_) => {
                 // Show the scrollbars any time our size changes
                 ctx.request_paint();
-                self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                self.reset_scrollbar_fade(|d| ctx.request_timer(d, None), env);
             }
             _ => (),
         }
@@ -884,7 +887,7 @@ impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 if let LapceUICommand::ResetFade = command {
                     scroll_component
-                        .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                        .reset_scrollbar_fade(|d| ctx.request_timer(d, None), env);
                 }
             }
             _ => (),
@@ -924,7 +927,7 @@ impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
         let _ = self.scroll_by(Vec2::ZERO);
         if old_viewport != self.clip.port {
             self.scroll_component
-                .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                .reset_scrollbar_fade(|d| ctx.request_timer(d, None), env);
         }
 
         self_size

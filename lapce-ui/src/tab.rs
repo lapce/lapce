@@ -221,14 +221,20 @@ impl LapceTabNew {
                                 LapceTheme::LAPCE_DROPDOWN_SHADOW,
                             ),
                         );
+                    } else {
+                        ctx.stroke(
+                            rect.inflate(0.5, 0.5),
+                            data.config
+                                .get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                            1.0,
+                        );
                     }
                     ctx.fill(
                         rect,
                         &data
                             .config
                             .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                            .clone()
-                            .with_alpha(0.6),
+                            .clone(),
                     );
 
                     let width = 13.0;
