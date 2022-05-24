@@ -2171,6 +2171,11 @@ impl LapceMainSplitData {
                     Arc::make_mut(self.editor_tabs.get_mut(&active).unwrap());
                 for (i, child) in editor_tab.children.iter().enumerate() {
                     if let EditorTabChild::Settings(_, _) = child {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(active),
+                        ));
                         editor_tab.active = i;
                         return;
                     }
@@ -2192,6 +2197,13 @@ impl LapceMainSplitData {
                 let editor_tab_id = self.new_editor_tab(ctx, *self.split_id);
                 self.editor_tab_new_settings(ctx, editor_tab_id);
             }
+        }
+        if let Some(active) = *self.active_tab {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(active),
+            ));
         }
     }
 
