@@ -1,5 +1,6 @@
 use crate::{
     editor::{tab::LapceEditorTab, view::LapceEditorView},
+    settings::LapceSettingsPanel,
     terminal::LapceTerminalView,
 };
 use std::sync::Arc;
@@ -67,6 +68,15 @@ pub fn split_content_widget(
                         )
                         .boxed();
                         editor_tab = editor_tab.with_child(editor);
+                    }
+                    EditorTabChild::Settings(widget_id, editor_tab_id) => {
+                        let settings = LapceSettingsPanel::new(
+                            data,
+                            *widget_id,
+                            *editor_tab_id,
+                        )
+                        .boxed();
+                        editor_tab = editor_tab.with_child(settings);
                     }
                 }
             }
@@ -528,7 +538,7 @@ impl LapceSplitNew {
                     Arc::make_mut(panel).shown = false;
                 }
             }
-            if let Some(active) = *data.main_split.active {
+            if let Some(active) = *data.main_split.active_tab {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,

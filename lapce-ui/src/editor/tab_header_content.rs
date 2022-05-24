@@ -218,6 +218,7 @@ impl LapceEditorTabHeaderContent {
                 return;
             }
 
+            let mut child = child.clone();
             child.set_editor_tab(data, editor_tab.widget_id);
             let editor_tab = data
                 .main_split
@@ -362,6 +363,9 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     } else if let BufferContent::Scratch(_) = &editor.content {
                         text = editor.content.file_name().to_string();
                     }
+                }
+                EditorTabChild::Settings(_, _) => {
+                    text = "Settings".to_string();
                 }
             }
             let text_layout = ctx

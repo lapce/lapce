@@ -26,6 +26,7 @@ use crate::{
         container::LapceEditorContainer, header::LapceEditorHeader, LapceEditor,
     },
     find::FindBox,
+    settings::LapceSettingsPanel,
 };
 
 pub struct LapceEditorView {
@@ -37,10 +38,14 @@ pub struct LapceEditorView {
 
 pub fn editor_tab_child_widget(
     child: &EditorTabChild,
+    data: &LapceTabData,
 ) -> Box<dyn Widget<LapceTabData>> {
     match child {
         EditorTabChild::Editor(view_id, editor_id, find_view_id) => {
             LapceEditorView::new(*view_id, *editor_id, *find_view_id).boxed()
+        }
+        EditorTabChild::Settings(widget_id, editor_tab_id) => {
+            LapceSettingsPanel::new(data, *widget_id, *editor_tab_id).boxed()
         }
     }
 }

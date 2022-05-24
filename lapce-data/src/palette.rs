@@ -447,7 +447,7 @@ impl PaletteViewData {
         palette.palette_type = PaletteType::File;
         palette.items.clear();
         palette.filtered_items.clear();
-        if let Some(active) = *self.main_split.active {
+        if let Some(active) = *self.main_split.active_tab {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::Focus,

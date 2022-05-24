@@ -135,6 +135,7 @@ impl EditorTabInfo {
 #[derive(Clone, Serialize, Deserialize)]
 pub enum EditorTabChildInfo {
     Editor(EditorInfo),
+    Settings,
 }
 
 impl EditorTabChildInfo {
@@ -162,6 +163,9 @@ impl EditorTabChildInfo {
                     editor_data.editor_id,
                     editor_data.find_view_id,
                 )
+            }
+            EditorTabChildInfo::Settings => {
+                EditorTabChild::Settings(WidgetId::next(), editor_tab_id)
             }
         }
     }

@@ -56,6 +56,7 @@ impl LapceEditorTab {
                 EditorTabChild::Editor(view_id, _, _) => {
                     data.main_split.editors.remove(view_id);
                 }
+                EditorTabChild::Settings(_, _) => {}
             }
         }
         ctx.submit_command(Command::new(
@@ -124,6 +125,7 @@ impl LapceEditorTab {
                 EditorTabChild::Editor(view_id, _, _) => {
                     data.main_split.editors.remove(&view_id);
                 }
+                EditorTabChild::Settings(_, _) => {}
             }
         }
     }
@@ -193,6 +195,7 @@ impl LapceEditorTab {
                                     layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                                     content_is_hot: Rc::new(RefCell::new(false)),
                                 };
+                                let mut child = child.clone();
                                 child.set_editor_tab(data, new_editor_tab.widget_id);
 
                                 let new_split_id = data.main_split.split(
@@ -240,6 +243,7 @@ impl LapceEditorTab {
                                 if from_id == &self.widget_id {
                                     return;
                                 }
+                                let mut child = child.clone();
                                 child.set_editor_tab(data, self.widget_id);
                                 let editor_tab = data
                                     .main_split
@@ -307,7 +311,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
                     LapceUICommand::EditorTabAdd(index, content) => {
                         self.children.insert(
                             *index,
-                            WidgetPod::new(editor_tab_child_widget(content)),
+                            WidgetPod::new(editor_tab_child_widget(content, data)),
                         );
                         ctx.children_changed();
                         return;
@@ -354,29 +358,33 @@ impl Widget<LapceTabData> for LapceEditorTab {
                             data.main_split.editor_tabs.get(&self.widget_id)
                         {
                             let active = &tab.children[tab.active];
-                            let EditorTabChildInfo::Editor(info) =
-                                active.child_info(data);
-
-                            if info.content
-                                == BufferContent::Local(LocalBufferKind::Empty)
-                            {
-                                // File has not yet been loaded, most likely.
-                                return;
-                            }
-
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::ActiveFileChanged {
-                                    path: if let BufferContent::File(path) =
-                                        info.content
+                            match active.child_info(data) {
+                                EditorTabChildInfo::Editor(info) => {
+                                    if info.content
+                                        == BufferContent::Local(
+                                            LocalBufferKind::Empty,
+                                        )
                                     {
-                                        Some(path)
-                                    } else {
-                                        None
-                                    },
-                                },
-                                Target::Widget(data.file_explorer.widget_id),
-                            ));
+                                        // File has not yet been loaded, most likely.
+                                        return;
+                                    }
+
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::ActiveFileChanged {
+                                            path: if let BufferContent::File(path) =
+                                                info.content
+                                            {
+                                                Some(path)
+                                            } else {
+                                                None
+                                            },
+                                        },
+                                        Target::Widget(data.file_explorer.widget_id),
+                                    ));
+                                }
+                                EditorTabChildInfo::Settings => {}
+                            }
                             return;
                         }
                     }
@@ -601,6 +609,7 @@ impl TabRectRenderer for TabRect {
                     let doc = data.main_split.editor_doc(*editor_id);
                     doc.buffer().is_pristine()
                 }
+                EditorTabChild::Settings(_, _) => true,
             };
 
             if !is_pristine {

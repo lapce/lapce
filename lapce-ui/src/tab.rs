@@ -118,7 +118,8 @@ impl LapceTabNew {
 
         let picker = FilePicker::new(data);
 
-        let settings = LapceSettingsPanel::new(data);
+        let settings =
+            LapceSettingsPanel::new(data, WidgetId::next(), WidgetId::next());
 
         let alert = AlertBox::new(data);
 
@@ -1027,7 +1028,7 @@ impl LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::FocusEditor => {
-                        if let Some(active) = *data.main_split.active {
+                        if let Some(active) = *data.main_split.active_tab {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::Focus,
@@ -1118,9 +1119,6 @@ impl Widget<LapceTabData> for LapceTabNew {
 
         if data.alert.active || event.should_propagate_to_hidden() {
             self.alert.event(ctx, event, data, env);
-        }
-        if data.settings.shown || event.should_propagate_to_hidden() {
-            self.settings.event(ctx, event, data, env);
         }
         if data.picker.active || event.should_propagate_to_hidden() {
             self.picker.event(ctx, event, data, env);
@@ -1244,10 +1242,6 @@ impl Widget<LapceTabData> for LapceTabNew {
         }
 
         if !old_data.config.same(&data.config) {
-            ctx.request_layout();
-        }
-
-        if old_data.settings.shown != data.settings.shown {
             ctx.request_layout();
         }
 
@@ -1553,11 +1547,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                     (self_size.height - picker_size.height) / 3.0,
                 ),
             );
-        }
-
-        if data.settings.shown {
-            self.settings.layout(ctx, bc, data, env);
-            self.settings.set_origin(ctx, data, env, Point::ZERO);
         }
 
         if data.alert.active {
