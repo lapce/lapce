@@ -1029,14 +1029,7 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::OpenSettings => {
-                self.main_split.open_settings(ctx);
-                // let settings = Arc::make_mut(&mut self.settings);
-                // settings.shown = true;
-                // ctx.submit_command(Command::new(
-                //     LAPCE_UI_COMMAND,
-                //     LapceUICommand::ShowSettings,
-                //     Target::Widget(self.settings.panel_widget_id),
-                // ));
+                self.main_split.open_settings(ctx, false);
             }
             LapceWorkbenchCommand::OpenSettingsFile => {
                 if let Some(path) = Config::settings_file() {
@@ -1054,11 +1047,7 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::OpenKeyboardShortcuts => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::ShowKeybindings,
-                    Target::Widget(self.settings.panel_widget_id),
-                ));
+                self.main_split.open_settings(ctx, true);
             }
             LapceWorkbenchCommand::OpenKeyboardShortcutsFile => {
                 if let Some(path) = KeyPressData::file() {
@@ -2011,11 +2000,12 @@ impl LapceMainSplitData {
         &mut self,
         _ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
-    ) {
+    ) -> WidgetId {
         let editor_tab = self.editor_tabs.get_mut(&editor_tab_id).unwrap();
         let editor_tab = Arc::make_mut(editor_tab);
         let child = EditorTabChild::Settings(WidgetId::next(), editor_tab_id);
         editor_tab.children.push(child.clone());
+        child.widget_id()
     }
 
     fn editor_tab_new_editor(
@@ -2164,45 +2154,63 @@ impl LapceMainSplitData {
         }
     }
 
-    pub fn open_settings(&mut self, ctx: &mut EventCtx) {
-        match *self.active_tab {
+    pub fn open_settings(&mut self, ctx: &mut EventCtx, show_key_bindings: bool) {
+        let widget_id = match *self.active_tab {
             Some(active) => {
                 let editor_tab =
                     Arc::make_mut(self.editor_tabs.get_mut(&active).unwrap());
+                let mut existing: Option<WidgetId> = None;
                 for (i, child) in editor_tab.children.iter().enumerate() {
                     if let EditorTabChild::Settings(_, _) = child {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::Focus,
-                            Target::Widget(active),
-                        ));
                         editor_tab.active = i;
-                        return;
+                        existing = Some(child.widget_id());
+                        break;
                     }
                 }
 
-                let child =
-                    EditorTabChild::Settings(WidgetId::next(), editor_tab.widget_id);
-                editor_tab
-                    .children
-                    .insert(editor_tab.active + 1, child.clone());
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::EditorTabAdd(editor_tab.active + 1, child),
-                    Target::Widget(editor_tab.widget_id),
-                ));
-                editor_tab.active += 1;
+                if let Some(widget_id) = existing {
+                    widget_id
+                } else {
+                    let child = EditorTabChild::Settings(
+                        WidgetId::next(),
+                        editor_tab.widget_id,
+                    );
+                    editor_tab
+                        .children
+                        .insert(editor_tab.active + 1, child.clone());
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::EditorTabAdd(
+                            editor_tab.active + 1,
+                            child.clone(),
+                        ),
+                        Target::Widget(editor_tab.widget_id),
+                    ));
+                    editor_tab.active += 1;
+                    child.widget_id()
+                }
             }
             None => {
                 let editor_tab_id = self.new_editor_tab(ctx, *self.split_id);
-                self.editor_tab_new_settings(ctx, editor_tab_id);
+                self.editor_tab_new_settings(ctx, editor_tab_id)
             }
-        }
-        if let Some(active) = *self.active_tab {
+        };
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(widget_id),
+        ));
+        if show_key_bindings {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::Focus,
-                Target::Widget(active),
+                LapceUICommand::ShowKeybindings,
+                Target::Widget(widget_id),
+            ));
+        } else {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ShowSettings,
+                Target::Widget(widget_id),
             ));
         }
     }

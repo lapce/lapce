@@ -16,6 +16,7 @@ use lapce_data::{
     data::{DragContent, EditorTabChild, LapceTabData},
     document::BufferContent,
     editor::TabRect,
+    proxy::VERSION,
 };
 
 use crate::{
@@ -368,7 +369,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     }
                 }
                 EditorTabChild::Settings(_, _) => {
-                    text = "Settings".to_string();
+                    text = format!("Settings v{}", VERSION);
                 }
             }
             let text_layout = ctx

@@ -86,7 +86,7 @@ impl LapceSettingsPanel {
         &mut self,
         ctx: &mut EventCtx,
         mouse_event: &MouseEvent,
-        _data: &mut LapceTabData,
+        data: &mut LapceTabData,
     ) {
         if self.switcher_rect.contains(mouse_event.pos) {
             let index = ((mouse_event.pos.y - self.switcher_rect.y0)
@@ -97,8 +97,13 @@ impl LapceSettingsPanel {
                 ctx.request_layout();
             }
             ctx.set_handled();
-            ctx.request_focus();
+            self.request_focus(ctx, data);
         }
+    }
+
+    fn request_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        data.main_split.active_tab = Arc::new(Some(self.editor_tab_id));
+        ctx.request_focus();
     }
 }
 
@@ -154,10 +159,8 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::Focus => {
-                        ctx.request_focus();
                         ctx.set_handled();
-                        data.main_split.active_tab =
-                            Arc::new(Some(self.editor_tab_id));
+                        self.request_focus(ctx, data);
                     }
                     LapceUICommand::ShowSettings => {
                         ctx.request_focus();
