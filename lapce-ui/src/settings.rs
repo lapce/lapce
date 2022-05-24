@@ -88,8 +88,6 @@ impl LapceSettingsPanel {
         mouse_event: &MouseEvent,
         _data: &mut LapceTabData,
     ) {
-        ctx.set_handled();
-        ctx.request_focus();
         if self.switcher_rect.contains(mouse_event.pos) {
             let index = ((mouse_event.pos.y - self.switcher_rect.y0)
                 / self.switcher_line_height)
@@ -98,6 +96,8 @@ impl LapceSettingsPanel {
                 self.active = index;
                 ctx.request_layout();
             }
+            ctx.set_handled();
+            ctx.request_focus();
         }
     }
 }
@@ -114,35 +114,27 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        self.children[self.active].event(ctx, event, data, env);
-        if ctx.is_handled() {
-            return;
-        }
         match event {
             Event::KeyDown(key_event) => {
-                let mut keypress = data.keypress.clone();
-                let mut focus = LapceSettingsFocusData {
-                    widget_id: self.widget_id,
-                    editor_tab_id: self.editor_tab_id,
-                    main_split: data.main_split.clone(),
-                };
-                let mut_keypress = Arc::make_mut(&mut keypress);
-                let performed_action =
-                    mut_keypress.key_down(ctx, key_event, &mut focus, env);
-                data.keypress = keypress;
-                data.main_split = focus.main_split;
-                if performed_action {
-                    ctx.set_handled();
+                if ctx.is_focused() {
+                    let mut keypress = data.keypress.clone();
+                    let mut focus = LapceSettingsFocusData {
+                        widget_id: self.widget_id,
+                        editor_tab_id: self.editor_tab_id,
+                        main_split: data.main_split.clone(),
+                    };
+                    let mut_keypress = Arc::make_mut(&mut keypress);
+                    let performed_action =
+                        mut_keypress.key_down(ctx, key_event, &mut focus, env);
+                    data.keypress = keypress;
+                    data.main_split = focus.main_split;
+                    if performed_action {
+                        ctx.set_handled();
+                    }
                 }
-            }
-            Event::MouseMove(_mouse_event) => {
-                ctx.set_handled();
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event, data);
-            }
-            Event::MouseUp(_mouse_event) => {
-                ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 let cmd = cmd.get_unchecked(LAPCE_COMMAND);
@@ -151,13 +143,22 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     editor_tab_id: self.editor_tab_id,
                     main_split: data.main_split.clone(),
                 };
-                focus.run_command(ctx, cmd, None, Modifiers::empty(), env);
+                if focus.run_command(ctx, cmd, None, Modifiers::empty(), env)
+                    == CommandExecuted::Yes
+                {
+                    ctx.set_handled();
+                }
                 data.main_split = focus.main_split;
-                println!("run cmd {cmd:?}");
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::Focus => {
+                        ctx.request_focus();
+                        ctx.set_handled();
+                        data.main_split.active_tab =
+                            Arc::new(Some(self.editor_tab_id));
+                    }
                     LapceUICommand::ShowSettings => {
                         ctx.request_focus();
                         self.active = 0;
@@ -179,6 +180,18 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                 }
             }
             _ => {}
+        }
+
+        if ctx.is_handled() {
+            return;
+        }
+
+        if event.should_propagate_to_hidden() {
+            for child in self.children.iter_mut() {
+                child.event(ctx, event, data, env);
+            }
+        } else {
+            self.children[self.active].event(ctx, event, data, env);
         }
     }
 

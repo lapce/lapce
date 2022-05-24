@@ -5,8 +5,11 @@ use druid::{
     InternalEvent, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
     Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
+use lapce_core::command::FocusCommand;
 use lapce_data::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
+    },
     config::LapceTheme,
     data::{
         DragContent, EditorTabChild, LapceEditorTabData, LapceTabData, SplitContent,
@@ -95,22 +98,14 @@ impl LapceEditorTab {
             ));
             editor_tab.children.remove(i)
         } else if editor_tab.active == i {
-            let new_index = if i >= editor_tab.children.len() - 1 {
+            if i >= editor_tab.children.len() - 1 {
                 editor_tab.active = i - 1;
-                i - 1
-            } else {
-                i
             };
             if focus {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::EnsureEditorTabActiveVisble,
                     Target::Widget(editor_tab.widget_id),
-                ));
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::Focus,
-                    Target::Widget(editor_tab.children[new_index].widget_id()),
                 ));
             }
             editor_tab.children.remove(i)
@@ -120,6 +115,13 @@ impl LapceEditorTab {
             }
             editor_tab.children.remove(i)
         };
+        if focus && !editor_tab.children.is_empty() {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(editor_tab.children[editor_tab.active].widget_id()),
+            ));
+        }
         if delete {
             match removed_child {
                 EditorTabChild::Editor(view_id, _, _) => {
@@ -187,16 +189,18 @@ impl LapceEditorTab {
                                     .get(&self.widget_id)
                                     .unwrap();
                                 let split_id = editor_tab.split;
+
+                                let new_editor_tab_id = WidgetId::next();
+                                let mut child = child.clone();
+                                child.set_editor_tab(data, new_editor_tab_id);
                                 let mut new_editor_tab = LapceEditorTabData {
-                                    widget_id: WidgetId::next(),
+                                    widget_id: new_editor_tab_id,
                                     split: split_id,
                                     active: 0,
                                     children: vec![child.clone()],
                                     layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                                     content_is_hot: Rc::new(RefCell::new(false)),
                                 };
-                                let mut child = child.clone();
-                                child.set_editor_tab(data, new_editor_tab.widget_id);
 
                                 let new_split_id = data.main_split.split(
                                     ctx,
@@ -226,17 +230,17 @@ impl LapceEditorTab {
                                 );
                                 ctx.submit_command(Command::new(
                                     LAPCE_UI_COMMAND,
-                                    LapceUICommand::Focus,
-                                    Target::Widget(child.widget_id()),
-                                ));
-                                ctx.submit_command(Command::new(
-                                    LAPCE_UI_COMMAND,
                                     LapceUICommand::EditorTabRemove(
                                         *from_index,
                                         false,
                                         false,
                                     ),
                                     Target::Widget(*from_id),
+                                ));
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::Focus,
+                                    Target::Widget(child.widget_id()),
                                 ));
                             }
                             None => {
@@ -264,17 +268,17 @@ impl LapceEditorTab {
                                 ));
                                 ctx.submit_command(Command::new(
                                     LAPCE_UI_COMMAND,
-                                    LapceUICommand::Focus,
-                                    Target::Widget(child.widget_id()),
-                                ));
-                                ctx.submit_command(Command::new(
-                                    LAPCE_UI_COMMAND,
                                     LapceUICommand::EditorTabRemove(
                                         *from_index,
                                         false,
                                         false,
                                     ),
                                     Target::Widget(*from_id),
+                                ));
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::Focus,
+                                    Target::Widget(child.widget_id()),
                                 ));
                             }
                         }
@@ -305,7 +309,32 @@ impl Widget<LapceTabData> for LapceEditorTab {
             Event::MouseUp(mouse_event) => {
                 self.mouse_up(ctx, data, mouse_event);
             }
+            Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
+                ctx.set_handled();
+                let cmd = cmd.get_unchecked(LAPCE_COMMAND);
+                match cmd.kind {
+                    CommandKind::Focus(FocusCommand::SplitVertical) => {
+                        let editor_tab = data
+                            .main_split
+                            .editor_tabs
+                            .get_mut(&self.widget_id)
+                            .unwrap();
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Focus(
+                                    FocusCommand::SplitVertical,
+                                ),
+                                data: None,
+                            },
+                            Target::Widget(editor_tab.active_child().widget_id()),
+                        ));
+                    }
+                    _ => {}
+                }
+            }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                ctx.set_handled();
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::EditorTabAdd(index, content) => {
@@ -393,18 +422,18 @@ impl Widget<LapceTabData> for LapceEditorTab {
             }
             _ => (),
         }
-        self.header.event(ctx, event, data, env);
-        let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
-        match event {
-            Event::Internal(InternalEvent::TargetedCommand(_)) => {
-                for child in self.children.iter_mut() {
-                    child.event(ctx, event, data, env);
-                }
-            }
-            _ => {
-                self.children[tab.active].event(ctx, event, data, env);
-            }
+        if ctx.is_handled() {
+            return;
         }
+        self.header.event(ctx, event, data, env);
+        if event.should_propagate_to_hidden() {
+            for child in self.children.iter_mut() {
+                child.event(ctx, event, data, env);
+            }
+        } else {
+            let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+            self.children[tab.active].event(ctx, event, data, env);
+        };
     }
 
     fn lifecycle(

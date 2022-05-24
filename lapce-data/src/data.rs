@@ -1984,7 +1984,7 @@ impl LapceMainSplitData {
         let editor_tab_id = WidgetId::next();
         let editor_tab = LapceEditorTabData {
             widget_id: editor_tab_id,
-            split: *self.split_id,
+            split: split_id,
             active: 0,
             children: vec![],
             layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
@@ -1997,7 +1997,7 @@ impl LapceMainSplitData {
                 SplitContent::EditorTab(editor_tab.widget_id),
                 true,
             ),
-            Target::Widget(*self.split_id),
+            Target::Widget(split_id),
         ));
         self.active_tab = Arc::new(Some(editor_tab.widget_id));
         split
@@ -2009,23 +2009,18 @@ impl LapceMainSplitData {
 
     fn editor_tab_new_settings(
         &mut self,
-        ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
     ) {
         let editor_tab = self.editor_tabs.get_mut(&editor_tab_id).unwrap();
         let editor_tab = Arc::make_mut(editor_tab);
         let child = EditorTabChild::Settings(WidgetId::next(), editor_tab_id);
         editor_tab.children.push(child.clone());
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::EditorTabAdd(0, child),
-            Target::Widget(editor_tab.widget_id),
-        ));
     }
 
     fn editor_tab_new_editor(
         &mut self,
-        ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
         config: &Config,
     ) -> WidgetId {
@@ -2042,18 +2037,6 @@ impl LapceMainSplitData {
             editor.view_id,
             editor.editor_id,
             editor.find_view_id,
-        ));
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::EditorTabAdd(
-                0,
-                EditorTabChild::Editor(
-                    editor.view_id,
-                    editor.editor_id,
-                    editor.find_view_id,
-                ),
-            ),
-            Target::Widget(editor_tab.widget_id),
         ));
         self.insert_editor(editor.clone(), config);
         editor.view_id

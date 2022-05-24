@@ -8,8 +8,8 @@ use druid::{
 use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_data::{
     command::{
-        CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
-        LAPCE_COMMAND, LAPCE_UI_COMMAND,
+        CommandExecuted, CommandKind, EnsureVisiblePosition, LapceCommand,
+        LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{EditorConfig, LapceTheme},
     data::{
@@ -566,7 +566,16 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_COMMAND);
-                editor_data.run_command(ctx, command, None, Modifiers::empty(), env);
+                if editor_data.run_command(
+                    ctx,
+                    command,
+                    None,
+                    Modifiers::empty(),
+                    env,
+                ) == CommandExecuted::Yes
+                {
+                    ctx.set_handled();
+                }
                 self.ensure_cursor_visible(
                     ctx,
                     &editor_data,
