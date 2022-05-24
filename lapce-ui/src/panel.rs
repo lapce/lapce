@@ -551,6 +551,7 @@ impl Widget<LapceTabData> for PanelMainHeader {
         ctx.with_save(|ctx| {
             let shadow_width = data.config.ui.drop_shadow_width() as f64;
             if shadow_width > 0.0 {
+                ctx.clip(rect.inset((0.0, 0.0, 0.0, 50.0)));
                 ctx.blurred_rect(
                     rect,
                     shadow_width,
@@ -558,6 +559,14 @@ impl Widget<LapceTabData> for PanelMainHeader {
                         .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
                 );
             } else if let Some(position) = position {
+                ctx.stroke(
+                    Line::new(
+                        Point::new(rect.x0, rect.y1 + 0.5),
+                        Point::new(rect.x1, rect.y1 + 0.5),
+                    ),
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
                 match position {
                     PanelPosition::BottomLeft | PanelPosition::BottomRight => {
                         ctx.stroke(

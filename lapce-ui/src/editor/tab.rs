@@ -12,7 +12,8 @@ use lapce_data::{
     },
     config::LapceTheme,
     data::{
-        DragContent, EditorTabChild, LapceEditorTabData, LapceTabData, SplitContent,
+        DragContent, EditorTabChild, FocusArea, LapceEditorTabData, LapceTabData,
+        SplitContent,
     },
     db::EditorTabChildInfo,
     document::{BufferContent, LocalBufferKind},
@@ -587,10 +588,20 @@ impl TabRectRenderer for TabRect {
             (size.height - height) / 2.0,
         ));
         if i == editor_tab.active {
-            ctx.fill(
-                self.rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            let color = if data.focus_area == FocusArea::Editor
+                && Some(widget_id) == *data.main_split.active_tab
+            {
+                data.config.get_color_unchecked(LapceTheme::EDITOR_CARET)
+            } else {
+                data.config.get_color_unchecked(LapceTheme::EDITOR_DIM)
+            };
+            ctx.stroke(
+                Line::new(
+                    Point::new(self.rect.x0 + 2.0, self.rect.y1 - 1.0),
+                    Point::new(self.rect.x1 - 2.0, self.rect.y1 - 1.0),
+                ),
+                color,
+                2.0,
             );
         }
         ctx.draw_svg(&self.svg, rect, None);
@@ -601,7 +612,10 @@ impl TabRectRenderer for TabRect {
         );
         let x = self.rect.x1;
         ctx.stroke(
-            Line::new(Point::new(x - 0.5, 0.0), Point::new(x - 0.5, size.height)),
+            Line::new(
+                Point::new(x - 0.5, (size.height * 0.8).round()),
+                Point::new(x - 0.5, size.height - (size.height * 0.8).round()),
+            ),
             data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
             1.0,
         );

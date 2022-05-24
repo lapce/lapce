@@ -1,6 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use druid::{
+    kurbo::Line,
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, InternalLifeCycle,
     LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
@@ -1597,6 +1598,16 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 data.config.get_color_unchecked(
                                     LapceTheme::LAPCE_DROPDOWN_SHADOW,
                                 ),
+                            );
+                        } else {
+                            ctx.stroke(
+                                Line::new(
+                                    Point::new(rect.x1 + 0.5, rect.y0),
+                                    Point::new(rect.x1 + 0.5, rect.y1),
+                                ),
+                                data.config
+                                    .get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                                1.0,
                             );
                         }
                         ctx.fill(rect, bg);

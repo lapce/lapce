@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use druid::{
+    kurbo::Line,
     piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size, Target,
@@ -317,13 +318,17 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                         .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
                 );
             });
+        } else {
+            ctx.stroke(
+                Line::new(
+                    Point::new(rect.x0, rect.y1 + 0.5),
+                    Point::new(rect.x1, rect.y1 + 0.5),
+                ),
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
         }
         if data.config.editor.show_tab {
-            ctx.fill(
-                rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
-            );
             self.content.paint(ctx, data, env);
         } else {
             self.paint_header(ctx, data);
@@ -349,13 +354,5 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                 );
             }
         }
-        // if !self.icons.is_empty() && data.config.editor.show_tab {
-        //     let x = size.width - self.icons.len() as f64 * size.height - 0.5;
-        //     ctx.stroke(
-        //         Line::new(Point::new(x, 0.0), Point::new(x, size.height)),
-        //         data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-        //         1.0,
-        //     );
-        // }
     }
 }

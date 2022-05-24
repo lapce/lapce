@@ -1,7 +1,8 @@
 use crate::svg::get_svg;
 use druid::{
-    BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
+    kurbo::Line, BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
+    UpdateCtx, Widget,
 };
 use lapce_data::{
     command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
@@ -123,6 +124,15 @@ impl Widget<LapceTabData> for ActivityBar {
                 shadow_width,
                 data.config
                     .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
+        } else {
+            ctx.stroke(
+                Line::new(
+                    Point::new(rect.x1 + 0.5, rect.y0),
+                    Point::new(rect.x1 + 0.5, rect.y1),
+                ),
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
             );
         }
 
