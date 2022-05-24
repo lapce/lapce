@@ -140,7 +140,9 @@ impl LapceEditorHeader {
         {
             let mut path = match data.doc.content() {
                 BufferContent::File(path) => path.to_path_buf(),
-                BufferContent::Scratch(_, scratch_doc_name) => scratch_doc_name.into(),
+                BufferContent::Scratch(_, scratch_doc_name) => {
+                    scratch_doc_name.into()
+                }
                 _ => PathBuf::from(""),
             };
 

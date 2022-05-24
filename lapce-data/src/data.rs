@@ -1764,7 +1764,9 @@ impl LapceMainSplitData {
             BufferContent::File(path) => self.open_docs.get(path).unwrap().clone(),
             BufferContent::Local(kind) => self.local_docs.get(kind).unwrap().clone(),
             BufferContent::Value(name) => self.value_docs.get(name).unwrap().clone(),
-            BufferContent::Scratch(id, _) => self.scratch_docs.get(id).unwrap().clone(),
+            BufferContent::Scratch(id, _) => {
+                self.scratch_docs.get(id).unwrap().clone()
+            }
         }
     }
 
@@ -2617,7 +2619,12 @@ impl LapceMainSplitData {
                 if doc.rev() == rev {
                     let new_content = BufferContent::File(path.to_path_buf());
                     for (_, editor) in self.editors.iter_mut() {
-                        if editor.content== BufferContent::Scratch(*id, scratch_doc_name.to_string()) {
+                        if editor.content
+                            == BufferContent::Scratch(
+                                *id,
+                                scratch_doc_name.to_string(),
+                            )
+                        {
                             Arc::make_mut(editor).content = new_content.clone();
                         }
                     }
@@ -2709,8 +2716,7 @@ impl LapceMainSplitData {
         force: bool,
     ) {
         let editor = self.editors.get(&view_id).unwrap();
-        if let BufferContent::File(_) | BufferContent::Scratch(..) =
-            &editor.content
+        if let BufferContent::File(_) | BufferContent::Scratch(..) = &editor.content
         {
             let doc = self.editor_doc(view_id);
             if !force && !doc.buffer().is_pristine() {
