@@ -212,8 +212,8 @@ impl LapceTabNew {
                 DragContent::EditorTab(_, _, _, tab_rect) => {
                     let rect = tab_rect.rect.with_origin(self.mouse_pos - *offset);
                     let size = rect.size();
-                    let shadow_width = 5.0;
-                    if data.config.ui.drop_shadow() {
+                    let shadow_width = data.config.ui.drop_shadow_width() as f64;
+                    if shadow_width > 0.0 {
                         ctx.blurred_rect(
                             rect,
                             shadow_width,
@@ -1589,10 +1589,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
                         };
                         let rect = panel.layout_rect();
-                        if data.config.ui.drop_shadow() {
+                        let shadow_width = data.config.ui.drop_shadow_width() as f64;
+                        if shadow_width > 0.0 {
                             ctx.blurred_rect(
                                 rect,
-                                5.0,
+                                shadow_width,
                                 data.config.get_color_unchecked(
                                     LapceTheme::LAPCE_DROPDOWN_SHADOW,
                                 ),

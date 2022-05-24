@@ -372,13 +372,11 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     text = format!("Settings v{}", VERSION);
                 }
             }
+            let font_size = data.config.ui.font_size() as f64;
             let text_layout = ctx
                 .text()
                 .new_text_layout(text)
-                .font(
-                    data.config.ui.font_family(),
-                    data.config.ui.font_size() as f64,
-                )
+                .font(data.config.ui.font_family(), font_size)
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -387,8 +385,9 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 .build()
                 .unwrap();
             let text_size = text_layout.size();
-            let width = (text_size.width + height * 2.0)
-                .max(data.config.ui.tab_min_width() as f64);
+            let width =
+                (text_size.width + height + (height - font_size) / 2.0 + font_size)
+                    .max(data.config.ui.tab_min_width() as f64);
             let close_size = 24.0;
             let inflate = (height - close_size) / 2.0;
             let tab_rect = TabRect {

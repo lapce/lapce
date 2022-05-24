@@ -499,9 +499,9 @@ impl Widget<LapceTabData> for LapceEditorTab {
                 .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
         );
 
-        self.header.paint(ctx, data, env);
         let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
         self.children[tab.active].paint(ctx, data, env);
+        self.header.paint(ctx, data, env);
         if ctx.is_hot() && data.drag.is_some() {
             let width = size.width;
             let header_rect = self.header.layout_rect();
@@ -597,10 +597,7 @@ impl TabRectRenderer for TabRect {
         let text_size = self.text_layout.size();
         ctx.draw_text(
             &self.text_layout,
-            Point::new(
-                self.rect.x0 + size.height,
-                (size.height - text_size.height) / 2.0,
-            ),
+            Point::new(rect.x1 + 5.0, (size.height - text_size.height) / 2.0),
         );
         let x = self.rect.x1;
         ctx.stroke(

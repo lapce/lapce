@@ -179,8 +179,8 @@ pub struct UIConfig {
     #[field_names(desc = "Set the width for scroll bar")]
     scroll_width: usize,
 
-    #[field_names(desc = "Controls if the UI uses drop shadow")]
-    drop_shadow: bool,
+    #[field_names(desc = "Controls the width of drop shadow in the UI")]
+    drop_shadow_width: usize,
 }
 
 impl UIConfig {
@@ -218,8 +218,8 @@ impl UIConfig {
         self.scroll_width
     }
 
-    pub fn drop_shadow(&self) -> bool {
-        self.drop_shadow
+    pub fn drop_shadow_width(&self) -> usize {
+        self.drop_shadow_width
     }
 }
 

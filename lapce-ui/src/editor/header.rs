@@ -112,10 +112,10 @@ impl LapceEditorHeader {
         data: &LapceEditorBufferData,
         workspace: &LapceWorkspace,
     ) {
-        let shadow_width = 5.0;
         let size = ctx.size();
         let rect = size.to_rect();
-        if data.config.ui.drop_shadow() {
+        let shadow_width = data.config.ui.drop_shadow_width() as f64;
+        if shadow_width > 0.0 {
             ctx.blurred_rect(
                 rect,
                 shadow_width,
@@ -292,11 +292,7 @@ impl Widget<LapceTabData> for LapceEditorHeader {
         data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        // ctx.set_paint_insets((0.0, 0.0, 0.0, 10.0));
-        if self.display
-            && (!data.config.editor.show_tab
-                || self.view_id == data.palette.preview_editor)
-        {
+        if self.display && self.view_id == data.palette.preview_editor {
             let size =
                 Size::new(bc.max().width, data.config.ui.header_height() as f64);
             self.icons = self.get_icons(size, data);

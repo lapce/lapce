@@ -233,10 +233,11 @@ impl Widget<LapceTabData> for LapceStatusNew {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &druid::Env) {
         let size = ctx.size();
         let rect = size.to_rect();
-        if data.config.ui.drop_shadow() {
+        let shadow_width = data.config.ui.drop_shadow_width() as f64;
+        if shadow_width > 0.0 {
             ctx.blurred_rect(
                 rect,
-                5.0,
+                shadow_width,
                 data.config
                     .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
             );

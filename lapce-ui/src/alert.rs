@@ -331,8 +331,8 @@ impl Widget<LapceTabData> for AlertBoxContent {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let rect = ctx.size().to_rect();
-        if data.config.ui.drop_shadow() {
-            let shadow_width = 5.0;
+        let shadow_width = data.config.ui.drop_shadow_width() as f64;
+        if shadow_width > 0.0 {
             ctx.blurred_rect(
                 rect,
                 shadow_width,

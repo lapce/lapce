@@ -231,12 +231,12 @@ impl Widget<LapceTabData> for LapceTerminalView {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let shadow_width = 5.0;
         let self_rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {
             ctx.clip(self_rect.inflate(0.0, 50.0));
             let rect = self.header.layout_rect();
-            if data.config.ui.drop_shadow() {
+            let shadow_width = data.config.ui.drop_shadow_width() as f64;
+            if shadow_width > 0.0 {
                 ctx.blurred_rect(
                     rect,
                     shadow_width,
