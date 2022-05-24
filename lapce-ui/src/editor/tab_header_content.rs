@@ -386,7 +386,8 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 .build()
                 .unwrap();
             let text_size = text_layout.size();
-            let width = (text_size.width + height * 2.0).max(100.0);
+            let width = (text_size.width + height * 2.0)
+                .max(data.config.ui.tab_min_width() as f64);
             let close_size = 24.0;
             let inflate = (height - close_size) / 2.0;
             let tab_rect = TabRect {

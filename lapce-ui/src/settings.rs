@@ -953,7 +953,8 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         if ctx.is_hot() {
             ctx.fill(
                 rect,
-                data.config.get_color_unchecked(LapceTheme::PANEL_HOVERED),
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
             );
         }
 

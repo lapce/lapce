@@ -170,6 +170,9 @@ pub struct UIConfig {
     #[field_names(desc = "Set the height for status line")]
     status_height: usize,
 
+    #[field_names(desc = "Set the minium width for editor tab")]
+    tab_min_width: usize,
+
     #[field_names(desc = "Set the width for activity bar")]
     activity_width: usize,
 
@@ -201,6 +204,10 @@ impl UIConfig {
     pub fn status_height(&self) -> usize {
         let font_size = self.font_size();
         self.status_height.max(font_size)
+    }
+
+    pub fn tab_min_width(&self) -> usize {
+        self.tab_min_width
     }
 
     pub fn activity_width(&self) -> usize {
