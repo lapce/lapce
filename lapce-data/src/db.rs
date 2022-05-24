@@ -296,7 +296,7 @@ impl EditorInfo {
                 ));
                 data.open_docs.insert(path.clone(), doc);
             }
-        } else if let BufferContent::Scratch(id) = &self.content {
+        } else if let BufferContent::Scratch(id, _) = &self.content {
             if !data.scratch_docs.contains_key(id) {
                 let mut doc = Document::new(
                     self.content.clone(),

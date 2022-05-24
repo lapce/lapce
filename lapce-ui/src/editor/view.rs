@@ -120,7 +120,7 @@ impl LapceEditorView {
             ));
         }
         match &editor.content {
-            BufferContent::File(_) | BufferContent::Scratch(_) => {
+            BufferContent::File(_) | BufferContent::Scratch(_, _) => {
                 data.focus_area = FocusArea::Editor;
                 data.main_split.active = Arc::new(Some(self.view_id));
                 data.main_split.active_tab = Arc::new(editor.tab_id);

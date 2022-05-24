@@ -701,7 +701,7 @@ impl LapceTabData {
             BufferContent::File(path) => {
                 self.main_split.open_docs.get(path).unwrap().clone()
             }
-            BufferContent::Scratch(id) => {
+            BufferContent::Scratch(id, _) => {
                 self.main_split.scratch_docs.get(id).unwrap().clone()
             }
             BufferContent::Local(kind) => {
@@ -742,7 +742,7 @@ impl LapceTabData {
                 let offset = editor.new_cursor.offset();
                 doc.code_action_size(text, offset, &self.config)
             }
-            BufferContent::Scratch(id) => {
+            BufferContent::Scratch(id, _) => {
                 let doc = self.main_split.scratch_docs.get(id).unwrap();
                 let offset = editor.new_cursor.offset();
                 doc.code_action_size(text, offset, &self.config)
@@ -781,7 +781,7 @@ impl LapceTabData {
                         .open_docs
                         .insert(path.clone(), editor_buffer_data.doc);
                 }
-                BufferContent::Scratch(id) => {
+                BufferContent::Scratch(id, _) => {
                     self.main_split
                         .scratch_docs
                         .insert(*id, editor_buffer_data.doc);
@@ -823,7 +823,7 @@ impl LapceTabData {
                 *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
-            BufferContent::File(_) | BufferContent::Scratch(_) => {
+            BufferContent::File(_) | BufferContent::Scratch(_, _) => {
                 let doc = self.main_split.editor_doc(editor.view_id);
                 let offset = self.completion.offset;
                 let (line, col) = doc.buffer().offset_to_line_col(offset);
@@ -879,7 +879,7 @@ impl LapceTabData {
                 *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
-            BufferContent::File(_) | BufferContent::Scratch(_) => {
+            BufferContent::File(_) | BufferContent::Scratch(_, _) => {
                 let doc = self.main_split.editor_doc(editor.view_id);
                 let offset = self.hover.offset;
                 let (line, col) = doc.buffer().offset_to_line_col(offset);
@@ -1764,7 +1764,7 @@ impl LapceMainSplitData {
             BufferContent::File(path) => self.open_docs.get(path).unwrap().clone(),
             BufferContent::Local(kind) => self.local_docs.get(kind).unwrap().clone(),
             BufferContent::Value(name) => self.value_docs.get(name).unwrap().clone(),
-            BufferContent::Scratch(id) => self.scratch_docs.get(id).unwrap().clone(),
+            BufferContent::Scratch(id, _) => self.scratch_docs.get(id).unwrap().clone(),
         }
     }
 
@@ -2244,11 +2244,34 @@ impl LapceMainSplitData {
         editor_view_id
     }
 
+    fn get_name_for_new_file(&self) -> String {
+        let mut i = 0;
+        loop {
+            i += 1;
+            let potential_name = format!("new {}", i);
+
+            // Checking just the current scratch_docs rather than all the different document
+            // collections seems to be the right thing to do. The user may have genuine 'new N'
+            // files tucked away somewhere in their workspace.
+            if self.scratch_docs.values().any(|doc| match doc.content() {
+                BufferContent::Scratch(_, existing_name) => {
+                    *existing_name == potential_name
+                }
+                _ => false,
+            }) {
+                continue;
+            }
+
+            return potential_name;
+        }
+    }
+
     pub fn new_file(&mut self, ctx: &mut EventCtx, config: &Config) {
         let tab_id = *self.tab_id;
         let proxy = self.proxy.clone();
         let buffer_id = BufferId::next();
-        let content = BufferContent::Scratch(buffer_id);
+        let content =
+            BufferContent::Scratch(buffer_id, self.get_name_for_new_file());
         let doc =
             Document::new(content.clone(), tab_id, ctx.get_external_handle(), proxy);
         self.scratch_docs.insert(buffer_id, Arc::new(doc));
@@ -2283,7 +2306,7 @@ impl LapceMainSplitData {
             BufferContent::File(path) => path != &location.path,
             BufferContent::Local(_) => true,
             BufferContent::Value(_) => true,
-            BufferContent::Scratch(_) => true,
+            BufferContent::Scratch(_, _) => true,
         };
         if new_buffer {
             self.db.save_doc_position(&self.workspace, &doc);
@@ -2589,12 +2612,12 @@ impl LapceMainSplitData {
         exit: bool,
     ) {
         match content {
-            BufferContent::Scratch(id) => {
+            BufferContent::Scratch(id, scratch_doc_name) => {
                 let doc = self.scratch_docs.get(id).unwrap();
                 if doc.rev() == rev {
                     let new_content = BufferContent::File(path.to_path_buf());
                     for (_, editor) in self.editors.iter_mut() {
-                        if editor.content == BufferContent::Scratch(*id) {
+                        if editor.content== BufferContent::Scratch(*id, scratch_doc_name.to_string()) {
                             Arc::make_mut(editor).content = new_content.clone();
                         }
                     }
@@ -2630,7 +2653,7 @@ impl LapceMainSplitData {
         exit: bool,
     ) {
         match content {
-            BufferContent::Scratch(id) => {
+            BufferContent::Scratch(id, _) => {
                 let event_sink = ctx.get_external_handle();
                 let doc = self.scratch_docs.get(id).unwrap();
                 let rev = doc.rev();
@@ -2686,7 +2709,9 @@ impl LapceMainSplitData {
         force: bool,
     ) {
         let editor = self.editors.get(&view_id).unwrap();
-        if let BufferContent::File(_) | BufferContent::Scratch(_) = &editor.content {
+        if let BufferContent::File(_) | BufferContent::Scratch(_, _) =
+            &editor.content
+        {
             let doc = self.editor_doc(view_id);
             if !force && !doc.buffer().is_pristine() {
                 let exits = self.editors.iter().any(|(_, e)| {
@@ -3229,7 +3254,7 @@ impl LapceEditorData {
     }
 
     pub fn editor_info(&self, data: &LapceTabData) -> EditorInfo {
-        let unsaved = if let BufferContent::Scratch(id) = &self.content {
+        let unsaved = if let BufferContent::Scratch(id, _) = &self.content {
             let doc = data.main_split.scratch_docs.get(id).unwrap();
             Some(doc.buffer().text().to_string())
         } else {

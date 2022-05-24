@@ -1175,7 +1175,7 @@ impl LapceEditorBufferData {
                     Target::Auto,
                 );
             });
-        } else if let BufferContent::Scratch(_) = self.doc.content() {
+        } else if let BufferContent::Scratch(_, _) = self.doc.content() {
             let content = self.doc.content().clone();
             let view_id = self.editor.view_id;
             self.main_split.current_save_as =
@@ -1945,7 +1945,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             "input_focus" => self.editor.content.is_input(),
             "editor_focus" => match self.editor.content {
                 BufferContent::File(_) => true,
-                BufferContent::Scratch(_) => true,
+                BufferContent::Scratch(_, _) => true,
                 BufferContent::Local(_) => false,
                 BufferContent::Value(_) => false,
             },

@@ -116,7 +116,7 @@ impl LapceEditorTabHeader {
                         .and_then(|s| s.to_str())
                         .unwrap_or("")
                         .to_string();
-                } else if let BufferContent::Scratch(_) =
+                } else if let BufferContent::Scratch(..) =
                     &editor_buffer.editor.content
                 {
                     text = editor_buffer.editor.content.file_name().to_string();

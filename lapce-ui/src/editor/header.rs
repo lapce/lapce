@@ -135,14 +135,12 @@ impl LapceEditorHeader {
                 clip_rect.x1 = icon.rect.x0;
             }
         }
-        if let BufferContent::File(_) | BufferContent::Scratch(_) =
+        if let BufferContent::File(_) | BufferContent::Scratch(_, _) =
             data.doc.content()
         {
             let mut path = match data.doc.content() {
                 BufferContent::File(path) => path.to_path_buf(),
-                BufferContent::Scratch(_) => {
-                    PathBuf::from(data.doc.content().file_name())
-                }
+                BufferContent::Scratch(_, scratch_doc_name) => scratch_doc_name.into(),
                 _ => PathBuf::from(""),
             };
 
