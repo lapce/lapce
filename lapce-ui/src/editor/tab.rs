@@ -2,8 +2,8 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use druid::{
     kurbo::Line, piet::TextLayout, BoxConstraints, Command, Env, Event, EventCtx,
-    InternalEvent, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
-    Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
