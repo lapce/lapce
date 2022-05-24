@@ -823,7 +823,7 @@ impl LapceTabData {
                 *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
-            BufferContent::File(_) | BufferContent::Scratch(_, _) => {
+            BufferContent::File(_) | BufferContent::Scratch(..) => {
                 let doc = self.main_split.editor_doc(editor.view_id);
                 let offset = self.completion.offset;
                 let (line, col) = doc.buffer().offset_to_line_col(offset);
@@ -879,7 +879,7 @@ impl LapceTabData {
                 *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
-            BufferContent::File(_) | BufferContent::Scratch(_, _) => {
+            BufferContent::File(_) | BufferContent::Scratch(..) => {
                 let doc = self.main_split.editor_doc(editor.view_id);
                 let offset = self.hover.offset;
                 let (line, col) = doc.buffer().offset_to_line_col(offset);
@@ -2306,7 +2306,7 @@ impl LapceMainSplitData {
             BufferContent::File(path) => path != &location.path,
             BufferContent::Local(_) => true,
             BufferContent::Value(_) => true,
-            BufferContent::Scratch(_, _) => true,
+            BufferContent::Scratch(..) => true,
         };
         if new_buffer {
             self.db.save_doc_position(&self.workspace, &doc);
@@ -2709,7 +2709,7 @@ impl LapceMainSplitData {
         force: bool,
     ) {
         let editor = self.editors.get(&view_id).unwrap();
-        if let BufferContent::File(_) | BufferContent::Scratch(_, _) =
+        if let BufferContent::File(_) | BufferContent::Scratch(..) =
             &editor.content
         {
             let doc = self.editor_doc(view_id);

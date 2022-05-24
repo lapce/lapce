@@ -120,7 +120,7 @@ impl BufferContent {
                 LocalBufferKind::Empty => false,
             },
             BufferContent::Value(_) => true,
-            BufferContent::Scratch(_, _) => false,
+            BufferContent::Scratch(..) => false,
         }
     }
 
@@ -136,7 +136,7 @@ impl BufferContent {
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
             BufferContent::Value(_) => true,
-            BufferContent::Scratch(_, _) => false,
+            BufferContent::Scratch(..) => false,
         }
     }
 
@@ -144,7 +144,7 @@ impl BufferContent {
         match &self {
             BufferContent::File(_) => false,
             BufferContent::Value(_) => false,
-            BufferContent::Scratch(_, _) => false,
+            BufferContent::Scratch(..) => false,
             BufferContent::Local(local) => matches!(local, LocalBufferKind::Search),
         }
     }
@@ -154,7 +154,7 @@ impl BufferContent {
             BufferContent::File(_) => false,
             BufferContent::Value(_) => true,
             BufferContent::Local(_) => false,
-            BufferContent::Scratch(_, _) => false,
+            BufferContent::Scratch(..) => false,
         }
     }
 
@@ -202,7 +202,7 @@ impl Document {
             BufferContent::File(path) => Syntax::init(path),
             BufferContent::Local(_) => None,
             BufferContent::Value(_) => None,
-            BufferContent::Scratch(_, _) => None,
+            BufferContent::Scratch(..) => None,
         };
         let id = match &content {
             BufferContent::Scratch(id, _) => *id,
@@ -245,7 +245,7 @@ impl Document {
             BufferContent::File(path) => Syntax::init(path),
             BufferContent::Local(_) => None,
             BufferContent::Value(_) => None,
-            BufferContent::Scratch(_, _) => None,
+            BufferContent::Scratch(..) => None,
         };
         self.on_update(None);
     }
@@ -473,7 +473,7 @@ impl Document {
     fn notify_special(&self) {
         match &self.content {
             BufferContent::File(_) => {}
-            BufferContent::Scratch(_, _) => {}
+            BufferContent::Scratch(..) => {}
             BufferContent::Local(local) => {
                 let s = self.buffer.text().to_string();
                 match local {
