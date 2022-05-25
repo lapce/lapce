@@ -1,5 +1,6 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, process::Command};
 
+use anyhow::{format_err, Error};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -26,4 +27,82 @@ pub struct PluginInfo {
     pub arch: String,
     pub os: String,
     pub configuration: Option<Value>,
+}
+
+impl PluginDescription {
+    pub fn get_plugin_env(&self) -> Result<Vec<(String, String)>, Error> {
+        let mut vars = Vec::new();
+
+        let conf = match &self.configuration {
+            Some(val) => val,
+            None => {
+                return Err(format_err!(
+                    "Empty configuration for plugin {}",
+                    self.display_name
+                ))
+            }
+        };
+
+        let conf = match conf.as_object() {
+            Some(val) => val,
+            None => {
+                return Err(format_err!(
+                    "Empty configuration for plugin {}",
+                    self.display_name
+                ))
+            }
+        };
+
+        let env = match conf.get("env_command") {
+            Some(env) => env,
+            // We do not print any error as no env is allowed.
+            None => return Ok(vars),
+        };
+
+        let args = match env.as_str() {
+            Some(arg) => arg,
+            None => {
+                return Err(format_err!(
+                    "Plugin {}: env_command is not a string",
+                    self.display_name
+                ))
+            }
+        };
+
+        let output = if cfg!(target_os = "windows") {
+            Command::new("cmd").arg("/c").arg(args).output()
+        } else {
+            Command::new("sh").arg("-c").arg(args).output()
+        };
+
+        let output = match output {
+            Ok(val) => val.stdout,
+            Err(err) => {
+                return Err(format_err!(
+                    "Error during env command execution for plugin {}: {}",
+                    self.name,
+                    err
+                ))
+            }
+        };
+
+        let data = match String::from_utf8(output) {
+            Ok(val) => val,
+            Err(err) => {
+                return Err(format_err!(
+                    "Error during UTF-8 conversion for plugin {}: {}",
+                    self.display_name,
+                    err
+                ))
+            }
+        };
+
+        for l in data.lines() {
+            if let Some((key, value)) = l.split_once('=') {
+                vars.push((String::from(key), String::from(value)));
+            };
+        }
+
+        return Ok(vars);
+    }
 }
