@@ -885,7 +885,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         ctx: &mut UpdateCtx,
         old_data: &LapceTabData,
         data: &LapceTabData,
-        _env: &Env,
+        env: &Env,
     ) {
         if data.config.id != old_data.config.id {
             self.clear_text_layout_cache();
@@ -920,6 +920,9 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                     self.last_idle_timer = ctx.request_timer(Self::SAVE_DELAY, None);
                 }
             }
+        }
+        if let Some(input) = self.input_widget.as_mut() {
+            input.update(ctx, data, env);
         }
     }
 

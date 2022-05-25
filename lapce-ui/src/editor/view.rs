@@ -1,9 +1,15 @@
-use std::{iter::Iterator, ops::Sub, sync::Arc};
+use std::{
+    iter::Iterator,
+    ops::Sub,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use druid::{
     piet::PietText, BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx,
     LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect, RenderContext,
-    SingleUse, Size, Target, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
+    SingleUse, Size, Target, TimerToken, Vec2, Widget, WidgetExt, WidgetId,
+    WidgetPod,
 };
 use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_data::{
@@ -34,6 +40,7 @@ pub struct LapceEditorView {
     pub header: WidgetPod<LapceTabData, LapceEditorHeader>,
     pub editor: WidgetPod<LapceTabData, LapceEditorContainer>,
     pub find: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+    cursor_blink_timer: TimerToken,
 }
 
 pub fn editor_tab_child_widget(
@@ -67,6 +74,7 @@ impl LapceEditorView {
             header: WidgetPod::new(header),
             editor: WidgetPod::new(editor),
             find,
+            cursor_blink_timer: TimerToken::INVALID,
         }
     }
 
@@ -531,6 +539,16 @@ impl Widget<LapceTabData> for LapceEditorView {
                     );
                 }
             }
+            Event::Timer(id) if self.cursor_blink_timer == *id => {
+                ctx.set_handled();
+                if data.focus == self.view_id {
+                    ctx.request_paint();
+                    self.cursor_blink_timer =
+                        ctx.request_timer(Duration::from_millis(500), None);
+                } else {
+                    self.cursor_blink_timer = TimerToken::INVALID;
+                }
+            }
             _ => (),
         }
 
@@ -678,6 +696,28 @@ impl Widget<LapceTabData> for LapceEditorView {
 
         let old_editor_data = old_data.editor_view_content(self.view_id);
         let editor_data = data.editor_view_content(self.view_id);
+
+        if data.focus == self.view_id {
+            let reset = if old_data.focus != self.view_id {
+                true
+            } else {
+                let offset = editor_data.editor.new_cursor.offset();
+                let old_offset = old_editor_data.editor.new_cursor.offset();
+                let (line, col) =
+                    editor_data.doc.buffer().offset_to_line_col(offset);
+                let (old_line, old_col) =
+                    old_editor_data.doc.buffer().offset_to_line_col(old_offset);
+                line != old_line || col != old_col
+            };
+
+            if reset {
+                self.cursor_blink_timer =
+                    ctx.request_timer(Duration::from_millis(500), None);
+                *editor_data.editor.last_cursor_instant.borrow_mut() =
+                    Instant::now();
+                ctx.request_paint();
+            }
+        }
 
         if old_data.config.lapce.modal != data.config.lapce.modal
             && !editor_data.doc.content().is_input()

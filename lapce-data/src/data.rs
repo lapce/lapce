@@ -5,6 +5,7 @@ use std::{
     rc::Rc,
     sync::Arc,
     thread,
+    time::Instant,
 };
 
 use anyhow::Result;
@@ -3121,6 +3122,7 @@ pub struct LapceEditorData {
     pub code_lens: bool,
     pub scroll_offset: Vec2,
     pub new_cursor: Cursor,
+    pub last_cursor_instant: Rc<RefCell<Instant>>,
     pub size: Rc<RefCell<Size>>,
     pub window_origin: Rc<RefCell<Point>>,
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
@@ -3159,6 +3161,7 @@ impl LapceEditorData {
             } else {
                 Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
             },
+            last_cursor_instant: Rc::new(RefCell::new(Instant::now())),
             content,
             size: Rc::new(RefCell::new(Size::ZERO)),
             compare: None,

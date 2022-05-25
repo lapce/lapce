@@ -1854,6 +1854,16 @@ impl Widget<LapceTabData> for LapceEditor {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let is_focused = data.focus == self.view_id;
         let data = data.editor_view_content(self.view_id);
+        let is_focused = is_focused
+            && (data
+                .editor
+                .last_cursor_instant
+                .borrow()
+                .elapsed()
+                .as_millis()
+                / 500)
+                % 2
+                == 0;
         self.paint_content(&data, ctx, is_focused, env);
     }
 }
