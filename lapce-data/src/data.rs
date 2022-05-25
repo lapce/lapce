@@ -2037,13 +2037,13 @@ impl LapceMainSplitData {
         ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
         path: Option<PathBuf>,
-        _scratch: bool,
+        scratch: bool,
         config: &Config,
     ) -> &mut LapceEditorData {
         let editor_tab =
             Arc::make_mut(self.editor_tabs.get_mut(&editor_tab_id).unwrap());
 
-        if !config.editor.show_tab {
+        if !config.editor.show_tab || (path.is_none() && !scratch) {
             if let EditorTabChild::Editor(id, _, _) = editor_tab.active_child() {
                 return Arc::make_mut(self.editors.get_mut(id).unwrap());
             }
