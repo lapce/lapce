@@ -242,6 +242,52 @@ pub struct TerminalConfig {
     pub shell: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct ThemeConfig {
+    pub base: ThemeBaseConfig,
+    pub terminal: ThemeTerminalConfig,
+    pub syntax: std::collections::HashMap<String, String>,
+    pub ui: std::collections::HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct ThemeBaseConfig {
+    pub white: String,
+    pub black: String,
+    pub grey: String,
+    pub blue: String,
+    pub red: String,
+    pub yellow: String,
+    pub orange: String,
+    pub green: String,
+    pub purple: String,
+    pub cyan: String,
+    pub magenta: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct ThemeTerminalConfig {
+    pub cursor: String,
+    pub foreground: String,
+    pub background: String,
+    pub white: String,
+    pub black: String,
+    pub red: String,
+    pub blue: String,
+    pub green: String,
+    pub yellow: String,
+    pub cyan: String,
+    pub magenta: String,
+    pub bright_white: String,
+    pub bright_red: String,
+    pub bright_blue: String,
+    pub bright_green: String,
+    pub bright_yellow: String,
+    pub bright_cyan: String,
+    pub bright_magenta: String,
+    pub bright_black: String,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Theme {
     style: HashMap<String, Color>,
@@ -301,6 +347,14 @@ impl Theme {
         self.other.get(key)
     }
 
+    pub fn color_keys(&self) -> impl Iterator<Item = &String> {
+        self.other.keys()
+    }
+
+    pub fn style_keys(&self) -> impl Iterator<Item = &String> {
+        self.style.keys()
+    }
+
     fn merge_maps_in_place(
         dst: &mut HashMap<String, Color>,
         src: &HashMap<String, Color>,
@@ -348,6 +402,10 @@ impl Default for Themes {
 impl Themes {
     pub fn get(&self, theme_name: &str) -> Option<&Theme> {
         self.themes.get(theme_name)
+    }
+
+    pub fn default_theme(&self) -> &Theme {
+        &self.default_theme
     }
 
     pub fn insert(&mut self, theme_name: String, theme: Theme) -> Option<Theme> {

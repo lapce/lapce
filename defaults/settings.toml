@@ -3,16 +3,6 @@ modal = false
 color-theme = "Lapce Dark"
 icon-theme = ""
 
-[ui]
-font-family = ""
-font-size = 13
-header-height = 35
-status-height = 25
-tab-min-width = 100
-activity-width = 50
-scroll-width = 10
-drop-shadow-width = 0
-
 [editor]
 font-family = "Cascadia Code"
 font-size = 13
@@ -27,3 +17,124 @@ font-family = ""
 font-size = 0
 line-height = 0
 shell = ""
+
+[ui]
+font-family = ""
+font-size = 13
+header-height = 35
+status-height = 25
+tab-min-width = 100
+activity-width = 50
+scroll-width = 10
+drop-shadow-width = 0
+
+[theme]
+name = "Lapce Dark"
+
+[theme.base]
+white = "#ABB2BF"
+black = "#282C34"
+grey = "#3E4451"
+blue = "#61AFEF"
+red = "#E06C75"
+yellow = "#e5c07b"
+orange = "#D19A66"
+green = "#98C379"
+purple = "#C678DD"
+cyan = "#56b6c2"
+magenta = "#C678DD"
+
+[theme.syntax]
+"comment" = "#5C6370"
+"constant" = "$yellow"
+"type" = "$yellow"
+"typeAlias" = "$yellow"
+"number" = "$yellow"
+"enum" = "$yellow"
+"struct" = "$yellow"
+"structure" = "$yellow"
+"interface" = "$yellow"
+"attribute" = "$yellow"
+"constructor" = "$yellow"
+"function" = "$blue"
+"method" = "$blue"
+"function.method" = "$blue"
+"keyword" = "$purple"
+"selfKeyword" = "$purple"
+"field" = "$red"
+"property" = "$red"
+"enumMember" = "$red"
+"enum-member" = "$red"
+"variable.other.member" = "$red"
+"string" = "$green"
+"type.builtin" = "$cyan"
+"builtinType" = "$cyan"
+"escape" = "$cyan"
+"embedded" = "$cyan"
+
+[theme.ui]
+"lapce.active_tab" = "$black"
+"lapce.inactive_tab" = "$grey"
+"lapce.error" = "$red"
+"lapce.warn" = "$yellow"
+"lapce.dropdown_shadow" = "#000000"
+"lapce.border" = "#000000"
+"lapce.scroll_bar" = "$grey"
+
+
+"editor.background" = "$black"
+"editor.foreground" = "$white"
+"editor.dim" = "#5C6370"
+"editor.focus" = "#CCCCCC"
+"editor.caret" = "#528bff"
+"editor.selection" = "$grey"
+"editor.current_line" = "#2c313c"
+"editor.link" = "$cyan"
+
+"source_control.added" = "#50a14f32"
+"source_control.removed" = "#ff526632"
+"source_control.modified" = "#0184bc32"
+
+"palette.background" = "#21252B"
+"palette.current" = "#2C313A"
+
+"completion.background" = "#21252B"
+"completion.current" = "#2C313A"
+
+"hover.background" = "#21252B"
+
+"activity.background" = "#21252B"
+"activity.current" = "$black"
+
+"panel.background" = "#21252B"
+"panel.current" = "#2C313A"
+"panel.hovered" = "#343A45"
+
+"status.background" = "#21252B"
+"status.modal.normal" = "$blue"
+"status.modal.insert" = "$red"
+"status.modal.visual" = "$yellow"
+"status.modal.terminal" = "$purple"
+
+"markdown.blockquote" = "#898989"
+
+[theme.terminal]
+"cursor" = "$white"
+"foreground" = "$white"
+"background" = "$black"
+"white" = "$white"
+"black" = "$black"
+"red" = "$red"
+"blue" = "$blue"
+"green" = "$green"
+"yellow" = "$yellow"
+"cyan" = "$cyan"
+"magenta" = "$magenta"
+"bright_white" = "#C8CCD4"
+"bright_red" = "$red"
+"bright_blue" = "$blue"
+"bright_green" = "$green"
+"bright_yellow" = "$yellow"
+"bright_cyan" = "$cyan"
+"bright_magenta" = "$magenta"
+"bright_black" = "#545862"
