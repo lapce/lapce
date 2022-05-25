@@ -306,15 +306,19 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "toggle_source_control_focus")]
     ToggleSourceControlFocus,
 
+    #[strum(message = "Toggle Plugin Focus")]
     #[strum(serialize = "toggle_plugin_focus")]
     TogglePluginFocus,
 
+    #[strum(message = "Toggle File Explorer Focus")]
     #[strum(serialize = "toggle_file_explorer_focus")]
     ToggleFileExplorerFocus,
 
+    #[strum(message = "Toggle Problem Focus")]
     #[strum(serialize = "toggle_problem_focus")]
     ToggleProblemFocus,
 
+    #[strum(message = "Toggle Search Focus")]
     #[strum(serialize = "toggle_search_focus")]
     ToggleSearchFocus,
 
