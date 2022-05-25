@@ -10,9 +10,9 @@ use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
     Color, ExtEventSink, FontFamily, Size, Target,
 };
-use hashbrown::HashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use structdesc::FieldNames;
 use thiserror::Error;
 
@@ -252,16 +252,16 @@ pub struct ThemeConfig {
     pub path: PathBuf,
     pub name: String,
     pub base: ThemeBaseConfig,
-    pub syntax: std::collections::HashMap<String, String>,
-    pub ui: std::collections::HashMap<String, String>,
+    pub syntax: HashMap<String, String>,
+    pub ui: HashMap<String, String>,
 }
 
 impl ThemeConfig {
     fn resolve_color(
-        colors: &std::collections::HashMap<String, String>,
+        colors: &HashMap<String, String>,
         base: &ThemeBaseColor,
-        default: Option<&std::collections::HashMap<String, Color>>,
-    ) -> std::collections::HashMap<String, Color> {
+        default: Option<&HashMap<String, Color>>,
+    ) -> HashMap<String, Color> {
         colors
             .iter()
             .map(|(name, hex)| {
@@ -293,16 +293,16 @@ impl ThemeConfig {
     fn resolve_ui_color(
         &self,
         base: &ThemeBaseColor,
-        default: Option<&std::collections::HashMap<String, Color>>,
-    ) -> std::collections::HashMap<String, Color> {
+        default: Option<&HashMap<String, Color>>,
+    ) -> HashMap<String, Color> {
         Self::resolve_color(&self.ui, base, default)
     }
 
     fn resolve_syntax_color(
         &self,
         base: &ThemeBaseColor,
-        default: Option<&std::collections::HashMap<String, Color>>,
-    ) -> std::collections::HashMap<String, Color> {
+        default: Option<&HashMap<String, Color>>,
+    ) -> HashMap<String, Color> {
         Self::resolve_color(&self.syntax, base, default)
     }
 }
@@ -387,8 +387,8 @@ impl ThemeBaseConfig {
 #[derive(Debug, Clone, Default)]
 pub struct ThemeColor {
     pub base: ThemeBaseColor,
-    pub syntax: std::collections::HashMap<String, Color>,
-    pub ui: std::collections::HashMap<String, Color>,
+    pub syntax: HashMap<String, Color>,
+    pub ui: HashMap<String, Color>,
 }
 
 #[derive(Debug, Clone)]
@@ -455,7 +455,7 @@ pub struct Config {
     #[serde(skip)]
     pub color: ThemeColor,
     #[serde(skip)]
-    pub available_themes: std::collections::HashMap<String, config::Config>,
+    pub available_themes: HashMap<String, config::Config>,
     #[serde(skip)]
     tab_layout_info: Arc<RwLock<HashMap<(FontFamily, usize), f64>>>,
 }
@@ -568,7 +568,7 @@ impl Config {
         );
     }
 
-    fn load_themes() -> std::collections::HashMap<String, config::Config> {
+    fn load_themes() -> HashMap<String, config::Config> {
         let mut themes = Self::load_local_themes().unwrap_or_default();
 
         let (name, theme) = Self::load_theme_from_str(DEFAULT_LIGHT_THEME).unwrap();
@@ -579,10 +579,9 @@ impl Config {
         themes
     }
 
-    fn load_local_themes(
-    ) -> Option<std::collections::HashMap<String, config::Config>> {
+    fn load_local_themes() -> Option<HashMap<String, config::Config>> {
         let themes_folder = Config::themes_folder()?;
-        let themes: std::collections::HashMap<String, config::Config> =
+        let themes: HashMap<String, config::Config> =
             std::fs::read_dir(themes_folder)
                 .ok()?
                 .filter_map(|entry| {
