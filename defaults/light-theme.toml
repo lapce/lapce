@@ -1,3 +1,17 @@
+[theme]
+name = "Lapce Light"
+
+[ui]
+font-family = ""
+font-size = 13
+header-height = 35
+status-height = 25
+tab-min-width = 100
+activity-width = 50
+scroll-width = 10
+drop-shadow-width = 0
+
+[theme.base]
 white = "#fafafa"
 black = "#383a42"
 grey = "#E5E5E6"
@@ -10,6 +24,41 @@ purple = "#A626A4"
 cyan = "#0184bc"
 magenta = "#A626A4"
 
+[theme.syntax]
+"comment" = "#A0A1A7"
+
+"constant" = "$yellow"
+"type" = "$yellow"
+"typeAlias" = "$yellow"
+"number" = "$yellow"
+"enum" = "$yellow"
+"struct" = "$yellow"
+"structure" = "$yellow"
+"interface" = "$yellow"
+"attribute" = "$yellow"
+"constructor" = "$yellow"
+
+"function" = "$blue"
+"method" = "$blue"
+"function.method" = "$blue"
+
+"keyword" = "$purple"
+"selfKeyword" = "$purple"
+
+"field" = "$red"
+"property" = "$red"
+"enumMember" = "$red"
+"enum-member" = "$red"
+"variable.other.member" = "$red"
+
+"string" = "$green"
+
+"type.builtin" = "$cyan"
+"builtinType" = "$cyan"
+"escape" = "$cyan"
+"embedded" = "$cyan"
+
+[theme.ui]
 "lapce.active_tab" = "$white"
 "lapce.inactive_tab" = "$grey"
 "lapce.error" = "#e51400"
@@ -44,7 +93,7 @@ magenta = "#A626A4"
 "editor.focus" = "#000000"
 "editor.caret" = "#526FFF"
 "editor.selection" = "$grey"
-"editor.current_line" = "$light_grey"
+"editor.current_line" = "#f2f2f2"
 "editor.link" = "$cyan"
 
 "source_control.added" = "#50a14f32"
@@ -73,36 +122,3 @@ magenta = "#A626A4"
 "status.modal.terminal" = "$purple"
 
 "markdown.blockquote" = "#686868"
-
-"style.comment" = "#A0A1A7"
-
-"style.constant" = "$yellow"
-"style.type" = "$yellow"
-"style.typeAlias" = "$yellow"
-"style.number" = "$yellow"
-"style.enum" = "$yellow"
-"style.struct" = "$yellow"
-"style.structure" = "$yellow"
-"style.interface" = "$yellow"
-"style.attribute" = "$yellow"
-"style.constructor" = "$yellow"
-
-"style.function" = "$blue"
-"style.method" = "$blue"
-"style.function.method" = "$blue"
-
-"style.keyword" = "$purple"
-"style.selfKeyword" = "$purple"
-
-"style.field" = "$red"
-"style.property" = "$red"
-"style.enumMember" = "$red"
-"style.enum-member" = "$red"
-"style.variable.other.member" = "$red"
-
-"style.string" = "$green"
-
-"style.type.builtin" = "$cyan"
-"style.builtinType" = "$cyan"
-"style.escape" = "$cyan"
-"style.embedded" = "$cyan"

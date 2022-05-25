@@ -1053,15 +1053,7 @@ impl ThemeSettings {
     fn update_inputs(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         self.inputs.clear();
 
-        let colors: Vec<&String> = data
-            .config
-            .themes
-            .default_theme()
-            .color_keys()
-            .sorted()
-            .collect();
-        let style_colors: Vec<&String> =
-            data.config.themes.default_theme().style_keys().collect();
+        let colors: Vec<&String> = data.config.color.ui.keys().sorted().collect();
 
         for color in colors {
             let name = format!("lapce.color.{color}");
@@ -1073,10 +1065,7 @@ impl ThemeSettings {
                 data.proxy.clone(),
             );
             doc.reload(
-                Rope::from(format!(
-                    "{:?}",
-                    data.config.themes.color(color).unwrap()
-                )),
+                Rope::from(format!("{:?}", data.config.get_color_unchecked(color))),
                 true,
             );
             data.main_split.value_docs.insert(name, Arc::new(doc));
