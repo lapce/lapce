@@ -2250,7 +2250,7 @@ impl LapceMainSplitData {
         let mut i = 0;
         loop {
             i += 1;
-            let potential_name = format!("new {}", i);
+            let potential_name = format!("Untitled-{}", i);
 
             // Checking just the current scratch_docs rather than all the different document
             // collections seems to be the right thing to do. The user may have genuine 'new N'
