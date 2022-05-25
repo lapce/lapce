@@ -364,7 +364,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                                 text = s.to_string();
                             }
                         }
-                    } else if let BufferContent::Scratch(_) = &editor.content {
+                    } else if let BufferContent::Scratch(..) = &editor.content {
                         text = editor.content.file_name().to_string();
                     }
                 }

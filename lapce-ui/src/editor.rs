@@ -285,7 +285,7 @@ impl LapceEditor {
         let width = data.config.editor_char_width(text);
         match &data.editor.content {
             BufferContent::File(_)
-            | BufferContent::Scratch(_)
+            | BufferContent::Scratch(..)
             | BufferContent::Local(LocalBufferKind::Empty) => {
                 if data.editor.code_lens {
                     if let Some(syntax) = data.doc.syntax() {
