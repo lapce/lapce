@@ -2253,7 +2253,8 @@ impl LapceMainSplitData {
         // Checking just the current scratch_docs rather than all the different document
         // collections seems to be the right thing to do. The user may have genuine 'new N'
         // files tucked away somewhere in their workspace.
-        let new_num = self.scratch_docs
+        let new_num = self
+            .scratch_docs
             .values()
             .filter_map(|doc| match doc.content() {
                 BufferContent::Scratch(_, existing_name) => {
@@ -2265,7 +2266,9 @@ impl LapceMainSplitData {
                 }
                 _ => None,
             })
-            .max().unwrap_or(0) + 1;
+            .max()
+            .unwrap_or(0)
+            + 1;
 
         return format!("{}{}", PREFIX, new_num);
     }
