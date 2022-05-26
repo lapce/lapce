@@ -2248,25 +2248,22 @@ impl LapceMainSplitData {
     }
 
     fn get_name_for_new_file(&self) -> String {
-        let mut i = 0;
-        loop {
-            i += 1;
-            let potential_name = format!("Untitled-{}", i);
-
-            // Checking just the current scratch_docs rather than all the different document
-            // collections seems to be the right thing to do. The user may have genuine 'new N'
-            // files tucked away somewhere in their workspace.
-            if self.scratch_docs.values().any(|doc| match doc.content() {
+        const PREFIX: &str = "Untitled-";
+        let new_num = self.scratch_docs
+            .values()
+            .filter_map(|doc| match doc.content() {
                 BufferContent::Scratch(_, existing_name) => {
-                    *existing_name == potential_name
+                    // The unwraps are safe because scratch docs are always
+                    // titled the same format and the user cannot change the name.
+                    let num_part = existing_name.strip_prefix(PREFIX).unwrap();
+                    let num = num_part.parse::<i32>().unwrap();
+                    Some(num)
                 }
-                _ => false,
-            }) {
-                continue;
-            }
+                _ => None,
+            })
+            .max().unwrap_or(0) + 1;
 
-            return potential_name;
-        }
+        return format!("{}{}", PREFIX, new_num);
     }
 
     pub fn new_file(&mut self, ctx: &mut EventCtx, config: &Config) {
