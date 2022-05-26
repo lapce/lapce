@@ -2249,6 +2249,10 @@ impl LapceMainSplitData {
 
     fn get_name_for_new_file(&self) -> String {
         const PREFIX: &str = "Untitled-";
+
+        // Checking just the current scratch_docs rather than all the different document
+        // collections seems to be the right thing to do. The user may have genuine 'new N'
+        // files tucked away somewhere in their workspace.
         let new_num = self.scratch_docs
             .values()
             .filter_map(|doc| match doc.content() {
