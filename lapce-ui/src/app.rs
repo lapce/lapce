@@ -1,6 +1,6 @@
 use druid::{
-    AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Menu, MenuItem,
-    Point, Size, SysMods, Widget, WidgetExt, WindowDesc, WindowHandle, WindowId,
+    AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Size,
+    Widget, WidgetExt, WindowDesc, WindowHandle, WindowId,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
