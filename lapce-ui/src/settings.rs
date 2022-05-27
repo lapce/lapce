@@ -1064,10 +1064,7 @@ impl ThemeSettings {
                 ctx.get_external_handle(),
                 data.proxy.clone(),
             );
-            doc.reload(
-                Rope::from(format!("{:?}", data.config.get_color_unchecked(color))),
-                true,
-            );
+            doc.reload(Rope::from(data.config.theme.ui.get(color).unwrap()), true);
             data.main_split.value_docs.insert(name, Arc::new(doc));
             let editor =
                 LapceEditorData::new(None, None, None, content, &data.config);
