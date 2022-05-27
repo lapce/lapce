@@ -258,14 +258,14 @@ impl LapceEditorTabHeaderContent {
         let workspace_path = match workspace_path {
             Some(p) => p,
             None => {
-                let mut file_path_str = match file_path.to_str() {
-                    Some(p) => p.to_string(),
-                    None => return "".to_string(),
-                };
-
-                file_path_str.truncate(20);
-
-                return file_path_str;
+                // file_path.truncate(20);
+                let file_path = file_path
+                    .to_string_lossy()
+                    .char_indices()
+                    .filter(|(i, _)| *i < 20)
+                    .map(|(_, ch)| ch)
+                    .collect::<String>();
+                return file_path;
             }
         };
 
@@ -278,7 +278,7 @@ impl LapceEditorTabHeaderContent {
             // We dont need to keep the file name, only the parents.
             file_path_mut.pop();
 
-            while file_path_mut.cmp(&workspace_path) != Ordering::Equal {
+            while file_path_mut != workspace_path {
                 let file_name = file_path_mut.file_name().unwrap();
                 let file_name_str = file_name.to_str().unwrap().to_string();
 
@@ -575,6 +575,15 @@ mod test {
         let f4 = PathBuf::from("/home/user/proj/file.rs");
         let f5 = PathBuf::from("/home/user/toolongprojectshouldtruncate/file.rs");
         let f6 = PathBuf::from("/home/user/myproject/file.rs");
+        let f7 = PathBuf::from(
+            "/home/user/myproject/🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆",
+        );
+        let f8 = PathBuf::from(
+            "/home/user/proj/🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆",
+        );
+        let f9 = PathBuf::from(
+            "/home/user/myproject/🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆/🎉🎉🎉🎉🎉🎉🎉/🎊",
+        );
 
         let mut tab = LapceEditorTabHeaderContent::new(WidgetId::next());
 
@@ -584,6 +593,9 @@ mod test {
         let r4 = tab.get_effective_path(workspace_path.clone(), &f4);
         let r5 = tab.get_effective_path(workspace_path.clone(), &f5);
         let r6 = tab.get_effective_path(workspace_path.clone(), &f6);
+        let r7 = tab.get_effective_path(workspace_path.clone(), &f7);
+        let r8 = tab.get_effective_path(workspace_path.clone(), &f8);
+        let r9 = tab.get_effective_path(workspace_path.clone(), &f9);
 
         assert_eq!(r1, "folder1");
         assert_eq!(r2, "folder2");
@@ -591,5 +603,8 @@ mod test {
         assert_eq!(r4, "/home/user/proj");
         assert_eq!(r5, "/home/user");
         assert_eq!(r6, "./");
+        assert_eq!(r7, "./");
+        assert_eq!(r8, "/home/user/proj");
+        assert_eq!(r9, "🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆/🎉🎉🎉🎉🎉🎉🎉");
     }
 }
