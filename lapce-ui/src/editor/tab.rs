@@ -605,6 +605,13 @@ impl TabRectRenderer for TabRect {
             &self.text_layout,
             Point::new(rect.x1 + 5.0, (size.height - text_size.height) / 2.0),
         );
+        ctx.draw_text(
+            &self.path_layout,
+            Point::new(
+                rect.x1 + text_size.width + 5.0,
+                (size.height - text_size.height) / 2.0,
+            ),
+        );
         let x = self.rect.x1;
         ctx.stroke(
             Line::new(

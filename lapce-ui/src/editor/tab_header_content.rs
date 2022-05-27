@@ -1,12 +1,13 @@
-use std::{iter::Iterator, sync::Arc};
+use std::{cmp::Ordering, iter::Iterator, path::PathBuf, sync::Arc};
 
 use druid::{
     kurbo::Line,
     piet::{Text, TextLayout as TextLayoutTrait, TextLayoutBuilder},
-    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    BoxConstraints, Command, Env, Event, EventCtx, FontStyle, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetId,
 };
+use hashbrown::HashMap;
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{
@@ -248,6 +249,79 @@ impl LapceEditorTabHeaderContent {
             ));
         }
     }
+
+    fn get_effective_path(
+        &mut self,
+        workspace_path: Option<PathBuf>,
+        file_path: &PathBuf,
+    ) -> String {
+        let workspace_path = match workspace_path {
+            Some(p) => p,
+            None => {
+                let mut file_path_str = match file_path.to_str() {
+                    Some(p) => p.to_string(),
+                    None => return "".to_string(),
+                };
+
+                file_path_str.truncate(20);
+
+                return file_path_str;
+            }
+        };
+
+        // file is a workspace file: we can truncate to workspace folders
+        if file_path.starts_with(&workspace_path) {
+            let mut reversed_path: Vec<String> = Vec::<String>::new();
+            // let mut parent = file_path.parent();
+            let mut file_path_mut = file_path.clone();
+
+            // We dont need to keep the file name, only the parents.
+            file_path_mut.pop();
+
+            while file_path_mut.cmp(&workspace_path) != Ordering::Equal {
+                let file_name = file_path_mut.file_name().unwrap();
+                let file_name_str = file_name.to_str().unwrap().to_string();
+
+                reversed_path.push(file_name_str);
+                if !file_path_mut.pop() {
+                    break;
+                }
+            }
+
+            // File is at workspace root
+            if reversed_path.len() == 0 {
+                return "./".to_string();
+            }
+
+            reversed_path.reverse();
+            let mut new_path = PathBuf::new();
+
+            for i in reversed_path.iter() {
+                new_path.push(i);
+            }
+
+            return new_path.to_str().unwrap().to_string();
+        }
+
+        // file is not a workspace file: we keep root but we try to declutter
+        // as much as possible by clamping to 20 character length
+        let components = match file_path.parent() {
+            Some(v) => v.components(),
+            None => return "/".to_string(),
+        };
+
+        let mut new_path = PathBuf::new();
+
+        for c in components {
+            if new_path.as_os_str().len() + c.as_os_str().len() > 20 {
+                break;
+            }
+
+            new_path.push(c);
+        }
+
+        return new_path.to_str().unwrap().to_string();
+    }
 }
 
 impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
@@ -351,9 +425,31 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
 
         self.rects.clear();
         let mut x = 0.0;
+        let mut name_count: HashMap<String, i32> = HashMap::new();
+        for (_i, child) in editor_tab.children.iter().enumerate() {
+            match child {
+                EditorTabChild::Editor(view_id, _, _) => {
+                    let editor = data.main_split.editors.get(view_id).unwrap();
+                    if let BufferContent::File(path) = &editor.content {
+                        if let Some(file_name) = path.file_name() {
+                            let name = file_name.to_str().unwrap();
+                            let nb = match name_count.get(name) {
+                                Some(name) => *name,
+                                None => 0,
+                            };
+
+                            name_count.insert(String::from(name), nb + 1);
+                        }
+                    }
+                }
+                EditorTabChild::Settings(_, _) => {}
+            }
+        }
+
         for (_i, child) in editor_tab.children.iter().enumerate() {
             let mut text = "".to_string();
             let mut svg = get_svg("default_file.svg").unwrap();
+            let mut file_path = "".to_string();
             match child {
                 EditorTabChild::Editor(view_id, _, _) => {
                     let editor = data.main_split.editors.get(view_id).unwrap();
@@ -362,6 +458,18 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                         if let Some(file_name) = path.file_name() {
                             if let Some(s) = file_name.to_str() {
                                 text = s.to_string();
+                                let nb = name_count
+                                    .get(file_name.to_str().unwrap())
+                                    .unwrap();
+                                if *nb > 1 {
+                                    file_path = format!(
+                                        " {}",
+                                        self.get_effective_path(
+                                            data.workspace.path.clone(),
+                                            path
+                                        )
+                                    );
+                                }
                             }
                         }
                     } else if let BufferContent::Scratch(..) = &editor.content {
@@ -384,7 +492,19 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 )
                 .build()
                 .unwrap();
-            let text_size = text_layout.size();
+            let path_layout = ctx
+                .text()
+                .new_text_layout(file_path)
+                .default_attribute(FontStyle::Italic)
+                .font(data.config.ui.font_family(), font_size)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            let text_size = text_layout.size() + path_layout.size();
             let width =
                 (text_size.width + height + (height - font_size) / 2.0 + font_size)
                     .max(data.config.ui.tab_min_width() as f64);
@@ -400,6 +520,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     .with_origin(Point::new(x + width - height, 0.0))
                     .inflate(-inflate, -inflate),
                 text_layout,
+                path_layout,
             };
             x += width;
             self.rects.push(tab_rect);
@@ -439,5 +560,36 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 4.0,
             );
         }
+    }
+}
+
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_effective_path() {
+        let workspace_path = Some(PathBuf::from("/home/user/myproject/"));
+        let f1 = PathBuf::from("/home/user/myproject/folder1/file.rs");
+        let f2 = PathBuf::from("/home/user/myproject/folder2/file.rs");
+        let f3 = PathBuf::from("/file.rs");
+        let f4 = PathBuf::from("/home/user/proj/file.rs");
+        let f5 = PathBuf::from("/home/user/toolongprojectshouldtruncate/file.rs");
+        let f6 = PathBuf::from("/home/user/myproject/file.rs");
+
+        let mut tab = LapceEditorTabHeaderContent::new(WidgetId::next());
+
+        let r1 = tab.get_effective_path(workspace_path.clone(), &f1);
+        let r2 = tab.get_effective_path(workspace_path.clone(), &f2);
+        let r3 = tab.get_effective_path(workspace_path.clone(), &f3);
+        let r4 = tab.get_effective_path(workspace_path.clone(), &f4);
+        let r5 = tab.get_effective_path(workspace_path.clone(), &f5);
+        let r6 = tab.get_effective_path(workspace_path.clone(), &f6);
+
+        assert_eq!(r1, "folder1");
+        assert_eq!(r2, "folder2");
+        assert_eq!(r3, "/");
+        assert_eq!(r4, "/home/user/proj");
+        assert_eq!(r5, "/home/user");
+        assert_eq!(r6, "./");
     }
 }

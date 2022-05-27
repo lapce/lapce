@@ -2002,6 +2002,7 @@ pub struct TabRect {
     pub rect: Rect,
     pub close_rect: Rect,
     pub text_layout: PietTextLayout,
+    pub path_layout: PietTextLayout,
 }
 
 #[derive(Clone)]
