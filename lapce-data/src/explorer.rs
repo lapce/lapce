@@ -6,26 +6,20 @@ use std::sync::Arc;
 use druid::ExtEventSink;
 use druid::{Target, WidgetId};
 
-use include_dir::{include_dir, Dir};
 use lapce_rpc::file::FileNodeItem;
+use lapce_rpc::proxy::ReadDirResponse;
 
+use crate::data::LapceWorkspace;
 use crate::proxy::LapceProxy;
-use crate::state::LapceWorkspace;
 
 use crate::{command::LapceUICommand, command::LAPCE_UI_COMMAND};
-
-#[allow(dead_code)]
-const ICONS_DIR: Dir = include_dir!("../icons");
 
 #[derive(Clone)]
 pub struct FileExplorerData {
     pub tab_id: WidgetId,
     pub widget_id: WidgetId,
     pub workspace: Option<FileNodeItem>,
-    pub index: usize,
-
-    #[allow(dead_code)]
-    count: usize,
+    pub active_selected: Option<PathBuf>,
 }
 
 impl FileExplorerData {
@@ -46,29 +40,9 @@ impl FileExplorerData {
                 children: HashMap::new(),
                 children_open_count: 0,
             });
-            let index = 0;
             let path = path.clone();
             std::thread::spawn(move || {
-                proxy.read_dir(
-                    &path.clone(),
-                    Box::new(move |result| {
-                        if let Ok(res) = result {
-                            let resp: Result<Vec<FileNodeItem>, serde_json::Error> =
-                                serde_json::from_value(res);
-                            if let Ok(items) = resp {
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::UpdateExplorerItems(
-                                        index,
-                                        path.clone(),
-                                        items,
-                                    ),
-                                    Target::Widget(tab_id),
-                                );
-                            }
-                        }
-                    }),
-                );
+                Self::read_dir(&path, true, tab_id, &proxy, event_sink);
             });
         }
         Self {
@@ -82,8 +56,7 @@ impl FileExplorerData {
                 children: HashMap::new(),
                 children_open_count: 0,
             }),
-            index: 0,
-            count: 0,
+            active_selected: None,
         }
     }
 
@@ -132,6 +105,72 @@ impl FileExplorerData {
             node = node.children.get_mut(&root.join(path))?;
         }
         Some(node)
+    }
+
+    pub fn update_children(
+        &mut self,
+        path: &Path,
+        children: HashMap<PathBuf, FileNodeItem>,
+        expand: bool,
+    ) -> Option<()> {
+        let node = self.workspace.as_mut()?.get_file_node_mut(path)?;
+
+        let removed_paths: Vec<PathBuf> = node
+            .children
+            .keys()
+            .filter(|p| !children.contains_key(*p))
+            .map(PathBuf::from)
+            .collect();
+        for path in removed_paths {
+            node.children.remove(&path);
+        }
+
+        for (path, child) in children.into_iter() {
+            if !node.children.contains_key(&path) {
+                node.children.insert(child.path_buf.clone(), child);
+            }
+        }
+
+        node.read = true;
+        if expand {
+            node.open = true;
+        }
+
+        for p in path.ancestors() {
+            self.update_node_count(p);
+        }
+
+        Some(())
+    }
+
+    pub fn read_dir(
+        path: &Path,
+        expand: bool,
+        tab_id: WidgetId,
+        proxy: &LapceProxy,
+        event_sink: ExtEventSink,
+    ) {
+        let path = PathBuf::from(path);
+        let local_path = path.clone();
+        proxy.read_dir(
+            &local_path,
+            Box::new(move |result| {
+                if let Ok(res) = result {
+                    let path = path.clone();
+                    let resp: Result<ReadDirResponse, serde_json::Error> =
+                        serde_json::from_value(res);
+                    if let Ok(resp) = resp {
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateExplorerItems(
+                                path, resp.items, expand,
+                            ),
+                            Target::Widget(tab_id),
+                        );
+                    }
+                }
+            }),
+        );
     }
 }
 

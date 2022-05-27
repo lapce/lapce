@@ -24,7 +24,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct Snippet {
+struct Snippet {
     elements: Vec<SnippetElement>,
 }
 
@@ -137,40 +137,6 @@ impl Snippet {
         }
         Some((SnippetElement::Text(ele), end))
     }
-
-    pub fn text(&self) -> String {
-        self.elements.iter().map(|e| e.text()).join("")
-    }
-
-    pub fn tabs(&self, pos: usize) -> Vec<(usize, (usize, usize))> {
-        Self::elements_tabs(&self.elements, pos)
-    }
-
-    pub fn elements_tabs(
-        elements: &[SnippetElement],
-        start: usize,
-    ) -> Vec<(usize, (usize, usize))> {
-        let mut tabs = Vec::new();
-        let mut pos = start;
-        for el in elements {
-            match el {
-                SnippetElement::Text(t) => {
-                    pos += t.len();
-                }
-                SnippetElement::PlaceHolder(tab, els) => {
-                    let placeholder_tabs = Self::elements_tabs(els, pos);
-                    let end = pos + els.iter().map(|e| e.len()).sum::<usize>();
-                    tabs.push((*tab, (pos, end)));
-                    tabs.extend_from_slice(&placeholder_tabs);
-                    pos = end;
-                }
-                SnippetElement::Tabstop(tab) => {
-                    tabs.push((*tab, (pos, pos)));
-                }
-            }
-        }
-        tabs
-    }
 }
 
 impl FromStr for Snippet {
@@ -190,36 +156,10 @@ impl Display for Snippet {
 }
 
 #[derive(Debug)]
-pub enum SnippetElement {
+enum SnippetElement {
     Text(String),
     PlaceHolder(usize, Vec<SnippetElement>),
     Tabstop(usize),
-}
-
-impl SnippetElement {
-    pub fn len(&self) -> usize {
-        match &self {
-            SnippetElement::Text(text) => text.len(),
-            SnippetElement::PlaceHolder(_, elements) => {
-                elements.iter().map(|e| e.len()).sum()
-            }
-            SnippetElement::Tabstop(_) => 0,
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn text(&self) -> String {
-        match &self {
-            SnippetElement::Text(t) => t.to_string(),
-            SnippetElement::PlaceHolder(_, elements) => {
-                elements.iter().map(|e| e.text()).join("")
-            }
-            SnippetElement::Tabstop(_) => "".to_string(),
-        }
-    }
 }
 
 impl Display for SnippetElement {
@@ -415,14 +355,22 @@ impl Widget<LapceTabData> for CompletionContainer {
         if data.completion.status != CompletionStatus::Inactive
             && data.completion.len() > 0
         {
-            let shadow_width = 5.0;
             let rect = self.content_size.to_rect();
-            ctx.blurred_rect(
-                rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
+            let shadow_width = data.config.ui.drop_shadow_width() as f64;
+            if shadow_width > 0.0 {
+                ctx.blurred_rect(
+                    rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            } else {
+                ctx.stroke(
+                    rect.inflate(0.5, 0.5),
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
+            }
             self.completion.paint(ctx, data, env);
         }
     }
@@ -643,7 +591,6 @@ impl CompletionState {
                 item: item.to_owned(),
                 score: -1 - index as i64,
                 label_score: -1 - index as i64,
-                index,
                 indices: Vec::new(),
             })
             .collect();
@@ -656,25 +603,5 @@ impl CompletionState {
 impl Default for CompletionState {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_snippet() {
-        let s = "start $1${2:second ${3:third}} $0";
-        let parsed = Snippet::from_str(s).unwrap();
-        assert_eq!(s, parsed.to_string());
-
-        let text = "start second third ";
-        assert_eq!(text, parsed.text());
-
-        assert_eq!(
-            vec![(1, (6, 6)), (2, (6, 18)), (3, (13, 18)), (0, (19, 19))],
-            parsed.tabs(0)
-        );
     }
 }

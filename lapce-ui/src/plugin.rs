@@ -1,8 +1,8 @@
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Color, Cursor, Env, Event, EventCtx, FontFamily, FontWeight,
-    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext,
-    Size, UpdateCtx, Widget, WidgetExt, WidgetId,
+    BoxConstraints, Color, Cursor, Env, Event, EventCtx, FontWeight, LayoutCtx,
+    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size,
+    UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_data::{
     config::LapceTheme,
@@ -14,26 +14,8 @@ use strum_macros::Display;
 
 use crate::panel::{LapcePanel, PanelHeaderKind};
 
-pub struct PluginData {
-    pub widget_id: WidgetId,
-}
-
-impl PluginData {
-    pub fn new() -> Self {
-        Self {
-            widget_id: WidgetId::next(),
-        }
-    }
-}
-
-impl Default for PluginData {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[derive(Display, PartialEq)]
-pub enum PluginStatus {
+enum PluginStatus {
     Installed,
     Install,
     Upgrade,
@@ -55,7 +37,7 @@ impl Plugin {
             data.plugin.widget_id,
             split_id,
             SplitDirection::Vertical,
-            PanelHeaderKind::Simple("Plugin".to_string()),
+            PanelHeaderKind::Simple("Plugin".into()),
             vec![(split_id, PanelHeaderKind::None, Self::new().boxed(), None)],
         )
     }
@@ -88,7 +70,10 @@ impl Plugin {
         let text_layout = ctx
             .text()
             .new_text_layout(status.to_string())
-            .font(FontFamily::SYSTEM_UI, 13.0)
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
             .build()
             .unwrap();
 
@@ -179,7 +164,10 @@ impl Widget<LapceTabData> for Plugin {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(plugin.display_name.clone())
-                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
                     .text_color(
                         data.config
@@ -199,7 +187,10 @@ impl Widget<LapceTabData> for Plugin {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(plugin.description.clone())
-                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -219,7 +210,10 @@ impl Widget<LapceTabData> for Plugin {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(plugin.author.clone())
-                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -249,7 +243,10 @@ impl Widget<LapceTabData> for Plugin {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(status.to_string())
-                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)

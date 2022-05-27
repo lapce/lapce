@@ -22,11 +22,11 @@ pub struct LapceEditorContainer {
 }
 
 impl LapceEditorContainer {
-    pub fn new(view_id: WidgetId) -> Self {
+    pub fn new(view_id: WidgetId, editor_id: WidgetId) -> Self {
         let scroll_id = WidgetId::next();
         let gutter = LapceEditorGutter::new(view_id);
         let gutter = LapcePadding::new((10.0, 0.0, 0.0, 0.0), gutter);
-        let editor = LapceEditor::new(view_id);
+        let editor = LapceEditor::new(view_id, editor_id);
         let editor = LapceIdentityWrapper::wrap(
             LapceScrollNew::new(editor).vertical().horizontal(),
             scroll_id,
@@ -56,10 +56,10 @@ impl Widget<LapceTabData> for LapceEditorContainer {
                 let editor =
                     data.main_split.editors.get(&self.view_id).unwrap().clone();
                 let mut editor_data = data.editor_view_content(self.view_id);
-                let buffer = editor_data.buffer.clone();
+                let doc = editor_data.doc.clone();
                 editor_data
                     .sync_buffer_position(self.editor.widget().inner().offset());
-                data.update_from_editor_buffer_data(editor_data, &editor, &buffer);
+                data.update_from_editor_buffer_data(editor_data, &editor, &doc);
             }
             _ => (),
         }

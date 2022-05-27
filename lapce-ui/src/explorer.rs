@@ -1,13 +1,12 @@
-use std::collections::HashMap;
 use std::sync::Arc;
+use std::{collections::HashMap, path::Path};
 
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Cursor, Env, Event, EventCtx, FontFamily, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
+    Widget, WidgetExt, WidgetId, WidgetPod,
 };
-use include_dir::{include_dir, Dir};
 use lapce_data::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
@@ -24,9 +23,6 @@ use crate::{
     svg::{file_svg_new, get_svg},
 };
 
-#[allow(dead_code)]
-const ICONS_DIR: Dir = include_dir!("../icons");
-
 #[allow(clippy::too_many_arguments)]
 pub fn paint_file_node_item(
     ctx: &mut PaintCtx,
@@ -36,30 +32,40 @@ pub fn paint_file_node_item(
     line_height: f64,
     width: f64,
     level: usize,
-    i: usize,
-    index: usize,
+    current: usize,
+    active: Option<&Path>,
+    hovered: Option<usize>,
     config: &Config,
     toggle_rects: &mut HashMap<usize, Rect>,
 ) -> usize {
-    if i > max {
-        return i;
+    if current > max {
+        return current;
     }
-    if i + item.children_open_count < min {
-        return i + item.children_open_count;
+    if current + item.children_open_count < min {
+        return current + item.children_open_count;
     }
-    if i >= min && i <= max {
-        if i == index {
+    if current >= min {
+        let background = if Some(item.path_buf.as_ref()) == active {
+            Some(LapceTheme::PANEL_CURRENT)
+        } else if Some(current) == hovered {
+            Some(LapceTheme::PANEL_HOVERED)
+        } else {
+            None
+        };
+
+        if let Some(background) = background {
             ctx.fill(
                 Rect::ZERO
                     .with_origin(Point::new(
                         0.0,
-                        i as f64 * line_height - line_height,
+                        current as f64 * line_height - line_height,
                     ))
                     .with_size(Size::new(width, line_height)),
-                config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+                config.get_color_unchecked(background),
             );
         }
-        let y = i as f64 * line_height - line_height;
+
+        let y = current as f64 * line_height - line_height;
         let svg_y = y + 4.0;
         let svg_size = 15.0;
         let padding = 15.0 * level as f64;
@@ -78,7 +84,7 @@ pub fn paint_file_node_item(
                 rect,
                 Some(config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)),
             );
-            toggle_rects.insert(i, rect);
+            toggle_rects.insert(current, rect);
 
             let icon_name = if item.open {
                 "default_folder_opened.svg"
@@ -107,7 +113,7 @@ pub fn paint_file_node_item(
                     .unwrap()
                     .to_string(),
             )
-            .font(FontFamily::SYSTEM_UI, 13.0)
+            .font(config.ui.font_family(), config.ui.font_size() as f64)
             .text_color(
                 config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -123,7 +129,7 @@ pub fn paint_file_node_item(
             ),
         );
     }
-    let mut i = i;
+    let mut i = current;
     if item.open {
         for item in item.sorted_children() {
             i = paint_file_node_item(
@@ -135,7 +141,8 @@ pub fn paint_file_node_item(
                 width,
                 level + 1,
                 i + 1,
-                index,
+                active,
+                hovered,
                 config,
                 toggle_rects,
             );
@@ -216,7 +223,7 @@ impl FileExplorer {
             data.file_explorer.widget_id,
             split_id,
             SplitDirection::Vertical,
-            PanelHeaderKind::Simple("File Explorer".to_string()),
+            PanelHeaderKind::Simple("File Explorer".into()),
             vec![(
                 split_id,
                 PanelHeaderKind::None,
@@ -278,62 +285,20 @@ impl Widget<LapceTabData> for FileExplorer {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.file_list.paint(ctx, data, env);
-
-        //  let line_height = data.config.editor.line_height as f64;
-
-        //  let shadow_width = 5.0;
-        //  let rect = Size::new(ctx.size().width, line_height)
-        //      .to_rect()
-        //      .with_origin(Point::new(0.0, 0.0));
-        //  ctx.blurred_rect(
-        //      rect,
-        //      shadow_width,
-        //      data.config
-        //          .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        //  );
-        //  ctx.fill(
-        //      rect,
-        //      data.config
-        //          .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
-        //  );
-
-        //  let dir = data
-        //      .workspace
-        //      .path
-        //      .as_ref()
-        //      .map(|p| {
-        //          let dir = p.file_name().unwrap().to_str().unwrap();
-        //          let dir = match &data.workspace.kind {
-        //              LapceWorkspaceType::Local => dir.to_string(),
-        //              LapceWorkspaceType::RemoteSSH(user, host) => {
-        //                  format!("{} [{}@{}]", dir, user, host)
-        //              }
-        //          };
-        //          dir
-        //      })
-        //      .unwrap_or("Lapce".to_string());
-        //  let text_layout = ctx
-        //      .text()
-        //      .new_text_layout(dir)
-        //      .font(FontFamily::SYSTEM_UI, 13.0)
-        //      .text_color(
-        //          data.config
-        //              .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-        //              .clone(),
-        //      )
-        //      .build()
-        //      .unwrap();
-        //  ctx.draw_text(&text_layout, Point::new(20.0, 4.0));
     }
 }
 
-pub struct FileExplorerFileList {
+struct FileExplorerFileList {
     line_height: f64,
+    hovered: Option<usize>,
 }
 
 impl FileExplorerFileList {
     pub fn new() -> Self {
-        Self { line_height: 25.0 }
+        Self {
+            line_height: 25.0,
+            hovered: None,
+        }
     }
 }
 
@@ -352,6 +317,21 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         _env: &Env,
     ) {
         match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+
+                if let LapceUICommand::ActiveFileChanged { path } = command {
+                    let file_explorer = Arc::make_mut(&mut data.file_explorer);
+                    file_explorer.active_selected = path.clone();
+                    ctx.request_paint();
+                }
+            }
+            _ => {}
+        }
+        if !ctx.is_hot() {
+            return;
+        }
+        match event {
             Event::MouseMove(mouse_event) => {
                 if let Some(workspace) = data.file_explorer.workspace.as_ref() {
                     let y = mouse_event.pos.y;
@@ -359,8 +339,19 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         * (workspace.children_open_count + 1 + 1) as f64
                     {
                         ctx.set_cursor(&Cursor::Pointer);
+                        let hovered = Some(
+                            ((mouse_event.pos.y + self.line_height)
+                                / self.line_height)
+                                as usize,
+                        );
+
+                        if hovered != self.hovered {
+                            ctx.request_paint();
+                            self.hovered = hovered;
+                        }
                     } else {
                         ctx.clear_cursor();
+                        self.hovered = None;
                     }
                 }
             }
@@ -374,27 +365,13 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             node.open = !node.open;
                         } else {
                             let tab_id = data.id;
-                            let path = node.path_buf.clone();
                             let event_sink = ctx.get_external_handle();
-                            data.proxy.read_dir(
+                            FileExplorerData::read_dir(
                                 &node.path_buf,
-                                Box::new(move |result| {
-                                    if let Ok(res) = result {
-                                        let resp: Result<
-                                            Vec<FileNodeItem>,
-                                            serde_json::Error,
-                                        > = serde_json::from_value(res);
-                                        if let Ok(items) = resp {
-                                            let _ = event_sink.submit_command(
-                                                LAPCE_UI_COMMAND,
-                                                LapceUICommand::UpdateExplorerItems(
-                                                    index, path, items,
-                                                ),
-                                                Target::Widget(tab_id),
-                                            );
-                                        }
-                                    }
-                                }),
+                                true,
+                                tab_id,
+                                &data.proxy,
+                                event_sink,
                             );
                         }
                         let path = node.path_buf.clone();
@@ -409,8 +386,14 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             LapceUICommand::OpenFile(node.path_buf.clone()),
                             Target::Widget(data.id),
                         ));
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ActiveFileChanged {
+                                path: Some(node.path_buf.clone()),
+                            },
+                            Target::Widget(file_explorer.widget_id),
+                        ));
                     }
-                    file_explorer.index = index;
                 }
             }
             _ => (),
@@ -420,10 +403,13 @@ impl Widget<LapceTabData> for FileExplorerFileList {
     fn lifecycle(
         &mut self,
         _ctx: &mut LifeCycleCtx,
-        _event: &LifeCycle,
+        event: &LifeCycle,
         _data: &LapceTabData,
         _env: &Env,
     ) {
+        if let LifeCycle::HotChanged(false) = event {
+            self.hovered = None;
+        }
     }
 
     fn update(
@@ -469,7 +455,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         let rect = ctx.region().bounding_box();
         let size = ctx.size();
         let width = size.width;
-        let index = data.file_explorer.index;
+        let active = data.file_explorer.active_selected.as_deref();
         let min = (rect.y0 / self.line_height).floor() as usize;
         let max = (rect.y1 / self.line_height) as usize + 2;
         let level = 0;
@@ -486,7 +472,8 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     width,
                     level + 1,
                     i + 1,
-                    index,
+                    active,
+                    self.hovered,
                     &data.config,
                     &mut HashMap::new(),
                 );

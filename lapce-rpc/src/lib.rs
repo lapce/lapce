@@ -160,6 +160,47 @@ impl RpcHandler {
         }
     }
 
+    fn send_rpc_request_value_common<T: serde::Serialize>(
+        &self,
+        request: T,
+        rh: ResponseHandler,
+    ) {
+        let id = self.id.fetch_add(1, Ordering::Relaxed);
+        {
+            let mut pending = self.pending.lock();
+            pending.insert(id, rh);
+        }
+        let mut request = serde_json::to_value(request).unwrap();
+        request
+            .as_object_mut()
+            .unwrap()
+            .insert("id".to_string(), json!(id));
+
+        if let Err(_e) = self.sender.send(request) {
+            let mut pending = self.pending.lock();
+            if let Some(rh) = pending.remove(&id) {
+                rh.invoke(Err(json!("io error")));
+            }
+        }
+    }
+
+    pub fn send_rpc_request_value<T: serde::Serialize>(
+        &self,
+        request: T,
+    ) -> Result<Value, Value> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.send_rpc_request_value_common(request, ResponseHandler::Chan(tx));
+        rx.recv().unwrap_or_else(|_| Err(json!("io error")))
+    }
+
+    pub fn send_rpc_request_value_async<T: serde::Serialize>(
+        &self,
+        request: T,
+        f: Box<dyn Callback>,
+    ) {
+        self.send_rpc_request_value_common(request, ResponseHandler::Callback(f));
+    }
+
     pub fn send_rpc_request(
         &self,
         method: &str,

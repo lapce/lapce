@@ -11,22 +11,28 @@ use alacritty_terminal::{
     Term,
 };
 use druid::{
-    Application, Color, Command, Env, EventCtx, ExtEventSink, Modifiers, Target,
-    WidgetId,
+    keyboard_types::Key, Application, Color, Command, Env, EventCtx, ExtEventSink,
+    KeyEvent, Modifiers, Target, WidgetId,
 };
 use hashbrown::HashMap;
+use lapce_core::{
+    command::{EditCommand, FocusCommand},
+    mode::{Mode, VisualMode},
+    movement::{LinePosition, Movement},
+};
 use lapce_rpc::terminal::TermId;
 use parking_lot::Mutex;
 
 use crate::{
-    command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
+    },
     config::{Config, LapceTheme},
+    data::LapceWorkspace,
     find::Find,
     keypress::KeyPressFocus,
-    movement::{LinePosition, Movement},
     proxy::LapceProxy,
     split::SplitMoveDirection,
-    state::{LapceWorkspace, Mode, VisualMode},
 };
 
 pub type TermConfig = alacritty_terminal::config::Config;
@@ -42,8 +48,7 @@ pub struct TerminalSplitData {
 }
 
 impl TerminalSplitData {
-    #[allow(unused_variables)]
-    pub fn new(proxy: Arc<LapceProxy>) -> Self {
+    pub fn new(_proxy: Arc<LapceProxy>) -> Self {
         let split_id = WidgetId::next();
         let terminals = im::HashMap::new();
 
@@ -229,6 +234,14 @@ impl LapceTerminalViewData {
             selection.include_all();
         }
     }
+
+    pub fn send_keypress(&mut self, key: &KeyEvent) {
+        if let Some(command) = LapceTerminalData::resolve_key_event(key) {
+            self.terminal
+                .proxy
+                .terminal_write(self.terminal.term_id, command.as_ref());
+        }
+    }
 }
 
 impl KeyPressFocus for LapceTerminalViewData {
@@ -249,178 +262,193 @@ impl KeyPressFocus for LapceTerminalViewData {
         _env: &Env,
     ) -> CommandExecuted {
         ctx.request_paint();
-        if let Some(movement) = command.move_command(count) {
-            let mut raw = self.terminal.raw.lock();
-            let term = &mut raw.term;
-            match movement {
-                Movement::Left => {
-                    term.vi_motion(ViMotion::Left);
-                }
-                Movement::Right => {
-                    term.vi_motion(ViMotion::Right);
-                }
-                Movement::Up => {
-                    term.vi_motion(ViMotion::Up);
-                }
-                Movement::Down => {
-                    term.vi_motion(ViMotion::Down);
-                }
-                Movement::FirstNonBlank => {
-                    term.vi_motion(ViMotion::FirstOccupied);
-                }
-                Movement::StartOfLine => {
-                    term.vi_motion(ViMotion::First);
-                }
-                Movement::EndOfLine => {
-                    term.vi_motion(ViMotion::Last);
-                }
-                Movement::WordForward => {
-                    term.vi_motion(ViMotion::SemanticRight);
-                }
-                Movement::WordEndForward => {
-                    term.vi_motion(ViMotion::SemanticRightEnd);
-                }
-                Movement::WordBackward => {
-                    term.vi_motion(ViMotion::SemanticLeft);
-                }
-                Movement::Line(line) => {
-                    match line {
-                        LinePosition::First => {
-                            term.scroll_display(Scroll::Top);
-                            term.vi_mode_cursor.point.line = term.topmost_line();
-                        }
-                        LinePosition::Last => {
-                            term.scroll_display(Scroll::Bottom);
-                            term.vi_mode_cursor.point.line = term.bottommost_line();
-                        }
-                        LinePosition::Line(_) => {}
-                    };
-                }
-                _ => (),
-            };
-            return CommandExecuted::Yes;
-        }
-        match command {
-            LapceCommand::NormalMode => {
-                if !self.config.lapce.modal {
-                    return CommandExecuted::Yes;
-                }
-                self.terminal_mut().mode = Mode::Normal;
+        match &command.kind {
+            CommandKind::Move(cmd) => {
+                let movement = cmd.to_movement(count);
                 let mut raw = self.terminal.raw.lock();
                 let term = &mut raw.term;
-                if !term.mode().contains(TermMode::VI) {
-                    term.toggle_vi_mode();
-                }
-                self.terminal.clear_selection(term);
+                match movement {
+                    Movement::Left => {
+                        term.vi_motion(ViMotion::Left);
+                    }
+                    Movement::Right => {
+                        term.vi_motion(ViMotion::Right);
+                    }
+                    Movement::Up => {
+                        term.vi_motion(ViMotion::Up);
+                    }
+                    Movement::Down => {
+                        term.vi_motion(ViMotion::Down);
+                    }
+                    Movement::FirstNonBlank => {
+                        term.vi_motion(ViMotion::FirstOccupied);
+                    }
+                    Movement::StartOfLine => {
+                        term.vi_motion(ViMotion::First);
+                    }
+                    Movement::EndOfLine => {
+                        term.vi_motion(ViMotion::Last);
+                    }
+                    Movement::WordForward => {
+                        term.vi_motion(ViMotion::SemanticRight);
+                    }
+                    Movement::WordEndForward => {
+                        term.vi_motion(ViMotion::SemanticRightEnd);
+                    }
+                    Movement::WordBackward => {
+                        term.vi_motion(ViMotion::SemanticLeft);
+                    }
+                    Movement::Line(line) => {
+                        match line {
+                            LinePosition::First => {
+                                term.scroll_display(Scroll::Top);
+                                term.vi_mode_cursor.point.line = term.topmost_line();
+                            }
+                            LinePosition::Last => {
+                                term.scroll_display(Scroll::Bottom);
+                                term.vi_mode_cursor.point.line =
+                                    term.bottommost_line();
+                            }
+                            LinePosition::Line(_) => {}
+                        };
+                    }
+                    _ => (),
+                };
             }
-            LapceCommand::ToggleVisualMode => {
-                self.toggle_visual(VisualMode::Normal);
-            }
-            LapceCommand::ToggleLinewiseVisualMode => {
-                self.toggle_visual(VisualMode::Linewise);
-            }
-            LapceCommand::ToggleBlockwiseVisualMode => {
-                self.toggle_visual(VisualMode::Blockwise);
-            }
-            LapceCommand::InsertMode => {
-                self.terminal_mut().mode = Mode::Terminal;
-                let mut raw = self.terminal.raw.lock();
-                let term = &mut raw.term;
-                if term.mode().contains(TermMode::VI) {
-                    term.toggle_vi_mode();
-                }
-                let scroll = alacritty_terminal::grid::Scroll::Bottom;
-                term.scroll_display(scroll);
-                self.terminal.clear_selection(term);
-            }
-            LapceCommand::PageUp => {
-                let mut raw = self.terminal.raw.lock();
-                let term = &mut raw.term;
-                let scroll_lines = term.screen_lines() as i32 / 2;
-                term.vi_mode_cursor = term.vi_mode_cursor.scroll(term, scroll_lines);
-
-                term.scroll_display(alacritty_terminal::grid::Scroll::Delta(
-                    scroll_lines,
-                ));
-            }
-            LapceCommand::PageDown => {
-                let mut raw = self.terminal.raw.lock();
-                let term = &mut raw.term;
-                let scroll_lines = -(term.screen_lines() as i32 / 2);
-                term.vi_mode_cursor = term.vi_mode_cursor.scroll(term, scroll_lines);
-
-                term.scroll_display(alacritty_terminal::grid::Scroll::Delta(
-                    scroll_lines,
-                ));
-            }
-            LapceCommand::SplitVertical => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitTerminal(true, self.terminal.widget_id),
-                    Target::Widget(self.terminal.split_id),
-                ));
-            }
-            LapceCommand::SplitLeft => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitEditorMove(
-                        SplitMoveDirection::Left,
-                        self.terminal.widget_id,
-                    ),
-                    Target::Widget(self.terminal.split_id),
-                ));
-            }
-            LapceCommand::SplitRight => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitEditorMove(
-                        SplitMoveDirection::Right,
-                        self.terminal.widget_id,
-                    ),
-                    Target::Widget(self.terminal.split_id),
-                ));
-            }
-            LapceCommand::SplitExchange => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitEditorExchange(self.terminal.widget_id),
-                    Target::Widget(self.terminal.split_id),
-                ));
-            }
-            LapceCommand::ClipboardCopy => {
-                if self.terminal.mode == Mode::Visual {
+            CommandKind::Edit(cmd) => match cmd {
+                EditCommand::NormalMode => {
+                    if !self.config.lapce.modal {
+                        return CommandExecuted::Yes;
+                    }
                     self.terminal_mut().mode = Mode::Normal;
-                }
-                let mut raw = self.terminal.raw.lock();
-                let term = &mut raw.term;
-                if let Some(content) = term.selection_to_string() {
-                    Application::global().clipboard().put_string(content);
-                }
-                self.terminal.clear_selection(term);
-            }
-            LapceCommand::ClipboardPaste => {
-                if let Some(s) = Application::global().clipboard().get_string() {
-                    self.receive_char(ctx, &s);
-                }
-            }
-            LapceCommand::SearchForward => {
-                if let Some(search_string) = self.find.search_string.as_ref() {
                     let mut raw = self.terminal.raw.lock();
                     let term = &mut raw.term;
-                    self.terminal
-                        .search_next(term, search_string, Direction::Right);
+                    if !term.mode().contains(TermMode::VI) {
+                        term.toggle_vi_mode();
+                    }
+                    self.terminal.clear_selection(term);
                 }
-            }
-            LapceCommand::SearchBackward => {
-                if let Some(search_string) = self.find.search_string.as_ref() {
+                EditCommand::ToggleVisualMode => {
+                    self.toggle_visual(VisualMode::Normal);
+                }
+                EditCommand::ToggleLinewiseVisualMode => {
+                    self.toggle_visual(VisualMode::Linewise);
+                }
+                EditCommand::ToggleBlockwiseVisualMode => {
+                    self.toggle_visual(VisualMode::Blockwise);
+                }
+                EditCommand::InsertMode => {
+                    self.terminal_mut().mode = Mode::Terminal;
                     let mut raw = self.terminal.raw.lock();
                     let term = &mut raw.term;
-                    self.terminal
-                        .search_next(term, search_string, Direction::Left);
+                    if term.mode().contains(TermMode::VI) {
+                        term.toggle_vi_mode();
+                    }
+                    let scroll = alacritty_terminal::grid::Scroll::Bottom;
+                    term.scroll_display(scroll);
+                    self.terminal.clear_selection(term);
                 }
-            }
+                EditCommand::ClipboardCopy => {
+                    if self.terminal.mode == Mode::Visual {
+                        self.terminal_mut().mode = Mode::Normal;
+                    }
+                    let mut raw = self.terminal.raw.lock();
+                    let term = &mut raw.term;
+                    if let Some(content) = term.selection_to_string() {
+                        Application::global().clipboard().put_string(content);
+                    }
+                    self.terminal.clear_selection(term);
+                }
+                EditCommand::ClipboardPaste => {
+                    if let Some(s) = Application::global().clipboard().get_string() {
+                        self.receive_char(ctx, &s);
+                    }
+                }
+                _ => return CommandExecuted::No,
+            },
+            CommandKind::Focus(cmd) => match cmd {
+                FocusCommand::PageUp => {
+                    let mut raw = self.terminal.raw.lock();
+                    let term = &mut raw.term;
+                    let scroll_lines = term.screen_lines() as i32 / 2;
+                    term.vi_mode_cursor =
+                        term.vi_mode_cursor.scroll(term, scroll_lines);
+
+                    term.scroll_display(alacritty_terminal::grid::Scroll::Delta(
+                        scroll_lines,
+                    ));
+                }
+                FocusCommand::PageDown => {
+                    let mut raw = self.terminal.raw.lock();
+                    let term = &mut raw.term;
+                    let scroll_lines = -(term.screen_lines() as i32 / 2);
+                    term.vi_mode_cursor =
+                        term.vi_mode_cursor.scroll(term, scroll_lines);
+
+                    term.scroll_display(alacritty_terminal::grid::Scroll::Delta(
+                        scroll_lines,
+                    ));
+                }
+                FocusCommand::SplitVertical => {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitTerminal(true, self.terminal.widget_id),
+                        Target::Widget(self.terminal.split_id),
+                    ));
+                }
+                FocusCommand::SplitLeft => {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitEditorMove(
+                            SplitMoveDirection::Left,
+                            self.terminal.widget_id,
+                        ),
+                        Target::Widget(self.terminal.split_id),
+                    ));
+                }
+                FocusCommand::SplitRight => {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitEditorMove(
+                            SplitMoveDirection::Right,
+                            self.terminal.widget_id,
+                        ),
+                        Target::Widget(self.terminal.split_id),
+                    ));
+                }
+                FocusCommand::SplitExchange => {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitEditorExchange(self.terminal.widget_id),
+                        Target::Widget(self.terminal.split_id),
+                    ));
+                }
+                FocusCommand::SearchForward => {
+                    if let Some(search_string) = self.find.search_string.as_ref() {
+                        let mut raw = self.terminal.raw.lock();
+                        let term = &mut raw.term;
+                        self.terminal.search_next(
+                            term,
+                            search_string,
+                            Direction::Right,
+                        );
+                    }
+                }
+                FocusCommand::SearchBackward => {
+                    if let Some(search_string) = self.find.search_string.as_ref() {
+                        let mut raw = self.terminal.raw.lock();
+                        let term = &mut raw.term;
+                        self.terminal.search_next(
+                            term,
+                            search_string,
+                            Direction::Left,
+                        );
+                    }
+                }
+                _ => return CommandExecuted::No,
+            },
             _ => return CommandExecuted::No,
-        }
+        };
         CommandExecuted::Yes
     }
 
@@ -505,7 +533,7 @@ impl LapceTerminalData {
 
         let local_proxy = proxy.clone();
         let local_raw = raw.clone();
-        let shell = config.lapce.terminal_shell.clone();
+        let shell = config.terminal.shell.clone();
         std::thread::spawn(move || {
             local_proxy.new_terminal(term_id, cwd, shell, local_raw);
         });
@@ -608,13 +636,175 @@ impl LapceTerminalData {
             _ => self.start_selection(term, ty, point, side),
         }
     }
+
+    pub fn resolve_key_event(key: &KeyEvent) -> Option<&str> {
+        let mut key = key.clone();
+        key.mods = (Modifiers::ALT
+            | Modifiers::CONTROL
+            | Modifiers::SHIFT
+            | Modifiers::META)
+            & key.mods;
+
+        // Generates a `Modifiers` value to check against.
+        macro_rules! modifiers {
+            (ctrl) => {
+                Modifiers::CONTROL
+            };
+
+            (alt) => {
+                Modifiers::ALT
+            };
+
+            (shift) => {
+                Modifiers::SHIFT
+            };
+
+            ($mod:ident $(| $($mods:ident)|+)?) => {
+                modifiers!($mod) $(| modifiers!($($mods)|+) )?
+            };
+        }
+
+        // Generates modifier values for ANSI sequences.
+        macro_rules! modval {
+            (shift) => {
+                // 1
+                "2"
+            };
+            (alt) => {
+                // 2
+                "3"
+            };
+            (alt | shift) => {
+                // 1 + 2
+                "4"
+            };
+            (ctrl) => {
+                // 4
+                "5"
+            };
+            (ctrl | shift) => {
+                // 1 + 4
+                "6"
+            };
+            (alt | ctrl) => {
+                // 2 + 4
+                "7"
+            };
+            (alt | ctrl | shift) => {
+                // 1 + 2 + 4
+                "8"
+            };
+        }
+
+        // Generates ANSI sequences to move the cursor by one position.
+        macro_rules! term_sequence {
+            // Generate every modifier combination (except meta)
+            ([all], $evt:ident, $no_mod:literal, $pre:literal, $post:literal) => {
+                {
+                    term_sequence!([], $evt, $no_mod);
+                    term_sequence!([shift, alt, ctrl], $evt, $pre, $post);
+                    term_sequence!([alt | shift, ctrl | shift, alt | ctrl], $evt, $pre, $post);
+                    term_sequence!([alt | ctrl | shift], $evt, $pre, $post);
+                    return None;
+                }
+            };
+            // No modifiers
+            ([], $evt:ident, $no_mod:literal) => {
+                if $evt.mods.is_empty() {
+                    return Some($no_mod);
+                }
+            };
+            // A single modifier combination
+            ([$($mod:ident)|+], $evt:ident, $pre:literal, $post:literal) => {
+                if $evt.mods == modifiers!($($mod)|+) {
+                    return Some(concat!($pre, modval!($($mod)|+), $post));
+                }
+            };
+            // Break down multiple modifiers into a series of single combination branches
+            ([$($($mod:ident)|+),+], $evt:ident, $pre:literal, $post:literal) => {
+                $(
+                    term_sequence!([$($mod)|+], $evt, $pre, $post);
+                )+
+            };
+        }
+
+        match key.key {
+            Key::Character(ref c) => {
+                if key.mods == Modifiers::CONTROL {
+                    // Convert the character into its index (into a control character).
+                    // In essence, this turns `ctrl+h` into `^h`
+                    let str = match c.as_str() {
+                        "@" => "\x00",
+                        "a" => "\x01",
+                        "b" => "\x02",
+                        "c" => "\x03",
+                        "d" => "\x04",
+                        "e" => "\x05",
+                        "f" => "\x06",
+                        "g" => "\x07",
+                        "h" => "\x08",
+                        "i" => "\x09",
+                        "j" => "\x0a",
+                        "k" => "\x0b",
+                        "l" => "\x0c",
+                        "m" => "\x0d",
+                        "n" => "\x0e",
+                        "o" => "\x0f",
+                        "p" => "\x10",
+                        "q" => "\x11",
+                        "r" => "\x12",
+                        "s" => "\x13",
+                        "t" => "\x14",
+                        "u" => "\x15",
+                        "v" => "\x16",
+                        "w" => "\x17",
+                        "x" => "\x18",
+                        "y" => "\x19",
+                        "z" => "\x1a",
+                        "[" => "\x1b",
+                        "\\" => "\x1c",
+                        "]" => "\x1d",
+                        "^" => "\x1e",
+                        "_" => "\x1f",
+                        _ => return None,
+                    };
+
+                    Some(str)
+                } else {
+                    None
+                }
+            }
+            Key::Backspace => {
+                Some(if key.mods.ctrl() {
+                    "\x08" // backspace
+                } else {
+                    "\x7f" // DEL
+                })
+            }
+
+            Key::Tab => Some("\x09"),
+            Key::Enter => Some("\r"),
+            Key::Escape => Some("\x1b"),
+
+            // The following either expands to `\x1b[X` or `\x1b[1;NX` where N is a modifier value
+            Key::ArrowUp => term_sequence!([all], key, "\x1b[A", "\x1b[1;", "A"),
+            Key::ArrowDown => term_sequence!([all], key, "\x1b[B", "\x1b[1;", "B"),
+            Key::ArrowRight => term_sequence!([all], key, "\x1b[C", "\x1b[1;", "C"),
+            Key::ArrowLeft => term_sequence!([all], key, "\x1b[D", "\x1b[1;", "D"),
+            Key::Home => term_sequence!([all], key, "\x1bOH", "\x1b[1;", "H"),
+            Key::End => term_sequence!([all], key, "\x1bOF", "\x1b[1;", "F"),
+            Key::Insert => term_sequence!([all], key, "\x1b[2~", "\x1b[2;", "~"),
+            Key::Delete => term_sequence!([all], key, "\x1b[3~", "\x1b[3;", "~"),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone)]
 pub struct EventProxy {
-    term_id: TermId,
-    proxy: Arc<LapceProxy>,
-    event_sink: ExtEventSink,
+    pub term_id: TermId,
+    pub proxy: Arc<LapceProxy>,
+    pub event_sink: ExtEventSink,
 }
 
 impl EventProxy {}
@@ -634,5 +824,45 @@ impl EventListener for EventProxy {
             }
             _ => (),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use druid::{KbKey, KeyEvent, Modifiers};
+
+    use crate::terminal::LapceTerminalData;
+
+    #[test]
+    fn test_arrow_without_modifier() {
+        assert_eq!(
+            Some("\x1b[D"),
+            LapceTerminalData::resolve_key_event(&KeyEvent::for_test(
+                Modifiers::empty(),
+                KbKey::ArrowLeft
+            ))
+        );
+    }
+
+    #[test]
+    fn test_arrow_with_one_modifier() {
+        assert_eq!(
+            Some("\x1b[1;5A"),
+            LapceTerminalData::resolve_key_event(&KeyEvent::for_test(
+                Modifiers::CONTROL,
+                KbKey::ArrowUp
+            ))
+        );
+    }
+
+    #[test]
+    fn test_arrow_with_two_modifiers() {
+        assert_eq!(
+            Some("\x1b[1;6C"),
+            LapceTerminalData::resolve_key_event(&KeyEvent::for_test(
+                Modifiers::CONTROL | Modifiers::SHIFT,
+                KbKey::ArrowRight
+            ))
+        );
     }
 }

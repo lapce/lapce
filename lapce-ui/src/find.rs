@@ -3,8 +3,9 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
+use lapce_core::command::FocusCommand;
 use lapce_data::{
-    command::{CommandTarget, LapceCommand, LapceCommandNew, LAPCE_NEW_COMMAND},
+    command::{CommandKind, LapceCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
 };
@@ -19,50 +20,48 @@ pub struct FindBox {
 }
 
 impl FindBox {
-    pub fn new(view_id: WidgetId, parent_view_id: WidgetId) -> Self {
-        let input = LapceEditorView::new(view_id, None)
+    pub fn new(
+        view_id: WidgetId,
+        editor_id: WidgetId,
+        parent_view_id: WidgetId,
+    ) -> Self {
+        let input = LapceEditorView::new(view_id, editor_id, None)
             .hide_header()
             .hide_gutter()
             .padding((10.0, 5.0));
         let icons = vec![
             LapceIcon {
-                icon: "arrow-up.svg".to_string(),
+                icon: "arrow-up.svg",
                 rect: Rect::ZERO,
                 command: Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
-                        cmd: LapceCommand::SearchBackward.to_string(),
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::SearchBackward),
                         data: None,
-                        palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(parent_view_id),
                 ),
             },
             LapceIcon {
-                icon: "arrow-down.svg".to_string(),
+                icon: "arrow-down.svg",
                 rect: Rect::ZERO,
                 command: Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
-                        cmd: LapceCommand::SearchForward.to_string(),
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::SearchForward),
                         data: None,
-                        palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(parent_view_id),
                 ),
             },
             LapceIcon {
-                icon: "close.svg".to_string(),
+                icon: "close.svg",
                 rect: Rect::ZERO,
                 command: Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
-                        cmd: LapceCommand::ClearSearch.to_string(),
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::ClearSearch),
                         data: None,
-                        palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(parent_view_id),
                 ),
@@ -183,13 +182,21 @@ impl Widget<LapceTabData> for FindBox {
         let rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {
             ctx.clip(rect.inset((100.0, 0.0, 100.0, 100.0)));
-            let shadow_width = 5.0;
-            ctx.blurred_rect(
-                rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
+            let shadow_width = data.config.ui.drop_shadow_width() as f64;
+            if shadow_width > 0.0 {
+                ctx.blurred_rect(
+                    rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            } else {
+                ctx.stroke(
+                    rect.inflate(0.5, 0.5),
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
+            }
         });
         ctx.fill(
             rect,
@@ -207,7 +214,7 @@ impl Widget<LapceTabData> for FindBox {
                 );
             }
 
-            let svg = get_svg(&icon.icon).unwrap();
+            let svg = get_svg(icon.icon).unwrap();
             ctx.draw_svg(
                 &svg,
                 icon.rect.inflate(-7.0, -7.0),

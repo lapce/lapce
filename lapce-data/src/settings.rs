@@ -1,9 +1,14 @@
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
+use lapce_core::{
+    command::{EditCommand, FocusCommand, MoveCommand},
+    mode::Mode,
+};
 
 use crate::{
-    command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{CommandExecuted, CommandKind, LapceUICommand, LAPCE_UI_COMMAND},
+    data::LapceMainSplitData,
     keypress::KeyPressFocus,
-    state::Mode,
+    split::SplitDirection,
 };
 
 pub enum LapceSettingsKind {
@@ -13,7 +18,6 @@ pub enum LapceSettingsKind {
 
 #[derive(Clone)]
 pub struct LapceSettingsPanelData {
-    pub shown: bool,
     pub panel_widget_id: WidgetId,
 
     pub keymap_widget_id: WidgetId,
@@ -34,15 +38,21 @@ impl KeyPressFocus for LapceSettingsPanelData {
         matches!(condition, "modal_focus")
     }
 
+    fn focus_only(&self) -> bool {
+        true
+    }
+
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
+
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &LapceCommand,
+        command: &crate::command::LapceCommand,
         _count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
-        if let LapceCommand::ModalClose = command {
+        if let CommandKind::Focus(FocusCommand::ModalClose) = command.kind {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::Hide,
@@ -53,14 +63,11 @@ impl KeyPressFocus for LapceSettingsPanelData {
             CommandExecuted::No
         }
     }
-
-    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
 impl LapceSettingsPanelData {
     pub fn new() -> Self {
         Self {
-            shown: false,
             panel_widget_id: WidgetId::next(),
             keymap_widget_id: WidgetId::next(),
             keymap_view_id: WidgetId::next(),
@@ -76,6 +83,56 @@ impl Default for LapceSettingsPanelData {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[derive(Clone)]
+pub struct LapceSettingsFocusData {
+    pub widget_id: WidgetId,
+    pub editor_tab_id: WidgetId,
+    pub main_split: LapceMainSplitData,
+}
+
+impl KeyPressFocus for LapceSettingsFocusData {
+    fn get_mode(&self) -> Mode {
+        Mode::Insert
+    }
+
+    fn check_condition(&self, _condition: &str) -> bool {
+        false
+    }
+
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &crate::command::LapceCommand,
+        _count: Option<usize>,
+        _mods: Modifiers,
+        _env: &Env,
+    ) -> CommandExecuted {
+        match &command.kind {
+            CommandKind::Focus(cmd) => match cmd {
+                FocusCommand::SplitVertical => {
+                    self.main_split.split_settings(
+                        ctx,
+                        self.editor_tab_id,
+                        SplitDirection::Vertical,
+                    );
+                }
+                FocusCommand::SplitClose => {
+                    self.main_split.settings_close(
+                        ctx,
+                        self.widget_id,
+                        self.editor_tab_id,
+                    );
+                }
+                _ => return CommandExecuted::No,
+            },
+            _ => return CommandExecuted::No,
+        }
+        CommandExecuted::Yes
+    }
+
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
 pub enum SettingsValue {
@@ -96,28 +153,64 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         false
     }
 
+    // fn run_command(
+    //     &mut self,
+    //     _ctx: &mut EventCtx,
+    //     command: &LapceCommand,
+    //     _count: Option<usize>,
+    //     _mods: Modifiers,
+    //     _env: &Env,
+    // ) -> CommandExecuted {
+    //     match command {
+    //         LapceCommand::Right => {
+    //             self.cursor += 1;
+    //             if self.cursor > self.input.len() {
+    //                 self.cursor = self.input.len();
+    //             }
+    //         }
+    //         LapceCommand::Left => {
+    //             if self.cursor == 0 {
+    //                 return CommandExecuted::Yes;
+    //             }
+    //             self.cursor -= 1;
+    //         }
+    //         LapceCommand::DeleteBackward => {
+    //             if self.cursor == 0 {
+    //                 return CommandExecuted::Yes;
+    //             }
+    //             self.input.remove(self.cursor - 1);
+    //             self.cursor -= 1;
+    //         }
+    //         _ => return CommandExecuted::No,
+    //     }
+    //     CommandExecuted::Yes
+    // }
+
     fn run_command(
         &mut self,
         _ctx: &mut EventCtx,
-        command: &LapceCommand,
+        command: &crate::command::LapceCommand,
         _count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
-        match command {
-            LapceCommand::Right => {
-                self.cursor += 1;
-                if self.cursor > self.input.len() {
-                    self.cursor = self.input.len();
+        match &command.kind {
+            CommandKind::Move(cmd) => match cmd {
+                MoveCommand::Right => {
+                    self.cursor += 1;
+                    if self.cursor > self.input.len() {
+                        self.cursor = self.input.len();
+                    }
                 }
-            }
-            LapceCommand::Left => {
-                if self.cursor == 0 {
-                    return CommandExecuted::Yes;
+                MoveCommand::Left => {
+                    if self.cursor == 0 {
+                        return CommandExecuted::Yes;
+                    }
+                    self.cursor -= 1;
                 }
-                self.cursor -= 1;
-            }
-            LapceCommand::DeleteBackward => {
+                _ => return CommandExecuted::No,
+            },
+            CommandKind::Edit(EditCommand::DeleteBackward) => {
                 if self.cursor == 0 {
                     return CommandExecuted::Yes;
                 }

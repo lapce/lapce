@@ -46,6 +46,7 @@ magenta = "#C678DD"
 "editor.caret" = "#528bff"
 "editor.selection" = "$grey"
 "editor.current_line" = "$light_grey"
+"editor.link" = "$cyan"
 
 "source_control.added" = "#50a14f32"
 "source_control.removed" = "#ff526632"
@@ -57,10 +58,22 @@ magenta = "#C678DD"
 "completion.background" = "#21252B"
 "completion.current" = "#2C313A"
 
+"hover.background" = "#21252B"
+
+"activity.background" = "#21252B"
+"activity.current" = "$black"
+
 "panel.background" = "#21252B"
 "panel.current" = "#2C313A"
+"panel.hovered" = "#343A45"
 
 "status.background" = "#21252B"
+"status.modal.normal" = "$blue"
+"status.modal.insert" = "$red"
+"status.modal.visual" = "$yellow"
+"status.modal.terminal" = "$purple"
+
+"markdown.blockquote" = "#898989"
 
 "style.comment" = "#5C6370"
 

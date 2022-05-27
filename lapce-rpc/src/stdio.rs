@@ -48,37 +48,3 @@ where
     let value: Value = serde_json::from_str(&buf)?;
     Ok(value)
 }
-
-#[allow(dead_code)]
-pub(crate) fn make_io_threads(
-    reader: thread::JoinHandle<io::Result<()>>,
-    writer: thread::JoinHandle<io::Result<()>>,
-) -> IoThreads {
-    IoThreads { reader, writer }
-}
-
-pub struct IoThreads {
-    #[allow(dead_code)]
-    reader: thread::JoinHandle<io::Result<()>>,
-    
-    #[allow(dead_code)]
-    writer: thread::JoinHandle<io::Result<()>>,
-}
-
-impl IoThreads {
-    #[allow(dead_code)]
-    pub fn join(self) -> io::Result<()> {
-        match self.reader.join() {
-            Ok(r) => r?,
-            Err(err) => {
-                panic!("{:?}", err);
-            }
-        }
-        match self.writer.join() {
-            Ok(r) => r,
-            Err(err) => {
-                panic!("{:?}", err);
-            }
-        }
-    }
-}

@@ -3,11 +3,9 @@ use std::{
     collections::VecDeque,
     io::{self, ErrorKind, Read, Write},
     path::PathBuf,
-    sync::atomic::{self, AtomicU64},
 };
 
 use alacritty_terminal::{
-    ansi,
     config::Program,
     event::OnResize,
     event_loop::Msg,
@@ -28,18 +26,6 @@ use serde_json::json;
 use crate::dispatch::Dispatcher;
 
 const READ_BUFFER_SIZE: usize = 0x10_0000;
-
-pub struct Counter(AtomicU64);
-
-impl Counter {
-    pub const fn new() -> Counter {
-        Counter(AtomicU64::new(1))
-    }
-
-    pub fn next(&self) -> u64 {
-        self.0.fetch_add(1, atomic::Ordering::Relaxed)
-    }
-}
 
 pub type TermConfig = alacritty_terminal::config::Config;
 
@@ -290,9 +276,6 @@ impl Writing {
 pub struct State {
     write_list: VecDeque<Cow<'static, [u8]>>,
     writing: Option<Writing>,
-
-    #[allow(dead_code)]
-    parser: ansi::Processor,
 }
 
 impl State {
@@ -324,7 +307,7 @@ impl State {
     }
 }
 
-#[allow(dead_code)]
+#[cfg(target_os = "macos")]
 fn set_locale_environment() {
     let locale = locale_config::Locale::global_default()
         .to_string()

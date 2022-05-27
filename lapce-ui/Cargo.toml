@@ -1,10 +1,11 @@
 [package]
 name = "lapce-ui"
-version = "0.0.12"
+version = "0.1.1"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+image = "0.24"
 chrono = "0.4.19"
 log = "0.4.14"
 fern = "0.6.0"
@@ -20,7 +21,6 @@ alacritty_terminal = "0.16"
 config = "0.11"
 indexmap = "1.7.0"
 directories = "4.0.1"
-tinyfiledialogs = "3.8.3"
 itertools = "0.10.1"
 unicode-width = "0.1.8"
 unicode-segmentation = "1.7.1"
@@ -28,14 +28,13 @@ im = { version = "15.0.0", features = ["serde"] }
 crossbeam-channel = "0.5.0"
 crossbeam-utils = "0.8.4"
 regex = "1.4.2"
-usvg = "0.14.0"
 jsonrpc-lite = "0.5.0"
 bit-vec = "0.5.0"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
 include_dir = "0.6.0"
 anyhow = "1.0.32"
-strum = "0.19"
-strum_macros = "0.19"
+strum = "0.24.0"
+strum_macros = "0.24"
 lazy_static = "1.4.0"
 serde = "1.0"
 serde_json = "1.0"
@@ -44,14 +43,50 @@ xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 xi-unicode = "0.3.0"
 fuzzy-matcher = "0.3.7"
 lsp-types = { version = "0.89.2", features = ["proposed"] }
-druid = { git = "https://github.com/lapce/druid", features = [ "svg", "im", "serde", ] }
-#druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
+druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = [ "svg", "im", "serde", ] }
+# druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
 toml = { version = "0.5.8", features = ["preserve_order"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
+lapce-core = { path = "../lapce-core" }
 lapce-data = { path = "../lapce-data" }
 lapce-rpc = { path = "../lapce-rpc" }
 
-[build-dependencies]
-cc = "1"
-anyhow = "1.0.32"
-threadpool = "1.0"
+[features]
+default = ["all-languages"]
+# To build lapce with only some of the supported languages, for example:
+#
+#   cargo build --no-default-features -p lapce-ui \
+#     --features lang-rust,lang-toml,lang-md,lang-json
+#
+all-languages = [
+    "lang-rust",
+    "lang-go",
+    "lang-javascript",
+    "lang-typescript",
+    "lang-python",
+    "lang-toml",
+    "lang-elixir",
+    "lang-php",
+    "lang-ruby",
+    "lang-c",
+    "lang-cpp",
+    "lang-json",
+    "lang-md",
+    "lang-html",
+    "lang-java"
+]
+lang-rust = ["lapce-core/lang-rust"]
+lang-go = ["lapce-core/lang-go"]
+lang-javascript= ["lapce-core/lang-javascript"]
+lang-typescript = ["lapce-core/lang-typescript"]
+lang-python = ["lapce-core/lang-python"]
+lang-toml = ["lapce-core/lang-toml"]
+lang-elixir = ["lapce-core/lang-elixir"]
+lang-php = ["lapce-core/lang-php"]
+lang-ruby= ["lapce-core/lang-ruby"]
+lang-c = ["lapce-core/lang-c"]
+lang-cpp = ["lapce-core/lang-cpp"]
+lang-json= ["lapce-core/lang-json"]
+lang-md = ["lapce-core/lang-md"]
+lang-html = ["lapce-core/lang-html"]
+lang-java = ["lapce-core/lang-java"]

@@ -1,14 +1,15 @@
 use crate::{
     editor::{tab::LapceEditorTab, view::LapceEditorView},
-    svg::logo_svg,
+    settings::LapceSettingsPanel,
     terminal::LapceTerminalView,
 };
 use std::sync::Arc;
 
+use crate::svg::logo_svg;
 use druid::{
     kurbo::{Line, Rect},
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    Command, FontFamily, Target, WidgetId,
+    Command, Target, WidgetId,
 };
 use druid::{
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
@@ -16,22 +17,21 @@ use druid::{
 };
 use lapce_data::{
     command::{
-        CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
     data::{
         EditorTabChild, FocusArea, LapceEditorData, LapceTabData, PanelKind,
         SplitContent, SplitData,
     },
-    keypress::{Alignment, DefaultKeyPressHandler, KeyMap, KeyPress},
+    keypress::{Alignment, DefaultKeyPressHandler, KeyMap},
     split::{SplitDirection, SplitMoveDirection},
     terminal::LapceTerminalData,
 };
 use lapce_rpc::terminal::TermId;
-use strum::EnumMessage;
 
-pub struct LapceDynamicSplit {
+struct LapceDynamicSplit {
     widget_id: WidgetId,
     children: Vec<ChildWidgetNew>,
 }
@@ -60,10 +60,23 @@ pub fn split_content_widget(
             let mut editor_tab = LapceEditorTab::new(editor_tab_data.widget_id);
             for child in editor_tab_data.children.iter() {
                 match child {
-                    EditorTabChild::Editor(view_id, find_view_id) => {
-                        let editor =
-                            LapceEditorView::new(*view_id, *find_view_id).boxed();
+                    EditorTabChild::Editor(view_id, editor_id, find_view_id) => {
+                        let editor = LapceEditorView::new(
+                            *view_id,
+                            *editor_id,
+                            *find_view_id,
+                        )
+                        .boxed();
                         editor_tab = editor_tab.with_child(editor);
+                    }
+                    EditorTabChild::Settings(widget_id, editor_tab_id) => {
+                        let settings = LapceSettingsPanel::new(
+                            data,
+                            *widget_id,
+                            *editor_tab_id,
+                        )
+                        .boxed();
+                        editor_tab = editor_tab.with_child(settings);
                     }
                 }
             }
@@ -81,15 +94,6 @@ pub fn split_content_widget(
                 );
             }
             split.boxed()
-        }
-    }
-}
-
-impl LapceDynamicSplit {
-    pub fn new(widget_id: WidgetId) -> Self {
-        Self {
-            widget_id,
-            children: Vec::new(),
         }
     }
 }
@@ -193,10 +197,10 @@ pub struct LapceSplitNew {
     children_ids: Vec<WidgetId>,
     direction: SplitDirection,
     show_border: bool,
-    commands: Vec<(LapceCommandNew, PietTextLayout, Rect, Option<KeyMap>)>,
+    commands: Vec<(LapceCommand, PietTextLayout, Rect, Option<KeyMap>)>,
 }
 
-pub struct ChildWidgetNew {
+struct ChildWidgetNew {
     pub widget: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     flex: bool,
     params: f64,
@@ -534,7 +538,7 @@ impl LapceSplitNew {
                     Arc::make_mut(panel).shown = false;
                 }
             }
-            if let Some(active) = *data.main_split.active {
+            if let Some(active) = *data.main_split.active_tab {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
@@ -686,7 +690,7 @@ impl LapceSplitNew {
                 ));
             }
             if split_children_len == 1 {
-                let split_content = split_data.children[0].clone();
+                let split_content = split_data.children[0];
                 if let Some(parent_split_id) = split_data.parent_split {
                     let parent_split =
                         data.main_split.splits.get_mut(&parent_split_id).unwrap();
@@ -696,7 +700,7 @@ impl LapceSplitNew {
                         .iter()
                         .position(|c| c == &SplitContent::Split(self.split_id))
                     {
-                        parent_split.children[index] = split_content.clone();
+                        parent_split.children[index] = split_content;
                         split_content
                             .set_split_id(&mut data.main_split, parent_split_id);
                         ctx.submit_command(Command::new(
@@ -751,11 +755,12 @@ impl LapceSplitNew {
         let from_editor = data.main_split.editors.get(&view_id).unwrap();
         let mut editor_data = LapceEditorData::new(
             None,
+            None,
             Some(self.split_id),
             from_editor.content.clone(),
             &data.config,
         );
-        editor_data.cursor = from_editor.cursor.clone();
+        editor_data.new_cursor = from_editor.new_cursor.clone();
         editor_data.locations = from_editor.locations.clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
@@ -766,8 +771,11 @@ impl LapceSplitNew {
             Target::Widget(editor_data.view_id),
         ));
 
-        let editor =
-            LapceEditorView::new(editor_data.view_id, editor_data.find_view_id);
+        let editor = LapceEditorView::new(
+            editor_data.view_id,
+            editor_data.editor_id,
+            editor_data.find_view_id,
+        );
         self.insert_flex_child(
             index + 1,
             editor.boxed(),
@@ -815,7 +823,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     for (cmd, _, rect, _) in &self.commands {
                         if rect.contains(mouse_event.pos) {
                             ctx.submit_command(Command::new(
-                                LAPCE_NEW_COMMAND,
+                                LAPCE_COMMAND,
                                 cmd.clone(),
                                 Target::Auto,
                             ));
@@ -984,8 +992,13 @@ impl Widget<LapceTabData> for LapceSplitNew {
             .map(|(i, cmd)| {
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(cmd.palette_desc.as_ref().unwrap().to_string())
-                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .new_text_layout(
+                        cmd.kind.desc().unwrap_or_else(|| cmd.kind.str()),
+                    )
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -999,7 +1012,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                 let keymap = data
                     .keypress
                     .command_keymaps
-                    .get(&cmd.cmd)
+                    .get(cmd.kind.str())
                     .and_then(|keymaps| keymaps.get(0))
                     .cloned();
                 (cmd.clone(), text_layout, rect, keymap)
@@ -1023,53 +1036,37 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     data,
                     env,
                 );
-                non_flex_total += match self.direction {
-                    SplitDirection::Vertical => size.width,
-                    SplitDirection::Horizontal => size.height,
-                };
-                match self.direction {
-                    SplitDirection::Vertical => {
-                        if size.height > max_other_axis {
-                            max_other_axis = size.height;
-                        }
-                    }
-                    SplitDirection::Horizontal => {
-                        if size.width > max_other_axis {
-                            max_other_axis = size.width;
-                        }
-                    }
+                non_flex_total += self.direction.main_size(size);
+                let cross_size = self.direction.cross_size(size);
+                if cross_size > max_other_axis {
+                    max_other_axis = cross_size;
                 }
-                child.layout_rect = child.layout_rect.with_size(size)
+                child.layout_rect = size.to_rect();
             };
         }
+        let non_flex_total = non_flex_total;
 
-        let mut flex_sum = 0.0;
-        for child in &self.children {
-            if child.flex {
-                flex_sum += child.params;
-            }
-        }
+        let flex_sum = self
+            .children
+            .iter()
+            .filter_map(|child| child.flex.then(|| child.params))
+            .sum::<f64>();
 
-        let flex_total = if self.direction == SplitDirection::Vertical {
-            my_size.width
-        } else {
-            my_size.height
-        } - non_flex_total;
+        let total_size = self.direction.main_size(my_size);
+        let flex_total = total_size - non_flex_total;
 
-        let mut x = 0.0;
-        let mut y = 0.0;
+        let mut next_origin = Point::ZERO;
         let children_len = self.children.len();
         for (i, child) in self.children.iter_mut().enumerate() {
-            if !child.flex {
-                child.widget.set_origin(ctx, data, env, Point::new(x, y));
-                child.layout_rect = child.layout_rect.with_origin(Point::new(x, y));
-            } else {
+            child.widget.set_origin(ctx, data, env, next_origin);
+            child.layout_rect = child.layout_rect.with_origin(next_origin);
+
+            if child.flex {
                 let flex = if i == children_len - 1 {
-                    flex_total + non_flex_total
-                        - match self.direction {
-                            SplitDirection::Vertical => x,
-                            SplitDirection::Horizontal => y,
-                        }
+                    match self.direction {
+                        SplitDirection::Vertical => total_size - next_origin.x,
+                        SplitDirection::Horizontal => total_size - next_origin.y,
+                    }
                 } else {
                     (flex_total / flex_sum * child.params).round()
                 };
@@ -1079,14 +1076,12 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     SplitDirection::Horizontal => (my_size.width, flex),
                 };
                 let size = Size::new(width, height);
-                let origin = Point::new(x, y);
                 if let Some(split_data) = split_data.as_ref() {
                     let parent_origin =
                         split_data.layout_rect.borrow().origin().to_vec2();
-                    let rect = size.to_rect().with_origin(origin + parent_origin);
                     data.main_split.update_split_content_layout_rect(
-                        split_data.children[i].clone(),
-                        rect,
+                        split_data.children[i],
+                        size.to_rect().with_origin(next_origin + parent_origin),
                     );
                 }
                 let size = child.widget.layout(
@@ -1095,33 +1090,24 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     data,
                     env,
                 );
-                match self.direction {
-                    SplitDirection::Vertical => {
-                        if size.height > max_other_axis {
-                            max_other_axis = size.height;
-                        }
-                    }
-                    SplitDirection::Horizontal => {
-                        if size.width > max_other_axis {
-                            max_other_axis = size.width;
-                        }
-                    }
+                let cross_size = self.direction.cross_size(size);
+                if cross_size > max_other_axis {
+                    max_other_axis = cross_size;
                 }
-                child.widget.set_origin(ctx, data, env, Point::new(x, y));
-                child.layout_rect = child
-                    .layout_rect
-                    .with_origin(Point::new(x, y))
-                    .with_size(size);
+
+                child.layout_rect = child.layout_rect.with_size(size);
             }
+
+            let child_size = child.layout_rect.size();
             match self.direction {
-                SplitDirection::Vertical => x += child.layout_rect.size().width,
-                SplitDirection::Horizontal => y += child.layout_rect.size().height,
+                SplitDirection::Vertical => next_origin.x += child_size.width,
+                SplitDirection::Horizontal => next_origin.y += child_size.height,
             }
         }
 
         match self.direction {
-            SplitDirection::Vertical => Size::new(x, max_other_axis),
-            SplitDirection::Horizontal => Size::new(max_other_axis, y),
+            SplitDirection::Vertical => Size::new(next_origin.x, max_other_axis),
+            SplitDirection::Horizontal => Size::new(max_other_axis, next_origin.y),
         }
     }
 
@@ -1178,104 +1164,55 @@ impl Widget<LapceTabData> for LapceSplitNew {
     }
 }
 
-fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNew> {
+fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommand> {
     if !has_workspace {
         vec![
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+            LapceCommand {
+                kind: CommandKind::Workbench(LapceWorkbenchCommand::PaletteCommand),
                 data: None,
-                palette_desc: Some("Show All Commands".to_string()),
-                target: CommandTarget::Workbench,
             },
-            if modal {
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::DisableModal.to_string(),
-                    data: None,
-                    palette_desc: LapceWorkbenchCommand::DisableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
-                    target: CommandTarget::Workbench,
-                }
-            } else {
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::EnableModal.to_string(),
-                    data: None,
-                    palette_desc: LapceWorkbenchCommand::EnableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
-                    target: CommandTarget::Workbench,
-                }
-            },
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
+            LapceCommand {
+                kind: CommandKind::Workbench(if modal {
+                    LapceWorkbenchCommand::DisableModal
+                } else {
+                    LapceWorkbenchCommand::EnableModal
+                }),
                 data: None,
-                palette_desc: Some("Open Folder".to_string()),
-                target: CommandTarget::Workbench,
             },
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
+            LapceCommand {
+                kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
                 data: None,
-                palette_desc: Some("Open Recent".to_string()),
-                target: CommandTarget::Workbench,
+            },
+            LapceCommand {
+                kind: CommandKind::Workbench(
+                    LapceWorkbenchCommand::PaletteWorkspace,
+                ),
+                data: None,
             },
         ]
     } else {
         vec![
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+            LapceCommand {
+                kind: CommandKind::Workbench(LapceWorkbenchCommand::PaletteCommand),
                 data: None,
-                palette_desc: Some("Show All Commands".to_string()),
-                target: CommandTarget::Workbench,
             },
             if modal {
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::DisableModal.to_string(),
+                LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::DisableModal,
+                    ),
                     data: None,
-                    palette_desc: LapceWorkbenchCommand::DisableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
-                    target: CommandTarget::Workbench,
                 }
             } else {
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::EnableModal.to_string(),
+                LapceCommand {
+                    kind: CommandKind::Workbench(LapceWorkbenchCommand::EnableModal),
                     data: None,
-                    palette_desc: LapceWorkbenchCommand::EnableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
-                    target: CommandTarget::Workbench,
                 }
             },
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::Palette.to_string(),
+            LapceCommand {
+                kind: CommandKind::Workbench(LapceWorkbenchCommand::Palette),
                 data: None,
-                palette_desc: Some("Go To File".to_string()),
-                target: CommandTarget::Workbench,
             },
         ]
     }
-}
-
-pub fn keybinding_to_string(keypress: &KeyPress) -> String {
-    let mut keymap_str = "".to_string();
-    if keypress.mods.ctrl() {
-        keymap_str += "Ctrl+";
-    }
-    if keypress.mods.alt() {
-        keymap_str += "Alt+";
-    }
-    if keypress.mods.meta() {
-        let keyname = match std::env::consts::OS {
-            "macos" => "Cmd",
-            "windows" => "Win",
-            _ => "Meta",
-        };
-        keymap_str += keyname;
-        keymap_str += "+";
-    }
-    if keypress.mods.shift() {
-        keymap_str += "Shift+";
-    }
-    keymap_str += &keypress.key.to_string();
-    keymap_str
 }

@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use druid::{
     kurbo::Line,
     widget::{LensWrap, WidgetExt},
@@ -9,13 +8,12 @@ use druid::{
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    data::{LapceTabData, LapceTabLens, LapceWindowData},
-    state::LapceWorkspace,
+    data::{LapceTabData, LapceTabLens, LapceWindowData, LapceWorkspace},
 };
+use std::cmp::Ordering;
 use std::sync::Arc;
 
 use crate::{
-    menu::Menu,
     tab::{LapceTabHeader, LapceTabNew},
     title::Title,
 };
@@ -23,7 +21,6 @@ use crate::{
 pub struct LapceWindowNew {
     pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
     pub tabs: Vec<WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>>,
-    menu: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
     tab_headers: Vec<
         WidgetPod<
             LapceWindowData,
@@ -53,12 +50,10 @@ impl LapceWindowNew {
                 WidgetPod::new(tab_header)
             })
             .collect();
-        let menu = Menu::new(&data.menu);
         Self {
             title,
             tabs,
             tab_headers,
-            menu: WidgetPod::new(menu.boxed()),
         }
     }
 
@@ -142,8 +137,8 @@ impl LapceWindowNew {
                     LapceUICommand::Focus,
                     Target::Widget(data.active_id),
                 ));
-            },
-            _ => ()
+            }
+            _ => (),
         }
 
         data.tabs_order = Arc::new(self.tabs.iter().map(|t| t.id()).collect());
@@ -181,17 +176,13 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         env: &Env,
     ) {
         match event {
-            Event::WindowMoved(pos) => {
+            Event::WindowPosition(pos) => {
                 ctx.set_handled();
                 data.pos = *pos;
             }
-            Event::WindowSize(size, scale) => {
+            Event::WindowSize(size) => {
                 ctx.set_handled();
-                data.size = if let Some(scale) = scale {
-                    *size / *scale
-                } else {
-                    *size
-                };
+                data.size = *size;
             }
             Event::WindowConnected => {
                 ctx.submit_command(Command::new(
@@ -205,6 +196,14 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                 match command {
                     LapceUICommand::UpdatePluginDescriptions(plugins) => {
                         data.plugins = Arc::new(plugins.to_owned());
+                    }
+                    LapceUICommand::Focus => {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(data.active_id),
+                        ));
+                        ctx.set_handled();
                     }
                     LapceUICommand::ReloadConfig => {
                         data.config = Arc::new(
@@ -224,36 +223,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     LapceUICommand::ReloadWindow => {
                         let tab = data.tabs.get(&data.active_id).unwrap();
 
-                        #[allow(mutable_borrow_reservation_conflict)]
-                        self.new_tab(ctx, data, (*tab.workspace).clone(), true);
+                        let workspace = (*tab.workspace).clone();
+                        self.new_tab(ctx, data, workspace, true);
                         return;
-                    }
-                    LapceUICommand::HideMenu => {
-                        ctx.set_handled();
-                        let menu = Arc::make_mut(&mut data.menu);
-                        menu.shown = false;
-                        let active_tab_id = data.active_id;
-                        let active_id = data
-                            .tabs
-                            .get(&active_tab_id)
-                            .and_then(|t| t.main_split.active_editor())
-                            .map(|e| e.view_id);
-                        if let Some(active_id) = active_id {
-                            ctx.set_focus(active_id)
-                        }
-                    }
-                    LapceUICommand::ShowMenu(point, items) => {
-                        ctx.set_handled();
-                        let menu = Arc::make_mut(&mut data.menu);
-                        menu.origin = *point;
-                        menu.items = items.clone();
-                        menu.shown = true;
-                        menu.active = 0;
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::Focus,
-                            Target::Widget(menu.widget_id),
-                        ));
                     }
                     LapceUICommand::SetWorkspace(workspace) => {
                         let mut workspaces =
@@ -373,7 +345,6 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             }
             _ => (),
         }
-        self.menu.event(ctx, event, data, env);
         self.tabs[data.active].event(ctx, event, data, env);
         match event {
             Event::MouseDown(_)
@@ -403,7 +374,6 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &LapceWindowData,
         env: &Env,
     ) {
-        self.menu.lifecycle(ctx, event, data, env);
         self.title.lifecycle(ctx, event, data, env);
         for tab in self.tabs.iter_mut() {
             tab.lifecycle(ctx, event, data, env);
@@ -420,7 +390,6 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &LapceWindowData,
         env: &Env,
     ) {
-        self.menu.update(ctx, data, env);
         self.title.update(ctx, data, env);
 
         if old_data.active != data.active {
@@ -444,9 +413,6 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         env: &Env,
     ) -> Size {
         let self_size = bc.max();
-
-        self.menu.layout(ctx, bc, data, env);
-        self.menu.set_origin(ctx, data, env, data.menu.origin);
 
         let title_size = self.title.layout(ctx, bc, data, env);
         self.title.set_origin(ctx, data, env, Point::ZERO);
@@ -535,7 +501,10 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             }
         }
 
-        self.tabs[data.active].paint(ctx, data, env);
+        ctx.with_save(|ctx| {
+            ctx.clip(self.tabs[data.active].layout_rect());
+            self.tabs[data.active].paint(ctx, data, env);
+        });
 
         let line_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
         if self.tabs.len() > 1 {
@@ -555,12 +524,15 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                 .with_origin(Point::new(0.0, title_height));
             ctx.with_save(|ctx| {
                 ctx.clip(clip_rect);
-                ctx.blurred_rect(
-                    rect,
-                    5.0,
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-                );
+                let shadow_width = data.config.ui.drop_shadow_width() as f64;
+                if shadow_width > 0.0 {
+                    ctx.blurred_rect(
+                        rect,
+                        shadow_width,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                }
                 ctx.fill(
                     rect,
                     data.config
@@ -582,7 +554,5 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             Point::new(size.width, title_height - 0.5),
         );
         ctx.stroke(line, line_color, 1.0);
-
-        self.menu.paint(ctx, data, env);
     }
 }

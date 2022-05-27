@@ -12,17 +12,18 @@ use directories::ProjectDirs;
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
 use lsp_types::Position;
 use serde::{Deserialize, Serialize};
+use xi_rope::Rope;
 
 use crate::{
-    buffer::{Buffer, BufferContent},
     config::Config,
     data::{
         EditorTabChild, LapceData, LapceEditorData, LapceEditorTabData,
-        LapceMainSplitData, LapceTabData, LapceWindowData, SplitContent, SplitData,
+        LapceMainSplitData, LapceTabData, LapceWindowData, LapceWorkspace,
+        SplitContent, SplitData,
     },
+    document::{BufferContent, Document},
     editor::EditorLocationNew,
     split::SplitDirection,
-    state::LapceWorkspace,
 };
 
 pub enum SaveEvent {
@@ -134,6 +135,7 @@ impl EditorTabInfo {
 #[derive(Clone, Serialize, Deserialize)]
 pub enum EditorTabChildInfo {
     Editor(EditorInfo),
+    Settings,
 }
 
 impl EditorTabChildInfo {
@@ -156,7 +158,14 @@ impl EditorTabChildInfo {
                     config,
                     event_sink,
                 );
-                EditorTabChild::Editor(editor_data.view_id, editor_data.find_view_id)
+                EditorTabChild::Editor(
+                    editor_data.view_id,
+                    editor_data.editor_id,
+                    editor_data.find_view_id,
+                )
+            }
+            EditorTabChildInfo::Settings => {
+                EditorTabChild::Settings(WidgetId::next(), editor_tab_id)
             }
         }
     }
@@ -233,6 +242,7 @@ pub struct BufferInfo {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct EditorInfo {
     pub content: BufferContent,
+    pub unsaved: Option<String>,
     pub scroll_offset: (f64, f64),
     pub position: Option<Position>,
 }
@@ -254,6 +264,7 @@ impl EditorInfo {
     ) -> LapceEditorData {
         let editor_data = LapceEditorData::new(
             None,
+            None,
             Some(editor_tab_id),
             self.content.clone(),
             config,
@@ -272,17 +283,31 @@ impl EditorInfo {
                         self.scroll_offset.0,
                         self.scroll_offset.1,
                     )),
-                    hisotry: None,
+                    history: None,
                 },
             ));
 
-            if !data.open_files.contains_key(path) {
-                let buffer = Arc::new(Buffer::new(
+            if !data.open_docs.contains_key(path) {
+                let doc = Arc::new(Document::new(
                     BufferContent::File(path.clone()),
                     tab_id,
                     event_sink,
+                    data.proxy.clone(),
                 ));
-                data.open_files.insert(path.clone(), buffer);
+                data.open_docs.insert(path.clone(), doc);
+            }
+        } else if let BufferContent::Scratch(id, _) = &self.content {
+            if !data.scratch_docs.contains_key(id) {
+                let mut doc = Document::new(
+                    self.content.clone(),
+                    tab_id,
+                    event_sink,
+                    data.proxy.clone(),
+                );
+                if let Some(text) = &self.unsaved {
+                    doc.reload(Rope::from(text), false);
+                }
+                data.scratch_docs.insert(*id, Arc::new(doc));
             }
         }
         data.insert_editor(Arc::new(editor_data.clone()), config);
@@ -485,13 +510,13 @@ impl LapceDb {
         Ok(())
     }
 
-    pub fn save_buffer_position(&self, workspace: &LapceWorkspace, buffer: &Buffer) {
-        if let BufferContent::File(path) = &buffer.content {
+    pub fn save_doc_position(&self, workspace: &LapceWorkspace, doc: &Document) {
+        if let BufferContent::File(path) = doc.content() {
             let info = BufferInfo {
                 workspace: workspace.clone(),
                 path: path.clone(),
-                scroll_offset: (buffer.scroll_offset.x, buffer.scroll_offset.y),
-                cursor_offset: buffer.cursor_offset,
+                scroll_offset: (doc.scroll_offset.x, doc.scroll_offset.y),
+                cursor_offset: doc.cursor_offset,
             };
             let _ = self.save_tx.send(SaveEvent::Buffer(info));
         }

@@ -1,4 +1,4 @@
-use std::{io::Write, path::PathBuf};
+use std::{io::Write, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use directories::ProjectDirs;
@@ -7,14 +7,14 @@ use druid::{
     Color, ExtEventSink, FontFamily, Size, Target,
 };
 use hashbrown::HashMap;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 use thiserror::Error;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    data::hex_to_color,
-    state::{LapceWorkspace, LapceWorkspaceType},
+    data::{LapceWorkspace, LapceWorkspaceType},
 };
 
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
@@ -40,6 +40,7 @@ impl LapceTheme {
     pub const EDITOR_CARET: &'static str = "editor.caret";
     pub const EDITOR_SELECTION: &'static str = "editor.selection";
     pub const EDITOR_CURRENT_LINE: &'static str = "editor.current_line";
+    pub const EDITOR_LINK: &'static str = "editor.link";
 
     pub const SOURCE_CONTROL_ADDED: &'static str = "source_control.added";
     pub const SOURCE_CONTROL_REMOVED: &'static str = "source_control.removed";
@@ -72,10 +73,20 @@ impl LapceTheme {
     pub const COMPLETION_BACKGROUND: &'static str = "completion.background";
     pub const COMPLETION_CURRENT: &'static str = "completion.current";
 
+    pub const HOVER_BACKGROUND: &'static str = "hover.background";
+
+    pub const ACTIVITY_BACKGROUND: &'static str = "activity.background";
+    pub const ACTIVITY_CURRENT: &'static str = "activity.current";
+
     pub const PANEL_BACKGROUND: &'static str = "panel.background";
     pub const PANEL_CURRENT: &'static str = "panel.current";
+    pub const PANEL_HOVERED: &'static str = "panel.hovered";
 
     pub const STATUS_BACKGROUND: &'static str = "status.background";
+    pub const STATUS_MODAL_NORMAL: &'static str = "status.modal.normal";
+    pub const STATUS_MODAL_INSERT: &'static str = "status.modal.insert";
+    pub const STATUS_MODAL_VISUAL: &'static str = "status.modal.visual";
+    pub const STATUS_MODAL_TERMINAL: &'static str = "status.modal.terminal";
 
     pub const INPUT_LINE_HEIGHT: druid::Key<f64> =
         druid::Key::new("lapce.input_line_height");
@@ -83,6 +94,8 @@ impl LapceTheme {
         druid::Key::new("lapce.input_line_padding");
     pub const INPUT_FONT_SIZE: druid::Key<u64> =
         druid::Key::new("lapce.input_font_size");
+
+    pub const MARKDOWN_BLOCKQUOTE: &'static str = "markdown.blockquote";
 }
 
 #[derive(Error, Debug)]
@@ -109,25 +122,27 @@ pub struct LapceConfig {
     pub modal: bool,
     #[field_names(desc = "Set the color theme of Lapce")]
     pub color_theme: String,
-    #[field_names(desc = "Set the terminal Shell")]
-    pub terminal_shell: String,
 }
 
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct EditorConfig {
-    #[field_names(desc = "Set the font family")]
+    #[field_names(desc = "Set the editor font family")]
     pub font_family: String,
-    #[field_names(desc = "Set the font size")]
+    #[field_names(desc = "Set the editor font size")]
     pub font_size: usize,
     #[field_names(desc = "Set the font size in the code lens")]
     pub code_lens_font_size: usize,
-    #[field_names(desc = "Set the line height")]
+    #[field_names(desc = "Set the editor line height")]
     pub line_height: usize,
     #[field_names(desc = "Set the tab width")]
     pub tab_width: usize,
     #[field_names(desc = "If opened editors are shown in a tab")]
     pub show_tab: bool,
+    #[field_names(
+        desc = "How long (in ms) it should take before the hover information appears"
+    )]
+    pub hover_delay: u64,
 }
 
 impl EditorConfig {
@@ -136,11 +151,200 @@ impl EditorConfig {
     }
 }
 
-pub type Theme = HashMap<String, Color>;
+#[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct UIConfig {
+    #[field_names(
+        desc = "Set the ui font family. If empty, it uses system default."
+    )]
+    font_family: String,
+
+    #[field_names(desc = "Set the ui base font size")]
+    font_size: usize,
+
+    #[field_names(
+        desc = "Set the header height for panel header and editor tab header"
+    )]
+    header_height: usize,
+
+    #[field_names(desc = "Set the height for status line")]
+    status_height: usize,
+
+    #[field_names(desc = "Set the minium width for editor tab")]
+    tab_min_width: usize,
+
+    #[field_names(desc = "Set the width for activity bar")]
+    activity_width: usize,
+
+    #[field_names(desc = "Set the width for scroll bar")]
+    scroll_width: usize,
+
+    #[field_names(desc = "Controls the width of drop shadow in the UI")]
+    drop_shadow_width: usize,
+}
+
+impl UIConfig {
+    pub fn font_family(&self) -> FontFamily {
+        if self.font_family.is_empty() {
+            FontFamily::SYSTEM_UI
+        } else {
+            FontFamily::new_unchecked(self.font_family.clone())
+        }
+    }
+
+    pub fn font_size(&self) -> usize {
+        self.font_size.max(6).min(32)
+    }
+
+    pub fn header_height(&self) -> usize {
+        let font_size = self.font_size();
+        self.header_height.max(font_size)
+    }
+
+    pub fn status_height(&self) -> usize {
+        let font_size = self.font_size();
+        self.status_height.max(font_size)
+    }
+
+    pub fn tab_min_width(&self) -> usize {
+        self.tab_min_width
+    }
+
+    pub fn activity_width(&self) -> usize {
+        self.activity_width
+    }
+
+    pub fn scroll_width(&self) -> usize {
+        self.scroll_width
+    }
+
+    pub fn drop_shadow_width(&self) -> usize {
+        self.drop_shadow_width
+    }
+}
+
+#[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct TerminalConfig {
+    #[field_names(
+        desc = "Set the termainl font family. If empty, it uses editor font famliy."
+    )]
+    pub font_family: String,
+    #[field_names(
+        desc = "Set the terminal font size, If 0, it uses editor font size."
+    )]
+    pub font_size: usize,
+    #[field_names(
+        desc = "Set the terminal line height, If 0, it uses editor line height"
+    )]
+    pub line_height: usize,
+    #[field_names(desc = "Set the terminal Shell")]
+    pub shell: String,
+}
+
 #[derive(Debug, Clone, Default)]
+pub struct Theme {
+    style: HashMap<String, Color>,
+    other: HashMap<String, Color>,
+}
+
+impl Theme {
+    /// Reads a theme from the given TOML string.
+    pub fn parse(content: &str) -> Result<Theme> {
+        Self::default().extend(content)
+    }
+
+    /// Creates a new theme based on the current one, extending it with values parsed from `content`.
+    pub fn extend(&self, content: &str) -> Result<Theme> {
+        let theme_colors: std::collections::HashMap<String, String> =
+            toml::from_str(content)?;
+        let mut theme = HashMap::new();
+        for (k, v) in theme_colors.iter() {
+            if let Some(stripped) = v.strip_prefix('$') {
+                if let Some(hex) = theme_colors.get(stripped) {
+                    if let Ok(color) = Color::from_hex_str(hex) {
+                        theme.insert(k.clone(), color);
+                    }
+                }
+            } else if let Ok(color) = Color::from_hex_str(v) {
+                theme.insert(k.clone(), color);
+            }
+        }
+
+        let mut theme = Theme::from(theme);
+        Theme::merge_from(&mut theme, self);
+
+        Ok(theme)
+    }
+
+    pub fn from(map: HashMap<String, Color>) -> Self {
+        let mut style = HashMap::new();
+        let mut other = HashMap::new();
+
+        for (key, value) in map.into_iter() {
+            if let Some(stripped) = key.strip_prefix("style.") {
+                style.insert(stripped.to_string(), value.clone());
+            }
+
+            // Keep styles in the other map, so they can still be looked up by their full paths.
+            other.insert(key, value);
+        }
+
+        Self { style, other }
+    }
+
+    pub fn style_color(&self, key: &str) -> Option<&Color> {
+        self.style.get(key)
+    }
+
+    pub fn color(&self, key: &str) -> Option<&Color> {
+        self.other.get(key)
+    }
+
+    fn merge_maps_in_place(
+        dst: &mut HashMap<String, Color>,
+        src: &HashMap<String, Color>,
+    ) {
+        for (key, value) in src.iter() {
+            dst.entry(key.clone()).or_insert(value.clone());
+        }
+    }
+
+    fn merge_from(&mut self, parent: &Theme) {
+        Self::merge_maps_in_place(&mut self.style, &parent.style);
+        Self::merge_maps_in_place(&mut self.other, &parent.other);
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Themes {
     themes: HashMap<String, Theme>,
+    default_theme: Theme,
+    current_theme: Theme,
 }
+
+impl Default for Themes {
+    fn default() -> Self {
+        let mut themes = HashMap::new();
+        themes.insert(
+            "Lapce Light".to_string(),
+            Theme::parse(DEFAULT_LIGHT_THEME).unwrap(),
+        );
+        themes.insert(
+            "Lapce Dark".to_string(),
+            Theme::parse(DEFAULT_DARK_THEME).unwrap(),
+        );
+
+        let default_theme = themes["Lapce Light"].clone();
+
+        Self {
+            current_theme: default_theme.clone(),
+            default_theme,
+            themes,
+        }
+    }
+}
+
 impl Themes {
     pub fn get(&self, theme_name: &str) -> Option<&Theme> {
         self.themes.get(theme_name)
@@ -154,10 +358,21 @@ impl Themes {
         self.themes.keys()
     }
 
-    /// Load a theme by its name.
+    pub fn style_color(&self, key: &str) -> Option<&Color> {
+        self.current_theme.style_color(key)
+    }
+
+    pub fn color(&self, key: &str) -> Option<&Color> {
+        self.current_theme.color(key)
+    }
+
+    /// Loads a theme from disk by its name.
+    ///
     /// Does not load the theme if it has already been loaded.
     /// If this returns `Ok(())` then it succeeded in loading the theme and it can
     /// be expected to be in the `themes` field.
+    ///
+    /// Missing keys will be copied from the default theme.
     fn load_theme(&mut self, theme_name: &str) -> Result<()> {
         if self.themes.contains_key(theme_name) {
             // We already have the theme loaded, so we don't have to do anything
@@ -185,15 +400,23 @@ impl Themes {
         let theme_content =
             std::fs::read_to_string(theme_path).map_err(LoadThemeError::Read)?;
 
-        let theme = get_theme(&theme_content)?;
+        let theme = self.default_theme.extend(&theme_content)?;
 
         // Insert it into the themes hashmap
         // Most users won't have an absurd amount of themes, so that we don't clean this
         // up doesn't matter too much. Though, that could be added without much issue.
-
-        // We already checked early on that it was contained, so we simply insert without
-        // checking if it already exists
         self.insert(theme_name.to_string(), theme);
+
+        Ok(())
+    }
+
+    fn apply_theme(&mut self, theme: &str) -> Result<()> {
+        if let Err(err) = self.load_theme(theme) {
+            log::warn!(r#"Failed to load theme "{theme}": {:?}"#, err);
+            return Err(err);
+        }
+
+        self.current_theme = self.themes[theme].clone();
 
         Ok(())
     }
@@ -201,12 +424,16 @@ impl Themes {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
-    pub lapce: LapceConfig,
-    pub editor: EditorConfig,
     #[serde(skip)]
-    pub theme: Theme,
+    pub id: u64,
+    pub lapce: LapceConfig,
+    pub ui: UIConfig,
+    pub editor: EditorConfig,
+    pub terminal: TerminalConfig,
     #[serde(skip)]
     pub themes: Themes,
+    #[serde(skip)]
+    tab_layout_info: Arc<RwLock<HashMap<(FontFamily, usize), f64>>>,
 }
 
 pub struct ConfigWatcher {
@@ -250,32 +477,23 @@ impl Config {
         }
 
         match workspace.kind {
-            crate::state::LapceWorkspaceType::Local => {
+            LapceWorkspaceType::Local => {
                 if let Some(path) = workspace.path.as_ref() {
                     let path = path.join("./.lapce/settings.toml");
                     let _ = settings
                         .merge(config::File::from(path.as_path()).required(false));
                 }
             }
-            crate::state::LapceWorkspaceType::RemoteSSH(_, _) => {}
+            LapceWorkspaceType::RemoteSSH(_, _) => {}
+            LapceWorkspaceType::RemoteWSL => {}
         }
 
         let mut config: Config = settings.try_into()?;
+        config.update_id();
 
-        config.theme = get_theme(DEFAULT_LIGHT_THEME)?;
+        config.themes = Themes::default();
 
-        let mut themes = Themes::default();
-        themes.insert("Lapce Light".to_string(), get_theme(DEFAULT_LIGHT_THEME)?);
-        themes.insert("Lapce Dark".to_string(), get_theme(DEFAULT_DARK_THEME)?);
-        config.themes = themes;
-
-        // Load the theme declared in the file, if there was one
-        // If there was an error, we don't stop creating the config, as that will let the user
-        // still rely on their other settings
-        if let Err(err) = config.themes.load_theme(config.lapce.color_theme.as_str())
-        {
-            log::warn!("Failed to load theme set in config: {:?}", err);
-        }
+        let _ = config.themes.apply_theme(&config.lapce.color_theme);
 
         Ok(config)
     }
@@ -386,67 +604,162 @@ impl Config {
         Some(())
     }
 
-    pub fn set_theme(&mut self, theme: &str, preview: bool) -> Option<()> {
+    fn update_id(&mut self) {
+        self.id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+    }
+
+    pub fn set_theme(&mut self, theme: &str, preview: bool) -> bool {
+        self.update_id();
+
+        if self.themes.apply_theme(theme).is_err() {
+            return false;
+        }
+
         self.lapce.color_theme = theme.to_string();
 
-        if let Err(err) = self.themes.load_theme(theme) {
-            log::warn!("Failed to load theme: {:?}", err);
-        }
-
-        if !preview {
-            Config::update_file(
+        if !preview
+            && Config::update_file(
                 "lapce.color-theme",
                 toml::Value::String(theme.to_string()),
-            )?;
+            )
+            .is_none()
+        {
+            return false;
         }
-        None
+
+        true
     }
 
     /// Get the color by the name from the current theme if it exists
     /// Otherwise, get the color from the base them
     /// # Panics
     /// If the color was not able to be found in either theme, which may be indicative that
-    /// it is mispelled or needs to be added to the base-theme.
+    /// it is misspelled or needs to be added to the base-theme.
     pub fn get_color_unchecked(&self, name: &str) -> &Color {
         self.themes
-            .get(&self.lapce.color_theme)
-            .and_then(|theme| theme.get(name))
-            .or_else(|| self.theme.get(name))
-            .unwrap()
+            .color(name)
+            .unwrap_or_else(|| panic!("Key not found: {name}"))
     }
 
     pub fn get_color(&self, name: &str) -> Option<&Color> {
-        let theme = self
-            .themes
-            .get(&self.lapce.color_theme)
-            .unwrap_or(&self.theme);
-        theme.get(name)
+        self.themes.color(name)
     }
 
+    /// Retrieve a color value whose key starts with "style."
+    pub fn get_style_color(&self, name: &str) -> Option<&Color> {
+        self.themes.style_color(name)
+    }
+
+    /// Calculate the width of the character "W" (being the widest character)
+    /// in the editor's current font family at the specified font size.
     pub fn char_width(&self, text: &mut PietText, font_size: f64) -> f64 {
-        let text_layout = text
-            .new_text_layout("W")
-            .font(self.editor.font_family(), font_size)
-            .build()
-            .unwrap();
-        text_layout.size().width
+        Self::editor_text_size_internal(
+            self.editor.font_family(),
+            font_size,
+            text,
+            "W",
+        )
+        .width
     }
 
-    pub fn editor_text_width(&self, text: &mut PietText, c: &str) -> f64 {
-        let text_layout = text
-            .new_text_layout(c.to_string())
-            .font(self.editor.font_family(), self.editor.font_size as f64)
-            .build()
-            .unwrap();
-        text_layout.size().width
+    pub fn terminal_font_family(&self) -> FontFamily {
+        if self.terminal.font_family.is_empty() {
+            self.editor.font_family()
+        } else {
+            FontFamily::new_unchecked(self.terminal.font_family.clone())
+        }
     }
 
-    pub fn editor_text_size(&self, text: &mut PietText, c: &str) -> Size {
+    pub fn terminal_font_size(&self) -> usize {
+        if self.terminal.font_size > 0 {
+            self.terminal.font_size
+        } else {
+            self.editor.font_size
+        }
+    }
+
+    pub fn terminal_line_height(&self) -> usize {
+        if self.terminal.line_height > 0 {
+            self.terminal.line_height
+        } else {
+            self.editor.line_height
+        }
+    }
+
+    /// Calculate the width of the character "W" (being the widest character)
+    /// in the editor's current font family and current font size.
+    pub fn editor_char_width(&self, text: &mut PietText) -> f64 {
+        self.char_width(text, self.editor.font_size as f64)
+    }
+
+    /// Calculate the width of `text_to_measure` in the editor's current font family and font size.
+    pub fn editor_text_width(
+        &self,
+        text: &mut PietText,
+        text_to_measure: &str,
+    ) -> f64 {
+        Self::editor_text_size_internal(
+            self.editor.font_family(),
+            self.editor.font_size as f64,
+            text,
+            text_to_measure,
+        )
+        .width
+    }
+
+    /// Calculate the size of `text_to_measure` in the editor's current font family and font size.
+    pub fn editor_text_size(
+        &self,
+        text: &mut PietText,
+        text_to_measure: &str,
+    ) -> Size {
+        Self::editor_text_size_internal(
+            self.editor.font_family(),
+            self.editor.font_size as f64,
+            text,
+            text_to_measure,
+        )
+    }
+
+    /// Efficiently calculate the size of a piece of text, without allocating.
+    /// This function should not be made public, use one of the public wrapper functions instead.
+    fn editor_text_size_internal(
+        font_family: FontFamily,
+        font_size: f64,
+        text: &mut PietText,
+        text_to_measure: &str,
+    ) -> Size {
+        // Lie about the lifetime of `text_to_measure`.
+        //
+        // The method `new_text_layout` will take ownership of its parameter
+        // and hold it inside the `text_layout` object. It will normally only do this efficiently
+        // for `&'static str`, and not other `&'a str`. It can safely do this for static strings
+        // because they are known to live for the lifetime of the program.
+        //
+        // `new_text_layout` can also work by taking ownership of an owned type such
+        // as String, Rc, or Arc. But they all require allocation. We want to measure
+        // `strs` with arbitrary lifetimes. If we 'cheat' by extending the lifetime of the
+        // `text_to_measure` (in this function only) then we can safely call `new_text_layout`
+        // because the `text_layout` value that is produced is local to this function and hence
+        // always dropped inside this function, and hence its lifetime is always stricly less
+        // than the lifetime of `text_to_measure`, irrespective of whether `text_to_measure`
+        // is actually static or not.
+        //
+        // Note that this technique also assumes that `new_text_layout` does not stash
+        // its parameter away somewhere, such as a global cache. If it did, this would
+        // break and we would have to go back to calling `to_string` on the parameter.
+        let static_str: &'static str =
+            unsafe { std::mem::transmute(text_to_measure) };
+
         let text_layout = text
-            .new_text_layout(c.to_string())
-            .font(self.editor.font_family(), self.editor.font_size as f64)
+            .new_text_layout(static_str)
+            .font(font_family, font_size)
             .build()
             .unwrap();
+
         text_layout.size()
     }
 
@@ -463,6 +776,7 @@ impl Config {
                         LapceWorkspaceType::RemoteSSH(user, host) => {
                             format!("ssh://{}@{}", user, host)
                         }
+                        LapceWorkspaceType::RemoteWSL => "wsl".to_string(),
                     }),
                 );
                 table.insert(
@@ -508,6 +822,7 @@ impl Config {
                             let host = parts.next()?.to_string();
                             LapceWorkspaceType::RemoteSSH(user, host)
                         }
+                        "wsl" => LapceWorkspaceType::RemoteWSL,
                         _ => LapceWorkspaceType::Local,
                     };
                     let last_open = value
@@ -537,23 +852,32 @@ impl Config {
         }
         Some(path)
     }
-}
 
-fn get_theme(content: &str) -> Result<Theme> {
-    let theme_colors: std::collections::HashMap<String, String> =
-        toml::from_str(content)?;
-    let mut theme = HashMap::new();
-    for (k, v) in theme_colors.iter() {
-        if let Some(stripped) = v.strip_prefix('$') {
-            let var_name = stripped;
-            if let Some(hex) = theme_colors.get(var_name) {
-                if let Ok(color) = hex_to_color(hex) {
-                    theme.insert(k.clone(), color);
-                }
-            }
-        } else if let Ok(color) = hex_to_color(v) {
-            theme.insert(k.clone(), color);
+    pub fn tab_width(
+        &self,
+        text: &mut PietText,
+        font_family: FontFamily,
+        font_size: usize,
+    ) -> f64 {
+        {
+            let info = self.tab_layout_info.read();
+            if let Some(width) = info.get(&(font_family.clone(), font_size)) {
+                return self.editor.tab_width as f64 * *width;
+            };
         }
+
+        let width = text
+            .new_text_layout(" a")
+            .font(font_family.clone(), font_size as f64)
+            .build()
+            .unwrap()
+            .hit_test_text_position(1)
+            .point
+            .x;
+
+        self.tab_layout_info
+            .write()
+            .insert((font_family, font_size), width);
+        self.editor.tab_width as f64 * width
     }
-    Ok(theme)
 }

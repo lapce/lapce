@@ -1,12 +1,12 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use lsp_types::{CompletionItem, Position};
 use serde::{Deserialize, Serialize};
 use xi_rope::RopeDelta;
 
 use crate::{
-    buffer::BufferId, plugin::PluginDescription, source_control::FileDiff,
-    terminal::TermId,
+    buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
+    source_control::FileDiff, terminal::TermId,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +72,11 @@ pub enum ProxyRequest {
         buffer_id: BufferId,
         completion_item: Box<CompletionItem>,
     },
+    GetHover {
+        request_id: usize,
+        buffer_id: BufferId,
+        position: Position,
+    },
     GetSignature {
         buffer_id: BufferId,
         position: Position,
@@ -105,4 +110,15 @@ pub enum ProxyRequest {
         rev: u64,
         buffer_id: BufferId,
     },
+    SaveBufferAs {
+        buffer_id: BufferId,
+        path: PathBuf,
+        rev: u64,
+        content: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadDirResponse {
+    pub items: HashMap<PathBuf, FileNodeItem>,
 }

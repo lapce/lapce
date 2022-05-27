@@ -45,6 +45,7 @@ magenta = "#A626A4"
 "editor.caret" = "#526FFF"
 "editor.selection" = "$grey"
 "editor.current_line" = "$light_grey"
+"editor.link" = "$cyan"
 
 "source_control.added" = "#50a14f32"
 "source_control.removed" = "#ff526632"
@@ -56,10 +57,22 @@ magenta = "#A626A4"
 "completion.background" = "#eaeaeb"
 "completion.current" = "#dbdbdc"
 
+"hover.background" = "#eaeaeb"
+
+"activity.background" = "#eaeaeb"
+"activity.current" = "$white"
+
 "panel.background" = "#eaeaeb"
 "panel.current" = "#dbdbdc"
+"panel.hovered" = "#E4E4E6"
 
 "status.background" = "#eaeaeb"
+"status.modal.normal" = "$blue"
+"status.modal.insert" = "$red"
+"status.modal.visual" = "$yellow"
+"status.modal.terminal" = "$purple"
+
+"markdown.blockquote" = "#686868"
 
 "style.comment" = "#A0A1A7"
 

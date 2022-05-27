@@ -1,9 +1,10 @@
-use std::{cmp::Ordering, fmt::Display, sync::Arc};
+use std::{fmt::Display, sync::Arc};
 
 use anyhow::Error;
-use druid::{Command, EventCtx, ExtEventSink, Size, Target, WidgetId};
+use druid::{ExtEventSink, Size, Target, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
+use lapce_core::movement::Movement;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
@@ -11,7 +12,6 @@ use std::str::FromStr;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    movement::Movement,
     proxy::LapceProxy,
 };
 
@@ -296,6 +296,7 @@ impl CompletionData {
     pub fn all_items(&self) -> &Arc<Vec<ScoredCompletionItem>> {
         self.input_items
             .get(&self.input)
+            .filter(|items| !items.is_empty())
             .unwrap_or_else(move || self.input_items.get("").unwrap_or(&self.empty))
     }
 
@@ -374,13 +375,12 @@ impl CompletionData {
             CompletionResponse::Array(items) => items,
             CompletionResponse::List(list) => list.items,
         };
-        let items = items
+        let items: Vec<ScoredCompletionItem> = items
             .iter()
             .map(|i| ScoredCompletionItem {
                 item: i.to_owned(),
                 score: 0,
                 label_score: 0,
-                index: 0,
                 indices: Vec::new(),
             })
             .collect();
@@ -458,91 +458,9 @@ impl Default for CompletionNew {
 pub struct ScoredCompletionItem {
     pub item: CompletionItem,
 
-    #[allow(dead_code)]
-    pub index: usize,
-
     pub score: i64,
     pub label_score: i64,
     pub indices: Vec<usize>,
-}
-
-#[derive(Clone)]
-pub struct CompletionState {
-    pub widget_id: WidgetId,
-    pub items: Vec<ScoredCompletionItem>,
-    pub input: String,
-    pub offset: usize,
-    pub index: usize,
-    pub scroll_offset: f64,
-}
-
-impl CompletionState {
-    pub fn new() -> CompletionState {
-        CompletionState {
-            widget_id: WidgetId::next(),
-            items: Vec::new(),
-            input: "".to_string(),
-            offset: 0,
-            index: 0,
-            scroll_offset: 0.0,
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.items.iter().filter(|i| i.score != 0).count()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn current_items(&self) -> Vec<&ScoredCompletionItem> {
-        self.items.iter().filter(|i| i.score != 0).collect()
-    }
-
-    pub fn clear(&mut self) {
-        self.input = "".to_string();
-        self.items = Vec::new();
-        self.offset = 0;
-        self.index = 0;
-        self.scroll_offset = 0.0;
-    }
-
-    pub fn cancel(&mut self, ctx: &mut EventCtx) {
-        self.clear();
-        self.request_paint(ctx);
-    }
-
-    pub fn request_paint(&self, ctx: &mut EventCtx) {
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::RequestPaint,
-            Target::Widget(self.widget_id),
-        ));
-    }
-
-    pub fn update(&mut self, input: String, completion_items: Vec<CompletionItem>) {
-        self.items = completion_items
-            .iter()
-            .enumerate()
-            .map(|(index, item)| ScoredCompletionItem {
-                item: item.to_owned(),
-                score: -1 - index as i64,
-                label_score: -1 - index as i64,
-                index,
-                indices: Vec::new(),
-            })
-            .collect();
-        self.items
-            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
-        self.input = input;
-    }
-}
-
-impl Default for CompletionState {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 #[cfg(test)]

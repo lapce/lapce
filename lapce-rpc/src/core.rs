@@ -19,10 +19,17 @@ pub enum CoreNotification {
         len: usize,
         styles: Vec<LineStyle>,
     },
+    OpenFileChanged {
+        path: PathBuf,
+        content: String,
+    },
     ReloadBuffer {
-        buffer_id: BufferId,
-        new_content: String,
+        path: PathBuf,
+        content: String,
         rev: u64,
+    },
+    FileChange {
+        event: notify::Event,
     },
     PublishDiagnostics {
         diagnostics: PublishDiagnosticsParams,

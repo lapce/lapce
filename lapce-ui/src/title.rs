@@ -1,27 +1,24 @@
 use std::sync::Arc;
 
+use crate::svg::get_svg;
 use druid::{
     kurbo::Line,
     piet::{Text, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Env, Event, EventCtx, FontFamily, LayoutCtx,
-    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget,
+    BoxConstraints, Color, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    UpdateCtx, Widget, WindowConfig, WindowState,
 };
 use lapce_data::{
     command::{
-        CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
-    data::LapceWindowData,
+    data::{LapceWindowData, LapceWorkspaceType},
     menu::MenuItem,
     proxy::ProxyStatus,
-    state::LapceWorkspaceType,
 };
 use serde_json::json;
-use strum::EnumMessage;
-
-use crate::svg::get_svg;
 
 pub struct Title {
     mouse_pos: Point,
@@ -65,7 +62,7 @@ impl Widget<LapceWindowData> for Title {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        _data: &mut LapceWindowData,
+        data: &mut LapceWindowData,
         _env: &Env,
     ) {
         match event {
@@ -81,6 +78,21 @@ impl Widget<LapceWindowData> for Title {
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event);
+            }
+            #[cfg(target_os = "macos")]
+            Event::MouseUp(mouse_event) => {
+                if mouse_event.count >= 2 {
+                    let state = match ctx.window().get_window_state() {
+                        WindowState::Maximized => WindowState::Restored,
+                        WindowState::Restored => WindowState::Maximized,
+                        WindowState::Minimized => WindowState::Maximized,
+                    };
+                    ctx.submit_command(
+                        druid::commands::CONFIGURE_WINDOW
+                            .with(WindowConfig::default().set_window_state(state))
+                            .to(Target::Window(data.window_id)),
+                    )
+                }
             }
             _ => {}
         }
@@ -149,7 +161,32 @@ impl Widget<LapceWindowData> for Title {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(text)
-                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                Some(text_layout)
+            }
+            LapceWorkspaceType::RemoteWSL => {
+                let text = match *tab.proxy_status {
+                    ProxyStatus::Connecting => "Connecting to WSL ...".to_string(),
+                    ProxyStatus::Connected => "WSL".to_string(),
+                    ProxyStatus::Disconnected => "Disconnected WSL".to_string(),
+                };
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(text)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
@@ -174,17 +211,20 @@ impl Widget<LapceWindowData> for Title {
         .with_origin(Point::new(x, 0.0));
         let color = match &tab.workspace.kind {
             LapceWorkspaceType::Local => Color::rgb8(64, 120, 242),
-            LapceWorkspaceType::RemoteSSH(_, _) => match *tab.proxy_status {
-                ProxyStatus::Connecting => Color::rgb8(193, 132, 1),
-                ProxyStatus::Connected => Color::rgb8(80, 161, 79),
-                ProxyStatus::Disconnected => Color::rgb8(228, 86, 73),
-            },
+            LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL => {
+                match *tab.proxy_status {
+                    ProxyStatus::Connecting => Color::rgb8(193, 132, 1),
+                    ProxyStatus::Connected => Color::rgb8(80, 161, 79),
+                    ProxyStatus::Disconnected => Color::rgb8(228, 86, 73),
+                }
+            }
         };
         ctx.fill(remote_rect, &color);
         let remote_svg = get_svg("remote.svg").unwrap();
         ctx.draw_svg(
             &remote_svg,
-            remote_rect
+            Size::new(size.height, size.height)
+                .to_rect()
                 .with_origin(Point::new(x + 5.0, 0.0))
                 .inflate(-5.0, -5.0),
             Some(
@@ -204,17 +244,46 @@ impl Widget<LapceWindowData> for Title {
         x += remote_rect.width();
         let command_rect =
             command_rect.with_size(Size::new(x - command_rect.x0, size.height));
+
+        let mut menu_items = vec![MenuItem {
+            desc: None,
+            command: LapceCommand {
+                kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectSshHost),
+                data: None,
+            },
+        }];
+
+        if cfg!(target_os = "windows") {
+            menu_items.push(MenuItem {
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectWsl),
+                    data: None,
+                },
+            });
+        }
+
+        if tab.workspace.kind.is_remote() {
+            menu_items.push(MenuItem {
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::DisconnectRemote,
+                    ),
+                    data: None,
+                },
+            });
+        }
+
         self.commands.push((
             command_rect,
             Command::new(
-                LAPCE_NEW_COMMAND,
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::ConnectSshHost.to_string(),
-                    palette_desc: None,
-                    data: None,
-                    target: CommandTarget::Workbench,
-                },
-                Target::Widget(data.active_id),
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ShowMenu(
+                    ctx.to_window(Point::new(command_rect.x0, command_rect.y1)),
+                    Arc::new(menu_items),
+                ),
+                Target::Auto,
             ),
         ));
 
@@ -237,9 +306,8 @@ impl Widget<LapceWindowData> for Title {
         let text = if let Some(workspace_path) = tab.workspace.path.as_ref() {
             workspace_path
                 .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
+                .unwrap_or(workspace_path.as_os_str())
+                .to_string_lossy()
                 .to_string()
         } else {
             "Open Folder".to_string()
@@ -247,7 +315,10 @@ impl Widget<LapceWindowData> for Title {
         let text_layout = ctx
             .text()
             .new_text_layout(text)
-            .font(FontFamily::SYSTEM_UI, 13.0)
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
             .text_color(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -262,27 +333,19 @@ impl Widget<LapceWindowData> for Title {
         x += text_layout.size().width.round() + padding;
         let menu_items = vec![
             MenuItem {
-                text: LapceWorkbenchCommand::OpenFolder
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
-                    palette_desc: None,
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             },
             MenuItem {
-                text: LapceWorkbenchCommand::PaletteWorkspace
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
-                    palette_desc: None,
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::PaletteWorkspace,
+                    ),
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             },
         ];
@@ -293,7 +356,7 @@ impl Widget<LapceWindowData> for Title {
             Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ShowMenu(
-                    Point::new(command_rect.x0, command_rect.y1),
+                    ctx.to_window(Point::new(command_rect.x0, command_rect.y1)),
                     Arc::new(menu_items),
                 ),
                 Target::Auto,
@@ -329,7 +392,10 @@ impl Widget<LapceWindowData> for Title {
             let text_layout = ctx
                 .text()
                 .new_text_layout(branch)
-                .font(FontFamily::SYSTEM_UI, 13.0)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -350,12 +416,12 @@ impl Widget<LapceWindowData> for Title {
                 .branches
                 .iter()
                 .map(|b| MenuItem {
-                    text: b.to_string(),
-                    command: LapceCommandNew {
-                        cmd: LapceWorkbenchCommand::CheckoutBranch.to_string(),
-                        palette_desc: None,
+                    desc: Some(b.to_string()),
+                    command: LapceCommand {
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::CheckoutBranch,
+                        ),
                         data: Some(json!(b.to_string())),
-                        target: CommandTarget::Workbench,
                     },
                 })
                 .collect();
@@ -364,7 +430,7 @@ impl Widget<LapceWindowData> for Title {
                 Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::ShowMenu(
-                        Point::new(command_rect.x0, command_rect.y1),
+                        ctx.to_window(Point::new(command_rect.x0, command_rect.y1)),
                         Arc::new(menu_items),
                     ),
                     Target::Auto,
@@ -393,39 +459,30 @@ impl Widget<LapceWindowData> for Title {
         );
         let menu_items = vec![
             MenuItem {
-                text: LapceWorkbenchCommand::PaletteCommand
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
-                    palette_desc: None,
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::PaletteCommand,
+                    ),
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             },
             MenuItem {
-                text: LapceWorkbenchCommand::OpenSettings
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::OpenSettings.to_string(),
-                    palette_desc: None,
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::OpenSettings,
+                    ),
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             },
             MenuItem {
-                text: LapceWorkbenchCommand::OpenKeyboardShortcuts
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::OpenKeyboardShortcuts.to_string(),
-                    palette_desc: None,
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::OpenKeyboardShortcuts,
+                    ),
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             },
         ];
@@ -434,7 +491,10 @@ impl Widget<LapceWindowData> for Title {
             Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ShowMenu(
-                    Point::new(size.width - 300.0, settings_rect.y1),
+                    ctx.to_window(Point::new(
+                        size.width - size.height,
+                        settings_rect.y1,
+                    )),
                     Arc::new(menu_items),
                 ),
                 Target::Auto,

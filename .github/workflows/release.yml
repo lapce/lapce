@@ -21,7 +21,7 @@ jobs:
       - name: Update rust
         run: rustup update
       - name: Build
-        run: cargo build --release
+        run: cargo build --profile release-lto
       - name: Install WiX
         run: nuget install WiX
       - name: Crate msi installer
@@ -34,7 +34,7 @@ jobs:
       - name: Create portable 
         shell: pwsh
         run: |
-          Compress-Archive ./target/release/lapce.exe ./Lapce-windows-portable.zip
+          Compress-Archive ./target/release-lto/lapce.exe ./Lapce-windows-portable.zip
       - name: Upload msi installer
         uses: svenstaro/upload-release-action@v2
         with:
@@ -53,24 +53,23 @@ jobs:
           overwrite: true
 
   linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
 
     steps:
       - uses: actions/checkout@v2
       - name: Install dependencies
         run: |
-          sudo apt-get install cmake pkg-config libfreetype6-dev libfontconfig1-dev \
-            libxcb-xfixes0-dev libxkbcommon-dev
+          sudo apt-get install cmake pkg-config libfontconfig-dev libgtk-3-dev
       - name: Update rust
         run: rustup update
       - name: Build
-        run: cargo build --release
+        run: cargo build --profile release-lto
       - name: Gzip 
         run: |
           mkdir Lapce
-          cp ./target/release/lapce Lapce/
+          cp ./target/release-lto/lapce Lapce/
           tar -zcvf ./Lapce-linux.tar.gz Lapce
-          gzip -c "./target/release/lapce-proxy" > ./lapce-proxy-linux.gz
+          gzip -c "./target/release-lto/lapce-proxy" > ./lapce-proxy-linux.gz
       - name: Upload Application
         uses: svenstaro/upload-release-action@v2
         with:
@@ -108,19 +107,19 @@ jobs:
         run: make dmg-universal
       - name: Rename
         run: |
-          cp ./target/release/macos/Lapce.dmg ./target/release/macos/Lapce-macos.dmg
+          cp ./target/release-lto/macos/Lapce.dmg ./target/release-lto/macos/Lapce-macos.dmg
       - name: "Notarize Release Build"
         run: |
-          npx notarize-cli --file ./target/release/macos/Lapce-macos.dmg --bundle-id io.lapce --asc-provider CYSGAZFR8D
+          npx notarize-cli --file ./target/release-lto/macos/Lapce-macos.dmg --bundle-id io.lapce --asc-provider CYSGAZFR8D
       - name: "Staple Release Build"
         uses: devbotsxyz/xcode-staple@v1
         with:
-          product-path: "./target/release/macos/Lapce-macos.dmg"
+          product-path: "./target/release-lto/macos/Lapce-macos.dmg"
       - name: Upload Application
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./target/release/macos/Lapce-macos.dmg
+          file: ./target/release-lto/macos/Lapce-macos.dmg
           file_glob: true
           tag: ${{ github.ref }}
           overwrite: true

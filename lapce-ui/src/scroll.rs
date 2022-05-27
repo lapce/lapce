@@ -1,6 +1,7 @@
 use std::time::Duration;
 use std::time::Instant;
 
+use druid::Cursor;
 use druid::{
     kurbo::{Affine, Point, Rect, Size, Vec2},
     Insets, WidgetId,
@@ -15,81 +16,6 @@ use lapce_data::{
     config::{Config, GetConfig, LapceTheme},
 };
 
-/// Represents the size and position of a rectangular "viewport" into a larger area.
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
-pub struct Viewport {
-    /// The size of the area that we have a viewport into.
-    pub content_size: Size,
-    /// The view rectangle.
-    pub rect: Rect,
-}
-
-impl Viewport {
-    /// Tries to find a position for the view rectangle that is contained in the content rectangle.
-    ///
-    /// If the supplied origin is good, returns it; if it isn't, we try to return the nearest
-    /// origin that would make the view rectangle contained in the content rectangle. (This will
-    /// fail if the content is smaller than the view, and we return `0.0` in each dimension where
-    /// the content is smaller.)
-    pub fn clamp_view_origin(&self, origin: Point) -> Point {
-        let x = origin
-            .x
-            .min(self.content_size.width - self.rect.width())
-            .max(0.0);
-        let y = origin
-            .y
-            .min(self.content_size.height - self.rect.height())
-            .max(0.0);
-        Point::new(x, y)
-    }
-
-    /// Changes the viewport offset by `delta`, while trying to keep the view rectangle inside the
-    /// content rectangle.
-    ///
-    /// Returns true if the offset actually changed. Even if `delta` is non-zero, the offset might
-    /// not change. For example, if you try to move the viewport down but it is already at the
-    /// bottom of the child widget, then the offset will not change and this function will return
-    /// false.
-    pub fn pan_by(&mut self, delta: Vec2) -> bool {
-        self.pan_to(self.rect.origin() + delta)
-    }
-
-    /// Sets the viewport origin to `pos`, while trying to keep the view rectangle inside the
-    /// content rectangle.
-    ///
-    /// Returns true if the position changed. Note that the valid values for the viewport origin
-    /// are constrained by the size of the child, and so the origin might not get set to exactly
-    /// `pos`.
-    pub fn pan_to(&mut self, origin: Point) -> bool {
-        let new_origin = self.clamp_view_origin(origin);
-        if (new_origin - self.rect.origin()).hypot2() > 1e-12 {
-            self.rect = self.rect.with_origin(new_origin);
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn force_pan_to(&mut self, origin: Point) -> bool {
-        if (origin - self.rect.origin()).hypot2() > 1e-12 {
-            self.rect = self.rect.with_origin(origin);
-            true
-        } else {
-            false
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-enum ScrollDirection {
-    #[allow(dead_code)]
-    Bidirectional,
-    #[allow(dead_code)]
-    Vertical,
-    #[allow(dead_code)]
-    Horizontal,
-}
-
 /// Minimum length for any scrollbar to be when measured on that
 /// scrollbar's primary axis.
 pub const SCROLLBAR_MIN_SIZE: f64 = 45.0;
@@ -97,7 +23,7 @@ pub const SCROLLBAR_MIN_SIZE: f64 = 45.0;
 /// Denotes which scrollbar, if any, is currently being hovered over
 /// by the mouse.
 #[derive(Debug, Copy, Clone)]
-pub enum BarHoveredState {
+enum BarHoveredState {
     /// Neither scrollbar is being hovered by the mouse.
     None,
     /// The vertical scrollbar is being hovered by the mouse.
@@ -106,31 +32,21 @@ pub enum BarHoveredState {
     Horizontal,
 }
 
-impl BarHoveredState {
-    /// Determines if any scrollbar is currently being hovered by the mouse.
-    pub fn is_hovered(self) -> bool {
-        matches!(
-            self,
-            BarHoveredState::Vertical | BarHoveredState::Horizontal
-        )
-    }
-}
-
 /// Denotes which scrollbar, if any, is currently being dragged.
 #[derive(Debug, Copy, Clone)]
-pub enum BarHeldState {
+enum BarHeldState {
     /// Neither scrollbar is being dragged.
     None,
     /// Vertical scrollbar is being dragged. Contains an `f64` with
     /// the initial y-offset of the dragging input.
-    Vertical(f64),
+    Vertical(f64, Vec2),
     /// Horizontal scrollbar is being dragged. Contains an `f64` with
     /// the initial x-offset of the dragging input.
-    Horizontal(f64),
+    Horizontal(f64, Vec2),
 }
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
-pub struct ViewportNew {
+struct ViewportNew {
     /// The size of the area that we have a viewport into.
     pub content_size: Size,
     /// The view rectangle.
@@ -229,7 +145,7 @@ impl ViewportNew {
     }
 }
 
-pub struct ClipBoxNew<T, W> {
+struct ClipBoxNew<T, W> {
     child: WidgetPod<T, W>,
     port: ViewportNew,
     constrain_horizontal: bool,
@@ -280,7 +196,7 @@ impl<T, W: Widget<T>> ClipBoxNew<T, W> {
     ///
     /// [`constrain_vertical`]: struct.ClipBox.html#constrain_vertical
     pub fn constrain_horizontal(mut self, constrain: bool) -> Self {
-        self.constrain_horizontal = constrain;
+        self.set_constrain_horizontal(constrain);
         self
     }
 
@@ -305,7 +221,7 @@ impl<T, W: Widget<T>> ClipBoxNew<T, W> {
     ///   the height of the child, and the viewport will set its own height to be the same as its
     ///   child's height.
     pub fn constrain_vertical(mut self, constrain: bool) -> Self {
-        self.constrain_vertical = constrain;
+        self.set_constrain_vertical(constrain);
         self
     }
 
@@ -443,7 +359,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for ClipBoxNew<T, W> {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct ScrollComponentNew {
+struct ScrollComponentNew {
     /// Current opacity for both scrollbars
     pub opacity: f64,
     /// ID for the timer which schedules scrollbar fade out
@@ -495,6 +411,7 @@ impl ScrollComponentNew {
     pub fn calc_vertical_bar_bounds(
         &self,
         port: &ViewportNew,
+        config: &Config,
         env: &Env,
     ) -> Option<Rect> {
         let viewport_size = port.rect.size();
@@ -505,7 +422,7 @@ impl ScrollComponentNew {
             return None;
         }
 
-        let bar_width = env.get(theme::SCROLLBAR_WIDTH);
+        let bar_width = config.ui.scroll_width() as f64;
         let bar_pad = env.get(theme::SCROLLBAR_PAD);
 
         let percent_visible = viewport_size.height / content_size.height;
@@ -533,6 +450,7 @@ impl ScrollComponentNew {
     pub fn calc_horizontal_bar_bounds(
         &self,
         port: &ViewportNew,
+        config: &Config,
         env: &Env,
     ) -> Option<Rect> {
         let viewport_size = port.rect.size();
@@ -546,7 +464,7 @@ impl ScrollComponentNew {
         let bar_width = if viewport_size.height < 40.0 {
             5.0
         } else {
-            env.get(theme::SCROLLBAR_WIDTH)
+            config.ui.scroll_width() as f64
         };
         let bar_pad = env.get(theme::SCROLLBAR_PAD);
 
@@ -607,14 +525,14 @@ impl ScrollComponentNew {
         let edge_width = env.get(theme::SCROLLBAR_EDGE_WIDTH);
 
         // Vertical bar
-        if let Some(bounds) = self.calc_vertical_bar_bounds(port, env) {
+        if let Some(bounds) = self.calc_vertical_bar_bounds(port, config, env) {
             let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
             ctx.render_ctx.fill(rect, &brush);
             ctx.render_ctx.stroke(rect, &border_brush, edge_width);
         }
 
         // Horizontal bar
-        if let Some(bounds) = self.calc_horizontal_bar_bounds(port, env) {
+        if let Some(bounds) = self.calc_horizontal_bar_bounds(port, config, env) {
             let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
             ctx.render_ctx.fill(rect, &brush);
             ctx.render_ctx.stroke(rect, &border_brush, edge_width);
@@ -628,12 +546,13 @@ impl ScrollComponentNew {
         &self,
         port: &ViewportNew,
         pos: Point,
+        config: &Config,
         env: &Env,
     ) -> bool {
         let viewport_size = port.rect.size();
         let scroll_offset = port.rect.origin().to_vec2();
 
-        if let Some(mut bounds) = self.calc_vertical_bar_bounds(port, env) {
+        if let Some(mut bounds) = self.calc_vertical_bar_bounds(port, config, env) {
             // Stretch hitbox to edge of widget
             bounds.x1 = scroll_offset.x + viewport_size.width;
             bounds.contains(pos)
@@ -649,12 +568,14 @@ impl ScrollComponentNew {
         &self,
         port: &ViewportNew,
         pos: Point,
+        config: &Config,
         env: &Env,
     ) -> bool {
         let viewport_size = port.rect.size();
         let scroll_offset = port.rect.origin().to_vec2();
 
-        if let Some(mut bounds) = self.calc_horizontal_bar_bounds(port, env) {
+        if let Some(mut bounds) = self.calc_horizontal_bar_bounds(port, config, env)
+        {
             // Stretch hitbox to edge of widget
             bounds.y1 = scroll_offset.y + viewport_size.height;
             bounds.contains(pos)
@@ -671,6 +592,7 @@ impl ScrollComponentNew {
         port: &mut ViewportNew,
         ctx: &mut EventCtx,
         event: &Event,
+        config: &Config,
         env: &Env,
     ) {
         let viewport_size = port.rect.size();
@@ -680,35 +602,33 @@ impl ScrollComponentNew {
         let scrollbar_is_hovered = match event {
             Event::MouseMove(e) | Event::MouseUp(e) | Event::MouseDown(e) => {
                 let offset_pos = e.pos + scroll_offset;
-                self.point_hits_vertical_bar(port, offset_pos, env)
-                    || self.point_hits_horizontal_bar(port, offset_pos, env)
+                self.point_hits_vertical_bar(port, offset_pos, config, env)
+                    || self.point_hits_horizontal_bar(port, offset_pos, config, env)
             }
             _ => false,
         };
+
+        if scrollbar_is_hovered || ctx.is_active() {
+            ctx.set_cursor(&Cursor::Arrow);
+        }
 
         if self.are_bars_held() {
             // if we're dragging a scrollbar
             match event {
                 Event::MouseMove(event) => {
                     match self.held {
-                        BarHeldState::Vertical(offset) => {
+                        BarHeldState::Vertical(offset, initial_scroll_offset) => {
                             let scale_y = viewport_size.height / content_size.height;
-                            let bounds = self
-                                .calc_vertical_bar_bounds(port, env)
-                                .unwrap_or(Rect::ZERO);
-                            let mouse_y = event.pos.y + scroll_offset.y;
-                            let delta = mouse_y - bounds.y0 - offset;
-                            port.pan_by(Vec2::new(0f64, (delta / scale_y).ceil()));
+                            let y = initial_scroll_offset.y
+                                + (event.pos.y - offset) / scale_y;
+                            port.pan_to(Point::new(initial_scroll_offset.x, y));
                             ctx.set_handled();
                         }
-                        BarHeldState::Horizontal(offset) => {
+                        BarHeldState::Horizontal(offset, initial_scroll_offset) => {
                             let scale_x = viewport_size.width / content_size.width;
-                            let bounds = self
-                                .calc_horizontal_bar_bounds(port, env)
-                                .unwrap_or(Rect::ZERO);
-                            let mouse_x = event.pos.x + scroll_offset.x;
-                            let delta = mouse_x - bounds.x0 - offset;
-                            port.pan_by(Vec2::new((delta / scale_x).ceil(), 0f64));
+                            let x = initial_scroll_offset.x
+                                + (event.pos.x - offset) / scale_x;
+                            port.pan_to(Point::new(x, initial_scroll_offset.y));
                             ctx.set_handled();
                         }
                         _ => (),
@@ -721,7 +641,10 @@ impl ScrollComponentNew {
 
                     if !scrollbar_is_hovered {
                         self.hovered = BarHoveredState::None;
-                        self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                        self.reset_scrollbar_fade(
+                            |d| ctx.request_timer(d, None),
+                            env,
+                        );
                     }
 
                     ctx.set_handled();
@@ -733,9 +656,11 @@ impl ScrollComponentNew {
             match event {
                 Event::MouseMove(event) => {
                     let offset_pos = event.pos + scroll_offset;
-                    if self.point_hits_vertical_bar(port, offset_pos, env) {
+                    if self.point_hits_vertical_bar(port, offset_pos, config, env) {
                         self.hovered = BarHoveredState::Vertical;
-                    } else if self.point_hits_horizontal_bar(port, offset_pos, env) {
+                    } else if self
+                        .point_hits_horizontal_bar(port, offset_pos, config, env)
+                    {
                         self.hovered = BarHoveredState::Horizontal;
                     } else {
                     }
@@ -748,25 +673,20 @@ impl ScrollComponentNew {
                 Event::MouseDown(event) => {
                     let pos = event.pos + scroll_offset;
 
-                    if self.point_hits_vertical_bar(port, pos, env) {
+                    if self.point_hits_vertical_bar(port, pos, config, env) {
                         ctx.set_active(true);
                         self.held = BarHeldState::Vertical(
                             // The bounds must be non-empty, because the point hits the scrollbar.
-                            pos.y
-                                - self
-                                    .calc_vertical_bar_bounds(port, env)
-                                    .unwrap()
-                                    .y0,
+                            event.pos.y,
+                            scroll_offset,
                         );
-                    } else if self.point_hits_horizontal_bar(port, pos, env) {
+                    } else if self.point_hits_horizontal_bar(port, pos, config, env)
+                    {
                         ctx.set_active(true);
                         self.held = BarHeldState::Horizontal(
                             // The bounds must be non-empty, because the point hits the scrollbar.
-                            pos.x
-                                - self
-                                    .calc_horizontal_bar_bounds(port, env)
-                                    .unwrap()
-                                    .x0,
+                            event.pos.x,
+                            scroll_offset,
                         );
                     } else {
                     }
@@ -797,6 +717,7 @@ impl ScrollComponentNew {
                         } else {
                             self.fade_start = None;
                         }
+                        ctx.request_paint();
                     }
                 }
                 Event::Timer(id) if *id == self.timer_id => {
@@ -804,6 +725,7 @@ impl ScrollComponentNew {
                     self.timer_id = TimerToken::INVALID;
                     self.fade_start = Some(Instant::now());
                     ctx.request_anim_frame();
+                    ctx.request_paint();
                     ctx.set_handled();
                 }
                 _ => (),
@@ -823,7 +745,7 @@ impl ScrollComponentNew {
             if let Event::Wheel(mouse) = event {
                 if port.pan_by(mouse.wheel_delta.round()) {}
                 ctx.request_paint();
-                self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                self.reset_scrollbar_fade(|d| ctx.request_timer(d, None), env);
                 ctx.set_handled();
             }
         }
@@ -840,12 +762,12 @@ impl ScrollComponentNew {
     ) {
         match event {
             LifeCycle::HotChanged(_) => {
-                self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                self.reset_scrollbar_fade(|d| ctx.request_timer(d, None), env);
             }
             LifeCycle::Size(_) => {
                 // Show the scrollbars any time our size changes
                 ctx.request_paint();
-                self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                self.reset_scrollbar_fade(|d| ctx.request_timer(d, None), env);
             }
             _ => (),
         }
@@ -854,7 +776,7 @@ impl ScrollComponentNew {
 
 pub struct LapceScrollNew<T, W> {
     clip: ClipBoxNew<T, W>,
-    pub scroll_component: ScrollComponentNew,
+    scroll_component: ScrollComponentNew,
 }
 
 impl<T, W: Widget<T>> LapceScrollNew<T, W> {
@@ -872,15 +794,21 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
 
     /// Restrict scrolling to the vertical axis while locking child width.
     pub fn vertical(mut self) -> Self {
-        self.clip.set_constrain_vertical(false);
-        self.clip.set_constrain_horizontal(true);
+        self.clip = self
+            .clip
+            .constrain_vertical(false)
+            .constrain_horizontal(true);
+
         self
     }
 
     /// Restrict scrolling to the horizontal axis while locking child height.
     pub fn horizontal(mut self) -> Self {
-        self.clip.set_constrain_vertical(true);
-        self.clip.set_constrain_horizontal(false);
+        self.clip = self
+            .clip
+            .constrain_vertical(true)
+            .constrain_horizontal(false);
+
         self
     }
 
@@ -927,9 +855,16 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
     ///
     /// If the target region is larger than the viewport, we will display the
     /// portion that fits, prioritizing the portion closest to the origin.
-    #[allow(unused_variables)]
-    pub fn scroll_to_visible(&mut self, region: Rect, env: &Env) -> bool {
+    pub fn scroll_to_visible(&mut self, region: Rect, _env: &Env) -> bool {
         self.clip.pan_to_visible(region)
+    }
+
+    pub fn reset_scrollbar_fade<F>(&mut self, request_timer: F, env: &Env)
+    where
+        F: FnOnce(Duration) -> TimerToken,
+    {
+        self.scroll_component
+            .reset_scrollbar_fade(request_timer, env)
     }
 }
 
@@ -937,7 +872,7 @@ impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
         let scroll_component = &mut self.scroll_component;
         self.clip.with_port(|port| {
-            scroll_component.event(port, ctx, event, env);
+            scroll_component.event(port, ctx, event, data.get_config(), env);
         });
         if !ctx.is_handled() {
             self.clip.event(ctx, event, data, env);
@@ -952,7 +887,7 @@ impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 if let LapceUICommand::ResetFade = command {
                     scroll_component
-                        .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                        .reset_scrollbar_fade(|d| ctx.request_timer(d, None), env);
                 }
             }
             _ => (),
@@ -992,7 +927,7 @@ impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
         let _ = self.scroll_by(Vec2::ZERO);
         if old_viewport != self.clip.port {
             self.scroll_component
-                .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                .reset_scrollbar_fade(|d| ctx.request_timer(d, None), env);
         }
 
         self_size

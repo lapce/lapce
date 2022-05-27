@@ -58,8 +58,23 @@ command = "word_backward"
 mode = "i"
 
 [[keymaps]]
+key = "meta+left"
+command = "line_start_non_blank"
+mode = "i"
+
+[[keymaps]]
+key = "meta+right"
+command = "line_end"
+mode = "i"
+
+[[keymaps]]
 key = "alt+backspace"
 command = "delete_word_backward"
+mode = "i"
+
+[[keymaps]]
+key = "meta+backspace"
+command = "delete_to_beginning_of_line"
 mode = "i"
 
 [[keymaps]]
@@ -144,6 +159,10 @@ command = "save"
 [[keymaps]]
 key = "meta+o"
 command = "open_file"
+
+[[keymaps]]
+key = "meta+n"
+command = "new_file"
 
 # ----------------------------------- Editor Management -------------------------------
 
