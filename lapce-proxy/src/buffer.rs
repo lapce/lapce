@@ -65,6 +65,8 @@ impl Buffer {
         for chunk in self.rope.iter_chunks(..self.rope.len()) {
             f.write_all(chunk.as_bytes())?;
         }
+        let perm = fs::metadata(&self.path)?.permissions();
+        fs::set_permissions(tmp_path, perm)?;
         fs::rename(tmp_path, &self.path)?;
         self.mod_time = get_mod_time(&self.path);
         Ok(())
