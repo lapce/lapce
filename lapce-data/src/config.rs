@@ -382,6 +382,23 @@ impl ThemeBaseConfig {
             }),
         }
     }
+
+    pub fn get(&self, name: &str) -> Option<&String> {
+        Some(match name {
+            "white" => &self.white,
+            "black" => &self.black,
+            "grey" => &self.grey,
+            "blue" => &self.blue,
+            "red" => &self.red,
+            "yellow" => &self.yellow,
+            "orange" => &self.orange,
+            "green" => &self.green,
+            "purple" => &self.purple,
+            "cyan" => &self.cyan,
+            "magenta" => &self.magenta,
+            _ => return None,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -453,6 +470,8 @@ pub struct Config {
     pub terminal: TerminalConfig,
     pub theme: ThemeConfig,
     #[serde(skip)]
+    pub default_theme: ThemeConfig,
+    #[serde(skip)]
     pub color: ThemeColor,
     #[serde(skip)]
     pub available_themes: HashMap<String, config::Config>,
@@ -521,6 +540,7 @@ impl Config {
         config.update_id();
         config.available_themes = available_themes;
         config.resolve_colors(Some(&default_config));
+        config.default_theme = default_config.theme.clone();
 
         Ok(config)
     }
