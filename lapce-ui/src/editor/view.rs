@@ -157,7 +157,7 @@ impl LapceEditorView {
                     data.main_split.active_tab = Arc::new(editor.tab_id);
                 }
             },
-            BufferContent::SettingsValue(_) => {}
+            BufferContent::SettingsValue(_, _) => {}
         }
     }
 
@@ -556,7 +556,7 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
             Event::Timer(id) if self.last_idle_timer == *id => {
                 ctx.set_handled();
-                if let BufferContent::SettingsValue(name) =
+                if let BufferContent::SettingsValue(name, _) =
                     &editor_data.editor.content
                 {
                     // ctx.submit_command(Command::new(
@@ -709,7 +709,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         let old_editor_data = old_data.editor_view_content(self.view_id);
         let editor_data = data.editor_view_content(self.view_id);
 
-        if let BufferContent::SettingsValue(_) = &editor_data.editor.content {
+        if let BufferContent::SettingsValue(_, _) = &editor_data.editor.content {
             if editor_data.doc.buffer().len() != old_editor_data.doc.buffer().len()
                 || editor_data.doc.buffer().text().slice_to_cow(..)
                     != old_editor_data.doc.buffer().text().slice_to_cow(..)

@@ -43,6 +43,7 @@ use crate::{
     find::{Find, FindProgress},
     history::DocumentHisotry,
     proxy::LapceProxy,
+    settings::SettingsValueKind,
 };
 
 pub struct SystemClipboard {}
@@ -98,7 +99,7 @@ pub enum LocalBufferKind {
 pub enum BufferContent {
     File(PathBuf),
     Local(LocalBufferKind),
-    SettingsValue(String),
+    SettingsValue(String, SettingsValueKind),
     Scratch(BufferId, String),
 }
 
@@ -119,7 +120,7 @@ impl BufferContent {
                 | LocalBufferKind::Keymap => true,
                 LocalBufferKind::Empty => false,
             },
-            BufferContent::SettingsValue(_) => true,
+            BufferContent::SettingsValue(_, _) => true,
             BufferContent::Scratch(..) => false,
         }
     }
@@ -135,7 +136,7 @@ impl BufferContent {
                 | LocalBufferKind::Keymap => true,
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
-            BufferContent::SettingsValue(_) => true,
+            BufferContent::SettingsValue(_, _) => true,
             BufferContent::Scratch(..) => false,
         }
     }
@@ -143,7 +144,7 @@ impl BufferContent {
     pub fn is_search(&self) -> bool {
         match &self {
             BufferContent::File(_) => false,
-            BufferContent::SettingsValue(_) => false,
+            BufferContent::SettingsValue(_, _) => false,
             BufferContent::Scratch(..) => false,
             BufferContent::Local(local) => matches!(local, LocalBufferKind::Search),
         }
@@ -152,7 +153,7 @@ impl BufferContent {
     pub fn is_settings(&self) -> bool {
         match &self {
             BufferContent::File(_) => false,
-            BufferContent::SettingsValue(_) => true,
+            BufferContent::SettingsValue(_, _) => true,
             BufferContent::Local(_) => false,
             BufferContent::Scratch(..) => false,
         }
@@ -201,7 +202,7 @@ impl Document {
         let syntax = match &content {
             BufferContent::File(path) => Syntax::init(path),
             BufferContent::Local(_) => None,
-            BufferContent::SettingsValue(_) => None,
+            BufferContent::SettingsValue(_, _) => None,
             BufferContent::Scratch(..) => None,
         };
         let id = match &content {
@@ -244,7 +245,7 @@ impl Document {
         self.syntax = match &self.content {
             BufferContent::File(path) => Syntax::init(path),
             BufferContent::Local(_) => None,
-            BufferContent::SettingsValue(_) => None,
+            BufferContent::SettingsValue(_, _) => None,
             BufferContent::Scratch(..) => None,
         };
         self.on_update(None);
@@ -517,7 +518,7 @@ impl Document {
                     }
                 }
             }
-            BufferContent::SettingsValue(_) => {}
+            BufferContent::SettingsValue(_, _) => {}
         }
     }
 

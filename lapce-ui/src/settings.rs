@@ -25,7 +25,7 @@ use lapce_data::{
     data::{LapceEditorData, LapceTabData},
     document::{BufferContent, Document},
     keypress::KeyPressFocus,
-    settings::LapceSettingsFocusData,
+    settings::{LapceSettingsFocusData, SettingsValueKind},
 };
 use xi_rope::Rope;
 
@@ -549,16 +549,20 @@ impl LapceSettingsItem {
         event_sink: ExtEventSink,
     ) -> Self {
         let input = match &value {
-            serde_json::Value::Number(n) => Some(n.to_string()),
-            serde_json::Value::String(s) => Some(s.to_string()),
+            serde_json::Value::Number(n) => {
+                Some((n.to_string(), SettingsValueKind::Number))
+            }
+            serde_json::Value::String(s) => {
+                Some((s.to_string(), SettingsValueKind::String))
+            }
             serde_json::Value::Array(_)
             | serde_json::Value::Object(_)
             | serde_json::Value::Bool(_)
             | serde_json::Value::Null => None,
         };
-        let input = input.map(|input| {
+        let input = input.map(|(input, value_kind)| {
             let name = format!("{kind}.{name}");
-            let content = BufferContent::SettingsValue(name.clone());
+            let content = BufferContent::SettingsValue(name.clone(), value_kind);
 
             let mut doc = Document::new(
                 content.clone(),
@@ -895,7 +899,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         }
         if let Some(view_id) = self.input_view_id.as_ref() {
             let editor = data.main_split.editors.get(view_id).unwrap();
-            if let BufferContent::SettingsValue(name) = &editor.content {
+            if let BufferContent::SettingsValue(name, _) = &editor.content {
                 let doc = data.main_split.value_docs.get(name).unwrap();
                 let old_doc = old_data.main_split.value_docs.get(name).unwrap();
                 if doc.buffer().len() != old_doc.buffer().len()
@@ -1057,7 +1061,10 @@ impl ThemeSettings {
 
         for color in colors {
             let name = format!("lapce.color.{color}");
-            let content = BufferContent::SettingsValue(name.clone());
+            let content = BufferContent::SettingsValue(
+                name.clone(),
+                SettingsValueKind::String,
+            );
             let mut doc = Document::new(
                 content.clone(),
                 data.id,

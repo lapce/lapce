@@ -1947,7 +1947,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 BufferContent::File(_) => true,
                 BufferContent::Scratch(..) => true,
                 BufferContent::Local(_) => false,
-                BufferContent::SettingsValue(_) => false,
+                BufferContent::SettingsValue(_, _) => false,
             },
             "diff_focus" => self.editor.compare.is_some(),
             "source_control_focus" => {
