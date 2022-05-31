@@ -158,7 +158,7 @@ impl LapceEditorView {
                     data.main_split.active_tab = Arc::new(editor.tab_id);
                 }
             },
-            BufferContent::SettingsValue(_, _) => {}
+            BufferContent::SettingsValue(..) => {}
         }
     }
 
@@ -555,7 +555,7 @@ impl Widget<LapceTabData> for LapceEditorView {
             Event::Timer(id) if self.last_idle_timer == *id => {
                 ctx.set_handled();
                 let editor_data = data.editor_view_content(self.view_id);
-                if let BufferContent::SettingsValue(name, kind) =
+                if let BufferContent::SettingsValue(_, kind, parent, key) =
                     &editor_data.editor.content
                 {
                     let content = editor_data.doc.buffer().text().to_string();
@@ -572,7 +572,8 @@ impl Widget<LapceTabData> for LapceEditorView {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::UpdateSettingsFile(
-                                name.to_string(),
+                                parent.to_string(),
+                                key.to_string(),
                                 new_value,
                             ),
                             Target::Widget(data.id),
@@ -727,7 +728,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         let old_editor_data = old_data.editor_view_content(self.view_id);
         let editor_data = data.editor_view_content(self.view_id);
 
-        if let BufferContent::SettingsValue(_, _) = &editor_data.editor.content {
+        if let BufferContent::SettingsValue(..) = &editor_data.editor.content {
             if editor_data.doc.buffer().len() != old_editor_data.doc.buffer().len()
                 || editor_data.doc.buffer().text().slice_to_cow(..)
                     != old_editor_data.doc.buffer().text().slice_to_cow(..)

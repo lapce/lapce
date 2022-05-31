@@ -731,9 +731,10 @@ impl LapceTabNew {
                         );
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateSettingsFile(key, value) => {
+                    LapceUICommand::UpdateSettingsFile(parent, key, value) => {
                         if let Ok(value) = toml::Value::deserialize(value) {
-                            let update_result = Config::update_file(key, value);
+                            let update_result =
+                                Config::update_file(parent, key, value);
                             debug_assert!(update_result.is_some());
                         }
                     }

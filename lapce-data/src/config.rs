@@ -701,15 +701,12 @@ impl Config {
         Some(table)
     }
 
-    pub fn update_file(key: &str, value: toml::Value) -> Option<()> {
+    pub fn update_file(parent: &str, key: &str, value: toml::Value) -> Option<()> {
         let mut main_table = Self::get_file_table().unwrap_or_default();
-
-        // Separate key from container path
-        let (path, key) = key.rsplit_once('.').unwrap_or(("", key));
 
         // Find the container table
         let mut table = &mut main_table;
-        for key in path.split('.') {
+        for key in parent.split('.') {
             if !table.contains_key(key) {
                 table
                     .insert(key.to_string(), toml::Value::Table(Default::default()));
@@ -741,7 +738,8 @@ impl Config {
 
         if !preview
             && Config::update_file(
-                "lapce.color-theme",
+                "lapce",
+                "color-theme",
                 toml::Value::String(theme.to_string()),
             )
             .is_none()

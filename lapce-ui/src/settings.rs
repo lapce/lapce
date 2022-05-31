@@ -414,15 +414,16 @@ impl LapceSettings {
         };
 
         for (i, field) in fileds.into_iter().enumerate() {
+            let field = field.replace('_', "-");
             self.children.push(WidgetPod::new(
                 LapcePadding::new(
                     (10.0, 10.0),
                     LapceSettingsItem::new(
                         data,
                         kind.clone(),
-                        field.to_string(),
+                        field.clone(),
                         descs[i].to_string(),
-                        settings.get(&field.replace('_', "-")).unwrap().clone(),
+                        settings.get(&field).unwrap().clone(),
                         ctx.get_external_handle(),
                     ),
                 )
@@ -543,7 +544,7 @@ impl LapceSettingsItem {
     pub fn new(
         data: &mut LapceTabData,
         kind: String,
-        name: String,
+        key: String,
         desc: String,
         value: serde_json::Value,
         event_sink: ExtEventSink,
@@ -561,8 +562,13 @@ impl LapceSettingsItem {
             | serde_json::Value::Null => None,
         };
         let input = input.map(|(input, value_kind)| {
-            let name = format!("{kind}.{name}");
-            let content = BufferContent::SettingsValue(name.clone(), value_kind);
+            let name = format!("{kind}.{key}");
+            let content = BufferContent::SettingsValue(
+                name.clone(),
+                value_kind,
+                kind.clone(),
+                key.clone(),
+            );
 
             let mut doc = Document::new(
                 content.clone(),
@@ -586,7 +592,7 @@ impl LapceSettingsItem {
         let input_widget = input.map(|i| i.1);
         Self {
             kind,
-            name,
+            name: key,
             desc,
             value,
             padding: 10.0,
@@ -846,14 +852,14 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                 if self.value_changed && *token == self.last_idle_timer =>
             {
                 self.value_changed = false;
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSettingsFile(
-                        self.get_key(),
-                        self.value.clone(),
-                    ),
-                    Target::Widget(data.id),
-                ));
+                // ctx.submit_command(Command::new(
+                //     LAPCE_UI_COMMAND,
+                //     LapceUICommand::UpdateSettingsFile(
+                //         self.get_key(),
+                //         self.value.clone(),
+                //     ),
+                //     Target::Widget(data.id),
+                // ));
             }
 
             _ => {}
@@ -870,14 +876,14 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         match event {
             LifeCycle::FocusChanged(false) if self.value_changed => {
                 self.value_changed = false;
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSettingsFile(
-                        self.get_key(),
-                        self.value.clone(),
-                    ),
-                    Target::Widget(data.id),
-                ));
+                // ctx.submit_command(Command::new(
+                //     LAPCE_UI_COMMAND,
+                //     LapceUICommand::UpdateSettingsFile(
+                //         self.get_key(),
+                //         self.value.clone(),
+                //     ),
+                //     Target::Widget(data.id),
+                // ));
             }
             _ => (),
         };
@@ -899,7 +905,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         }
         if let Some(view_id) = self.input_view_id.as_ref() {
             let editor = data.main_split.editors.get(view_id).unwrap();
-            if let BufferContent::SettingsValue(name, _) = &editor.content {
+            if let BufferContent::SettingsValue(name, ..) = &editor.content {
                 let doc = data.main_split.value_docs.get(name).unwrap();
                 let old_doc = old_data.main_split.value_docs.get(name).unwrap();
                 if doc.buffer().len() != old_doc.buffer().len()
@@ -1031,10 +1037,9 @@ impl Widget<LapceTabData> for LapceSettingsItem {
 
 pub struct ThemeSettings {
     widget_id: WidgetId,
-    inputs: Vec<(
-        PietTextLayout,
-        WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
-    )>,
+    inputs: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+    keys: Vec<String>,
+    text_layouts: Option<Vec<PietTextLayout>>,
 }
 
 impl ThemeSettings {
@@ -1043,6 +1048,8 @@ impl ThemeSettings {
             Self {
                 widget_id: WidgetId::next(),
                 inputs: Vec::new(),
+                keys: Vec::new(),
+                text_layouts: None,
             }
             .boxed(),
         );
@@ -1055,7 +1062,9 @@ impl ThemeSettings {
     }
 
     fn update_inputs(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        self.keys.clear();
         self.inputs.clear();
+        self.text_layouts = None;
 
         let colors: Vec<&String> = data.config.color.ui.keys().sorted().collect();
 
@@ -1064,6 +1073,8 @@ impl ThemeSettings {
             let content = BufferContent::SettingsValue(
                 name.clone(),
                 SettingsValueKind::String,
+                "theme.ui".to_string(),
+                color.to_string(),
             );
             let mut doc = Document::new(
                 content.clone(),
@@ -1081,22 +1092,8 @@ impl ThemeSettings {
                 .hide_gutter()
                 .padding((5.0, 0.0, 50.0, 0.0));
             data.main_split.editors.insert(view_id, Arc::new(editor));
-            let text_layout = ctx
-                .text()
-                .new_text_layout(color.clone())
-                .font(
-                    data.config.ui.font_family(),
-                    data.config.ui.font_size() as f64,
-                )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            self.inputs
-                .push((text_layout, WidgetPod::new(input.boxed())));
+            self.keys.push(color.to_string());
+            self.inputs.push(WidgetPod::new(input.boxed()));
         }
     }
 }
@@ -1113,7 +1110,7 @@ impl Widget<LapceTabData> for ThemeSettings {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        for (_, input) in self.inputs.iter_mut() {
+        for input in self.inputs.iter_mut() {
             match event {
                 Event::Wheel(_) => {}
                 _ => {
@@ -1135,7 +1132,7 @@ impl Widget<LapceTabData> for ThemeSettings {
         data: &LapceTabData,
         env: &Env,
     ) {
-        for (_, input) in self.inputs.iter_mut() {
+        for input in self.inputs.iter_mut() {
             input.lifecycle(ctx, event, data, env);
         }
     }
@@ -1148,9 +1145,9 @@ impl Widget<LapceTabData> for ThemeSettings {
         env: &Env,
     ) {
         if data.config.id != old_data.config.id {
-            self.inputs.clear();
+            self.text_layouts = None;
         }
-        for (_, input) in self.inputs.iter_mut() {
+        for input in self.inputs.iter_mut() {
             input.update(ctx, data, env);
         }
     }
@@ -1170,10 +1167,34 @@ impl Widget<LapceTabData> for ThemeSettings {
             ));
         }
 
+        if self.text_layouts.is_none() {
+            let mut text_layouts = Vec::new();
+            for key in self.keys.iter() {
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(key.to_string())
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                text_layouts.push(text_layout);
+            }
+            self.text_layouts = Some(text_layouts);
+        }
+
         let text_width = self
-            .inputs
+            .text_layouts
+            .as_ref()
+            .unwrap()
             .iter()
-            .map(|(text_layout, _)| text_layout.size().width.ceil() as usize)
+            .map(|text_layout| text_layout.size().width.ceil() as usize)
             .max()
             .unwrap_or(0) as f64;
 
@@ -1182,7 +1203,7 @@ impl Widget<LapceTabData> for ThemeSettings {
             bc.max().width - text_width,
             bc.max().height,
         ));
-        for (_, input) in self.inputs.iter_mut() {
+        for input in self.inputs.iter_mut() {
             let size = input.layout(ctx, &input_bc, data, env);
             let padding = (size.height * 0.2).round();
             y += padding;
@@ -1194,7 +1215,8 @@ impl Widget<LapceTabData> for ThemeSettings {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        for (text_layout, input) in self.inputs.iter_mut() {
+        for (i, input) in self.inputs.iter_mut().enumerate() {
+            let text_layout = &self.text_layouts.as_ref().unwrap()[i];
             ctx.draw_text(
                 &text_layout,
                 Point::new(
