@@ -1006,8 +1006,8 @@ pub struct ThemeSettings {
     inputs: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     keys: Vec<String>,
     text_layouts: Option<Vec<PietTextLayout>>,
-    changed_rects: Vec<(String, Rect)>,
-    mouse_down_rect: Option<(String, Rect)>,
+    changed_rects: Vec<(String, String, Rect)>,
+    mouse_down_rect: Option<(String, String, Rect)>,
 }
 
 impl ThemeSettings {
@@ -1040,7 +1040,7 @@ impl ThemeSettings {
         let colors: Vec<&String> = data.config.color.ui.keys().sorted().collect();
 
         for color in colors {
-            let name = format!("lapce.color.{color}");
+            let name = format!("{}.{color}", self.kind);
             let content = BufferContent::SettingsValue(
                 name.clone(),
                 SettingsValueKind::String,
@@ -1084,16 +1084,23 @@ impl Widget<LapceTabData> for ThemeSettings {
         match event {
             Event::MouseDown(mouse_event) => {
                 self.mouse_down_rect = None;
-                for (key, change) in self.changed_rects.iter() {
+                for (key, default, change) in self.changed_rects.iter() {
                     if change.contains(mouse_event.pos) {
-                        self.mouse_down_rect =
-                            Some((key.to_string(), change.clone()));
+                        self.mouse_down_rect = Some((
+                            key.to_string(),
+                            default.to_string(),
+                            change.clone(),
+                        ));
                     }
                 }
             }
             Event::MouseUp(mouse_event) => {
-                if let Some((key, rect)) = self.mouse_down_rect.as_ref() {
+                if let Some((key, default, rect)) = self.mouse_down_rect.as_ref() {
                     if rect.contains(mouse_event.pos) {
+                        let name = format!("{}.{key}", self.kind);
+                        let doc = data.main_split.value_docs.get_mut(&name).unwrap();
+                        let doc = Arc::make_mut(doc);
+                        doc.reload(Rope::from(default), true);
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::ResetSettingsFile(
@@ -1226,23 +1233,47 @@ impl Widget<LapceTabData> for ThemeSettings {
             input.set_origin(ctx, data, env, Point::new(text_width, y));
             y += size.height + padding;
 
-            let changed = match self.kind {
+            let (changed, default) = match self.kind {
                 ThemeKind::Base => {
-                    data.config.theme.base.get(&self.keys[i]).unwrap()
-                        != data.config.default_theme.base.get(&self.keys[i]).unwrap()
+                    let default = data
+                        .config
+                        .default_theme
+                        .base
+                        .get(&self.keys[i])
+                        .unwrap()
+                        .to_string();
+                    (
+                        data.config.theme.base.get(&self.keys[i]).unwrap()
+                            != &default,
+                        default,
+                    )
                 }
                 ThemeKind::UI => {
-                    data.config.theme.ui.get(&self.keys[i]).unwrap()
-                        != data.config.default_theme.ui.get(&self.keys[i]).unwrap()
+                    let default = data
+                        .config
+                        .default_theme
+                        .ui
+                        .get(&self.keys[i])
+                        .unwrap()
+                        .to_string();
+                    (
+                        data.config.theme.ui.get(&self.keys[i]).unwrap() != &default,
+                        default,
+                    )
                 }
                 ThemeKind::Syntax => {
-                    data.config.theme.syntax.get(&self.keys[i]).unwrap()
-                        != data
-                            .config
-                            .default_theme
-                            .syntax
-                            .get(&self.keys[i])
-                            .unwrap()
+                    let default = data
+                        .config
+                        .default_theme
+                        .syntax
+                        .get(&self.keys[i])
+                        .unwrap()
+                        .to_string();
+                    (
+                        data.config.theme.syntax.get(&self.keys[i]).unwrap()
+                            != &default,
+                        default,
+                    )
                 }
             };
             if changed {
@@ -1250,7 +1281,8 @@ impl Widget<LapceTabData> for ThemeSettings {
                 let y0 = input.layout_rect().y0;
                 let y1 = input.layout_rect().y1;
                 let rect = Rect::new(x, y0, x + reset_size.width + 20.0, y1);
-                self.changed_rects.push((self.keys[i].clone(), rect));
+                self.changed_rects
+                    .push((self.keys[i].clone(), default, rect));
             }
         }
 
@@ -1287,7 +1319,7 @@ impl Widget<LapceTabData> for ThemeSettings {
             .build()
             .unwrap();
         let reset_size = reset_text.size();
-        for (_, rect) in self.changed_rects.iter() {
+        for (_, _, rect) in self.changed_rects.iter() {
             ctx.stroke(
                 rect.inflate(-0.5, -0.5),
                 data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),

@@ -729,9 +729,11 @@ impl Widget<LapceTabData> for LapceEditorView {
         let editor_data = data.editor_view_content(self.view_id);
 
         if let BufferContent::SettingsValue(..) = &editor_data.editor.content {
-            if editor_data.doc.buffer().len() != old_editor_data.doc.buffer().len()
-                || editor_data.doc.buffer().text().slice_to_cow(..)
-                    != old_editor_data.doc.buffer().text().slice_to_cow(..)
+            if !editor_data.doc.buffer().is_pristine()
+                && (editor_data.doc.buffer().len()
+                    != old_editor_data.doc.buffer().len()
+                    || editor_data.doc.buffer().text().slice_to_cow(..)
+                        != old_editor_data.doc.buffer().text().slice_to_cow(..))
             {
                 self.last_idle_timer =
                     ctx.request_timer(Duration::from_millis(500), None);
