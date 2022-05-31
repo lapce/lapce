@@ -558,7 +558,7 @@ impl LapceSettingsItem {
         };
         let input = input.map(|input| {
             let name = format!("{kind}.{name}");
-            let content = BufferContent::Value(name.clone());
+            let content = BufferContent::SettingsValue(name.clone());
 
             let mut doc = Document::new(
                 content.clone(),
@@ -895,7 +895,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         }
         if let Some(view_id) = self.input_view_id.as_ref() {
             let editor = data.main_split.editors.get(view_id).unwrap();
-            if let BufferContent::Value(name) = &editor.content {
+            if let BufferContent::SettingsValue(name) = &editor.content {
                 let doc = data.main_split.value_docs.get(name).unwrap();
                 let old_doc = old_data.main_split.value_docs.get(name).unwrap();
                 if doc.buffer().len() != old_doc.buffer().len()
@@ -1057,7 +1057,7 @@ impl ThemeSettings {
 
         for color in colors {
             let name = format!("lapce.color.{color}");
-            let content = BufferContent::Value(name.clone());
+            let content = BufferContent::SettingsValue(name.clone());
             let mut doc = Document::new(
                 content.clone(),
                 data.id,

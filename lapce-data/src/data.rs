@@ -708,7 +708,7 @@ impl LapceTabData {
             BufferContent::Local(kind) => {
                 self.main_split.local_docs.get(kind).unwrap().clone()
             }
-            BufferContent::Value(name) => {
+            BufferContent::SettingsValue(name) => {
                 self.main_split.value_docs.get(name).unwrap().clone()
             }
         };
@@ -737,7 +737,7 @@ impl LapceTabData {
 
         match &editor.content {
             BufferContent::Local(_) => Size::ZERO,
-            BufferContent::Value(_) => Size::ZERO,
+            BufferContent::SettingsValue(_) => Size::ZERO,
             BufferContent::File(path) => {
                 let doc = self.main_split.open_docs.get(path).unwrap();
                 let offset = editor.new_cursor.offset();
@@ -792,7 +792,7 @@ impl LapceTabData {
                         .local_docs
                         .insert(kind.clone(), editor_buffer_data.doc);
                 }
-                BufferContent::Value(name) => {
+                BufferContent::SettingsValue(name) => {
                     self.main_split
                         .value_docs
                         .insert(name.clone(), editor_buffer_data.doc);
@@ -820,7 +820,7 @@ impl LapceTabData {
                 *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
-            BufferContent::Value(_) => {
+            BufferContent::SettingsValue(_) => {
                 *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
@@ -876,7 +876,7 @@ impl LapceTabData {
                 *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
-            BufferContent::Value(_) => {
+            BufferContent::SettingsValue(_) => {
                 *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
@@ -1764,7 +1764,9 @@ impl LapceMainSplitData {
         match content {
             BufferContent::File(path) => self.open_docs.get(path).unwrap().clone(),
             BufferContent::Local(kind) => self.local_docs.get(kind).unwrap().clone(),
-            BufferContent::Value(name) => self.value_docs.get(name).unwrap().clone(),
+            BufferContent::SettingsValue(name) => {
+                self.value_docs.get(name).unwrap().clone()
+            }
             BufferContent::Scratch(id, _) => {
                 self.scratch_docs.get(id).unwrap().clone()
             }
@@ -2312,7 +2314,7 @@ impl LapceMainSplitData {
         let new_buffer = match doc.content() {
             BufferContent::File(path) => path != &location.path,
             BufferContent::Local(_) => true,
-            BufferContent::Value(_) => true,
+            BufferContent::SettingsValue(_) => true,
             BufferContent::Scratch(..) => true,
         };
         if new_buffer {
