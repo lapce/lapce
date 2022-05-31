@@ -25,6 +25,7 @@ use lapce_data::{
     editor::LapceEditorBufferData,
     keypress::KeyPressFocus,
     panel::PanelPosition,
+    settings::SettingsValueKind,
 };
 
 use crate::{
@@ -517,10 +518,6 @@ impl Widget<LapceTabData> for LapceEditorView {
             return;
         }
 
-        let editor = data.main_split.editors.get(&self.view_id).unwrap().clone();
-        let mut editor_data = data.editor_view_content(self.view_id);
-        let doc = editor_data.doc.clone();
-
         match event {
             Event::MouseDown(mouse_event) => match mouse_event.button {
                 druid::MouseButton::Left => {
@@ -535,6 +532,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 if let LapceUICommand::Focus = command {
                     self.request_focus(ctx, data, true);
+                    let editor_data = data.editor_view_content(self.view_id);
                     self.ensure_cursor_visible(
                         ctx,
                         &editor_data,
@@ -556,19 +554,39 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
             Event::Timer(id) if self.last_idle_timer == *id => {
                 ctx.set_handled();
-                if let BufferContent::SettingsValue(name, _) =
+                let editor_data = data.editor_view_content(self.view_id);
+                if let BufferContent::SettingsValue(name, kind) =
                     &editor_data.editor.content
                 {
-                    // ctx.submit_command(Command::new(
-                    //     LAPCE_UI_COMMAND,
-                    //     LapceUICommand::UpdateSettingsFile(
-                    //         name.to_string(),
-                    //         editor_data.doc.buffer().text().to_string(),
-                    //     ),
-                    //     Target::Widget(data.id),
-                    // ));
+                    let content = editor_data.doc.buffer().text().to_string();
+                    let new_value = match kind {
+                        SettingsValueKind::String => {
+                            Some(serde_json::json!(content))
+                        }
+                        SettingsValueKind::Number => {
+                            content.parse::<i64>().ok().map(|n| serde_json::json!(n))
+                        }
+                        SettingsValueKind::Bool => None,
+                    };
+                    if let Some(new_value) = new_value {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateSettingsFile(
+                                name.to_string(),
+                                new_value,
+                            ),
+                            Target::Widget(data.id),
+                        ));
+                    }
                 }
             }
+            _ => {}
+        }
+
+        let editor = data.main_split.editors.get(&self.view_id).unwrap().clone();
+        let mut editor_data = data.editor_view_content(self.view_id);
+        let doc = editor_data.doc.clone();
+        match event {
             Event::KeyDown(key_event) => {
                 ctx.set_handled();
                 let mut keypress = data.keypress.clone();
