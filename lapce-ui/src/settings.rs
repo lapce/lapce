@@ -1136,10 +1136,13 @@ impl Widget<LapceTabData> for ThemeSettings {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        _old_data: &LapceTabData,
+        old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
+        if data.config.id != old_data.config.id {
+            self.inputs.clear();
+        }
         for (_, input) in self.inputs.iter_mut() {
             input.update(ctx, data, env);
         }
@@ -1174,8 +1177,10 @@ impl Widget<LapceTabData> for ThemeSettings {
         ));
         for (_, input) in self.inputs.iter_mut() {
             let size = input.layout(ctx, &input_bc, data, env);
+            let padding = (size.height * 0.2).round();
+            y += padding;
             input.set_origin(ctx, data, env, Point::new(text_width, y));
-            y += size.height;
+            y += size.height + padding;
         }
 
         Size::new(bc.max().width, bc.max().height.max(y))
@@ -1183,7 +1188,15 @@ impl Widget<LapceTabData> for ThemeSettings {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         for (text_layout, input) in self.inputs.iter_mut() {
-            ctx.draw_text(&text_layout, Point::new(0.0, input.layout_rect().y0));
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    0.0,
+                    (input.layout_rect().y0)
+                        + (input.layout_rect().height() - text_layout.size().height)
+                            / 2.0,
+                ),
+            );
             input.paint(ctx, data, env);
         }
     }
