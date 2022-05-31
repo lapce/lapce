@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt::Display, sync::Arc, time::Duration};
 
 use druid::{
     kurbo::{BezPath, Line},
@@ -983,10 +983,21 @@ impl Widget<LapceTabData> for LapceSettingsItem {
     }
 }
 
+#[derive(Clone)]
 pub enum ThemeKind {
     Base,
     UI,
     Syntax,
+}
+
+impl Display for ThemeKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            ThemeKind::Base => "theme.base",
+            ThemeKind::UI => "theme.ui",
+            ThemeKind::Syntax => "theme.syntax",
+        })
+    }
 }
 
 pub struct ThemeSettings {
@@ -996,6 +1007,7 @@ pub struct ThemeSettings {
     keys: Vec<String>,
     text_layouts: Option<Vec<PietTextLayout>>,
     changed_rects: Vec<(String, Rect)>,
+    mouse_down_rect: Option<(String, Rect)>,
 }
 
 impl ThemeSettings {
@@ -1008,6 +1020,7 @@ impl ThemeSettings {
                 keys: Vec::new(),
                 text_layouts: None,
                 changed_rects: Vec::new(),
+                mouse_down_rect: None,
             }
             .boxed(),
         );
@@ -1068,6 +1081,33 @@ impl Widget<LapceTabData> for ThemeSettings {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::MouseDown(mouse_event) => {
+                self.mouse_down_rect = None;
+                for (key, change) in self.changed_rects.iter() {
+                    if change.contains(mouse_event.pos) {
+                        self.mouse_down_rect =
+                            Some((key.to_string(), change.clone()));
+                    }
+                }
+            }
+            Event::MouseUp(mouse_event) => {
+                if let Some((key, rect)) = self.mouse_down_rect.as_ref() {
+                    if rect.contains(mouse_event.pos) {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ResetSettingsFile(
+                                self.kind.to_string(),
+                                key.clone(),
+                            ),
+                            Target::Widget(data.id),
+                        ));
+                    }
+                }
+                self.mouse_down_rect = None;
+            }
+            _ => {}
+        }
         for input in self.inputs.iter_mut() {
             match event {
                 Event::Wheel(_) => {}

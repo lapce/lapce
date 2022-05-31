@@ -721,6 +721,28 @@ impl Config {
         Some(table)
     }
 
+    pub fn reset_setting(parent: &str, key: &str) -> Option<()> {
+        let mut main_table = Self::get_file_table().unwrap_or_default();
+
+        // Find the container table
+        let mut table = &mut main_table;
+        for key in parent.split('.') {
+            if !table.contains_key(key) {
+                table
+                    .insert(key.to_string(), toml::Value::Table(Default::default()));
+            }
+            table = table.get_mut(key)?.as_table_mut()?;
+        }
+
+        table.remove(key);
+
+        // Store
+        let path = Self::settings_file()?;
+        std::fs::write(&path, toml::to_string(&main_table).ok()?.as_bytes()).ok()?;
+
+        Some(())
+    }
+
     pub fn update_file(parent: &str, key: &str, value: toml::Value) -> Option<()> {
         let mut main_table = Self::get_file_table().unwrap_or_default();
 

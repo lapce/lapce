@@ -426,6 +426,7 @@ pub enum LapceUICommand {
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
     FilterPaletteItems(String, String, Vec<NewPaletteItem>),
     UpdateKeymapsFilter(String),
+    ResetSettingsFile(String, String),
     UpdateSettingsFile(String, String, serde_json::Value),
     UpdateSettingsFilter(String),
     FilterKeymaps(String, Arc<Vec<KeyMap>>, Arc<Vec<LapceCommand>>),
