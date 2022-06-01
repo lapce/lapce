@@ -10,7 +10,7 @@ code-lens-font-size = 2
 line-height = 25
 tab-width = 4
 show-tab = true
-hover-delay = 300 # ms
+hover-delay = 300             # ms
 
 [terminal]
 font-family = ""
@@ -37,11 +37,11 @@ black = "#282C34"
 grey = "#3E4451"
 blue = "#61AFEF"
 red = "#E06C75"
-yellow = "#e5c07b"
+yellow = "#E5C07B"
 orange = "#D19A66"
 green = "#98C379"
 purple = "#C678DD"
-cyan = "#56b6c2"
+cyan = "#56B6C2"
 magenta = "#C678DD"
 
 [theme.syntax]
@@ -81,19 +81,18 @@ magenta = "#C678DD"
 "lapce.border" = "#000000"
 "lapce.scroll_bar" = "$grey"
 
-
 "editor.background" = "$black"
 "editor.foreground" = "$white"
 "editor.dim" = "#5C6370"
 "editor.focus" = "#CCCCCC"
-"editor.caret" = "#528bff"
+"editor.caret" = "#528bFF"
 "editor.selection" = "$grey"
-"editor.current_line" = "#2c313c"
+"editor.current_line" = "#2C313C"
 "editor.link" = "$cyan"
 
-"source_control.added" = "#50a14f32"
-"source_control.removed" = "#ff526632"
-"source_control.modified" = "#0184bc32"
+"source_control.added" = "#50A14F32"
+"source_control.removed" = "#FF526632"
+"source_control.modified" = "#0184BC32"
 
 "palette.background" = "#21252B"
 "palette.current" = "#2C313A"
