@@ -1,6 +1,8 @@
 # How to contribute
 Thank you for your interest in contributing to Lapce! No contribution is too small and we consider _all_ contributions to the project. There are many ways to contribute (a few are listed here) but if you think of something else, join us on [Discord](https://discord.gg/n8tGJ6Rn6D) or let us know via an [issue](https://github.com/lapce/lapce/issues).
 
+A summary of how to contribute is below. If you are a _user_, also check out [this guide](docs/new-contributor-guide-user.md). If you are a _developer_, also check out [this guide](docs/new-contributor-guide-developer.md).
+
 ## Feature Requests
 
 A feature request is _something you want to have included in Lapce_. We track feature requests on GitHub via [issues](https://github.com/lapce/lapce/issues). There are generally two kinds of features:
