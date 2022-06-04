@@ -59,7 +59,7 @@ key = "alt+I"
 command = "insert_cursor_end_of_line"
 mode = "i"
 
-# --------------------------------- Rich Lanaguage Editing ----------------------------
+# --------------------------------- Rich Language Editing ----------------------------
 
 [[keymaps]]
 key = "F12"

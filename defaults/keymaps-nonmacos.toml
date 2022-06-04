@@ -173,7 +173,7 @@ command = "split_close"
 key = "ctrl+\\"
 command = "split_vertical"
 
-# --------------------------------- Rich Lanaguage Editing ----------------------------
+# --------------------------------- Rich Language Editing ----------------------------
 
 [[keymaps]]
 key = "ctrl+space"

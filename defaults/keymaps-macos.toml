@@ -178,7 +178,7 @@ command = "close_folder"
 key = "meta+\\"
 command = "split_vertical"
 
-# --------------------------------- Rich Lanaguage Editing ----------------------------
+# --------------------------------- Rich Language Editing ----------------------------
 
 [[keymaps]]
 key = "ctrl+space"
