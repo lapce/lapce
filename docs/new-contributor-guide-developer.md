@@ -18,6 +18,6 @@ This document contains some useful resources for anyone wishing to contribute to
 
 The [Wikipedia article on ropes](https://citeseer.ist.psu.edu/viewdoc/download?doi=10.1.1.14.9450&rep=rep1&type=pdf) provides an overview of the data structure.
 
-For some context, also see [Ropes: an Alternative to Strings](https://citeseer.ist.psu.edu/viewdoc/download?doi=10.1.1.14.9450&rep=rep1&type=pdf) by Boehm, Atkinson,and Plass.
+For some context, also see [Ropes: an Alternative to Strings](https://citeseer.ist.psu.edu/viewdoc/download?doi=10.1.1.14.9450&rep=rep1&type=pdf) by Boehm, Atkinson, and Plass.
 
 
