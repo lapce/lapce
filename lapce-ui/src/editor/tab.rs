@@ -20,6 +20,7 @@ use lapce_data::{
     editor::TabRect,
     split::{SplitDirection, SplitMoveDirection},
 };
+use lapce_proxy::plugin::PluginEvent;
 
 use crate::editor::{
     tab_header::LapceEditorTabHeader, view::editor_tab_child_widget,
@@ -126,7 +127,22 @@ impl LapceEditorTab {
         if delete {
             match removed_child {
                 EditorTabChild::Editor(view_id, _, _) => {
-                    data.main_split.editors.remove(&view_id);
+                    if let Some(editor_data) =
+                        data.main_split.editors.remove(&view_id)
+                    {
+                        // Inform plugins that an editor was closed
+                        match &editor_data.content {
+                            BufferContent::File(path) => {
+                                data.proxy.plugin_broadcast(
+                                    PluginEvent::FileEditorClosed {
+                                        path: path.clone(),
+                                    },
+                                );
+                            }
+                            // TODO: alert plugin on other kinds of closed buffers/editors
+                            _ => {}
+                        }
+                    }
                 }
                 EditorTabChild::Settings(_, _) => {}
             }

@@ -1,6 +1,6 @@
 use crate::buffer::{get_mod_time, load_file, Buffer};
 use crate::lsp::LspCatalog;
-use crate::plugin::PluginCatalog;
+use crate::plugin::{PluginCatalog, PluginEvent};
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
 use alacritty_terminal::event_loop::Msg;
@@ -330,6 +330,12 @@ impl Dispatcher {
                 if let Some(content_change) = buffer.update(&delta, rev) {
                     self.lsp.lock().update(buffer, &content_change, buffer.rev);
                 }
+            }
+            PluginBroadcast { event } => {
+                if let Ok(event) = serde_json::from_value::<PluginEvent>(event) {
+                    self.plugins.lock().broadcast_event(event);
+                }
+                // TODO: log warning on error?
             }
             InstallPlugin { plugin } => {
                 let catalog = self.plugins.clone();

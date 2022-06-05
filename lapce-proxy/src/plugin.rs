@@ -3,6 +3,7 @@ use home::home_dir;
 use hotwatch::Hotwatch;
 use lapce_rpc::counter::Counter;
 use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo};
+use parking_lot::RwLock;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -11,6 +12,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use toml;
@@ -25,18 +27,53 @@ use wasmer_wasi::WasiState;
 use crate::dispatch::Dispatcher;
 
 pub type PluginName = String;
+pub type PluginNameRef<'a> = &'a str;
 
 #[derive(WasmerEnv, Clone)]
 pub(crate) struct PluginEnv {
     wasi_env: WasiEnv,
     desc: PluginDescription,
     dispatcher: Dispatcher,
+    /// Events that the plugin wants to receive
+    pub subscribed_events: Arc<RwLock<Vec<PluginEventKind>>>,
+}
+impl PluginEnv {
+    pub(crate) fn new(
+        wasi_env: WasiEnv,
+        desc: PluginDescription,
+        dispatcher: Dispatcher,
+    ) -> PluginEnv {
+        PluginEnv {
+            wasi_env,
+            desc,
+            dispatcher,
+            subscribed_events: Arc::new(RwLock::new(Vec::new())),
+        }
+    }
+
+    pub(crate) fn can_receive_event(&self, event_kind: PluginEventKind) -> bool {
+        self.subscribed_events
+            .read()
+            .iter()
+            .any(|sub_event_kind| *sub_event_kind == event_kind)
+    }
 }
 
 #[derive(Clone)]
 pub(crate) struct PluginNew {
     instance: wasmer::Instance,
     env: PluginEnv,
+}
+impl PluginNew {
+    pub fn send_event(&self, event: PluginEvent) {
+        let plugin = self.clone();
+        thread::spawn(move || {
+            if let Ok(update_fn) = plugin.instance.exports.get_function("update") {
+                wasi_write_object(&plugin.env.wasi_env, &event);
+                update_fn.call(&[]).unwrap();
+            }
+        });
+    }
 }
 
 pub struct PluginCatalog {
@@ -150,11 +187,7 @@ impl PluginCatalog {
             .finalize()?;
         let wasi = wasi_env.import_object(&module)?;
 
-        let plugin_env = PluginEnv {
-            wasi_env,
-            desc: plugin_desc.clone(),
-            dispatcher,
-        };
+        let plugin_env = PluginEnv::new(wasi_env, plugin_desc.clone(), dispatcher);
         let lapce = lapce_exports(&self.store, &plugin_env);
         let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
         let plugin = PluginNew {
@@ -186,6 +219,28 @@ impl PluginCatalog {
     pub fn next_plugin_id(&mut self) -> PluginId {
         PluginId(self.id_counter.next())
     }
+
+    /// Send an event to a specific plugin, if it is subscribed to the event
+    /// If the plugin does not exist, it does nothing
+    pub fn send_event(&self, target: PluginNameRef<'_>, event: PluginEvent) {
+        let plugin = self.plugins.get(target);
+        if let Some(plugin) = plugin {
+            let event_kind = event.kind();
+            if plugin.env.can_receive_event(event_kind) {
+                plugin.send_event(event);
+            }
+        }
+    }
+
+    /// Broadcast an event to all plugins that are subscribed to the event
+    pub fn broadcast_event(&self, event: PluginEvent) {
+        let event_kind = event.kind();
+        for (_, plugin) in self.plugins.iter() {
+            if plugin.env.can_receive_event(event_kind) {
+                plugin.send_event(event.clone());
+            }
+        }
+    }
 }
 
 impl Default for PluginCatalog {
@@ -215,6 +270,12 @@ pub(crate) fn lapce_exports(store: &Store, plugin_env: &PluginEnv) -> ImportObje
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum PluginNotification {
+    Subscribe {
+        events: Vec<PluginEventKind>,
+    },
+    DebugLog {
+        text: String,
+    },
     StartLspServer {
         exec_path: String,
         language_id: String,
@@ -232,11 +293,42 @@ pub enum PluginNotification {
     },
 }
 
+// TODO: Can this be shared between lapce and lapce-plugin-rust?
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginEventKind {
+    FileEditorClosed,
+}
+
+// TODO: Can this be shared between lapce and lapce-plugin-rust?
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum PluginEvent {
+    /// A file-backed editor was closed
+    FileEditorClosed { path: PathBuf },
+}
+impl PluginEvent {
+    pub fn kind(&self) -> PluginEventKind {
+        match self {
+            PluginEvent::FileEditorClosed { .. } => {
+                PluginEventKind::FileEditorClosed
+            }
+        }
+    }
+}
+
 fn host_handle_notification(plugin_env: &PluginEnv) {
     let notification: Result<PluginNotification> =
         wasi_read_object(&plugin_env.wasi_env);
     if let Ok(notification) = notification {
         match notification {
+            PluginNotification::Subscribe { events } => {
+                plugin_env
+                    .subscribed_events
+                    .write()
+                    .extend(events.into_iter());
+            }
+            PluginNotification::DebugLog { text } => {
+                println!("[{}]: {}", plugin_env.desc.name, text);
+            }
             PluginNotification::StartLspServer {
                 exec_path,
                 language_id,

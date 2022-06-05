@@ -30,6 +30,9 @@ pub enum ProxyNotification {
     InstallPlugin {
         plugin: PluginDescription,
     },
+    PluginBroadcast {
+        event: serde_json::Value,
+    },
     GitCommit {
         message: String,
         diffs: Vec<FileDiff>,

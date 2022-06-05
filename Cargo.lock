@@ -2223,6 +2223,7 @@ dependencies = [
  "jsonrpc-lite",
  "lapce-core",
  "lapce-data",
+ "lapce-proxy",
  "lapce-rpc",
  "lazy_static",
  "libloading",

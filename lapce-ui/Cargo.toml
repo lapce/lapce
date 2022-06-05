@@ -50,6 +50,7 @@ structdesc = { git = "https://github.com/lapce/structdesc" }
 lapce-core = { path = "../lapce-core" }
 lapce-data = { path = "../lapce-data" }
 lapce-rpc = { path = "../lapce-rpc" }
+lapce-proxy = { path = "../lapce-proxy" }
 
 [features]
 default = ["all-languages"]

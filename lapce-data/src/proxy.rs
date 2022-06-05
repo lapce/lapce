@@ -13,6 +13,7 @@ use druid::Target;
 use druid::{ExtEventSink, WidgetId};
 use flate2::read::GzDecoder;
 use lapce_proxy::dispatch::Dispatcher;
+use lapce_proxy::plugin::PluginEvent;
 use lapce_rpc::buffer::BufferId;
 use lapce_rpc::core::{CoreNotification, CoreRequest};
 use lapce_rpc::plugin::PluginDescription;
@@ -398,6 +399,12 @@ impl LapceProxy {
     pub fn install_plugin(&self, plugin: &PluginDescription) {
         self.rpc
             .send_rpc_notification("install_plugin", &json!({ "plugin": plugin }));
+    }
+
+    /// Broadcast an event to plugins which are subscribed to it
+    pub fn plugin_broadcast(&self, event: PluginEvent) {
+        self.rpc
+            .send_rpc_notification("plugin_broadcast", &json!({ "event": event }));
     }
 
     pub fn get_buffer_head(
