@@ -50,7 +50,7 @@ pub struct LapceSettingsPanel {
     content_rect: Rect,
     switcher_rect: Rect,
     switcher_line_height: f64,
-    children: Vec<WidgetPod<LapceTabData, LapceSplitNew>>,
+    children: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
 }
 
 impl LapceSettingsPanel {
@@ -60,18 +60,20 @@ impl LapceSettingsPanel {
         editor_tab_id: WidgetId,
     ) -> Self {
         let children = vec![
-            WidgetPod::new(LapceSettings::new_split(LapceSettingsKind::Core, data)),
-            WidgetPod::new(LapceSettings::new_split(LapceSettingsKind::UI, data)),
-            WidgetPod::new(LapceSettings::new_split(
-                LapceSettingsKind::Editor,
-                data,
-            )),
-            WidgetPod::new(LapceSettings::new_split(
-                LapceSettingsKind::Terminal,
-                data,
-            )),
-            WidgetPod::new(ThemeSettings::new()),
-            WidgetPod::new(LapceKeymap::new_split(data)),
+            WidgetPod::new(
+                LapceSettings::new_split(LapceSettingsKind::Core, data).boxed(),
+            ),
+            WidgetPod::new(
+                LapceSettings::new_split(LapceSettingsKind::UI, data).boxed(),
+            ),
+            WidgetPod::new(
+                LapceSettings::new_split(LapceSettingsKind::Editor, data).boxed(),
+            ),
+            WidgetPod::new(
+                LapceSettings::new_split(LapceSettingsKind::Terminal, data).boxed(),
+            ),
+            WidgetPod::new(ThemeSettings::new().boxed()),
+            WidgetPod::new(LapceKeymap::new_split(data).boxed()),
         ];
         Self {
             widget_id,
@@ -1011,25 +1013,56 @@ pub struct ThemeSettings {
 }
 
 impl ThemeSettings {
-    fn new() -> LapceSplitNew {
-        let settings = LapceScrollNew::new(
-            Self {
-                kind: ThemeKind::Base,
-                widget_id: WidgetId::next(),
-                inputs: Vec::new(),
-                keys: Vec::new(),
-                text_layouts: None,
-                changed_rects: Vec::new(),
-                mouse_down_rect: None,
-            }
-            .boxed(),
-        );
-
-        let split = LapceSplitNew::new(WidgetId::next())
-            .horizontal()
-            .with_flex_child(settings.boxed(), None, 1.0);
-
-        split
+    fn new() -> Box<dyn Widget<LapceTabData>> {
+        LapceScrollNew::new(
+            LapceSplitNew::new(WidgetId::next())
+                .horizontal()
+                .hide_border()
+                .with_child(
+                    Self {
+                        kind: ThemeKind::Base,
+                        widget_id: WidgetId::next(),
+                        inputs: Vec::new(),
+                        keys: Vec::new(),
+                        text_layouts: None,
+                        changed_rects: Vec::new(),
+                        mouse_down_rect: None,
+                    }
+                    .boxed(),
+                    None,
+                    1.0,
+                )
+                .with_child(
+                    Self {
+                        kind: ThemeKind::Syntax,
+                        widget_id: WidgetId::next(),
+                        inputs: Vec::new(),
+                        keys: Vec::new(),
+                        text_layouts: None,
+                        changed_rects: Vec::new(),
+                        mouse_down_rect: None,
+                    }
+                    .boxed(),
+                    None,
+                    1.0,
+                )
+                .with_child(
+                    Self {
+                        kind: ThemeKind::UI,
+                        widget_id: WidgetId::next(),
+                        inputs: Vec::new(),
+                        keys: Vec::new(),
+                        text_layouts: None,
+                        changed_rects: Vec::new(),
+                        mouse_down_rect: None,
+                    }
+                    .boxed(),
+                    None,
+                    1.0,
+                )
+                .boxed(),
+        )
+        .boxed()
     }
 
     fn update_inputs(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
@@ -1232,10 +1265,10 @@ impl Widget<LapceTabData> for ThemeSettings {
             .max()
             .unwrap_or(0) as f64;
 
-        let mut y = 0.0;
+        let mut y = 30.0;
         let input_bc = BoxConstraints::tight(Size::new(
             (bc.max().width - text_width - 10.0).min(150.0),
-            bc.max().height,
+            100.0,
         ));
 
         let reset_text = ctx
@@ -1315,10 +1348,34 @@ impl Widget<LapceTabData> for ThemeSettings {
             }
         }
 
-        Size::new(bc.max().width, bc.max().height.max(y))
+        Size::new(bc.max().width, y + 10.0)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let header_text = ctx
+            .text()
+            .new_text_layout(match &self.kind {
+                ThemeKind::Base => "Base Colors",
+                ThemeKind::UI => "UI Colors",
+                ThemeKind::Syntax => "Syntax Colors",
+            })
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
+            .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        ctx.draw_text(
+            &header_text,
+            Point::new(0.0, (30.0 - header_text.size().height) / 2.0),
+        );
+
         for (i, input) in self.inputs.iter_mut().enumerate() {
             let text_layout = &self.text_layouts.as_ref().unwrap()[i];
             ctx.draw_text(
