@@ -1014,7 +1014,7 @@ impl ThemeSettings {
     fn new() -> LapceSplitNew {
         let settings = LapceScrollNew::new(
             Self {
-                kind: ThemeKind::UI,
+                kind: ThemeKind::Base,
                 widget_id: WidgetId::next(),
                 inputs: Vec::new(),
                 keys: Vec::new(),
@@ -1037,14 +1037,34 @@ impl ThemeSettings {
         self.inputs.clear();
         self.text_layouts = None;
 
-        let colors: Vec<&String> = data.config.color.ui.keys().sorted().collect();
+        let colors: Vec<&str> = match &self.kind {
+            ThemeKind::Base => {
+                data.config.color.base.keys().into_iter().sorted().collect()
+            }
+            ThemeKind::UI => data
+                .config
+                .color
+                .ui
+                .keys()
+                .map(|s| s.as_str())
+                .sorted()
+                .collect(),
+            ThemeKind::Syntax => data
+                .config
+                .color
+                .syntax
+                .keys()
+                .map(|s| s.as_str())
+                .sorted()
+                .collect(),
+        };
 
         for color in colors {
             let name = format!("{}.{color}", self.kind);
             let content = BufferContent::SettingsValue(
                 name.clone(),
                 SettingsValueKind::String,
-                "theme.ui".to_string(),
+                self.kind.to_string(),
                 color.to_string(),
             );
             let mut doc = Document::new(
@@ -1053,7 +1073,16 @@ impl ThemeSettings {
                 ctx.get_external_handle(),
                 data.proxy.clone(),
             );
-            doc.reload(Rope::from(data.config.theme.ui.get(color).unwrap()), true);
+            doc.reload(
+                Rope::from(match &self.kind {
+                    ThemeKind::Base => data.config.theme.base.get(color).unwrap(),
+                    ThemeKind::UI => data.config.theme.ui.get(color).unwrap(),
+                    ThemeKind::Syntax => {
+                        data.config.theme.syntax.get(color).unwrap()
+                    }
+                }),
+                true,
+            );
             data.main_split.value_docs.insert(name, Arc::new(doc));
             let editor =
                 LapceEditorData::new(None, None, None, content, &data.config);
@@ -1205,7 +1234,7 @@ impl Widget<LapceTabData> for ThemeSettings {
 
         let mut y = 0.0;
         let input_bc = BoxConstraints::tight(Size::new(
-            (bc.max().width - text_width).min(150.0),
+            (bc.max().width - text_width - 10.0).min(150.0),
             bc.max().height,
         ));
 
@@ -1230,7 +1259,7 @@ impl Widget<LapceTabData> for ThemeSettings {
             let size = input.layout(ctx, &input_bc, data, env);
             let padding = (size.height * 0.2).round();
             y += padding;
-            input.set_origin(ctx, data, env, Point::new(text_width, y));
+            input.set_origin(ctx, data, env, Point::new(text_width + 10.0, y));
             y += size.height + padding;
 
             let (changed, default) = match self.kind {

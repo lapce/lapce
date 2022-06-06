@@ -458,6 +458,13 @@ impl ThemeBaseColor {
             _ => return None,
         })
     }
+
+    pub fn keys(&self) -> [&'static str; 11] {
+        [
+            "white", "black", "grey", "blue", "red", "yellow", "orange", "green",
+            "purple", "cyan", "magenta",
+        ]
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
