@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 which = "4.2.5"
-regex = "1.5.4"
+regex = "1.5.6"
 grep-searcher = "0.1.8"
 grep-matcher = "0.1.5"
 grep-regex = "0.1.9"
