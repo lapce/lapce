@@ -31,5 +31,5 @@ serde_json = "1.0.59"
 anyhow = "1.0.32"
 home = "0.5.3"
 toml = "0.5.6"
-git2 = { version = "0.13.23", features = ["vendored-openssl"] }
+git2 = { version = "0.14.4", features = ["vendored-openssl"] }
 lapce-rpc = { path = "../lapce-rpc" }
