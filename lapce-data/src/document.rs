@@ -20,6 +20,7 @@ use lapce_core::{
     command::{EditCommand, MultiSelectionCommand},
     cursor::{ColPosition, Cursor, CursorMode},
     editor::{EditType, Editor},
+    language::LapceLanguage,
     mode::{Mode, MotionMode},
     movement::{LinePosition, Movement},
     register::{Clipboard, Register, RegisterData},
@@ -264,6 +265,10 @@ impl Document {
         self.buffer.detect_indent(self.syntax.as_ref());
         self.loaded = true;
         self.on_update(None);
+    }
+
+    pub fn set_language(&mut self, language: LapceLanguage) {
+        self.syntax = Some(Syntax::from_language(language));
     }
 
     pub fn reload(&mut self, content: Rope, set_pristine: bool) {

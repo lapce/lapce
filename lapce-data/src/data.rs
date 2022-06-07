@@ -19,6 +19,7 @@ use lapce_core::{
     command::{FocusCommand, MultiSelectionCommand},
     cursor::{Cursor, CursorMode},
     editor::EditType,
+    language::LapceLanguage,
     mode::MotionMode,
     movement::Movement,
     register::Register,
@@ -1319,6 +1320,9 @@ impl LapceTabData {
                     Target::Auto,
                 ))
             }
+            LapceWorkbenchCommand::ExportCurrentThemeSettings => {
+                self.main_split.export_theme(ctx, &self.config);
+            }
         }
     }
 
@@ -2275,7 +2279,15 @@ impl LapceMainSplitData {
         return format!("{}{}", PREFIX, new_num);
     }
 
-    pub fn new_file(&mut self, ctx: &mut EventCtx, config: &Config) {
+    pub fn export_theme(&mut self, ctx: &mut EventCtx, config: &Config) {
+        let id = self.new_file(ctx, config);
+        let doc = self.scratch_docs.get_mut(&id).unwrap();
+        let doc = Arc::make_mut(doc);
+        doc.set_language(LapceLanguage::Toml);
+        doc.reload(Rope::from(config.export_theme()), true);
+    }
+
+    pub fn new_file(&mut self, ctx: &mut EventCtx, config: &Config) -> BufferId {
         let tab_id = *self.tab_id;
         let proxy = self.proxy.clone();
         let buffer_id = BufferId::next();
@@ -2292,6 +2304,7 @@ impl LapceMainSplitData {
         } else {
             Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
         };
+        buffer_id
     }
 
     pub fn go_to_location(

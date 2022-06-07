@@ -349,6 +349,10 @@ pub enum LapceWorkbenchCommand {
 
     #[strum(serialize = "source_control_commit")]
     SourceControlCommit,
+
+    #[strum(serialize = "export_current_theme_settings")]
+    #[strum(message = "Export current settings to a theme file")]
+    ExportCurrentThemeSettings,
 }
 
 #[derive(Debug)]

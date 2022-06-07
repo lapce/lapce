@@ -648,6 +648,16 @@ impl Config {
             .unwrap()
     }
 
+    pub fn export_theme(&self) -> String {
+        let mut table = toml::value::Table::new();
+        let mut theme = self.theme.clone();
+        theme.name = "".to_string();
+        table.insert("theme".to_string(), toml::Value::try_from(&theme).unwrap());
+        table.insert("ui".to_string(), toml::Value::try_from(&self.ui).unwrap());
+        let value = toml::Value::Table(table);
+        toml::to_string_pretty(&value).unwrap()
+    }
+
     pub fn dir() -> Option<PathBuf> {
         ProjectDirs::from("", "", "Lapce").map(|d| PathBuf::from(d.config_dir()))
     }
