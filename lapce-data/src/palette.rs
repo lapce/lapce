@@ -788,8 +788,8 @@ impl PaletteViewData {
         let palette = Arc::make_mut(&mut self.palette);
         palette.items = config
             .available_themes
-            .keys()
-            .map(|n| NewPaletteItem {
+            .values()
+            .map(|(n, _)| NewPaletteItem {
                 content: PaletteItemContent::Theme(n.to_string()),
                 filter_text: n.to_string(),
                 score: 0,

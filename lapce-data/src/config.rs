@@ -482,7 +482,7 @@ pub struct Config {
     #[serde(skip)]
     pub color: ThemeColor,
     #[serde(skip)]
-    pub available_themes: HashMap<String, config::Config>,
+    pub available_themes: HashMap<String, (String, config::Config)>,
     #[serde(skip)]
     tab_layout_info: Arc<RwLock<HashMap<(FontFamily, usize), f64>>>,
 }
@@ -527,7 +527,7 @@ impl Config {
             Self::merge_settings(default_settings.clone(), workspace, None);
         let mut config: Config = settings.try_into()?;
         let available_themes = Self::load_themes();
-        if let Some(theme) =
+        if let Some((_, theme)) =
             available_themes.get(&config.lapce.color_theme.to_lowercase())
         {
             if let Ok(theme_settings) =
@@ -596,20 +596,20 @@ impl Config {
         );
     }
 
-    fn load_themes() -> HashMap<String, config::Config> {
+    fn load_themes() -> HashMap<String, (String, config::Config)> {
         let mut themes = Self::load_local_themes().unwrap_or_default();
 
         let (name, theme) = Self::load_theme_from_str(DEFAULT_LIGHT_THEME).unwrap();
-        themes.insert(name, theme);
+        themes.insert(name.to_lowercase(), (name, theme));
         let (name, theme) = Self::load_theme_from_str(DEFAULT_DARK_THEME).unwrap();
-        themes.insert(name, theme);
+        themes.insert(name.to_lowercase(), (name, theme));
 
         themes
     }
 
-    fn load_local_themes() -> Option<HashMap<String, config::Config>> {
+    fn load_local_themes() -> Option<HashMap<String, (String, config::Config)>> {
         let themes_folder = Config::themes_folder()?;
-        let themes: HashMap<String, config::Config> =
+        let themes: HashMap<String, (String, config::Config)> =
             std::fs::read_dir(themes_folder)
                 .ok()?
                 .filter_map(|entry| {
@@ -624,11 +624,11 @@ impl Config {
             .with_merged(config::File::from_str(s, config::FileFormat::Toml))
             .ok()?;
         let table = settings.get_table("theme").ok()?;
-        let name = table.get("name")?.to_string().to_lowercase();
+        let name = table.get("name")?.to_string();
         Some((name, settings))
     }
 
-    fn load_theme(path: &Path) -> Option<(String, config::Config)> {
+    fn load_theme(path: &Path) -> Option<(String, (String, config::Config))> {
         if !path.is_file() {
             return None;
         }
@@ -637,7 +637,7 @@ impl Config {
             .ok()?;
         let table = settings.get_table("theme").ok()?;
         let name = table.get("name")?.to_string().to_lowercase();
-        Some((name, settings))
+        Some((name.to_lowercase(), (name, settings)))
     }
 
     fn default_settings() -> config::Config {
