@@ -469,7 +469,7 @@ pub enum LapceUICommand {
         highlights: Arc<Spans<Style>>,
     },
     UpdateSyntax {
-        path: PathBuf,
+        content: BufferContent,
         rev: u64,
         syntax: SingleUse<Syntax>,
     },

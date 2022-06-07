@@ -790,27 +790,25 @@ impl Widget<LapceTabData> for LapceEditorView {
             if syntax.line_height != data.config.editor.line_height
                 || syntax.lens_height != data.config.editor.code_lens_font_size
             {
-                if let BufferContent::File(path) = editor_data.doc.content() {
-                    let tab_id = data.id;
-                    let event_sink = ctx.get_external_handle();
-                    let mut syntax = syntax.clone();
-                    let line_height = data.config.editor.line_height;
-                    let lens_height = data.config.editor.code_lens_font_size;
-                    let rev = editor_data.doc.rev();
-                    let path = path.clone();
-                    rayon::spawn(move || {
-                        syntax.update_lens_height(line_height, lens_height);
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSyntax {
-                                path,
-                                rev,
-                                syntax: SingleUse::new(syntax),
-                            },
-                            Target::Widget(tab_id),
-                        );
-                    });
-                }
+                let content = editor_data.doc.content().clone();
+                let tab_id = data.id;
+                let event_sink = ctx.get_external_handle();
+                let mut syntax = syntax.clone();
+                let line_height = data.config.editor.line_height;
+                let lens_height = data.config.editor.code_lens_font_size;
+                let rev = editor_data.doc.rev();
+                rayon::spawn(move || {
+                    syntax.update_lens_height(line_height, lens_height);
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateSyntax {
+                            content,
+                            rev,
+                            syntax: SingleUse::new(syntax),
+                        },
+                        Target::Widget(tab_id),
+                    );
+                });
             }
         }
 

@@ -24,7 +24,7 @@ use lapce_data::{
         DragContent, EditorDiagnostic, FocusArea, LapceData, LapceTabData,
         LapceWorkspace, LapceWorkspaceType, PanelKind, WorkProgress,
     },
-    document::LocalBufferKind,
+    document::{BufferContent, LocalBufferKind},
     editor::EditorLocationNew,
     hover::HoverStatus,
     keypress::{DefaultKeyPressHandler, KeyPressData},
@@ -1048,9 +1048,26 @@ impl LapceTabNew {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateSyntax { path, rev, syntax } => {
+                    LapceUICommand::UpdateSyntax {
+                        content,
+                        rev,
+                        syntax,
+                    } => {
                         ctx.set_handled();
-                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        let doc = match content {
+                            BufferContent::File(path) => {
+                                data.main_split.open_docs.get_mut(path).unwrap()
+                            }
+                            BufferContent::Local(kind) => {
+                                data.main_split.local_docs.get_mut(kind).unwrap()
+                            }
+                            BufferContent::SettingsValue(name, _, _, _) => {
+                                data.main_split.value_docs.get_mut(name).unwrap()
+                            }
+                            BufferContent::Scratch(id, _) => {
+                                data.main_split.scratch_docs.get_mut(id).unwrap()
+                            }
+                        };
                         let doc = Arc::make_mut(doc);
                         if doc.rev() == *rev {
                             if let Some(syntax) = syntax.take() {

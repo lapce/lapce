@@ -10,6 +10,7 @@ use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
     Color, ExtEventSink, FontFamily, Size, Target,
 };
+use indexmap::IndexMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -252,13 +253,13 @@ pub struct ThemeConfig {
     pub path: PathBuf,
     pub name: String,
     pub base: ThemeBaseConfig,
-    pub syntax: HashMap<String, String>,
-    pub ui: HashMap<String, String>,
+    pub syntax: IndexMap<String, String>,
+    pub ui: IndexMap<String, String>,
 }
 
 impl ThemeConfig {
     fn resolve_color(
-        colors: &HashMap<String, String>,
+        colors: &IndexMap<String, String>,
         base: &ThemeBaseColor,
         default: Option<&HashMap<String, Color>>,
     ) -> HashMap<String, Color> {
@@ -652,10 +653,12 @@ impl Config {
         let mut table = toml::value::Table::new();
         let mut theme = self.theme.clone();
         theme.name = "".to_string();
+        theme.syntax.sort_keys();
+        theme.ui.sort_keys();
         table.insert("theme".to_string(), toml::Value::try_from(&theme).unwrap());
         table.insert("ui".to_string(), toml::Value::try_from(&self.ui).unwrap());
         let value = toml::Value::Table(table);
-        toml::to_string_pretty(&value).unwrap()
+        toml::to_string(&value).unwrap()
     }
 
     pub fn dir() -> Option<PathBuf> {

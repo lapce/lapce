@@ -549,34 +549,32 @@ impl Document {
     }
 
     fn trigger_syntax_change(&self, delta: Option<&RopeDelta>) {
-        if let BufferContent::File(path) = &self.content {
-            if let Some(syntax) = self.syntax.clone() {
-                let path = path.clone();
-                let rev = self.buffer.rev();
-                let text = self.buffer.text().clone();
-                let delta = delta.cloned();
-                let atomic_rev = self.buffer.atomic_rev();
-                let event_sink = self.event_sink.clone();
-                let tab_id = self.tab_id;
-                rayon::spawn(move || {
-                    if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                        return;
-                    }
-                    let new_syntax = syntax.parse(rev, text, delta);
-                    if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                        return;
-                    }
-                    let _ = event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateSyntax {
-                            path,
-                            rev,
-                            syntax: SingleUse::new(new_syntax),
-                        },
-                        Target::Widget(tab_id),
-                    );
-                });
-            }
+        if let Some(syntax) = self.syntax.clone() {
+            let content = self.content.clone();
+            let rev = self.buffer.rev();
+            let text = self.buffer.text().clone();
+            let delta = delta.cloned();
+            let atomic_rev = self.buffer.atomic_rev();
+            let event_sink = self.event_sink.clone();
+            let tab_id = self.tab_id;
+            rayon::spawn(move || {
+                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                    return;
+                }
+                let new_syntax = syntax.parse(rev, text, delta);
+                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                    return;
+                }
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSyntax {
+                        content,
+                        rev,
+                        syntax: SingleUse::new(new_syntax),
+                    },
+                    Target::Widget(tab_id),
+                );
+            });
         }
     }
 

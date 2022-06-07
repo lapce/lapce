@@ -1128,7 +1128,7 @@ impl LapceEditorBufferData {
     }
 
     fn save(&mut self, ctx: &mut EventCtx, exit: bool) {
-        if self.doc.buffer().is_pristine() {
+        if self.doc.buffer().is_pristine() && self.doc.content().is_file() {
             if exit {
                 ctx.submit_command(Command::new(
                     LAPCE_COMMAND,
