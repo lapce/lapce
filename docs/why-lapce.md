@@ -4,7 +4,7 @@ But there was always this one thing I couldn't solve. I want to make Vim pretty.
 
 I wanted to external more and more components in NeoVim, but I found it harder and harder, and I spotted Xi-Editor. I started to write a UI for it straightaway. Creating a code editor with Vim editing experience was the plan. There were things missing that I had to add in Xi. And working on it was so much easier because Xi was built to be the UI/backend architecture without the heritage(burden) of (Neo)Vim. 
 
-Then one day, I experienced VSCode's remote development feature, and it felt so "local". I wanted to add the feature to my code editor. Then I released it can't be done with NeoVim or Xi's UI/backend architecture. The reason was that (Neo)Vim/Xi backends are the editing engine, so when you put the backend to a remote machine, every keyboard input needs to be sent to it, and the backend emits the drawing events to you, which will include the network latency in everything you type. That wouldn't work. The editing logic must be tightly bound with the UI to give the best editing experience. 
+Then one day, I experienced VSCode's remote development feature, and it felt so "local". I wanted to add the feature to my code editor. Then I realized that it can't be done with NeoVim or Xi's UI/backend architecture. The reason was that (Neo)Vim/Xi backends are the editing engine, so when you put the backend to a remote machine, every keyboard input needs to be sent to it, and the backend emits the drawing events to you, which will include the network latency in everything you type. That wouldn't work. The editing logic must be tightly bound with the UI to give the best editing experience. 
 
 So the new architecture I came up with was like this: 
 
