@@ -636,7 +636,7 @@ impl Config {
             .with_merged(config::File::from(path))
             .ok()?;
         let table = settings.get_table("theme").ok()?;
-        let name = table.get("name")?.to_string().to_lowercase();
+        let name = table.get("name")?.to_string();
         Some((name.to_lowercase(), (name, settings)))
     }
 
