@@ -287,6 +287,9 @@ impl LapceWindowData {
         if let Some(path) = Config::settings_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
+        if let Some(path) = Config::themes_folder() {
+            let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+        }
         if let Some(path) = KeyPressData::file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
