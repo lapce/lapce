@@ -1326,6 +1326,9 @@ impl LapceTabData {
             LapceWorkbenchCommand::ExportCurrentThemeSettings => {
                 self.main_split.export_theme(ctx, &self.config);
             }
+            LapceWorkbenchCommand::InstallTheme => {
+                self.main_split.install_theme(ctx, &self.config);
+            }
         }
     }
 
@@ -2280,6 +2283,27 @@ impl LapceMainSplitData {
             + 1;
 
         return format!("{}{}", PREFIX, new_num);
+    }
+
+    pub fn install_theme(&mut self, ctx: &mut EventCtx, _config: &Config) {
+        let tab = self.get_active_tab_mut(ctx);
+        let child = tab.active_child().clone();
+        match child {
+            EditorTabChild::Editor(view_id, _, _) => {
+                let editor = self.editors.get(&view_id).unwrap();
+                match &editor.content {
+                    BufferContent::File(path) => {
+                        if let Some(folder) = Config::themes_folder() {
+                            if let Some(file_name) = path.file_name() {
+                                let _ = std::fs::copy(path, folder.join(file_name));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            EditorTabChild::Settings(_, _) => {}
+        }
     }
 
     pub fn export_theme(&mut self, ctx: &mut EventCtx, config: &Config) {

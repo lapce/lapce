@@ -353,6 +353,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "export_current_theme_settings")]
     #[strum(message = "Export current settings to a theme file")]
     ExportCurrentThemeSettings,
+
+    #[strum(serialize = "install_theme")]
+    #[strum(message = "Install current theme file")]
+    InstallTheme,
 }
 
 #[derive(Debug)]
