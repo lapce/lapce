@@ -158,6 +158,28 @@ impl Widget<LapceTabData> for Plugin {
             let viewport = ctx.size().to_rect().inflate(-padding, 0.0);
             ctx.clip(viewport);
 
+            if data.plugins.is_empty() {
+                let y = self.line_height;
+                let x = self.line_height;
+                let layout = ctx
+                    .text()
+                    .new_text_layout("Failed to load plugin information")
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .default_attribute(TextAttribute::Weight(FontWeight::SEMI_BOLD))
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_WARN)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                ctx.draw_text(&layout, Point::new(x, y));
+                return;
+            }
+
             for (i, plugin) in data.plugins.iter().enumerate() {
                 let y = 3.0 * self.line_height * i as f64;
                 let x = 3.0 * self.line_height;
