@@ -169,7 +169,7 @@ impl Widget<LapceTabData> for Plugin {
                         data.config.ui.font_size() as f64,
                     )
                     .default_attribute(TextAttribute::Weight(FontWeight::SEMI_BOLD))
-                    .text_color(Color::from_hex_str("#d29200").unwrap())
+                    .text_color(data.config.get_color_unchecked(LapceTheme::LAPCE_WARN))
                     .build()
                     .unwrap();
                 ctx.draw_text(&layout, Point::new(x, y));
