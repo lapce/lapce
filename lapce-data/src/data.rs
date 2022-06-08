@@ -148,9 +148,9 @@ impl LapceData {
     }
 
     fn load_plugin_descriptions() -> Result<Vec<PluginDescription>> {
-        let plugins: Vec<String> = ureq::get("https://lapce.github.io/plugins.json")
-            .call()?
-            .into_json()?;
+        let plugins: Vec<String> =
+            reqwest::blocking::get("https://lapce.github.io/plugins.json")?
+                .json()?;
         let plugins: Vec<PluginDescription> = plugins
             .iter()
             .filter_map(|plugin| LapceData::load_plgin_description(plugin).ok())
@@ -163,7 +163,7 @@ impl LapceData {
             "https://raw.githubusercontent.com/{}/master/plugin.toml",
             plugin
         );
-        let content = ureq::get(&url).call()?.into_string()?;
+        let content = reqwest::blocking::get(url)?.text()?;
         let plugin: PluginDescription = toml::from_str(&content)?;
         Ok(plugin)
     }
