@@ -335,9 +335,10 @@ impl Dispatcher {
                 let catalog = self.plugins.clone();
                 let dispatcher = self.clone();
                 std::thread::spawn(move || {
-                    if let Err(_e) =
+                    if let Err(e) =
                         catalog.lock().install_plugin(dispatcher.clone(), plugin)
                     {
+                        eprintln!("install plugin error {e}");
                     }
                     let plugins = { dispatcher.plugins.lock().items.clone() };
                     dispatcher.send_notification(
