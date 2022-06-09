@@ -256,7 +256,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        extensions: &["ex"],
+        extensions: &["ex", "exs", "eex", "heex", "sface"],
     },
     #[cfg(feature = "lang-c")]
     SyntaxProperties {
