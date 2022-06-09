@@ -227,7 +227,7 @@ impl UIConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct TerminalConfig {
     #[field_names(
-        desc = "Set the termainl font family. If empty, it uses editor font famliy."
+        desc = "Set the terminal font family. If empty, it uses editor font famliy."
     )]
     pub font_family: String,
     #[field_names(
