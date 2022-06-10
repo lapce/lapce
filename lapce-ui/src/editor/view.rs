@@ -25,6 +25,7 @@ use lapce_data::{
     editor::LapceEditorBufferData,
     keypress::KeyPressFocus,
     panel::PanelPosition,
+    settings::SettingsValueKind,
 };
 
 use crate::{
@@ -41,6 +42,7 @@ pub struct LapceEditorView {
     pub editor: WidgetPod<LapceTabData, LapceEditorContainer>,
     pub find: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     cursor_blink_timer: TimerToken,
+    last_idle_timer: TimerToken,
 }
 
 pub fn editor_tab_child_widget(
@@ -75,6 +77,7 @@ impl LapceEditorView {
             editor: WidgetPod::new(editor),
             find,
             cursor_blink_timer: TimerToken::INVALID,
+            last_idle_timer: TimerToken::INVALID,
         }
     }
 
@@ -155,7 +158,7 @@ impl LapceEditorView {
                     data.main_split.active_tab = Arc::new(editor.tab_id);
                 }
             },
-            BufferContent::Value(_) => {}
+            BufferContent::SettingsValue(..) => {}
         }
     }
 
@@ -549,13 +552,41 @@ impl Widget<LapceTabData> for LapceEditorView {
                     self.cursor_blink_timer = TimerToken::INVALID;
                 }
             }
-            _ => (),
+            Event::Timer(id) if self.last_idle_timer == *id => {
+                ctx.set_handled();
+                let editor_data = data.editor_view_content(self.view_id);
+                if let BufferContent::SettingsValue(_, kind, parent, key) =
+                    &editor_data.editor.content
+                {
+                    let content = editor_data.doc.buffer().text().to_string();
+                    let new_value = match kind {
+                        SettingsValueKind::String => {
+                            Some(serde_json::json!(content))
+                        }
+                        SettingsValueKind::Number => {
+                            content.parse::<i64>().ok().map(|n| serde_json::json!(n))
+                        }
+                        SettingsValueKind::Bool => None,
+                    };
+                    if let Some(new_value) = new_value {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateSettingsFile(
+                                parent.to_string(),
+                                key.to_string(),
+                                new_value,
+                            ),
+                            Target::Widget(data.id),
+                        ));
+                    }
+                }
+            }
+            _ => {}
         }
 
         let editor = data.main_split.editors.get(&self.view_id).unwrap().clone();
         let mut editor_data = data.editor_view_content(self.view_id);
         let doc = editor_data.doc.clone();
-
         match event {
             Event::KeyDown(key_event) => {
                 ctx.set_handled();
@@ -697,6 +728,18 @@ impl Widget<LapceTabData> for LapceEditorView {
         let old_editor_data = old_data.editor_view_content(self.view_id);
         let editor_data = data.editor_view_content(self.view_id);
 
+        if let BufferContent::SettingsValue(..) = &editor_data.editor.content {
+            if !editor_data.doc.buffer().is_pristine()
+                && (editor_data.doc.buffer().len()
+                    != old_editor_data.doc.buffer().len()
+                    || editor_data.doc.buffer().text().slice_to_cow(..)
+                        != old_editor_data.doc.buffer().text().slice_to_cow(..))
+            {
+                self.last_idle_timer =
+                    ctx.request_timer(Duration::from_millis(500), None);
+            }
+        }
+
         if data.focus == self.view_id {
             let reset = if old_data.focus != self.view_id {
                 true
@@ -747,27 +790,25 @@ impl Widget<LapceTabData> for LapceEditorView {
             if syntax.line_height != data.config.editor.line_height
                 || syntax.lens_height != data.config.editor.code_lens_font_size
             {
-                if let BufferContent::File(path) = editor_data.doc.content() {
-                    let tab_id = data.id;
-                    let event_sink = ctx.get_external_handle();
-                    let mut syntax = syntax.clone();
-                    let line_height = data.config.editor.line_height;
-                    let lens_height = data.config.editor.code_lens_font_size;
-                    let rev = editor_data.doc.rev();
-                    let path = path.clone();
-                    rayon::spawn(move || {
-                        syntax.update_lens_height(line_height, lens_height);
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSyntax {
-                                path,
-                                rev,
-                                syntax: SingleUse::new(syntax),
-                            },
-                            Target::Widget(tab_id),
-                        );
-                    });
-                }
+                let content = editor_data.doc.content().clone();
+                let tab_id = data.id;
+                let event_sink = ctx.get_external_handle();
+                let mut syntax = syntax.clone();
+                let line_height = data.config.editor.line_height;
+                let lens_height = data.config.editor.code_lens_font_size;
+                let rev = editor_data.doc.rev();
+                rayon::spawn(move || {
+                    syntax.update_lens_height(line_height, lens_height);
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateSyntax {
+                            content,
+                            rev,
+                            syntax: SingleUse::new(syntax),
+                        },
+                        Target::Widget(tab_id),
+                    );
+                });
             }
         }
 

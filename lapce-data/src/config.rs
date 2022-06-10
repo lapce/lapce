@@ -1,4 +1,8 @@
-use std::{io::Write, path::PathBuf, sync::Arc};
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use anyhow::Result;
 use directories::ProjectDirs;
@@ -6,9 +10,11 @@ use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
     Color, ExtEventSink, FontFamily, Size, Target,
 };
-use hashbrown::HashMap;
+use indexmap::IndexMap;
+use lapce_proxy::plugin::PluginCatalog;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use structdesc::FieldNames;
 use thiserror::Error;
 
@@ -242,183 +248,224 @@ pub struct TerminalConfig {
     pub shell: String,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Theme {
-    style: HashMap<String, Color>,
-    other: HashMap<String, Color>,
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct ThemeConfig {
+    #[serde(skip)]
+    pub path: PathBuf,
+    pub name: String,
+    pub base: ThemeBaseConfig,
+    pub syntax: IndexMap<String, String>,
+    pub ui: IndexMap<String, String>,
 }
 
-impl Theme {
-    /// Reads a theme from the given TOML string.
-    pub fn parse(content: &str) -> Result<Theme> {
-        Self::default().extend(content)
-    }
+impl ThemeConfig {
+    fn resolve_color(
+        colors: &IndexMap<String, String>,
+        base: &ThemeBaseColor,
+        default: Option<&HashMap<String, Color>>,
+    ) -> HashMap<String, Color> {
+        colors
+            .iter()
+            .map(|(name, hex)| {
+                if hex.starts_with("$") {
+                    if let Some(c) = base.get(&hex[1..]) {
+                        return (name.to_string(), c.clone());
+                    }
+                    if let Some(default) = default {
+                        if let Some(c) = default.get(name) {
+                            return (name.to_string(), c.clone());
+                        }
+                    }
+                    return (name.to_string(), Color::rgb8(0, 0, 0));
+                }
 
-    /// Creates a new theme based on the current one, extending it with values parsed from `content`.
-    pub fn extend(&self, content: &str) -> Result<Theme> {
-        let theme_colors: std::collections::HashMap<String, String> =
-            toml::from_str(content)?;
-        let mut theme = HashMap::new();
-        for (k, v) in theme_colors.iter() {
-            if let Some(stripped) = v.strip_prefix('$') {
-                if let Some(hex) = theme_colors.get(stripped) {
-                    if let Ok(color) = Color::from_hex_str(hex) {
-                        theme.insert(k.clone(), color);
+                if let Ok(c) = Color::from_hex_str(hex) {
+                    return (name.to_string(), c.clone());
+                }
+                if let Some(default) = default {
+                    if let Some(c) = default.get(name) {
+                        return (name.to_string(), c.clone());
                     }
                 }
-            } else if let Ok(color) = Color::from_hex_str(v) {
-                theme.insert(k.clone(), color);
-            }
+                (name.to_string(), Color::rgb8(0, 0, 0))
+            })
+            .collect()
+    }
+
+    fn resolve_ui_color(
+        &self,
+        base: &ThemeBaseColor,
+        default: Option<&HashMap<String, Color>>,
+    ) -> HashMap<String, Color> {
+        Self::resolve_color(&self.ui, base, default)
+    }
+
+    fn resolve_syntax_color(
+        &self,
+        base: &ThemeBaseColor,
+        default: Option<&HashMap<String, Color>>,
+    ) -> HashMap<String, Color> {
+        Self::resolve_color(&self.syntax, base, default)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct ThemeBaseConfig {
+    pub white: String,
+    pub black: String,
+    pub grey: String,
+    pub blue: String,
+    pub red: String,
+    pub yellow: String,
+    pub orange: String,
+    pub green: String,
+    pub purple: String,
+    pub cyan: String,
+    pub magenta: String,
+}
+
+impl ThemeBaseConfig {
+    pub fn resolve(&self, default: Option<&ThemeBaseColor>) -> ThemeBaseColor {
+        ThemeBaseColor {
+            white: Color::from_hex_str(&self.white).unwrap_or_else(|_| {
+                default
+                    .map(|d| d.white.clone())
+                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
+            }),
+            black: Color::from_hex_str(&self.black).unwrap_or_else(|_| {
+                default
+                    .map(|d| d.black.clone())
+                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
+            }),
+            grey: Color::from_hex_str(&self.grey).unwrap_or_else(|_| {
+                default
+                    .map(|d| d.grey.clone())
+                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
+            }),
+            blue: Color::from_hex_str(&self.blue).unwrap_or_else(|_| {
+                default
+                    .map(|d| d.blue.clone())
+                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
+            }),
+            red: Color::from_hex_str(&self.red).unwrap_or_else(|_| {
+                default
+                    .map(|d| d.red.clone())
+                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
+            }),
+            yellow: Color::from_hex_str(&self.yellow).unwrap_or_else(|_| {
+                default
+                    .map(|d| d.yellow.clone())
+                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
+            }),
+            orange: Color::from_hex_str(&self.orange).unwrap_or_else(|_| {
+                default
+                    .map(|d| d.orange.clone())
+                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
+            }),
+            green: Color::from_hex_str(&self.green).unwrap_or_else(|_| {
+                default
+                    .map(|d| d.green.clone())
+                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
+            }),
+            purple: Color::from_hex_str(&self.purple).unwrap_or_else(|_| {
+                default
+                    .map(|d| d.purple.clone())
+                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
+            }),
+            cyan: Color::from_hex_str(&self.cyan).unwrap_or_else(|_| {
+                default
+                    .map(|d| d.cyan.clone())
+                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
+            }),
+            magenta: Color::from_hex_str(&self.magenta).unwrap_or_else(|_| {
+                default
+                    .map(|d| d.magenta.clone())
+                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
+            }),
         }
-
-        let mut theme = Theme::from(theme);
-        Theme::merge_from(&mut theme, self);
-
-        Ok(theme)
     }
 
-    pub fn from(map: HashMap<String, Color>) -> Self {
-        let mut style = HashMap::new();
-        let mut other = HashMap::new();
-
-        for (key, value) in map.into_iter() {
-            if let Some(stripped) = key.strip_prefix("style.") {
-                style.insert(stripped.to_string(), value.clone());
-            }
-
-            // Keep styles in the other map, so they can still be looked up by their full paths.
-            other.insert(key, value);
-        }
-
-        Self { style, other }
+    pub fn get(&self, name: &str) -> Option<&String> {
+        Some(match name {
+            "white" => &self.white,
+            "black" => &self.black,
+            "grey" => &self.grey,
+            "blue" => &self.blue,
+            "red" => &self.red,
+            "yellow" => &self.yellow,
+            "orange" => &self.orange,
+            "green" => &self.green,
+            "purple" => &self.purple,
+            "cyan" => &self.cyan,
+            "magenta" => &self.magenta,
+            _ => return None,
+        })
     }
+}
 
-    pub fn style_color(&self, key: &str) -> Option<&Color> {
-        self.style.get(key)
-    }
-
-    pub fn color(&self, key: &str) -> Option<&Color> {
-        self.other.get(key)
-    }
-
-    fn merge_maps_in_place(
-        dst: &mut HashMap<String, Color>,
-        src: &HashMap<String, Color>,
-    ) {
-        for (key, value) in src.iter() {
-            dst.entry(key.clone()).or_insert(value.clone());
-        }
-    }
-
-    fn merge_from(&mut self, parent: &Theme) {
-        Self::merge_maps_in_place(&mut self.style, &parent.style);
-        Self::merge_maps_in_place(&mut self.other, &parent.other);
-    }
+#[derive(Debug, Clone, Default)]
+pub struct ThemeColor {
+    pub base: ThemeBaseColor,
+    pub syntax: HashMap<String, Color>,
+    pub ui: HashMap<String, Color>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Themes {
-    themes: HashMap<String, Theme>,
-    default_theme: Theme,
-    current_theme: Theme,
+pub struct ThemeBaseColor {
+    pub white: Color,
+    pub black: Color,
+    pub grey: Color,
+    pub blue: Color,
+    pub red: Color,
+    pub yellow: Color,
+    pub orange: Color,
+    pub green: Color,
+    pub purple: Color,
+    pub cyan: Color,
+    pub magenta: Color,
 }
 
-impl Default for Themes {
+impl Default for ThemeBaseColor {
     fn default() -> Self {
-        let mut themes = HashMap::new();
-        themes.insert(
-            "Lapce Light".to_string(),
-            Theme::parse(DEFAULT_LIGHT_THEME).unwrap(),
-        );
-        themes.insert(
-            "Lapce Dark".to_string(),
-            Theme::parse(DEFAULT_DARK_THEME).unwrap(),
-        );
-
-        let default_theme = themes["Lapce Light"].clone();
-
         Self {
-            current_theme: default_theme.clone(),
-            default_theme,
-            themes,
+            white: Color::rgb8(0, 0, 0),
+            black: Color::rgb8(0, 0, 0),
+            grey: Color::rgb8(0, 0, 0),
+            blue: Color::rgb8(0, 0, 0),
+            red: Color::rgb8(0, 0, 0),
+            yellow: Color::rgb8(0, 0, 0),
+            orange: Color::rgb8(0, 0, 0),
+            green: Color::rgb8(0, 0, 0),
+            purple: Color::rgb8(0, 0, 0),
+            cyan: Color::rgb8(0, 0, 0),
+            magenta: Color::rgb8(0, 0, 0),
         }
     }
 }
 
-impl Themes {
-    pub fn get(&self, theme_name: &str) -> Option<&Theme> {
-        self.themes.get(theme_name)
+impl ThemeBaseColor {
+    fn get(&self, name: &str) -> Option<&Color> {
+        Some(match name {
+            "white" => &self.white,
+            "black" => &self.black,
+            "grey" => &self.grey,
+            "blue" => &self.blue,
+            "red" => &self.red,
+            "yellow" => &self.yellow,
+            "orange" => &self.orange,
+            "green" => &self.green,
+            "purple" => &self.purple,
+            "cyan" => &self.cyan,
+            "magenta" => &self.magenta,
+            _ => return None,
+        })
     }
 
-    pub fn insert(&mut self, theme_name: String, theme: Theme) -> Option<Theme> {
-        self.themes.insert(theme_name, theme)
-    }
-
-    pub fn keys(&self) -> impl Iterator<Item = &String> {
-        self.themes.keys()
-    }
-
-    pub fn style_color(&self, key: &str) -> Option<&Color> {
-        self.current_theme.style_color(key)
-    }
-
-    pub fn color(&self, key: &str) -> Option<&Color> {
-        self.current_theme.color(key)
-    }
-
-    /// Loads a theme from disk by its name.
-    ///
-    /// Does not load the theme if it has already been loaded.
-    /// If this returns `Ok(())` then it succeeded in loading the theme and it can
-    /// be expected to be in the `themes` field.
-    ///
-    /// Missing keys will be copied from the default theme.
-    fn load_theme(&mut self, theme_name: &str) -> Result<()> {
-        if self.themes.contains_key(theme_name) {
-            // We already have the theme loaded, so we don't have to do anything
-            return Ok(());
-        }
-
-        let themes_folder =
-            Config::themes_folder().ok_or(LoadThemeError::ThemesFolderNotFound)?;
-        // TODO: Make sure that this cannot go up directories!
-
-        // Append {theme_name}.toml
-        let mut theme_path = themes_folder.join(theme_name);
-        theme_path.set_extension("toml");
-
-        // Check that it exists. We could just let the read error provide this, but this
-        // may be clearer
-        if !theme_path.exists() {
-            return Err(LoadThemeError::FileNotFound {
-                themes_folder,
-                theme_name: theme_name.to_string(),
-            }
-            .into());
-        }
-
-        let theme_content =
-            std::fs::read_to_string(theme_path).map_err(LoadThemeError::Read)?;
-
-        let theme = self.default_theme.extend(&theme_content)?;
-
-        // Insert it into the themes hashmap
-        // Most users won't have an absurd amount of themes, so that we don't clean this
-        // up doesn't matter too much. Though, that could be added without much issue.
-        self.insert(theme_name.to_string(), theme);
-
-        Ok(())
-    }
-
-    fn apply_theme(&mut self, theme: &str) -> Result<()> {
-        if let Err(err) = self.load_theme(theme) {
-            log::warn!(r#"Failed to load theme "{theme}": {:?}"#, err);
-            return Err(err);
-        }
-
-        self.current_theme = self.themes[theme].clone();
-
-        Ok(())
+    pub fn keys(&self) -> [&'static str; 11] {
+        [
+            "white", "black", "grey", "blue", "red", "yellow", "orange", "green",
+            "purple", "cyan", "magenta",
+        ]
     }
 }
 
@@ -430,8 +477,13 @@ pub struct Config {
     pub ui: UIConfig,
     pub editor: EditorConfig,
     pub terminal: TerminalConfig,
+    pub theme: ThemeConfig,
     #[serde(skip)]
-    pub themes: Themes,
+    pub default_theme: ThemeConfig,
+    #[serde(skip)]
+    pub color: ThemeColor,
+    #[serde(skip)]
+    pub available_themes: HashMap<String, (String, config::Config)>,
     #[serde(skip)]
     tab_layout_info: Arc<RwLock<HashMap<(FontFamily, usize), f64>>>,
 }
@@ -467,9 +519,49 @@ impl notify::EventHandler for ConfigWatcher {
 
 impl Config {
     pub fn load(workspace: &LapceWorkspace) -> Result<Self> {
-        let mut settings = config::Config::default().with_merged(
-            config::File::from_str(DEFAULT_SETTINGS, config::FileFormat::Toml),
-        )?;
+        let default_settings = Self::default_settings();
+        let mut default_config: Config =
+            default_settings.clone().try_into().unwrap();
+        default_config.resolve_colors(None);
+
+        let settings =
+            Self::merge_settings(default_settings.clone(), workspace, None);
+        let mut config: Config = settings.try_into()?;
+        let available_themes = Self::load_themes();
+        if let Some((_, theme)) =
+            available_themes.get(&config.lapce.color_theme.to_lowercase())
+        {
+            if let Ok(theme_settings) =
+                default_settings.clone().with_merged(theme.clone())
+            {
+                if let Ok(mut theme_config) = theme_settings.try_into::<Config>() {
+                    theme_config.resolve_colors(Some(&default_config));
+                    default_config = theme_config;
+                }
+            }
+            config = Self::merge_settings(
+                default_settings,
+                workspace,
+                Some(theme.clone()),
+            )
+            .try_into()?;
+        }
+        config.update_id();
+        config.available_themes = available_themes;
+        config.resolve_colors(Some(&default_config));
+        config.default_theme = default_config.theme.clone();
+
+        Ok(config)
+    }
+
+    fn merge_settings(
+        mut settings: config::Config,
+        workspace: &LapceWorkspace,
+        theme: Option<config::Config>,
+    ) -> config::Config {
+        if let Some(theme) = theme {
+            let _ = settings.merge(theme);
+        }
 
         if let Some(path) = Self::settings_file() {
             let _ =
@@ -488,14 +580,111 @@ impl Config {
             LapceWorkspaceType::RemoteWSL => {}
         }
 
-        let mut config: Config = settings.try_into()?;
-        config.update_id();
+        settings
+    }
 
-        config.themes = Themes::default();
+    fn resolve_colors(&mut self, default_config: Option<&Config>) {
+        self.color.base = self
+            .theme
+            .base
+            .resolve(default_config.map(|c| &c.color.base));
+        self.color.ui = self
+            .theme
+            .resolve_ui_color(&self.color.base, default_config.map(|c| &c.color.ui));
+        self.color.syntax = self.theme.resolve_syntax_color(
+            &self.color.base,
+            default_config.map(|c| &c.color.syntax),
+        );
+    }
 
-        let _ = config.themes.apply_theme(&config.lapce.color_theme);
+    fn load_themes() -> HashMap<String, (String, config::Config)> {
+        let mut themes = Self::load_local_themes().unwrap_or_default();
+        if let Some(plugin_themes) = Self::load_plugin_themes() {
+            for (key, theme) in plugin_themes.into_iter() {
+                themes.insert(key, theme);
+            }
+        }
 
-        Ok(config)
+        let (name, theme) = Self::load_theme_from_str(DEFAULT_LIGHT_THEME).unwrap();
+        themes.insert(name.to_lowercase(), (name, theme));
+        let (name, theme) = Self::load_theme_from_str(DEFAULT_DARK_THEME).unwrap();
+        themes.insert(name.to_lowercase(), (name, theme));
+
+        themes
+    }
+
+    fn load_local_themes() -> Option<HashMap<String, (String, config::Config)>> {
+        let themes_folder = Config::themes_folder()?;
+        let themes: HashMap<String, (String, config::Config)> =
+            std::fs::read_dir(themes_folder)
+                .ok()?
+                .filter_map(|entry| {
+                    entry.ok().and_then(|entry| Self::load_theme(&entry.path()))
+                })
+                .collect();
+        Some(themes)
+    }
+
+    fn load_plugin_themes() -> Option<HashMap<String, (String, config::Config)>> {
+        let mut catalog = PluginCatalog::new();
+        catalog.reload();
+
+        let mut themes: HashMap<String, (String, config::Config)> = HashMap::new();
+
+        for (_, plugin) in catalog.items.iter() {
+            if let Some(plugin_themes) = plugin.themes.as_ref() {
+                for theme_path in plugin_themes {
+                    if let Some((key, theme)) =
+                        Self::load_theme(&PathBuf::from(theme_path))
+                    {
+                        themes.insert(key, theme);
+                    }
+                }
+            }
+        }
+        Some(themes)
+    }
+
+    fn load_theme_from_str(s: &str) -> Option<(String, config::Config)> {
+        let settings = config::Config::new()
+            .with_merged(config::File::from_str(s, config::FileFormat::Toml))
+            .ok()?;
+        let table = settings.get_table("theme").ok()?;
+        let name = table.get("name")?.to_string();
+        Some((name, settings))
+    }
+
+    fn load_theme(path: &Path) -> Option<(String, (String, config::Config))> {
+        if !path.is_file() {
+            return None;
+        }
+        let settings = config::Config::new()
+            .with_merged(config::File::from(path))
+            .ok()?;
+        let table = settings.get_table("theme").ok()?;
+        let name = table.get("name")?.to_string();
+        Some((name.to_lowercase(), (name, settings)))
+    }
+
+    fn default_settings() -> config::Config {
+        config::Config::default()
+            .with_merged(config::File::from_str(
+                DEFAULT_SETTINGS,
+                config::FileFormat::Toml,
+            ))
+            .unwrap()
+    }
+
+    pub fn export_theme(&self) -> String {
+        let mut table = toml::value::Table::new();
+        let mut theme = self.theme.clone();
+        theme.name = "".to_string();
+        theme.syntax.sort_keys();
+        theme.ui.sort_keys();
+        table.insert("theme".to_string(), toml::Value::try_from(&theme).unwrap());
+        table.insert("ui".to_string(), toml::Value::try_from(&self.ui).unwrap());
+        let value = toml::Value::Table(table);
+        toml::to_string(&value).unwrap()
     }
 
     pub fn dir() -> Option<PathBuf> {
@@ -578,15 +767,34 @@ impl Config {
         Some(table)
     }
 
-    pub fn update_file(key: &str, value: toml::Value) -> Option<()> {
+    pub fn reset_setting(parent: &str, key: &str) -> Option<()> {
         let mut main_table = Self::get_file_table().unwrap_or_default();
-
-        // Separate key from container path
-        let (path, key) = key.rsplit_once('.').unwrap_or(("", key));
 
         // Find the container table
         let mut table = &mut main_table;
-        for key in path.split('.') {
+        for key in parent.split('.') {
+            if !table.contains_key(key) {
+                table
+                    .insert(key.to_string(), toml::Value::Table(Default::default()));
+            }
+            table = table.get_mut(key)?.as_table_mut()?;
+        }
+
+        table.remove(key);
+
+        // Store
+        let path = Self::settings_file()?;
+        std::fs::write(&path, toml::to_string(&main_table).ok()?.as_bytes()).ok()?;
+
+        Some(())
+    }
+
+    pub fn update_file(parent: &str, key: &str, value: toml::Value) -> Option<()> {
+        let mut main_table = Self::get_file_table().unwrap_or_default();
+
+        // Find the container table
+        let mut table = &mut main_table;
+        for key in parent.split('.') {
             if !table.contains_key(key) {
                 table
                     .insert(key.to_string(), toml::Value::Table(Default::default()));
@@ -614,15 +822,12 @@ impl Config {
     pub fn set_theme(&mut self, theme: &str, preview: bool) -> bool {
         self.update_id();
 
-        if self.themes.apply_theme(theme).is_err() {
-            return false;
-        }
-
         self.lapce.color_theme = theme.to_string();
 
         if !preview
             && Config::update_file(
-                "lapce.color-theme",
+                "lapce",
+                "color-theme",
                 toml::Value::String(theme.to_string()),
             )
             .is_none()
@@ -639,18 +844,15 @@ impl Config {
     /// If the color was not able to be found in either theme, which may be indicative that
     /// it is misspelled or needs to be added to the base-theme.
     pub fn get_color_unchecked(&self, name: &str) -> &Color {
-        self.themes
-            .color(name)
+        self.color
+            .ui
+            .get(name)
             .unwrap_or_else(|| panic!("Key not found: {name}"))
-    }
-
-    pub fn get_color(&self, name: &str) -> Option<&Color> {
-        self.themes.color(name)
     }
 
     /// Retrieve a color value whose key starts with "style."
     pub fn get_style_color(&self, name: &str) -> Option<&Color> {
-        self.themes.style_color(name)
+        self.color.syntax.get(name)
     }
 
     /// Calculate the width of the character "W" (being the widest character)

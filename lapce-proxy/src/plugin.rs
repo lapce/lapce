@@ -99,30 +99,52 @@ impl PluginCatalog {
             file.write_all(&toml::to_vec(&plugin)?)?;
         }
 
-        {
-            let url = format!(
-                "https://raw.githubusercontent.com/{}/master/{}",
-                plugin.repository, plugin.wasm
-            );
-            let mut resp = reqwest::blocking::get(url)?;
-            let mut file = std::fs::OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(path.join(&plugin.wasm))?;
-            std::io::copy(&mut resp, &mut file)?;
-        }
-
         let mut plugin = plugin;
-        plugin.dir = Some(path.clone());
-        plugin.wasm = path
-            .join(&plugin.wasm)
-            .to_str()
-            .ok_or_else(|| anyhow!("path can't to string"))?
-            .to_string();
-        let p = self.start_plugin(dispatcher, plugin.clone())?;
+        if let Some(wasm) = plugin.wasm.clone() {
+            {
+                let url = format!(
+                    "https://raw.githubusercontent.com/{}/master/{}",
+                    plugin.repository, wasm
+                );
+                let mut resp = reqwest::blocking::get(url)?;
+                let mut file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open(path.join(&wasm))?;
+                std::io::copy(&mut resp, &mut file)?;
+            }
+
+            plugin.dir = Some(path.clone());
+            plugin.wasm = Some(
+                path.join(&wasm)
+                    .to_str()
+                    .ok_or_else(|| anyhow!("path can't to string"))?
+                    .to_string(),
+            );
+
+            if let Ok(p) = self.start_plugin(dispatcher, plugin.clone()) {
+                self.plugins.insert(plugin.name.clone(), p);
+            }
+        }
+        if let Some(themes) = plugin.themes.as_ref() {
+            for theme in themes {
+                {
+                    let url = format!(
+                        "https://raw.githubusercontent.com/{}/master/{}",
+                        plugin.repository, theme
+                    );
+                    let mut resp = reqwest::blocking::get(url)?;
+                    let mut file = std::fs::OpenOptions::new()
+                        .create(true)
+                        .truncate(true)
+                        .write(true)
+                        .open(path.join(theme))?;
+                    std::io::copy(&mut resp, &mut file)?;
+                }
+            }
+        }
         self.items.insert(plugin.name.clone(), plugin.clone());
-        self.plugins.insert(plugin.name, p);
         Ok(())
     }
 
@@ -139,7 +161,13 @@ impl PluginCatalog {
         dispatcher: Dispatcher,
         plugin_desc: PluginDescription,
     ) -> Result<PluginNew> {
-        let module = wasmer::Module::from_file(&self.store, &plugin_desc.wasm)?;
+        let module = wasmer::Module::from_file(
+            &self.store,
+            plugin_desc
+                .wasm
+                .as_ref()
+                .ok_or_else(|| anyhow!("no wasm in plugin"))?,
+        )?;
 
         let output = Pipe::new();
         let input = Pipe::new();
@@ -349,13 +377,30 @@ fn load_plugin(path: &Path) -> Result<PluginDescription> {
     file.read_to_string(&mut contents)?;
     let mut plugin: PluginDescription = toml::from_str(&contents)?;
     plugin.dir = Some(path.parent().unwrap().canonicalize()?);
-    plugin.wasm = path
-        .parent()
-        .unwrap()
-        .join(&plugin.wasm)
-        .canonicalize()?
-        .to_str()
-        .ok_or_else(|| anyhow!("path can't to string"))?
-        .to_string();
+    plugin.wasm = plugin.wasm.as_ref().and_then(|wasm| {
+        Some(
+            path.parent()?
+                .join(wasm)
+                .canonicalize()
+                .ok()?
+                .to_str()?
+                .to_string(),
+        )
+    });
+    plugin.themes = plugin.themes.as_ref().map(|themes| {
+        themes
+            .iter()
+            .filter_map(|theme| {
+                Some(
+                    path.parent()?
+                        .join(theme)
+                        .canonicalize()
+                        .ok()?
+                        .to_str()?
+                        .to_string(),
+                )
+            })
+            .collect()
+    });
     Ok(plugin)
 }

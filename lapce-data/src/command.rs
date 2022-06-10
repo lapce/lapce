@@ -349,6 +349,14 @@ pub enum LapceWorkbenchCommand {
 
     #[strum(serialize = "source_control_commit")]
     SourceControlCommit,
+
+    #[strum(serialize = "export_current_theme_settings")]
+    #[strum(message = "Export current settings to a theme file")]
+    ExportCurrentThemeSettings,
+
+    #[strum(serialize = "install_theme")]
+    #[strum(message = "Install current theme file")]
+    InstallTheme,
 }
 
 #[derive(Debug)]
@@ -426,7 +434,8 @@ pub enum LapceUICommand {
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
     FilterPaletteItems(String, String, Vec<NewPaletteItem>),
     UpdateKeymapsFilter(String),
-    UpdateSettingsFile(String, serde_json::Value),
+    ResetSettingsFile(String, String),
+    UpdateSettingsFile(String, String, serde_json::Value),
     UpdateSettingsFilter(String),
     FilterKeymaps(String, Arc<Vec<KeyMap>>, Arc<Vec<LapceCommand>>),
     UpdatePickerPwd(PathBuf),
@@ -464,7 +473,7 @@ pub enum LapceUICommand {
         highlights: Arc<Spans<Style>>,
     },
     UpdateSyntax {
-        path: PathBuf,
+        content: BufferContent,
         rev: u64,
         syntax: SingleUse<Syntax>,
     },

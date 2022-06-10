@@ -20,6 +20,7 @@ use lapce_core::{
     command::{EditCommand, MultiSelectionCommand},
     cursor::{ColPosition, Cursor, CursorMode},
     editor::{EditType, Editor},
+    language::LapceLanguage,
     mode::{Mode, MotionMode},
     movement::{LinePosition, Movement},
     register::{Clipboard, Register, RegisterData},
@@ -43,6 +44,7 @@ use crate::{
     find::{Find, FindProgress},
     history::DocumentHisotry,
     proxy::LapceProxy,
+    settings::SettingsValueKind,
 };
 
 pub struct SystemClipboard {}
@@ -98,7 +100,7 @@ pub enum LocalBufferKind {
 pub enum BufferContent {
     File(PathBuf),
     Local(LocalBufferKind),
-    Value(String),
+    SettingsValue(String, SettingsValueKind, String, String),
     Scratch(BufferId, String),
 }
 
@@ -119,7 +121,7 @@ impl BufferContent {
                 | LocalBufferKind::Keymap => true,
                 LocalBufferKind::Empty => false,
             },
-            BufferContent::Value(_) => true,
+            BufferContent::SettingsValue(..) => true,
             BufferContent::Scratch(..) => false,
         }
     }
@@ -135,7 +137,7 @@ impl BufferContent {
                 | LocalBufferKind::Keymap => true,
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
-            BufferContent::Value(_) => true,
+            BufferContent::SettingsValue(..) => true,
             BufferContent::Scratch(..) => false,
         }
     }
@@ -143,7 +145,7 @@ impl BufferContent {
     pub fn is_search(&self) -> bool {
         match &self {
             BufferContent::File(_) => false,
-            BufferContent::Value(_) => false,
+            BufferContent::SettingsValue(..) => false,
             BufferContent::Scratch(..) => false,
             BufferContent::Local(local) => matches!(local, LocalBufferKind::Search),
         }
@@ -152,7 +154,7 @@ impl BufferContent {
     pub fn is_settings(&self) -> bool {
         match &self {
             BufferContent::File(_) => false,
-            BufferContent::Value(_) => true,
+            BufferContent::SettingsValue(..) => true,
             BufferContent::Local(_) => false,
             BufferContent::Scratch(..) => false,
         }
@@ -201,7 +203,7 @@ impl Document {
         let syntax = match &content {
             BufferContent::File(path) => Syntax::init(path),
             BufferContent::Local(_) => None,
-            BufferContent::Value(_) => None,
+            BufferContent::SettingsValue(..) => None,
             BufferContent::Scratch(..) => None,
         };
         let id = match &content {
@@ -244,7 +246,7 @@ impl Document {
         self.syntax = match &self.content {
             BufferContent::File(path) => Syntax::init(path),
             BufferContent::Local(_) => None,
-            BufferContent::Value(_) => None,
+            BufferContent::SettingsValue(..) => None,
             BufferContent::Scratch(..) => None,
         };
         self.on_update(None);
@@ -263,6 +265,10 @@ impl Document {
         self.buffer.detect_indent(self.syntax.as_ref());
         self.loaded = true;
         self.on_update(None);
+    }
+
+    pub fn set_language(&mut self, language: LapceLanguage) {
+        self.syntax = Some(Syntax::from_language(language));
     }
 
     pub fn reload(&mut self, content: Rope, set_pristine: bool) {
@@ -517,7 +523,7 @@ impl Document {
                     }
                 }
             }
-            BufferContent::Value(_) => {}
+            BufferContent::SettingsValue(..) => {}
         }
     }
 
@@ -543,34 +549,32 @@ impl Document {
     }
 
     fn trigger_syntax_change(&self, delta: Option<&RopeDelta>) {
-        if let BufferContent::File(path) = &self.content {
-            if let Some(syntax) = self.syntax.clone() {
-                let path = path.clone();
-                let rev = self.buffer.rev();
-                let text = self.buffer.text().clone();
-                let delta = delta.cloned();
-                let atomic_rev = self.buffer.atomic_rev();
-                let event_sink = self.event_sink.clone();
-                let tab_id = self.tab_id;
-                rayon::spawn(move || {
-                    if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                        return;
-                    }
-                    let new_syntax = syntax.parse(rev, text, delta);
-                    if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                        return;
-                    }
-                    let _ = event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateSyntax {
-                            path,
-                            rev,
-                            syntax: SingleUse::new(new_syntax),
-                        },
-                        Target::Widget(tab_id),
-                    );
-                });
-            }
+        if let Some(syntax) = self.syntax.clone() {
+            let content = self.content.clone();
+            let rev = self.buffer.rev();
+            let text = self.buffer.text().clone();
+            let delta = delta.cloned();
+            let atomic_rev = self.buffer.atomic_rev();
+            let event_sink = self.event_sink.clone();
+            let tab_id = self.tab_id;
+            rayon::spawn(move || {
+                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                    return;
+                }
+                let new_syntax = syntax.parse(rev, text, delta);
+                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                    return;
+                }
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSyntax {
+                        content,
+                        rev,
+                        syntax: SingleUse::new(new_syntax),
+                    },
+                    Target::Widget(tab_id),
+                );
+            });
         }
     }
 

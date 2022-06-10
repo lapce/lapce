@@ -67,6 +67,20 @@ impl Syntax {
         })
     }
 
+    pub fn from_language(language: LapceLanguage) -> Syntax {
+        Syntax {
+            rev: 0,
+            language,
+            text: Rope::from(""),
+            tree: None,
+            lens: Self::lens_from_normal_lines(0, 0, 0, &Vec::new()),
+            line_height: 0,
+            lens_height: 0,
+            normal_lines: Vec::new(),
+            styles: None,
+        }
+    }
+
     pub fn parse(
         &self,
         new_rev: u64,

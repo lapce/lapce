@@ -301,7 +301,7 @@ fn parse_hover_markdown(
                                     if let Some(color) = style
                                         .fg_color
                                         .as_ref()
-                                        .and_then(|fg| config.themes.style_color(fg))
+                                        .and_then(|fg| config.get_style_color(fg))
                                     {
                                         builder
                                             .add_attributes_for_range(
@@ -341,10 +341,8 @@ fn parse_hover_markdown(
                     .font_family(config.editor.font_family())
                     .text_color(
                         config
-                            .themes
-                            .color(LapceTheme::MARKDOWN_BLOCKQUOTE)
-                            .cloned()
-                            .unwrap(),
+                            .get_color_unchecked(LapceTheme::MARKDOWN_BLOCKQUOTE)
+                            .clone(),
                     );
                 pos += text.len();
             }
@@ -439,10 +437,8 @@ fn add_attribute_for_tag(tag: &Tag, mut attrs: AttributesAdder, config: &Config)
         Tag::BlockQuote => {
             attrs.style(FontStyle::Italic).text_color(
                 config
-                    .themes
-                    .color(LapceTheme::MARKDOWN_BLOCKQUOTE)
-                    .cloned()
-                    .unwrap(),
+                    .get_color_unchecked(LapceTheme::MARKDOWN_BLOCKQUOTE)
+                    .clone(),
             );
         }
         // TODO: We could use the language paired with treesitter to highlight the code
@@ -460,11 +456,7 @@ fn add_attribute_for_tag(tag: &Tag, mut attrs: AttributesAdder, config: &Config)
         Tag::Link(_link_type, _target, _title) => {
             // TODO: Link support
             attrs.underline(true).text_color(
-                config
-                    .themes
-                    .color(LapceTheme::EDITOR_LINK)
-                    .cloned()
-                    .unwrap(),
+                config.get_color_unchecked(LapceTheme::EDITOR_LINK).clone(),
             );
         }
         // All other tags are currently ignored

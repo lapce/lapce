@@ -3,6 +3,7 @@ use lapce_core::{
     command::{EditCommand, FocusCommand, MoveCommand},
     mode::Mode,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     command::{CommandExecuted, CommandKind, LapceUICommand, LAPCE_UI_COMMAND},
@@ -10,6 +11,13 @@ use crate::{
     keypress::KeyPressFocus,
     split::SplitDirection,
 };
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum SettingsValueKind {
+    String,
+    Number,
+    Bool,
+}
 
 pub enum LapceSettingsKind {
     Core,

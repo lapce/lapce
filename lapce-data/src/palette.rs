@@ -787,9 +787,10 @@ impl PaletteViewData {
     fn get_themes(&mut self, _ctx: &mut EventCtx, config: &Config) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.items = config
-            .themes
-            .keys()
-            .map(|n| NewPaletteItem {
+            .available_themes
+            .values()
+            .sorted_by_key(|(n, _)| n)
+            .map(|(n, _)| NewPaletteItem {
                 content: PaletteItemContent::Theme(n.to_string()),
                 filter_text: n.to_string(),
                 score: 0,

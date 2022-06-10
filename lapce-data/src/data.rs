@@ -10,6 +10,7 @@ use std::{
 
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use directories::BaseDirs;
 use druid::{
     piet::PietText, theme, Command, Data, Env, EventCtx, ExtEventSink,
     FileDialogOptions, Lens, Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
@@ -19,6 +20,7 @@ use lapce_core::{
     command::{FocusCommand, MultiSelectionCommand},
     cursor::{Cursor, CursorMode},
     editor::EditType,
+    language::LapceLanguage,
     mode::MotionMode,
     movement::Movement,
     register::Register,
@@ -286,7 +288,14 @@ impl LapceWindowData {
         if let Some(path) = Config::settings_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
+        if let Some(path) = Config::themes_folder() {
+            let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+        }
         if let Some(path) = KeyPressData::file() {
+            let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+        }
+        if let Some(base) = BaseDirs::new() {
+            let path = base.home_dir().join(".lapce").join("plugins");
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
         Self {
@@ -708,7 +717,7 @@ impl LapceTabData {
             BufferContent::Local(kind) => {
                 self.main_split.local_docs.get(kind).unwrap().clone()
             }
-            BufferContent::Value(name) => {
+            BufferContent::SettingsValue(name, ..) => {
                 self.main_split.value_docs.get(name).unwrap().clone()
             }
         };
@@ -737,7 +746,7 @@ impl LapceTabData {
 
         match &editor.content {
             BufferContent::Local(_) => Size::ZERO,
-            BufferContent::Value(_) => Size::ZERO,
+            BufferContent::SettingsValue(..) => Size::ZERO,
             BufferContent::File(path) => {
                 let doc = self.main_split.open_docs.get(path).unwrap();
                 let offset = editor.new_cursor.offset();
@@ -792,7 +801,7 @@ impl LapceTabData {
                         .local_docs
                         .insert(kind.clone(), editor_buffer_data.doc);
                 }
-                BufferContent::Value(name) => {
+                BufferContent::SettingsValue(name, ..) => {
                     self.main_split
                         .value_docs
                         .insert(name.clone(), editor_buffer_data.doc);
@@ -820,7 +829,7 @@ impl LapceTabData {
                 *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
-            BufferContent::Value(_) => {
+            BufferContent::SettingsValue(..) => {
                 *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
@@ -876,7 +885,7 @@ impl LapceTabData {
                 *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
-            BufferContent::Value(_) => {
+            BufferContent::SettingsValue(..) => {
                 *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
@@ -997,12 +1006,12 @@ impl LapceTabData {
             LapceWorkbenchCommand::EnableModal => {
                 let config = Arc::make_mut(&mut self.config);
                 config.lapce.modal = true;
-                Config::update_file("lapce.modal", toml::Value::Boolean(true));
+                Config::update_file("lapce", "modal", toml::Value::Boolean(true));
             }
             LapceWorkbenchCommand::DisableModal => {
                 let config = Arc::make_mut(&mut self.config);
                 config.lapce.modal = false;
-                Config::update_file("lapce.modal", toml::Value::Boolean(false));
+                Config::update_file("lapce", "modal", toml::Value::Boolean(false));
             }
             LapceWorkbenchCommand::ChangeTheme => {
                 ctx.submit_command(Command::new(
@@ -1318,6 +1327,12 @@ impl LapceTabData {
                     }),
                     Target::Auto,
                 ))
+            }
+            LapceWorkbenchCommand::ExportCurrentThemeSettings => {
+                self.main_split.export_theme(ctx, &self.config);
+            }
+            LapceWorkbenchCommand::InstallTheme => {
+                self.main_split.install_theme(ctx, &self.config);
             }
         }
     }
@@ -1764,7 +1779,9 @@ impl LapceMainSplitData {
         match content {
             BufferContent::File(path) => self.open_docs.get(path).unwrap().clone(),
             BufferContent::Local(kind) => self.local_docs.get(kind).unwrap().clone(),
-            BufferContent::Value(name) => self.value_docs.get(name).unwrap().clone(),
+            BufferContent::SettingsValue(name, ..) => {
+                self.value_docs.get(name).unwrap().clone()
+            }
             BufferContent::Scratch(id, _) => {
                 self.scratch_docs.get(id).unwrap().clone()
             }
@@ -2273,7 +2290,36 @@ impl LapceMainSplitData {
         return format!("{}{}", PREFIX, new_num);
     }
 
-    pub fn new_file(&mut self, ctx: &mut EventCtx, config: &Config) {
+    pub fn install_theme(&mut self, ctx: &mut EventCtx, _config: &Config) {
+        let tab = self.get_active_tab_mut(ctx);
+        let child = tab.active_child().clone();
+        match child {
+            EditorTabChild::Editor(view_id, _, _) => {
+                let editor = self.editors.get(&view_id).unwrap();
+                match &editor.content {
+                    BufferContent::File(path) => {
+                        if let Some(folder) = Config::themes_folder() {
+                            if let Some(file_name) = path.file_name() {
+                                let _ = std::fs::copy(path, folder.join(file_name));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            EditorTabChild::Settings(_, _) => {}
+        }
+    }
+
+    pub fn export_theme(&mut self, ctx: &mut EventCtx, config: &Config) {
+        let id = self.new_file(ctx, config);
+        let doc = self.scratch_docs.get_mut(&id).unwrap();
+        let doc = Arc::make_mut(doc);
+        doc.set_language(LapceLanguage::Toml);
+        doc.reload(Rope::from(config.export_theme()), true);
+    }
+
+    pub fn new_file(&mut self, ctx: &mut EventCtx, config: &Config) -> BufferId {
         let tab_id = *self.tab_id;
         let proxy = self.proxy.clone();
         let buffer_id = BufferId::next();
@@ -2290,6 +2336,7 @@ impl LapceMainSplitData {
         } else {
             Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
         };
+        buffer_id
     }
 
     pub fn go_to_location(
@@ -2312,7 +2359,7 @@ impl LapceMainSplitData {
         let new_buffer = match doc.content() {
             BufferContent::File(path) => path != &location.path,
             BufferContent::Local(_) => true,
-            BufferContent::Value(_) => true,
+            BufferContent::SettingsValue(..) => true,
             BufferContent::Scratch(..) => true,
         };
         if new_buffer {

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt::Display, sync::Arc, time::Duration};
 
 use druid::{
     kurbo::{BezPath, Line},
@@ -11,6 +11,7 @@ use druid::{
     WidgetId, WidgetPod,
 };
 use inflector::Inflector;
+use itertools::Itertools;
 use lapce_core::{
     command::{EditCommand, MoveCommand},
     mode::Mode,
@@ -24,7 +25,7 @@ use lapce_data::{
     data::{LapceEditorData, LapceTabData},
     document::{BufferContent, Document},
     keypress::KeyPressFocus,
-    settings::LapceSettingsFocusData,
+    settings::{LapceSettingsFocusData, SettingsValueKind},
 };
 use xi_rope::Rope;
 
@@ -49,7 +50,7 @@ pub struct LapceSettingsPanel {
     content_rect: Rect,
     switcher_rect: Rect,
     switcher_line_height: f64,
-    children: Vec<WidgetPod<LapceTabData, LapceSplitNew>>,
+    children: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
 }
 
 impl LapceSettingsPanel {
@@ -59,17 +60,20 @@ impl LapceSettingsPanel {
         editor_tab_id: WidgetId,
     ) -> Self {
         let children = vec![
-            WidgetPod::new(LapceSettings::new_split(LapceSettingsKind::Core, data)),
-            WidgetPod::new(LapceSettings::new_split(LapceSettingsKind::UI, data)),
-            WidgetPod::new(LapceSettings::new_split(
-                LapceSettingsKind::Editor,
-                data,
-            )),
-            WidgetPod::new(LapceSettings::new_split(
-                LapceSettingsKind::Terminal,
-                data,
-            )),
-            WidgetPod::new(LapceKeymap::new_split(data)),
+            WidgetPod::new(
+                LapceSettings::new_split(LapceSettingsKind::Core, data).boxed(),
+            ),
+            WidgetPod::new(
+                LapceSettings::new_split(LapceSettingsKind::UI, data).boxed(),
+            ),
+            WidgetPod::new(
+                LapceSettings::new_split(LapceSettingsKind::Editor, data).boxed(),
+            ),
+            WidgetPod::new(
+                LapceSettings::new_split(LapceSettingsKind::Terminal, data).boxed(),
+            ),
+            WidgetPod::new(ThemeSettings::new().boxed()),
+            WidgetPod::new(LapceKeymap::new_split(data).boxed()),
         ];
         Self {
             widget_id,
@@ -168,7 +172,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     }
                     LapceUICommand::ShowKeybindings => {
                         ctx.request_focus();
-                        self.active = 4;
+                        self.active = 5;
                     }
                     LapceUICommand::Hide => {
                         if let Some(active) = *data.main_split.active {
@@ -269,11 +273,12 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                 .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
         );
 
-        const SETTINGS_SECTIONS: [&str; 5] = [
+        const SETTINGS_SECTIONS: [&str; 6] = [
             "Core Settings",
             "UI Settings",
             "Editor Settings",
             "Terminal Settings",
+            "Theme Settings",
             "Keybindings",
         ];
 
@@ -411,15 +416,16 @@ impl LapceSettings {
         };
 
         for (i, field) in fileds.into_iter().enumerate() {
+            let field = field.replace('_', "-");
             self.children.push(WidgetPod::new(
                 LapcePadding::new(
                     (10.0, 10.0),
                     LapceSettingsItem::new(
                         data,
                         kind.clone(),
-                        field.to_string(),
+                        field.clone(),
                         descs[i].to_string(),
-                        settings.get(&field.replace('_', "-")).unwrap().clone(),
+                        settings.get(&field).unwrap().clone(),
                         ctx.get_external_handle(),
                     ),
                 )
@@ -529,33 +535,41 @@ struct LapceSettingsItem {
     desc_text: Option<PietTextLayout>,
     value_text: Option<Option<PietTextLayout>>,
     input_rect: Rect,
-    input_view_id: Option<WidgetId>,
     input_widget: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
 }
 
 impl LapceSettingsItem {
     /// The amount of time to wait for the next key press before storing settings.
-    const SAVE_DELAY: Duration = Duration::from_millis(300);
+    const SAVE_DELAY: Duration = Duration::from_millis(500);
 
     pub fn new(
         data: &mut LapceTabData,
         kind: String,
-        name: String,
+        key: String,
         desc: String,
         value: serde_json::Value,
         event_sink: ExtEventSink,
     ) -> Self {
         let input = match &value {
-            serde_json::Value::Number(n) => Some(n.to_string()),
-            serde_json::Value::String(s) => Some(s.to_string()),
+            serde_json::Value::Number(n) => {
+                Some((n.to_string(), SettingsValueKind::Number))
+            }
+            serde_json::Value::String(s) => {
+                Some((s.to_string(), SettingsValueKind::String))
+            }
             serde_json::Value::Array(_)
             | serde_json::Value::Object(_)
             | serde_json::Value::Bool(_)
             | serde_json::Value::Null => None,
         };
-        let input = input.map(|input| {
-            let name = format!("{kind}.{name}");
-            let content = BufferContent::Value(name.clone());
+        let input = input.map(|(input, value_kind)| {
+            let name = format!("{kind}.{key}");
+            let content = BufferContent::SettingsValue(
+                name.clone(),
+                value_kind,
+                kind.clone(),
+                key.clone(),
+            );
 
             let mut doc = Document::new(
                 content.clone(),
@@ -575,11 +589,10 @@ impl LapceSettingsItem {
             data.main_split.editors.insert(view_id, Arc::new(editor));
             (view_id, WidgetPod::new(input.boxed()))
         });
-        let input_view_id = input.as_ref().map(|i| i.0);
         let input_widget = input.map(|i| i.1);
         Self {
             kind,
-            name,
+            name: key,
             desc,
             value,
             padding: 10.0,
@@ -595,7 +608,6 @@ impl LapceSettingsItem {
             desc_text: None,
             value_text: None,
             input_rect: Rect::ZERO,
-            input_view_id,
             input_widget,
         }
     }
@@ -693,10 +705,6 @@ impl LapceSettingsItem {
         }
 
         self.value_text.as_ref().unwrap().as_ref()
-    }
-
-    fn get_key(&self) -> String {
-        format!("{}.{}", self.kind, self.name.to_kebab_case())
     }
 
     fn clear_text_layout_cache(&mut self) {
@@ -842,7 +850,8 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateSettingsFile(
-                        self.get_key(),
+                        self.kind.clone(),
+                        self.name.clone(),
                         self.value.clone(),
                     ),
                     Target::Widget(data.id),
@@ -860,21 +869,6 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         data: &LapceTabData,
         env: &Env,
     ) {
-        match event {
-            LifeCycle::FocusChanged(false) if self.value_changed => {
-                self.value_changed = false;
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSettingsFile(
-                        self.get_key(),
-                        self.value.clone(),
-                    ),
-                    Target::Widget(data.id),
-                ));
-            }
-            _ => (),
-        };
-
         if let Some(input) = self.input_widget.as_mut() {
             input.lifecycle(ctx, event, data, env);
         }
@@ -889,37 +883,6 @@ impl Widget<LapceTabData> for LapceSettingsItem {
     ) {
         if data.config.id != old_data.config.id {
             self.clear_text_layout_cache();
-        }
-        if let Some(view_id) = self.input_view_id.as_ref() {
-            let editor = data.main_split.editors.get(view_id).unwrap();
-            if let BufferContent::Value(name) = &editor.content {
-                let doc = data.main_split.value_docs.get(name).unwrap();
-                let old_doc = old_data.main_split.value_docs.get(name).unwrap();
-                if doc.buffer().len() != old_doc.buffer().len()
-                    || doc.buffer().text().slice_to_cow(..)
-                        != old_doc.buffer().text().slice_to_cow(..)
-                {
-                    let new_value = match &self.value {
-                        serde_json::Value::Number(_n) => {
-                            if let Ok(new_n) =
-                                doc.buffer().text().slice_to_cow(..).parse::<i64>()
-                            {
-                                serde_json::json!(new_n)
-                            } else {
-                                return;
-                            }
-                        }
-                        serde_json::Value::String(_s) => {
-                            serde_json::json!(&doc.buffer().text().slice_to_cow(..))
-                        }
-                        _ => return,
-                    };
-
-                    self.value = new_value;
-                    self.value_changed = true;
-                    self.last_idle_timer = ctx.request_timer(Self::SAVE_DELAY, None);
-                }
-            }
         }
         if let Some(input) = self.input_widget.as_mut() {
             input.update(ctx, data, env);
@@ -1018,6 +981,443 @@ impl Widget<LapceTabData> for LapceSettingsItem {
 
         if let Some(input) = self.input_widget.as_mut() {
             input.paint(ctx, data, env);
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum ThemeKind {
+    Base,
+    UI,
+    Syntax,
+}
+
+impl Display for ThemeKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            ThemeKind::Base => "theme.base",
+            ThemeKind::UI => "theme.ui",
+            ThemeKind::Syntax => "theme.syntax",
+        })
+    }
+}
+
+pub struct ThemeSettings {
+    widget_id: WidgetId,
+    kind: ThemeKind,
+    inputs: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+    keys: Vec<String>,
+    text_layouts: Option<Vec<PietTextLayout>>,
+    changed_rects: Vec<(String, String, Rect)>,
+    mouse_down_rect: Option<(String, String, Rect)>,
+}
+
+impl ThemeSettings {
+    fn new() -> Box<dyn Widget<LapceTabData>> {
+        LapceScrollNew::new(
+            LapceSplitNew::new(WidgetId::next())
+                .horizontal()
+                .hide_border()
+                .with_child(
+                    Self {
+                        kind: ThemeKind::Base,
+                        widget_id: WidgetId::next(),
+                        inputs: Vec::new(),
+                        keys: Vec::new(),
+                        text_layouts: None,
+                        changed_rects: Vec::new(),
+                        mouse_down_rect: None,
+                    }
+                    .boxed(),
+                    None,
+                    1.0,
+                )
+                .with_child(
+                    Self {
+                        kind: ThemeKind::Syntax,
+                        widget_id: WidgetId::next(),
+                        inputs: Vec::new(),
+                        keys: Vec::new(),
+                        text_layouts: None,
+                        changed_rects: Vec::new(),
+                        mouse_down_rect: None,
+                    }
+                    .boxed(),
+                    None,
+                    1.0,
+                )
+                .with_child(
+                    Self {
+                        kind: ThemeKind::UI,
+                        widget_id: WidgetId::next(),
+                        inputs: Vec::new(),
+                        keys: Vec::new(),
+                        text_layouts: None,
+                        changed_rects: Vec::new(),
+                        mouse_down_rect: None,
+                    }
+                    .boxed(),
+                    None,
+                    1.0,
+                )
+                .boxed(),
+        )
+        .boxed()
+    }
+
+    fn update_inputs(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        self.keys.clear();
+        self.inputs.clear();
+        self.text_layouts = None;
+
+        let colors: Vec<&str> = match &self.kind {
+            ThemeKind::Base => {
+                data.config.color.base.keys().into_iter().sorted().collect()
+            }
+            ThemeKind::UI => data
+                .config
+                .color
+                .ui
+                .keys()
+                .map(|s| s.as_str())
+                .sorted()
+                .collect(),
+            ThemeKind::Syntax => data
+                .config
+                .color
+                .syntax
+                .keys()
+                .map(|s| s.as_str())
+                .sorted()
+                .collect(),
+        };
+
+        for color in colors {
+            let name = format!("{}.{color}", self.kind);
+            let content = BufferContent::SettingsValue(
+                name.clone(),
+                SettingsValueKind::String,
+                self.kind.to_string(),
+                color.to_string(),
+            );
+            let mut doc = Document::new(
+                content.clone(),
+                data.id,
+                ctx.get_external_handle(),
+                data.proxy.clone(),
+            );
+            doc.reload(
+                Rope::from(match &self.kind {
+                    ThemeKind::Base => data.config.theme.base.get(color).unwrap(),
+                    ThemeKind::UI => data.config.theme.ui.get(color).unwrap(),
+                    ThemeKind::Syntax => {
+                        data.config.theme.syntax.get(color).unwrap()
+                    }
+                }),
+                true,
+            );
+            data.main_split.value_docs.insert(name, Arc::new(doc));
+            let editor =
+                LapceEditorData::new(None, None, None, content, &data.config);
+            let view_id = editor.view_id;
+            let input = LapceEditorView::new(editor.view_id, editor.editor_id, None)
+                .hide_header()
+                .hide_gutter()
+                .padding((5.0, 0.0, 5.0, 0.0));
+            data.main_split.editors.insert(view_id, Arc::new(editor));
+            self.keys.push(color.to_string());
+            self.inputs.push(WidgetPod::new(input.boxed()));
+        }
+    }
+}
+
+impl Widget<LapceTabData> for ThemeSettings {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.widget_id)
+    }
+
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        match event {
+            Event::MouseDown(mouse_event) => {
+                self.mouse_down_rect = None;
+                for (key, default, change) in self.changed_rects.iter() {
+                    if change.contains(mouse_event.pos) {
+                        self.mouse_down_rect = Some((
+                            key.to_string(),
+                            default.to_string(),
+                            change.clone(),
+                        ));
+                    }
+                }
+            }
+            Event::MouseUp(mouse_event) => {
+                if let Some((key, default, rect)) = self.mouse_down_rect.as_ref() {
+                    if rect.contains(mouse_event.pos) {
+                        let name = format!("{}.{key}", self.kind);
+                        let doc = data.main_split.value_docs.get_mut(&name).unwrap();
+                        let doc = Arc::make_mut(doc);
+                        doc.reload(Rope::from(default), true);
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ResetSettingsFile(
+                                self.kind.to_string(),
+                                key.clone(),
+                            ),
+                            Target::Widget(data.id),
+                        ));
+                    }
+                }
+                self.mouse_down_rect = None;
+            }
+            _ => {}
+        }
+        for input in self.inputs.iter_mut() {
+            match event {
+                Event::Wheel(_) => {}
+                _ => {
+                    input.event(ctx, event, data, env);
+                }
+            }
+        }
+
+        if self.inputs.is_empty() {
+            self.update_inputs(ctx, data);
+            ctx.children_changed();
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        for input in self.inputs.iter_mut() {
+            input.lifecycle(ctx, event, data, env);
+        }
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        if data.config.id != old_data.config.id {
+            self.text_layouts = None;
+        }
+        for input in self.inputs.iter_mut() {
+            input.update(ctx, data, env);
+        }
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        if self.inputs.is_empty() {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::InitChildren,
+                Target::Widget(self.widget_id),
+            ));
+        }
+
+        if self.text_layouts.is_none() {
+            let mut text_layouts = Vec::new();
+            for key in self.keys.iter() {
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(key.to_string())
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                text_layouts.push(text_layout);
+            }
+            self.text_layouts = Some(text_layouts);
+        }
+
+        let text_width = self
+            .text_layouts
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|text_layout| text_layout.size().width.ceil() as usize)
+            .max()
+            .unwrap_or(0) as f64;
+
+        let mut y = 30.0;
+        let input_bc = BoxConstraints::tight(Size::new(
+            (bc.max().width - text_width - 10.0).min(150.0),
+            100.0,
+        ));
+
+        let reset_text = ctx
+            .text()
+            .new_text_layout("reset")
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        let reset_size = reset_text.size();
+        self.changed_rects.clear();
+
+        for (i, input) in self.inputs.iter_mut().enumerate() {
+            let size = input.layout(ctx, &input_bc, data, env);
+            let padding = (size.height * 0.2).round();
+            y += padding;
+            input.set_origin(ctx, data, env, Point::new(text_width + 10.0, y));
+            y += size.height + padding;
+
+            let (changed, default) = match self.kind {
+                ThemeKind::Base => {
+                    let default = data
+                        .config
+                        .default_theme
+                        .base
+                        .get(&self.keys[i])
+                        .unwrap()
+                        .to_string();
+                    (
+                        data.config.theme.base.get(&self.keys[i]).unwrap()
+                            != &default,
+                        default,
+                    )
+                }
+                ThemeKind::UI => {
+                    let default = data
+                        .config
+                        .default_theme
+                        .ui
+                        .get(&self.keys[i])
+                        .unwrap()
+                        .to_string();
+                    (
+                        data.config.theme.ui.get(&self.keys[i]).unwrap() != &default,
+                        default,
+                    )
+                }
+                ThemeKind::Syntax => {
+                    let default = data
+                        .config
+                        .default_theme
+                        .syntax
+                        .get(&self.keys[i])
+                        .unwrap()
+                        .to_string();
+                    (
+                        data.config.theme.syntax.get(&self.keys[i]).unwrap()
+                            != &default,
+                        default,
+                    )
+                }
+            };
+            if changed {
+                let x = input.layout_rect().x1 + 10.0;
+                let y0 = input.layout_rect().y0;
+                let y1 = input.layout_rect().y1;
+                let rect = Rect::new(x, y0, x + reset_size.width + 20.0, y1);
+                self.changed_rects
+                    .push((self.keys[i].clone(), default, rect));
+            }
+        }
+
+        Size::new(bc.max().width, y + 10.0)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let header_text = ctx
+            .text()
+            .new_text_layout(match &self.kind {
+                ThemeKind::Base => "Base Colors",
+                ThemeKind::UI => "UI Colors",
+                ThemeKind::Syntax => "Syntax Colors",
+            })
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
+            .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        ctx.draw_text(
+            &header_text,
+            Point::new(0.0, (30.0 - header_text.size().height) / 2.0),
+        );
+
+        for (i, input) in self.inputs.iter_mut().enumerate() {
+            let text_layout = &self.text_layouts.as_ref().unwrap()[i];
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    0.0,
+                    input.layout_rect().y0
+                        + (input.layout_rect().height() - text_layout.size().height)
+                            / 2.0,
+                ),
+            );
+            input.paint(ctx, data, env);
+        }
+
+        let reset_text = ctx
+            .text()
+            .new_text_layout("reset")
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        let reset_size = reset_text.size();
+        for (_, _, rect) in self.changed_rects.iter() {
+            ctx.stroke(
+                rect.inflate(-0.5, -0.5),
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
+            ctx.draw_text(
+                &reset_text,
+                Point::new(
+                    rect.x0 + 10.0,
+                    rect.y0 + (rect.height() - reset_size.height) / 2.0,
+                ),
+            )
         }
     }
 }
