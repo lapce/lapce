@@ -364,6 +364,7 @@ impl Widget<LapceTabData> for PanelSectionHeader {
                 }
             }
 
+            ctx.clip(rect);
             let text_layout = ctx
                 .text()
                 .new_text_layout(self.text.clone())
@@ -583,6 +584,7 @@ impl Widget<LapceTabData> for PanelMainHeader {
                 }
             }
 
+            ctx.clip(rect);
             let background = match position {
                 Some(PanelPosition::BottomLeft)
                 | Some(PanelPosition::BottomRight) => LapceTheme::EDITOR_BACKGROUND,

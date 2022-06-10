@@ -273,42 +273,45 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                 .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
         );
 
-        const SETTINGS_SECTIONS: [&str; 6] = [
-            "Core Settings",
-            "UI Settings",
-            "Editor Settings",
-            "Terminal Settings",
-            "Theme Settings",
-            "Keybindings",
-        ];
+        ctx.with_save(|ctx| {
+            ctx.clip(self.switcher_rect);
+            const SETTINGS_SECTIONS: [&str; 6] = [
+                "Core Settings",
+                "UI Settings",
+                "Editor Settings",
+                "Terminal Settings",
+                "Theme Settings",
+                "Keybindings",
+            ];
 
-        for (i, text) in SETTINGS_SECTIONS.into_iter().enumerate() {
-            let text_layout = ctx
-                .text()
-                .new_text_layout(text)
-                .font(
-                    data.config.ui.font_family(),
-                    (data.config.ui.font_size() + 1) as f64,
-                )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            let text_size = text_layout.size();
-            ctx.draw_text(
-                &text_layout,
-                self.switcher_rect.origin()
-                    + (
-                        20.0,
-                        i as f64 * self.switcher_line_height
-                            + (self.switcher_line_height / 2.0
-                                - text_size.height / 2.0),
-                    ),
-            );
-        }
+            for (i, text) in SETTINGS_SECTIONS.into_iter().enumerate() {
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(text)
+                    .font(
+                        data.config.ui.font_family(),
+                        (data.config.ui.font_size() + 1) as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                let text_size = text_layout.size();
+                ctx.draw_text(
+                    &text_layout,
+                    self.switcher_rect.origin()
+                        + (
+                            20.0,
+                            i as f64 * self.switcher_line_height
+                                + (self.switcher_line_height / 2.0
+                                    - text_size.height / 2.0),
+                        ),
+                );
+            }
+        });
 
         self.children[self.active].paint(ctx, data, env);
 
