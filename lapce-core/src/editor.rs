@@ -241,14 +241,16 @@ impl Editor {
             let second_half = buffer.slice_to_cow(offset..line_end).to_string();
 
             let indent = if has_unmatched_pair(&first_half) {
-                format!("{}    ", line_indent)
-            } else {
+                format!("{}{}", line_indent, buffer.indent_unit())
+            } else if second_half.trim().is_empty() {
                 let next_line_indent = buffer.indent_on_line(line + 1);
                 if next_line_indent.len() > line_indent.len() {
                     next_line_indent
                 } else {
                     line_indent.clone()
                 }
+            } else {
+                line_indent.clone()
             };
 
             let selection = Selection::region(region.min(), region.max());
@@ -895,7 +897,12 @@ impl Editor {
                 } else {
                     buffer.first_non_blank_character_on_line(line)
                 };
-                Self::insert_new_line(buffer, cursor, Selection::caret(offset))
+                let delta =
+                    Self::insert_new_line(buffer, cursor, Selection::caret(offset));
+                if line == 0 {
+                    cursor.mode = CursorMode::Insert(Selection::caret(offset));
+                }
+                delta
             }
             NewLineBelow => {
                 let offset = cursor.offset();
