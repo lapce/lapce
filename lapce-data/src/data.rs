@@ -10,6 +10,7 @@ use std::{
 
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use directories::BaseDirs;
 use druid::{
     piet::PietText, theme, Command, Data, Env, EventCtx, ExtEventSink,
     FileDialogOptions, Lens, Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
@@ -291,6 +292,10 @@ impl LapceWindowData {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
         if let Some(path) = KeyPressData::file() {
+            let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+        }
+        if let Some(base) = BaseDirs::new() {
+            let path = base.home_dir().join(".lapce").join("plugins");
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
         Self {
