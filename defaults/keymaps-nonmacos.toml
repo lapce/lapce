@@ -54,7 +54,7 @@ command = "search"
 
 [[keymaps]]
 key = "ctrl+right"
-command = "word_forward"
+command = "word_end_forward"
 mode = "i"
 
 [[keymaps]]

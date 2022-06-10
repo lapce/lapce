@@ -49,7 +49,7 @@ command = "search"
 
 [[keymaps]]
 key = "alt+right"
-command = "word_forward"
+command = "word_end_forward"
 mode = "i"
 
 [[keymaps]]
