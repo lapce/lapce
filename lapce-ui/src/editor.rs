@@ -338,7 +338,7 @@ impl LapceEditor {
                                 (height as f64 - line_height).max(0.0)
                                     + editor_size.height
                             } else {
-                                height as f64
+                                (height as f64).max(editor_size.height)
                             },
                         )
                     } else {
@@ -351,7 +351,7 @@ impl LapceEditor {
                                 (height as f64 - line_height).max(0.0)
                                     + editor_size.height
                             } else {
-                                height as f64
+                                (height as f64).max(editor_size.height)
                             },
                         )
                     }
@@ -374,7 +374,7 @@ impl LapceEditor {
                             (line_height * lines as f64 - line_height).max(0.0)
                                 + editor_size.height
                         } else {
-                            line_height * lines as f64
+                            (line_height * lines as f64).max(editor_size.height)
                         },
                     )
                 } else {
@@ -387,7 +387,8 @@ impl LapceEditor {
                                 .max(0.0)
                                 + editor_size.height
                         } else {
-                            line_height * data.doc.buffer().num_lines() as f64
+                            (line_height * data.doc.buffer().num_lines() as f64)
+                                .max(editor_size.height)
                         },
                     )
                 }
