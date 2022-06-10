@@ -11,6 +11,7 @@ use druid::{
     Color, ExtEventSink, FontFamily, Size, Target,
 };
 use indexmap::IndexMap;
+use lapce_proxy::plugin::PluginCatalog;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -598,6 +599,11 @@ impl Config {
 
     fn load_themes() -> HashMap<String, (String, config::Config)> {
         let mut themes = Self::load_local_themes().unwrap_or_default();
+        if let Some(plugin_themes) = Self::load_plugin_themes() {
+            for (key, theme) in plugin_themes.into_iter() {
+                themes.insert(key, theme);
+            }
+        }
 
         let (name, theme) = Self::load_theme_from_str(DEFAULT_LIGHT_THEME).unwrap();
         themes.insert(name.to_lowercase(), (name, theme));
@@ -616,6 +622,26 @@ impl Config {
                     entry.ok().and_then(|entry| Self::load_theme(&entry.path()))
                 })
                 .collect();
+        Some(themes)
+    }
+
+    fn load_plugin_themes() -> Option<HashMap<String, (String, config::Config)>> {
+        let mut catalog = PluginCatalog::new();
+        catalog.reload();
+
+        let mut themes: HashMap<String, (String, config::Config)> = HashMap::new();
+
+        for (_, plugin) in catalog.items.iter() {
+            if let Some(plugin_themes) = plugin.themes.as_ref() {
+                for theme_path in plugin_themes {
+                    if let Some((key, theme)) =
+                        Self::load_theme(&PathBuf::from(theme_path))
+                    {
+                        themes.insert(key, theme);
+                    }
+                }
+            }
+        }
         Some(themes)
     }
 

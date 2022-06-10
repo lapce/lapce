@@ -387,5 +387,20 @@ fn load_plugin(path: &Path) -> Result<PluginDescription> {
                 .to_string(),
         )
     });
+    plugin.themes = plugin.themes.as_ref().map(|themes| {
+        themes
+            .iter()
+            .filter_map(|theme| {
+                Some(
+                    path.parent()?
+                        .join(theme)
+                        .canonicalize()
+                        .ok()?
+                        .to_str()?
+                        .to_string(),
+                )
+            })
+            .collect()
+    });
     Ok(plugin)
 }

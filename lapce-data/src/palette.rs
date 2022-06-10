@@ -789,6 +789,7 @@ impl PaletteViewData {
         palette.items = config
             .available_themes
             .values()
+            .sorted_by_key(|(n, _)| n)
             .map(|(n, _)| NewPaletteItem {
                 content: PaletteItemContent::Theme(n.to_string()),
                 filter_text: n.to_string(),
