@@ -334,8 +334,12 @@ impl LapceEditor {
                         Size::new(
                             (width * data.doc.buffer().max_len() as f64)
                                 .max(editor_size.width),
-                            (height as f64 - line_height).max(0.0)
-                                + editor_size.height,
+                            if data.config.editor.scroll_beyond_last_line {
+                                (height as f64 - line_height).max(0.0)
+                                    + editor_size.height
+                            } else {
+                                height as f64
+                            },
                         )
                     } else {
                         let height = data.doc.buffer().num_lines()
@@ -343,8 +347,12 @@ impl LapceEditor {
                         Size::new(
                             (width * data.doc.buffer().max_len() as f64)
                                 .max(editor_size.width),
-                            (height as f64 - line_height).max(0.0)
-                                + editor_size.height,
+                            if data.config.editor.scroll_beyond_last_line {
+                                (height as f64 - line_height).max(0.0)
+                                    + editor_size.height
+                            } else {
+                                height as f64
+                            },
                         )
                     }
                 } else if let Some(compare) = data.editor.compare.as_ref() {
@@ -362,17 +370,25 @@ impl LapceEditor {
                     Size::new(
                         (width * data.doc.buffer().max_len() as f64)
                             .max(editor_size.width),
-                        (line_height * lines as f64 - line_height).max(0.0)
-                            + editor_size.height,
+                        if data.config.editor.scroll_beyond_last_line {
+                            (line_height * lines as f64 - line_height).max(0.0)
+                                + editor_size.height
+                        } else {
+                            line_height * lines as f64
+                        },
                     )
                 } else {
                     Size::new(
                         (width * data.doc.buffer().max_len() as f64)
                             .max(editor_size.width),
-                        (line_height * data.doc.buffer().num_lines() as f64
-                            - line_height)
-                            .max(0.0)
-                            + editor_size.height,
+                        if data.config.editor.scroll_beyond_last_line {
+                            (line_height * data.doc.buffer().num_lines() as f64
+                                - line_height)
+                                .max(0.0)
+                                + editor_size.height
+                        } else {
+                            line_height * data.doc.buffer().num_lines() as f64
+                        },
                     )
                 }
             }

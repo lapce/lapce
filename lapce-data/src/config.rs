@@ -145,6 +145,8 @@ pub struct EditorConfig {
     pub tab_width: usize,
     #[field_names(desc = "If opened editors are shown in a tab")]
     pub show_tab: bool,
+    #[field_names(desc = "If the editor can scroll beyong the last line")]
+    pub scroll_beyond_last_line: bool,
     #[field_names(
         desc = "How long (in ms) it should take before the hover information appears"
     )]
