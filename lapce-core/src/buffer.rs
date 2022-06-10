@@ -183,7 +183,7 @@ impl Buffer {
 
     fn update_size(&mut self, inval_lines: &InvalLines) {
         if self.max_len_line >= inval_lines.start_line
-            && self.max_len_line < inval_lines.start_line + inval_lines.inval_count
+            && self.max_len_line <= inval_lines.start_line + inval_lines.inval_count
         {
             let (max_len, max_len_line) = self.get_max_line_len();
             self.max_len = max_len;
