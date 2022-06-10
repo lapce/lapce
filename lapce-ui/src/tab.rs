@@ -28,6 +28,7 @@ use lapce_data::{
     editor::EditorLocationNew,
     hover::HoverStatus,
     keypress::{DefaultKeyPressHandler, KeyPressData},
+    menu::MenuKind,
     palette::PaletteStatus,
     panel::{PanelPosition, PanelResizePosition},
     proxy::path_from_url,
@@ -368,25 +369,32 @@ impl LapceTabNew {
 
                         let mut menu = druid::Menu::new("");
                         for i in items.iter() {
-                            let mut item = druid::MenuItem::new(i.desc());
-                            if let Some(key) = data
-                                .keypress
-                                .command_keymaps
-                                .get(i.command.kind.str())
-                            {
-                                if !key.is_empty() {
-                                    item = item.hotkey(
-                                        key[0].key[0].mods,
-                                        key[0].key[0].key.clone(),
-                                    );
+                            match i {
+                                MenuKind::Item(i) => {
+                                    let mut item = druid::MenuItem::new(i.desc());
+                                    if let Some(key) = data
+                                        .keypress
+                                        .command_keymaps
+                                        .get(i.command.kind.str())
+                                    {
+                                        if !key.is_empty() {
+                                            item = item.hotkey(
+                                                key[0].key[0].mods,
+                                                key[0].key[0].key.clone(),
+                                            );
+                                        }
+                                    }
+                                    item = item.command(Command::new(
+                                        LAPCE_COMMAND,
+                                        i.command.clone(),
+                                        Target::Widget(data.id),
+                                    ));
+                                    menu = menu.entry(item);
+                                }
+                                MenuKind::Separator => {
+                                    menu = menu.separator();
                                 }
                             }
-                            item = item.command(Command::new(
-                                LAPCE_COMMAND,
-                                i.command.clone(),
-                                Target::Widget(data.id),
-                            ));
-                            menu = menu.entry(item);
                         }
                         ctx.show_context_menu::<LapceData>(menu, *point);
                     }

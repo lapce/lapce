@@ -15,7 +15,7 @@ use lapce_data::{
     },
     config::LapceTheme,
     data::{LapceWindowData, LapceWorkspaceType},
-    menu::MenuItem,
+    menu::{MenuItem, MenuKind},
     proxy::ProxyStatus,
 };
 use serde_json::json;
@@ -245,26 +245,26 @@ impl Widget<LapceWindowData> for Title {
         let command_rect =
             command_rect.with_size(Size::new(x - command_rect.x0, size.height));
 
-        let mut menu_items = vec![MenuItem {
+        let mut menu_items = vec![MenuKind::Item(MenuItem {
             desc: None,
             command: LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectSshHost),
                 data: None,
             },
-        }];
+        })];
 
         if cfg!(target_os = "windows") {
-            menu_items.push(MenuItem {
+            menu_items.push(MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectWsl),
                     data: None,
                 },
-            });
+            }));
         }
 
         if tab.workspace.kind.is_remote() {
-            menu_items.push(MenuItem {
+            menu_items.push(MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
@@ -272,7 +272,7 @@ impl Widget<LapceWindowData> for Title {
                     ),
                     data: None,
                 },
-            });
+            }));
         }
 
         self.commands.push((
@@ -332,14 +332,14 @@ impl Widget<LapceWindowData> for Title {
         );
         x += text_layout.size().width.round() + padding;
         let menu_items = vec![
-            MenuItem {
+            MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
                     data: None,
                 },
-            },
-            MenuItem {
+            }),
+            MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
@@ -347,7 +347,7 @@ impl Widget<LapceWindowData> for Title {
                     ),
                     data: None,
                 },
-            },
+            }),
         ];
         let command_rect =
             command_rect.with_size(Size::new(x - command_rect.x0, size.height));
@@ -415,14 +415,16 @@ impl Widget<LapceWindowData> for Title {
                 .source_control
                 .branches
                 .iter()
-                .map(|b| MenuItem {
-                    desc: Some(b.to_string()),
-                    command: LapceCommand {
-                        kind: CommandKind::Workbench(
-                            LapceWorkbenchCommand::CheckoutBranch,
-                        ),
-                        data: Some(json!(b.to_string())),
-                    },
+                .map(|b| {
+                    MenuKind::Item(MenuItem {
+                        desc: Some(b.to_string()),
+                        command: LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::CheckoutBranch,
+                            ),
+                            data: Some(json!(b.to_string())),
+                        },
+                    })
                 })
                 .collect();
             self.commands.push((
@@ -458,7 +460,7 @@ impl Widget<LapceWindowData> for Title {
             ),
         );
         let menu_items = vec![
-            MenuItem {
+            MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
@@ -466,8 +468,8 @@ impl Widget<LapceWindowData> for Title {
                     ),
                     data: None,
                 },
-            },
-            MenuItem {
+            }),
+            MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
@@ -475,8 +477,8 @@ impl Widget<LapceWindowData> for Title {
                     ),
                     data: None,
                 },
-            },
-            MenuItem {
+            }),
+            MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
@@ -484,7 +486,7 @@ impl Widget<LapceWindowData> for Title {
                     ),
                     data: None,
                 },
-            },
+            }),
         ];
         self.commands.push((
             settings_rect,

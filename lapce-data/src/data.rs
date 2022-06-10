@@ -1361,6 +1361,13 @@ impl LapceTabData {
                     Target::Widget(self.focus),
                 ));
             }
+            CommandKind::Edit(_) => {
+                ctx.submit_command(Command::new(
+                    LAPCE_COMMAND,
+                    command.clone(),
+                    Target::Widget(self.focus),
+                ));
+            }
             _ => {}
         }
     }

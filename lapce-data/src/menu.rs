@@ -1,5 +1,10 @@
 use crate::command::LapceCommand;
 
+pub enum MenuKind {
+    Item(MenuItem),
+    Separator,
+}
+
 #[derive(Debug)]
 pub struct MenuItem {
     pub desc: Option<String>,

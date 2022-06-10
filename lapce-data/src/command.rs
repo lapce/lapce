@@ -24,12 +24,12 @@ use xi_rope::{spans::Spans, Rope};
 use crate::alert::AlertContentData;
 use crate::data::LapceWorkspace;
 use crate::document::BufferContent;
+use crate::menu::MenuKind;
 use crate::rich_text::RichText;
 use crate::{
     data::{EditorTabChild, SplitContent},
     editor::EditorLocationNew,
     keypress::{KeyMap, KeyPress},
-    menu::MenuItem,
     palette::{NewPaletteItem, PaletteType},
     proxy::ProxyStatus,
     search::Match,
@@ -402,7 +402,7 @@ pub enum LapceUICommand {
         location: EditorLocationNew,
     },
     ShowAlert(AlertContentData),
-    ShowMenu(Point, Arc<Vec<MenuItem>>),
+    ShowMenu(Point, Arc<Vec<MenuKind>>),
     UpdateSearch(String),
     GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),
     CancelFilePicker,

@@ -10,6 +10,7 @@ use druid::{
     Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
 };
 use lapce_core::buffer::DiffLines;
+use lapce_core::command::EditCommand;
 use lapce_core::{
     command::FocusCommand,
     cursor::{ColPosition, CursorMode},
@@ -20,6 +21,7 @@ use lapce_data::command::CommandKind;
 use lapce_data::data::{EditorView, LapceData};
 use lapce_data::document::{BufferContent, LocalBufferKind};
 use lapce_data::keypress::KeyPressFocus;
+use lapce_data::menu::MenuKind;
 use lapce_data::{
     command::{
         LapceCommand, LapceUICommand, LapceWorkbenchCommand, LAPCE_UI_COMMAND,
@@ -244,16 +246,32 @@ impl LapceEditor {
         mouse_event: &MouseEvent,
         config: &Config,
     ) {
-        editor_data.single_click(ctx, mouse_event, config);
+        let (offset, _) = editor_data.doc.offset_of_point(
+            ctx.text(),
+            editor_data.get_mode(),
+            mouse_event.pos,
+            config.editor.font_size,
+            config,
+        );
+
+        if !editor_data
+            .editor
+            .new_cursor
+            .edit_selection(&editor_data.doc.buffer())
+            .contains(offset)
+        {
+            editor_data.single_click(ctx, mouse_event, config);
+        }
+
         let menu_items = vec![
-            MenuItem {
+            MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Focus(FocusCommand::GotoDefinition),
                     data: None,
                 },
-            },
-            MenuItem {
+            }),
+            MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
@@ -261,7 +279,29 @@ impl LapceEditor {
                     ),
                     data: None,
                 },
-            },
+            }),
+            MenuKind::Separator,
+            MenuKind::Item(MenuItem {
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Edit(EditCommand::ClipboardCut),
+                    data: None,
+                },
+            }),
+            MenuKind::Item(MenuItem {
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Edit(EditCommand::ClipboardCopy),
+                    data: None,
+                },
+            }),
+            MenuKind::Item(MenuItem {
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Edit(EditCommand::ClipboardPaste),
+                    data: None,
+                },
+            }),
         ];
 
         ctx.submit_command(Command::new(

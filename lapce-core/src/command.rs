@@ -53,10 +53,13 @@ pub enum EditCommand {
     Undo,
     #[strum(serialize = "redo")]
     Redo,
+    #[strum(message = "Copy")]
     #[strum(serialize = "clipboard_copy")]
     ClipboardCopy,
+    #[strum(message = "Cut")]
     #[strum(serialize = "clipboard_cut")]
     ClipboardCut,
+    #[strum(message = "Paste")]
     #[strum(serialize = "clipboard_paste")]
     ClipboardPaste,
     #[strum(serialize = "yank")]

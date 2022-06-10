@@ -46,6 +46,10 @@ impl SelRegion {
         }
     }
 
+    fn contains(&self, offset: usize) -> bool {
+        self.min() <= offset && offset <= self.max()
+    }
+
     pub fn min(self) -> usize {
         min(self.start, self.end)
     }
@@ -108,6 +112,15 @@ impl Selection {
             }],
             last_inserted: 0,
         }
+    }
+
+    pub fn contains(&self, offset: usize) -> bool {
+        for region in self.regions.iter() {
+            if region.contains(offset) {
+                return true;
+            }
+        }
+        false
     }
 
     pub fn regions(&self) -> &[SelRegion] {
