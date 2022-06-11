@@ -369,6 +369,7 @@ struct ScrollComponent {
     /// Which if any scrollbar is currently being dragged by the mouse
     pub held: BarHeldState,
     pub fade_start: Option<Instant>,
+    pub vertical_scroll_for_horizontal: bool,
 }
 
 impl Default for ScrollComponent {
@@ -379,6 +380,7 @@ impl Default for ScrollComponent {
             hovered: BarHoveredState::None,
             held: BarHeldState::None,
             fade_start: None,
+            vertical_scroll_for_horizontal: false,
         }
     }
 }
@@ -743,7 +745,11 @@ impl ScrollComponent {
     ) {
         if !ctx.is_handled() {
             if let Event::Wheel(mouse) = event {
-                if port.pan_by(mouse.wheel_delta.round()) {}
+                let mut delta = mouse.wheel_delta.round();
+                if self.vertical_scroll_for_horizontal {
+                    delta.x = delta.y;
+                }
+                if port.pan_by(delta) {}
                 ctx.request_paint();
                 self.reset_scrollbar_fade(|d| ctx.request_timer(d, None), env);
                 ctx.set_handled();
@@ -809,6 +815,11 @@ impl<T, W: Widget<T>> LapceScroll<T, W> {
             .constrain_vertical(true)
             .constrain_horizontal(false);
 
+        self
+    }
+
+    pub fn vertical_scroll_for_horizontal(mut self) -> Self {
+        self.scroll_component.vertical_scroll_for_horizontal = true;
         self
     }
 

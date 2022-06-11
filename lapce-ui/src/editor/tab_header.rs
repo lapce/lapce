@@ -39,7 +39,8 @@ pub struct LapceEditorTabHeader {
 impl LapceEditorTabHeader {
     pub fn new(widget_id: WidgetId) -> Self {
         let content = LapceScroll::new(LapceEditorTabHeaderContent::new(widget_id))
-            .horizontal();
+            .horizontal()
+            .vertical_scroll_for_horizontal();
         Self {
             widget_id,
             content: WidgetPod::new(content),
