@@ -17,6 +17,7 @@ use xi_rope::{
 };
 
 use crate::{
+    cursor::CursorMode,
     editor::EditType,
     indent::{auto_detect_indent_style, IndentStyle},
     mode::Mode,
@@ -54,6 +55,8 @@ struct Revision {
     num: u64,
     max_undo_so_far: usize,
     edit: Contents,
+    cursor_before: Option<CursorMode>,
+    cursor_after: Option<CursorMode>,
 }
 
 #[derive(Debug, Clone)]
@@ -103,6 +106,8 @@ impl Buffer {
                     toggled_groups: BTreeSet::new(),
                     deletes_bitxor: Subset::new(0),
                 },
+                cursor_before: None,
+                cursor_after: None,
             }],
             cur_undo: 1,
             undos: BTreeSet::new(),
@@ -131,6 +136,18 @@ impl Buffer {
 
     pub fn is_pristine(&self) -> bool {
         self.is_equivalent_revision(self.pristine_rev_id, self.rev())
+    }
+
+    pub fn set_cursor_before(&mut self, cursor: CursorMode) {
+        self.revs
+            .last_mut()
+            .map(|rev| rev.cursor_before = Some(cursor));
+    }
+
+    pub fn set_cursor_after(&mut self, cursor: CursorMode) {
+        self.revs
+            .last_mut()
+            .map(|rev| rev.cursor_after = Some(cursor));
     }
 
     fn is_equivalent_revision(&self, base_rev: u64, other_rev: u64) -> bool {
@@ -411,6 +428,8 @@ impl Buffer {
                     inserts: new_inserts,
                     deletes: new_deletes,
                 },
+                cursor_before: None,
+                cursor_after: None,
             },
             new_text,
             new_tombstones,
@@ -535,6 +554,32 @@ impl Buffer {
             }
         }
 
+        let cursor_before = self
+            .revs
+            .get(first_candidate)
+            .and_then(|rev| rev.cursor_before.clone());
+
+        let cursor_after = self
+            .revs
+            .get(first_candidate)
+            .and_then(|rev| match &rev.edit {
+                Contents::Edit { undo_group, .. } => Some(undo_group),
+                Contents::Undo { .. } => None,
+            })
+            .and_then(|group| {
+                let mut cursor: Option<&CursorMode> = None;
+                for rev in &self.revs[first_candidate..] {
+                    if let Contents::Edit { ref undo_group, .. } = rev.edit {
+                        if group == undo_group {
+                            cursor = rev.cursor_after.as_ref();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                cursor.cloned()
+            });
+
         let deletes_bitxor = self.deletes_from_union.bitxor(&deletes_from_union);
         let max_undo_so_far = self.revs.last().unwrap().max_undo_so_far;
         self.atomic_rev
@@ -547,12 +592,22 @@ impl Buffer {
                     toggled_groups,
                     deletes_bitxor,
                 },
+                cursor_before,
+                cursor_after,
             },
             deletes_from_union,
         )
     }
 
-    fn undo(&mut self, groups: BTreeSet<usize>) -> (RopeDelta, InvalLines) {
+    fn undo(
+        &mut self,
+        groups: BTreeSet<usize>,
+    ) -> (
+        RopeDelta,
+        InvalLines,
+        Option<CursorMode>,
+        Option<CursorMode>,
+    ) {
         let (new_rev, new_deletes_from_union) = self.compute_undo(&groups);
         let delta = Delta::synthesize(
             &self.tombstones,
@@ -568,6 +623,9 @@ impl Buffer {
         );
         self.undone_groups = groups;
 
+        let cursor_before = new_rev.cursor_before.clone();
+        let cursor_after = new_rev.cursor_after.clone();
+
         let inval_lines = self.apply_edit(
             &delta,
             new_rev,
@@ -576,26 +634,34 @@ impl Buffer {
             new_deletes_from_union,
         );
 
-        (delta, inval_lines)
+        (delta, inval_lines, cursor_before, cursor_after)
     }
 
-    pub fn do_undo(&mut self) -> Option<(RopeDelta, InvalLines)> {
+    pub fn do_undo(
+        &mut self,
+    ) -> Option<(RopeDelta, InvalLines, Option<CursorMode>)> {
         if self.cur_undo > 1 {
             self.cur_undo -= 1;
             self.undos.insert(self.live_undos[self.cur_undo]);
             self.last_edit_type = EditType::Undo;
-            Some(self.undo(self.undos.clone()))
+            let (delta, inval_lines, cursor_before, _cursor_after) =
+                self.undo(self.undos.clone());
+            Some((delta, inval_lines, cursor_before))
         } else {
             None
         }
     }
 
-    pub fn do_redo(&mut self) -> Option<(RopeDelta, InvalLines)> {
+    pub fn do_redo(
+        &mut self,
+    ) -> Option<(RopeDelta, InvalLines, Option<CursorMode>)> {
         if self.cur_undo < self.live_undos.len() {
             self.undos.remove(&self.live_undos[self.cur_undo]);
             self.cur_undo += 1;
             self.last_edit_type = EditType::Redo;
-            Some(self.undo(self.undos.clone()))
+            let (delta, inval_lines, _cursor_before, cursor_after) =
+                self.undo(self.undos.clone());
+            Some((delta, inval_lines, cursor_after))
         } else {
             None
         }

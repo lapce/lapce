@@ -136,9 +136,13 @@ impl Editor {
                 let (delta, inval_lines) =
                     buffer.edit(&edits, EditType::InsertChars);
 
+                buffer.set_cursor_before(CursorMode::Insert(selection.clone()));
+
                 // Update selection
                 let mut selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
+
+                buffer.set_cursor_after(CursorMode::Insert(selection.clone()));
 
                 deltas.push((delta, inval_lines));
                 // Apply late edits
@@ -158,9 +162,11 @@ impl Editor {
                     .map(|(selection, content)| (selection, content.as_str()))
                     .collect::<Vec<_>>();
 
-                let (delta, inval_lines) =
-                    buffer.edit(&edits_after, EditType::InsertChars);
-                deltas.push((delta, inval_lines));
+                if !edits_after.is_empty() {
+                    let (delta, inval_lines) =
+                        buffer.edit(&edits_after, EditType::InsertChars);
+                    deltas.push((delta, inval_lines));
+                }
 
                 // Adjust selection according to previous late edits
                 let mut adjustment = 0;
@@ -783,13 +789,21 @@ impl Editor {
                 vec![(delta, inval_lines)]
             }
             Undo => {
-                if let Some((delta, inval_lines)) = buffer.do_undo() {
-                    if let Some(new_cursor) =
-                        get_first_selection_after(cursor, buffer, &delta)
-                    {
-                        *cursor = new_cursor
+                if let Some((delta, inval_lines, cursor_mode)) = buffer.do_undo() {
+                    if let Some(cursor_mode) = cursor_mode {
+                        if modal {
+                            cursor.mode = CursorMode::Normal(cursor_mode.offset());
+                        } else {
+                            cursor.mode = cursor_mode;
+                        }
                     } else {
-                        cursor.apply_delta(&delta);
+                        if let Some(new_cursor) =
+                            get_first_selection_after(cursor, buffer, &delta)
+                        {
+                            *cursor = new_cursor
+                        } else {
+                            cursor.apply_delta(&delta);
+                        }
                     }
                     vec![(delta, inval_lines)]
                 } else {
@@ -797,13 +811,21 @@ impl Editor {
                 }
             }
             Redo => {
-                if let Some((delta, inval_lines)) = buffer.do_redo() {
-                    if let Some(new_cursor) =
-                        get_first_selection_after(cursor, buffer, &delta)
-                    {
-                        *cursor = new_cursor
+                if let Some((delta, inval_lines, cursor_mode)) = buffer.do_redo() {
+                    if let Some(cursor_mode) = cursor_mode {
+                        if modal {
+                            cursor.mode = CursorMode::Normal(cursor_mode.offset());
+                        } else {
+                            cursor.mode = cursor_mode;
+                        }
                     } else {
-                        cursor.apply_delta(&delta);
+                        if let Some(new_cursor) =
+                            get_first_selection_after(cursor, buffer, &delta)
+                        {
+                            *cursor = new_cursor
+                        } else {
+                            cursor.apply_delta(&delta);
+                        }
                     }
                     vec![(delta, inval_lines)]
                 } else {

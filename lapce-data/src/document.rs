@@ -626,8 +626,11 @@ impl Document {
         cursor: &mut Cursor,
         s: &str,
     ) -> Vec<(RopeDelta, InvalLines)> {
+        let old_cursor = cursor.mode.clone();
         let deltas =
             Editor::insert(cursor, &mut self.buffer, s, self.syntax.as_ref());
+        self.buffer_mut().set_cursor_before(old_cursor);
+        self.buffer_mut().set_cursor_after(cursor.mode.clone());
         self.apply_deltas(&deltas);
         deltas
     }
@@ -644,14 +647,15 @@ impl Document {
 
     pub fn do_edit(
         &mut self,
-        curosr: &mut Cursor,
+        cursor: &mut Cursor,
         cmd: &EditCommand,
         modal: bool,
         register: &mut Register,
     ) -> Vec<(RopeDelta, InvalLines)> {
         let mut clipboard = SystemClipboard {};
+        let old_cursor = cursor.mode.clone();
         let deltas = Editor::do_edit(
-            curosr,
+            cursor,
             &mut self.buffer,
             cmd,
             self.syntax.as_ref(),
@@ -659,6 +663,8 @@ impl Document {
             modal,
             register,
         );
+        self.buffer_mut().set_cursor_before(old_cursor);
+        self.buffer_mut().set_cursor_after(cursor.mode.clone());
         self.apply_deltas(&deltas);
         deltas
     }
