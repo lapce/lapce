@@ -196,13 +196,13 @@ impl LapceEditorView {
                 if data.doc.rev() != *rev {
                     return;
                 }
-                if data.editor.new_cursor.offset() != *offset {
+                if data.editor.cursor.offset() != *offset {
                     return;
                 }
-                let offset = data.editor.new_cursor.offset();
+                let offset = data.editor.cursor.offset();
                 let line = data.doc.buffer().line_of_offset(offset);
                 let _ = data.apply_completion_item(item);
-                let new_offset = data.editor.new_cursor.offset();
+                let new_offset = data.editor.cursor.offset();
                 let new_line = data.doc.buffer().line_of_offset(new_offset);
                 if line != new_line {
                     self.editor
@@ -425,7 +425,7 @@ impl LapceEditorView {
     }
 
     fn cursor_region(data: &LapceEditorBufferData, text: &mut PietText) -> Rect {
-        let offset = data.editor.new_cursor.offset();
+        let offset = data.editor.cursor.offset();
         let (line, col) = data.doc.buffer().offset_to_line_col(offset);
         let width = data.config.editor_char_width(text);
         let cursor_x = data
@@ -744,8 +744,8 @@ impl Widget<LapceTabData> for LapceEditorView {
             let reset = if old_data.focus != self.view_id {
                 true
             } else {
-                let offset = editor_data.editor.new_cursor.offset();
-                let old_offset = old_editor_data.editor.new_cursor.offset();
+                let offset = editor_data.editor.cursor.offset();
+                let old_offset = old_editor_data.editor.cursor.offset();
                 let (line, col) =
                     editor_data.doc.buffer().offset_to_line_col(offset);
                 let (old_line, old_col) =
@@ -841,7 +841,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         {
             ctx.request_paint();
         }
-        if editor_data.editor.new_cursor != old_editor_data.editor.new_cursor {
+        if editor_data.editor.cursor != old_editor_data.editor.cursor {
             ctx.request_paint();
         }
 

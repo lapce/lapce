@@ -749,12 +749,12 @@ impl LapceTabData {
             BufferContent::SettingsValue(..) => Size::ZERO,
             BufferContent::File(path) => {
                 let doc = self.main_split.open_docs.get(path).unwrap();
-                let offset = editor.new_cursor.offset();
+                let offset = editor.cursor.offset();
                 doc.code_action_size(text, offset, &self.config)
             }
             BufferContent::Scratch(id, _) => {
                 let doc = self.main_split.scratch_docs.get(id).unwrap();
-                let offset = editor.new_cursor.offset();
+                let offset = editor.cursor.offset();
                 doc.code_action_size(text, offset, &self.config)
             }
         }
@@ -1288,7 +1288,7 @@ impl LapceTabData {
                     .editors
                     .get_mut(&self.source_control.editor_view_id)
                     .unwrap();
-                Arc::make_mut(editor).new_cursor = if self.config.lapce.modal {
+                Arc::make_mut(editor).cursor = if self.config.lapce.modal {
                     Cursor::new(CursorMode::Normal(0), None, None)
                 } else {
                     Cursor::new(
@@ -1546,7 +1546,7 @@ impl LapceTabData {
                 .get_mut(&self.picker.editor_view_id)
                 .unwrap();
             let editor = Arc::make_mut(editor);
-            editor.new_cursor = if self.config.lapce.modal {
+            editor.cursor = if self.config.lapce.modal {
                 Cursor::new(
                     CursorMode::Normal(doc.buffer().line_end_offset(0, false)),
                     None,
@@ -1913,7 +1913,7 @@ impl LapceMainSplitData {
         for (_view_id, editor) in self.editors.iter_mut() {
             if let BufferContent::File(current_path) = &editor.content {
                 if current_path == path {
-                    Arc::make_mut(editor).new_cursor.apply_delta(delta);
+                    Arc::make_mut(editor).cursor.apply_delta(delta);
                 }
             }
         }
@@ -2338,7 +2338,7 @@ impl LapceMainSplitData {
 
         let editor = self.get_editor_or_new(ctx, None, None, true, config);
         editor.content = content;
-        editor.new_cursor = if config.lapce.modal {
+        editor.cursor = if config.lapce.modal {
             Cursor::new(CursorMode::Normal(0), None, None)
         } else {
             Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
@@ -2430,7 +2430,7 @@ impl LapceMainSplitData {
             }
             editor.content = BufferContent::File(path.clone());
             editor.compare = location.history.clone();
-            editor.new_cursor = if config.lapce.modal {
+            editor.cursor = if config.lapce.modal {
                 Cursor::new(CursorMode::Normal(offset), None, None)
             } else {
                 Cursor::new(CursorMode::Insert(Selection::caret(offset)), None, None)
@@ -3210,7 +3210,7 @@ pub struct LapceEditorData {
     pub compare: Option<String>,
     pub code_lens: bool,
     pub scroll_offset: Vec2,
-    pub new_cursor: Cursor,
+    pub cursor: Cursor,
     pub last_cursor_instant: Rc<RefCell<Instant>>,
     pub size: Rc<RefCell<Size>>,
     pub window_origin: Rc<RefCell<Point>>,
@@ -3243,7 +3243,7 @@ impl LapceEditorData {
                 Some((WidgetId::next(), WidgetId::next()))
             },
             scroll_offset: Vec2::ZERO,
-            new_cursor: if content.is_input() {
+            cursor: if content.is_input() {
                 Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
             } else if config.lapce.modal {
                 Cursor::new(CursorMode::Normal(0), None, None)
@@ -3292,7 +3292,7 @@ impl LapceEditorData {
         let placeholders = self.snippet.as_mut().unwrap();
 
         let mut current = 0;
-        let offset = self.new_cursor.offset();
+        let offset = self.cursor.offset();
         for (i, (_, (start, end))) in placeholders.iter().enumerate() {
             if *start <= offset && offset <= *end {
                 current = i;
@@ -3310,7 +3310,7 @@ impl LapceEditorData {
             let location = EditorLocationNew {
                 path: path.clone(),
                 position: Some(
-                    doc.buffer().offset_to_position(self.new_cursor.offset()),
+                    doc.buffer().offset_to_position(self.cursor.offset()),
                 ),
                 scroll_offset: Some(self.scroll_offset),
                 history: None,
@@ -3333,7 +3333,7 @@ impl LapceEditorData {
             scroll_offset: (self.scroll_offset.x, self.scroll_offset.y),
             position: if let BufferContent::File(path) = &self.content {
                 let doc = data.main_split.open_docs.get(path).unwrap().clone();
-                Some(doc.buffer().offset_to_position(self.new_cursor.offset()))
+                Some(doc.buffer().offset_to_position(self.cursor.offset()))
             } else {
                 None
             },

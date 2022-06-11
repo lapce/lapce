@@ -50,7 +50,7 @@ impl Widget<LapceTabData> for LapceEditorGutter {
                             && rect.contains(mouse_event.pos)
                         {
                             let line_height = data.config.editor.line_height as f64;
-                            let offset = data.editor.new_cursor.offset();
+                            let offset = data.editor.cursor.offset();
                             let (line, _) =
                                 data.doc.buffer().offset_to_line_col(offset);
                             ctx.submit_command(Command::new(
@@ -161,7 +161,7 @@ impl LapceEditorGutter {
         let current_line = data
             .doc
             .buffer()
-            .line_of_offset(data.editor.new_cursor.offset());
+            .line_of_offset(data.editor.cursor.offset());
         let last_line = data.doc.buffer().last_line();
         let width = data.config.editor_char_width(ctx.text());
 
@@ -406,7 +406,7 @@ impl LapceEditorGutter {
         };
 
         let cursor_line = data.doc.buffer().line_of_offset(
-            data.editor.new_cursor.offset().min(data.doc.buffer().len()),
+            data.editor.cursor.offset().min(data.doc.buffer().len()),
         );
         let last_line = data.doc.buffer().line_of_offset(data.doc.buffer().len());
         let start_line = lens
@@ -424,7 +424,7 @@ impl LapceEditorGutter {
         let mut y = lens.height_of_line(start_line) as f64;
         for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {
             let content = if *data.main_split.active != Some(self.view_id)
-                || data.editor.new_cursor.is_insert()
+                || data.editor.cursor.is_insert()
                 || line == cursor_line
             {
                 line + 1
@@ -479,7 +479,7 @@ impl LapceEditorGutter {
         data: &LapceEditorBufferData,
     ) -> Rect {
         let line_height = data.config.editor.line_height as f64;
-        let offset = data.editor.new_cursor.offset();
+        let offset = data.editor.cursor.offset();
         let (line, _) = data.doc.buffer().offset_to_line_col(offset);
 
         let width = 16.0;
@@ -532,7 +532,7 @@ impl LapceEditorGutter {
             let current_line = data
                 .doc
                 .buffer()
-                .line_of_offset(data.editor.new_cursor.offset());
+                .line_of_offset(data.editor.cursor.offset());
             let char_width = data.config.editor_char_width(ctx.text());
 
             let line_label_length =
@@ -541,7 +541,7 @@ impl LapceEditorGutter {
 
             let sequential_line_numbers = *data.main_split.active
                 != Some(data.view_id)
-                || data.editor.new_cursor.is_insert();
+                || data.editor.cursor.is_insert();
 
             let font_family = data.config.editor.font_family();
 

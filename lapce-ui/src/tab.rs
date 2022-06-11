@@ -428,7 +428,7 @@ impl LapceTabNew {
                             .get_mut(&data.palette.input_editor)
                             .unwrap();
                         let offset = doc.buffer().line_end_offset(0, true);
-                        Arc::make_mut(editor).new_cursor.mode =
+                        Arc::make_mut(editor).cursor.mode =
                             lapce_core::cursor::CursorMode::Insert(
                                 lapce_core::selection::Selection::caret(offset),
                             );
@@ -868,7 +868,7 @@ impl LapceTabNew {
                     ) => {
                         if let Some(editor) = data.main_split.active_editor() {
                             if *editor_view_id == editor.view_id
-                                && *offset == editor.new_cursor.offset()
+                                && *offset == editor.cursor.offset()
                             {
                                 data.main_split.jump_to_location(
                                     ctx,
@@ -887,7 +887,7 @@ impl LapceTabNew {
                     ) => {
                         if let Some(editor) = data.main_split.active_editor() {
                             if *editor_view_id == editor.view_id
-                                && *offset == editor.new_cursor.offset()
+                                && *offset == editor.cursor.offset()
                             {
                                 data.main_split.jump_to_location(
                                     ctx,
@@ -910,7 +910,7 @@ impl LapceTabNew {
                     }
                     LapceUICommand::PaletteReferences(offset, locations) => {
                         if let Some(editor) = data.main_split.active_editor() {
-                            if *offset == editor.new_cursor.offset() {
+                            if *offset == editor.cursor.offset() {
                                 let locations = locations
                                     .iter()
                                     .map(|l| EditorLocationNew {
@@ -958,12 +958,11 @@ impl LapceTabNew {
 
                             for (_, editor) in data.main_split.editors.iter_mut() {
                                 if &editor.content == doc.content()
-                                    && editor.new_cursor.offset()
-                                        >= doc.buffer().len()
+                                    && editor.cursor.offset() >= doc.buffer().len()
                                 {
                                     let editor = Arc::make_mut(editor);
                                     if data.config.lapce.modal {
-                                        editor.new_cursor = Cursor::new(
+                                        editor.cursor = Cursor::new(
                                             CursorMode::Normal(
                                                 doc.buffer().offset_line_end(
                                                     doc.buffer().len(),
@@ -974,7 +973,7 @@ impl LapceTabNew {
                                             None,
                                         );
                                     } else {
-                                        editor.new_cursor = Cursor::new(
+                                        editor.cursor = Cursor::new(
                                             CursorMode::Insert(Selection::caret(
                                                 doc.buffer().offset_line_end(
                                                     doc.buffer().len(),
