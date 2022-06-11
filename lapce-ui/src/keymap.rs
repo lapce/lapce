@@ -18,7 +18,7 @@ use lapce_data::{
 };
 
 use crate::{
-    editor::view::LapceEditorView, scroll::LapceScrollNew, split::LapceSplitNew,
+    editor::view::LapceEditorView, scroll::LapceScroll, split::LapceSplitNew,
 };
 
 pub struct LapceKeymap {
@@ -38,7 +38,7 @@ impl LapceKeymap {
             keymap_confirm: Rect::ZERO,
             keymap_cancel: Rect::ZERO,
         };
-        let keymap = LapceScrollNew::new(keymap);
+        let keymap = LapceScroll::new(keymap);
 
         let input = LapceEditorView::new(
             data.settings.keymap_view_id,

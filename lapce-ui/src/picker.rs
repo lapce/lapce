@@ -18,7 +18,7 @@ use lapce_rpc::file::FileNodeItem;
 use crate::{
     editor::view::LapceEditorView,
     explorer::{get_item_children, get_item_children_mut},
-    scroll::LapceScrollNew,
+    scroll::LapceScroll,
     svg::{file_svg_new, get_svg},
     tab::LapceButton,
 };
@@ -33,7 +33,7 @@ pub struct FilePicker {
 impl FilePicker {
     pub fn new(data: &LapceTabData) -> Self {
         let pwd = FilePickerPwd::new(data);
-        let explorer = LapceScrollNew::new(FilePickerExplorer::new());
+        let explorer = LapceScroll::new(FilePickerExplorer::new());
         let control = FilePickerControl::new();
         Self {
             widget_id: data.picker.widget_id,

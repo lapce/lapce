@@ -15,7 +15,7 @@ use lapce_data::{
 use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind},
-    scroll::LapceScrollNew,
+    scroll::LapceScroll,
     split::LapceSplitNew,
     svg::file_svg_new,
 };
@@ -34,7 +34,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
         .horizontal()
         .with_child(input.boxed(), None, 100.0)
         .with_flex_child(
-            LapceScrollNew::new(SearchContent::new().boxed())
+            LapceScroll::new(SearchContent::new().boxed())
                 .vertical()
                 .boxed(),
             None,

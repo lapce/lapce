@@ -17,7 +17,7 @@ use lapce_data::{
 use serde_json::json;
 
 use crate::{
-    scroll::LapceScrollNew, split::LapceSplitNew, svg::get_svg, tab::LapceIcon,
+    scroll::LapceScroll, split::LapceSplitNew, svg::get_svg, tab::LapceIcon,
 };
 
 pub struct LapcePanel {
@@ -179,7 +179,7 @@ struct PanelSection {
     header: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     content: WidgetPod<
         LapceTabData,
-        LapceScrollNew<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+        LapceScroll<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     >,
 }
 
@@ -189,7 +189,7 @@ impl PanelSection {
         header: Option<Box<dyn Widget<LapceTabData>>>,
         content: Box<dyn Widget<LapceTabData>>,
     ) -> Self {
-        let content = LapceScrollNew::new(content).vertical();
+        let content = LapceScroll::new(content).vertical();
         Self {
             header: header.map(WidgetPod::new),
             content: WidgetPod::new(content),

@@ -19,7 +19,7 @@ use lapce_rpc::file::FileNodeItem;
 
 use crate::{
     panel::{LapcePanel, PanelHeaderKind},
-    scroll::LapceScrollNew,
+    scroll::LapceScroll,
     svg::{file_svg_new, get_svg},
 };
 
@@ -209,7 +209,7 @@ pub struct FileExplorer {
 
 impl FileExplorer {
     pub fn new(data: &FileExplorerData) -> Self {
-        let file_list = LapceScrollNew::new(FileExplorerFileList::new());
+        let file_list = LapceScroll::new(FileExplorerFileList::new());
         Self {
             widget_id: data.widget_id,
             file_list: WidgetPod::new(file_list.boxed()),

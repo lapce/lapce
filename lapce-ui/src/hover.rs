@@ -13,21 +13,21 @@ use lapce_data::{
     rich_text::RichText,
 };
 
-use crate::scroll::{LapceIdentityWrapper, LapceScrollNew};
+use crate::scroll::{LapceIdentityWrapper, LapceScroll};
 
 pub struct HoverContainer {
     id: WidgetId,
     scroll_id: WidgetId,
     hover: WidgetPod<
         LapceTabData,
-        LapceIdentityWrapper<LapceScrollNew<LapceTabData, Hover>>,
+        LapceIdentityWrapper<LapceScroll<LapceTabData, Hover>>,
     >,
     content_size: Size,
 }
 impl HoverContainer {
     pub fn new(data: &HoverData) -> Self {
         let hover = LapceIdentityWrapper::wrap(
-            LapceScrollNew::new(Hover::new()).vertical(),
+            LapceScroll::new(Hover::new()).vertical(),
             data.scroll_id,
         );
         Self {

@@ -46,14 +46,14 @@ enum BarHeldState {
 }
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
-struct ViewportNew {
+struct Viewport {
     /// The size of the area that we have a viewport into.
     pub content_size: Size,
     /// The view rectangle.
     pub rect: Rect,
 }
 
-impl ViewportNew {
+impl Viewport {
     /// Tries to find a position for the view rectangle that is contained in the content rectangle.
     ///
     /// If the supplied origin is good, returns it; if it isn't, we try to return the nearest
@@ -145,14 +145,14 @@ impl ViewportNew {
     }
 }
 
-struct ClipBoxNew<T, W> {
+struct ClipBox<T, W> {
     child: WidgetPod<T, W>,
-    port: ViewportNew,
+    port: Viewport,
     constrain_horizontal: bool,
     constrain_vertical: bool,
 }
 
-impl<T, W: Widget<T>> ClipBoxNew<T, W> {
+impl<T, W: Widget<T>> ClipBox<T, W> {
     /// Creates a new `ClipBox` wrapping `child`.
     pub fn new(child: W) -> Self {
         Self {
@@ -174,7 +174,7 @@ impl<T, W: Widget<T>> ClipBoxNew<T, W> {
     }
 
     /// Returns a the viewport describing this `ClipBox`'s position.
-    pub fn viewport(&self) -> ViewportNew {
+    pub fn viewport(&self) -> Viewport {
         self.port
     }
 
@@ -291,14 +291,14 @@ impl<T, W: Widget<T>> ClipBoxNew<T, W> {
     /// Allows this `ClipBox`'s viewport rectangle to be modified. The provided callback function
     /// can modify its argument, and when it is done then this `ClipBox` will be modified to have
     /// the new viewport rectangle.
-    pub fn with_port<F: FnOnce(&mut ViewportNew)>(&mut self, f: F) {
+    pub fn with_port<F: FnOnce(&mut Viewport)>(&mut self, f: F) {
         f(&mut self.port);
         self.child
             .set_viewport_offset(self.viewport_origin().to_vec2());
     }
 }
 
-impl<T: Data, W: Widget<T>> Widget<T> for ClipBoxNew<T, W> {
+impl<T: Data, W: Widget<T>> Widget<T> for ClipBox<T, W> {
     fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut T, env: &Env) {
         let viewport = ctx.size().to_rect();
         let force_event = self.child.is_hot() || self.child.has_active();
@@ -359,7 +359,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for ClipBoxNew<T, W> {
 }
 
 #[derive(Debug, Copy, Clone)]
-struct ScrollComponentNew {
+struct ScrollComponent {
     /// Current opacity for both scrollbars
     pub opacity: f64,
     /// ID for the timer which schedules scrollbar fade out
@@ -371,7 +371,7 @@ struct ScrollComponentNew {
     pub fade_start: Option<Instant>,
 }
 
-impl Default for ScrollComponentNew {
+impl Default for ScrollComponent {
     fn default() -> Self {
         Self {
             opacity: 0.0,
@@ -383,9 +383,9 @@ impl Default for ScrollComponentNew {
     }
 }
 
-impl ScrollComponentNew {
+impl ScrollComponent {
     /// Constructs a new [`ScrollComponent`](struct.ScrollComponent.html) for use.
-    pub fn new() -> ScrollComponentNew {
+    pub fn new() -> ScrollComponent {
         Default::default()
     }
 
@@ -410,7 +410,7 @@ impl ScrollComponentNew {
     /// not visible.
     pub fn calc_vertical_bar_bounds(
         &self,
-        port: &ViewportNew,
+        port: &Viewport,
         config: &Config,
         env: &Env,
     ) -> Option<Rect> {
@@ -449,7 +449,7 @@ impl ScrollComponentNew {
     /// scrollbar is not visible.
     pub fn calc_horizontal_bar_bounds(
         &self,
-        port: &ViewportNew,
+        port: &Viewport,
         config: &Config,
         env: &Env,
     ) -> Option<Rect> {
@@ -499,7 +499,7 @@ impl ScrollComponentNew {
     pub fn draw_bars(
         &self,
         ctx: &mut PaintCtx,
-        port: &ViewportNew,
+        port: &Viewport,
         env: &Env,
         config: &Config,
     ) {
@@ -544,7 +544,7 @@ impl ScrollComponentNew {
     /// Returns false if the vertical scrollbar is not visible
     pub fn point_hits_vertical_bar(
         &self,
-        port: &ViewportNew,
+        port: &Viewport,
         pos: Point,
         config: &Config,
         env: &Env,
@@ -566,7 +566,7 @@ impl ScrollComponentNew {
     /// Returns false if the horizontal scrollbar is not visible
     pub fn point_hits_horizontal_bar(
         &self,
-        port: &ViewportNew,
+        port: &Viewport,
         pos: Point,
         config: &Config,
         env: &Env,
@@ -589,7 +589,7 @@ impl ScrollComponentNew {
     /// Make sure to call on every event
     pub fn event(
         &mut self,
-        port: &mut ViewportNew,
+        port: &mut Viewport,
         ctx: &mut EventCtx,
         event: &Event,
         config: &Config,
@@ -736,7 +736,7 @@ impl ScrollComponentNew {
     /// Applies mousewheel scrolling if the event has not already been handled
     pub fn handle_scroll(
         &mut self,
-        port: &mut ViewportNew,
+        port: &mut Viewport,
         ctx: &mut EventCtx,
         event: &Event,
         env: &Env,
@@ -774,21 +774,21 @@ impl ScrollComponentNew {
     }
 }
 
-pub struct LapceScrollNew<T, W> {
-    clip: ClipBoxNew<T, W>,
-    scroll_component: ScrollComponentNew,
+pub struct LapceScroll<T, W> {
+    clip: ClipBox<T, W>,
+    scroll_component: ScrollComponent,
 }
 
-impl<T, W: Widget<T>> LapceScrollNew<T, W> {
+impl<T, W: Widget<T>> LapceScroll<T, W> {
     /// Create a new scroll container.
     ///
     /// This method will allow scrolling in all directions if child's bounds
     /// are larger than the viewport. Use [vertical](#method.vertical) and
     /// [horizontal](#method.horizontal) methods to limit scrolling to a specific axis.
-    pub fn new(child: W) -> LapceScrollNew<T, W> {
+    pub fn new(child: W) -> LapceScroll<T, W> {
         Self {
-            clip: ClipBoxNew::new(child),
-            scroll_component: ScrollComponentNew::new(),
+            clip: ClipBox::new(child),
+            scroll_component: ScrollComponent::new(),
         }
     }
 
@@ -868,7 +868,7 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
     }
 }
 
-impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
+impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
         let scroll_component = &mut self.scroll_component;
         self.clip.with_port(|port| {

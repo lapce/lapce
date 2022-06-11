@@ -32,7 +32,7 @@ use xi_rope::Rope;
 use crate::{
     editor::view::LapceEditorView,
     keymap::LapceKeymap,
-    scroll::{LapcePadding, LapceScrollNew},
+    scroll::{LapcePadding, LapceScroll},
     split::LapceSplitNew,
 };
 
@@ -334,7 +334,7 @@ struct LapceSettings {
 
 impl LapceSettings {
     pub fn new_split(kind: LapceSettingsKind, data: &LapceTabData) -> LapceSplitNew {
-        let settings = LapceScrollNew::new(
+        let settings = LapceScroll::new(
             Self {
                 widget_id: WidgetId::next(),
                 kind,
@@ -1017,7 +1017,7 @@ pub struct ThemeSettings {
 
 impl ThemeSettings {
     fn new() -> Box<dyn Widget<LapceTabData>> {
-        LapceScrollNew::new(
+        LapceScroll::new(
             LapceSplitNew::new(WidgetId::next())
                 .horizontal()
                 .hide_border()

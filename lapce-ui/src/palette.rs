@@ -25,7 +25,7 @@ use lapce_data::{
 
 use crate::{
     editor::view::LapceEditorView,
-    scroll::{LapceIdentityWrapper, LapceScrollNew},
+    scroll::{LapceIdentityWrapper, LapceScroll},
     svg::{file_svg_new, symbol_svg_new},
 };
 
@@ -226,7 +226,7 @@ struct PaletteContainer {
     content: WidgetPod<
         LapceTabData,
         LapceIdentityWrapper<
-            LapceScrollNew<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+            LapceScroll<LapceTabData, Box<dyn Widget<LapceTabData>>>,
         >,
     >,
     preview: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
@@ -245,10 +245,8 @@ impl PaletteContainer {
                 .hide_gutter()
                 .padding(10.0);
         let content = LapceIdentityWrapper::wrap(
-            LapceScrollNew::new(
-                NewPaletteContent::new().lens(PaletteViewLens).boxed(),
-            )
-            .vertical(),
+            LapceScroll::new(NewPaletteContent::new().lens(PaletteViewLens).boxed())
+                .vertical(),
             data.palette.scroll_id,
         );
         let preview =
