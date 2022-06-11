@@ -1,6 +1,6 @@
 [package]
 name = "lapce-rpc"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
