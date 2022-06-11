@@ -16,7 +16,7 @@ use lapce_data::{
 };
 
 use crate::{
-    svg::{file_svg_new, get_svg},
+    svg::{file_svg, get_svg},
     tab::LapceIcon,
 };
 
@@ -148,7 +148,7 @@ impl LapceEditorHeader {
 
             ctx.with_save(|ctx| {
                 ctx.clip(clip_rect);
-                let svg = file_svg_new(&path);
+                let svg = file_svg(&path);
 
                 let font_size = data.config.ui.font_size() as f64;
 

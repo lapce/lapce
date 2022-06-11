@@ -21,7 +21,7 @@ use lapce_data::{
 use crate::{
     editor::tab_header_content::LapceEditorTabHeaderContent,
     scroll::LapceScroll,
-    svg::{file_svg_new, get_svg},
+    svg::{file_svg, get_svg},
     tab::LapceIcon,
 };
 
@@ -97,7 +97,7 @@ impl LapceEditorTabHeader {
                 let editor_buffer = data.editor_view_content(*view_id);
 
                 if let BufferContent::File(path) = &editor_buffer.editor.content {
-                    svg = file_svg_new(path);
+                    svg = file_svg(path);
                     if let Some(file_name) = path.file_name() {
                         if let Some(s) = file_name.to_str() {
                             text = s.to_string();

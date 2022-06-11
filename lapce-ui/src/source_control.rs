@@ -17,7 +17,7 @@ use lapce_rpc::source_control::FileDiff;
 use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind},
-    svg::{file_svg_new, get_svg},
+    svg::{file_svg, get_svg},
 };
 
 pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
@@ -256,7 +256,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     ctx.stroke(path, &Color::rgb8(0, 0, 0), 2.0);
                 }
             }
-            let svg = file_svg_new(&path);
+            let svg = file_svg(&path);
             let width = 13.0;
             let height = 13.0;
             let rect = Size::new(width, height).to_rect().with_origin(Point::new(

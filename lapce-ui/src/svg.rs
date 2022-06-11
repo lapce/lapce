@@ -48,7 +48,7 @@ pub fn get_svg(name: &'static str) -> Option<Svg> {
     SVG_STORE.get_svg(name)
 }
 
-pub fn file_svg_new(path: &Path) -> Svg {
+pub fn file_svg(path: &Path) -> Svg {
     let file_type = if path.file_name().and_then(OsStr::to_str) == Some("LICENSE") {
         "file_type_license.svg"
     } else {
@@ -82,7 +82,7 @@ pub fn file_svg_new(path: &Path) -> Svg {
     get_svg(file_type).unwrap()
 }
 
-pub fn symbol_svg_new(kind: &SymbolKind) -> Option<Svg> {
+pub fn symbol_svg(kind: &SymbolKind) -> Option<Svg> {
     let kind_str = match kind {
         SymbolKind::Array => "symbol-array.svg",
         SymbolKind::Boolean => "symbol-boolean.svg",

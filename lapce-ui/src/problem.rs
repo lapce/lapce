@@ -20,7 +20,7 @@ use lsp_types::DiagnosticSeverity;
 
 use crate::{
     panel::{LapcePanel, PanelHeaderKind},
-    svg::{file_svg_new, get_svg},
+    svg::{file_svg, get_svg},
 };
 
 pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
@@ -270,7 +270,7 @@ impl Widget<LapceTabData> for ProblemContent {
             }
 
             let padding = (line_height - 14.0) / 2.0;
-            let svg = file_svg_new(path);
+            let svg = file_svg(path);
             let rect = Size::new(line_height, line_height)
                 .to_rect()
                 .with_origin(Point::new(0.0, line_height * i as f64))

@@ -17,7 +17,7 @@ use crate::{
     panel::{LapcePanel, PanelHeaderKind},
     scroll::LapceScroll,
     split::LapceSplit,
-    svg::file_svg_new,
+    svg::file_svg,
 };
 
 pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
@@ -202,7 +202,7 @@ impl Widget<LapceTabData> for SearchContent {
                 continue;
             }
 
-            let svg = file_svg_new(path);
+            let svg = file_svg(path);
             let rect = Size::new(self.line_height, self.line_height)
                 .to_rect()
                 .with_origin(Point::new(0.0, self.line_height * i as f64))

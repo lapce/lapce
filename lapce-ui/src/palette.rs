@@ -26,7 +26,7 @@ use lapce_data::{
 use crate::{
     editor::view::LapceEditorView,
     scroll::{LapceIdentityWrapper, LapceScroll},
-    svg::{file_svg_new, symbol_svg_new},
+    svg::{file_svg, symbol_svg},
 };
 
 pub struct NewPalette {
@@ -587,7 +587,7 @@ impl NewPaletteContent {
                             }
                         })
                         .collect();
-                    (symbol_svg_new(kind), text, text_indices, hint, hint_indices)
+                    (symbol_svg(kind), text, text_indices, hint, hint_indices)
                 }
                 PaletteItemContent::Line(_, text) => {
                     (None, text.clone(), indices.to_vec(), "".to_string(), vec![])
@@ -722,7 +722,7 @@ impl NewPaletteContent {
         path: &Path,
         indices: &[usize],
     ) -> (Option<Svg>, String, Vec<usize>, String, Vec<usize>) {
-        let svg = file_svg_new(path);
+        let svg = file_svg(path);
         let file_name = path
             .file_name()
             .and_then(|s| s.to_str())
