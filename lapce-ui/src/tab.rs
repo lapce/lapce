@@ -58,7 +58,7 @@ pub struct LapceButton {
     pub text_layout: PietTextLayout,
 }
 
-pub struct LapceTabNew {
+pub struct LapceTab {
     id: WidgetId,
     activity: WidgetPod<LapceTabData, ActivityBar>,
     main_split: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
@@ -78,7 +78,7 @@ pub struct LapceTabNew {
     mouse_pos: Point,
 }
 
-impl LapceTabNew {
+impl LapceTab {
     pub fn new(data: &LapceTabData) -> Self {
         let split_data = data
             .main_split
@@ -1136,7 +1136,7 @@ impl LapceTabNew {
     }
 }
 
-impl Widget<LapceTabData> for LapceTabNew {
+impl Widget<LapceTabData> for LapceTab {
     fn id(&self) -> Option<WidgetId> {
         Some(self.id)
     }
