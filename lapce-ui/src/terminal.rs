@@ -25,7 +25,7 @@ use unicode_width::UnicodeWidthChar;
 use crate::{
     panel::{LapcePanel, PanelHeaderKind},
     scroll::LapcePadding,
-    split::LapceSplitNew,
+    split::LapceSplit,
     svg::get_svg,
     tab::LapceIcon,
 };
@@ -36,12 +36,12 @@ pub type TermConfig = alacritty_terminal::config::Config;
 /// where the shell is presented.
 pub struct TerminalPanel {
     widget_id: WidgetId,
-    split: WidgetPod<LapceTabData, LapceSplitNew>,
+    split: WidgetPod<LapceTabData, LapceSplit>,
 }
 
 impl TerminalPanel {
     pub fn new(data: &LapceTabData) -> Self {
-        let split = LapceSplitNew::new(data.terminal.split_id);
+        let split = LapceSplit::new(data.terminal.split_id);
         Self {
             widget_id: data.terminal.widget_id,
             split: WidgetPod::new(split),

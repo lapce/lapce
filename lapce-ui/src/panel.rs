@@ -16,13 +16,11 @@ use lapce_data::{
 };
 use serde_json::json;
 
-use crate::{
-    scroll::LapceScroll, split::LapceSplitNew, svg::get_svg, tab::LapceIcon,
-};
+use crate::{scroll::LapceScroll, split::LapceSplit, svg::get_svg, tab::LapceIcon};
 
 pub struct LapcePanel {
     header: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
-    split: WidgetPod<LapceTabData, LapceSplitNew>,
+    split: WidgetPod<LapceTabData, LapceSplit>,
 }
 
 impl Widget<LapceTabData> for LapcePanel {
@@ -103,7 +101,7 @@ impl LapcePanel {
             Option<f64>,
         )>,
     ) -> Self {
-        let mut split = LapceSplitNew::new(split_id).direction(split_direction);
+        let mut split = LapceSplit::new(split_id).direction(split_direction);
         match split_direction {
             SplitDirection::Vertical => {}
             SplitDirection::Horizontal => split = split.hide_border(),

@@ -16,7 +16,7 @@ use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind},
     scroll::LapceScroll,
-    split::LapceSplitNew,
+    split::LapceSplit,
     svg::file_svg_new,
 };
 
@@ -30,7 +30,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
         .hide_header()
         .hide_gutter()
         .padding((15.0, 15.0));
-    let split = LapceSplitNew::new(data.search.split_id)
+    let split = LapceSplit::new(data.search.split_id)
         .horizontal()
         .with_child(input.boxed(), None, 100.0)
         .with_flex_child(

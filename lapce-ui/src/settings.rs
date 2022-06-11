@@ -33,7 +33,7 @@ use crate::{
     editor::view::LapceEditorView,
     keymap::LapceKeymap,
     scroll::{LapcePadding, LapceScroll},
-    split::LapceSplitNew,
+    split::LapceSplit,
 };
 
 enum LapceSettingsKind {
@@ -333,7 +333,7 @@ struct LapceSettings {
 }
 
 impl LapceSettings {
-    pub fn new_split(kind: LapceSettingsKind, data: &LapceTabData) -> LapceSplitNew {
+    pub fn new_split(kind: LapceSettingsKind, data: &LapceTabData) -> LapceSplit {
         let settings = LapceScroll::new(
             Self {
                 widget_id: WidgetId::next(),
@@ -352,7 +352,7 @@ impl LapceSettings {
         .hide_gutter()
         .padding((15.0, 15.0, 0.0, 15.0));
 
-        let split = LapceSplitNew::new(data.settings.settings_split_id)
+        let split = LapceSplit::new(data.settings.settings_split_id)
             .horizontal()
             //.with_child(input.boxed(), None, 55.0)
             .with_flex_child(settings.boxed(), None, 1.0);
@@ -1018,7 +1018,7 @@ pub struct ThemeSettings {
 impl ThemeSettings {
     fn new() -> Box<dyn Widget<LapceTabData>> {
         LapceScroll::new(
-            LapceSplitNew::new(WidgetId::next())
+            LapceSplit::new(WidgetId::next())
                 .horizontal()
                 .hide_border()
                 .with_child(

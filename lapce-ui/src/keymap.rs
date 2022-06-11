@@ -17,9 +17,7 @@ use lapce_data::{
     },
 };
 
-use crate::{
-    editor::view::LapceEditorView, scroll::LapceScroll, split::LapceSplitNew,
-};
+use crate::{editor::view::LapceEditorView, scroll::LapceScroll, split::LapceSplit};
 
 pub struct LapceKeymap {
     widget_id: WidgetId,
@@ -30,7 +28,7 @@ pub struct LapceKeymap {
 }
 
 impl LapceKeymap {
-    pub fn new_split(data: &LapceTabData) -> LapceSplitNew {
+    pub fn new_split(data: &LapceTabData) -> LapceSplit {
         let keymap = Self {
             widget_id: data.settings.keymap_widget_id,
             active_keymap: None,
@@ -49,7 +47,7 @@ impl LapceKeymap {
         .hide_gutter()
         .padding((15.0, 15.0));
         let header = LapceKeymapHeader::new();
-        let split = LapceSplitNew::new(data.settings.keymap_split_id)
+        let split = LapceSplit::new(data.settings.keymap_split_id)
             .horizontal()
             .with_child(input.boxed(), None, 100.0)
             .with_child(header.boxed(), None, 100.0)

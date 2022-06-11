@@ -33,15 +33,12 @@ use lapce_rpc::terminal::TermId;
 
 struct LapceDynamicSplit {
     widget_id: WidgetId,
-    children: Vec<ChildWidgetNew>,
+    children: Vec<ChildWidget>,
 }
 
-pub fn split_data_widget(
-    split_data: &SplitData,
-    data: &LapceTabData,
-) -> LapceSplitNew {
+pub fn split_data_widget(split_data: &SplitData, data: &LapceTabData) -> LapceSplit {
     let mut split =
-        LapceSplitNew::new(split_data.widget_id).direction(split_data.direction);
+        LapceSplit::new(split_data.widget_id).direction(split_data.direction);
     for child in split_data.children.iter() {
         let child = split_content_widget(child, data);
         split = split.with_flex_child(child, None, 1.0);
@@ -85,7 +82,7 @@ pub fn split_content_widget(
         SplitContent::Split(widget_id) => {
             let split_data = data.main_split.splits.get(widget_id).unwrap();
             let mut split =
-                LapceSplitNew::new(*widget_id).direction(split_data.direction);
+                LapceSplit::new(*widget_id).direction(split_data.direction);
             for content in split_data.children.iter() {
                 split = split.with_flex_child(
                     split_content_widget(content, data),
@@ -191,23 +188,23 @@ impl Widget<LapceTabData> for LapceDynamicSplit {
     }
 }
 
-pub struct LapceSplitNew {
+pub struct LapceSplit {
     split_id: WidgetId,
-    children: Vec<ChildWidgetNew>,
+    children: Vec<ChildWidget>,
     children_ids: Vec<WidgetId>,
     direction: SplitDirection,
     show_border: bool,
     commands: Vec<(LapceCommand, PietTextLayout, Rect, Option<KeyMap>)>,
 }
 
-struct ChildWidgetNew {
+struct ChildWidget {
     pub widget: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     flex: bool,
     params: f64,
     layout_rect: Rect,
 }
 
-impl LapceSplitNew {
+impl LapceSplit {
     pub fn new(split_id: WidgetId) -> Self {
         Self {
             split_id,
@@ -240,7 +237,7 @@ impl LapceSplitNew {
         child_id: Option<WidgetId>,
         params: f64,
     ) -> Self {
-        let child = ChildWidgetNew {
+        let child = ChildWidget {
             widget: WidgetPod::new(child),
             flex: true,
             params,
@@ -258,7 +255,7 @@ impl LapceSplitNew {
         child_id: Option<WidgetId>,
         params: f64,
     ) -> Self {
-        let child = ChildWidgetNew {
+        let child = ChildWidget {
             widget: WidgetPod::new(child),
             flex: false,
             params,
@@ -289,7 +286,7 @@ impl LapceSplitNew {
         child_id: Option<WidgetId>,
         params: f64,
     ) -> WidgetId {
-        let child = ChildWidgetNew {
+        let child = ChildWidget {
             widget: WidgetPod::new(child),
             flex: true,
             params,
@@ -789,7 +786,7 @@ impl LapceSplitNew {
     }
 }
 
-impl Widget<LapceTabData> for LapceSplitNew {
+impl Widget<LapceTabData> for LapceSplit {
     fn id(&self) -> Option<WidgetId> {
         Some(self.split_id)
     }
