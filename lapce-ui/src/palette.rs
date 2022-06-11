@@ -29,12 +29,12 @@ use crate::{
     svg::{file_svg, symbol_svg},
 };
 
-pub struct NewPalette {
+pub struct Palette {
     widget_id: WidgetId,
     container: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
 }
 
-impl NewPalette {
+impl Palette {
     pub fn new(data: &LapceTabData) -> Self {
         let container = PaletteContainer::new(data);
         Self {
@@ -44,7 +44,7 @@ impl NewPalette {
     }
 }
 
-impl Widget<LapceTabData> for NewPalette {
+impl Widget<LapceTabData> for Palette {
     fn id(&self) -> Option<WidgetId> {
         Some(self.widget_id)
     }
@@ -245,7 +245,7 @@ impl PaletteContainer {
                 .hide_gutter()
                 .padding(10.0);
         let content = LapceIdentityWrapper::wrap(
-            LapceScroll::new(NewPaletteContent::new().lens(PaletteViewLens).boxed())
+            LapceScroll::new(PaletteContent::new().lens(PaletteViewLens).boxed())
                 .vertical(),
             data.palette.scroll_id,
         );
@@ -426,21 +426,21 @@ impl Widget<LapceTabData> for PaletteContainer {
     }
 }
 
-pub struct NewPaletteInput {}
+pub struct PaletteInput {}
 
-impl NewPaletteInput {
+impl PaletteInput {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl Default for NewPaletteInput {
+impl Default for PaletteInput {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Widget<PaletteViewData> for NewPaletteInput {
+impl Widget<PaletteViewData> for PaletteInput {
     fn event(
         &mut self,
         _ctx: &mut EventCtx,
@@ -530,12 +530,12 @@ impl Widget<PaletteViewData> for NewPaletteInput {
     }
 }
 
-pub struct NewPaletteContent {
+pub struct PaletteContent {
     mouse_down: usize,
     line_height: f64,
 }
 
-impl NewPaletteContent {
+impl PaletteContent {
     pub fn new() -> Self {
         Self {
             mouse_down: 0,
@@ -764,13 +764,13 @@ impl NewPaletteContent {
     }
 }
 
-impl Default for NewPaletteContent {
+impl Default for PaletteContent {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Widget<PaletteViewData> for NewPaletteContent {
+impl Widget<PaletteViewData> for PaletteContent {
     fn event(
         &mut self,
         ctx: &mut EventCtx,

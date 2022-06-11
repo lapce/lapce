@@ -34,7 +34,7 @@ pub(crate) struct PluginEnv {
 }
 
 #[derive(Clone)]
-pub(crate) struct PluginNew {
+pub(crate) struct Plugin {
     instance: wasmer::Instance,
     env: PluginEnv,
 }
@@ -42,7 +42,7 @@ pub(crate) struct PluginNew {
 pub struct PluginCatalog {
     id_counter: Counter,
     pub items: HashMap<PluginName, PluginDescription>,
-    plugins: HashMap<PluginName, PluginNew>,
+    plugins: HashMap<PluginName, Plugin>,
     store: wasmer::Store,
 }
 
@@ -160,7 +160,7 @@ impl PluginCatalog {
         &mut self,
         dispatcher: Dispatcher,
         plugin_desc: PluginDescription,
-    ) -> Result<PluginNew> {
+    ) -> Result<Plugin> {
         let module = wasmer::Module::from_file(
             &self.store,
             plugin_desc
@@ -185,7 +185,7 @@ impl PluginCatalog {
         };
         let lapce = lapce_exports(&self.store, &plugin_env);
         let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
-        let plugin = PluginNew {
+        let plugin = Plugin {
             instance,
             env: plugin_env,
         };

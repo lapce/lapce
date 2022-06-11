@@ -39,11 +39,11 @@ use xi_rope::Rope;
 
 use crate::{
     activity::ActivityBar, alert::AlertBox, completion::CompletionContainer,
-    explorer::FileExplorer, hover::HoverContainer, palette::NewPalette,
+    explorer::FileExplorer, hover::HoverContainer, palette::Palette,
     picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
     search::new_search_panel, settings::LapceSettingsPanel,
     source_control::new_source_control_panel, split::split_data_widget,
-    status::LapceStatusNew, svg::get_svg, terminal::TerminalPanel,
+    status::LapceStatus, svg::get_svg, terminal::TerminalPanel,
 };
 
 pub struct LapceIcon {
@@ -90,8 +90,8 @@ impl LapceTab {
         let activity = ActivityBar::new();
         let completion = CompletionContainer::new(&data.completion);
         let hover = HoverContainer::new(&data.hover);
-        let palette = NewPalette::new(data);
-        let status = LapceStatusNew::new();
+        let palette = Palette::new(data);
+        let status = LapceStatus::new();
 
         let mut panels = HashMap::new();
         let file_explorer = FileExplorer::new_panel(data);

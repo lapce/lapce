@@ -440,15 +440,15 @@ impl Default for CompletionData {
     }
 }
 
-pub struct CompletionNew {}
+pub struct Completion {}
 
-impl CompletionNew {
+impl Completion {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl Default for CompletionNew {
+impl Default for Completion {
     fn default() -> Self {
         Self::new()
     }

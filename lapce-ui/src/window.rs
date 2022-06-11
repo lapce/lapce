@@ -18,7 +18,7 @@ use crate::{
     title::Title,
 };
 
-pub struct LapceWindowNew {
+pub struct LapceWindow {
     pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
     pub tabs: Vec<WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>>,
     tab_headers: Vec<
@@ -29,7 +29,7 @@ pub struct LapceWindowNew {
     >,
 }
 
-impl LapceWindowNew {
+impl LapceWindow {
     pub fn new(data: &LapceWindowData) -> Self {
         let title = WidgetPod::new(Title::new().boxed());
         let tabs = data
@@ -167,7 +167,7 @@ impl LapceWindowNew {
     }
 }
 
-impl Widget<LapceWindowData> for LapceWindowNew {
+impl Widget<LapceWindowData> for LapceWindow {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
