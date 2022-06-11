@@ -73,18 +73,11 @@ pub enum EditorOperator {
 }
 
 #[derive(Clone, Debug)]
-pub struct EditorLocationNew {
+pub struct EditorLocation {
     pub path: PathBuf,
     pub position: Option<Position>,
     pub scroll_offset: Option<Vec2>,
     pub history: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-pub struct EditorLocation {
-    pub path: String,
-    pub offset: usize,
-    pub scroll_offset: Option<Vec2>,
 }
 
 pub struct LapceEditorBufferData {
@@ -757,7 +750,7 @@ impl LapceEditorBufferData {
             let position = self.doc.buffer().offset_to_position(offset);
             let (path, position) =
                 next_in_file_diff_offset(position, buffer_path, &diff_files);
-            let location = EditorLocationNew {
+            let location = EditorLocation {
                 path,
                 position: Some(position),
                 scroll_offset: None,
@@ -809,7 +802,7 @@ impl LapceEditorBufferData {
             let position = self.doc.buffer().offset_to_position(offset);
             let (path, position) =
                 next_in_file_errors_offset(position, buffer_path, &file_diagnostics);
-            let location = EditorLocationNew {
+            let location = EditorLocation {
                 path,
                 position: Some(position),
                 scroll_offset: None,
@@ -1737,7 +1730,7 @@ impl LapceEditorBufferData {
                                             LapceUICommand::GotoDefinition(
                                                 editor_view_id,
                                                 offset,
-                                                EditorLocationNew {
+                                                EditorLocation {
                                                     path: path_from_url(
                                                         &location.uri,
                                                     ),
@@ -2097,7 +2090,7 @@ fn process_get_references(
             LapceUICommand::GotoReference(
                 editor_view_id,
                 offset,
-                EditorLocationNew {
+                EditorLocation {
                     path: path_from_url(&location.uri),
                     position: Some(location.range.start),
                     scroll_offset: None,

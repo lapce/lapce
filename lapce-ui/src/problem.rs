@@ -11,7 +11,7 @@ use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{EditorDiagnostic, LapceTabData, PanelKind},
-    editor::EditorLocationNew,
+    editor::EditorLocation,
     problem::ProblemData,
     proxy::path_from_url,
     split::SplitDirection,
@@ -131,7 +131,7 @@ impl ProblemContent {
                         LAPCE_UI_COMMAND,
                         LapceUICommand::JumpToLocation(
                             None,
-                            EditorLocationNew {
+                            EditorLocation {
                                 path: path.clone(),
                                 position: Some(d.diagnostic.range.start),
                                 scroll_offset: None,
@@ -156,7 +156,7 @@ impl ProblemContent {
                             LAPCE_UI_COMMAND,
                             LapceUICommand::JumpToLocation(
                                 None,
-                                EditorLocationNew {
+                                EditorLocation {
                                     path: related
                                         .location
                                         .uri

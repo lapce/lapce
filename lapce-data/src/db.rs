@@ -22,7 +22,7 @@ use crate::{
         SplitContent, SplitData,
     },
     document::{BufferContent, Document},
-    editor::EditorLocationNew,
+    editor::EditorLocation,
     split::SplitDirection,
 };
 
@@ -49,7 +49,7 @@ impl SplitContentInfo {
         &self,
         data: &mut LapceMainSplitData,
         parent_split: Option<WidgetId>,
-        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
+        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
@@ -93,7 +93,7 @@ impl EditorTabInfo {
         &self,
         data: &mut LapceMainSplitData,
         split: WidgetId,
-        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
+        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
@@ -143,7 +143,7 @@ impl EditorTabChildInfo {
         &self,
         data: &mut LapceMainSplitData,
         editor_tab_id: WidgetId,
-        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
+        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
@@ -182,7 +182,7 @@ impl SplitInfo {
         &self,
         data: &mut LapceMainSplitData,
         parent_split: Option<WidgetId>,
-        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
+        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
@@ -257,7 +257,7 @@ impl EditorInfo {
         &self,
         data: &mut LapceMainSplitData,
         editor_tab_id: WidgetId,
-        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
+        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
@@ -276,7 +276,7 @@ impl EditorInfo {
 
             editor_positions.get_mut(path).unwrap().push((
                 editor_data.view_id,
-                EditorLocationNew {
+                EditorLocation {
                     path: path.clone(),
                     position: self.position,
                     scroll_offset: Some(Vec2::new(

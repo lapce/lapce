@@ -8,7 +8,7 @@ use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{LapceTabData, PanelKind},
-    editor::EditorLocationNew,
+    editor::EditorLocation,
     split::SplitDirection,
 };
 
@@ -91,7 +91,7 @@ impl SearchContent {
                         LAPCE_UI_COMMAND,
                         LapceUICommand::JumpToLocation(
                             None,
-                            EditorLocationNew {
+                            EditorLocation {
                                 path: path.clone(),
                                 position: Some(lsp_types::Position {
                                     line: *line_number as u32 - 1,

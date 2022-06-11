@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::command::CommandKind;
 use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::document::BufferContent;
-use crate::editor::EditorLocationNew;
+use crate::editor::EditorLocation;
 use crate::{
     command::LAPCE_UI_COMMAND,
     command::{CommandExecuted, LAPCE_COMMAND},
@@ -97,7 +97,7 @@ pub enum PaletteItemContent {
         range: Range,
         container_name: Option<String>,
     },
-    ReferenceLocation(PathBuf, EditorLocationNew),
+    ReferenceLocation(PathBuf, EditorLocation),
     Workspace(LapceWorkspace),
     SshHost(String, String),
     Command(LapceCommand),
@@ -459,7 +459,7 @@ impl PaletteViewData {
     pub fn run_references(
         &mut self,
         ctx: &mut EventCtx,
-        locations: &[EditorLocationNew],
+        locations: &[EditorLocation],
     ) {
         self.run(ctx, Some(PaletteType::Reference));
         let items: Vec<NewPaletteItem> = locations

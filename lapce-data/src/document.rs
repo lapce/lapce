@@ -40,7 +40,7 @@ use xi_rope::{spans::Spans, Rope, RopeDelta};
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    editor::EditorLocationNew,
+    editor::EditorLocation,
     find::{Find, FindProgress},
     history::DocumentHisotry,
     proxy::LapceProxy,
@@ -283,7 +283,7 @@ impl Document {
         }
     }
 
-    pub fn retrieve_file(&mut self, locations: Vec<(WidgetId, EditorLocationNew)>) {
+    pub fn retrieve_file(&mut self, locations: Vec<(WidgetId, EditorLocation)>) {
         if self.loaded || *self.load_started.borrow() {
             return;
         }

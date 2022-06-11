@@ -25,7 +25,7 @@ use lapce_data::{
         LapceWorkspace, LapceWorkspaceType, PanelKind, WorkProgress,
     },
     document::{BufferContent, LocalBufferKind},
-    editor::EditorLocationNew,
+    editor::EditorLocation,
     hover::HoverStatus,
     keypress::{DefaultKeyPressHandler, KeyPressData},
     menu::MenuKind,
@@ -754,7 +754,7 @@ impl LapceTabNew {
                         let editor_view_id = data.main_split.jump_to_location(
                             ctx,
                             *editor_view_id,
-                            EditorLocationNew {
+                            EditorLocation {
                                 path: path.clone(),
                                 position: None,
                                 scroll_offset: None,
@@ -795,7 +795,7 @@ impl LapceTabNew {
                         data.main_split.jump_to_location(
                             ctx,
                             None,
-                            EditorLocationNew {
+                            EditorLocation {
                                 path: path.clone(),
                                 position: None,
                                 scroll_offset: None,
@@ -913,7 +913,7 @@ impl LapceTabNew {
                             if *offset == editor.cursor.offset() {
                                 let locations = locations
                                     .iter()
-                                    .map(|l| EditorLocationNew {
+                                    .map(|l| EditorLocation {
                                         path: path_from_url(&l.uri),
                                         position: Some(l.range.start),
                                         scroll_offset: None,

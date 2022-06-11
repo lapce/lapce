@@ -50,7 +50,7 @@ use crate::{
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
     },
     document::{BufferContent, Document, LocalBufferKind},
-    editor::{EditorLocationNew, LapceEditorBufferData, TabRect},
+    editor::{EditorLocation, LapceEditorBufferData, TabRect},
     explorer::FileExplorerData,
     find::Find,
     hover::HoverData,
@@ -1028,7 +1028,7 @@ impl LapceTabData {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
-                        EditorLocationNew {
+                        EditorLocation {
                             path,
                             position: None,
                             scroll_offset: None,
@@ -1046,7 +1046,7 @@ impl LapceTabData {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
-                        EditorLocationNew {
+                        EditorLocation {
                             path,
                             position: None,
                             scroll_offset: None,
@@ -1064,7 +1064,7 @@ impl LapceTabData {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
-                        EditorLocationNew {
+                        EditorLocation {
                             path,
                             position: None,
                             scroll_offset: None,
@@ -2171,7 +2171,7 @@ impl LapceMainSplitData {
         let editor =
             self.get_editor_or_new(ctx, editor_view_id, None, false, config);
         if let BufferContent::File(path) = &editor.content {
-            let location = EditorLocationNew {
+            let location = EditorLocation {
                 path: path.clone(),
                 position: Some(position),
                 scroll_offset: None,
@@ -2246,7 +2246,7 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         editor_view_id: Option<WidgetId>,
-        location: EditorLocationNew,
+        location: EditorLocation,
         config: &Config,
     ) -> WidgetId {
         let editor_view_id = self
@@ -2350,7 +2350,7 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         editor_view_id: Option<WidgetId>,
-        location: EditorLocationNew,
+        location: EditorLocation,
         config: &Config,
     ) {
         let editor_view_id = self
@@ -3215,7 +3215,7 @@ pub struct LapceEditorData {
     pub size: Rc<RefCell<Size>>,
     pub window_origin: Rc<RefCell<Point>>,
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
-    pub locations: Vec<EditorLocationNew>,
+    pub locations: Vec<EditorLocation>,
     pub current_location: usize,
     pub last_movement_new: Movement,
     pub last_inline_find: Option<(InlineFindDirection, String)>,
@@ -3307,7 +3307,7 @@ impl LapceEditorData {
 
     pub fn save_jump_location(&mut self, doc: &Document) {
         if let BufferContent::File(path) = doc.content() {
-            let location = EditorLocationNew {
+            let location = EditorLocation {
                 path: path.clone(),
                 position: Some(
                     doc.buffer().offset_to_position(self.cursor.offset()),
