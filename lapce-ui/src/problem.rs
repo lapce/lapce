@@ -4,7 +4,7 @@ use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, LayoutCtx,
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt,
+    Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use itertools::Itertools;
 use lapce_data::{
@@ -16,7 +16,7 @@ use lapce_data::{
     proxy::path_from_url,
     split::SplitDirection,
 };
-use lsp_types::DiagnosticSeverity;
+use lsp_types::{DiagnosticSeverity, Position};
 
 use crate::{
     panel::{LapcePanel, PanelHeaderKind},
@@ -68,8 +68,7 @@ impl ProblemContent {
         &self,
         data: &'a LapceTabData,
     ) -> Vec<(&'a PathBuf, Vec<&'a EditorDiagnostic>)> {
-        let items: Vec<(&PathBuf, Vec<&EditorDiagnostic>)> = data
-            .main_split
+        data.main_split
             .diagnostics
             .iter()
             .filter_map(|(path, diagnostic)| {
@@ -84,8 +83,7 @@ impl ProblemContent {
                 }
             })
             .sorted_by_key(|(path, _)| (*path).clone())
-            .collect();
-        items
+            .collect()
     }
 
     fn mouse_down(
@@ -94,88 +92,110 @@ impl ProblemContent {
         mouse_event: &MouseEvent,
         data: &LapceTabData,
     ) {
-        let n = (mouse_event.pos.y / self.line_height).floor() as usize;
+        let click_line = (mouse_event.pos.y / self.line_height).floor() as usize;
 
         let items = self.items(data);
-        let mut i = 0;
-        for (path, diagnostics) in items {
-            let diagnostics_len = diagnostics.iter().map(|d| d.lines).sum::<usize>();
-            if diagnostics_len + 1 + i < n {
-                i += diagnostics_len + 1;
-                continue;
+        let mut line_cursor = 0;
+
+        let mut it = items.into_iter().peekable();
+
+        while let Some((path, diagnostics)) = it.peek() {
+            let is_collapsed = *data.problem.fold.get(*path).unwrap_or(&false);
+            let offset = if is_collapsed {
+                1
+            } else {
+                let diagnostics_len =
+                    diagnostics.iter().map(|d| d.lines).sum::<usize>();
+                diagnostics_len + 1
+            };
+            if offset + line_cursor >= click_line {
+                break;
+            }
+            line_cursor += offset;
+            it.next();
+        }
+
+        for (path, diagnostics) in it {
+            if click_line == 0 || line_cursor == click_line {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ToggleProblem(path.to_path_buf()),
+                    Target::Widget(data.id),
+                ));
+                return;
             }
 
-            for d in diagnostics {
-                if i > n {
+            for file_diagnostic in diagnostics {
+                if line_cursor > click_line {
                     return;
                 }
 
-                let msg_lines = d.diagnostic.message.matches('\n').count() + 1;
-                let related_lines = d
-                    .diagnostic
-                    .related_information
-                    .as_ref()
-                    .map(|r| {
-                        r.iter()
-                            .map(|r| r.message.matches('\n').count() + 1 + 1)
-                            .sum()
-                    })
-                    .unwrap_or(0);
-                if i + 1 + msg_lines + related_lines < n {
-                    i += msg_lines + related_lines;
+                let msg_lines =
+                    file_diagnostic.diagnostic.message.matches('\n').count() + 1;
+
+                if line_cursor + 1 + file_diagnostic.lines < click_line {
+                    line_cursor += file_diagnostic.lines;
                     continue;
                 }
 
-                if ctx.is_hot() && i < n && n < i + 1 + msg_lines {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::JumpToLocation(
-                            None,
-                            EditorLocation {
-                                path: path.clone(),
-                                position: Some(d.diagnostic.range.start),
-                                scroll_offset: None,
-                                history: None,
-                            },
-                        ),
-                        Target::Widget(data.id),
-                    ));
+                if ctx.is_hot()
+                    && (line_cursor..(line_cursor + 1 + msg_lines))
+                        .contains(&click_line)
+                {
+                    // rust example: description without location
+                    Self::submit_jump(
+                        ctx,
+                        path.to_path_buf(),
+                        file_diagnostic.diagnostic.range.start,
+                        data.id,
+                    );
                     return;
                 }
-                i += msg_lines;
+                line_cursor += msg_lines;
 
-                for related in d
+                for related in file_diagnostic
                     .diagnostic
                     .related_information
-                    .as_ref()
-                    .unwrap_or(&Vec::new())
+                    .as_deref()
+                    .unwrap_or(&[])
                 {
                     let lines = related.message.matches('\n').count() + 1 + 1;
-                    if i <= n && n <= i + lines {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::JumpToLocation(
-                                None,
-                                EditorLocation {
-                                    path: related
-                                        .location
-                                        .uri
-                                        .to_file_path()
-                                        .unwrap(),
-                                    position: Some(related.location.range.start),
-                                    scroll_offset: None,
-                                    history: None,
-                                },
-                            ),
-                            Target::Widget(data.id),
-                        ));
+                    if (line_cursor..(line_cursor + lines)).contains(&click_line) {
+                        // rust example: fix suggestion
+                        Self::submit_jump(
+                            ctx,
+                            related.location.uri.to_file_path().unwrap(),
+                            related.location.range.start,
+                            data.id,
+                        );
                         return;
                     }
-                    i += lines;
+                    line_cursor += lines;
                 }
             }
-            i += 1;
+            line_cursor += 1;
         }
+    }
+
+    fn submit_jump(
+        ctx: &mut EventCtx,
+        path: PathBuf,
+        start: Position,
+        id: WidgetId,
+    ) {
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::JumpToLocation(
+                None,
+                EditorLocation {
+                    path,
+                    position: Some(start),
+                    scroll_offset: None,
+                    history: None,
+                },
+            ),
+            Target::Widget(id),
+        ));
     }
 }
 
@@ -301,6 +321,11 @@ impl Widget<LapceTabData> for ProblemContent {
                         + (line_height - text_layout.size().height) / 2.0,
                 ),
             );
+
+            if *data.problem.fold.get(path).unwrap_or(&false) {
+                i += 1;
+                continue;
+            }
 
             let mut path = path.clone();
             if let Some(workspace_path) = data.workspace.path.as_ref() {
@@ -461,12 +486,10 @@ impl Widget<LapceTabData> for ProblemContent {
                                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
                         ),
                     );
+                    let path = path_from_url(&related.location.uri);
                     let text = format!(
                         "{}[{}, {}]:",
-                        path_from_url(&related.location.uri)
-                            .file_name()
-                            .and_then(|f| f.to_str())
-                            .unwrap_or(""),
+                        path.file_name().and_then(|f| f.to_str()).unwrap_or(""),
                         related.location.range.start.line,
                         related.location.range.start.character,
                     );

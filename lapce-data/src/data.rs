@@ -343,6 +343,8 @@ impl LapceWindowData {
 pub struct EditorDiagnostic {
     pub range: Option<(usize, usize)>,
     pub diagnostic: Diagnostic,
+    /// Lines counter for editor diagnostic.
+    /// It includes both message lines number and related information lines counter
     pub lines: usize,
 }
 

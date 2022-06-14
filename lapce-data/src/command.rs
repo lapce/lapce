@@ -523,6 +523,7 @@ pub enum LapceUICommand {
     JumpToPosition(Option<WidgetId>, Position),
     JumpToLine(Option<WidgetId>, usize),
     JumpToLocation(Option<WidgetId>, EditorLocation),
+    ToggleProblem(PathBuf),
     TerminalJumpToLine(i32),
     GoToLocationNew(WidgetId, EditorLocation),
     GotoReference(WidgetId, usize, EditorLocation),
