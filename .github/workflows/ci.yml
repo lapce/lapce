@@ -28,7 +28,6 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
 components: rustfmt, clippy
 
-
       - name: Build
         uses: actions-rs/cargo@v1
         with:
@@ -39,15 +38,34 @@ components: rustfmt, clippy
         with:
           command: test
           args: --workspace
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
 
-      - name: Run clippy
-        uses: actions-rs/cargo@v1
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - run: rustup component add clippy
+      - uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: -- -D warnings
-
-      - name: Check formatting
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- -check
