@@ -99,23 +99,28 @@ impl ProblemContent {
 
         let mut it = items.into_iter().peekable();
 
+        // Skip sections before clicked section
         while let Some((path, diagnostics)) = it.peek() {
             let is_collapsed = *data.problem.fold.get(*path).unwrap_or(&false);
             let offset = if is_collapsed {
+                // If section is collapsed count only header with file name
                 1
             } else {
-                let diagnostics_len =
-                    diagnostics.iter().map(|d| d.lines).sum::<usize>();
-                diagnostics_len + 1
+                // Total file lines and header with file name
+                diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1
             };
+            // did we reached clicked section?
             if offset + line_cursor >= click_line {
                 break;
             }
+            // move cursor
             line_cursor += offset;
+            // consume section
             it.next();
         }
 
         for (path, diagnostics) in it {
+            // handle click on header with file name
             if click_line == 0 || line_cursor == click_line {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
