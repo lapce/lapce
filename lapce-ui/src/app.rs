@@ -1,7 +1,6 @@
 use druid::{
-    AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Menu, MenuItem,
-    Point, Size, SysMods, Widget, WidgetExt, WindowDesc, WindowHandle, WindowId,
-    WindowState,
+    AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Size,
+    Widget, WidgetExt, WindowDesc, WindowHandle, WindowId, WindowState,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -161,7 +160,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         &mut self,
         _ctx: &mut druid::DelegateCtx,
         _window_id: WindowId,
-        event: druid::Event,
+        event: Event,
         data: &mut LapceData,
         _env: &Env,
     ) -> Option<Event> {

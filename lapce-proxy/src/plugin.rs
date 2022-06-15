@@ -43,7 +43,7 @@ pub struct PluginCatalog {
     id_counter: Counter,
     pub items: HashMap<PluginName, PluginDescription>,
     plugins: HashMap<PluginName, Plugin>,
-    store: wasmer::Store,
+    store: Store,
 }
 
 impl PluginCatalog {
@@ -52,7 +52,7 @@ impl PluginCatalog {
             id_counter: Counter::new(),
             items: HashMap::new(),
             plugins: HashMap::new(),
-            store: wasmer::Store::default(),
+            store: Store::default(),
         }
     }
 
@@ -86,12 +86,12 @@ impl PluginCatalog {
     ) -> Result<()> {
         let home = home_dir().unwrap();
         let path = home.join(".lapce").join("plugins").join(&plugin.name);
-        let _ = std::fs::remove_dir_all(&path);
+        let _ = fs::remove_dir_all(&path);
 
-        std::fs::create_dir_all(&path)?;
+        fs::create_dir_all(&path)?;
 
         {
-            let mut file = std::fs::OpenOptions::new()
+            let mut file = fs::OpenOptions::new()
                 .create(true)
                 .truncate(true)
                 .write(true)
@@ -107,7 +107,7 @@ impl PluginCatalog {
                     plugin.repository, wasm
                 );
                 let mut resp = reqwest::blocking::get(url)?;
-                let mut file = std::fs::OpenOptions::new()
+                let mut file = fs::OpenOptions::new()
                     .create(true)
                     .truncate(true)
                     .write(true)
@@ -135,7 +135,7 @@ impl PluginCatalog {
                         plugin.repository, theme
                     );
                     let mut resp = reqwest::blocking::get(url)?;
-                    let mut file = std::fs::OpenOptions::new()
+                    let mut file = fs::OpenOptions::new()
                         .create(true)
                         .truncate(true)
                         .write(true)
@@ -144,7 +144,7 @@ impl PluginCatalog {
                 }
             }
         }
-        self.items.insert(plugin.name.clone(), plugin.clone());
+        self.items.insert(plugin.name.clone(), plugin);
         Ok(())
     }
 
@@ -285,7 +285,7 @@ fn host_handle_notification(plugin_env: &PluginEnv) {
             }
             PluginNotification::DownloadFile { url, path } => {
                 let mut resp = reqwest::blocking::get(url).expect("request failed");
-                let mut out = std::fs::File::create(
+                let mut out = fs::File::create(
                     plugin_env.desc.dir.clone().unwrap().join(path),
                 )
                 .expect("failed to create file");
@@ -295,7 +295,7 @@ fn host_handle_notification(plugin_env: &PluginEnv) {
                 let path = plugin_env.desc.dir.clone().unwrap().join(path);
                 let mut n = 0;
                 loop {
-                    if let Ok(_file) = std::fs::OpenOptions::new()
+                    if let Ok(_file) = fs::OpenOptions::new()
                         .write(true)
                         .create_new(true)
                         .open(&path)

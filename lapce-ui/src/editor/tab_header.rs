@@ -82,7 +82,7 @@ impl LapceEditorTabHeader {
             if self.content.widget_mut().scroll_to_visible(rect, env) {
                 self.content
                     .widget_mut()
-                    .reset_scrollbar_fade(|d| request_timer(d), env);
+                    .reset_scrollbar_fade(request_timer, env);
             }
         }
     }

@@ -6,7 +6,7 @@ use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    UpdateCtx, Widget, WindowConfig, WindowState,
+    UpdateCtx, Widget,
 };
 use lapce_data::{
     command::{
@@ -62,7 +62,7 @@ impl Widget<LapceWindowData> for Title {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceWindowData,
+        _data: &mut LapceWindowData,
         _env: &Env,
     ) {
         match event {

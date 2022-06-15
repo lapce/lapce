@@ -222,7 +222,7 @@ impl LapceEditorTabHeaderContent {
                 return;
             }
 
-            let mut child = child.clone();
+            let mut child = child;
             child.set_editor_tab(data, editor_tab.widget_id);
             let editor_tab = data
                 .main_split

@@ -257,7 +257,7 @@ impl LapceEditor {
         if !editor_data
             .editor
             .cursor
-            .edit_selection(&editor_data.doc.buffer())
+            .edit_selection(editor_data.doc.buffer())
             .contains(offset)
         {
             editor_data.single_click(ctx, mouse_event, config);
