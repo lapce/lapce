@@ -1296,13 +1296,7 @@ impl LapceTabData {
                 Arc::make_mut(editor).cursor = if self.config.lapce.modal {
                     Cursor::new(CursorMode::Normal(0), None, None)
                 } else {
-                    Cursor::new(
-                        CursorMode::Insert(Selection::caret(
-                            0,
-                        )),
-                        None,
-                        None,
-                    )
+                    Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
                 };
             }
             LapceWorkbenchCommand::CheckoutBranch => match data {
