@@ -123,7 +123,7 @@ impl ProblemContent {
 
         //
         let (path, diagnostics) = it.next()
-            .expect("Unexpected end of editor diagnostics. We should found here currently clicked diagnostic message or file name header. This should never happen, please report the bug");
+            .expect("Unexpected end of editor diagnostics. We should found here currently clicked diagnostic message or file name header. This should never happen, please report a bug");
 
         // handle click on header with file name
         if line_cursor == click_line {
@@ -137,7 +137,7 @@ impl ProblemContent {
 
         if data.problem.collapsed.get(path).copied().unwrap_or(false) {
             log::warn!(
-                "File is collapsed. Can't click any element. This shouldn't happen, please report the bug."
+                "File is collapsed. Can't click any element. This shouldn't happen, please report a bug."
             );
             return;
         }
@@ -157,10 +157,7 @@ impl ProblemContent {
         }
 
         // Handle current diagnostic
-        let file_diagnostic = match it.next() {
-            Some(file_diagnostic) => file_diagnostic,
-            None => return,
-        };
+        let file_diagnostic = it.next().expect("Editor diagnostic not found. We should find here file diagnostic but nothing left in the array. Please report a bug");
 
         if line_cursor > click_line {
             log::error!(
@@ -208,7 +205,7 @@ impl ProblemContent {
         }
 
         let related = it.next()
-            .expect("No related information found but something was clicked. This should never happen. Please report the bug.");
+            .expect("No related information found but something was clicked. This should never happen. Please report a bug.");
 
         Self::submit_jump(
             ctx,
