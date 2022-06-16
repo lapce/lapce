@@ -2,6 +2,8 @@ use druid::{
     AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Size,
     Widget, WidgetExt, WindowDesc, WindowHandle, WindowId, WindowState,
 };
+#[cfg(target_os = "macos")]
+use druid::{Menu, MenuItem, SysMods};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::Config,
@@ -160,7 +162,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         &mut self,
         _ctx: &mut druid::DelegateCtx,
         _window_id: WindowId,
-        event: Event,
+        event: druid::Event,
         data: &mut LapceData,
         _env: &Env,
     ) -> Option<Event> {

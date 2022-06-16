@@ -8,6 +8,8 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget,
 };
+#[cfg(target_os = "macos")]
+use druid::{WindowConfig, WindowState};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
@@ -62,7 +64,8 @@ impl Widget<LapceWindowData> for Title {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        _data: &mut LapceWindowData,
+        #[cfg(target_os = "macos")] data: &mut LapceWindowData,
+        #[cfg(not(target_os = "macos"))] _data: &mut LapceWindowData,
         _env: &Env,
     ) {
         match event {
