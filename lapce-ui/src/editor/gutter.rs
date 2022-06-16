@@ -541,7 +541,8 @@ impl LapceEditorGutter {
 
             let sequential_line_numbers = *data.main_split.active
                 != Some(data.view_id)
-                || data.editor.cursor.is_insert();
+                || data.editor.cursor.is_insert()
+                || !data.config.editor.modal_mode_relative_line_numbers;
 
             let font_family = data.config.editor.font_family();
 
