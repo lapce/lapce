@@ -675,14 +675,31 @@ impl PaletteContent {
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                     .clone(),
             );
-        for i in &text_indices {
-            let i = *i;
+        for &i_start in &text_indices {
+            let i_end = full_text
+                .char_indices()
+                .find(|(i, _)| *i == i_start)
+                .map(|(_, c)| c.len_utf8() + i_start);
+            let i_end = if let Some(i_end) = i_end {
+                i_end
+            } else {
+                // Log a warning, but continue as we don't want to crash on a bug
+                log::warn!(
+                    "Invalid text indices in palette: text: '{}', i_start: {}",
+                    text,
+                    i_start
+                );
+                continue;
+            };
+
             text_layout = text_layout.range_attribute(
-                i..i + 1,
+                i_start..i_end,
                 TextAttribute::TextColor(focus_color.clone()),
             );
-            text_layout = text_layout
-                .range_attribute(i..i + 1, TextAttribute::Weight(FontWeight::BOLD));
+            text_layout = text_layout.range_attribute(
+                i_start..i_end,
+                TextAttribute::Weight(FontWeight::BOLD),
+            );
         }
 
         if !hint.is_empty() {
