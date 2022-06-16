@@ -834,8 +834,10 @@ impl LapceTab {
                     }
                     LapceUICommand::ToggleProblem(path) => {
                         let problem = Arc::make_mut(&mut data.problem);
-                        let state =
-                            problem.fold.entry(path.to_owned()).or_insert(false);
+                        let state = problem
+                            .collapsed
+                            .entry(path.to_owned())
+                            .or_insert(false);
                         *state = !*state;
                     }
                     LapceUICommand::JumpToLine(editor_view_id, line) => {

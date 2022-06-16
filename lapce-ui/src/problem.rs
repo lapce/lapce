@@ -86,6 +86,7 @@ impl ProblemContent {
             .collect()
     }
 
+    /// Collapse file diagnostic or skip to diagnostic.
     fn mouse_down(
         &self,
         ctx: &mut EventCtx,
@@ -93,93 +94,128 @@ impl ProblemContent {
         data: &LapceTabData,
     ) {
         let click_line = (mouse_event.pos.y / self.line_height).floor() as usize;
-
         let items = self.items(data);
         let mut line_cursor = 0;
 
         let mut it = items.into_iter().peekable();
 
-        // Skip sections before clicked section
+        // Skip files before clicked section
         while let Some((path, diagnostics)) = it.peek() {
-            let is_collapsed = *data.problem.fold.get(*path).unwrap_or(&false);
+            let is_collapsed =
+                data.problem.collapsed.get(*path).copied().unwrap_or(false);
             let offset = if is_collapsed {
                 // If section is collapsed count only header with file name
                 1
             } else {
                 // Total file lines and header with file name
-                diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1
+                diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1 /* file name header */
             };
             // did we reached clicked section?
-            if offset + line_cursor >= click_line {
+            if offset + line_cursor <= click_line {
+                // No. Move line cursor and consume file
+                line_cursor += offset;
+                it.next();
+            } else {
+                // Current file is what we are looking for
                 break;
             }
-            // move cursor
-            line_cursor += offset;
-            // consume section
+        }
+
+        //
+        let (path, diagnostics) = it.next()
+            .expect("Unexpected end of editor diagnostics. We should found here currently clicked diagnostic message or file name header. This should never happen, please report the bug");
+
+        // handle click on header with file name
+        if line_cursor == click_line {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ToggleProblem(path.to_path_buf()),
+                Target::Widget(data.id),
+            ));
+            return;
+        }
+
+        if data.problem.collapsed.get(path).copied().unwrap_or(false) {
+            log::warn!(
+                "File is collapsed. Can't click any element. This shouldn't happen, please report the bug."
+            );
+            return;
+        }
+
+        // Skip to clicked diagnostic
+        let mut it = diagnostics.into_iter().peekable();
+        while let Some(file_diagnostic) = it.peek() {
+            // Is current diagnostic the clicked one?
+            if line_cursor + file_diagnostic.lines < click_line {
+                // No. Move like cursor and consume diagnostic
+                line_cursor += file_diagnostic.lines;
+                it.next();
+            } else {
+                // We found diagnostic we are looking for
+                break;
+            }
+        }
+
+        // Handle current diagnostic
+        let file_diagnostic = match it.next() {
+            Some(file_diagnostic) => file_diagnostic,
+            None => return,
+        };
+
+        if line_cursor > click_line {
+            log::error!(
+                "Line cursor is larger than clicked line. This should never happen!"
+            );
+            return;
+        }
+
+        let msg_lines = file_diagnostic.diagnostic.message.lines().count();
+
+        // Widget has mouse about it and line is clicked one.
+        if ctx.is_hot()
+            && (line_cursor..(line_cursor + msg_lines)).contains(&click_line)
+        {
+            // rust example: description without location
+            Self::submit_jump(
+                ctx,
+                path.to_path_buf(),
+                file_diagnostic.diagnostic.range.start,
+                data.id,
+            );
+            return;
+        }
+        line_cursor += msg_lines;
+
+        // Skip to clicked related information
+        let mut it = file_diagnostic
+            .diagnostic
+            .related_information
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .peekable();
+
+        while let Some(related) = it.peek() {
+            let lines = related.message.lines().count() + 1 /*related info will have own file name header with msg location*/;
+            // is current line the clicked one?
+            if (line_cursor..=(line_cursor + lines)).contains(&click_line) {
+                // Yes. Do not move line cursor and stop
+                break;
+            }
+            // No. Move line cursor and consume related info
+            line_cursor += lines;
             it.next();
         }
 
-        for (path, diagnostics) in it {
-            // handle click on header with file name
-            if click_line == 0 || line_cursor == click_line {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::ToggleProblem(path.to_path_buf()),
-                    Target::Widget(data.id),
-                ));
-                return;
-            }
+        let related = it.next()
+            .expect("No related information found but something was clicked. This should never happen. Please report the bug.");
 
-            for file_diagnostic in diagnostics {
-                if line_cursor > click_line {
-                    return;
-                }
-
-                let msg_lines =
-                    file_diagnostic.diagnostic.message.matches('\n').count() + 1;
-
-                if line_cursor + 1 + file_diagnostic.lines < click_line {
-                    line_cursor += file_diagnostic.lines;
-                    continue;
-                }
-
-                if ctx.is_hot()
-                    && (line_cursor..(line_cursor + 1 + msg_lines))
-                        .contains(&click_line)
-                {
-                    // rust example: description without location
-                    Self::submit_jump(
-                        ctx,
-                        path.to_path_buf(),
-                        file_diagnostic.diagnostic.range.start,
-                        data.id,
-                    );
-                    return;
-                }
-                line_cursor += msg_lines;
-
-                for related in file_diagnostic
-                    .diagnostic
-                    .related_information
-                    .as_deref()
-                    .unwrap_or(&[])
-                {
-                    let lines = related.message.matches('\n').count() + 1 + 1;
-                    if (line_cursor..(line_cursor + lines)).contains(&click_line) {
-                        // rust example: fix suggestion
-                        Self::submit_jump(
-                            ctx,
-                            related.location.uri.to_file_path().unwrap(),
-                            related.location.range.start,
-                            data.id,
-                        );
-                        return;
-                    }
-                    line_cursor += lines;
-                }
-            }
-            line_cursor += 1;
-        }
+        Self::submit_jump(
+            ctx,
+            related.location.uri.to_file_path().unwrap(),
+            related.location.range.start,
+            data.id,
+        );
     }
 
     fn submit_jump(
@@ -264,14 +300,20 @@ impl Widget<LapceTabData> for ProblemContent {
         _env: &Env,
     ) -> Size {
         let items = self.items(data);
-        let n = items
+        let lines = items
             .iter()
-            .map(|(_, diagnostics)| {
-                diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1
+            .map(|(path, diagnostics)| {
+                let is_collapsed =
+                    data.problem.collapsed.get(*path).copied().unwrap_or(false);
+                if is_collapsed {
+                    1
+                } else {
+                    diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1 /* file name header */
+                }
             })
             .sum::<usize>();
         let line_height = data.config.editor.line_height as f64;
-        self.content_height = line_height * n as f64;
+        self.content_height = line_height * lines as f64;
 
         Size::new(bc.max().width, self.content_height.max(bc.max().height))
     }
@@ -286,11 +328,13 @@ impl Widget<LapceTabData> for ProblemContent {
         let max = (rect.y1 / line_height) as usize + 2;
 
         let items = self.items(data);
-        let mut i = 0;
+        let mut current_line = 0;
         for (path, diagnostics) in items {
+            let is_collapsed =
+                data.problem.collapsed.get(path).copied().unwrap_or(false);
             let diagnostics_len = diagnostics.iter().map(|d| d.lines).sum::<usize>();
-            if diagnostics_len + 1 + i < min {
-                i += diagnostics_len + 1;
+            if !is_collapsed && diagnostics_len + 1 + current_line < min {
+                current_line += diagnostics_len + 1;
                 continue;
             }
 
@@ -298,7 +342,7 @@ impl Widget<LapceTabData> for ProblemContent {
             let svg = file_svg(path);
             let rect = Size::new(line_height, line_height)
                 .to_rect()
-                .with_origin(Point::new(0.0, line_height * i as f64))
+                .with_origin(Point::new(0.0, line_height * current_line as f64))
                 .inflate(-padding, -padding);
             ctx.draw_svg(&svg, rect, None);
 
@@ -322,13 +366,13 @@ impl Widget<LapceTabData> for ProblemContent {
                 &text_layout,
                 Point::new(
                     line_height,
-                    line_height * i as f64
+                    line_height * current_line as f64
                         + (line_height - text_layout.size().height) / 2.0,
                 ),
             );
 
-            if *data.problem.fold.get(path).unwrap_or(&false) {
-                i += 1;
+            if is_collapsed {
+                current_line += 1;
                 continue;
             }
 
@@ -365,39 +409,38 @@ impl Widget<LapceTabData> for ProblemContent {
                     &text_layout,
                     Point::new(
                         x,
-                        line_height * i as f64
+                        line_height * current_line as f64
                             + (line_height - text_layout.size().height) / 2.0,
                     ),
                 );
             }
 
             for d in diagnostics {
-                if i > max {
+                if current_line > max {
                     return;
                 }
-                let msg_lines = d.diagnostic.message.matches('\n').count() + 1;
+                let msg_lines = d.diagnostic.message.lines().count();
                 let related_lines = d
                     .diagnostic
                     .related_information
                     .as_ref()
-                    .map(|r| {
-                        r.iter()
-                            .map(|r| r.message.matches('\n').count() + 1 + 1)
-                            .sum()
-                    })
+                    .map(|r| r.iter().map(|r| r.message.lines().count() + 1/* file name and location header */).sum())
                     .unwrap_or(0);
-                if i + 1 + msg_lines + related_lines < min {
-                    i += msg_lines + related_lines;
+                if current_line + 1 + msg_lines + related_lines < min {
+                    current_line += msg_lines + related_lines;
                     continue;
                 }
 
-                if ctx.is_hot() && i < mouse_line && mouse_line < i + 1 + msg_lines {
+                if ctx.is_hot()
+                    && current_line < mouse_line
+                    && mouse_line < current_line + 1 + msg_lines
+                {
                     ctx.fill(
                         Size::new(size.width, line_height * msg_lines as f64)
                             .to_rect()
                             .with_origin(Point::new(
                                 0.0,
-                                line_height * (i + 1) as f64,
+                                line_height * (current_line + 1) as f64,
                             )),
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
@@ -412,7 +455,7 @@ impl Widget<LapceTabData> for ProblemContent {
                     .to_rect()
                     .with_origin(Point::new(
                         line_height,
-                        line_height * (i + 1) as f64,
+                        line_height * (current_line + 1) as f64,
                     ))
                     .inflate(-padding, -padding);
                 ctx.draw_svg(
@@ -424,8 +467,8 @@ impl Widget<LapceTabData> for ProblemContent {
                     ),
                 );
 
-                for line in d.diagnostic.message.split('\n') {
-                    i += 1;
+                for line in d.diagnostic.message.lines() {
+                    current_line += 1;
                     let text_layout = ctx
                         .text()
                         .new_text_layout(line.to_string())
@@ -444,29 +487,26 @@ impl Widget<LapceTabData> for ProblemContent {
                         &text_layout,
                         Point::new(
                             2.0 * line_height,
-                            line_height * i as f64
+                            line_height * current_line as f64
                                 + (line_height - text_layout.size().height) / 2.0,
                         ),
                     );
                 }
 
-                for related in d
-                    .diagnostic
-                    .related_information
-                    .as_ref()
-                    .unwrap_or(&Vec::new())
+                for related in
+                    d.diagnostic.related_information.as_deref().unwrap_or(&[])
                 {
-                    i += 1;
+                    current_line += 1;
 
-                    if ctx.is_hot() && mouse_line >= i {
-                        let lines = related.message.matches('\n').count() + 1 + 1;
-                        if mouse_line < i + lines {
+                    if ctx.is_hot() && mouse_line >= current_line {
+                        let lines = related.message.lines().count() + 1;
+                        if mouse_line < current_line + lines {
                             ctx.fill(
                                 Size::new(size.width, line_height * lines as f64)
                                     .to_rect()
                                     .with_origin(Point::new(
                                         0.0,
-                                        line_height * i as f64,
+                                        line_height * current_line as f64,
                                     )),
                                 data.config.get_color_unchecked(
                                     LapceTheme::EDITOR_CURRENT_LINE,
@@ -480,7 +520,7 @@ impl Widget<LapceTabData> for ProblemContent {
                         .to_rect()
                         .with_origin(Point::new(
                             2.0 * line_height,
-                            line_height * i as f64,
+                            line_height * current_line as f64,
                         ))
                         .inflate(-padding, -padding);
                     ctx.draw_svg(
@@ -516,12 +556,12 @@ impl Widget<LapceTabData> for ProblemContent {
                         &text_layout,
                         Point::new(
                             3.0 * line_height,
-                            line_height * i as f64
+                            line_height * current_line as f64
                                 + (line_height - text_layout.size().height) / 2.0,
                         ),
                     );
-                    for line in related.message.split('\n') {
-                        i += 1;
+                    for line in related.message.lines() {
+                        current_line += 1;
 
                         let text_layout = ctx
                             .text()
@@ -541,7 +581,7 @@ impl Widget<LapceTabData> for ProblemContent {
                             &text_layout,
                             Point::new(
                                 3.0 * line_height,
-                                line_height * i as f64
+                                line_height * current_line as f64
                                     + (line_height - text_layout.size().height)
                                         / 2.0,
                             ),
@@ -549,7 +589,7 @@ impl Widget<LapceTabData> for ProblemContent {
                     }
                 }
             }
-            i += 1;
+            current_line += 1;
         }
     }
 }

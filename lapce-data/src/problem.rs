@@ -8,7 +8,7 @@ pub struct ProblemData {
     pub split_id: WidgetId,
     pub error_widget_id: WidgetId,
     pub warning_widget_id: WidgetId,
-    pub fold: HashMap<PathBuf, bool>,
+    pub collapsed: HashMap<PathBuf, bool>,
 }
 
 impl ProblemData {
@@ -18,7 +18,7 @@ impl ProblemData {
             split_id: WidgetId::next(),
             error_widget_id: WidgetId::next(),
             warning_widget_id: WidgetId::next(),
-            fold: HashMap::new(),
+            collapsed: HashMap::new(),
         }
     }
 }
