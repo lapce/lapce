@@ -12,6 +12,7 @@ tab-width = 4
 show-tab = true
 scroll-beyond-last-line = true
 hover-delay = 300             # ms
+modal-mode-relative-line-numbers = true
 
 [terminal]
 font-family = ""

@@ -151,6 +151,10 @@ pub struct EditorConfig {
         desc = "How long (in ms) it should take before the hover information appears"
     )]
     pub hover_delay: u64,
+    #[field_names(
+        desc = "If modal mode should have relative line numbers (though, not in insert mode)"
+    )]
+    pub modal_mode_relative_line_numbers: bool,
 }
 
 impl EditorConfig {
