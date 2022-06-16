@@ -126,7 +126,7 @@ impl LapceEditorView {
             }
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::EnsureEditorTabActiveVisble,
+                LapceUICommand::EnsureEditorTabActiveVisible,
                 Target::Widget(editor_tab_id),
             ));
         }
@@ -829,8 +829,8 @@ impl Widget<LapceTabData> for LapceEditorView {
                 (None, Some(_)) | (Some(_), None) => {
                     ctx.request_layout();
                 }
-                (Some(history), Some(old_hisotry)) => {
-                    if !history.same(old_hisotry) {
+                (Some(history), Some(old_history)) => {
+                    if !history.same(old_history) {
                         ctx.request_layout();
                     }
                 }

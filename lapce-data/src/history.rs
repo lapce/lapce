@@ -26,7 +26,7 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct DocumentHisotry {
+pub struct DocumentHistory {
     version: String,
     buffer: Option<Buffer>,
     styles: Arc<Spans<Style>>,
@@ -35,7 +35,7 @@ pub struct DocumentHisotry {
     text_layouts: Rc<RefCell<TextLayoutCache>>,
 }
 
-impl druid::Data for DocumentHisotry {
+impl druid::Data for DocumentHistory {
     fn same(&self, other: &Self) -> bool {
         if !self.changes.same(&other.changes) {
             return false;
@@ -55,7 +55,7 @@ impl druid::Data for DocumentHisotry {
     }
 }
 
-impl DocumentHisotry {
+impl DocumentHistory {
     pub fn new(version: String) -> Self {
         Self {
             version,

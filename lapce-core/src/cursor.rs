@@ -320,9 +320,9 @@ impl Cursor {
                 } else if modify {
                     let mut new_selection = Selection::new();
                     if let Some(region) = selection.first() {
-                        let new_regoin =
+                        let new_region =
                             SelRegion::new(region.start(), offset, None);
-                        new_selection.add_region(new_regoin);
+                        new_selection.add_region(new_region);
                     } else {
                         new_selection
                             .add_region(SelRegion::new(offset, offset, None));

@@ -105,7 +105,7 @@ impl LapceEditorTab {
             if focus {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::EnsureEditorTabActiveVisble,
+                    LapceUICommand::EnsureEditorTabActiveVisible,
                     Target::Widget(editor_tab.widget_id),
                 ));
             }
@@ -383,7 +383,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
                         ));
                         return;
                     }
-                    LapceUICommand::EnsureEditorTabActiveVisble => {
+                    LapceUICommand::EnsureEditorTabActiveVisible => {
                         if let Some(tab) =
                             data.main_split.editor_tabs.get(&self.widget_id)
                         {

@@ -42,7 +42,7 @@ use crate::{
     config::{Config, LapceTheme},
     editor::EditorLocation,
     find::{Find, FindProgress},
-    history::DocumentHisotry,
+    history::DocumentHistory,
     proxy::LapceProxy,
     settings::SettingsValueKind,
 };
@@ -183,7 +183,7 @@ pub struct Document {
     text_layouts: Rc<RefCell<TextLayoutCache>>,
     load_started: Rc<RefCell<bool>>,
     loaded: bool,
-    histories: im::HashMap<String, DocumentHisotry>,
+    histories: im::HashMap<String, DocumentHistory>,
     pub cursor_offset: usize,
     pub scroll_offset: Vec2,
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
@@ -328,7 +328,7 @@ impl Document {
             return;
         }
 
-        let history = DocumentHisotry::new(version.to_string());
+        let history = DocumentHistory::new(version.to_string());
         history.retrieve(self);
         self.histories.insert(version.to_string(), history);
     }
@@ -340,12 +340,12 @@ impl Document {
     }
 
     pub fn load_history(&mut self, version: &str, content: Rope) {
-        let mut history = DocumentHisotry::new(version.to_string());
+        let mut history = DocumentHistory::new(version.to_string());
         history.load_content(content, self);
         self.histories.insert(version.to_string(), history);
     }
 
-    pub fn get_history(&self, version: &str) -> Option<&DocumentHisotry> {
+    pub fn get_history(&self, version: &str) -> Option<&DocumentHistory> {
         self.histories.get(version)
     }
 

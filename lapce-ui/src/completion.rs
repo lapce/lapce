@@ -199,7 +199,7 @@ impl CompletionContainer {
         }
     }
 
-    pub fn ensure_item_visble(
+    pub fn ensure_item_visible(
         &mut self,
         ctx: &mut UpdateCtx,
         data: &LapceTabData,
@@ -331,7 +331,7 @@ impl Widget<LapceTabData> for CompletionContainer {
         }
 
         if old_completion.index != completion.index {
-            self.ensure_item_visble(ctx, data, env);
+            self.ensure_item_visible(ctx, data, env);
             ctx.request_paint();
         }
     }

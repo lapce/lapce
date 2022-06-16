@@ -111,7 +111,7 @@ impl HoverData {
         self.active_item_index = 0;
     }
 
-    /// Send a request to update the hover at the given position anad file
+    /// Send a request to update the hover at the given position and file
     #[allow(clippy::too_many_arguments)]
     pub fn request(
         &mut self,

@@ -363,7 +363,7 @@ impl LapceSettings {
     fn update_children(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         self.children.clear();
 
-        let (kind, fileds, descs, settings) = match self.kind {
+        let (kind, fields, descs, settings) = match self.kind {
             LapceSettingsKind::Core => {
                 let settings: HashMap<String, serde_json::Value> =
                     serde_json::from_value(
@@ -418,7 +418,7 @@ impl LapceSettings {
             }
         };
 
-        for (i, field) in fileds.into_iter().enumerate() {
+        for (i, field) in fields.into_iter().enumerate() {
             let field = field.replace('_', "-");
             self.children.push(WidgetPod::new(
                 LapcePadding::new(

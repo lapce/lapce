@@ -155,12 +155,12 @@ impl LapceData {
                 .json()?;
         let plugins: Vec<PluginDescription> = plugins
             .iter()
-            .filter_map(|plugin| LapceData::load_plgin_description(plugin).ok())
+            .filter_map(|plugin| LapceData::load_plugin_description(plugin).ok())
             .collect();
         Ok(plugins)
     }
 
-    fn load_plgin_description(plugin: &str) -> Result<PluginDescription> {
+    fn load_plugin_description(plugin: &str) -> Result<PluginDescription> {
         let url = format!(
             "https://raw.githubusercontent.com/{}/master/plugin.toml",
             plugin
@@ -2864,7 +2864,7 @@ impl LapceMainSplitData {
             split.direction = direction;
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::SplitChangeDirectoin(direction),
+                LapceUICommand::SplitChangeDirection(direction),
                 Target::Widget(split_id),
             ));
         }

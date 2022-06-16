@@ -660,10 +660,10 @@ impl LapceTab {
 
                         let mut errors = 0;
                         let mut warnings = 0;
-                        for (_, diagnositics) in data.main_split.diagnostics.iter() {
-                            for diagnositic in diagnositics.iter() {
+                        for (_, diagnostics) in data.main_split.diagnostics.iter() {
+                            for diagnostic in diagnostics.iter() {
                                 if let Some(severity) =
-                                    diagnositic.diagnostic.severity
+                                    diagnostic.diagnostic.severity
                                 {
                                     match severity {
                                         DiagnosticSeverity::Error => errors += 1,

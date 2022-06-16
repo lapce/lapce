@@ -62,7 +62,7 @@ impl Widget<LapceWindowData> for Title {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceWindowData,
+        _data: &mut LapceWindowData,
         _env: &Env,
     ) {
         match event {

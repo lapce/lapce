@@ -872,7 +872,7 @@ impl Widget<LapceTabData> for LapceSplit {
                     LapceUICommand::SplitReplace(usize, content) => {
                         self.split_replace(ctx, data, *usize, content);
                     }
-                    LapceUICommand::SplitChangeDirectoin(direction) => {
+                    LapceUICommand::SplitChangeDirection(direction) => {
                         self.direction = *direction;
                     }
                     LapceUICommand::SplitExchange(content) => {
