@@ -677,7 +677,7 @@ impl Config {
     }
 
     fn default_settings() -> config::Config {
-        Config::default()
+        config::Config::default()
             .with_merged(config::File::from_str(
                 DEFAULT_SETTINGS,
                 config::FileFormat::Toml,
