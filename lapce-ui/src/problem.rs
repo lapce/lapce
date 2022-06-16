@@ -147,7 +147,7 @@ impl ProblemContent {
         while let Some(file_diagnostic) = it.peek() {
             // Is current diagnostic the clicked one?
             if line_cursor + file_diagnostic.lines < click_line {
-                // No. Move like cursor and consume diagnostic
+                // No. Move line cursor and consume diagnostic
                 line_cursor += file_diagnostic.lines;
                 it.next();
             } else {
