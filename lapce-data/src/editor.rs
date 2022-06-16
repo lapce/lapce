@@ -277,9 +277,10 @@ impl LapceEditorBufferData {
                     })
                     .collect::<Vec<(lapce_core::selection::Selection, &str)>>()
             });
-        let additional_edit: Option<Vec<_>> = additional_edit.as_ref().map(|edits| {
-            edits.iter().map(|(selection, c)| (selection, *c)).collect()
-        });
+        let additional_edit: Option<Vec<_>> =
+            additional_edit.as_ref().map(|edits| {
+                edits.iter().map(|(selection, c)| (selection, *c)).collect()
+            });
 
         let text_format = item
             .insert_text_format
