@@ -26,7 +26,7 @@ jobs:
         with:
           profile: minimal
           toolchain: ${{ matrix.toolchain }}
-components: rustfmt, clippy
+          components: rustfmt, clippy
 
       - name: Build
         uses: actions-rs/cargo@v1
