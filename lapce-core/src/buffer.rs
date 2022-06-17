@@ -254,12 +254,12 @@ impl Buffer {
     pub fn reload(
         &mut self,
         content: Rope,
-        set_prisitine: bool,
+        set_pristine: bool,
     ) -> (RopeDelta, InvalLines) {
         let delta = LineHashDiff::compute_delta(&self.text, &content);
         self.this_edit_type = EditType::Other;
         let (delta, inval_lines) = self.add_delta(delta);
-        if set_prisitine {
+        if set_pristine {
             self.set_pristine();
         }
         (delta, inval_lines)

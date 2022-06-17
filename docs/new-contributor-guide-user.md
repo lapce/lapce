@@ -2,7 +2,7 @@
 
 This document contains some useful resources for anyone wishing to contribute to the Lapce project by suggesting improvements, requesting features, or supporting the community. Where it says _question_ in this document, it can also apply to _suggestions_, _requests_, etc.
 
-## Quick Start 
+## Quick Start
 
 1. Open a text editor
 

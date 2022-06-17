@@ -260,7 +260,7 @@ impl PaletteContainer {
         }
     }
 
-    fn ensure_item_visble(
+    fn ensure_item_visible(
         &mut self,
         ctx: &mut UpdateCtx,
         data: &LapceTabData,
@@ -324,7 +324,7 @@ impl Widget<LapceTabData> for PaletteContainer {
         if old_data.palette.input != data.palette.input
             || old_data.palette.index != data.palette.index
         {
-            self.ensure_item_visble(ctx, data, env);
+            self.ensure_item_visible(ctx, data, env);
         }
         self.input.update(ctx, data, env);
         self.content.update(ctx, data, env);

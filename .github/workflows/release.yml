@@ -31,7 +31,7 @@ jobs:
           ./WiX.*/tools/light.exe -ext WixUIExtension -ext WixUtilExtension \
             -out "./Lapce-windows.msi" -sice:ICE61 -sice:ICE91 \
             "./lapce.wixobj"
-      - name: Create portable 
+      - name: Create portable
         shell: pwsh
         run: |
           Compress-Archive ./target/release-lto/lapce.exe ./Lapce-windows-portable.zip
@@ -64,7 +64,7 @@ jobs:
         run: rustup update
       - name: Build
         run: cargo build --profile release-lto
-      - name: Gzip 
+      - name: Gzip
         run: |
           mkdir Lapce
           cp ./target/release-lto/lapce Lapce/
@@ -100,7 +100,7 @@ jobs:
         run: rustup update && rustup target add aarch64-apple-darwin
       - name: Import Certificate
         uses: apple-actions/import-codesign-certs@v1
-        with: 
+        with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
       - name: Make DMG

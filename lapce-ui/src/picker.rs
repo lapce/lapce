@@ -347,10 +347,10 @@ impl FilePickerExplorer {
             let (_, node) = get_item_children_mut(0, index, item);
             if let Some(node) = node {
                 if node.is_dir {
-                    let mut clicked_toogle = false;
+                    let mut clicked_toggle = false;
                     if let Some(rect) = self.toggle_rects.get(&index) {
                         if rect.contains(mouse_event.pos) {
-                            clicked_toogle = true;
+                            clicked_toggle = true;
                             if node.read {
                                 node.open = !node.open;
                             } else {
@@ -367,7 +367,7 @@ impl FilePickerExplorer {
                     }
                     let mut last_left_click =
                         Some((index, std::time::Instant::now()));
-                    if !clicked_toogle {
+                    if !clicked_toggle {
                         if let Some((i, t)) = self.last_left_click.as_ref() {
                             if *i == index && t.elapsed().as_millis() < 500 {
                                 // double click

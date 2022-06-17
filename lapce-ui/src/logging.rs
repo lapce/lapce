@@ -40,7 +40,7 @@ fn parse_log_levels(value: &str, mut dispatch: fern::Dispatch) -> fern::Dispatch
     // To set the threshold at Trace for 'module1' and keep the rest at Off:
     // RUST_LOG=path::to::module1=trace
     //
-    // This would set the thresold at Info for all: RUST_LOG=error,info
+    // This would set the threshold at Info for all: RUST_LOG=error,info
     //
     // This sets the threshold at Error for all modules but 'module1' and
     // 'module2' which are at Info and Debug, respectively:

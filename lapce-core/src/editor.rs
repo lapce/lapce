@@ -736,21 +736,21 @@ impl Editor {
                     };
                     let start = buffer.offset_of_line(line);
                     for content in buffer.text().lines(start..end) {
-                        let trimed_content = content.trim_start();
-                        if trimed_content.is_empty() {
+                        let trimmed_content = content.trim_start();
+                        if trimmed_content.is_empty() {
                             line += 1;
                             continue;
                         }
-                        let indent = content.len() - trimed_content.len();
+                        let indent = content.len() - trimmed_content.len();
                         if indent < smallest_indent {
                             smallest_indent = indent;
                         }
-                        if !trimed_content.starts_with(&comment_token) {
+                        if !trimmed_content.starts_with(&comment_token) {
                             had_comment = false;
                             lines.insert((line, indent, 0));
                         } else {
                             let had_space_after_comment =
-                                trimed_content.chars().nth(comment_token.len())
+                                trimmed_content.chars().nth(comment_token.len())
                                     == Some(' ');
                             lines.insert((
                                 line,
@@ -908,7 +908,7 @@ impl Editor {
                 vec![]
             }
             Paste => {
-                let data = register.unamed.clone();
+                let data = register.unnamed.clone();
                 Self::do_paste(cursor, buffer, &data)
             }
             NewLineAbove => {

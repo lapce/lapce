@@ -1044,7 +1044,7 @@ fn format_semantic_styles(
 ) -> Option<Vec<LineStyle>> {
     let semantic_tokens: SemanticTokens = serde_json::from_value(value).ok()?;
     let semantic_tokens_provider = semantic_tokens_provider.as_ref()?;
-    let semantic_lengends = semantic_tokens_lengend(semantic_tokens_provider);
+    let semantic_legends = semantic_tokens_legend(semantic_tokens_provider);
 
     let mut highlights = Vec::new();
     let mut line = 0;
@@ -1057,7 +1057,7 @@ fn format_semantic_styles(
         }
         start += semantic_token.delta_start as usize;
         let end = start + semantic_token.length as usize;
-        let kind = semantic_lengends.token_types[semantic_token.token_type as usize]
+        let kind = semantic_legends.token_types[semantic_token.token_type as usize]
             .as_str()
             .to_string();
         if start < last_start {
@@ -1076,7 +1076,7 @@ fn format_semantic_styles(
     Some(highlights)
 }
 
-fn semantic_tokens_lengend(
+fn semantic_tokens_legend(
     semantic_tokens_provider: &SemanticTokensServerCapabilities,
 ) -> SemanticTokensLegend {
     match semantic_tokens_provider {

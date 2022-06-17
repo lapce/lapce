@@ -222,7 +222,7 @@ impl LapceEditorBufferData {
                 CodeActionOrCommand::Command(_cmd) => {}
                 CodeActionOrCommand::CodeAction(action) => {
                     if let Some(edit) = action.edit.as_ref() {
-                        if let Some(edits) = workspce_edits(edit) {
+                        if let Some(edits) = workspace_edits(edit) {
                             if let Some(edits) =
                                 edits.get(&Url::from_file_path(&path).unwrap())
                             {
@@ -277,9 +277,10 @@ impl LapceEditorBufferData {
                     })
                     .collect::<Vec<(lapce_core::selection::Selection, &str)>>()
             });
-        let additioal_edit: Option<Vec<_>> = additional_edit.as_ref().map(|edits| {
-            edits.iter().map(|(selection, c)| (selection, *c)).collect()
-        });
+        let additional_edit: Option<Vec<_>> =
+            additional_edit.as_ref().map(|edits| {
+                edits.iter().map(|(selection, c)| (selection, *c)).collect()
+            });
 
         let text_format = item
             .insert_text_format
@@ -304,7 +305,7 @@ impl LapceEditorBufferData {
                                 .do_raw_edit(
                                     &[
                                         &[(&selection, edit.new_text.as_str())][..],
-                                        &additioal_edit.unwrap_or_default()[..],
+                                        &additional_edit.unwrap_or_default()[..],
                                     ]
                                     .concat(),
                                     lapce_core::editor::EditType::InsertChars,
@@ -327,7 +328,7 @@ impl LapceEditorBufferData {
                                 .do_raw_edit(
                                     &[
                                         &[(&selection, text.as_str())][..],
-                                        &additioal_edit.unwrap_or_default()[..],
+                                        &additional_edit.unwrap_or_default()[..],
                                     ]
                                     .concat(),
                                     lapce_core::editor::EditType::InsertChars,
@@ -384,7 +385,7 @@ impl LapceEditorBufferData {
                     &selection,
                     item.insert_text.as_deref().unwrap_or(item.label.as_str()),
                 )][..],
-                &additioal_edit.unwrap_or_default()[..],
+                &additional_edit.unwrap_or_default()[..],
             ]
             .concat(),
             lapce_core::editor::EditType::InsertChars,
@@ -770,9 +771,9 @@ impl LapceEditorBufferData {
                 .main_split
                 .diagnostics
                 .iter()
-                .filter_map(|(path, diagnositics)| {
+                .filter_map(|(path, diagnostics)| {
                     //let buffer = self.get_buffer_from_path(ctx, ui_state, path);
-                    let mut errors: Vec<Position> = diagnositics
+                    let mut errors: Vec<Position> = diagnostics
                         .iter()
                         .filter_map(|d| {
                             let severity = d
@@ -2108,7 +2109,7 @@ fn process_get_references(
     Ok(())
 }
 
-fn workspce_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> {
+fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> {
     if let Some(changes) = edit.changes.as_ref() {
         return Some(changes.clone());
     }

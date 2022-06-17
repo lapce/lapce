@@ -1,6 +1,6 @@
 # New Contributor Guide **Developers**
 
-This document contains some useful resources for anyone wishing to contribute to the Lapce project by contributing code. 
+This document contains some useful resources for anyone wishing to contribute to the Lapce project by contributing code.
 
 ## Quick Start
 

@@ -145,7 +145,7 @@ pub struct EditorConfig {
     pub tab_width: usize,
     #[field_names(desc = "If opened editors are shown in a tab")]
     pub show_tab: bool,
-    #[field_names(desc = "If the editor can scroll beyong the last line")]
+    #[field_names(desc = "If the editor can scroll beyond the last line")]
     pub scroll_beyond_last_line: bool,
     #[field_names(
         desc = "How long (in ms) it should take before the hover information appears"
@@ -239,7 +239,7 @@ impl UIConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct TerminalConfig {
     #[field_names(
-        desc = "Set the terminal font family. If empty, it uses editor font famliy."
+        desc = "Set the terminal font family. If empty, it uses editor font family."
     )]
     pub font_family: String,
     #[field_names(
@@ -952,7 +952,7 @@ impl Config {
         // `strs` with arbitrary lifetimes. If we 'cheat' by extending the lifetime of the
         // `text_to_measure` (in this function only) then we can safely call `new_text_layout`
         // because the `text_layout` value that is produced is local to this function and hence
-        // always dropped inside this function, and hence its lifetime is always stricly less
+        // always dropped inside this function, and hence its lifetime is always strictly less
         // than the lifetime of `text_to_measure`, irrespective of whether `text_to_measure`
         // is actually static or not.
         //

@@ -1,4 +1,4 @@
-on: 
+on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
@@ -26,7 +26,7 @@ jobs:
         with:
           profile: minimal
           toolchain: ${{ matrix.toolchain }}
-          
+
       - uses: actions-rs/cargo@v1
         with:
           command: test

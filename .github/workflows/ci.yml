@@ -1,4 +1,4 @@
-on: 
+on:
   push:
     branches:
       - master
@@ -25,11 +25,11 @@ jobs:
         with:
           profile: minimal
           toolchain: ${{ matrix.toolchain }}
-          
+
       - uses: actions-rs/cargo@v1
         with:
           command: build
-  
+
       - uses: actions-rs/cargo@v1
         with:
           command: test

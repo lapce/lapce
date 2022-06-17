@@ -83,6 +83,6 @@ Or, join the discussion on [Reddit](https://www.reddit.com/r/lapce/) where we ar
 
 There is also a [Matrix Space](https://matrix.to/#/#lapce-editor:matrix.org), which is linked to the content from the Discord server.
 
-## Licence
+## License
 
-Lapce is released under the Apache License Version 2, which is an open source licence. You may contribute to this project, or use the code as you please as long as you adhere to its conditions. You can find a copy of the licence text within `LICENSE`.
+Lapce is released under the Apache License Version 2, which is an open source license. You may contribute to this project, or use the code as you please as long as you adhere to its conditions. You can find a copy of the license text within `LICENSE`.
