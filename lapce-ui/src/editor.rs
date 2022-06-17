@@ -1396,11 +1396,14 @@ impl LapceEditor {
             + data.editor.scroll_offset.y)
             / line_height)
             .ceil() as usize;
+
         let start_offset = data.doc.buffer().offset_of_line(start_line);
         let end_offset = data.doc.buffer().offset_of_line(end_line + 1);
         let cursor_offset = data.editor.cursor.offset();
 
-        data.doc.update_find(&data.find, start_line, end_line);
+        // Update the find with the whole document, so the count will be accurate in the widget
+        data.doc
+            .update_find(&data.find, 0, data.doc.buffer().last_line());
         if data.find.search_string.is_some() {
             for region in data
                 .doc
