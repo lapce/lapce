@@ -463,6 +463,7 @@ pub enum LapceUICommand {
     ApplyEditsAndSave(usize, u64, Result<Value>),
     DocumentFormat(PathBuf, u64, Result<Value>),
     DocumentFormatAndSave(PathBuf, u64, Result<Value>, Option<WidgetId>),
+    DocumentSave(PathBuf, Option<WidgetId>),
     BufferSave(PathBuf, u64, Option<WidgetId>),
     UpdateSemanticStyles(BufferId, PathBuf, u64, Arc<Spans<Style>>),
     UpdateTerminalTitle(TermId, String),

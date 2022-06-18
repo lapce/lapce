@@ -678,6 +678,10 @@ impl LapceTab {
 
                         ctx.set_handled();
                     }
+                    LapceUICommand::DocumentSave(path, exit) => {
+                        data.main_split.document_save(ctx, path, *exit);
+                        ctx.set_handled();
+                    }
                     LapceUICommand::DocumentFormatAndSave(
                         path,
                         rev,

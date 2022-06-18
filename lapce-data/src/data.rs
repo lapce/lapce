@@ -1844,7 +1844,15 @@ impl LapceMainSplitData {
         exit_widget_id: Option<WidgetId>,
     ) {
         self.document_format(path, rev, result);
+        self.document_save(ctx, path, exit_widget_id);
+    }
 
+    pub fn document_save(
+        &mut self,
+        ctx: &mut EventCtx,
+        path: &Path,
+        exit_widget_id: Option<WidgetId>,
+    ) {
         let doc = self.open_docs.get(path).unwrap();
         let rev = doc.rev();
         let buffer_id = doc.id();

@@ -1137,6 +1137,7 @@ impl LapceEditorBufferData {
         }
 
         if let BufferContent::File(path) = self.doc.content() {
+            let format_on_save = self.config.editor.format_on_save;
             let path = path.clone();
             let proxy = self.proxy.clone();
             let buffer_id = self.doc.id();
@@ -1158,16 +1159,15 @@ impl LapceEditorBufferData {
                         |v| v.map_err(|e| anyhow!("{:?}", e)),
                     );
 
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::DocumentFormatAndSave(
-                        path,
-                        rev,
-                        result,
-                        if exit { Some(view_id) } else { None },
-                    ),
-                    Target::Auto,
-                );
+                let exit = if exit { Some(view_id) } else { None };
+                let cmd = if format_on_save {
+                    LapceUICommand::DocumentFormatAndSave(path, rev, result, exit)
+                } else {
+                    LapceUICommand::DocumentSave(path, exit)
+                };
+
+                let _ =
+                    event_sink.submit_command(LAPCE_UI_COMMAND, cmd, Target::Auto);
             });
         } else if let BufferContent::Scratch(..) = self.doc.content() {
             let content = self.doc.content().clone();

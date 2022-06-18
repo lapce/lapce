@@ -13,6 +13,7 @@ show-tab = true
 scroll-beyond-last-line = true
 hover-delay = 300             # ms
 modal-mode-relative-line-numbers = true
+format-on-save = true
 
 [terminal]
 font-family = ""

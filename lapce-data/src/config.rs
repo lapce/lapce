@@ -155,6 +155,10 @@ pub struct EditorConfig {
         desc = "If modal mode should have relative line numbers (though, not in insert mode)"
     )]
     pub modal_mode_relative_line_numbers: bool,
+    #[field_names(
+        desc = "Whether it should format the document on save (if there is an available formatter)"
+    )]
+    pub format_on_save: bool,
 }
 
 impl EditorConfig {
