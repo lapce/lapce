@@ -132,6 +132,12 @@ pub enum LapceLanguage {
     Java,
     #[cfg(feature = "lang-elm")]
     Elm,
+    #[cfg(feature = "lang-swift")]
+    Swift,
+    #[cfg(feature = "lang-ql")]
+    QL,
+    #[cfg(feature = "lang-haskell")]
+    Haskell,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -339,6 +345,36 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["elm"],
+    },
+    #[cfg(feature = "lang-swift")]
+    SyntaxProperties {
+        id: LapceLanguage::Swift,
+        language: tree_sitter_swift::language,
+        highlight: tree_sitter_swift::HIGHLIGHTS_QUERY,
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["swift"],
+    },
+    #[cfg(feature = "lang-ql")]
+    SyntaxProperties {
+        id: LapceLanguage::QL,
+        language: tree_sitter_ql::language,
+        highlight: tree_sitter_ql::HIGHLIGHTS_QUERY,
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["ql"],
+    },
+    #[cfg(feature = "lang-haskell")]
+    SyntaxProperties {
+        id: LapceLanguage::Haskell,
+        language: tree_sitter_haskell::language,
+        highlight: tree_sitter_haskell::HIGHLIGHTS_QUERY,
+        comment: "--",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["hs"],
     },
 ];
 
