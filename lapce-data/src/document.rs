@@ -1318,8 +1318,21 @@ impl Document {
             }
             Movement::FirstNonBlank => {
                 let line = self.buffer.line_of_offset(offset);
-                let new_offset = self.buffer.first_non_blank_character_on_line(line);
-                (new_offset, Some(ColPosition::FirstNonBlank))
+                let non_blank_offset =
+                    self.buffer.first_non_blank_character_on_line(line);
+                let start_line_offset = self.buffer.offset_of_line(line);
+                if offset > non_blank_offset {
+                    // Jump to the first non-whitespace character if we're strictly after it
+                    (non_blank_offset, Some(ColPosition::FirstNonBlank))
+                } else {
+                    // If we're at the start of the line, also jump to the first not blank
+                    if start_line_offset == offset {
+                        (non_blank_offset, Some(ColPosition::FirstNonBlank))
+                    } else {
+                        // Otherwise, jump to the start of the line
+                        (start_line_offset, Some(ColPosition::Start))
+                    }
+                }
             }
             Movement::StartOfLine => {
                 let line = self.buffer.line_of_offset(offset);
