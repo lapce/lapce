@@ -400,9 +400,7 @@ impl Dispatcher {
                 }
             }
             GitCommit { message, diffs } => {
-                eprintln!("Recieved commit request");
                 if let Some(workspace) = self.workspace.lock().clone() {
-                    eprintln!("Recieved found workspace");
                     match git_commit(&workspace, &message, diffs) {
                         Ok(()) => (),
                         Err(e) => eprintln!("{e:?}"),
@@ -703,7 +701,6 @@ fn git_commit(
         &tree,
         &[&parent],
     )?;
-    eprintln!("Committed");
     Ok(())
 }
 
