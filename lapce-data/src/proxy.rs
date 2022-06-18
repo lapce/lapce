@@ -392,6 +392,15 @@ impl LapceProxy {
         )
     }
 
+    pub fn git_checkout(&self, branch: &str) {
+        self.rpc.send_rpc_notification(
+            "git_checkout",
+            &json!({
+                "branch": branch,
+            }),
+        )
+    }
+
     pub fn install_plugin(&self, plugin: &PluginDescription) {
         self.rpc
             .send_rpc_notification("install_plugin", &json!({ "plugin": plugin }));
