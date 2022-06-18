@@ -1319,7 +1319,11 @@ impl Document {
             Movement::FirstNonBlank => {
                 let line = self.buffer.line_of_offset(offset);
                 let new_offset = self.buffer.first_non_blank_character_on_line(line);
-                (new_offset, Some(ColPosition::FirstNonBlank))
+                if offset == new_offset {
+                    (self.buffer.offset_of_line(line), Some(ColPosition::Start))
+                } else {
+                    (new_offset, Some(ColPosition::FirstNonBlank))
+                }
             }
             Movement::StartOfLine => {
                 let line = self.buffer.line_of_offset(offset);
