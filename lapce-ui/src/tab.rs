@@ -1009,12 +1009,17 @@ impl LapceTab {
                                     .unwrap_or(p.as_os_str())
                                     .to_string_lossy();
                                 let dir = match &data.workspace.kind {
-                                    LapceWorkspaceType::Local => dir.to_string(),
+                                    LapceWorkspaceType::Local => {
+                                        format!("{dir} | Lapce")
+                                    }
                                     LapceWorkspaceType::RemoteSSH(user, host) => {
-                                        format!("{} [{}@{}]", dir, user, host)
+                                        format!(
+                                            "{} [{}@{}] | Lapce",
+                                            dir, user, host
+                                        )
                                     }
                                     LapceWorkspaceType::RemoteWSL => {
-                                        format!("{dir} [wsl]")
+                                        format!("{dir} [wsl] | Lapce")
                                     }
                                 };
                                 dir
