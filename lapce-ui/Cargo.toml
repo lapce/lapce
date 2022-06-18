@@ -51,6 +51,9 @@ lapce-core = { path = "../lapce-core" }
 lapce-data = { path = "../lapce-data" }
 lapce-rpc = { path = "../lapce-rpc" }
 
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1.12"
+
 [features]
 default = ["all-languages"]
 # To build lapce with only some of the supported languages, for example:
