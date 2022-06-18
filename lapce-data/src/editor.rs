@@ -412,7 +412,13 @@ impl LapceEditorBufferData {
         hover.cancel();
     }
 
-    fn update_completion(&mut self, ctx: &mut EventCtx) {
+    /// Update the displayed autocompletion box
+    /// Sends a request to the LSP for completion information
+    fn update_completion(
+        &mut self,
+        ctx: &mut EventCtx,
+        display_if_empty_input: bool,
+    ) {
         if self.get_mode() != Mode::Insert {
             self.cancel_completion();
             return;
@@ -440,7 +446,8 @@ impl LapceEditorBufferData {
                 .to_string()
         };
         let completion = Arc::make_mut(&mut self.completion);
-        if input.is_empty() && char != "." && char != ":" {
+        if !display_if_empty_input && input.is_empty() && char != "." && char != ":"
+        {
             completion.cancel();
             return;
         }
@@ -1246,7 +1253,7 @@ impl LapceEditorBufferData {
             }
         }
 
-        self.update_completion(ctx);
+        self.update_completion(ctx, false);
         self.apply_deltas(&deltas);
 
         CommandExecuted::Yes
@@ -1678,6 +1685,10 @@ impl LapceEditorBufferData {
                     Target::Widget(self.editor.editor_id),
                 ));
             }
+            GetCompletion => {
+                // we allow empty inputs to allow for cases where the user wants to get the autocompletion beforehand
+                self.update_completion(ctx, true);
+            }
             GotoDefinition => {
                 let offset = self.editor.cursor.offset();
                 let start_offset = self.doc.buffer().prev_code_boundary(offset);
@@ -1966,7 +1977,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
             let deltas = doc.do_insert(cursor, c);
 
-            self.update_completion(ctx);
+            self.update_completion(ctx, false);
             self.cancel_hover();
             self.apply_deltas(&deltas);
         } else if let Some(direction) = self.editor.inline_find.clone() {
