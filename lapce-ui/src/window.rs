@@ -3,7 +3,7 @@ use druid::{
     widget::{LensWrap, WidgetExt},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, Widget, WidgetId,
-    WidgetPod,
+    WidgetPod, WindowState,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -183,6 +183,10 @@ impl Widget<LapceWindowData> for LapceWindow {
             Event::WindowSize(size) => {
                 ctx.set_handled();
                 data.size = *size;
+                data.maximised = matches!(
+                    ctx.window().get_window_state(),
+                    WindowState::Maximized
+                );
             }
             Event::WindowConnected => {
                 ctx.submit_command(Command::new(

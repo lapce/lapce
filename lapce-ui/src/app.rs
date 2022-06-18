@@ -1,6 +1,7 @@
 use druid::{
     AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Menu, MenuItem,
     Point, Size, SysMods, Widget, WidgetExt, WindowDesc, WindowHandle, WindowId,
+    WindowState,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -55,6 +56,7 @@ pub fn launch() {
             root,
             window_data.size,
             window_data.pos,
+            window_data.maximised,
         );
         launcher = launcher.with_window(window);
     }
@@ -68,6 +70,7 @@ fn new_window_desc<W, T: druid::Data>(
     root: W,
     size: Size,
     pos: Point,
+    maximised: bool,
 ) -> WindowDesc<T>
 where
     W: Widget<T> + 'static,
@@ -76,6 +79,9 @@ where
         .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
         .window_size(size)
         .set_position(pos);
+    if maximised {
+        desc = desc.set_window_state(WindowState::Maximized);
+    }
 
     if let Some(icon) = window_icon() {
         desc = desc.with_window_icon(icon);
@@ -189,17 +195,19 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         data: &mut LapceData,
         _env: &Env,
     ) -> druid::Handled {
-        if cmd.is(LAPCE_UI_COMMAND) {
-            let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+        if let Some(command) = cmd.get(LAPCE_UI_COMMAND) {
             if let LapceUICommand::NewWindow(from_window_id) = command {
                 let (size, pos) = data
                     .windows
                     .get(from_window_id)
+                    // If maximised, use default dimensions instead
+                    .filter(|win| !win.maximised)
                     .map(|win| (win.size, win.pos + (50.0, 50.0)))
                     .unwrap_or((Size::new(800.0, 600.0), Point::new(0.0, 0.0)));
                 let info = WindowInfo {
                     size,
                     pos,
+                    maximised: false,
                     tabs: TabsInfo {
                         active_tab: 0,
                         workspaces: vec![],
@@ -214,7 +222,13 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                 let root = build_window(&window_data);
                 let window_id = window_data.window_id;
                 data.windows.insert(window_id, window_data);
-                let desc = new_window_desc(window_id, root, info.size, info.pos);
+                let desc = new_window_desc(
+                    window_id,
+                    root,
+                    info.size,
+                    info.pos,
+                    info.maximised,
+                );
                 ctx.new_window(desc);
                 return druid::Handled::Yes;
             }

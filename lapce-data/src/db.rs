@@ -222,6 +222,7 @@ pub struct WorkspaceInfo {
 pub struct WindowInfo {
     pub size: Size,
     pub pos: Point,
+    pub maximised: bool,
     pub tabs: TabsInfo,
 }
 

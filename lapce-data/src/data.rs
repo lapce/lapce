@@ -109,6 +109,7 @@ impl LapceData {
             let info = db.get_last_window_info().unwrap_or_else(|_| WindowInfo {
                 size: Size::new(800.0, 600.0),
                 pos: Point::new(0.0, 0.0),
+                maximised: false,
                 tabs: TabsInfo {
                     active_tab: 0,
                     workspaces: vec![],
@@ -208,6 +209,7 @@ pub struct LapceWindowData {
     pub watcher: Arc<notify::RecommendedWatcher>,
     /// The size of the window.
     pub size: Size,
+    pub maximised: bool,
     /// The position of the window.
     pub pos: Point,
 }
@@ -218,6 +220,7 @@ impl Data for LapceWindowData {
             && self.tabs.same(&other.tabs)
             && self.size.same(&other.size)
             && self.pos.same(&other.pos)
+            && self.maximised.same(&other.maximised)
             && self.keypress.same(&other.keypress)
             && self.plugins.same(&other.plugins)
     }
@@ -311,6 +314,7 @@ impl LapceWindowData {
             watcher: Arc::new(watcher),
             size: info.size,
             pos: info.pos,
+            maximised: info.maximised,
         }
     }
 
@@ -331,6 +335,7 @@ impl LapceWindowData {
         WindowInfo {
             size: self.size,
             pos: self.pos,
+            maximised: self.maximised,
             tabs: TabsInfo {
                 active_tab,
                 workspaces,
