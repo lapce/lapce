@@ -34,6 +34,9 @@ pub enum ProxyNotification {
         message: String,
         diffs: Vec<FileDiff>,
     },
+    GitCheckout {
+        branch: String,
+    },
     TerminalWrite {
         term_id: TermId,
         content: String,

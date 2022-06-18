@@ -1300,7 +1300,11 @@ impl LapceTabData {
                     )
                 };
             }
-            LapceWorkbenchCommand::CheckoutBranch => {}
+            LapceWorkbenchCommand::CheckoutBranch => match data {
+                Some(Value::String(branch)) => self.proxy.git_checkout(&branch),
+                _ => log::error!("checkout called without a branch"), // TODO: How do I show a result to the user here?
+            },
+
             LapceWorkbenchCommand::ConnectSshHost => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,

@@ -135,7 +135,9 @@ impl Dispatcher {
                         }
                         self.handle_notification(notification);
                     }
-                    Err(_e) => {}
+                    Err(e) => {
+                        eprintln!("{e:?}")
+                    }
                 }
             }
         }
@@ -399,7 +401,18 @@ impl Dispatcher {
             }
             GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
-                    let _ = git_commit(&workspace, &message, diffs);
+                    match git_commit(&workspace, &message, diffs) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
+            }
+            GitCheckout { branch } => {
+                if let Some(workspace) = self.workspace.lock().clone() {
+                    match git_checkout(&workspace, &branch) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
                 }
             }
         }
@@ -688,6 +701,18 @@ fn git_commit(
         &tree,
         &[&parent],
     )?;
+    Ok(())
+}
+
+fn git_checkout(workspace_path: &Path, branch: &str) -> Result<()> {
+    let repo = Repository::open(
+        workspace_path
+            .to_str()
+            .ok_or_else(|| anyhow!("workspace path can't changed to str"))?,
+    )?;
+    let (object, reference) = repo.revparse_ext(branch)?;
+    repo.checkout_tree(&object, None)?;
+    repo.set_head(reference.unwrap().name().unwrap())?;
     Ok(())
 }
 

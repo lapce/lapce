@@ -32,7 +32,11 @@ pub fn launch() {
                 message
             ))
         })
-        .level(log::LevelFilter::Off)
+        .level(if cfg!(debug_assertions) {
+            log::LevelFilter::Warn
+        } else {
+            log::LevelFilter::Off
+        })
         .level_for("piet_wgpu", log::LevelFilter::Info);
 
     if let Some(log_file) = Config::log_file().and_then(|f| fern::log_file(f).ok()) {
