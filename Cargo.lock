@@ -2179,6 +2179,7 @@ dependencies = [
  "tree-sitter-c",
  "tree-sitter-cpp",
  "tree-sitter-elixir",
+ "tree-sitter-elm",
  "tree-sitter-go",
  "tree-sitter-highlight",
  "tree-sitter-html",
@@ -4562,6 +4563,16 @@ dependencies = [
 name = "tree-sitter-elixir"
 version = "0.19.0"
 source = "git+https://github.com/elixir-lang/tree-sitter-elixir.git#60863fc6e27d60cf4b1917499ed2259f92c7800e"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-elm"
+version = "5.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d4c28acbbdb8a0d72a5eb181e05d29f664e6631c3182f1e3d9974ae900addf3"
 dependencies = [
  "cc",
  "tree-sitter",
