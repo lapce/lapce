@@ -599,4 +599,19 @@ mod test {
     fn test_elm_lang() {
         assert_language(LapceLanguage::Elm, &["elm"]);
     }
+    #[test]
+    #[cfg(feature = "lang-swift")]
+    fn test_swift_lang() {
+        assert_language(LapceLanguage::Swift, &["swift"]);
+    }
+    #[test]
+    #[cfg(feature = "lang-ql")]
+    fn test_ql_lang() {
+        assert_language(LapceLanguage::QL, &["ql"]);
+    }
+    #[test]
+    #[cfg(feature = "lang-haskell")]
+    fn test_haskell_lang() {
+        assert_language(LapceLanguage::Haskell, &["hs"]);
+    }
 }
