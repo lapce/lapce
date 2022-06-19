@@ -1087,6 +1087,7 @@ impl Widget<LapceTabData> for LapceSplit {
                     data,
                     env,
                 );
+                child.widget.set_origin(ctx, data, env, next_origin);
                 let cross_size = self.direction.cross_size(size);
                 if cross_size > max_other_axis {
                     max_other_axis = cross_size;
