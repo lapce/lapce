@@ -38,14 +38,17 @@ pub fn launch() {
         } else {
             log::LevelFilter::Off
         })
-        .level_for("piet_wgpu", log::LevelFilter::Info);
+        .chain(std::io::stderr());
 
     if let Some(log_file) = Config::log_file().and_then(|f| fern::log_file(f).ok()) {
         log_dispatch = log_dispatch.chain(log_file);
     }
 
     log_dispatch = override_log_levels(log_dispatch);
-    let _ = log_dispatch.apply();
+    match log_dispatch.apply() {
+        Ok(()) => (),
+        Err(e) => eprintln!("Initialising logging failed {e:?}"),
+    }
 
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
     let data = LapceData::load(launcher.get_external_handle());

@@ -141,6 +141,7 @@ impl KeyPress {
                         "meta" => mods.set(Modifiers::META, true),
                         "shift" => mods.set(Modifiers::SHIFT, true),
                         "alt" => mods.set(Modifiers::ALT, true),
+                        "" => (),
                         other => log::warn!("Invalid key modifier: {}", other),
                     }
                 }
