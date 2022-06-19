@@ -246,7 +246,7 @@ impl Widget<LapceTabData> for FindBox {
 
         let text_layout = ctx
             .text()
-            .new_text_layout(if buffer.doc.find.borrow().occurrences().len() > 0 {
+            .new_text_layout(if !buffer.doc.find.borrow().occurrences().is_empty() {
                 match index {
                     Some(index) => format!(
                         "{}/{}",
