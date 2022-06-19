@@ -277,8 +277,8 @@ impl ThemeConfig {
         colors
             .iter()
             .map(|(name, hex)| {
-                if hex.starts_with("$") {
-                    if let Some(c) = base.get(&hex[1..]) {
+                if let Some(stripped) = hex.strip_prefix('$') {
+                    if let Some(c) = base.get(stripped) {
                         return (name.to_string(), c.clone());
                     }
                     if let Some(default) = default {
@@ -290,7 +290,7 @@ impl ThemeConfig {
                 }
 
                 if let Ok(c) = Color::from_hex_str(hex) {
-                    return (name.to_string(), c.clone());
+                    return (name.to_string(), c);
                 }
                 if let Some(default) = default {
                     if let Some(c) = default.get(name) {

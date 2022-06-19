@@ -139,15 +139,15 @@ impl Buffer {
     }
 
     pub fn set_cursor_before(&mut self, cursor: CursorMode) {
-        self.revs
-            .last_mut()
-            .map(|rev| rev.cursor_before = Some(cursor));
+        if let Some(rev) = self.revs.last_mut() {
+            rev.cursor_before = Some(cursor);
+        }
     }
 
     pub fn set_cursor_after(&mut self, cursor: CursorMode) {
-        self.revs
-            .last_mut()
-            .map(|rev| rev.cursor_after = Some(cursor));
+        if let Some(rev) = self.revs.last_mut() {
+            rev.cursor_after = Some(cursor);
+        }
     }
 
     fn is_equivalent_revision(&self, base_rev: u64, other_rev: u64) -> bool {

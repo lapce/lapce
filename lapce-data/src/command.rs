@@ -47,7 +47,7 @@ pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
 #[derive(Clone, Debug)]
 pub struct LapceCommand {
     pub kind: CommandKind,
-    pub data: Option<serde_json::Value>,
+    pub data: Option<Value>,
 }
 
 #[derive(Clone, Debug)]
@@ -300,6 +300,7 @@ pub enum LapceWorkbenchCommand {
     TogglePanelVisual,
 
     // Focus toggle commands
+    #[strum(message = "Toggle Terminal Focus")]
     #[strum(serialize = "toggle_terminal_focus")]
     ToggleTerminalFocus,
 
@@ -435,7 +436,7 @@ pub enum LapceUICommand {
     FilterPaletteItems(String, String, Vec<PaletteItem>),
     UpdateKeymapsFilter(String),
     ResetSettingsFile(String, String),
-    UpdateSettingsFile(String, String, serde_json::Value),
+    UpdateSettingsFile(String, String, Value),
     UpdateSettingsFilter(String),
     FilterKeymaps(String, Arc<Vec<KeyMap>>, Arc<Vec<LapceCommand>>),
     UpdatePickerPwd(PathBuf),

@@ -943,7 +943,7 @@ impl LapceTabData {
         &mut self,
         ctx: &mut EventCtx,
         command: &LapceWorkbenchCommand,
-        data: Option<serde_json::Value>,
+        data: Option<Value>,
         _count: Option<usize>,
         _env: &Env,
     ) {
@@ -1296,13 +1296,7 @@ impl LapceTabData {
                 Arc::make_mut(editor).cursor = if self.config.lapce.modal {
                     Cursor::new(CursorMode::Normal(0), None, None)
                 } else {
-                    Cursor::new(
-                        CursorMode::Insert(lapce_core::selection::Selection::caret(
-                            0,
-                        )),
-                        None,
-                        None,
-                    )
+                    Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
                 };
             }
             LapceWorkbenchCommand::CheckoutBranch => match data {
@@ -1390,7 +1384,7 @@ impl LapceTabData {
         _proxy: Arc<LapceProxy>,
     ) {
         let mut terminals = HashMap::new();
-        let mut last_redraw = std::time::Instant::now();
+        let mut last_redraw = Instant::now();
         let mut last_event = None;
         loop {
             let (term_id, event) = if let Some((term_id, event)) = last_event.take()
@@ -1415,7 +1409,7 @@ impl LapceTabData {
                         last_event = receiver.try_recv().ok();
                         if last_event.is_some() {
                             if last_redraw.elapsed().as_millis() > 10 {
-                                last_redraw = std::time::Instant::now();
+                                last_redraw = Instant::now();
                                 let _ = event_sink.submit_command(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::RequestPaint,
@@ -1423,7 +1417,7 @@ impl LapceTabData {
                                 );
                             }
                         } else {
-                            last_redraw = std::time::Instant::now();
+                            last_redraw = Instant::now();
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::RequestPaint,
@@ -1827,10 +1821,10 @@ impl LapceMainSplitData {
                 if !edits.is_empty() {
                     let doc = self.open_docs.get_mut(path).unwrap();
 
-                    let edits: Vec<(lapce_core::selection::Selection, &str)> = edits
+                    let edits: Vec<(Selection, &str)> = edits
                         .iter()
                         .map(|edit| {
-                            let selection = lapce_core::selection::Selection::region(
+                            let selection = Selection::region(
                                 doc.buffer().offset_of_position(&edit.range.start),
                                 doc.buffer().offset_of_position(&edit.range.end),
                             );
@@ -1838,7 +1832,7 @@ impl LapceMainSplitData {
                         })
                         .collect();
 
-                    self.edit(path, &edits, lapce_core::editor::EditType::Other);
+                    self.edit(path, &edits, EditType::Other);
                 }
             }
         }
@@ -2320,15 +2314,12 @@ impl LapceMainSplitData {
         match child {
             EditorTabChild::Editor(view_id, _, _) => {
                 let editor = self.editors.get(&view_id).unwrap();
-                match &editor.content {
-                    BufferContent::File(path) => {
-                        if let Some(folder) = Config::themes_folder() {
-                            if let Some(file_name) = path.file_name() {
-                                let _ = std::fs::copy(path, folder.join(file_name));
-                            }
+                if let BufferContent::File(ref path) = editor.content {
+                    if let Some(folder) = Config::themes_folder() {
+                        if let Some(file_name) = path.file_name() {
+                            let _ = std::fs::copy(path, folder.join(file_name));
                         }
                     }
-                    _ => {}
                 }
             }
             EditorTabChild::Settings(_, _) => {}

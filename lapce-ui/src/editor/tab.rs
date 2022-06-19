@@ -313,25 +313,20 @@ impl Widget<LapceTabData> for LapceEditorTab {
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 ctx.set_handled();
                 let cmd = cmd.get_unchecked(LAPCE_COMMAND);
-                match cmd.kind {
-                    CommandKind::Focus(FocusCommand::SplitVertical) => {
-                        let editor_tab = data
-                            .main_split
-                            .editor_tabs
-                            .get_mut(&self.widget_id)
-                            .unwrap();
-                        ctx.submit_command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Focus(
-                                    FocusCommand::SplitVertical,
-                                ),
-                                data: None,
-                            },
-                            Target::Widget(editor_tab.active_child().widget_id()),
-                        ));
-                    }
-                    _ => {}
+                if let CommandKind::Focus(FocusCommand::SplitVertical) = cmd.kind {
+                    let editor_tab = data
+                        .main_split
+                        .editor_tabs
+                        .get_mut(&self.widget_id)
+                        .unwrap();
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::SplitVertical),
+                            data: None,
+                        },
+                        Target::Widget(editor_tab.active_child().widget_id()),
+                    ));
                 }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {

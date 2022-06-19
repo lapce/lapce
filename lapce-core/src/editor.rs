@@ -796,14 +796,12 @@ impl Editor {
                         } else {
                             cursor.mode = cursor_mode;
                         }
+                    } else if let Some(new_cursor) =
+                        get_first_selection_after(cursor, buffer, &delta)
+                    {
+                        *cursor = new_cursor
                     } else {
-                        if let Some(new_cursor) =
-                            get_first_selection_after(cursor, buffer, &delta)
-                        {
-                            *cursor = new_cursor
-                        } else {
-                            cursor.apply_delta(&delta);
-                        }
+                        cursor.apply_delta(&delta);
                     }
                     vec![(delta, inval_lines)]
                 } else {
@@ -818,14 +816,12 @@ impl Editor {
                         } else {
                             cursor.mode = cursor_mode;
                         }
+                    } else if let Some(new_cursor) =
+                        get_first_selection_after(cursor, buffer, &delta)
+                    {
+                        *cursor = new_cursor
                     } else {
-                        if let Some(new_cursor) =
-                            get_first_selection_after(cursor, buffer, &delta)
-                        {
-                            *cursor = new_cursor
-                        } else {
-                            cursor.apply_delta(&delta);
-                        }
+                        cursor.apply_delta(&delta);
                     }
                     vec![(delta, inval_lines)]
                 } else {

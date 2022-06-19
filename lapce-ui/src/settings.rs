@@ -72,7 +72,7 @@ impl LapceSettingsPanel {
             WidgetPod::new(
                 LapceSettings::new_split(LapceSettingsKind::Terminal, data).boxed(),
             ),
-            WidgetPod::new(ThemeSettings::new().boxed()),
+            WidgetPod::new(ThemeSettings::new_boxed().boxed()),
             WidgetPod::new(LapceKeymap::new_split(data).boxed()),
         ];
         Self {
@@ -1016,7 +1016,7 @@ pub struct ThemeSettings {
 }
 
 impl ThemeSettings {
-    fn new() -> Box<dyn Widget<LapceTabData>> {
+    fn new_boxed() -> Box<dyn Widget<LapceTabData>> {
         LapceScroll::new(
             LapceSplit::new(WidgetId::next())
                 .horizontal()
@@ -1151,11 +1151,8 @@ impl Widget<LapceTabData> for ThemeSettings {
                 self.mouse_down_rect = None;
                 for (key, default, change) in self.changed_rects.iter() {
                     if change.contains(mouse_event.pos) {
-                        self.mouse_down_rect = Some((
-                            key.to_string(),
-                            default.to_string(),
-                            change.clone(),
-                        ));
+                        self.mouse_down_rect =
+                            Some((key.to_string(), default.to_string(), *change));
                     }
                 }
             }
@@ -1382,7 +1379,7 @@ impl Widget<LapceTabData> for ThemeSettings {
         for (i, input) in self.inputs.iter_mut().enumerate() {
             let text_layout = &self.text_layouts.as_ref().unwrap()[i];
             ctx.draw_text(
-                &text_layout,
+                text_layout,
                 Point::new(
                     0.0,
                     input.layout_rect().y0

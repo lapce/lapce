@@ -485,12 +485,11 @@ impl LapceEditorGutter {
         let width = 16.0;
         let height = 16.0;
         let char_width = data.config.editor_char_width(text);
-        let rect = Size::new(width, height).to_rect().with_origin(Point::new(
+        Size::new(width, height).to_rect().with_origin(Point::new(
             self.width + char_width + 3.0,
             (line_height - height) / 2.0 + line_height * line as f64
                 - data.editor.scroll_offset.y,
-        ));
-        rect
+        ))
     }
 
     fn paint_code_actions_hint(
