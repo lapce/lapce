@@ -223,22 +223,33 @@ impl LapceEditorBufferData {
                 CodeActionOrCommand::CodeAction(action) => {
                     if let Some(edit) = action.edit.as_ref() {
                         if let Some(edits) = workspace_edits(edit) {
-                            if let Some(edits) =
-                                edits.get(&Url::from_file_path(&path).unwrap())
-                            {
-                                let path = path.clone();
-                                let doc = self
-                                    .main_split
-                                    .open_docs
-                                    .get_mut(&path)
-                                    .unwrap();
-                                let edits: Vec<(
-                                    lapce_core::selection::Selection,
-                                    &str,
-                                )> = edits
-                                    .iter()
-                                    .map(|edit| {
-                                        let selection =
+                            for (url, edits) in edits {
+                                // TODO: Neither of these methods work for paths
+                                // on different filesystems (i.e. windows and linux),
+                                // as pathbuf is meant to represent a path on the host
+                                let mut matches = false;
+                                // This handles windows drive letters, which rust-url doesn't do.
+                                if let Ok(url_path) = url.to_file_path() {
+                                    matches |= &url_path == path;
+                                }
+                                // This is the previous check, to ensure this isn't a regression
+                                if let Ok(path_url) = Url::from_file_path(path) {
+                                    matches |= path_url == url;
+                                }
+                                if matches {
+                                    let path = path.clone();
+                                    let doc = self
+                                        .main_split
+                                        .open_docs
+                                        .get_mut(&path)
+                                        .unwrap();
+                                    let edits: Vec<(
+                                        lapce_core::selection::Selection,
+                                        &str,
+                                    )> = edits
+                                        .iter()
+                                        .map(|edit| {
+                                            let selection =
                                             lapce_core::selection::Selection::region(
                                                 doc.buffer().offset_of_position(
                                                     &edit.range.start,
@@ -247,14 +258,15 @@ impl LapceEditorBufferData {
                                                     &edit.range.end,
                                                 ),
                                             );
-                                        (selection, edit.new_text.as_str())
-                                    })
-                                    .collect();
-                                self.main_split.edit(
-                                    &path,
-                                    &edits,
-                                    lapce_core::editor::EditType::Other,
-                                );
+                                            (selection, edit.new_text.as_str())
+                                        })
+                                        .collect();
+                                    self.main_split.edit(
+                                        &path,
+                                        &edits,
+                                        lapce_core::editor::EditType::Other,
+                                    );
+                                }
                             }
                         }
                     }
