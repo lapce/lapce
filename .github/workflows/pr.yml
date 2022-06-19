@@ -27,6 +27,8 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.toolchain }}
 
+      - uses: Swatinem/rust-cache@v1
+
       - uses: actions-rs/cargo@v1
         with:
           command: test
@@ -43,6 +45,7 @@ jobs:
           toolchain: stable
           override: true
       - run: rustup component add rustfmt
+      - uses: Swatinem/rust-cache@v1
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
