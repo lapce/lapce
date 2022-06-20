@@ -4590,7 +4590,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-glimmer"
 version = "0.0.1"
-source = "git+https://github.com/VixieTSQ/tree-sitter-glimmer#726c956eafa1ddc1d453292716c1e6a3ee7a33c4"
+source = "git+https://github.com/VixieTSQ/tree-sitter-glimmer#d8a41791e83d445ef52748429cea6fed974908e7"
 dependencies = [
  "cc",
  "tree-sitter",
@@ -4627,7 +4627,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-hcl"
 version = "0.0.1"
-source = "git+https://github.com/VixieTSQ/tree-sitter-hcl#fee8bab54172f972121d4e51f7de131d24922fa9"
+source = "git+https://github.com/VixieTSQ/tree-sitter-hcl#f4aa4553344e03e149ec459549a7f686d6846626"
 dependencies = [
  "cc",
  "tree-sitter",
