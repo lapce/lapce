@@ -605,47 +605,6 @@ impl LapceEditorBufferData {
         );
     }
 
-    pub fn update_global_search(&self, ctx: &mut EventCtx, pattern: String) {
-        let tab_id = *self.main_split.tab_id;
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::UpdateSearch(pattern.to_string()),
-            Target::Widget(tab_id),
-        ));
-        if pattern.is_empty() {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::GlobalSearchResult(
-                    pattern,
-                    Arc::new(HashMap::new()),
-                ),
-                Target::Widget(tab_id),
-            ));
-        } else {
-            let event_sink = ctx.get_external_handle();
-            self.proxy.global_search(
-                pattern.clone(),
-                Box::new(move |result| {
-                    if let Ok(matches) = result {
-                        if let Ok(matches) = serde_json::from_value::<
-                            HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
-                        >(matches)
-                        {
-                            let _ = event_sink.submit_command(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::GlobalSearchResult(
-                                    pattern,
-                                    Arc::new(matches),
-                                ),
-                                Target::Widget(tab_id),
-                            );
-                        }
-                    }
-                }),
-            )
-        }
-    }
-
     fn initiate_diagnostics_offset(&mut self) {
         let doc = self.doc.clone();
         if let Some(diagnostics) = self.diagnostics_mut() {
@@ -1369,7 +1328,7 @@ impl LapceEditorBufferData {
                 let word = self.doc.buffer().slice_to_cow(start..end).to_string();
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSearch(word.clone()),
+                    LapceUICommand::UpdateSearchInput(word.clone()),
                     Target::Widget(*self.main_split.tab_id),
                 ));
                 Arc::make_mut(&mut self.find).set_find(&word, false, false, true);
@@ -1857,7 +1816,7 @@ impl LapceEditorBufferData {
                         .set_find(&pattern, false, false, false);
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateSearch(pattern),
+                        LapceUICommand::UpdateSearchInput(pattern),
                         Target::Widget(*self.main_split.tab_id),
                     ));
                 }

@@ -607,7 +607,7 @@ impl PaletteViewData {
             find.set_find(&pattern, false, false, false);
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateSearch(pattern),
+                LapceUICommand::UpdateSearchInput(pattern),
                 Target::Widget(*self.main_split.tab_id),
             ));
         }

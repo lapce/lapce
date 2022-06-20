@@ -438,7 +438,7 @@ impl LapceTab {
                         palette_data.update_input(ctx, pattern.to_owned());
                         data.palette = palette_data.palette.clone();
                     }
-                    LapceUICommand::UpdateSearch(pattern) => {
+                    LapceUICommand::UpdateSearchInput(pattern) => {
                         let doc = data
                             .main_split
                             .local_docs
@@ -447,6 +447,8 @@ impl LapceTab {
                         if &doc.buffer().text().to_string() != pattern {
                             Arc::make_mut(doc).reload(Rope::from(pattern), true);
                         }
+                    }
+                    LapceUICommand::UpdateSearch(pattern) => {
                         if pattern.is_empty() {
                             Arc::make_mut(&mut data.find).unset();
                             Arc::make_mut(&mut data.search).matches =

@@ -404,6 +404,7 @@ pub enum LapceUICommand {
     },
     ShowAlert(AlertContentData),
     ShowMenu(Point, Arc<Vec<MenuKind>>),
+    UpdateSearchInput(String),
     UpdateSearch(String),
     GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),
     CancelFilePicker,
