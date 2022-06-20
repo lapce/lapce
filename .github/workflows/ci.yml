@@ -27,6 +27,8 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.toolchain }}
 
+      - uses: Swatinem/rust-cache@v1
+
       - name: Build
         uses: actions-rs/cargo@v1
         with:
@@ -48,6 +50,7 @@ jobs:
           toolchain: stable
           override: true
       - run: rustup component add rustfmt
+      - uses: Swatinem/rust-cache@v1
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
@@ -66,6 +69,7 @@ jobs:
       - run: rustup component add clippy
       - name: Install dependencies on Ubuntu
         run: sudo apt-get update && sudo apt-get install cmake pkg-config libgtk-3-dev
+      - uses: Swatinem/rust-cache@v1
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
