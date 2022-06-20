@@ -268,6 +268,7 @@ impl LapceEditor {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Focus(FocusCommand::GotoDefinition),
+                    name: None,
                     data: None,
                 },
             }),
@@ -277,6 +278,7 @@ impl LapceEditor {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::PaletteCommand,
                     ),
+                    name: None,
                     data: None,
                 },
             }),
@@ -285,6 +287,7 @@ impl LapceEditor {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Edit(EditCommand::ClipboardCut),
+                    name: None,
                     data: None,
                 },
             }),
@@ -292,6 +295,7 @@ impl LapceEditor {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Edit(EditCommand::ClipboardCopy),
+                    name: None,
                     data: None,
                 },
             }),
@@ -299,6 +303,7 @@ impl LapceEditor {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Edit(EditCommand::ClipboardPaste),
+                    name: None,
                     data: None,
                 },
             }),

@@ -1034,6 +1034,7 @@ impl LapceEditorBufferData {
                 LAPCE_COMMAND,
                 LapceCommand {
                     kind: CommandKind::Focus(FocusCommand::GotoDefinition),
+                    name: None,
                     data: None,
                 },
                 Target::Widget(self.editor.view_id),
@@ -1108,6 +1109,7 @@ impl LapceEditorBufferData {
                     LAPCE_COMMAND,
                     LapceCommand {
                         kind: CommandKind::Focus(FocusCommand::SplitClose),
+                        name: None,
                         data: None,
                     },
                     Target::Widget(self.editor.view_id),
@@ -1247,6 +1249,7 @@ impl LapceEditorBufferData {
                         LAPCE_COMMAND,
                         LapceCommand {
                             kind: CommandKind::Focus(FocusCommand::ModalClose),
+                            name: None,
                             data: None,
                         },
                         Target::Widget(self.palette.widget_id),
@@ -1355,6 +1358,7 @@ impl LapceEditorBufferData {
                                 kind: CommandKind::Focus(
                                     FocusCommand::SearchForward,
                                 ),
+                                name: None,
                                 data: None,
                             },
                             Target::Widget(parent_view_id),
@@ -1388,6 +1392,7 @@ impl LapceEditorBufferData {
                                 kind: CommandKind::Focus(
                                     FocusCommand::SearchBackward,
                                 ),
+                                name: None,
                                 data: None,
                             },
                             Target::Widget(parent_view_id),
@@ -1485,6 +1490,7 @@ impl LapceEditorBufferData {
                         LAPCE_COMMAND,
                         LapceCommand {
                             kind: CommandKind::Focus(FocusCommand::ListSelect),
+                            name: None,
                             data: None,
                         },
                         Target::Widget(self.palette.widget_id),
@@ -1533,6 +1539,7 @@ impl LapceEditorBufferData {
                         LAPCE_COMMAND,
                         LapceCommand {
                             kind: CommandKind::Focus(FocusCommand::ListNext),
+                            name: None,
                             data: None,
                         },
                         Target::Widget(self.palette.widget_id),
@@ -1548,6 +1555,7 @@ impl LapceEditorBufferData {
                         LAPCE_COMMAND,
                         LapceCommand {
                             kind: CommandKind::Focus(FocusCommand::ListPrevious),
+                            name: None,
                             data: None,
                         },
                         Target::Widget(self.palette.widget_id),
@@ -1829,6 +1837,7 @@ impl LapceEditorBufferData {
                             kind: CommandKind::MultiSelection(
                                 MultiSelectionCommand::SelectAll,
                             ),
+                            name: None,
                             data: None,
                         },
                         Target::Widget(find_view_id),

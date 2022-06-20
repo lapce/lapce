@@ -651,6 +651,16 @@ impl LapceProxy {
         );
     }
 
+    pub fn get_code_lens(&self, buffer_id: BufferId, f: Box<dyn Callback>) {
+        self.rpc.send_rpc_request_async(
+            "get_code_lens",
+            &json!({
+                "buffer_id": buffer_id,
+            }),
+            f,
+        );
+    }
+
     pub fn get_document_symbols(&self, buffer_id: BufferId, f: Box<dyn Callback>) {
         self.rpc.send_rpc_request_async(
             "get_document_symbols",

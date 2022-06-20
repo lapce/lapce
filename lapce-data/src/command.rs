@@ -47,6 +47,7 @@ pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
 #[derive(Clone, Debug)]
 pub struct LapceCommand {
     pub kind: CommandKind,
+    pub name: Option<String>,
     pub data: Option<Value>,
 }
 
@@ -118,6 +119,7 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
     for c in LapceWorkbenchCommand::iter() {
         let command = LapceCommand {
             kind: CommandKind::Workbench(c.clone()),
+            name: None,
             data: None,
         };
         commands.insert(c.to_string(), command);
@@ -126,6 +128,7 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
     for c in EditCommand::iter() {
         let command = LapceCommand {
             kind: CommandKind::Edit(c.clone()),
+            name: None,
             data: None,
         };
         commands.insert(c.to_string(), command);
@@ -134,6 +137,7 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
     for c in MoveCommand::iter() {
         let command = LapceCommand {
             kind: CommandKind::Move(c.clone()),
+            name: None,
             data: None,
         };
         commands.insert(c.to_string(), command);
@@ -142,6 +146,7 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
     for c in FocusCommand::iter() {
         let command = LapceCommand {
             kind: CommandKind::Focus(c.clone()),
+            name: None,
             data: None,
         };
         commands.insert(c.to_string(), command);
@@ -150,6 +155,7 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
     for c in MotionModeCommand::iter() {
         let command = LapceCommand {
             kind: CommandKind::MotionMode(c.clone()),
+            name: None,
             data: None,
         };
         commands.insert(c.to_string(), command);
@@ -158,6 +164,7 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
     for c in MultiSelectionCommand::iter() {
         let command = LapceCommand {
             kind: CommandKind::MultiSelection(c.clone()),
+            name: None,
             data: None,
         };
         commands.insert(c.to_string(), command);
@@ -365,6 +372,9 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "install_theme")]
     #[strum(message = "Install current theme file")]
     InstallTheme,
+
+    #[strum(serialize = "run_code")]
+    RunCode,
 }
 
 #[derive(Debug)]

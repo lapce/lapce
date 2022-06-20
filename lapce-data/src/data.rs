@@ -1347,6 +1347,13 @@ impl LapceTabData {
             LapceWorkbenchCommand::InstallTheme => {
                 self.main_split.install_theme(ctx, &self.config);
             }
+            LapceWorkbenchCommand::RunCode => {
+                if let Some(command) = data.and_then(|d| {
+                    serde_json::from_value::<lsp_types::Command>(d).ok()
+                }) {
+                    self.main_split.run_code(ctx, command);
+                }
+            }
         }
     }
 
@@ -1494,6 +1501,7 @@ impl LapceTabData {
                             kind: CommandKind::MultiSelection(
                                 MultiSelectionCommand::SelectAll,
                             ),
+                            name: None,
                             data: None,
                         },
                         Target::Widget(focus_id),
@@ -2336,6 +2344,10 @@ impl LapceMainSplitData {
         }
     }
 
+    pub fn run_code(&mut self, _ctx: &mut EventCtx, command: lsp_types::Command) {
+        println!("=============================\nRunning command: {command:?}");
+    }
+
     pub fn export_theme(&mut self, ctx: &mut EventCtx, config: &Config) {
         let id = self.new_file(ctx, config);
         let doc = self.scratch_docs.get_mut(&id).unwrap();
@@ -2725,6 +2737,7 @@ impl LapceMainSplitData {
                             LAPCE_COMMAND,
                             LapceCommand {
                                 kind: CommandKind::Focus(FocusCommand::SplitClose),
+                                name: None,
                                 data: None,
                             },
                             Target::Widget(view_id),
@@ -2827,6 +2840,7 @@ impl LapceMainSplitData {
                                         kind: CommandKind::Focus(
                                             FocusCommand::SaveAndExit,
                                         ),
+                                        name: None,
                                         data: None,
                                     },
                                 ),
@@ -2837,6 +2851,7 @@ impl LapceMainSplitData {
                                         kind: CommandKind::Focus(
                                             FocusCommand::ForceExit,
                                         ),
+                                        name: None,
                                         data: None,
                                     },
                                 ),

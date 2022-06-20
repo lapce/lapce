@@ -711,6 +711,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                                     kind: CommandKind::Focus(
                                         FocusCommand::ModalClose,
                                     ),
+                                    name: None,
                                     data: None,
                                 },
                                 Target::Widget(data.palette.widget_id),
@@ -801,6 +802,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     LAPCE_COMMAND,
                     LapceCommand {
                         kind: CommandKind::Edit(EditCommand::InsertMode),
+                        name: None,
                         data: None,
                     },
                     Target::Widget(self.view_id),
@@ -810,6 +812,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     LAPCE_COMMAND,
                     LapceCommand {
                         kind: CommandKind::Edit(EditCommand::NormalMode),
+                        name: None,
                         data: None,
                     },
                     Target::Widget(self.view_id),

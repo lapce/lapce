@@ -543,6 +543,11 @@ impl Dispatcher {
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_document_formatting(id, buffer);
             }
+            GetCodeLens { buffer_id } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp.lock().get_code_lens(id, buffer);
+            }
             ReadDir { path } => {
                 let local_dispatcher = self.clone();
                 thread::spawn(move || {

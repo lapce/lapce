@@ -466,6 +466,7 @@ impl LapceTab {
                                             kind: CommandKind::Focus(
                                                 FocusCommand::SearchInView,
                                             ),
+                                            name: None,
                                             data: None,
                                         },
                                         Target::Widget(widget_id),
@@ -721,6 +722,7 @@ impl LapceTab {
                                         kind: CommandKind::Focus(
                                             FocusCommand::SplitClose,
                                         ),
+                                        name: None,
                                         data: None,
                                     },
                                     Target::Widget(*widget_id),

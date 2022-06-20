@@ -622,17 +622,14 @@ impl PaletteContent {
                     };
                     (None, text, indices.to_vec(), "".to_string(), vec![])
                 }
-                PaletteItemContent::Command(command) => (
-                    None,
-                    command
-                        .kind
-                        .desc()
-                        .map(|m| m.to_string())
-                        .unwrap_or_else(|| "".to_string()),
-                    indices.to_vec(),
-                    "".to_string(),
-                    vec![],
-                ),
+                PaletteItemContent::Command(command) => {
+                    let name = command
+                        .name
+                        .clone()
+                        .or_else(|| command.kind.desc().map(ToString::to_string))
+                        .unwrap_or_else(String::new);
+                    (None, name, indices.to_vec(), "".to_string(), vec![])
+                }
                 PaletteItemContent::Theme(theme) => (
                     None,
                     theme.to_string(),

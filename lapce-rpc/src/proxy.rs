@@ -110,6 +110,9 @@ pub enum ProxyRequest {
     GetDocumentFormatting {
         buffer_id: BufferId,
     },
+    GetCodeLens {
+        buffer_id: BufferId,
+    },
     GetFiles {
         path: String,
     },

@@ -61,6 +61,7 @@ impl LapceEditorHeader {
                 LAPCE_COMMAND,
                 LapceCommand {
                     kind: CommandKind::Focus(FocusCommand::SplitClose),
+                    name: None,
                     data: None,
                 },
                 Target::Widget(self.view_id),
@@ -79,6 +80,7 @@ impl LapceEditorHeader {
                 LAPCE_COMMAND,
                 LapceCommand {
                     kind: CommandKind::Focus(FocusCommand::SplitVertical),
+                    name: None,
                     data: None,
                 },
                 Target::Widget(self.view_id),

@@ -172,6 +172,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
                         LAPCE_COMMAND,
                         LapceCommand {
                             kind: CommandKind::Focus(FocusCommand::ModalClose),
+                            name: None,
                             data: None,
                         },
                         Target::Widget(self.widget_id),
@@ -193,6 +194,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
                             LAPCE_COMMAND,
                             LapceCommand {
                                 kind: CommandKind::Focus(FocusCommand::ModalClose),
+                                name: None,
                                 data: None,
                             },
                             Target::Widget(self.widget_id),

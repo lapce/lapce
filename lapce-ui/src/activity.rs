@@ -49,6 +49,7 @@ impl Widget<LapceTabData> for ActivityBar {
                                         kind: CommandKind::Workbench(
                                             LapceWorkbenchCommand::TogglePanelVisual,
                                         ),
+                                        name: None,
                                         data: Some(json!(kind)),
                                     },
                                     Target::Widget(data.id),
@@ -60,6 +61,7 @@ impl Widget<LapceTabData> for ActivityBar {
                                         kind: CommandKind::Workbench(
                                             LapceWorkbenchCommand::ShowPanel,
                                         ),
+                                        name: None,
                                         data: Some(json!(kind)),
                                     },
                                     Target::Widget(data.id),

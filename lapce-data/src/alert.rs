@@ -73,6 +73,7 @@ impl KeyPressFocus for AlertFocusData {
                 LAPCE_COMMAND,
                 LapceCommand {
                     kind: CommandKind::Focus(FocusCommand::ModalClose),
+                    name: None,
                     data: None,
                 },
                 Target::Widget(self.alert.widget_id),

@@ -283,6 +283,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                     LAPCE_COMMAND,
                     LapceCommand {
                         kind: CommandKind::Focus(FocusCommand::SplitVertical),
+                        name: None,
                         data: None,
                     },
                     Target::Widget(self.widget_id),

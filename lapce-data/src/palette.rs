@@ -9,7 +9,9 @@ use itertools::Itertools;
 use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_core::mode::Mode;
 use lapce_core::movement::Movement;
-use lsp_types::{DocumentSymbolResponse, Range, SymbolInformation, SymbolKind};
+use lsp_types::{
+    CodeLens, DocumentSymbolResponse, Range, SymbolInformation, SymbolKind,
+};
 use serde_json;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -17,7 +19,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::command::CommandKind;
+use crate::command::{CommandKind, LapceWorkbenchCommand};
 use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::document::BufferContent;
 use crate::editor::EditorLocation;
@@ -40,6 +42,7 @@ pub enum PaletteType {
     Line,
     GlobalSearch,
     DocumentSymbol,
+    CodeLens,
     WorkspaceSymbol,
     Workspace,
     Command,
@@ -61,6 +64,7 @@ impl PaletteType {
             PaletteType::Reference => "".to_string(),
             PaletteType::Theme => "".to_string(),
             PaletteType::SshHost => "".to_string(),
+            PaletteType::CodeLens => "$".to_string(),
         }
     }
 
@@ -457,6 +461,7 @@ impl PaletteData {
             PaletteType::Workspace => &self.input[1..],
             PaletteType::Command => &self.input[1..],
             PaletteType::GlobalSearch => &self.input[1..],
+            PaletteType::CodeLens => &self.input[1..],
         }
     }
 }
@@ -575,6 +580,9 @@ impl PaletteViewData {
                 let config = self.config.clone();
                 self.get_themes(ctx, &config);
             }
+            PaletteType::CodeLens => {
+                self.get_code_lens(ctx);
+            }
         }
     }
 
@@ -606,6 +614,7 @@ impl PaletteViewData {
             PaletteType::Workspace => 1,
             PaletteType::Command => 1,
             PaletteType::GlobalSearch => 1,
+            PaletteType::CodeLens => 1,
         };
 
         if palette.cursor == start {
@@ -726,6 +735,7 @@ impl PaletteViewData {
             _ if self.palette.input.starts_with('#') => PaletteType::WorkspaceSymbol,
             _ if self.palette.input.starts_with('>') => PaletteType::Workspace,
             _ if self.palette.input.starts_with(':') => PaletteType::Command,
+            _ if self.palette.input.starts_with('$') => PaletteType::CodeLens,
             _ => PaletteType::File,
         }
     }
@@ -948,6 +958,69 @@ impl PaletteViewData {
     }
 
     fn get_global_search(&mut self, _ctx: &mut EventCtx) {}
+
+    fn get_code_lens(&mut self, ctx: &mut EventCtx) {
+        let editor = self.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return,
+        };
+
+        let widget_id = self.palette.widget_id;
+
+        if let BufferContent::File(path) = &editor.content {
+            let path = path.clone();
+            let buffer_id = self.main_split.open_docs.get(&path).unwrap().id();
+            let run_id = self.palette.run_id.clone();
+            let event_sink = ctx.get_external_handle();
+
+            self.palette.proxy.get_code_lens(
+                buffer_id,
+                Box::new(move |result| {
+                    if let Ok(res) = result {
+                        let resp: Result<Vec<CodeLens>, serde_json::Error> =
+                            serde_json::from_value(res);
+                        if let Ok(resp) = resp {
+                            let items = resp
+                                .iter()
+                                .filter_map(|code_lens| {
+                                    code_lens.command.as_ref().map(|command| {
+                                        dbg!(&command);
+                                        let name = format!(
+                                            "{} {}:{}",
+                                            command.title.clone(),
+                                            code_lens.range.start.line,
+                                            code_lens.range.start.character
+                                        );
+                                        PaletteItem {
+                                        content: PaletteItemContent::Command(
+                                            LapceCommand {
+                                                kind: CommandKind::Workbench(
+                                                    LapceWorkbenchCommand::RunCode,
+                                                ),
+                                                name: Some(name),
+                                                data: serde_json::to_value(command)
+                                                    .ok(),
+                                            },
+                                        ),
+                                        filter_text: command.title.clone(),
+                                        score: 0,
+                                        indices: vec![],
+                                    }
+                                    })
+                                })
+                                .collect();
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdatePaletteItems(run_id, items),
+                                Target::Widget(widget_id),
+                            );
+                        }
+                    }
+                }),
+            );
+        }
+    }
 
     fn get_document_symbols(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();

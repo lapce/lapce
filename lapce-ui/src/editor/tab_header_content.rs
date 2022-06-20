@@ -285,6 +285,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                         LAPCE_COMMAND,
                         LapceCommand {
                             kind: CommandKind::Focus(FocusCommand::SplitClose),
+                            name: None,
                             data: None,
                         },
                         Target::Widget(editor_tab.children[tab_idx].widget_id()),

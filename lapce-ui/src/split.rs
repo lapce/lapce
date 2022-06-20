@@ -1167,6 +1167,7 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommand> 
         vec![
             LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::PaletteCommand),
+                name: None,
                 data: None,
             },
             LapceCommand {
@@ -1175,16 +1176,19 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommand> 
                 } else {
                     LapceWorkbenchCommand::EnableModal
                 }),
+                name: None,
                 data: None,
             },
             LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
+                name: None,
                 data: None,
             },
             LapceCommand {
                 kind: CommandKind::Workbench(
                     LapceWorkbenchCommand::PaletteWorkspace,
                 ),
+                name: None,
                 data: None,
             },
         ]
@@ -1192,6 +1196,7 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommand> 
         vec![
             LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::PaletteCommand),
+                name: None,
                 data: None,
             },
             if modal {
@@ -1199,16 +1204,19 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommand> 
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::DisableModal,
                     ),
+                    name: None,
                     data: None,
                 }
             } else {
                 LapceCommand {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::EnableModal),
+                    name: None,
                     data: None,
                 }
             },
             LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::Palette),
+                name: None,
                 data: None,
             },
         ]

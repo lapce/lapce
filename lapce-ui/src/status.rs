@@ -77,6 +77,7 @@ impl LapceStatus {
                         LAPCE_COMMAND,
                         LapceCommand {
                             kind: CommandKind::Workbench(cmd),
+                            name: None,
                             data: None,
                         },
                         Target::Widget(data.id),
