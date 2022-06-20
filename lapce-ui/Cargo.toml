@@ -81,7 +81,13 @@ all-languages = [
     "lang-swift",
     "lang-ql",
     "lang-haskell",
+    "lang-ocaml",
+    "lang-glimmer",
+    "lang-haxe",
+    "lang-hcl",
+    "lang-scss"
 ]
+
 lang-rust = ["lapce-core/lang-rust"]
 lang-go = ["lapce-core/lang-go"]
 lang-javascript= ["lapce-core/lang-javascript"]
@@ -101,3 +107,8 @@ lang-elm = ["lapce-core/lang-elm"]
 lang-swift = ["lapce-core/lang-swift"]
 lang-ql = ["lapce-core/lang-ql"]
 lang-haskell = ["lapce-core/lang-haskell"]
+lang-ocaml = ["lapce-core/lang-ocaml"]
+lang-glimmer = ["lapce-core/lang-glimmer"]
+lang-haxe = ["lapce-core/lang-haxe"]
+lang-hcl = ["lapce-core/lang-hcl"]
+lang-scss = ["lapce-core/lang-scss"]
