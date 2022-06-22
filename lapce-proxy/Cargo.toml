@@ -33,3 +33,4 @@ home = "0.5.3"
 toml = "0.5.6"
 git2 = { version = "0.14.4", features = ["vendored-openssl"] }
 lapce-rpc = { path = "../lapce-rpc" }
+log = "0.4.17"

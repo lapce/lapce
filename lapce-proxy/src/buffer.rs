@@ -155,6 +155,7 @@ fn language_id_from_path(path: &Path) -> Option<&str> {
     Some(match path.extension()?.to_str()? {
         "rs" => "rust",
         "go" => "go",
+        "py" => "python",
         _ => return None,
     })
 }
