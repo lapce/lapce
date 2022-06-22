@@ -399,6 +399,14 @@ impl Dispatcher {
                     let _ = tx.send(Msg::Resize(size));
                 }
             }
+            GitInit {} => {
+                if let Some(workspace) = self.workspace.lock().clone() {
+                    match git_init(&workspace) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
+            }
             GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
                     match git_commit(&workspace, &message, diffs) {
@@ -661,6 +669,11 @@ pub struct DiffHunk {
     pub new_start: u32,
     pub new_lines: u32,
     pub header: String,
+}
+
+fn git_init(workspace_path: &Path) -> Result<()> {
+    Repository::init(workspace_path)?;
+    Ok(())
 }
 
 fn git_commit(

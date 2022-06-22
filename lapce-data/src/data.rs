@@ -1258,6 +1258,9 @@ impl LapceTabData {
                     }
                 }
             }
+            LapceWorkbenchCommand::SourceControlInit => {
+                self.proxy.git_init();
+            }
             LapceWorkbenchCommand::SourceControlCommit => {
                 let diffs: Vec<FileDiff> = self
                     .source_control
