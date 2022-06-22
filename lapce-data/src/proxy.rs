@@ -479,6 +479,52 @@ impl LapceProxy {
         );
     }
 
+    pub fn create_file(&self, path: &Path, f: Box<dyn Callback>) {
+        self.rpc.send_rpc_request_async(
+            "create_file",
+            &json!({
+                "path": path,
+            }),
+            f,
+        );
+    }
+
+    pub fn create_directory(&self, path: &Path, f: Box<dyn Callback>) {
+        self.rpc.send_rpc_request_async(
+            "create_directory",
+            &json!({
+                "path": path,
+            }),
+            f,
+        );
+    }
+
+    pub fn trash_path(&self, path: &Path, f: Box<dyn Callback>) {
+        self.rpc.send_rpc_request_async(
+            "trash_path",
+            &json!({
+                "path": path,
+            }),
+            f,
+        );
+    }
+
+    pub fn rename_path(
+        &self,
+        from_path: &Path,
+        to_path: &Path,
+        f: Box<dyn Callback>,
+    ) {
+        self.rpc.send_rpc_request_async(
+            "rename_path",
+            &json!({
+                "from": from_path,
+                "to": to_path,
+            }),
+            f,
+        );
+    }
+
     pub fn get_completion(
         &self,
         request_id: usize,

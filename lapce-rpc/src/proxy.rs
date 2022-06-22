@@ -119,6 +119,19 @@ pub enum ProxyRequest {
         rev: u64,
         content: String,
     },
+    CreateFile {
+        path: PathBuf,
+    },
+    CreateDirectory {
+        path: PathBuf,
+    },
+    TrashPath {
+        path: PathBuf,
+    },
+    RenamePath {
+        from: PathBuf,
+        to: PathBuf,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

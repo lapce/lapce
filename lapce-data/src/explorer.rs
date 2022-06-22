@@ -3,16 +3,55 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use druid::Command;
+use druid::EventCtx;
 use druid::ExtEventSink;
 use druid::{Target, WidgetId};
 
+use lapce_core::cursor::CursorMode;
+use lapce_core::selection::Selection;
 use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::proxy::ReadDirResponse;
+use xi_rope::Rope;
 
+use crate::data::LapceMainSplitData;
 use crate::data::LapceWorkspace;
+use crate::document::LocalBufferKind;
 use crate::proxy::LapceProxy;
 
 use crate::{command::LapceUICommand, command::LAPCE_UI_COMMAND};
+
+#[derive(Clone)]
+pub enum Naming {
+    /// Renaming an existing file
+    Renaming {
+        /// The index into the file list of the file being renamed
+        list_index: usize,
+        /// Indentation level
+        indent_level: usize,
+    },
+    /// Naming a file that has yet to be created
+    Naming {
+        /// The index that the file being created should appear at
+        /// Note that when naming, it is not yet actually created.
+        list_index: usize,
+        /// Indentation level
+        indent_level: usize,
+        /// If true, then we are creating a directory
+        /// If false, then we are creating a file
+        is_dir: bool,
+        /// The folder that the file/directory is being created within
+        base_path: PathBuf,
+    },
+}
+impl Naming {
+    pub fn list_index(&self) -> usize {
+        match self {
+            Naming::Renaming { list_index, .. }
+            | Naming::Naming { list_index, .. } => *list_index,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct FileExplorerData {
@@ -20,6 +59,10 @@ pub struct FileExplorerData {
     pub widget_id: WidgetId,
     pub workspace: Option<FileNodeItem>,
     pub active_selected: Option<PathBuf>,
+    /// The status of renaming/naming a file/directory
+    pub naming: Option<Naming>,
+    /// The id of the editor (in `main_split.editors`) for renaming
+    pub renaming_editor_view_id: WidgetId,
 }
 
 impl FileExplorerData {
@@ -57,6 +100,8 @@ impl FileExplorerData {
                 children_open_count: 0,
             }),
             active_selected: None,
+            naming: None,
+            renaming_editor_view_id: WidgetId::next(),
         }
     }
 
@@ -86,8 +131,20 @@ impl FileExplorerData {
         )
     }
 
-    pub fn get_node_by_index(&mut self, index: usize) -> Option<&mut FileNodeItem> {
-        let (_, node) = get_item_children_mut(0, index, self.workspace.as_mut()?);
+    /// Get the node by its index into the file list
+    /// Returns the node and its indentation level
+    pub fn get_node_by_index(&self, index: usize) -> Option<(usize, &FileNodeItem)> {
+        let (_, node) = get_item_children(0, index, 0, self.workspace.as_ref()?);
+        node
+    }
+
+    /// Get the node by its index into the file list
+    /// Returns the node and its indentation level
+    pub fn get_node_by_index_mut(
+        &mut self,
+        index: usize,
+    ) -> Option<(usize, &mut FileNodeItem)> {
+        let (_, node) = get_item_children_mut(0, index, 0, self.workspace.as_mut()?);
         node
     }
 
@@ -113,6 +170,11 @@ impl FileExplorerData {
         children: HashMap<PathBuf, FileNodeItem>,
         expand: bool,
     ) -> Option<()> {
+        // Ignore updates while naming a file
+        if self.naming.is_some() {
+            return None;
+        }
+
         let node = self.workspace.as_mut()?.get_file_node_mut(path)?;
 
         let removed_paths: Vec<PathBuf> = node
@@ -150,6 +212,19 @@ impl FileExplorerData {
         proxy: &LapceProxy,
         event_sink: ExtEventSink,
     ) {
+        FileExplorerData::read_dir_cb::<fn()>(
+            path, expand, tab_id, proxy, event_sink, None,
+        )
+    }
+
+    pub fn read_dir_cb<F: FnOnce() + Send + 'static>(
+        path: &Path,
+        expand: bool,
+        tab_id: WidgetId,
+        proxy: &LapceProxy,
+        event_sink: ExtEventSink,
+        mut on_finished: Option<F>,
+    ) {
         let path = PathBuf::from(path);
         let local_path = path.clone();
         proxy.read_dir(
@@ -167,27 +242,196 @@ impl FileExplorerData {
                             ),
                             Target::Widget(tab_id),
                         );
+
+                        if let Some(on_finished) = on_finished.take() {
+                            on_finished();
+                        }
                     }
                 }
             }),
         );
     }
+
+    /// Stop naming the file/directory, discarding any changes
+    pub fn cancel_naming(&mut self) {
+        self.naming = None;
+    }
+
+    /// Apply the current naming/renaming text (if it is nonempty and not the same as before)
+    /// Also stops the naming.
+    pub fn apply_naming(
+        &mut self,
+        ctx: &mut EventCtx,
+        main_split: &LapceMainSplitData,
+    ) {
+        let naming = if let Some(naming) = &self.naming {
+            naming
+        } else {
+            return;
+        };
+
+        // Get the text in the input
+        let doc = main_split
+            .local_docs
+            .get(&LocalBufferKind::PathName)
+            .unwrap();
+        let target_name = doc.buffer().text().to_string();
+        // If the name is empty, then we just ignore it
+        if target_name.is_empty() {
+            self.cancel_naming();
+            return;
+        }
+
+        match naming {
+            Naming::Renaming { list_index, .. } => {
+                let renaming =
+                    if let Some((_, node)) = self.get_node_by_index(*list_index) {
+                        &node.path_buf
+                    } else {
+                        // There was either nothing we were renaming, or the index disappeared
+                        return;
+                    };
+
+                let target_path = renaming.with_file_name(target_name);
+
+                // If it is the same, then we don't bother renaming it
+                if &target_path == renaming {
+                    return;
+                }
+
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RenamePath {
+                        from: renaming.clone(),
+                        to: target_path,
+                    },
+                    Target::Auto,
+                ));
+            }
+            Naming::Naming {
+                is_dir, base_path, ..
+            } => {
+                let mut path = base_path.clone();
+                path.push(target_name);
+
+                let cmd = if *is_dir {
+                    LapceUICommand::CreateDirectory { path }
+                } else {
+                    LapceUICommand::CreateFileOpen { path }
+                };
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    cmd,
+                    Target::Auto,
+                ));
+            }
+        }
+
+        self.cancel_naming();
+    }
+
+    pub fn start_naming(
+        &mut self,
+        ctx: &mut EventCtx,
+        main_split: &mut LapceMainSplitData,
+        list_index: usize,
+        indent_level: usize,
+        is_dir: bool,
+        base_path: PathBuf,
+    ) {
+        self.cancel_naming();
+        self.naming = Some(Naming::Naming {
+            list_index,
+            indent_level,
+            is_dir,
+            base_path,
+        });
+
+        // Clear the text of the input
+        let doc = main_split
+            .local_docs
+            .get_mut(&LocalBufferKind::PathName)
+            .unwrap();
+        Arc::make_mut(doc).reload(Rope::from(String::new()), true);
+
+        // Make sure the cursor is at the right position
+        let editor = main_split
+            .editors
+            .get_mut(&self.renaming_editor_view_id)
+            .unwrap();
+        Arc::make_mut(editor).cursor.mode = CursorMode::Insert(Selection::caret(0));
+
+        // Focus on the input
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(editor.view_id),
+        ));
+    }
+
+    /// Show the renaming input for the given file at the index
+    /// Requires `main_split` for getting the input to set its content
+    /// Requires `ctx` to switch focus to the input
+    pub fn start_renaming(
+        &mut self,
+        ctx: &mut EventCtx,
+        main_split: &mut LapceMainSplitData,
+        list_index: usize,
+        indent_level: usize,
+        text: String,
+    ) {
+        self.cancel_naming();
+        self.naming = Some(Naming::Renaming {
+            list_index,
+            indent_level,
+        });
+
+        // Set the text of the input
+        let doc = main_split
+            .local_docs
+            .get_mut(&LocalBufferKind::PathName)
+            .unwrap();
+        Arc::make_mut(doc).reload(Rope::from(text), true);
+
+        // TODO: We could provide a configuration option to only select the filename at first,
+        // which would fit a common case of just wanting to change the filename and not the ext
+        // (or that could be the default)
+
+        // Select all of the text, allowing them to quickly completely change the name if they wish
+        let editor = main_split
+            .editors
+            .get_mut(&self.renaming_editor_view_id)
+            .unwrap();
+        let offset = doc.buffer().line_end_offset(0, true);
+        Arc::make_mut(editor).cursor.mode =
+            CursorMode::Insert(Selection::region(0, offset));
+
+        // Focus on the input
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(editor.view_id),
+        ));
+    }
 }
 
+/// Returns (current index, Option<(indentation level of item, item)>)
 pub fn get_item_children(
     i: usize,
     index: usize,
+    indent: usize,
     item: &FileNodeItem,
-) -> (usize, Option<&FileNodeItem>) {
+) -> (usize, Option<(usize, &FileNodeItem)>) {
     if i == index {
-        return (i, Some(item));
+        return (i, Some((indent, item)));
     }
     let mut i = i;
     if item.open {
         for child in item.sorted_children() {
             let count = child.children_open_count;
             if i + count + 1 >= index {
-                let (new_index, node) = get_item_children(i + 1, index, child);
+                let (new_index, node) =
+                    get_item_children(i + 1, index, indent + 1, child);
                 if new_index == index {
                     return (new_index, node);
                 }
@@ -201,17 +445,19 @@ pub fn get_item_children(
 pub fn get_item_children_mut(
     i: usize,
     index: usize,
+    indent: usize,
     item: &mut FileNodeItem,
-) -> (usize, Option<&mut FileNodeItem>) {
+) -> (usize, Option<(usize, &mut FileNodeItem)>) {
     if i == index {
-        return (i, Some(item));
+        return (i, Some((indent, item)));
     }
     let mut i = i;
     if item.open {
         for child in item.sorted_children_mut() {
             let count = child.children_open_count;
             if i + count + 1 >= index {
-                let (new_index, node) = get_item_children_mut(i + 1, index, child);
+                let (new_index, node) =
+                    get_item_children_mut(i + 1, index, indent + 1, child);
                 if new_index == index {
                     return (new_index, node);
                 }

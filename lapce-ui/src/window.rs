@@ -30,13 +30,13 @@ pub struct LapceWindow {
 }
 
 impl LapceWindow {
-    pub fn new(data: &LapceWindowData) -> Self {
+    pub fn new(data: &mut LapceWindowData) -> Self {
         let title = WidgetPod::new(Title::new().boxed());
         let tabs = data
             .tabs_order
             .iter()
             .map(|tab_id| {
-                let data = data.tabs.get(tab_id).unwrap();
+                let data = data.tabs.get_mut(tab_id).unwrap();
                 let tab = LapceTab::new(data);
                 let tab = tab.lens(LapceTabLens(*tab_id));
                 WidgetPod::new(tab.boxed())
@@ -69,7 +69,7 @@ impl LapceWindow {
             let _ = tab.db.save_workspace(tab);
         }
         let tab_id = WidgetId::next();
-        let tab_data = LapceTabData::new(
+        let mut tab_data = LapceTabData::new(
             data.window_id,
             tab_id,
             workspace,
@@ -77,7 +77,7 @@ impl LapceWindow {
             data.keypress.clone(),
             ctx.get_external_handle(),
         );
-        let tab = LapceTab::new(&tab_data).lens(LapceTabLens(tab_id));
+        let tab = LapceTab::new(&mut tab_data).lens(LapceTabLens(tab_id));
         let tab_header = LapceTabHeader::new().lens(LapceTabLens(tab_id));
         data.tabs.insert(tab_id, tab_data);
         if replace_current {

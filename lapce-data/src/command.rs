@@ -535,4 +535,43 @@ pub enum LapceUICommand {
     ActiveFileChanged {
         path: Option<PathBuf>,
     },
+    /// Create a file in the given path with the given name and then open it
+    CreateFileOpen {
+        path: PathBuf,
+    },
+    CreateDirectory {
+        path: PathBuf,
+    },
+    RenamePath {
+        from: PathBuf,
+        to: PathBuf,
+    },
+    /// Move a file/directory to the os-specific trash
+    TrashPath {
+        path: PathBuf,
+    },
+    /// Start renaming a specific file in view at the given index
+    ExplorerStartRename {
+        /// The index into the explorer's file listing
+        list_index: usize,
+        /// The level that it should be indented to
+        indent_level: usize,
+        /// The text it will start with
+        text: String,
+    },
+    /// Start creating a new file/directory
+    ExplorerNew {
+        /// The index in the explorer's file listing that this should appear *after*
+        list_index: usize,
+        /// The level that it should be indented to
+        indent_level: usize,
+        /// Whether we are creating a file or a directory
+        is_dir: bool,
+        /// The folder that it would be created in
+        base_path: PathBuf,
+    },
+    ExplorerEndNaming {
+        /// Whether it should name/rename the file with the input data
+        apply_naming: bool,
+    },
 }

@@ -1,5 +1,6 @@
 use crate::command::LapceCommand;
 
+#[derive(Debug)]
 pub enum MenuKind {
     Item(MenuItem),
     Separator,

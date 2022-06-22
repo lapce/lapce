@@ -19,7 +19,7 @@ const LOGO_PNG: &[u8] = include_bytes!("../../extra/images/logo.png");
 #[cfg(target_os = "windows")]
 const LOGO_ICO: &[u8] = include_bytes!("../../extra/windows/lapce.ico");
 
-pub fn build_window(data: &LapceWindowData) -> impl Widget<LapceData> {
+pub fn build_window(data: &mut LapceWindowData) -> impl Widget<LapceData> {
     LapceWindow::new(data).lens(LapceWindowLens(data.window_id))
 }
 
@@ -52,8 +52,8 @@ pub fn launch() {
     }
 
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
-    let data = LapceData::load(launcher.get_external_handle());
-    for (_window_id, window_data) in data.windows.iter() {
+    let mut data = LapceData::load(launcher.get_external_handle());
+    for (_window_id, window_data) in data.windows.iter_mut() {
         let root = build_window(window_data);
         let window = new_window_desc(
             window_data.window_id,
@@ -218,13 +218,13 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                     workspaces: vec![],
                 },
             };
-            let window_data = LapceWindowData::new(
+            let mut window_data = LapceWindowData::new(
                 data.keypress.clone(),
                 ctx.get_external_handle(),
                 &info,
                 data.db.clone(),
             );
-            let root = build_window(&window_data);
+            let root = build_window(&mut window_data);
             let window_id = window_data.window_id;
             data.windows.insert(window_id, window_data);
             let desc = new_window_desc(

@@ -606,6 +606,42 @@ impl Dispatcher {
                 }
                 self.respond(id, resp);
             }
+            CreateFile { path } => {
+                // Create the file, specifically choosing to error if it already exists
+                // We also throw away the file object because we only want to create it,
+                // and return any errors that occur
+                let resp = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(path)
+                    .map(|_| json!({}))
+                    .map_err(anyhow::Error::from);
+                self.respond(id, resp);
+            }
+            CreateDirectory { path } => {
+                let resp = std::fs::create_dir(path)
+                    .map(|_| json!({}))
+                    .map_err(anyhow::Error::from);
+                self.respond(id, resp);
+            }
+            TrashPath { path } => {
+                let resp = trash::delete(path)
+                    .map(|_| json!({}))
+                    .map_err(anyhow::Error::from);
+                self.respond(id, resp);
+            }
+            RenamePath { from, to } => {
+                // We first check if the destination already exists, because rename can overwrite it
+                // and that's not the default behavior we want for when a user renames a document.
+                if to.exists() {
+                    self.respond(id, Err(anyhow!("{:?} already exists", to)));
+                } else {
+                    let resp = std::fs::rename(from, to)
+                        .map(|_| json!({}))
+                        .map_err(anyhow::Error::from);
+                    self.respond(id, resp);
+                }
+            }
             GlobalSearch { pattern } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
                     let local_dispatcher = self.clone();
