@@ -37,6 +37,7 @@ pub enum ProxyNotification {
     GitCheckout {
         branch: String,
     },
+    GitInit {},
     TerminalWrite {
         term_id: TermId,
         content: String,

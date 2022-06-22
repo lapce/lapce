@@ -382,6 +382,10 @@ impl LapceProxy {
         )
     }
 
+    pub fn git_init(&self) {
+        self.rpc.send_rpc_notification("git_init", &json!({}));
+    }
+
     pub fn git_commit(&self, message: &str, diffs: Vec<FileDiff>) {
         self.rpc.send_rpc_notification(
             "git_commit",

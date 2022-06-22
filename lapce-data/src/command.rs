@@ -348,6 +348,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "focus_terminal")]
     FocusTerminal,
 
+    #[strum(message = "Source Control: Init")]
+    #[strum(serialize = "source_control_init")]
+    SourceControlInit,
+
     #[strum(serialize = "source_control_commit")]
     SourceControlCommit,
 
