@@ -289,10 +289,12 @@ impl LapceEditorBufferData {
                     })
                     .collect::<Vec<(lapce_core::selection::Selection, &str)>>()
             });
-        let additional_edit: Option<Vec<_>> =
-            additional_edit.as_ref().map(|edits| {
+        let additional_edit: Vec<_> = additional_edit
+            .as_ref()
+            .map(|edits| {
                 edits.iter().map(|(selection, c)| (selection, *c)).collect()
-            });
+            })
+            .unwrap_or_default();
 
         let text_format = item
             .insert_text_format
@@ -317,7 +319,7 @@ impl LapceEditorBufferData {
                                 .do_raw_edit(
                                     &[
                                         &[(&selection, edit.new_text.as_str())][..],
-                                        &additional_edit.unwrap_or_default()[..],
+                                        &additional_edit[..],
                                     ]
                                     .concat(),
                                     lapce_core::editor::EditType::InsertChars,
@@ -340,7 +342,7 @@ impl LapceEditorBufferData {
                                 .do_raw_edit(
                                     &[
                                         &[(&selection, text.as_str())][..],
-                                        &additional_edit.unwrap_or_default()[..],
+                                        &additional_edit[..],
                                     ]
                                     .concat(),
                                     lapce_core::editor::EditType::InsertChars,
@@ -397,7 +399,7 @@ impl LapceEditorBufferData {
                     &selection,
                     item.insert_text.as_deref().unwrap_or(item.label.as_str()),
                 )][..],
-                &additional_edit.unwrap_or_default()[..],
+                &additional_edit[..],
             ]
             .concat(),
             lapce_core::editor::EditType::InsertChars,

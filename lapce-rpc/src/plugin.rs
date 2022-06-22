@@ -31,15 +31,13 @@ pub struct PluginInfo {
 
 impl PluginDescription {
     pub fn get_plugin_env(&self) -> Result<Vec<(String, String)>, Error> {
-        let mut vars = Vec::new();
-
         let conf = match &self.configuration {
             Some(val) => val,
             None => {
                 return Err(format_err!(
                     "Empty configuration for plugin {}",
                     self.display_name
-                ))
+                ));
             }
         };
 
@@ -49,14 +47,14 @@ impl PluginDescription {
                 return Err(format_err!(
                     "Empty configuration for plugin {}",
                     self.display_name
-                ))
+                ));
             }
         };
 
         let env = match conf.get("env_command") {
             Some(env) => env,
             // We do not print any error as no env is allowed.
-            None => return Ok(vars),
+            None => return Ok(vec![]),
         };
 
         let args = match env.as_str() {
@@ -65,7 +63,7 @@ impl PluginDescription {
                 return Err(format_err!(
                     "Plugin {}: env_command is not a string",
                     self.display_name
-                ))
+                ));
             }
         };
 
@@ -97,12 +95,10 @@ impl PluginDescription {
             }
         };
 
-        for l in data.lines() {
-            if let Some((key, value)) = l.split_once('=') {
-                vars.push((String::from(key), String::from(value)));
-            };
-        }
-
-        return Ok(vars);
+        Ok(data
+            .lines()
+            .filter_map(|l| l.split_once('='))
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect::<Vec<(String, String)>>())
     }
 }

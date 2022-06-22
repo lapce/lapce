@@ -85,49 +85,40 @@ impl LspCatalog {
         language_id: &str,
         options: Option<Value>,
     ) {
-        let binary_args = self.get_plugin_binary_args(options.clone());
+        let binary_args = self
+            .get_plugin_binary_args(options.clone())
+            .unwrap_or_default();
         let client = LspClient::new(
             language_id.to_string(),
             exec_path,
             options,
-            binary_args.to_owned(),
+            binary_args,
             self.dispatcher.clone().unwrap(),
         );
         self.clients.insert(language_id.to_string(), client);
     }
 
-    fn get_plugin_binary_args(&mut self, option: Option<Value>) -> Vec<String> {
-        let mut vals = Vec::new();
+    fn get_plugin_binary_args(
+        &mut self,
+        option: Option<Value>,
+    ) -> Option<Vec<String>> {
+        let option = option?;
 
-        let option = match option {
-            Some(val) => val,
+        match option["binary"].as_object()?.get("binary_args")?.as_array() {
+            Some(options) => {
+                return Some(
+                    options
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>(),
+                )
+            }
             None => {
-                return vals;
+                log::warn!("binary_args value should be of type [String].");
+                return None;
             }
         };
-
-        let binary = match option["binary"].as_object() {
-            Some(binary) => binary,
-            None => return vals,
-        };
-
-        let option = match binary.get("binary_args") {
-            Some(binary_args) => binary_args,
-            None => return vals,
-        };
-
-        let option = if let Some(option) = option.as_array() {
-            option
-        } else {
-            println!("binary_args value should be of type [String].");
-            return vals;
-        };
-
-        for val in option {
-            vals.push(String::from(val.as_str().unwrap()));
-        }
-
-        return vals;
     }
 
     pub fn new_buffer(
@@ -416,7 +407,7 @@ impl LspClient {
         let lsp_client = Arc::new(LspClient {
             dispatcher,
             exec_path: exec_path.to_string(),
-            binary_args: binary_args,
+            binary_args,
             options,
             state: Arc::new(Mutex::new(LspState {
                 next_id: 0,
@@ -457,9 +448,8 @@ impl LspClient {
     fn process(exec_path: &str, binary_args: Vec<String>) -> Child {
         let mut process = Command::new(exec_path);
 
-        for arg in binary_args {
-            process.arg(arg);
-        }
+        process.args(binary_args);
+
         #[cfg(target_os = "windows")]
         let process = process.creation_flags(0x08000000);
         process
