@@ -116,9 +116,10 @@ impl LspCatalog {
             }
             None => {
                 log::warn!("args value should be of type [String].");
-                return None;
             }
         };
+
+        None
     }
 
     pub fn new_buffer(
