@@ -57,7 +57,7 @@ pub struct LspState {
 #[derive(Clone)]
 pub struct LspClient {
     exec_path: String,
-    binary_args: Vec<String>,
+    args: Vec<String>,
     options: Option<Value>,
     state: Arc<Mutex<LspState>>,
     dispatcher: Dispatcher,
@@ -85,14 +85,14 @@ impl LspCatalog {
         language_id: &str,
         options: Option<Value>,
     ) {
-        let binary_args = self
+        let args = self
             .get_plugin_binary_args(options.clone())
             .unwrap_or_default();
         let client = LspClient::new(
             language_id.to_string(),
             exec_path,
             options,
-            binary_args,
+            args,
             self.dispatcher.clone().unwrap(),
         );
         self.clients.insert(language_id.to_string(), client);
@@ -104,7 +104,7 @@ impl LspCatalog {
     ) -> Option<Vec<String>> {
         let option = option?;
 
-        match option["binary"].as_object()?.get("binary_args")?.as_array() {
+        match option["binary"].as_object()?.get("args")?.as_array() {
             Some(options) => {
                 return Some(
                     options
@@ -115,7 +115,7 @@ impl LspCatalog {
                 )
             }
             None => {
-                log::warn!("binary_args value should be of type [String].");
+                log::warn!("args value should be of type [String].");
                 return None;
             }
         };
@@ -396,18 +396,18 @@ impl LspClient {
         _language_id: String,
         exec_path: &str,
         options: Option<Value>,
-        binary_args: Vec<String>,
+        args: Vec<String>,
         dispatcher: Dispatcher,
     ) -> Arc<LspClient> {
         //TODO: better handling of binary args in plugin
-        let mut process = Self::process(exec_path, binary_args.clone());
+        let mut process = Self::process(exec_path, args.clone());
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
         let lsp_client = Arc::new(LspClient {
             dispatcher,
             exec_path: exec_path.to_string(),
-            binary_args,
+            args,
             options,
             state: Arc::new(Mutex::new(LspState {
                 next_id: 0,
@@ -445,10 +445,10 @@ impl LspClient {
         });
     }
 
-    fn process(exec_path: &str, binary_args: Vec<String>) -> Child {
+    fn process(exec_path: &str, args: Vec<String>) -> Child {
         let mut process = Command::new(exec_path);
 
-        process.args(binary_args);
+        process.args(args);
 
         #[cfg(target_os = "windows")]
         let process = process.creation_flags(0x08000000);
@@ -461,7 +461,7 @@ impl LspClient {
 
     fn reload(&self) {
         //TODO: avoid clone using a &[String] ?
-        let mut process = Self::process(&self.exec_path, self.binary_args.clone());
+        let mut process = Self::process(&self.exec_path, self.args.clone());
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
@@ -508,7 +508,6 @@ impl LspClient {
     }
 
     pub fn handle_message(&self, message: &str) {
-        println!("Received message! {}", message);
         match JsonRpc::parse(message) {
             Ok(value @ JsonRpc::Request(_)) => {
                 let id = value.get_id().unwrap();
