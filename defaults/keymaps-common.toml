@@ -22,7 +22,17 @@ command = "delete_forward"
 mode = "i"
 
 [[keymaps]]
+key = "shift+Delete"
+command = "delete_forward"
+mode = "i"
+
+[[keymaps]]
 key = "backspace"
+command = "delete_backward"
+mode = "i"
+
+[[keymaps]]
+key = "shift+backspace"
 command = "delete_backward"
 mode = "i"
 
