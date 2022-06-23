@@ -150,6 +150,8 @@ pub enum LapceLanguage {
     OCamlInterface,
     #[cfg(feature = "lang-scss")]
     SCSS,
+    #[cfg(feature = "lang-hare")]
+    Hare,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -448,6 +450,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["scss"],
     },
+    #[cfg(feature = "lang-hare")]
+    SyntaxProperties {
+        id: LapceLanguage::Hare,
+        language: tree_sitter_hare::language,
+        highlight: tree_sitter_hare::HIGHLIGHT_QUERY,
+        comment: "//",
+        indent: "        ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["ha"],
+    },
 ];
 
 impl LapceLanguage {
@@ -706,5 +718,9 @@ mod test {
     #[cfg(feature = "lang-scss")]
     fn test_scss_lang() {
         assert_language(LapceLanguage::SCSS, &["scss"]);
+    }
+    #[cfg(feature = "lang-hare")]
+    fn test_hare_lang() {
+        assert_language(LapceLanguage::Hare, &["ha"]);
     }
 }

@@ -152,9 +152,12 @@ fn load_rope(path: &Path) -> Result<Rope> {
 }
 
 fn language_id_from_path(path: &Path) -> Option<&str> {
+    // recommended language_id values
+    // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem
     Some(match path.extension()?.to_str()? {
         "rs" => "rust",
         "go" => "go",
+        "py" => "python",
         _ => return None,
     })
 }

@@ -171,10 +171,12 @@ impl PluginCatalog {
 
         let output = Pipe::new();
         let input = Pipe::new();
+        let env = plugin_desc.get_plugin_env()?;
         let mut wasi_env = WasiState::new("Lapce")
             .map_dir("/", plugin_desc.dir.clone().unwrap())?
             .stdin(Box::new(input))
             .stdout(Box::new(output))
+            .envs(env)
             .finalize()?;
         let wasi = wasi_env.import_object(&module)?;
 

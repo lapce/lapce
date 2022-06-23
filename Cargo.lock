@@ -771,7 +771,7 @@ dependencies = [
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#51b6d27561254e1ba4f171a861cb8a44b869b466"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#5a8f806121332581114a2628b9dc9937b70e52c2"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -794,7 +794,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#51b6d27561254e1ba4f171a861cb8a44b869b466"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#5a8f806121332581114a2628b9dc9937b70e52c2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -804,7 +804,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#51b6d27561254e1ba4f171a861cb8a44b869b466"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#5a8f806121332581114a2628b9dc9937b70e52c2"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -2182,6 +2182,7 @@ dependencies = [
  "tree-sitter-elm",
  "tree-sitter-glimmer",
  "tree-sitter-go",
+ "tree-sitter-hare",
  "tree-sitter-haskell",
  "tree-sitter-haxe",
  "tree-sitter-hcl",
@@ -2278,6 +2279,7 @@ dependencies = [
  "jsonrpc-lite",
  "lapce-rpc",
  "locale_config",
+ "log",
  "lsp-types",
  "mio 0.6.23",
  "notify 5.0.0-pre.15",
@@ -2483,9 +2485,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.14"
+version = "0.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
+checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
 dependencies = [
  "cfg-if 1.0.0",
 ]
@@ -4618,6 +4620,16 @@ name = "tree-sitter-go"
 version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71967701c8214be4aa77e0260e98361e6fd71ceec1d9d03abb37a22c9f60d0ff"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-hare"
+version = "0.20.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6cbd59e015721be7de5449fad7b7d5302f0f8544b1589f818d9a38afd4ff198b"
 dependencies = [
  "cc",
  "tree-sitter",

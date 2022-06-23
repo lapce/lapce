@@ -57,6 +57,7 @@ pub struct LspState {
 #[derive(Clone)]
 pub struct LspClient {
     exec_path: String,
+    args: Vec<String>,
     options: Option<Value>,
     state: Arc<Mutex<LspState>>,
     dispatcher: Dispatcher,
@@ -84,13 +85,41 @@ impl LspCatalog {
         language_id: &str,
         options: Option<Value>,
     ) {
+        let args = self
+            .get_plugin_binary_args(options.clone())
+            .unwrap_or_default();
         let client = LspClient::new(
             language_id.to_string(),
             exec_path,
             options,
+            args,
             self.dispatcher.clone().unwrap(),
         );
         self.clients.insert(language_id.to_string(), client);
+    }
+
+    fn get_plugin_binary_args(
+        &mut self,
+        option: Option<Value>,
+    ) -> Option<Vec<String>> {
+        let option = option?;
+
+        match option["binary"].as_object()?.get("args")?.as_array() {
+            Some(options) => {
+                return Some(
+                    options
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>(),
+                )
+            }
+            None => {
+                log::warn!("args value should be of type [String].");
+            }
+        };
+
+        None
     }
 
     pub fn new_buffer(
@@ -368,15 +397,18 @@ impl LspClient {
         _language_id: String,
         exec_path: &str,
         options: Option<Value>,
+        args: Vec<String>,
         dispatcher: Dispatcher,
     ) -> Arc<LspClient> {
-        let mut process = Self::process(exec_path);
+        //TODO: better handling of binary args in plugin
+        let mut process = Self::process(exec_path, args.clone());
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
         let lsp_client = Arc::new(LspClient {
             dispatcher,
             exec_path: exec_path.to_string(),
+            args,
             options,
             state: Arc::new(Mutex::new(LspState {
                 next_id: 0,
@@ -414,8 +446,11 @@ impl LspClient {
         });
     }
 
-    fn process(exec_path: &str) -> Child {
+    fn process(exec_path: &str, args: Vec<String>) -> Child {
         let mut process = Command::new(exec_path);
+
+        process.args(args);
+
         #[cfg(target_os = "windows")]
         let process = process.creation_flags(0x08000000);
         process
@@ -426,7 +461,8 @@ impl LspClient {
     }
 
     fn reload(&self) {
-        let mut process = Self::process(&self.exec_path);
+        //TODO: avoid clone using a &[String] ?
+        let mut process = Self::process(&self.exec_path, self.args.clone());
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
@@ -474,8 +510,13 @@ impl LspClient {
 
     pub fn handle_message(&self, message: &str) {
         match JsonRpc::parse(message) {
-            Ok(JsonRpc::Request(_obj)) => {
-                // trace!("client received unexpected request: {:?}", obj)
+            Ok(value @ JsonRpc::Request(_)) => {
+                let id = value.get_id().unwrap();
+                self.handle_request(
+                    value.get_method().unwrap(),
+                    id,
+                    value.get_params().unwrap(),
+                )
             }
             Ok(value @ JsonRpc::Notification(_)) => {
                 self.handle_notification(
@@ -497,6 +538,20 @@ impl LspClient {
         }
     }
 
+    pub fn handle_request(&self, method: &str, id: Id, _params: Params) {
+        match method {
+            "window/workDoneProgress/create" => {
+                // Token is ignored as the workProgress Widget is always working
+                // In the future, for multiple workProgress Handling we should
+                // probably store the token
+                self.send_success_response(id, &json!({}));
+            }
+            method => {
+                println!("Received unhandled request {method}");
+            }
+        }
+    }
+
     pub fn handle_notification(&self, method: &str, params: Params) {
         match method {
             "textDocument/publishDiagnostics" => {
@@ -515,7 +570,19 @@ impl LspClient {
                     }),
                 );
             }
-            _ => (),
+            "window/showMessage" => {
+                // TODO: send message to display
+            }
+            "window/logMessage" => {
+                // TODO: We should log the message here. Waiting for
+                // the discussion about handling plugins logs before doing anything
+            }
+            "experimental/serverStatus" => {
+                //TODO: Logging of server status
+            }
+            method => {
+                println!("Received unhandled notification {}", method);
+            }
         }
     }
 
@@ -562,6 +629,22 @@ impl LspClient {
         };
 
         self.send_rpc(&to_value(&request).unwrap());
+    }
+
+    pub fn send_success_response(&self, id: Id, result: &Value) {
+        let response = JsonRpc::success(id, result);
+
+        self.send_rpc(&to_value(&response).unwrap());
+    }
+
+    pub fn send_error_response(
+        &self,
+        id: jsonrpc_lite::Id,
+        error: jsonrpc_lite::Error,
+    ) {
+        let response = JsonRpc::error(id, error);
+
+        self.send_rpc(&to_value(&response).unwrap());
     }
 
     fn initialize(&self) {

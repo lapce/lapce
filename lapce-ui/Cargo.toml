@@ -85,7 +85,9 @@ all-languages = [
     "lang-glimmer",
     "lang-haxe",
     "lang-hcl",
-    "lang-scss"
+    "lang-scss",
+    "lang-hare"
+
 ]
 
 lang-rust = ["lapce-core/lang-rust"]
@@ -112,3 +114,4 @@ lang-glimmer = ["lapce-core/lang-glimmer"]
 lang-haxe = ["lapce-core/lang-haxe"]
 lang-hcl = ["lapce-core/lang-hcl"]
 lang-scss = ["lapce-core/lang-scss"]
+lang-hare = ["lapce-core/lang-hare"]

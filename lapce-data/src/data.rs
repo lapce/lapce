@@ -1114,28 +1114,28 @@ impl LapceTabData {
                     Target::Widget(self.palette.widget_id),
                 ));
             }
-            LapceWorkbenchCommand::NewTab => {
+            LapceWorkbenchCommand::NewWindowTab => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::NewTab,
                     Target::Auto,
                 ));
             }
-            LapceWorkbenchCommand::CloseTab => {
+            LapceWorkbenchCommand::CloseWindowTab => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::CloseTab,
                     Target::Auto,
                 ));
             }
-            LapceWorkbenchCommand::NextTab => {
+            LapceWorkbenchCommand::NextWindowTab => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::NextTab,
                     Target::Auto,
                 ));
             }
-            LapceWorkbenchCommand::PreviousTab => {
+            LapceWorkbenchCommand::PreviousWindowTab => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::PreviousTab,
@@ -1257,6 +1257,9 @@ impl LapceTabData {
                         self.hide_panel(ctx, kind);
                     }
                 }
+            }
+            LapceWorkbenchCommand::SourceControlInit => {
+                self.proxy.git_init();
             }
             LapceWorkbenchCommand::SourceControlCommit => {
                 let diffs: Vec<FileDiff> = self

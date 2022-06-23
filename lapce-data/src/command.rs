@@ -221,21 +221,21 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open Log File")]
     OpenLogFile,
 
-    #[strum(serialize = "close_tab")]
-    #[strum(message = "Close Current Tab")]
-    CloseTab,
+    #[strum(serialize = "close_window_tab")]
+    #[strum(message = "Close Current Window Tab")]
+    CloseWindowTab,
 
-    #[strum(serialize = "new_tab")]
-    #[strum(message = "Create New Tab")]
-    NewTab,
+    #[strum(serialize = "new_window_tab")]
+    #[strum(message = "Create New Window Tab")]
+    NewWindowTab,
 
-    #[strum(serialize = "next_tab")]
-    #[strum(message = "Go To Next Tab")]
-    NextTab,
+    #[strum(serialize = "next_window_tab")]
+    #[strum(message = "Go To Next Window Tab")]
+    NextWindowTab,
 
-    #[strum(serialize = "previous_tab")]
-    #[strum(message = "Go To Previous Tab")]
-    PreviousTab,
+    #[strum(serialize = "previous_window_tab")]
+    #[strum(message = "Go To Previous Window Tab")]
+    PreviousWindowTab,
 
     #[strum(serialize = "reload_window")]
     #[strum(message = "Reload Window")]
@@ -347,6 +347,10 @@ pub enum LapceWorkbenchCommand {
 
     #[strum(serialize = "focus_terminal")]
     FocusTerminal,
+
+    #[strum(message = "Source Control: Init")]
+    #[strum(serialize = "source_control_init")]
+    SourceControlInit,
 
     #[strum(serialize = "source_control_commit")]
     SourceControlCommit,
