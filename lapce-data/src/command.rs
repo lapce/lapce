@@ -271,6 +271,9 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "palette.symbol")]
     PaletteSymbol,
 
+    #[strum(serialize = "palette.workspace_symbol")]
+    PaletteWorkspaceSymbol,
+
     #[strum(message = "Command Palette")]
     #[strum(serialize = "palette.command")]
     PaletteCommand,

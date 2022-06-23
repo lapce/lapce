@@ -227,5 +227,9 @@ key = "meta+O"
 command = "palette.symbol"
 
 [[keymaps]]
+key = "meta+t"
+command = "palette.workspace_symbol"
+
+[[keymaps]]
 key = "ctrl+g"
 command = "palette.line"
