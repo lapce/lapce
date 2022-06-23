@@ -79,7 +79,7 @@ pub struct LapceTab {
 }
 
 impl LapceTab {
-    pub fn new(data: &LapceTabData) -> Self {
+    pub fn new(data: &mut LapceTabData) -> Self {
         let split_data = data
             .main_split
             .splits
@@ -1133,6 +1133,112 @@ impl LapceTab {
                             *expand,
                         );
                         ctx.set_handled();
+                    }
+                    LapceUICommand::CreateFileOpen { path } => {
+                        let path_c = path.clone();
+                        let event_sink = ctx.get_external_handle();
+                        let tab_id = data.id;
+                        data.proxy.create_file(
+                            path,
+                            Box::new(move |res| {
+                                match res {
+                                    Ok(_) => {
+                                        let _ = event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::OpenFile(path_c),
+                                            Target::Widget(tab_id),
+                                        );
+                                    }
+                                    Err(err) => {
+                                        // TODO: Inform the user through a corner-notif
+                                        log::warn!(
+                                            "Failed to create file: {:?}",
+                                            err,
+                                        );
+                                    }
+                                }
+                            }),
+                        );
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::CreateDirectory { path } => {
+                        data.proxy.create_directory(
+                            path,
+                            Box::new(|res| {
+                                if let Err(err) = res {
+                                    // TODO: Inform the user through a corner-notif
+                                    log::warn!(
+                                        "Failed to create directory: {:?}",
+                                        err
+                                    );
+                                }
+                            }),
+                        );
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::RenamePath { from, to } => {
+                        data.proxy.rename_path(
+                            from,
+                            to,
+                            Box::new(|res| {
+                                if let Err(err) = res {
+                                    // TODO: inform the user through a corner-notif
+                                    log::warn!("Failed to rename path: {:?}", err);
+                                }
+                            }),
+                        );
+                    }
+                    LapceUICommand::TrashPath { path } => {
+                        data.proxy.trash_path(
+                            path,
+                            Box::new(|res| {
+                                if let Err(err) = res {
+                                    // TODO: inform the user through a corner-notif
+                                    log::warn!("Failed to trash path: {:?}", err);
+                                }
+                            }),
+                        );
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::ExplorerNew {
+                        list_index,
+                        indent_level,
+                        is_dir,
+                        base_path,
+                    } => {
+                        let file_explorer = Arc::make_mut(&mut data.file_explorer);
+                        file_explorer.start_naming(
+                            ctx,
+                            &mut data.main_split,
+                            *list_index,
+                            *indent_level,
+                            *is_dir,
+                            base_path.clone(),
+                        );
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::ExplorerStartRename {
+                        list_index,
+                        indent_level,
+                        text,
+                    } => {
+                        let file_explorer = Arc::make_mut(&mut data.file_explorer);
+                        file_explorer.start_renaming(
+                            ctx,
+                            &mut data.main_split,
+                            *list_index,
+                            *indent_level,
+                            text.clone(),
+                        );
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::ExplorerEndNaming { apply_naming } => {
+                        let file_explorer = Arc::make_mut(&mut data.file_explorer);
+                        if *apply_naming {
+                            file_explorer.apply_naming(ctx, &data.main_split);
+                        } else {
+                            file_explorer.cancel_naming();
+                        }
                     }
                     _ => (),
                 }

@@ -94,6 +94,7 @@ pub enum LocalBufferKind {
     FilePicker,
     Keymap,
     Settings,
+    PathName,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -118,7 +119,8 @@ impl BufferContent {
                 | LocalBufferKind::SourceControl
                 | LocalBufferKind::FilePicker
                 | LocalBufferKind::Settings
-                | LocalBufferKind::Keymap => true,
+                | LocalBufferKind::Keymap
+                | LocalBufferKind::PathName => true,
                 LocalBufferKind::Empty => false,
             },
             BufferContent::SettingsValue(..) => true,
@@ -134,7 +136,8 @@ impl BufferContent {
                 | LocalBufferKind::Palette
                 | LocalBufferKind::FilePicker
                 | LocalBufferKind::Settings
-                | LocalBufferKind::Keymap => true,
+                | LocalBufferKind::Keymap
+                | LocalBufferKind::PathName => true,
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
             BufferContent::SettingsValue(..) => true,
@@ -520,6 +523,9 @@ impl Document {
                             LapceUICommand::UpdateSettingsFilter(s),
                             Target::Widget(self.tab_id),
                         );
+                    }
+                    LocalBufferKind::PathName => {
+                        // TODO: anything to update with this?
                     }
                 }
             }

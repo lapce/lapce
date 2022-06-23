@@ -421,6 +421,22 @@ impl LapceEditor {
                 }
                 Size::ZERO
             }
+            // Almost the same as the general case below but with less vertical padding
+            BufferContent::Local(LocalBufferKind::PathName) => Size::new(
+                editor_size.width.max(
+                    data.doc
+                        .get_text_layout(
+                            text,
+                            0,
+                            data.config.editor.font_size,
+                            &data.config,
+                        )
+                        .size()
+                        .width,
+                ),
+                env.get(LapceTheme::INPUT_LINE_HEIGHT)
+                    + env.get(LapceTheme::INPUT_LINE_PADDING),
+            ),
             _ => Size::new(
                 editor_size.width.max(
                     data.doc

@@ -43,6 +43,8 @@ pub struct LapceEditorView {
     pub find: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     cursor_blink_timer: TimerToken,
     last_idle_timer: TimerToken,
+    display_border: bool,
+    background_color_name: &'static str,
 }
 
 pub fn editor_tab_child_widget(
@@ -78,6 +80,8 @@ impl LapceEditorView {
             find,
             cursor_blink_timer: TimerToken::INVALID,
             last_idle_timer: TimerToken::INVALID,
+            display_border: true,
+            background_color_name: LapceTheme::EDITOR_BACKGROUND,
         }
     }
 
@@ -91,6 +95,11 @@ impl LapceEditorView {
         self
     }
 
+    pub fn hide_border(mut self) -> Self {
+        self.display_border = false;
+        self
+    }
+
     pub fn set_placeholder(mut self, placeholder: String) -> Self {
         self.editor
             .widget_mut()
@@ -99,6 +108,14 @@ impl LapceEditorView {
             .inner_mut()
             .child_mut()
             .placeholder = Some(placeholder);
+        self
+    }
+
+    pub fn set_background_color(
+        mut self,
+        background_color_name: &'static str,
+    ) -> Self {
+        self.background_color_name = background_color_name;
         self
     }
 
@@ -152,6 +169,7 @@ impl LapceEditorView {
                     data.focus_area = FocusArea::Panel(PanelKind::SourceControl);
                     Arc::make_mut(&mut data.source_control).active = self.view_id;
                 }
+                LocalBufferKind::PathName => {}
                 LocalBufferKind::Empty => {
                     data.focus_area = FocusArea::Editor;
                     data.main_split.active = Arc::new(Some(self.view_id));
@@ -684,18 +702,31 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
             LifeCycle::FocusChanged(is_focus) => {
                 let editor = data.main_split.editors.get(&self.view_id).unwrap();
-                if !*is_focus
-                    && editor.content
-                        == BufferContent::Local(LocalBufferKind::Palette)
-                {
-                    ctx.submit_command(Command::new(
-                        LAPCE_COMMAND,
-                        LapceCommand {
-                            kind: CommandKind::Focus(FocusCommand::ModalClose),
-                            data: None,
-                        },
-                        Target::Widget(data.palette.widget_id),
-                    ));
+                if !*is_focus {
+                    match editor.content {
+                        BufferContent::Local(LocalBufferKind::Palette) => {
+                            ctx.submit_command(Command::new(
+                                LAPCE_COMMAND,
+                                LapceCommand {
+                                    kind: CommandKind::Focus(
+                                        FocusCommand::ModalClose,
+                                    ),
+                                    data: None,
+                                },
+                                Target::Widget(data.palette.widget_id),
+                            ));
+                        }
+                        BufferContent::Local(LocalBufferKind::PathName) => {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ExplorerEndNaming {
+                                    apply_naming: true,
+                                },
+                                Target::Auto,
+                            ));
+                        }
+                        _ => {}
+                    }
                 }
             }
             LifeCycle::HotChanged(is_hot) => {
@@ -887,6 +918,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         let self_size = bc.max();
         let header_size = self.header.layout(ctx, bc, data, env);
         self.header.set_origin(ctx, data, env, Point::ZERO);
+
         let editor_size = if self_size.height > header_size.height {
             let editor_size =
                 Size::new(self_size.width, self_size.height - header_size.height);
@@ -925,19 +957,19 @@ impl Widget<LapceTabData> for LapceEditorView {
             if editor.content.is_input() {
                 ctx.fill(
                     rect.inflate(5.0, 0.0),
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                    data.config.get_color_unchecked(self.background_color_name),
                 );
-                ctx.stroke(
-                    rect.inflate(4.5, -0.5),
-                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                    1.0,
-                );
+                if self.display_border {
+                    ctx.stroke(
+                        rect.inflate(4.5, -0.5),
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                        1.0,
+                    );
+                }
             } else {
                 ctx.fill(
                     rect.inflate(5.0, 5.0),
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                    data.config.get_color_unchecked(self.background_color_name),
                 );
             }
         }

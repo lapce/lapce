@@ -2523,6 +2523,15 @@ impl LapceMainSplitData {
                 proxy.clone(),
             )),
         );
+        local_docs.insert(
+            LocalBufferKind::PathName,
+            Arc::new(Document::new(
+                BufferContent::Local(LocalBufferKind::PathName),
+                tab_id,
+                event_sink.clone(),
+                proxy.clone(),
+            )),
+        );
         let value_docs = im::HashMap::new();
         let scratch_docs = im::HashMap::new();
 
