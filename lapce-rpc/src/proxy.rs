@@ -101,6 +101,12 @@ pub enum ProxyRequest {
     GetDocumentSymbols {
         buffer_id: BufferId,
     },
+    GetWorkspaceSymbols {
+        /// The search query
+        query: String,
+        /// THe id of the buffer it was used in, which tells us what LSP to query
+        buffer_id: BufferId,
+    },
     GetDocumentFormatting {
         buffer_id: BufferId,
     },

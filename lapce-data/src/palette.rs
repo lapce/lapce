@@ -9,7 +9,7 @@ use itertools::Itertools;
 use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_core::mode::Mode;
 use lapce_core::movement::Movement;
-use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
+use lsp_types::{DocumentSymbolResponse, Range, SymbolInformation, SymbolKind};
 use serde_json;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -21,6 +21,7 @@ use crate::command::CommandKind;
 use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::document::BufferContent;
 use crate::editor::EditorLocation;
+use crate::proxy::path_from_url;
 use crate::{
     command::LAPCE_UI_COMMAND,
     command::{CommandExecuted, LAPCE_COMMAND},
@@ -39,6 +40,7 @@ pub enum PaletteType {
     Line,
     GlobalSearch,
     DocumentSymbol,
+    WorkspaceSymbol,
     Workspace,
     Command,
     Reference,
@@ -52,6 +54,7 @@ impl PaletteType {
             PaletteType::File => "".to_string(),
             PaletteType::Line => "/".to_string(),
             PaletteType::DocumentSymbol => "@".to_string(),
+            PaletteType::WorkspaceSymbol => "#".to_string(),
             PaletteType::GlobalSearch => "?".to_string(),
             PaletteType::Workspace => ">".to_string(),
             PaletteType::Command => ":".to_string(),
@@ -66,6 +69,7 @@ impl PaletteType {
             self,
             PaletteType::Line
                 | PaletteType::DocumentSymbol
+                | PaletteType::WorkspaceSymbol
                 | PaletteType::GlobalSearch
                 | PaletteType::Reference
         )
@@ -96,6 +100,13 @@ pub enum PaletteItemContent {
         name: String,
         range: Range,
         container_name: Option<String>,
+    },
+    WorkspaceSymbol {
+        // TODO: Include what language it is from?
+        kind: SymbolKind,
+        name: String,
+        container_name: Option<String>,
+        location: EditorLocation,
     },
     ReferenceLocation(PathBuf, EditorLocation),
     Workspace(LapceWorkspace),
@@ -130,6 +141,18 @@ impl PaletteItemContent {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::JumpToPosition(editor_id, range.start),
+                    Target::Auto,
+                ));
+            }
+            PaletteItemContent::WorkspaceSymbol { location, .. } => {
+                let editor_id = if preview {
+                    Some(preview_editor_id)
+                } else {
+                    None
+                };
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::JumpToLocation(editor_id, location.clone()),
                     Target::Auto,
                 ));
             }
@@ -430,6 +453,7 @@ impl PaletteData {
             PaletteType::SshHost => &self.input,
             PaletteType::Line => &self.input[1..],
             PaletteType::DocumentSymbol => &self.input[1..],
+            PaletteType::WorkspaceSymbol => &self.input[1..],
             PaletteType::Workspace => &self.input[1..],
             PaletteType::Command => &self.input[1..],
             PaletteType::GlobalSearch => &self.input[1..],
@@ -461,7 +485,7 @@ impl PaletteViewData {
         ctx: &mut EventCtx,
         locations: &[EditorLocation],
     ) {
-        self.run(ctx, Some(PaletteType::Reference));
+        self.run(ctx, Some(PaletteType::Reference), None);
         let items: Vec<PaletteItem> = locations
             .iter()
             .map(|l| {
@@ -487,11 +511,16 @@ impl PaletteViewData {
         palette.preview(ctx);
     }
 
-    pub fn run(&mut self, ctx: &mut EventCtx, palette_type: Option<PaletteType>) {
+    pub fn run(
+        &mut self,
+        ctx: &mut EventCtx,
+        palette_type: Option<PaletteType>,
+        input: Option<String>,
+    ) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.status = PaletteStatus::Started;
         palette.palette_type = palette_type.unwrap_or(PaletteType::File);
-        palette.input = palette.palette_type.string();
+        palette.input = input.unwrap_or_else(|| palette.palette_type.string());
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::InitPaletteInput(palette.input.clone()),
@@ -525,6 +554,9 @@ impl PaletteViewData {
             }
             PaletteType::DocumentSymbol => {
                 self.get_document_symbols(ctx);
+            }
+            PaletteType::WorkspaceSymbol => {
+                self.get_workspace_symbols(ctx);
             }
             PaletteType::Workspace => {
                 self.get_workspaces(ctx);
@@ -570,6 +602,7 @@ impl PaletteViewData {
             PaletteType::SshHost => 0,
             PaletteType::Line => 1,
             PaletteType::DocumentSymbol => 1,
+            PaletteType::WorkspaceSymbol => 1,
             PaletteType::Workspace => 1,
             PaletteType::Command => 1,
             PaletteType::GlobalSearch => 1,
@@ -643,7 +676,17 @@ impl PaletteViewData {
 
     pub fn update_input(&mut self, ctx: &mut EventCtx, input: String) {
         let palette = Arc::make_mut(&mut self.palette);
+
+        // WorkspaceSymbol requires sending the query to the lsp, so we refresh it when the input changes
+        if input != palette.input
+            && matches!(palette.palette_type, PaletteType::WorkspaceSymbol)
+        {
+            self.run(ctx, Some(PaletteType::WorkspaceSymbol), Some(input));
+            return;
+        }
+
         palette.input = input;
+
         self.update_palette(ctx)
     }
 
@@ -652,9 +695,10 @@ impl PaletteViewData {
         palette.index = 0;
         let palette_type = self.get_palette_type();
         if self.palette.palette_type != palette_type {
-            self.run(ctx, Some(palette_type));
+            self.run(ctx, Some(palette_type), None);
             return;
         }
+
         if self.palette.get_input() != "" {
             let _ = self.palette.sender.send((
                 self.palette.run_id.clone(),
@@ -679,6 +723,7 @@ impl PaletteViewData {
         match self.palette.input {
             _ if self.palette.input.starts_with('/') => PaletteType::Line,
             _ if self.palette.input.starts_with('@') => PaletteType::DocumentSymbol,
+            _ if self.palette.input.starts_with('#') => PaletteType::WorkspaceSymbol,
             _ if self.palette.input.starts_with('>') => PaletteType::Workspace,
             _ if self.palette.input.starts_with(':') => PaletteType::Command,
             _ => PaletteType::File,
@@ -967,6 +1012,83 @@ impl PaletteViewData {
                                         indices: Vec::new(),
                                     })
                                     .collect(),
+                            };
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdatePaletteItems(run_id, items),
+                                Target::Widget(widget_id),
+                            );
+                        }
+                    }
+                }),
+            );
+        }
+    }
+
+    fn get_workspace_symbols(&mut self, ctx: &mut EventCtx) {
+        let editor = self.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return,
+        };
+
+        let widget_id = self.palette.widget_id;
+
+        // TODO: We'd like to be able to request symbols even when not in an editor.
+        if let BufferContent::File(path) = &editor.content {
+            let buffer_id = self.main_split.open_docs.get(path).unwrap().id();
+            let run_id = self.palette.run_id.clone();
+            let event_sink = ctx.get_external_handle();
+
+            let query = self.palette.get_input();
+
+            self.palette.proxy.get_workspace_symbols(
+                buffer_id,
+                query,
+                Box::new(move |result| {
+                    if let Ok(res) = result {
+                        let resp: Result<
+                            Option<Vec<SymbolInformation>>,
+                            serde_json::Error,
+                        > = serde_json::from_value(res);
+                        if let Ok(resp) = resp {
+                            let items: Vec<PaletteItem> = match resp {
+                                Some(symbols) => symbols
+                                    .iter()
+                                    .map(|s| {
+                                        // TODO: Should we be using filter text?
+                                        let mut filter_text = s.name.clone();
+                                        if let Some(container_name) =
+                                            s.container_name.as_ref()
+                                        {
+                                            filter_text += container_name;
+                                        }
+                                        PaletteItem {
+                                            content:
+                                                PaletteItemContent::WorkspaceSymbol {
+                                                    kind: s.kind,
+                                                    name: s.name.clone(),
+                                                    location: EditorLocation {
+                                                        path: path_from_url(
+                                                            &s.location.uri,
+                                                        ),
+                                                        position: Some(
+                                                            s.location.range.start,
+                                                        ),
+                                                        scroll_offset: None,
+                                                        history: None,
+                                                    },
+                                                    container_name: s
+                                                        .container_name
+                                                        .clone(),
+                                                },
+                                            filter_text,
+                                            score: 0,
+                                            indices: Vec::new(),
+                                        }
+                                    })
+                                    .collect(),
+                                None => Vec::new(),
                             };
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,

@@ -22,6 +22,7 @@ use lapce_data::{
     keypress::KeyPressFocus,
     palette::{PaletteStatus, PaletteType, PaletteViewData, PaletteViewLens},
 };
+use lsp_types::SymbolKind;
 
 use crate::{
     editor::view::LapceEditorView,
@@ -102,7 +103,7 @@ impl Widget<LapceTabData> for Palette {
                     LapceUICommand::RunPalette(palette_type) => {
                         ctx.set_handled();
                         let mut palette_data = data.palette_view_data();
-                        palette_data.run(ctx, palette_type.to_owned());
+                        palette_data.run(ctx, palette_type.to_owned(), None);
                         data.palette = palette_data.palette.clone();
                         data.keypress = palette_data.keypress.clone();
                         data.workspace = palette_data.workspace.clone();
@@ -546,6 +547,7 @@ impl PaletteContent {
     fn paint_palette_item(
         palette_item_content: &PaletteItemContent,
         ctx: &mut PaintCtx,
+        workspace_path: Option<&Path>,
         line: usize,
         indices: &[usize],
         line_height: f64,
@@ -589,6 +591,18 @@ impl PaletteContent {
                         .collect();
                     (symbol_svg(kind), text, text_indices, hint, hint_indices)
                 }
+                PaletteItemContent::WorkspaceSymbol {
+                    kind,
+                    name,
+                    location,
+                    ..
+                } => Self::file_paint_symbols(
+                    &location.path,
+                    indices,
+                    workspace_path,
+                    name.as_str(),
+                    *kind,
+                ),
                 PaletteItemContent::Line(_, text) => {
                     (None, text.clone(), indices.to_vec(), "".to_string(), vec![])
                 }
@@ -735,6 +749,47 @@ impl PaletteContent {
         ctx.draw_text(&text_layout, point);
     }
 
+    fn file_paint_symbols(
+        path: &Path,
+        indices: &[usize],
+        workspace_path: Option<&Path>,
+        name: &str,
+        kind: SymbolKind,
+    ) -> (Option<Svg>, String, Vec<usize>, String, Vec<usize>) {
+        let text = name.to_string();
+        let hint = path.to_string_lossy();
+        // Remove the workspace prefix from the path
+        let hint = workspace_path
+            .and_then(Path::to_str)
+            .and_then(|x| hint.strip_prefix(x))
+            .map(|x| x.strip_prefix('/').unwrap_or(x))
+            .map(ToString::to_string)
+            .unwrap_or_else(|| hint.to_string());
+        let text_indices = indices
+            .iter()
+            .filter_map(|i| {
+                let i = *i;
+                if i < text.len() {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let hint_indices = indices
+            .iter()
+            .filter_map(|i| {
+                let i = *i;
+                if i >= text.len() {
+                    Some(i - text.len())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        (symbol_svg(&kind), text, text_indices, hint, hint_indices)
+    }
+
     fn file_paint_items(
         path: &Path,
         indices: &[usize],
@@ -856,6 +911,7 @@ impl Widget<PaletteViewData> for PaletteContent {
         let start_line = (rect.y0 / self.line_height).floor() as usize;
         let end_line = (rect.y1 / self.line_height).ceil() as usize;
 
+        let workspace_path = data.workspace.path.as_deref();
         for line in start_line..end_line {
             if line >= items.len() {
                 break;
@@ -874,6 +930,7 @@ impl Widget<PaletteViewData> for PaletteContent {
             Self::paint_palette_item(
                 &item.content,
                 ctx,
+                workspace_path,
                 line,
                 &item.indices,
                 self.line_height,

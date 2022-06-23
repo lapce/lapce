@@ -1100,6 +1100,13 @@ impl LapceTabData {
                     Target::Widget(self.palette.widget_id),
                 ));
             }
+            LapceWorkbenchCommand::PaletteWorkspaceSymbol => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::WorkspaceSymbol)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
             LapceWorkbenchCommand::PaletteCommand => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,

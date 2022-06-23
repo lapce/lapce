@@ -222,5 +222,9 @@ key = "ctrl+O"
 command = "palette.symbol"
 
 [[keymaps]]
+key = "ctrl+t"
+command = "palette.workspace_symbol"
+
+[[keymaps]]
 key = "ctrl+g"
 command = "palette.line"

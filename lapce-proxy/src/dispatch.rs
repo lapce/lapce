@@ -533,6 +533,11 @@ impl Dispatcher {
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_document_symbols(id, buffer);
             }
+            GetWorkspaceSymbols { query, buffer_id } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp.lock().get_workspace_symbols(id, buffer, query);
+            }
             GetDocumentFormatting { buffer_id } => {
                 let buffers = self.buffers.lock();
                 let buffer = buffers.get(&buffer_id).unwrap();

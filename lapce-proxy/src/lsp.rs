@@ -191,6 +191,20 @@ impl LspCatalog {
         }
     }
 
+    pub fn get_workspace_symbols(
+        &self,
+        id: RequestId,
+        buffer: &Buffer,
+        query: String,
+    ) {
+        // TODO: We could collate workspace symbols from all the lsps?
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            client.request_workspace_symbols(query, move |lsp_client, result| {
+                lsp_client.dispatcher.respond(id, result);
+            });
+        }
+    }
+
     pub fn get_document_formatting(&self, id: RequestId, buffer: &Buffer) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
             let uri = client.get_uri(buffer);
@@ -790,6 +804,12 @@ impl LspClient {
                 }),
                 ..Default::default()
             }),
+            workspace: Some(WorkspaceClientCapabilities {
+                symbol: Some(WorkspaceSymbolClientCapabilities {
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
             experimental: Some(json!({
                 "serverStatusNotification": true,
             })),
@@ -824,6 +844,18 @@ impl LspClient {
         };
         let params = Params::from(serde_json::to_value(params).unwrap());
         self.send_request("textDocument/documentSymbol", params, Box::new(cb));
+    }
+
+    pub fn request_workspace_symbols<CB>(&self, query: String, cb: CB)
+    where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = WorkspaceSymbolParams {
+            query,
+            ..Default::default()
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("workspace/symbol", params, Box::new(cb));
     }
 
     pub fn request_document_formatting<CB>(&self, document_uri: Url, cb: CB)

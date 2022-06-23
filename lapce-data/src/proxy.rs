@@ -661,6 +661,22 @@ impl LapceProxy {
         );
     }
 
+    pub fn get_workspace_symbols(
+        &self,
+        buffer_id: BufferId,
+        query: &str,
+        f: Box<dyn Callback>,
+    ) {
+        self.rpc.send_rpc_request_async(
+            "get_workspace_symbols",
+            &json!({
+                "buffer_id": buffer_id,
+                "query": query,
+            }),
+            f,
+        );
+    }
+
     pub fn get_code_actions(
         &self,
         buffer_id: BufferId,
