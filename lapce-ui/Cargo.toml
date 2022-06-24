@@ -86,7 +86,8 @@ all-languages = [
     "lang-haxe",
     "lang-hcl",
     "lang-scss",
-    "lang-hare"
+    "lang-hare",
+    "lang-css"
 
 ]
 
@@ -115,3 +116,4 @@ lang-haxe = ["lapce-core/lang-haxe"]
 lang-hcl = ["lapce-core/lang-hcl"]
 lang-scss = ["lapce-core/lang-scss"]
 lang-hare = ["lapce-core/lang-hare"]
+lang-css = ["lapce-core/lang-css"]
