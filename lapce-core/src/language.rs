@@ -153,7 +153,7 @@ pub enum LapceLanguage {
     #[cfg(feature = "lang-hare")]
     Hare,
     #[cfg(feature = "lang-css")]
-    Css
+    Css,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -471,7 +471,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["css"],
-    }
+    },
 ];
 
 impl LapceLanguage {
