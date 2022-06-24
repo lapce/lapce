@@ -152,6 +152,8 @@ pub enum LapceLanguage {
     SCSS,
     #[cfg(feature = "lang-hare")]
     Hare,
+    #[cfg(feature = "lang-css")]
+    Css,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -460,6 +462,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["ha"],
     },
+    #[cfg(feature = "lang-css")]
+    SyntaxProperties {
+        id: LapceLanguage::Css,
+        language: tree_sitter_css::language,
+        highlight: tree_sitter_css::HIGHLIGHTS_QUERY,
+        comment: "/*",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["css"],
+    },
 ];
 
 impl LapceLanguage {
@@ -722,5 +734,9 @@ mod test {
     #[cfg(feature = "lang-hare")]
     fn test_hare_lang() {
         assert_language(LapceLanguage::Hare, &["ha"]);
+    }
+    #[cfg(feature = "lang-css")]
+    fn test_css_lang() {
+        assert_language(LapceLanguage::Css, &["css"]);
     }
 }
