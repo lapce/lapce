@@ -158,6 +158,10 @@ fn language_id_from_path(path: &Path) -> Option<&str> {
         "rs" => "rust",
         "go" => "go",
         "py" => "python",
+        "cpp" | "hpp" | "cxx" | "hxx" | "c++" | "h++" | "cc" | "hh" | "C" | "H" => {
+            "cpp"
+        }
+        "c" | "h" => "c",
         _ => return None,
     })
 }
