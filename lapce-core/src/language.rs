@@ -154,6 +154,10 @@ pub enum LapceLanguage {
     Hare,
     #[cfg(feature = "lang-css")]
     Css,
+    #[cfg(feature = "lang-zig")]
+    Zig,
+    #[cfg(feature = "lang-bash")]
+    Bash,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -472,6 +476,26 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["css"],
     },
+    #[cfg(feature = "lang-zig")]
+    SyntaxProperties {
+        id: LapceLanguage::Zig,
+        language: tree_sitter_zig::language,
+        highlight: tree_sitter_zig::HIGHLIGHTS_QUERY,
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["zig"],
+    },
+    #[cfg(feature = "lang-bash")]
+    SyntaxProperties {
+        id: LapceLanguage::Bash,
+        language: tree_sitter_bash::language,
+        highlight: tree_sitter_bash::HIGHLIGHTS_QUERY,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["sh", "bash"],
+    },
 ];
 
 impl LapceLanguage {
@@ -738,5 +762,13 @@ mod test {
     #[cfg(feature = "lang-css")]
     fn test_css_lang() {
         assert_language(LapceLanguage::Css, &["css"]);
+    }
+    #[cfg(feature = "lang-zig")]
+    fn test_zig_lang() {
+        assert_language(LapceLanguage::Zig, &["zig"]);
+    }
+    #[cfg(feature = "lang-bash")]
+    fn test_bash_lang() {
+        assert_language(LapceLanguage::Bash, &["sh", "bash"]);
     }
 }
