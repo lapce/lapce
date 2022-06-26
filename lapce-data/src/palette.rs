@@ -74,6 +74,28 @@ impl PaletteType {
                 | PaletteType::Reference
         )
     }
+
+    /// Get the palette type that it should be considered as based on the current
+    /// [`PaletteType`] and the current input.
+    fn get_palette_type(current_type: &PaletteType, input: &str) -> PaletteType {
+        match current_type {
+            PaletteType::Reference | PaletteType::SshHost | PaletteType::Theme => {
+                return current_type.clone();
+            }
+            _ => (),
+        }
+        if input.is_empty() {
+            return PaletteType::File;
+        }
+        match input {
+            _ if input.starts_with('/') => PaletteType::Line,
+            _ if input.starts_with('@') => PaletteType::DocumentSymbol,
+            _ if input.starts_with('#') => PaletteType::WorkspaceSymbol,
+            _ if input.starts_with('>') => PaletteType::Workspace,
+            _ if input.starts_with(':') => PaletteType::Command,
+            _ => PaletteType::File,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -678,13 +700,15 @@ impl PaletteViewData {
         let palette = Arc::make_mut(&mut self.palette);
 
         // WorkspaceSymbol requires sending the query to the lsp, so we refresh it when the input changes
-        if input != palette.input
-            && matches!(palette.palette_type, PaletteType::WorkspaceSymbol)
-        {
+        // If the input changed and the palette type is still/now workspace-symbol then we rerun it
+        let palette_type =
+            PaletteType::get_palette_type(&palette.palette_type, &input);
+        if input != palette.input && palette_type == PaletteType::WorkspaceSymbol {
             self.run(ctx, Some(PaletteType::WorkspaceSymbol), Some(input));
             return;
         }
 
+        // Update the current input
         palette.input = input;
 
         self.update_palette(ctx)
@@ -693,7 +717,11 @@ impl PaletteViewData {
     pub fn update_palette(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.index = 0;
-        let palette_type = self.get_palette_type();
+
+        let palette_type = PaletteType::get_palette_type(
+            &self.palette.palette_type,
+            &self.palette.input,
+        );
         if self.palette.palette_type != palette_type {
             self.run(ctx, Some(palette_type), None);
             return;
@@ -707,26 +735,6 @@ impl PaletteViewData {
             ));
         } else {
             self.palette.preview(ctx);
-        }
-    }
-
-    fn get_palette_type(&self) -> PaletteType {
-        match self.palette.palette_type {
-            PaletteType::Reference | PaletteType::SshHost | PaletteType::Theme => {
-                return self.palette.palette_type.clone();
-            }
-            _ => (),
-        }
-        if self.palette.input.is_empty() {
-            return PaletteType::File;
-        }
-        match self.palette.input {
-            _ if self.palette.input.starts_with('/') => PaletteType::Line,
-            _ if self.palette.input.starts_with('@') => PaletteType::DocumentSymbol,
-            _ if self.palette.input.starts_with('#') => PaletteType::WorkspaceSymbol,
-            _ if self.palette.input.starts_with('>') => PaletteType::Workspace,
-            _ if self.palette.input.starts_with(':') => PaletteType::Command,
-            _ => PaletteType::File,
         }
     }
 
