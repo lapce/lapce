@@ -8,13 +8,17 @@ use druid::{
     WidgetExt, WidgetId,
 };
 use lapce_data::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_COMMAND, LAPCE_UI_COMMAND,
+    },
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
 };
 use lapce_rpc::source_control::FileDiff;
 
 use crate::{
+    button::Button,
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind},
     svg::{file_svg, get_svg},
@@ -32,7 +36,25 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
             .hide_gutter()
             .set_placeholder("Commit Message".to_string())
             .padding((15.0, 15.0));
+
+    let commit_button = Button::new(data, "Commit")
+        .on_click(|ctx, data, _env| {
+            ctx.submit_command(Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::SourceControlCommit,
+                    ),
+                    data: None,
+                },
+                Target::Widget(data.id),
+            ));
+        })
+        .expand_width()
+        .with_id(data.source_control.commit_button_id);
+
     let content = SourceControlFileList::new(data.source_control.file_list_id);
+
     LapcePanel::new(
         PanelKind::SourceControl,
         data.source_control.widget_id,
@@ -45,6 +67,12 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
                 PanelHeaderKind::None,
                 input.boxed(),
                 Some(300.0),
+            ),
+            (
+                data.source_control.commit_button_id,
+                PanelHeaderKind::None,
+                commit_button.boxed(),
+                None,
             ),
             (
                 data.source_control.file_list_id,
