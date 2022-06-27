@@ -4,9 +4,9 @@ use druid::{
     debug_state::DebugState,
     theme,
     widget::{Click, ControllerHost, Label, LabelText},
-    Affine, BoxConstraints, Data, Env, Event, EventCtx, FontDescriptor, Insets,
-    LayoutCtx, LifeCycle, LifeCycleCtx, LinearGradient, PaintCtx, RenderContext,
-    Size, UnitPoint, UpdateCtx, Widget,
+    Affine, BoxConstraints, Cursor, Data, Env, Event, EventCtx, FontDescriptor,
+    Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, RenderContext, Size,
+    UpdateCtx, Widget,
 };
 use lapce_data::{
     config::{Config, LapceTheme},
@@ -69,6 +69,7 @@ impl Widget<LapceTabData> for Button {
                     ctx.request_paint();
                 }
             }
+            Event::MouseMove(_) => ctx.set_cursor(&Cursor::Pointer),
             Event::MouseUp(_) => {
                 if ctx.is_active() && !ctx.is_disabled() {
                     ctx.request_paint();
@@ -128,48 +129,19 @@ impl Widget<LapceTabData> for Button {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let is_active = ctx.is_active() && !ctx.is_disabled();
-        let is_hot = ctx.is_hot();
         let size = ctx.size();
-        let stroke_width = env.get(theme::BUTTON_BORDER_WIDTH);
+        let stroke_width = 1.0;
 
         let rounded_rect = size
             .to_rect()
             .inset(-stroke_width / 2.0)
             .to_rounded_rect(env.get(theme::BUTTON_BORDER_RADIUS));
 
-        let bg_gradient = if ctx.is_disabled() {
-            LinearGradient::new(
-                UnitPoint::TOP,
-                UnitPoint::BOTTOM,
-                (
-                    env.get(theme::DISABLED_BUTTON_LIGHT),
-                    env.get(theme::DISABLED_BUTTON_DARK),
-                ),
-            )
-        } else if is_active {
-            LinearGradient::new(
-                UnitPoint::TOP,
-                UnitPoint::BOTTOM,
-                (env.get(theme::BUTTON_DARK), env.get(theme::BUTTON_LIGHT)),
-            )
-        } else {
-            LinearGradient::new(
-                UnitPoint::TOP,
-                UnitPoint::BOTTOM,
-                (env.get(theme::BUTTON_LIGHT), env.get(theme::BUTTON_DARK)),
-            )
-        };
-
-        let border_color = if is_hot && !ctx.is_disabled() {
-            env.get(theme::BORDER_LIGHT)
-        } else {
-            env.get(theme::BORDER_DARK)
-        };
-
-        ctx.stroke(rounded_rect, &border_color, stroke_width);
-
-        ctx.fill(rounded_rect, &bg_gradient);
+        ctx.stroke(
+            rounded_rect,
+            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+            stroke_width,
+        );
 
         let label_offset = (size.to_vec2() - self.label_size.to_vec2()) / 2.0;
 

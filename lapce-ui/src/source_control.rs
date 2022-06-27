@@ -51,7 +51,8 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
             ));
         })
         .expand_width()
-        .with_id(data.source_control.commit_button_id);
+        .with_id(data.source_control.commit_button_id)
+        .padding((10.0, 0.0, 10.0, 10.0));
 
     let content = SourceControlFileList::new(data.source_control.file_list_id);
 
