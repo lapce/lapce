@@ -2204,6 +2204,7 @@ dependencies = [
  "strum_macros 0.24.0",
  "thiserror",
  "tree-sitter",
+ "tree-sitter-bash",
  "tree-sitter-c",
  "tree-sitter-cpp",
  "tree-sitter-css",
@@ -2231,6 +2232,7 @@ dependencies = [
  "tree-sitter-swift",
  "tree-sitter-toml",
  "tree-sitter-typescript",
+ "tree-sitter-zig",
  "xi-rope",
 ]
 
@@ -4549,6 +4551,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-bash"
+version = "0.19.0"
+source = "git+https://github.com/syntacti/tree-sitter-bash?branch=master#ba3adca745943b71b0c84bb4e4977788cc6a867b"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-c"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4801,6 +4812,15 @@ name = "tree-sitter-typescript"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e8ed0ecb931cdff13c6a13f45ccd615156e2779d9ffb0395864e05505e6e86d"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-zig"
+version = "0.0.1"
+source = "git+https://github.com/maxxnino/tree-sitter-zig?branch=main#8d3224c3bd0890fe08358886ebf54fca2ed448a6"
 dependencies = [
  "cc",
  "tree-sitter",
