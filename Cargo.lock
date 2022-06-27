@@ -4716,7 +4716,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-md"
 version = "0.0.1"
-source = "git+https://github.com/MDeiml/tree-sitter-markdown.git#be3e08acfd85bd87d85f41fde74fdcec25f76dbe"
+source = "git+https://github.com/dzhou121/tree-sitter-markdown.git#134c7f870ad17b3c3e40cd90b8bbd08329ac4bbd"
 dependencies = [
  "cc",
  "tree-sitter",

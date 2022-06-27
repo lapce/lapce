@@ -122,7 +122,7 @@ pub enum LapceLanguage {
     Cpp,
     #[cfg(feature = "lang-json")]
     Json,
-    #[cfg(feature = "lang-md")]
+    #[cfg(feature = "lang-markdown")]
     Markdown,
     #[cfg(feature = "lang-ruby")]
     Ruby,
@@ -316,11 +316,11 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["json"],
     },
-    #[cfg(feature = "lang-md")]
+    #[cfg(feature = "lang-markdown")]
     SyntaxProperties {
         id: LapceLanguage::Markdown,
         language: tree_sitter_md::language,
-        highlight: tree_sitter_md::HIGHLIGHTS_QUERY,
+        highlight: tree_sitter_md::HIGHLIGHT_QUERY,
         comment: "",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -698,8 +698,8 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "lang-md")]
-    fn test_md_lang() {
+    #[cfg(feature = "lang-markdown")]
+    fn test_markdown_lang() {
         assert_language(LapceLanguage::Markdown, &["md"]);
     }
 

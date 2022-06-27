@@ -59,7 +59,7 @@ default = ["all-languages"]
 # To build lapce with only some of the supported languages, for example:
 #
 #   cargo build --no-default-features -p lapce-ui \
-#     --features lang-rust,lang-toml,lang-md,lang-json
+#     --features lang-rust,lang-toml,lang-markdown,lang-json
 #
 all-languages = [
     "lang-rust",
@@ -74,7 +74,7 @@ all-languages = [
     "lang-c",
     "lang-cpp",
     "lang-json",
-    "lang-md",
+    "lang-markdown",
     "lang-html",
     "lang-java",
     "lang-elm",
@@ -104,7 +104,7 @@ lang-ruby= ["lapce-core/lang-ruby"]
 lang-c = ["lapce-core/lang-c"]
 lang-cpp = ["lapce-core/lang-cpp"]
 lang-json= ["lapce-core/lang-json"]
-lang-md = ["lapce-core/lang-md"]
+lang-markdown = ["lapce-core/lang-markdown"]
 lang-html = ["lapce-core/lang-html"]
 lang-java = ["lapce-core/lang-java"]
 lang-elm = ["lapce-core/lang-elm"]
