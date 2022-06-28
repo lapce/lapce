@@ -1,6 +1,12 @@
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for release'
+        required: false
+        default: nightly
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
 
