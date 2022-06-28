@@ -52,7 +52,11 @@ impl Terminal {
         let poll = mio::Poll::new().unwrap();
         let mut config = TermConfig::default();
         config.pty_config.working_directory =
-            cwd.or_else(|| BaseDirs::new().map(|d| PathBuf::from(d.home_dir())));
+            if cwd.is_some() && cwd.clone().unwrap().exists() {
+                cwd
+            } else {
+                BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
+            };
         let shell = shell.trim();
         if !shell.is_empty() {
             let mut parts = shell.split(' ');
