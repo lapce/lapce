@@ -4,7 +4,7 @@ use druid::{
     kurbo::Line,
     piet::{Text, TextLayout, TextLayoutBuilder, TextStorage},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size, Target,
+    LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
@@ -632,22 +632,6 @@ impl PanelContainer {
     ) {
         self.panels.insert(kind, panel);
     }
-
-    fn first_position(&self) -> PanelPosition {
-        match self.position {
-            PanelContainerPosition::Left => PanelPosition::LeftTop,
-            PanelContainerPosition::Bottom => PanelPosition::BottomLeft,
-            PanelContainerPosition::Right => PanelPosition::RightTop,
-        }
-    }
-
-    fn second_position(&self) -> PanelPosition {
-        match self.position {
-            PanelContainerPosition::Left => PanelPosition::LeftBottom,
-            PanelContainerPosition::Bottom => PanelPosition::BottomRight,
-            PanelContainerPosition::Right => PanelPosition::RightBottom,
-        }
-    }
 }
 
 impl Widget<LapceTabData> for PanelContainer {
@@ -664,7 +648,7 @@ impl Widget<LapceTabData> for PanelContainer {
                 panel.event(ctx, event, data, env);
             }
         } else {
-            if let Some(panel) = data.panels.get(&self.first_position()) {
+            if let Some(panel) = data.panels.get(&self.position.first()) {
                 if panel.shown {
                     self.panels
                         .get_mut(&panel.active)
@@ -672,7 +656,7 @@ impl Widget<LapceTabData> for PanelContainer {
                         .event(ctx, event, data, env);
                 }
             }
-            if let Some(panel) = data.panels.get(&self.second_position()) {
+            if let Some(panel) = data.panels.get(&self.position.second()) {
                 if panel.shown {
                     self.panels
                         .get_mut(&panel.active)
@@ -704,7 +688,7 @@ impl Widget<LapceTabData> for PanelContainer {
         env: &Env,
     ) {
         self.switcher.update(ctx, data, env);
-        if let Some(panel) = data.panels.get(&self.first_position()) {
+        if let Some(panel) = data.panels.get(&self.position.first()) {
             if panel.shown {
                 self.panels
                     .get_mut(&panel.active)
@@ -712,7 +696,7 @@ impl Widget<LapceTabData> for PanelContainer {
                     .update(ctx, data, env);
             }
         }
-        if let Some(panel) = data.panels.get(&self.second_position()) {
+        if let Some(panel) = data.panels.get(&self.position.second()) {
             if panel.shown {
                 self.panels
                     .get_mut(&panel.active)
@@ -735,14 +719,14 @@ impl Widget<LapceTabData> for PanelContainer {
         let switcher_size = self.switcher.layout(ctx, bc, data, env);
         self.switcher.set_origin(ctx, data, env, Point::ZERO);
 
-        let panel_first = data.panels.get(&self.first_position()).and_then(|p| {
+        let panel_first = data.panels.get(&self.position.first()).and_then(|p| {
             if p.shown {
                 Some(&p.active)
             } else {
                 None
             }
         });
-        let panel_second = data.panels.get(&self.second_position()).and_then(|p| {
+        let panel_second = data.panels.get(&self.position.second()).and_then(|p| {
             if p.shown {
                 Some(&p.active)
             } else {
@@ -937,7 +921,7 @@ impl Widget<LapceTabData> for PanelContainer {
             }
         }
 
-        if let Some(panel) = data.panels.get(&self.first_position()) {
+        if let Some(panel) = data.panels.get(&self.position.first()) {
             if panel.shown {
                 self.panels
                     .get_mut(&panel.active)
@@ -945,7 +929,7 @@ impl Widget<LapceTabData> for PanelContainer {
                     .paint(ctx, data, env);
             }
         }
-        if let Some(panel) = data.panels.get(&self.second_position()) {
+        if let Some(panel) = data.panels.get(&self.position.second()) {
             if panel.shown {
                 self.panels
                     .get_mut(&panel.active)
@@ -960,11 +944,81 @@ impl Widget<LapceTabData> for PanelContainer {
 
 pub struct PanelSwitcher {
     position: PanelContainerPosition,
+    icons: Vec<LapceIcon>,
 }
 
 impl PanelSwitcher {
     pub fn new(position: PanelContainerPosition) -> Self {
-        Self { position }
+        Self {
+            position,
+            icons: Vec::new(),
+        }
+    }
+
+    fn update_icons(&mut self, self_size: Size, data: &LapceTabData) {
+        let mut icons = Vec::new();
+        if let Some(panel) = data.panels.get(&self.position.first()) {
+            for kind in panel.widgets.iter() {
+                icons.push(Self::panel_icon(kind, data));
+            }
+        }
+        if let Some(panel) = data.panels.get(&self.position.second()) {
+            for kind in panel.widgets.iter() {
+                icons.push(Self::panel_icon(kind, data));
+            }
+        }
+        let switcher_size = data.config.ui.header_height() as f64;
+        let icon_size = data.config.ui.font_size() as f64;
+        let total_size = (data.config.ui.header_height() * icons.len()) as f64;
+        if self.position.is_bottom() {
+            // let start = ((self_size.height - total_size) / 2.0).round();
+            for (i, icon) in icons.iter_mut().enumerate() {
+                icon.rect = Rect::ZERO
+                    .with_origin(Point::new(
+                        self_size.width / 2.0,
+                        (i as f64 + 0.5) * switcher_size,
+                    ))
+                    .inflate(icon_size / 2.0, icon_size / 2.0);
+            }
+        } else {
+            // let start = ((self_size.width - total_size) / 2.0).round();
+            for (i, icon) in icons.iter_mut().enumerate() {
+                icon.rect = Rect::ZERO
+                    .with_origin(Point::new(
+                        (i as f64 + 0.5) * switcher_size,
+                        self_size.height / 2.0,
+                    ))
+                    .inflate(icon_size / 2.0, icon_size / 2.0);
+            }
+        }
+        self.icons = icons;
+    }
+
+    fn panel_icon(kind: &PanelKind, data: &LapceTabData) -> LapceIcon {
+        let cmd = match kind {
+            PanelKind::FileExplorer => {
+                LapceWorkbenchCommand::ToggleFileExplorerVisual
+            }
+            PanelKind::SourceControl => {
+                LapceWorkbenchCommand::ToggleSourceControlVisual
+            }
+            PanelKind::Plugin => LapceWorkbenchCommand::TogglePluginVisual,
+            PanelKind::Terminal => LapceWorkbenchCommand::ToggleTerminalVisual,
+            PanelKind::Search => LapceWorkbenchCommand::ToggleSearchVisual,
+            PanelKind::Problem => LapceWorkbenchCommand::ToggleProblemVisual,
+        };
+        LapceIcon {
+            icon: kind.svg_name(),
+            rect: Rect::ZERO,
+            command: Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Workbench(cmd),
+                    data: None,
+                },
+                Target::Widget(data.id),
+            ),
+        }
     }
 }
 
@@ -1003,11 +1057,13 @@ impl Widget<LapceTabData> for PanelSwitcher {
         data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        if self.position.is_bottom() {
+        let self_size = if self.position.is_bottom() {
             Size::new(data.config.ui.header_height() as f64, bc.max().height)
         } else {
             Size::new(bc.max().width, data.config.ui.header_height() as f64)
-        }
+        };
+        self.update_icons(self_size, data);
+        self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
@@ -1055,6 +1111,18 @@ impl Widget<LapceTabData> for PanelSwitcher {
                     1.0,
                 );
             }
+        }
+
+        for icon in self.icons.iter() {
+            let svg = get_svg(icon.icon).unwrap();
+            ctx.draw_svg(
+                &svg,
+                icon.rect,
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                ),
+            );
         }
     }
 }
