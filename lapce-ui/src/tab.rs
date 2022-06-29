@@ -14,8 +14,9 @@ use lapce_core::{
 };
 use lapce_data::{
     command::{
-        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_OPEN_FILE,
-        LAPCE_OPEN_FOLDER, LAPCE_SAVE_FILE_AS, LAPCE_UI_COMMAND,
+        CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_COMMAND, LAPCE_OPEN_FILE, LAPCE_OPEN_FOLDER, LAPCE_SAVE_FILE_AS,
+        LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
     config::{Config, LapceTheme},
@@ -146,17 +147,76 @@ impl LapceTab {
         }
     }
 
-    fn update_split_point(&mut self, data: &mut LapceTabData, mouse_pos: Point) {
+    fn update_split_point(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        mouse_pos: Point,
+    ) {
         if let Some(position) = self.current_bar_hover.as_ref() {
             match position {
                 PanelResizePosition::Left => {
-                    data.panel_size.left = (mouse_pos.x - 50.0).round().max(50.0);
+                    data.panel_size.left = mouse_pos.x.round().max(180.0);
+                    if mouse_pos.x < 90.0 {
+                        if data.panel_left_shown() {
+                            ctx.submit_command(Command::new(
+                                LAPCE_COMMAND,
+                                LapceCommand {
+                                    kind: CommandKind::Workbench(
+                                        LapceWorkbenchCommand::TogglePanelLeftVisual,
+                                    ),
+                                    data: None,
+                                },
+                                Target::Widget(data.id),
+                            ));
+                        }
+                    } else {
+                        if !data.panel_left_shown() {
+                            ctx.submit_command(Command::new(
+                                LAPCE_COMMAND,
+                                LapceCommand {
+                                    kind: CommandKind::Workbench(
+                                        LapceWorkbenchCommand::TogglePanelLeftVisual,
+                                    ),
+                                    data: None,
+                                },
+                                Target::Widget(data.id),
+                            ));
+                        }
+                    }
                 }
                 PanelResizePosition::LeftSplit => (),
                 PanelResizePosition::Bottom => {
-                    data.panel_size.bottom =
-                        (self.height - mouse_pos.y.round() - self.status_height)
-                            .max(50.0);
+                    let bottom =
+                        self.height - mouse_pos.y.round() - self.status_height;
+                    data.panel_size.bottom = bottom.max(180.0);
+                    if bottom < 90.0 {
+                        if data.panel_bottom_shown() {
+                            ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Workbench(
+                                    LapceWorkbenchCommand::TogglePanelBottomVisual,
+                                ),
+                                data: None,
+                            },
+                            Target::Widget(data.id),
+                        ));
+                        }
+                    } else {
+                        if !data.panel_bottom_shown() {
+                            ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Workbench(
+                                    LapceWorkbenchCommand::TogglePanelBottomVisual,
+                                ),
+                                data: None,
+                            },
+                            Target::Widget(data.id),
+                        ));
+                        }
+                    }
                 }
             }
         }
@@ -265,7 +325,7 @@ impl LapceTab {
             Event::MouseMove(mouse) => {
                 self.mouse_pos = mouse.pos;
                 if ctx.is_active() {
-                    self.update_split_point(data, mouse.pos);
+                    self.update_split_point(ctx, data, mouse.pos);
                     ctx.request_layout();
                     ctx.set_handled();
                 } else {
