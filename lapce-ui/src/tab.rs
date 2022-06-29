@@ -1,6 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use druid::{
+    kurbo::Line,
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, InternalLifeCycle,
     LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
@@ -1603,6 +1604,50 @@ impl Widget<LapceTabData> for LapceTab {
         }
         if data.panel_right_shown() {
             self.panel_right.paint(ctx, data, env);
+        }
+        if ctx.is_active() {
+            if let Some(position) = self.current_bar_hover.as_ref() {
+                let (p0, p1) = match position {
+                    PanelResizePosition::Left => {
+                        let rect = self.panel_left.layout_rect();
+                        if !data.panel_left_shown() {
+                            (Point::new(1.0, rect.y0), Point::new(1.0, rect.y1))
+                        } else {
+                            (
+                                Point::new(rect.x1.round(), rect.y0),
+                                Point::new(rect.x1.round(), rect.y1),
+                            )
+                        }
+                    }
+                    PanelResizePosition::LeftSplit => {
+                        let rect = self.panel_left.layout_rect();
+                        (
+                            Point::new(rect.x1.round(), rect.y0),
+                            Point::new(rect.x1.round(), rect.y1),
+                        )
+                    }
+                    PanelResizePosition::Bottom => {
+                        let rect = self.panel_bottom.layout_rect();
+                        if !data.panel_bottom_shown() {
+                            let status_rect = self.status.layout_rect();
+                            (
+                                Point::new(rect.x0, status_rect.y0 - 1.0),
+                                Point::new(rect.x1, status_rect.y0 - 1.0),
+                            )
+                        } else {
+                            (
+                                Point::new(rect.x0, rect.y0.round()),
+                                Point::new(rect.x1, rect.y0.round()),
+                            )
+                        }
+                    }
+                };
+                ctx.stroke(
+                    Line::new(p0, p1),
+                    data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
+                    2.0,
+                );
+            }
         }
         self.status.paint(ctx, data, env);
         self.completion.paint(ctx, data, env);
