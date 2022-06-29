@@ -775,13 +775,15 @@ impl Widget<LapceTabData> for LapceEditorView {
             let reset = if old_data.focus != self.view_id {
                 true
             } else {
+                let mode = editor_data.editor.cursor.get_mode();
+                let old_mode = old_editor_data.editor.cursor.get_mode();
                 let offset = editor_data.editor.cursor.offset();
                 let old_offset = old_editor_data.editor.cursor.offset();
                 let (line, col) =
                     editor_data.doc.buffer().offset_to_line_col(offset);
                 let (old_line, old_col) =
                     old_editor_data.doc.buffer().offset_to_line_col(old_offset);
-                line != old_line || col != old_col
+                mode != old_mode || line != old_line || col != old_col
             };
 
             if reset {
