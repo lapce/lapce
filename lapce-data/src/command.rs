@@ -302,6 +302,15 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "toggle_panel_visual")]
     TogglePanelVisual,
 
+    #[strum(serialize = "toggle_panel_left_visual")]
+    TogglePanelLeftVisual,
+
+    #[strum(serialize = "toggle_panel_right_visual")]
+    TogglePanelRightVisual,
+
+    #[strum(serialize = "toggle_panel_bottom_visual")]
+    TogglePanelBottomVisual,
+
     // Focus toggle commands
     #[strum(message = "Toggle Terminal Focus")]
     #[strum(serialize = "toggle_terminal_focus")]

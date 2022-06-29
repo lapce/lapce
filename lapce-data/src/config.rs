@@ -189,9 +189,6 @@ pub struct UIConfig {
     #[field_names(desc = "Set the minium width for editor tab")]
     tab_min_width: usize,
 
-    #[field_names(desc = "Set the width for activity bar")]
-    activity_width: usize,
-
     #[field_names(desc = "Set the width for scroll bar")]
     scroll_width: usize,
 
@@ -224,10 +221,6 @@ impl UIConfig {
 
     pub fn tab_min_width(&self) -> usize {
         self.tab_min_width
-    }
-
-    pub fn activity_width(&self) -> usize {
-        self.activity_width
     }
 
     pub fn scroll_width(&self) -> usize {

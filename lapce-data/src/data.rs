@@ -765,6 +765,54 @@ impl LapceTabData {
         }
     }
 
+    pub fn panel_left_shown(&self) -> bool {
+        self.panels
+            .get(&PanelPosition::LeftTop)
+            .map(|p| p.shown)
+            .unwrap_or(false)
+            || self
+                .panels
+                .get(&PanelPosition::LeftBottom)
+                .map(|p| p.shown)
+                .unwrap_or(false)
+    }
+
+    pub fn panel_right_shown(&self) -> bool {
+        self.panels
+            .get(&PanelPosition::RightTop)
+            .map(|p| p.shown)
+            .unwrap_or(false)
+            || self
+                .panels
+                .get(&PanelPosition::RightBottom)
+                .map(|p| p.shown)
+                .unwrap_or(false)
+    }
+
+    pub fn panel_bottom_shown(&self) -> bool {
+        self.panels
+            .get(&PanelPosition::BottomLeft)
+            .map(|p| p.shown)
+            .unwrap_or(false)
+            || self
+                .panels
+                .get(&PanelPosition::BottomRight)
+                .map(|p| p.shown)
+                .unwrap_or(false)
+    }
+
+    pub fn panel_bottom_maximized(&self) -> bool {
+        self.panels
+            .get(&PanelPosition::BottomLeft)
+            .map(|p| p.maximized)
+            .unwrap_or(false)
+            || self
+                .panels
+                .get(&PanelPosition::BottomRight)
+                .map(|p| p.maximized)
+                .unwrap_or(false)
+    }
+
     pub fn panel_position(&self, kind: PanelKind) -> Option<PanelPosition> {
         for (pos, panels) in self.panels.iter() {
             if panels.widgets.contains(&kind) {
@@ -1224,7 +1272,37 @@ impl LapceTabData {
                     }
                 }
             }
-
+            LapceWorkbenchCommand::TogglePanelLeftVisual => {
+                let shown = !self.panel_left_shown();
+                if let Some(panel) = self.panels.get_mut(&PanelPosition::LeftTop) {
+                    Arc::make_mut(panel).shown = shown;
+                }
+                if let Some(panel) = self.panels.get_mut(&PanelPosition::LeftBottom)
+                {
+                    Arc::make_mut(panel).shown = shown;
+                }
+            }
+            LapceWorkbenchCommand::TogglePanelRightVisual => {
+                let shown = !self.panel_right_shown();
+                if let Some(panel) = self.panels.get_mut(&PanelPosition::RightTop) {
+                    Arc::make_mut(panel).shown = shown;
+                }
+                if let Some(panel) = self.panels.get_mut(&PanelPosition::RightBottom)
+                {
+                    Arc::make_mut(panel).shown = shown;
+                }
+            }
+            LapceWorkbenchCommand::TogglePanelBottomVisual => {
+                let shown = !self.panel_bottom_shown();
+                if let Some(panel) = self.panels.get_mut(&PanelPosition::BottomLeft)
+                {
+                    Arc::make_mut(panel).shown = shown;
+                }
+                if let Some(panel) = self.panels.get_mut(&PanelPosition::BottomRight)
+                {
+                    Arc::make_mut(panel).shown = shown;
+                }
+            }
             LapceWorkbenchCommand::ToggleSourceControlFocus => {
                 self.toggle_panel_focus(ctx, PanelKind::SourceControl);
             }

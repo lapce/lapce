@@ -1,4 +1,3 @@
-pub mod activity;
 pub mod alert;
 pub mod app;
 pub mod button;

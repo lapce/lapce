@@ -46,42 +46,52 @@ impl LapceStatus {
         let panel_icons_size = self_size.height * panels.len() as f64;
         let offset = (self_size.width - panel_icons_size) / 2.0;
 
-        let icons: Vec<LapceIcon> = panels
-            .iter()
-            .enumerate()
-            .map(|(i, p)| {
-                let cmd = match p {
-                    PanelKind::FileExplorer => {
-                        LapceWorkbenchCommand::ToggleFileExplorerVisual
-                    }
-                    PanelKind::SourceControl => {
-                        LapceWorkbenchCommand::ToggleSourceControlVisual
-                    }
-                    PanelKind::Plugin => LapceWorkbenchCommand::TogglePluginVisual,
-                    PanelKind::Terminal => {
-                        LapceWorkbenchCommand::ToggleTerminalVisual
-                    }
-                    PanelKind::Search => LapceWorkbenchCommand::ToggleSearchVisual,
-                    PanelKind::Problem => LapceWorkbenchCommand::ToggleProblemVisual,
-                };
+        let icons = [
+            (
+                if data.panel_left_shown() {
+                    "layout-sidebar-left.svg"
+                } else {
+                    "layout-sidebar-left-off.svg"
+                },
+                LapceWorkbenchCommand::TogglePanelLeftVisual,
+            ),
+            (
+                if data.panel_bottom_shown() {
+                    "layout-panel.svg"
+                } else {
+                    "layout-panel-off.svg"
+                },
+                LapceWorkbenchCommand::TogglePanelBottomVisual,
+            ),
+            (
+                if data.panel_right_shown() {
+                    "layout-sidebar-right.svg"
+                } else {
+                    "layout-sidebar-right-off.svg"
+                },
+                LapceWorkbenchCommand::TogglePanelRightVisual,
+            ),
+        ];
 
-                LapceIcon {
-                    icon: p.svg_name(),
-                    rect: Size::new(self_size.height, self_size.height)
-                        .to_rect()
-                        .with_origin(Point::new(
-                            offset + self_size.height * i as f64,
-                            0.0,
-                        )),
-                    command: Command::new(
-                        LAPCE_COMMAND,
-                        LapceCommand {
-                            kind: CommandKind::Workbench(cmd),
-                            data: None,
-                        },
-                        Target::Widget(data.id),
-                    ),
-                }
+        let icons: Vec<LapceIcon> = icons
+            .into_iter()
+            .enumerate()
+            .map(|(i, (svg, cmd))| LapceIcon {
+                icon: svg,
+                rect: Size::new(self_size.height, self_size.height)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        offset + self_size.height * i as f64,
+                        0.0,
+                    )),
+                command: Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Workbench(cmd),
+                        data: None,
+                    },
+                    Target::Widget(data.id),
+                ),
             })
             .collect();
         icons
