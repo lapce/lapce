@@ -1,7 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use druid::{
-    kurbo::Line,
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, InternalLifeCycle,
     LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
@@ -30,7 +29,7 @@ use lapce_data::{
     keypress::{DefaultKeyPressHandler, KeyPressData},
     menu::MenuKind,
     palette::PaletteStatus,
-    panel::{PanelContainerPosition, PanelPosition, PanelResizePosition},
+    panel::{PanelContainerPosition, PanelResizePosition},
     proxy::path_from_url,
 };
 use lsp_types::DiagnosticSeverity;
@@ -38,23 +37,12 @@ use serde::Deserialize;
 use xi_rope::Rope;
 
 use crate::{
-    activity::ActivityBar,
-    alert::AlertBox,
-    completion::CompletionContainer,
-    explorer::FileExplorer,
-    hover::HoverContainer,
-    palette::Palette,
-    panel::{PanelContainer, PanelSwitcher},
-    picker::FilePicker,
-    plugin::Plugin,
-    problem::new_problem_panel,
-    search::new_search_panel,
-    settings::LapceSettingsPanel,
-    source_control::new_source_control_panel,
-    split::split_data_widget,
-    status::LapceStatus,
-    svg::get_svg,
-    terminal::TerminalPanel,
+    alert::AlertBox, completion::CompletionContainer, explorer::FileExplorer,
+    hover::HoverContainer, palette::Palette, panel::PanelContainer,
+    picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
+    search::new_search_panel, settings::LapceSettingsPanel,
+    source_control::new_source_control_panel, split::split_data_widget,
+    status::LapceStatus, svg::get_svg, terminal::TerminalPanel,
 };
 
 pub struct LapceIcon {
@@ -98,7 +86,6 @@ impl LapceTab {
             .unwrap();
         let main_split = split_data_widget(split_data, data);
 
-        let activity = ActivityBar::new();
         let completion = CompletionContainer::new(&data.completion);
         let hover = HoverContainer::new(&data.hover);
         let palette = Palette::new(data);
