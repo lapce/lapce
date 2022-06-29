@@ -1034,7 +1034,7 @@ impl PanelSwitcher {
             PanelKind::Problem => LapceWorkbenchCommand::ToggleProblemVisual,
         };
         (
-            kind.clone(),
+            *kind,
             LapceIcon {
                 icon: kind.svg_name(),
                 rect: Rect::ZERO,
@@ -1164,27 +1164,25 @@ impl Widget<LapceTabData> for PanelSwitcher {
                     1.0,
                 );
             }
-        } else {
-            if shadow_width > 0.0 {
-                ctx.with_save(|ctx| {
-                    ctx.clip(rect.inset((0.0, 0.0, 0.0, 50.0)));
-                    ctx.blurred_rect(
-                        rect,
-                        shadow_width,
-                        data.config
-                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-                    );
-                });
-            } else {
-                ctx.stroke(
-                    Line::new(
-                        Point::new(rect.x0, rect.y1 + 0.5),
-                        Point::new(rect.x1, rect.y1 + 0.5),
-                    ),
-                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                    1.0,
+        } else if shadow_width > 0.0 {
+            ctx.with_save(|ctx| {
+                ctx.clip(rect.inset((0.0, 0.0, 0.0, 50.0)));
+                ctx.blurred_rect(
+                    rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
                 );
-            }
+            });
+        } else {
+            ctx.stroke(
+                Line::new(
+                    Point::new(rect.x0, rect.y1 + 0.5),
+                    Point::new(rect.x1, rect.y1 + 0.5),
+                ),
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
         }
 
         let icon_padding = Self::icon_padding(data);

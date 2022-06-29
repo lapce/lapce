@@ -170,19 +170,17 @@ impl LapceTab {
                                 Target::Widget(data.id),
                             ));
                         }
-                    } else {
-                        if !data.panel_left_shown() {
-                            ctx.submit_command(Command::new(
-                                LAPCE_COMMAND,
-                                LapceCommand {
-                                    kind: CommandKind::Workbench(
-                                        LapceWorkbenchCommand::TogglePanelLeftVisual,
-                                    ),
-                                    data: None,
-                                },
-                                Target::Widget(data.id),
-                            ));
-                        }
+                    } else if !data.panel_left_shown() {
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Workbench(
+                                    LapceWorkbenchCommand::TogglePanelLeftVisual,
+                                ),
+                                data: None,
+                            },
+                            Target::Widget(data.id),
+                        ));
                     }
                 }
                 PanelResizePosition::LeftSplit => (),
@@ -203,9 +201,8 @@ impl LapceTab {
                             Target::Widget(data.id),
                         ));
                         }
-                    } else {
-                        if !data.panel_bottom_shown() {
-                            ctx.submit_command(Command::new(
+                    } else if !data.panel_bottom_shown() {
+                        ctx.submit_command(Command::new(
                             LAPCE_COMMAND,
                             LapceCommand {
                                 kind: CommandKind::Workbench(
@@ -215,7 +212,6 @@ impl LapceTab {
                             },
                             Target::Widget(data.id),
                         ));
-                        }
                     }
                 }
             }
