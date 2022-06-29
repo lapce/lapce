@@ -29,60 +29,11 @@ impl Default for ActivityBar {
 impl Widget<LapceTabData> for ActivityBar {
     fn event(
         &mut self,
-        ctx: &mut EventCtx,
-        event: &Event,
-        data: &mut LapceTabData,
+        _ctx: &mut EventCtx,
+        _event: &Event,
+        _data: &mut LapceTabData,
         _env: &Env,
     ) {
-        let width = data.config.ui.activity_width() as f64;
-        match event {
-            Event::MouseDown(mouse) => {
-                if mouse.button.is_left() {
-                    let index = (mouse.pos.y / width) as usize;
-                    if let Some(panel) = data.panels.get_mut(&PanelPosition::LeftTop)
-                    {
-                        if let Some(kind) = panel.widgets.get(index) {
-                            if panel.active == *kind {
-                                ctx.submit_command(Command::new(
-                                    LAPCE_COMMAND,
-                                    LapceCommand {
-                                        kind: CommandKind::Workbench(
-                                            LapceWorkbenchCommand::TogglePanelVisual,
-                                        ),
-                                        data: Some(json!(kind)),
-                                    },
-                                    Target::Widget(data.id),
-                                ));
-                            } else {
-                                ctx.submit_command(Command::new(
-                                    LAPCE_COMMAND,
-                                    LapceCommand {
-                                        kind: CommandKind::Workbench(
-                                            LapceWorkbenchCommand::ShowPanel,
-                                        ),
-                                        data: Some(json!(kind)),
-                                    },
-                                    Target::Widget(data.id),
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-            Event::MouseMove(mouse) => {
-                let n = data
-                    .panels
-                    .get(&PanelPosition::LeftTop)
-                    .map(|panel| panel.widgets.len())
-                    .unwrap_or(0);
-                if n > 0 && mouse.pos.y < width * n as f64 {
-                    ctx.set_cursor(&Cursor::Pointer);
-                } else {
-                    ctx.clear_cursor();
-                }
-            }
-            _ => {}
-        }
     }
 
     fn lifecycle(
@@ -107,10 +58,10 @@ impl Widget<LapceTabData> for ActivityBar {
         &mut self,
         _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceTabData,
+        _data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        Size::new(data.config.ui.activity_width() as f64, bc.max().height)
+        bc.max()
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {

@@ -13,3 +13,16 @@ pub enum PanelPosition {
     RightTop,
     RightBottom,
 }
+
+#[derive(Eq, PartialEq, Hash, Clone, Copy)]
+pub enum PanelContainerPosition {
+    Left,
+    Bottom,
+    Right,
+}
+
+impl PanelContainerPosition {
+    pub fn is_bottom(&self) -> bool {
+        matches!(self, PanelContainerPosition::Bottom)
+    }
+}

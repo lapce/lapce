@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use druid::{
     kurbo::Line,
@@ -11,7 +11,7 @@ use lapce_data::{
     command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::{LapceTabData, PanelKind},
-    panel::PanelPosition,
+    panel::{PanelContainerPosition, PanelPosition},
     split::SplitDirection,
 };
 use serde_json::json;
@@ -630,4 +630,376 @@ impl Widget<LapceTabData> for PanelMainHeader {
             }
         });
     }
+}
+
+pub struct PanelContainer {
+    position: PanelContainerPosition,
+    panels:
+        HashMap<PanelKind, WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+}
+
+impl PanelContainer {
+    pub fn new(position: PanelContainerPosition) -> Self {
+        Self {
+            position,
+            panels: HashMap::new(),
+        }
+    }
+
+    pub fn insert_panel(
+        &mut self,
+        kind: PanelKind,
+        panel: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    ) {
+        self.panels.insert(kind, panel);
+    }
+
+    fn first_position(&self) -> PanelPosition {
+        match self.position {
+            PanelContainerPosition::Left => PanelPosition::LeftTop,
+            PanelContainerPosition::Bottom => PanelPosition::BottomLeft,
+            PanelContainerPosition::Right => PanelPosition::RightTop,
+        }
+    }
+
+    fn second_position(&self) -> PanelPosition {
+        match self.position {
+            PanelContainerPosition::Left => PanelPosition::LeftBottom,
+            PanelContainerPosition::Bottom => PanelPosition::BottomRight,
+            PanelContainerPosition::Right => PanelPosition::RightBottom,
+        }
+    }
+}
+
+impl Widget<LapceTabData> for PanelContainer {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        if event.should_propagate_to_hidden() {
+            for (_, panel) in self.panels.iter_mut() {
+                panel.event(ctx, event, data, env);
+            }
+        } else {
+            if let Some(panel) = data.panels.get(&self.first_position()) {
+                if panel.shown {
+                    self.panels
+                        .get_mut(&panel.active)
+                        .unwrap()
+                        .event(ctx, event, data, env);
+                }
+            }
+            if let Some(panel) = data.panels.get(&self.second_position()) {
+                if panel.shown {
+                    self.panels
+                        .get_mut(&panel.active)
+                        .unwrap()
+                        .event(ctx, event, data, env);
+                }
+            }
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        for (_, panel) in self.panels.iter_mut() {
+            panel.lifecycle(ctx, event, data, env);
+        }
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        if let Some(panel) = data.panels.get(&self.first_position()) {
+            if panel.shown {
+                self.panels
+                    .get_mut(&panel.active)
+                    .unwrap()
+                    .update(ctx, data, env);
+            }
+        }
+        if let Some(panel) = data.panels.get(&self.second_position()) {
+            if panel.shown {
+                self.panels
+                    .get_mut(&panel.active)
+                    .unwrap()
+                    .update(ctx, data, env);
+            }
+        }
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        let self_size = bc.max();
+        let is_bottom = self.position.is_bottom();
+
+        let panel_first = data.panels.get(&self.first_position()).and_then(|p| {
+            if p.shown {
+                Some(&p.active)
+            } else {
+                None
+            }
+        });
+        let panel_second = data.panels.get(&self.second_position()).and_then(|p| {
+            if p.shown {
+                Some(&p.active)
+            } else {
+                None
+            }
+        });
+
+        match (panel_first, panel_second) {
+            (Some(panel_first), Some(panel_second)) => {
+                let split = match self.position {
+                    PanelContainerPosition::Left => data.panel_size.left_split,
+                    PanelContainerPosition::Bottom => data.panel_size.bottom_split,
+                    PanelContainerPosition::Right => data.panel_size.right_split,
+                };
+                if is_bottom {
+                    let size_fist = (self_size.width * split).round();
+                    let size_second = self_size.width - size_fist;
+                    let panel_first = self.panels.get_mut(panel_first).unwrap();
+                    panel_first.layout(
+                        ctx,
+                        &BoxConstraints::tight(Size::new(
+                            size_fist,
+                            self_size.height,
+                        )),
+                        data,
+                        env,
+                    );
+                    panel_first.set_origin(ctx, data, env, Point::ZERO);
+                    let panel_second = self.panels.get_mut(panel_second).unwrap();
+                    panel_second.layout(
+                        ctx,
+                        &BoxConstraints::tight(Size::new(
+                            size_second,
+                            self_size.height,
+                        )),
+                        data,
+                        env,
+                    );
+                    panel_second.set_origin(
+                        ctx,
+                        data,
+                        env,
+                        Point::new(size_fist, 0.0),
+                    );
+                } else {
+                    let size_fist = (self_size.height * split).round();
+                    let size_second = self_size.height - size_fist;
+                    let panel_first = self.panels.get_mut(panel_first).unwrap();
+                    panel_first.layout(
+                        ctx,
+                        &BoxConstraints::tight(Size::new(
+                            self_size.width,
+                            size_fist,
+                        )),
+                        data,
+                        env,
+                    );
+                    panel_first.set_origin(ctx, data, env, Point::ZERO);
+
+                    let panel_second = self.panels.get_mut(panel_second).unwrap();
+                    panel_second.layout(
+                        ctx,
+                        &BoxConstraints::tight(Size::new(
+                            self_size.width,
+                            size_second,
+                        )),
+                        data,
+                        env,
+                    );
+                    panel_second.set_origin(
+                        ctx,
+                        data,
+                        env,
+                        Point::new(0.0, size_fist),
+                    );
+                }
+            }
+            (Some(panel), None) | (None, Some(panel)) => {
+                let panel = self.panels.get_mut(panel).unwrap();
+                panel.layout(ctx, bc, data, env);
+                panel.set_origin(ctx, data, env, Point::ZERO);
+            }
+            (None, None) => {}
+        }
+
+        self_size
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let shadow_width = data.config.ui.drop_shadow_width() as f64;
+        let rect = ctx.size().to_rect();
+        match self.position {
+            PanelContainerPosition::Left => {
+                ctx.fill(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                );
+                if shadow_width > 0.0 {
+                    ctx.blurred_rect(
+                        rect,
+                        shadow_width,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                } else {
+                    ctx.stroke(
+                        Line::new(
+                            Point::new(rect.x1 + 0.5, rect.y0),
+                            Point::new(rect.x1 + 0.5, rect.y1),
+                        ),
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                        1.0,
+                    );
+                }
+            }
+            PanelContainerPosition::Right => {
+                ctx.fill(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                );
+                if shadow_width > 0.0 {
+                    ctx.blurred_rect(
+                        rect,
+                        shadow_width,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                } else {
+                    ctx.stroke(
+                        Line::new(
+                            Point::new(rect.x0 - 0.5, rect.y0),
+                            Point::new(rect.x0 - 0.5, rect.y1),
+                        ),
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                        1.0,
+                    );
+                }
+            }
+            PanelContainerPosition::Bottom => {
+                ctx.fill(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                );
+                if shadow_width > 0.0 {
+                    ctx.blurred_rect(
+                        rect,
+                        shadow_width,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                } else {
+                    ctx.stroke(
+                        Line::new(
+                            Point::new(rect.x0, rect.y0 - 0.5),
+                            Point::new(rect.x1, rect.y1 - 0.5),
+                        ),
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                        1.0,
+                    );
+                }
+            }
+        }
+
+        if let Some(panel) = data.panels.get(&self.first_position()) {
+            if panel.shown {
+                self.panels
+                    .get_mut(&panel.active)
+                    .unwrap()
+                    .paint(ctx, data, env);
+            }
+        }
+        if let Some(panel) = data.panels.get(&self.second_position()) {
+            if panel.shown {
+                self.panels
+                    .get_mut(&panel.active)
+                    .unwrap()
+                    .paint(ctx, data, env);
+            }
+        }
+    }
+}
+
+pub struct PanelSwitcher {
+    is_bottom: bool,
+}
+
+impl PanelSwitcher {
+    pub fn new(is_bottom: bool) -> Self {
+        Self { is_bottom }
+    }
+}
+
+impl Widget<LapceTabData> for PanelSwitcher {
+    fn event(
+        &mut self,
+        _ctx: &mut EventCtx,
+        _event: &Event,
+        _data: &mut LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        _ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        _env: &Env,
+    ) -> Size {
+        if self.is_bottom {
+            Size::new(
+                data.config.ui.panel_switcher_bar_size() as f64,
+                bc.max().height,
+            )
+        } else {
+            Size::new(
+                bc.max().width,
+                data.config.ui.panel_switcher_bar_size() as f64,
+            )
+        }
+    }
+
+    fn paint(&mut self, _ctx: &mut PaintCtx, _data: &LapceTabData, _env: &Env) {}
 }
