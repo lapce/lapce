@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use druid::{
     kurbo::Line,
     piet::{Text, TextLayout, TextLayoutBuilder, TextStorage},
-    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
@@ -820,8 +820,16 @@ impl Widget<LapceTabData> for PanelContainer {
             }
             (Some(panel), None) | (None, Some(panel)) => {
                 let panel = self.panels.get_mut(panel).unwrap();
-                panel.layout(ctx, bc, data, env);
                 if is_bottom {
+                    panel.layout(
+                        ctx,
+                        &BoxConstraints::tight(Size::new(
+                            self_size.width - switcher_size.width,
+                            self_size.height,
+                        )),
+                        data,
+                        env,
+                    );
                     panel.set_origin(
                         ctx,
                         data,
@@ -829,6 +837,15 @@ impl Widget<LapceTabData> for PanelContainer {
                         Point::new(switcher_size.width, 0.0),
                     );
                 } else {
+                    panel.layout(
+                        ctx,
+                        &BoxConstraints::tight(Size::new(
+                            self_size.width,
+                            self_size.height - switcher_size.height,
+                        )),
+                        data,
+                        env,
+                    );
                     panel.set_origin(
                         ctx,
                         data,
@@ -944,7 +961,10 @@ impl Widget<LapceTabData> for PanelContainer {
 
 pub struct PanelSwitcher {
     position: PanelContainerPosition,
-    icons: Vec<LapceIcon>,
+    icons: Vec<(PanelKind, LapceIcon)>,
+    mouse_pos: Point,
+    on_icon: bool,
+    clicked_icon: Option<usize>,
 }
 
 impl PanelSwitcher {
@@ -952,7 +972,16 @@ impl PanelSwitcher {
         Self {
             position,
             icons: Vec::new(),
+            mouse_pos: Point::ZERO,
+            on_icon: false,
+            clicked_icon: None,
         }
+    }
+
+    fn icon_padding(data: &LapceTabData) -> f64 {
+        ((data.config.ui.header_height() - data.config.ui.font_size()) as f64 * 0.5
+            / 2.0)
+            .round()
     }
 
     fn update_icons(&mut self, self_size: Size, data: &LapceTabData) {
@@ -969,10 +998,8 @@ impl PanelSwitcher {
         }
         let switcher_size = data.config.ui.header_height() as f64;
         let icon_size = data.config.ui.font_size() as f64;
-        let total_size = (data.config.ui.header_height() * icons.len()) as f64;
         if self.position.is_bottom() {
-            // let start = ((self_size.height - total_size) / 2.0).round();
-            for (i, icon) in icons.iter_mut().enumerate() {
+            for (i, (_, icon)) in icons.iter_mut().enumerate() {
                 icon.rect = Rect::ZERO
                     .with_origin(Point::new(
                         self_size.width / 2.0,
@@ -981,8 +1008,7 @@ impl PanelSwitcher {
                     .inflate(icon_size / 2.0, icon_size / 2.0);
             }
         } else {
-            // let start = ((self_size.width - total_size) / 2.0).round();
-            for (i, icon) in icons.iter_mut().enumerate() {
+            for (i, (_, icon)) in icons.iter_mut().enumerate() {
                 icon.rect = Rect::ZERO
                     .with_origin(Point::new(
                         (i as f64 + 0.5) * switcher_size,
@@ -994,7 +1020,7 @@ impl PanelSwitcher {
         self.icons = icons;
     }
 
-    fn panel_icon(kind: &PanelKind, data: &LapceTabData) -> LapceIcon {
+    fn panel_icon(kind: &PanelKind, data: &LapceTabData) -> (PanelKind, LapceIcon) {
         let cmd = match kind {
             PanelKind::FileExplorer => {
                 LapceWorkbenchCommand::ToggleFileExplorerVisual
@@ -1007,29 +1033,77 @@ impl PanelSwitcher {
             PanelKind::Search => LapceWorkbenchCommand::ToggleSearchVisual,
             PanelKind::Problem => LapceWorkbenchCommand::ToggleProblemVisual,
         };
-        LapceIcon {
-            icon: kind.svg_name(),
-            rect: Rect::ZERO,
-            command: Command::new(
-                LAPCE_COMMAND,
-                LapceCommand {
-                    kind: CommandKind::Workbench(cmd),
-                    data: None,
-                },
-                Target::Widget(data.id),
-            ),
-        }
+        (
+            kind.clone(),
+            LapceIcon {
+                icon: kind.svg_name(),
+                rect: Rect::ZERO,
+                command: Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Workbench(cmd),
+                        data: None,
+                    },
+                    Target::Widget(data.id),
+                ),
+            },
+        )
     }
 }
 
 impl Widget<LapceTabData> for PanelSwitcher {
     fn event(
         &mut self,
-        _ctx: &mut EventCtx,
-        _event: &Event,
-        _data: &mut LapceTabData,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
         _env: &Env,
     ) {
+        match event {
+            Event::MouseMove(mouse_event) => {
+                self.mouse_pos = mouse_event.pos;
+                let icon_padding = Self::icon_padding(data);
+                for (_, icon) in self.icons.iter() {
+                    let rect = icon.rect.inflate(icon_padding, icon_padding);
+                    if rect.contains(self.mouse_pos) {
+                        if !self.on_icon {
+                            ctx.set_cursor(&Cursor::Pointer);
+                            self.on_icon = true;
+                            ctx.request_paint();
+                        }
+                        return;
+                    }
+                }
+                if self.on_icon {
+                    self.on_icon = false;
+                    ctx.clear_cursor();
+                    ctx.request_paint();
+                }
+            }
+            Event::MouseDown(mouse_event) => {
+                let icon_padding = Self::icon_padding(data);
+                for (i, (_, icon)) in self.icons.iter().enumerate() {
+                    let rect = icon.rect.inflate(icon_padding, icon_padding);
+                    if rect.contains(mouse_event.pos) {
+                        self.clicked_icon = Some(i);
+                        break;
+                    }
+                }
+            }
+            Event::MouseUp(mouse_event) => {
+                let icon_padding = Self::icon_padding(data);
+                for (i, (_, icon)) in self.icons.iter().enumerate() {
+                    let rect = icon.rect.inflate(icon_padding, icon_padding);
+                    if rect.contains(mouse_event.pos) {
+                        if self.clicked_icon == Some(i) {
+                            ctx.submit_command(icon.command.clone());
+                        }
+                        break;
+                    }
+                }
+            }
+            _ => (),
+        }
     }
 
     fn lifecycle(
@@ -1113,7 +1187,49 @@ impl Widget<LapceTabData> for PanelSwitcher {
             }
         }
 
-        for icon in self.icons.iter() {
+        let icon_padding = Self::icon_padding(data);
+        let is_bottom = self.position.is_bottom();
+        let mut active_kinds = Vec::new();
+        if let Some(panel) = data.panels.get(&self.position.first()) {
+            active_kinds.push(panel.active);
+        }
+        if let Some(panel) = data.panels.get(&self.position.second()) {
+            active_kinds.push(panel.active);
+        }
+        for (kind, icon) in self.icons.iter() {
+            let mouse_rect = icon.rect.inflate(icon_padding, icon_padding);
+            if mouse_rect.contains(self.mouse_pos) {
+                ctx.fill(
+                    mouse_rect,
+                    if is_bottom {
+                        data.config
+                            .get_color_unchecked(LapceTheme::HOVER_BACKGROUND)
+                    } else {
+                        data.config.get_color_unchecked(LapceTheme::PANEL_HOVERED)
+                    },
+                );
+            }
+            if active_kinds.contains(kind) {
+                if is_bottom {
+                    ctx.stroke(
+                        Line::new(
+                            Point::new(mouse_rect.x1 + 1.0, mouse_rect.y0),
+                            Point::new(mouse_rect.x1 + 1.0, mouse_rect.y1),
+                        ),
+                        data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
+                        2.0,
+                    );
+                } else {
+                    ctx.stroke(
+                        Line::new(
+                            Point::new(mouse_rect.x0, mouse_rect.y1 + 1.0),
+                            Point::new(mouse_rect.x1, mouse_rect.y1 + 1.0),
+                        ),
+                        data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
+                        2.0,
+                    );
+                }
+            }
             let svg = get_svg(icon.icon).unwrap();
             ctx.draw_svg(
                 &svg,
