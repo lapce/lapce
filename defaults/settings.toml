@@ -27,8 +27,6 @@ font-size = 13
 header-height = 35
 status-height = 25
 tab-min-width = 100
-panel-switcher-bar-size = 30
-panel-switcher-icon-size = 20
 scroll-width = 10
 drop-shadow-width = 0
 

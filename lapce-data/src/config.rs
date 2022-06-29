@@ -189,12 +189,6 @@ pub struct UIConfig {
     #[field_names(desc = "Set the minium width for editor tab")]
     tab_min_width: usize,
 
-    #[field_names(desc = "Set the size for the panel switcher bar")]
-    panel_switcher_bar_size: usize,
-
-    #[field_names(desc = "Set the size for the icon in panel switcher")]
-    panel_switcher_icon_size: usize,
-
     #[field_names(desc = "Set the width for scroll bar")]
     scroll_width: usize,
 
@@ -227,15 +221,6 @@ impl UIConfig {
 
     pub fn tab_min_width(&self) -> usize {
         self.tab_min_width
-    }
-
-    pub fn panel_switcher_bar_size(&self) -> usize {
-        self.panel_switcher_bar_size
-            .max(self.panel_switcher_icon_size)
-    }
-
-    pub fn panel_switcher_icon_size(&self) -> usize {
-        self.panel_switcher_icon_size
     }
 
     pub fn scroll_width(&self) -> usize {
