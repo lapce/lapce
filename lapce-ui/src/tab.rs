@@ -11,6 +11,7 @@ use itertools::Itertools;
 use lapce_core::{
     command::FocusCommand,
     cursor::{Cursor, CursorMode},
+    language::LapceLanguage,
     selection::Selection,
 };
 use lapce_data::{
@@ -1412,6 +1413,31 @@ impl LapceTab {
                                 doc.set_syntax(Some(syntax));
                             }
                         }
+                    }
+                    LapceUICommand::SetLanguage(name) => {
+                        ctx.set_handled();
+                        let editor =
+                            if let Some(editor) = data.main_split.active_editor() {
+                                editor
+                            } else {
+                                return;
+                            };
+
+                        let mut doc = data.main_split.content_doc(&editor.content);
+                        let doc = Arc::make_mut(&mut doc);
+
+                        if name.is_empty() || name.to_lowercase().eq("plain text") {
+                            doc.set_syntax(None);
+                        } else {
+                            let lang =
+                                match LapceLanguage::from_name(name.to_string()) {
+                                    Some(v) => v,
+                                    None => return,
+                                };
+
+                            doc.set_language(lang);
+                        }
+                        doc.trigger_syntax_change(None);
                     }
                     LapceUICommand::UpdateHistoryChanges {
                         path,

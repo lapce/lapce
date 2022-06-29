@@ -1,6 +1,6 @@
-use std::{collections::HashSet, path::Path};
+use std::{collections::HashSet, path::Path, str::FromStr};
 
-use strum_macros::Display;
+use strum_macros::{Display, EnumString};
 use tree_sitter::{Parser, TreeCursor};
 
 use crate::style::HighlightConfiguration;
@@ -95,7 +95,8 @@ struct SyntaxProperties {
 // Do not assign values to the variants because the number of variants and
 // number of elements in the LANGUAGES array change as different features
 // selected by the cargo build command.
-#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, Display)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, Display, EnumString)]
+#[strum(ascii_case_insensitive)]
 pub enum LapceLanguage {
     #[cfg(feature = "lang-rust")]
     Rust,
@@ -522,6 +523,24 @@ impl LapceLanguage {
             }
         }
         None
+    }
+
+    pub fn from_name(name: String) -> Option<LapceLanguage> {
+        match LapceLanguage::from_str(name.to_lowercase().as_str()) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                eprintln!("failed parsing LapceLanguage: {e}");
+                None
+            }
+        }
+    }
+
+    pub fn languages() -> Vec<String> {
+        let mut langs = vec![];
+        for l in LANGUAGES {
+            langs.push(format!("{}", l.id))
+        }
+        langs
     }
 
     // NOTE: Instead of using `&LANGUAGES[*self as usize]` directly, the

@@ -758,7 +758,7 @@ impl Document {
         self.text_layouts.borrow_mut().clear();
     }
 
-    fn trigger_syntax_change(&self, delta: Option<&RopeDelta>) {
+    pub fn trigger_syntax_change(&self, delta: Option<&RopeDelta>) {
         if let Some(syntax) = self.syntax.clone() {
             let content = self.content.clone();
             let rev = self.buffer.rev();
