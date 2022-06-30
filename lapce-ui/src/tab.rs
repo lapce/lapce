@@ -705,8 +705,8 @@ impl LapceTab {
                                     diagnostic.diagnostic.severity
                                 {
                                     match severity {
-                                        DiagnosticSeverity::Error => errors += 1,
-                                        DiagnosticSeverity::Warning => warnings += 1,
+                                        DiagnosticSeverity::ERROR => errors += 1,
+                                        DiagnosticSeverity::WARNING => warnings += 1,
                                         _ => (),
                                     }
                                 }

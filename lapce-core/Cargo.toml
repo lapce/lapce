@@ -45,7 +45,7 @@ tree-sitter-css = { git = "https://github.com/syntacti/tree-sitter-css", branch 
 tree-sitter-zig = { git = "https://github.com/maxxnino/tree-sitter-zig", branch = "main", optional = true }
 # switch to upstream version after this is merged  https://github.com/tree-sitter/tree-sitter-bash/pull/120
 tree-sitter-bash = { git = "https://github.com/syntacti/tree-sitter-bash", branch = "master", optional = true }
-lsp-types = { version = "0.89.2", features = ["proposed"] }
+lsp-types = { version = "0.93", features = ["proposed"] }
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 lapce-rpc = { path = "../lapce-rpc" }
 

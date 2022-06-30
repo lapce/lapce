@@ -298,7 +298,7 @@ impl LapceEditorBufferData {
 
         let text_format = item
             .insert_text_format
-            .unwrap_or(lsp_types::InsertTextFormat::PlainText);
+            .unwrap_or(lsp_types::InsertTextFormat::PLAIN_TEXT);
         if let Some(edit) = &item.text_edit {
             match edit {
                 CompletionTextEdit::Edit(edit) => {
@@ -314,7 +314,7 @@ impl LapceEditorBufferData {
                         end_offset.max(edit_end),
                     );
                     match text_format {
-                        lsp_types::InsertTextFormat::PlainText => {
+                        lsp_types::InsertTextFormat::PLAIN_TEXT => {
                             let (delta, inval_lines) = Arc::make_mut(&mut self.doc)
                                 .do_raw_edit(
                                     &[
@@ -335,7 +335,7 @@ impl LapceEditorBufferData {
                             self.apply_deltas(&[(delta, inval_lines)]);
                             return Ok(());
                         }
-                        lsp_types::InsertTextFormat::Snippet => {
+                        lsp_types::InsertTextFormat::SNIPPET => {
                             let snippet = Snippet::from_str(&edit.new_text)?;
                             let text = snippet.text();
                             let (delta, inval_lines) = Arc::make_mut(&mut self.doc)
@@ -381,6 +381,7 @@ impl LapceEditorBufferData {
                                 .add_snippet_placeholders(snippet_tabs);
                             return Ok(());
                         }
+                        _ => {}
                     }
                 }
                 CompletionTextEdit::InsertAndReplace(_) => (),
@@ -759,8 +760,8 @@ impl LapceEditorBufferData {
                             let severity = d
                                 .diagnostic
                                 .severity
-                                .unwrap_or(DiagnosticSeverity::Hint);
-                            if severity != DiagnosticSeverity::Error {
+                                .unwrap_or(DiagnosticSeverity::HINT);
+                            if severity != DiagnosticSeverity::ERROR {
                                 return None;
                             }
                             Some(d.diagnostic.range.start)

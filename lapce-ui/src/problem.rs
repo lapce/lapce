@@ -34,13 +34,13 @@ pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
             (
                 data.error_widget_id,
                 PanelHeaderKind::Simple("Errors".into()),
-                ProblemContent::new(DiagnosticSeverity::Error).boxed(),
+                ProblemContent::new(DiagnosticSeverity::ERROR).boxed(),
                 None,
             ),
             (
                 data.warning_widget_id,
                 PanelHeaderKind::Simple("Warnings".into()),
-                ProblemContent::new(DiagnosticSeverity::Warning).boxed(),
+                ProblemContent::new(DiagnosticSeverity::WARNING).boxed(),
                 None,
             ),
         ],
@@ -375,7 +375,7 @@ impl Widget<LapceTabData> for ProblemContent {
                 }
 
                 let svg = match self.severity {
-                    DiagnosticSeverity::Error => get_svg("error.svg").unwrap(),
+                    DiagnosticSeverity::ERROR => get_svg("error.svg").unwrap(),
                     _ => get_svg("warning.svg").unwrap(),
                 };
                 let rect = Size::new(line_height, line_height)
