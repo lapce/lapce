@@ -1014,7 +1014,7 @@ impl LapceTabData {
                 if self.workspace.path.is_some() {
                     let mut workspace = (*self.workspace).clone();
                     workspace.path = None;
-                    let _ = ctx.submit_command(Command::new(
+                    ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::SetWorkspace(workspace),
                         Target::Auto,
