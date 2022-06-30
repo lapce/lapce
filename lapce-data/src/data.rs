@@ -420,7 +420,8 @@ pub enum FocusArea {
 
 #[derive(Clone)]
 pub enum DragContent {
-    EditorTab(WidgetId, usize, EditorTabChild, TabRect),
+    EditorTab(WidgetId, usize, EditorTabChild, Box<TabRect>),
+    Panel(PanelKind, Rect),
 }
 
 #[derive(Clone, Lens)]
@@ -621,6 +622,15 @@ impl LapceTabData {
                 maximized: false,
             }),
         );
+        panels.insert(
+            PanelPosition::RightTop,
+            Arc::new(PanelData {
+                active: PanelKind::Terminal,
+                widgets: vec![],
+                shown: false,
+                maximized: false,
+            }),
+        );
         let focus = (*main_split.active).unwrap_or(*main_split.split_id);
         let mut tab = Self {
             id: tab_id,
@@ -775,6 +785,10 @@ impl LapceTabData {
                 .get(&PanelPosition::LeftBottom)
                 .map(|p| p.shown)
                 .unwrap_or(false)
+    }
+
+    pub fn is_drag_editor(&self) -> bool {
+        matches!(&*self.drag, Some((_, DragContent::EditorTab(..))))
     }
 
     pub fn panel_right_shown(&self) -> bool {
@@ -1535,10 +1549,16 @@ impl LapceTabData {
     }
 
     fn hide_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
-        for (_, panel) in self.panels.iter_mut() {
-            if panel.active == kind {
+        for (p, panel) in self.panels.iter_mut() {
+            if panel.active == kind && !panel.widgets.is_empty() {
                 let panel = Arc::make_mut(panel);
                 panel.shown = false;
+                let peer = p.peer();
+                if let Some(peer) = self.panels.get_mut(&peer) {
+                    if peer.widgets.is_empty() {
+                        Arc::make_mut(peer).shown = false;
+                    }
+                }
                 break;
             }
         }

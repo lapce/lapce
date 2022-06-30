@@ -440,6 +440,7 @@ pub enum LapceUICommand {
     Hide,
     ResignFocus,
     Focus,
+    ChildrenChanged,
     EnsureEditorTabActiveVisible,
     FocusSourceControl,
     ShowSettings,

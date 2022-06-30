@@ -157,7 +157,7 @@ impl LapceEditorTabHeaderContent {
                         editor_tab.widget_id,
                         target,
                         editor_tab.children[target].clone(),
-                        tab_rect.clone(),
+                        Box::new(tab_rect.clone()),
                     ),
                 ));
             }
@@ -415,7 +415,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             tab_rect.paint(ctx, data, self.widget_id, i, size, self.mouse_pos);
         }
 
-        if ctx.is_hot() && data.drag.is_some() {
+        if ctx.is_hot() && data.is_drag_editor() {
             let mouse_index = self.drag_target_idx(self.mouse_pos);
 
             let tab_rect;

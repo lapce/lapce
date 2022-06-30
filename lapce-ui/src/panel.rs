@@ -8,9 +8,12 @@ use druid::{
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
-    command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
+    command::{
+        CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_COMMAND, LAPCE_UI_COMMAND,
+    },
     config::LapceTheme,
-    data::{LapceTabData, PanelKind},
+    data::{DragContent, LapceTabData, PanelKind},
     panel::{PanelContainerPosition, PanelPosition},
     split::SplitDirection,
 };
@@ -101,7 +104,9 @@ impl LapcePanel {
             Option<f64>,
         )>,
     ) -> Self {
-        let mut split = LapceSplit::new(split_id).direction(split_direction);
+        let mut split = LapceSplit::new(split_id)
+            .direction(split_direction)
+            .panel(kind);
         match split_direction {
             SplitDirection::Vertical => {}
             SplitDirection::Horizontal => split = split.hide_border(),
@@ -610,16 +615,34 @@ impl Widget<LapceTabData> for PanelMainHeader {
 }
 
 pub struct PanelContainer {
-    switcher: WidgetPod<LapceTabData, PanelSwitcher>,
+    pub widget_id: WidgetId,
+    switcher0: WidgetPod<LapceTabData, PanelSwitcher>,
+    switcher1: WidgetPod<LapceTabData, PanelSwitcher>,
     position: PanelContainerPosition,
-    panels:
+    pub panels:
         HashMap<PanelKind, WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
 }
 
 impl PanelContainer {
     pub fn new(position: PanelContainerPosition) -> Self {
+        let (switcher0, switcher1) = match position {
+            PanelContainerPosition::Left => (
+                PanelSwitcher::new(PanelPosition::LeftTop),
+                PanelSwitcher::new(PanelPosition::LeftBottom),
+            ),
+            PanelContainerPosition::Right => (
+                PanelSwitcher::new(PanelPosition::RightTop),
+                PanelSwitcher::new(PanelPosition::RightBottom),
+            ),
+            PanelContainerPosition::Bottom => (
+                PanelSwitcher::new(PanelPosition::BottomLeft),
+                PanelSwitcher::new(PanelPosition::BottomRight),
+            ),
+        };
         Self {
-            switcher: WidgetPod::new(PanelSwitcher::new(position)),
+            widget_id: WidgetId::next(),
+            switcher0: WidgetPod::new(switcher0),
+            switcher1: WidgetPod::new(switcher1),
             position,
             panels: HashMap::new(),
         }
@@ -635,6 +658,10 @@ impl PanelContainer {
 }
 
 impl Widget<LapceTabData> for PanelContainer {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.widget_id)
+    }
+
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -642,14 +669,26 @@ impl Widget<LapceTabData> for PanelContainer {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        self.switcher.event(ctx, event, data, env);
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                ctx.set_handled();
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                if let LapceUICommand::ChildrenChanged = &command {
+                    ctx.children_changed();
+                }
+            }
+            _ => {}
+        }
+
+        self.switcher0.event(ctx, event, data, env);
+        self.switcher1.event(ctx, event, data, env);
         if event.should_propagate_to_hidden() {
             for (_, panel) in self.panels.iter_mut() {
                 panel.event(ctx, event, data, env);
             }
         } else {
             if let Some(panel) = data.panels.get(&self.position.first()) {
-                if panel.shown {
+                if panel.shown && !panel.widgets.is_empty() {
                     self.panels
                         .get_mut(&panel.active)
                         .unwrap()
@@ -657,7 +696,7 @@ impl Widget<LapceTabData> for PanelContainer {
                 }
             }
             if let Some(panel) = data.panels.get(&self.position.second()) {
-                if panel.shown {
+                if panel.shown && !panel.widgets.is_empty() {
                     self.panels
                         .get_mut(&panel.active)
                         .unwrap()
@@ -674,7 +713,8 @@ impl Widget<LapceTabData> for PanelContainer {
         data: &LapceTabData,
         env: &Env,
     ) {
-        self.switcher.lifecycle(ctx, event, data, env);
+        self.switcher0.lifecycle(ctx, event, data, env);
+        self.switcher1.lifecycle(ctx, event, data, env);
         for (_, panel) in self.panels.iter_mut() {
             panel.lifecycle(ctx, event, data, env);
         }
@@ -687,21 +727,20 @@ impl Widget<LapceTabData> for PanelContainer {
         data: &LapceTabData,
         env: &Env,
     ) {
-        self.switcher.update(ctx, data, env);
+        self.switcher0.update(ctx, data, env);
+        self.switcher1.update(ctx, data, env);
         if let Some(panel) = data.panels.get(&self.position.first()) {
             if panel.shown {
-                self.panels
-                    .get_mut(&panel.active)
-                    .unwrap()
-                    .update(ctx, data, env);
+                if let Some(panel) = self.panels.get_mut(&panel.active) {
+                    panel.update(ctx, data, env);
+                }
             }
         }
         if let Some(panel) = data.panels.get(&self.position.second()) {
             if panel.shown {
-                self.panels
-                    .get_mut(&panel.active)
-                    .unwrap()
-                    .update(ctx, data, env);
+                if let Some(panel) = self.panels.get_mut(&panel.active) {
+                    panel.update(ctx, data, env);
+                }
             }
         }
     }
@@ -716,18 +755,79 @@ impl Widget<LapceTabData> for PanelContainer {
         let self_size = bc.max();
         let is_bottom = self.position.is_bottom();
 
-        let switcher_size = self.switcher.layout(ctx, bc, data, env);
-        self.switcher.set_origin(ctx, data, env, Point::ZERO);
+        let (should_shown0, should_shown1) = match self.position {
+            PanelContainerPosition::Left => (
+                data.panels
+                    .get(&PanelPosition::LeftTop)
+                    .map(|p| !p.widgets.is_empty())
+                    .unwrap_or(false),
+                data.panels
+                    .get(&PanelPosition::LeftBottom)
+                    .map(|p| !p.widgets.is_empty())
+                    .unwrap_or(false),
+            ),
+            PanelContainerPosition::Right => (
+                data.panels
+                    .get(&PanelPosition::RightTop)
+                    .map(|p| !p.widgets.is_empty())
+                    .unwrap_or(false),
+                data.panels
+                    .get(&PanelPosition::RightBottom)
+                    .map(|p| !p.widgets.is_empty())
+                    .unwrap_or(false),
+            ),
+            PanelContainerPosition::Bottom => (
+                data.panels
+                    .get(&PanelPosition::BottomLeft)
+                    .map(|p| !p.widgets.is_empty())
+                    .unwrap_or(false),
+                data.panels
+                    .get(&PanelPosition::BottomRight)
+                    .map(|p| !p.widgets.is_empty())
+                    .unwrap_or(false),
+            ),
+        };
+
+        let switcher0_size = if should_shown0 {
+            data.config.ui.header_height() as f64
+        } else {
+            0.0
+        };
+        let switcher1_size = if should_shown1 {
+            data.config.ui.header_height() as f64
+        } else {
+            0.0
+        };
+
+        self.switcher0.layout(ctx, bc, data, env);
+        self.switcher0.set_origin(ctx, data, env, Point::ZERO);
+
+        self.switcher1.layout(ctx, bc, data, env);
+        if self.position.is_bottom() {
+            self.switcher1.set_origin(
+                ctx,
+                data,
+                env,
+                Point::new(self_size.width - switcher1_size, 0.0),
+            );
+        } else {
+            self.switcher1.set_origin(
+                ctx,
+                data,
+                env,
+                Point::new(0.0, self_size.height - switcher1_size),
+            );
+        }
 
         let panel_first = data.panels.get(&self.position.first()).and_then(|p| {
-            if p.shown {
+            if p.shown && !p.widgets.is_empty() {
                 Some(&p.active)
             } else {
                 None
             }
         });
         let panel_second = data.panels.get(&self.position.second()).and_then(|p| {
-            if p.shown {
+            if p.shown && !p.widgets.is_empty() {
                 Some(&p.active)
             } else {
                 None
@@ -741,11 +841,19 @@ impl Widget<LapceTabData> for PanelContainer {
                     PanelContainerPosition::Bottom => data.panel_size.bottom_split,
                     PanelContainerPosition::Right => data.panel_size.right_split,
                 };
+                let separator = 4.0;
                 if is_bottom {
-                    let size_fist =
-                        ((self_size.width - switcher_size.width) * split).round();
-                    let size_second =
-                        self_size.width - switcher_size.width - size_fist;
+                    let size_fist = ((self_size.width
+                        - switcher0_size
+                        - switcher1_size
+                        - separator)
+                        * split)
+                        .round();
+                    let size_second = self_size.width
+                        - separator
+                        - switcher0_size
+                        - switcher1_size
+                        - size_fist;
                     let panel_first = self.panels.get_mut(panel_first).unwrap();
                     panel_first.layout(
                         ctx,
@@ -760,7 +868,7 @@ impl Widget<LapceTabData> for PanelContainer {
                         ctx,
                         data,
                         env,
-                        Point::new(switcher_size.width, 0.0),
+                        Point::new(switcher0_size, 0.0),
                     );
                     let panel_second = self.panels.get_mut(panel_second).unwrap();
                     panel_second.layout(
@@ -776,13 +884,20 @@ impl Widget<LapceTabData> for PanelContainer {
                         ctx,
                         data,
                         env,
-                        Point::new(size_fist + switcher_size.width, 0.0),
+                        Point::new(size_fist + switcher0_size + separator, 0.0),
                     );
                 } else {
-                    let size_fist =
-                        ((self_size.height - switcher_size.height) * split).round();
-                    let size_second =
-                        self_size.height - switcher_size.height - size_fist;
+                    let size_fist = ((self_size.height
+                        - switcher0_size
+                        - switcher1_size
+                        - separator)
+                        * split)
+                        .round();
+                    let size_second = self_size.height
+                        - separator
+                        - switcher0_size
+                        - switcher1_size
+                        - size_fist;
                     let panel_first = self.panels.get_mut(panel_first).unwrap();
                     panel_first.layout(
                         ctx,
@@ -797,7 +912,7 @@ impl Widget<LapceTabData> for PanelContainer {
                         ctx,
                         data,
                         env,
-                        Point::new(0.0, switcher_size.height),
+                        Point::new(0.0, switcher0_size),
                     );
 
                     let panel_second = self.panels.get_mut(panel_second).unwrap();
@@ -814,7 +929,7 @@ impl Widget<LapceTabData> for PanelContainer {
                         ctx,
                         data,
                         env,
-                        Point::new(0.0, size_fist + switcher_size.height),
+                        Point::new(0.0, size_fist + switcher0_size + separator),
                     );
                 }
             }
@@ -824,7 +939,7 @@ impl Widget<LapceTabData> for PanelContainer {
                     panel.layout(
                         ctx,
                         &BoxConstraints::tight(Size::new(
-                            self_size.width - switcher_size.width,
+                            self_size.width - switcher0_size - switcher1_size,
                             self_size.height,
                         )),
                         data,
@@ -834,14 +949,14 @@ impl Widget<LapceTabData> for PanelContainer {
                         ctx,
                         data,
                         env,
-                        Point::new(switcher_size.width, 0.0),
+                        Point::new(switcher0_size, 0.0),
                     );
                 } else {
                     panel.layout(
                         ctx,
                         &BoxConstraints::tight(Size::new(
                             self_size.width,
-                            self_size.height - switcher_size.height,
+                            self_size.height - switcher0_size - switcher1_size,
                         )),
                         data,
                         env,
@@ -850,7 +965,7 @@ impl Widget<LapceTabData> for PanelContainer {
                         ctx,
                         data,
                         env,
-                        Point::new(0.0, switcher_size.height),
+                        Point::new(0.0, switcher0_size),
                     );
                 }
             }
@@ -939,28 +1054,78 @@ impl Widget<LapceTabData> for PanelContainer {
         }
 
         if let Some(panel) = data.panels.get(&self.position.first()) {
-            if panel.shown {
-                self.panels
-                    .get_mut(&panel.active)
-                    .unwrap()
-                    .paint(ctx, data, env);
+            if panel.shown && !panel.widgets.is_empty() {
+                let panel = self.panels.get_mut(&panel.active).unwrap();
+                panel.paint(ctx, data, env);
             }
         }
         if let Some(panel) = data.panels.get(&self.position.second()) {
-            if panel.shown {
-                self.panels
-                    .get_mut(&panel.active)
-                    .unwrap()
-                    .paint(ctx, data, env);
+            if panel.shown && !panel.widgets.is_empty() {
+                let panel = self.panels.get_mut(&panel.active).unwrap();
+                panel.paint(ctx, data, env);
             }
         }
 
-        self.switcher.paint(ctx, data, env);
+        let is_bottom = self.position.is_bottom();
+        if let Some(panel0) = data.panels.get(&self.position.first()) {
+            if panel0.shown && !panel0.widgets.is_empty() {
+                if let Some(panel1) = data.panels.get(&self.position.second()) {
+                    if panel1.shown && !panel1.widgets.is_empty() {
+                        let panel0 = self.panels.get_mut(&panel0.active).unwrap();
+                        let panel0_rect = panel0.layout_rect();
+                        let panel1 = self.panels.get_mut(&panel1.active).unwrap();
+                        let panel1_rect = panel1.layout_rect();
+                        if is_bottom {
+                            ctx.stroke(
+                                Line::new(
+                                    Point::new(panel0_rect.x1 + 0.5, panel0_rect.y0),
+                                    Point::new(panel0_rect.x1 + 0.5, panel0_rect.y1),
+                                ),
+                                data.config
+                                    .get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                                1.0,
+                            );
+                            ctx.stroke(
+                                Line::new(
+                                    Point::new(panel1_rect.x0 - 0.5, panel1_rect.y0),
+                                    Point::new(panel1_rect.x0 - 0.5, panel1_rect.y1),
+                                ),
+                                data.config
+                                    .get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                                1.0,
+                            );
+                        } else {
+                            ctx.stroke(
+                                Line::new(
+                                    Point::new(panel0_rect.x0, panel0_rect.y1 + 0.5),
+                                    Point::new(panel0_rect.x1, panel0_rect.y1 + 0.5),
+                                ),
+                                data.config
+                                    .get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                                1.0,
+                            );
+                            ctx.stroke(
+                                Line::new(
+                                    Point::new(panel1_rect.x0, panel1_rect.y0 - 0.5),
+                                    Point::new(panel1_rect.x1, panel1_rect.y0 - 0.5),
+                                ),
+                                data.config
+                                    .get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                                1.0,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        self.switcher0.paint(ctx, data, env);
+        self.switcher1.paint(ctx, data, env);
     }
 }
 
 pub struct PanelSwitcher {
-    position: PanelContainerPosition,
+    position: PanelPosition,
     icons: Vec<(PanelKind, LapceIcon)>,
     mouse_pos: Point,
     on_icon: bool,
@@ -968,7 +1133,7 @@ pub struct PanelSwitcher {
 }
 
 impl PanelSwitcher {
-    pub fn new(position: PanelContainerPosition) -> Self {
+    pub fn new(position: PanelPosition) -> Self {
         Self {
             position,
             icons: Vec::new(),
@@ -986,12 +1151,7 @@ impl PanelSwitcher {
 
     fn update_icons(&mut self, self_size: Size, data: &LapceTabData) {
         let mut icons = Vec::new();
-        if let Some(panel) = data.panels.get(&self.position.first()) {
-            for kind in panel.widgets.iter() {
-                icons.push(Self::panel_icon(kind, data));
-            }
-        }
-        if let Some(panel) = data.panels.get(&self.position.second()) {
+        if let Some(panel) = data.panels.get(&self.position) {
             for kind in panel.widgets.iter() {
                 icons.push(Self::panel_icon(kind, data));
             }
@@ -1061,6 +1221,16 @@ impl Widget<LapceTabData> for PanelSwitcher {
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
+                if ctx.is_active() {
+                    if let Some(i) = self.clicked_icon {
+                        ctx.set_active(false);
+                        let (kind, icon) = &self.icons[i];
+                        let offset =
+                            mouse_event.pos.to_vec2() - icon.rect.origin().to_vec2();
+                        *Arc::make_mut(&mut data.drag) =
+                            Some((offset, DragContent::Panel(*kind, icon.rect)));
+                    }
+                }
                 self.mouse_pos = mouse_event.pos;
                 let icon_padding = Self::icon_padding(data);
                 for (_, icon) in self.icons.iter() {
@@ -1086,11 +1256,13 @@ impl Widget<LapceTabData> for PanelSwitcher {
                     let rect = icon.rect.inflate(icon_padding, icon_padding);
                     if rect.contains(mouse_event.pos) {
                         self.clicked_icon = Some(i);
+                        ctx.set_active(true);
                         break;
                     }
                 }
             }
             Event::MouseUp(mouse_event) => {
+                ctx.set_active(false);
                 let icon_padding = Self::icon_padding(data);
                 for (i, (_, icon)) in self.icons.iter().enumerate() {
                     let rect = icon.rect.inflate(icon_padding, icon_padding);
@@ -1141,58 +1313,119 @@ impl Widget<LapceTabData> for PanelSwitcher {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+        let should_show = data
+            .panels
+            .get(&self.position)
+            .map(|p| !p.widgets.is_empty())
+            .unwrap_or(false);
+        if !should_show {
+            return;
+        }
+
         let rect = ctx.size().to_rect();
         let shadow_width = data.config.ui.drop_shadow_width() as f64;
-        if self.position.is_bottom() {
-            if shadow_width > 0.0 {
-                ctx.with_save(|ctx| {
-                    ctx.clip(rect.inset((0.0, 0.0, 50.0, 0.0)));
-                    ctx.blurred_rect(
-                        rect,
-                        shadow_width,
-                        data.config
-                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+        match self.position {
+            PanelPosition::LeftTop | PanelPosition::RightTop => {
+                if shadow_width > 0.0 {
+                    ctx.with_save(|ctx| {
+                        ctx.clip(rect.inset((0.0, 0.0, 0.0, 50.0)));
+                        ctx.blurred_rect(
+                            rect,
+                            shadow_width,
+                            data.config.get_color_unchecked(
+                                LapceTheme::LAPCE_DROPDOWN_SHADOW,
+                            ),
+                        );
+                    });
+                } else {
+                    ctx.stroke(
+                        Line::new(
+                            Point::new(rect.x0, rect.y1 + 0.5),
+                            Point::new(rect.x1, rect.y1 + 0.5),
+                        ),
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                        1.0,
                     );
-                });
-            } else {
-                ctx.stroke(
-                    Line::new(
-                        Point::new(rect.x1 + 0.5, rect.y0),
-                        Point::new(rect.x1 + 0.5, rect.y1),
-                    ),
-                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                    1.0,
-                );
+                }
             }
-        } else if shadow_width > 0.0 {
-            ctx.with_save(|ctx| {
-                ctx.clip(rect.inset((0.0, 0.0, 0.0, 50.0)));
-                ctx.blurred_rect(
-                    rect,
-                    shadow_width,
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-                );
-            });
-        } else {
-            ctx.stroke(
-                Line::new(
-                    Point::new(rect.x0, rect.y1 + 0.5),
-                    Point::new(rect.x1, rect.y1 + 0.5),
-                ),
-                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                1.0,
-            );
+            PanelPosition::LeftBottom | PanelPosition::RightBottom => {
+                if shadow_width > 0.0 {
+                    ctx.with_save(|ctx| {
+                        ctx.clip(rect.inset((0.0, 50.0, 0.0, 0.0)));
+                        ctx.blurred_rect(
+                            rect,
+                            shadow_width,
+                            data.config.get_color_unchecked(
+                                LapceTheme::LAPCE_DROPDOWN_SHADOW,
+                            ),
+                        );
+                    });
+                } else {
+                    ctx.stroke(
+                        Line::new(
+                            Point::new(rect.x0, rect.y0 - 0.5),
+                            Point::new(rect.x1, rect.y0 - 0.5),
+                        ),
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                        1.0,
+                    );
+                }
+            }
+            PanelPosition::BottomLeft => {
+                if shadow_width > 0.0 {
+                    ctx.with_save(|ctx| {
+                        ctx.clip(rect.inset((0.0, 0.0, 50.0, 0.0)));
+                        ctx.blurred_rect(
+                            rect,
+                            shadow_width,
+                            data.config.get_color_unchecked(
+                                LapceTheme::LAPCE_DROPDOWN_SHADOW,
+                            ),
+                        );
+                    });
+                } else {
+                    ctx.stroke(
+                        Line::new(
+                            Point::new(rect.x1 + 0.5, rect.y0),
+                            Point::new(rect.x1 + 0.5, rect.y1),
+                        ),
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                        1.0,
+                    );
+                }
+            }
+            PanelPosition::BottomRight => {
+                if shadow_width > 0.0 {
+                    ctx.with_save(|ctx| {
+                        ctx.clip(rect.inset((50.0, 0.0, 0.0, 0.0)));
+                        ctx.blurred_rect(
+                            rect,
+                            shadow_width,
+                            data.config.get_color_unchecked(
+                                LapceTheme::LAPCE_DROPDOWN_SHADOW,
+                            ),
+                        );
+                    });
+                } else {
+                    ctx.stroke(
+                        Line::new(
+                            Point::new(rect.x0 - 0.5, rect.y0),
+                            Point::new(rect.x0 - 0.5, rect.y1),
+                        ),
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                        1.0,
+                    );
+                }
+            }
         }
 
         let icon_padding = Self::icon_padding(data);
         let is_bottom = self.position.is_bottom();
         let mut active_kinds = Vec::new();
-        if let Some(panel) = data.panels.get(&self.position.first()) {
-            active_kinds.push(panel.active);
-        }
-        if let Some(panel) = data.panels.get(&self.position.second()) {
-            active_kinds.push(panel.active);
+        if let Some(panel) = data.panels.get(&self.position) {
+            if panel.shown {
+                active_kinds.push(panel.active);
+            }
         }
         for (kind, icon) in self.icons.iter() {
             let mouse_rect = icon.rect.inflate(icon_padding, icon_padding);
@@ -1208,24 +1441,51 @@ impl Widget<LapceTabData> for PanelSwitcher {
                 );
             }
             if active_kinds.contains(kind) {
-                if is_bottom {
-                    ctx.stroke(
-                        Line::new(
-                            Point::new(mouse_rect.x1 + 1.0, mouse_rect.y0),
-                            Point::new(mouse_rect.x1 + 1.0, mouse_rect.y1),
-                        ),
-                        data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
-                        2.0,
-                    );
-                } else {
-                    ctx.stroke(
-                        Line::new(
-                            Point::new(mouse_rect.x0, mouse_rect.y1 + 1.0),
-                            Point::new(mouse_rect.x1, mouse_rect.y1 + 1.0),
-                        ),
-                        data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
-                        2.0,
-                    );
+                match self.position {
+                    PanelPosition::LeftTop | PanelPosition::RightTop => {
+                        ctx.stroke(
+                            Line::new(
+                                Point::new(mouse_rect.x0, mouse_rect.y1 + 1.0),
+                                Point::new(mouse_rect.x1, mouse_rect.y1 + 1.0),
+                            ),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_CARET),
+                            2.0,
+                        );
+                    }
+                    PanelPosition::LeftBottom | PanelPosition::RightBottom => {
+                        ctx.stroke(
+                            Line::new(
+                                Point::new(mouse_rect.x0, mouse_rect.y0 - 1.0),
+                                Point::new(mouse_rect.x1, mouse_rect.y0 - 1.0),
+                            ),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_CARET),
+                            2.0,
+                        );
+                    }
+                    PanelPosition::BottomLeft => {
+                        ctx.stroke(
+                            Line::new(
+                                Point::new(mouse_rect.x1 + 1.0, mouse_rect.y0),
+                                Point::new(mouse_rect.x1 + 1.0, mouse_rect.y1),
+                            ),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_CARET),
+                            2.0,
+                        );
+                    }
+                    PanelPosition::BottomRight => {
+                        ctx.stroke(
+                            Line::new(
+                                Point::new(mouse_rect.x0 - 1.0, mouse_rect.y0),
+                                Point::new(mouse_rect.x0 - 1.0, mouse_rect.y1),
+                            ),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_CARET),
+                            2.0,
+                        );
+                    }
                 }
             }
             let svg = get_svg(icon.icon).unwrap();

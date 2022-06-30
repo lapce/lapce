@@ -285,6 +285,7 @@ impl LapceEditorTab {
                         }
                     }
                 }
+                DragContent::Panel(..) => {}
             }
         }
     }
@@ -498,7 +499,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
         let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
         self.children[tab.active].paint(ctx, data, env);
         self.header.paint(ctx, data, env);
-        if ctx.is_hot() && data.drag.is_some() {
+        if ctx.is_hot() && data.is_drag_editor() {
             let width = size.width;
             let header_rect = self.header.layout_rect();
             let header_height = header_rect.height();
