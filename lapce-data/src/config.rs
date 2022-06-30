@@ -225,6 +225,11 @@ pub struct UIConfig {
 
     #[field_names(desc = "Controls the width of drop shadow in the UI")]
     drop_shadow_width: usize,
+
+    #[field_names(
+        desc = "Enable customised titlebar and disable OS native one (Windows only)"
+    )]
+    custom_titlebar: bool,
 }
 
 impl UIConfig {
@@ -260,6 +265,10 @@ impl UIConfig {
 
     pub fn drop_shadow_width(&self) -> usize {
         self.drop_shadow_width
+    }
+
+    pub fn custom_titlebar(&self) -> bool {
+        self.custom_titlebar
     }
 }
 
