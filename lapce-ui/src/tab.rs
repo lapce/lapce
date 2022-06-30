@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Index, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use druid::{
     kurbo::Line,

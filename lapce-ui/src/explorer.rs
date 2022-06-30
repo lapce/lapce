@@ -18,7 +18,6 @@ use lapce_data::{
     command::LAPCE_UI_COMMAND,
     config::{Config, LapceTheme},
     data::LapceTabData,
-    split::SplitDirection,
 };
 use lapce_data::{data::PanelKind, explorer::FileExplorerData};
 use lapce_rpc::file::FileNodeItem;
@@ -327,7 +326,6 @@ impl FileExplorer {
             PanelKind::FileExplorer,
             data.file_explorer.widget_id,
             split_id,
-            SplitDirection::Vertical,
             PanelHeaderKind::Simple("File Explorer".into()),
             vec![(
                 split_id,

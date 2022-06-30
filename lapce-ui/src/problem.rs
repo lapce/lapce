@@ -14,7 +14,6 @@ use lapce_data::{
     editor::EditorLocation,
     problem::ProblemData,
     proxy::path_from_url,
-    split::SplitDirection,
 };
 use lsp_types::DiagnosticSeverity;
 
@@ -28,7 +27,6 @@ pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
         PanelKind::Problem,
         data.widget_id,
         data.split_id,
-        SplitDirection::Vertical,
         PanelHeaderKind::Simple("Problem".into()),
         vec![
             (

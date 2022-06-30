@@ -16,7 +16,6 @@ use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
-    split::SplitDirection,
     terminal::{LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;
@@ -54,7 +53,6 @@ impl TerminalPanel {
             PanelKind::Terminal,
             data.terminal.widget_id,
             split_id,
-            SplitDirection::Vertical,
             PanelHeaderKind::Simple("Terminal".into()),
             vec![(
                 split_id,

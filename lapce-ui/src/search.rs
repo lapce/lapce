@@ -9,7 +9,6 @@ use lapce_data::{
     config::LapceTheme,
     data::{LapceTabData, PanelKind},
     editor::EditorLocation,
-    split::SplitDirection,
 };
 
 use crate::{
@@ -45,7 +44,6 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
         PanelKind::Search,
         data.search.widget_id,
         data.search.split_id,
-        SplitDirection::Vertical,
         PanelHeaderKind::Simple("Search".into()),
         vec![(
             data.search.split_id,

@@ -15,7 +15,6 @@ use lapce_data::{
     config::LapceTheme,
     data::{DragContent, LapceTabData, PanelKind},
     panel::{PanelContainerPosition, PanelPosition},
-    split::SplitDirection,
 };
 use serde_json::json;
 
@@ -95,7 +94,6 @@ impl LapcePanel {
         kind: PanelKind,
         widget_id: WidgetId,
         split_id: WidgetId,
-        split_direction: SplitDirection,
         header: PanelHeaderKind,
         sections: Vec<(
             WidgetId,
@@ -104,13 +102,7 @@ impl LapcePanel {
             Option<f64>,
         )>,
     ) -> Self {
-        let mut split = LapceSplit::new(split_id)
-            .direction(split_direction)
-            .panel(kind);
-        match split_direction {
-            SplitDirection::Vertical => {}
-            SplitDirection::Horizontal => split = split.hide_border(),
-        };
+        let mut split = LapceSplit::new(split_id).panel(kind);
         for (section_widget_id, header, content, size) in sections {
             let header = match header {
                 PanelHeaderKind::None => None,
