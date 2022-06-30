@@ -37,6 +37,13 @@ pub enum ProxyNotification {
     GitCheckout {
         branch: String,
     },
+    GitDiscardFileChanges {
+        file: PathBuf,
+    },
+    GitDiscardFilesChanges {
+        files: Vec<PathBuf>,
+    },
+    GitDiscardWorkspaceChanges {},
     GitInit {},
     TerminalWrite {
         term_id: TermId,
