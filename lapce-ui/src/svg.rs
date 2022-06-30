@@ -64,6 +64,13 @@ pub fn file_svg(path: &Path) -> Svg {
                     (&["rs"], "file_type_rust.svg"),
                     (&["toml"], "file_type_toml.svg"),
                     (&["yaml"], "file_type_yaml.svg"),
+                    (&["py"], "file_type_python.svg"),
+                    (&["lua"], "file_type_lua.svg"),
+                    (&["html", "htm"], "file_type_html.svg"),
+                    (&["zip"], "file_type_zip.svg"),
+                    (&["js"], "file_type_js.svg"),
+                    (&["ts"], "file_type_ts.svg"),
+                    (&["css"], "file_type_css.svg"),
                 ];
 
                 for (exts, file_type) in TYPES {
