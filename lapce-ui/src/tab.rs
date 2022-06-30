@@ -336,6 +336,87 @@ impl LapceTab {
         rects
     }
 
+    fn move_panel(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        kind: PanelKind,
+        from: PanelPosition,
+        to: PanelPosition,
+    ) {
+        let panel_data = Arc::make_mut(data.panels.get_mut(&from).unwrap());
+        let mut index = panel_data
+            .widgets
+            .iter()
+            .position(|w| w == &kind)
+            .unwrap_or(0);
+        panel_data.widgets.retain(|w| w != &kind);
+        if !panel_data.widgets.is_empty() {
+            if index > panel_data.widgets.len() - 1 {
+                index -= 1;
+            }
+            panel_data.active = panel_data.widgets[index];
+        }
+
+        if !data.panels.contains_key(&to) {
+            data.panels.insert(
+                to,
+                Arc::new(PanelData {
+                    active: kind,
+                    widgets: Vec::new(),
+                    shown: false,
+                    maximized: false,
+                }),
+            );
+        }
+        let panel_data = Arc::make_mut(data.panels.get_mut(&to).unwrap());
+        panel_data.widgets.push(kind);
+        panel_data.active = kind;
+        panel_data.shown = true;
+
+        let (panel_widget_id, panel) = match from {
+            PanelPosition::LeftTop | PanelPosition::LeftBottom => (
+                self.panel_left.widget().widget_id,
+                self.panel_left.widget_mut().panels.remove(&kind).unwrap(),
+            ),
+            PanelPosition::RightTop | PanelPosition::RightBottom => (
+                self.panel_right.widget().widget_id,
+                self.panel_right.widget_mut().panels.remove(&kind).unwrap(),
+            ),
+            PanelPosition::BottomLeft | PanelPosition::BottomRight => (
+                self.panel_bottom.widget().widget_id,
+                self.panel_bottom.widget_mut().panels.remove(&kind).unwrap(),
+            ),
+        };
+
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::ChildrenChanged,
+            Target::Widget(panel_widget_id),
+        ));
+
+        let new_panel_widget_id = match to {
+            PanelPosition::LeftTop | PanelPosition::LeftBottom => {
+                self.panel_left.widget_mut().panels.insert(kind, panel);
+                self.panel_left.widget().widget_id
+            }
+            PanelPosition::RightTop | PanelPosition::RightBottom => {
+                self.panel_right.widget_mut().panels.insert(kind, panel);
+                self.panel_right.widget().widget_id
+            }
+            PanelPosition::BottomLeft | PanelPosition::BottomRight => {
+                self.panel_bottom.widget_mut().panels.insert(kind, panel);
+                self.panel_bottom.widget().widget_id
+            }
+        };
+
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::ChildrenChanged,
+            Target::Widget(new_panel_widget_id),
+        ));
+    }
+
     fn handle_panel_drop(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         if let Some((_, DragContent::Panel(kind, _))) = data.drag.as_ref() {
             let rects = self.panel_rects();
@@ -346,97 +427,15 @@ impl LapceTab {
                         return;
                     }
 
-                    let panel_data =
-                        Arc::make_mut(data.panels.get_mut(&from_position).unwrap());
-                    let mut index = panel_data
-                        .widgets
-                        .iter()
-                        .position(|w| w == kind)
-                        .unwrap_or(0);
-                    panel_data.widgets.retain(|w| w != kind);
-                    if !panel_data.widgets.is_empty() {
-                        if index > panel_data.widgets.len() - 1 {
-                            index -= 1;
-                        }
-                        panel_data.active = panel_data.widgets[index];
-                    }
-
-                    if !data.panels.contains_key(p) {
-                        data.panels.insert(
-                            *p,
-                            Arc::new(PanelData {
-                                active: *kind,
-                                widgets: Vec::new(),
-                                shown: false,
-                                maximized: false,
-                            }),
-                        );
-                    }
-                    let panel_data = Arc::make_mut(data.panels.get_mut(p).unwrap());
-                    panel_data.widgets.push(*kind);
-                    panel_data.active = *kind;
-                    panel_data.shown = true;
-
-                    let (panel_widget_id, panel) = match from_position {
-                        PanelPosition::LeftTop | PanelPosition::LeftBottom => (
-                            self.panel_left.widget().widget_id,
-                            self.panel_left
-                                .widget_mut()
-                                .panels
-                                .remove(kind)
-                                .unwrap(),
-                        ),
-                        PanelPosition::RightTop | PanelPosition::RightBottom => (
-                            self.panel_right.widget().widget_id,
-                            self.panel_right
-                                .widget_mut()
-                                .panels
-                                .remove(kind)
-                                .unwrap(),
-                        ),
-                        PanelPosition::BottomLeft | PanelPosition::BottomRight => (
-                            self.panel_bottom.widget().widget_id,
-                            self.panel_bottom
-                                .widget_mut()
-                                .panels
-                                .remove(kind)
-                                .unwrap(),
-                        ),
-                    };
-
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::ChildrenChanged,
-                        Target::Widget(panel_widget_id),
+                        LapceUICommand::MovePanel {
+                            kind: *kind,
+                            from: from_position,
+                            to: *p,
+                        },
+                        Target::Global,
                     ));
-
-                    let new_panel_widget_id = match p {
-                        PanelPosition::LeftTop | PanelPosition::LeftBottom => {
-                            self.panel_left.widget_mut().panels.insert(*kind, panel);
-                            self.panel_left.widget().widget_id
-                        }
-                        PanelPosition::RightTop | PanelPosition::RightBottom => {
-                            self.panel_right
-                                .widget_mut()
-                                .panels
-                                .insert(*kind, panel);
-                            self.panel_right.widget().widget_id
-                        }
-                        PanelPosition::BottomLeft | PanelPosition::BottomRight => {
-                            self.panel_bottom
-                                .widget_mut()
-                                .panels
-                                .insert(*kind, panel);
-                            self.panel_bottom.widget().widget_id
-                        }
-                    };
-
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::ChildrenChanged,
-                        Target::Widget(new_panel_widget_id),
-                    ));
-
                     return;
                 }
             }
@@ -1555,6 +1554,17 @@ impl Widget<LapceTabData> for LapceTab {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                if let LapceUICommand::MovePanel { kind, from, to } = command {
+                    self.move_panel(ctx, data, *kind, *from, *to);
+                    return;
+                }
+            }
+            _ => {}
+        }
+
         if event.should_propagate_to_hidden() {
             self.handle_event(ctx, event, data, env);
         }
