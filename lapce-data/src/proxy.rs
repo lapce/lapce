@@ -405,6 +405,29 @@ impl LapceProxy {
         )
     }
 
+    pub fn git_discard_file_changes(&self, file: &Path) {
+        self.rpc.send_rpc_notification(
+            "git_discard_file_changes",
+            &json!({
+                "file": file,
+            }),
+        );
+    }
+
+    pub fn git_discard_files_changes(&self, files: Vec<PathBuf>) {
+        self.rpc.send_rpc_notification(
+            "git_discard_files_changes",
+            &json!({
+                "files": files,
+            }),
+        );
+    }
+
+    pub fn git_discard_workspace_changes(&self) {
+        self.rpc
+            .send_rpc_notification("git_discard_workspace_changes", &json!({}));
+    }
+
     pub fn install_plugin(&self, plugin: &PluginDescription) {
         self.rpc
             .send_rpc_notification("install_plugin", &json!({ "plugin": plugin }));

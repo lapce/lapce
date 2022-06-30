@@ -8,6 +8,7 @@ use alacritty_terminal::term::SizeInfo;
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use directories::BaseDirs;
+use git2::build::CheckoutBuilder;
 use git2::{DiffOptions, Repository};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
@@ -423,6 +424,36 @@ impl Dispatcher {
                     }
                 }
             }
+            GitDiscardFileChanges { file } => {
+                if let Some(workspace) = self.workspace.lock().clone() {
+                    match git_discard_files_changes(
+                        &workspace,
+                        [file.as_ref()].into_iter(),
+                    ) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
+            }
+            GitDiscardFilesChanges { files } => {
+                if let Some(workspace) = self.workspace.lock().clone() {
+                    match git_discard_files_changes(
+                        &workspace,
+                        files.iter().map(AsRef::as_ref),
+                    ) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
+            }
+            GitDiscardWorkspaceChanges {} => {
+                if let Some(workspace) = self.workspace.lock().clone() {
+                    match git_discard_workspace_changes(&workspace) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
+            }
         }
     }
 
@@ -767,6 +798,46 @@ fn git_checkout(workspace_path: &Path, branch: &str) -> Result<()> {
     let (object, reference) = repo.revparse_ext(branch)?;
     repo.checkout_tree(&object, None)?;
     repo.set_head(reference.unwrap().name().unwrap())?;
+    Ok(())
+}
+
+fn git_discard_files_changes<'a>(
+    workspace_path: &Path,
+    files: impl Iterator<Item = &'a Path>,
+) -> Result<()> {
+    let repo = Repository::open(workspace_path)?;
+
+    let mut checkout_b = CheckoutBuilder::new();
+    checkout_b.update_only(true).force();
+
+    let mut had_path = false;
+    for path in files {
+        // Remove the workspace path so it is relative to the folder
+        if let Ok(path) = path.strip_prefix(workspace_path) {
+            had_path = true;
+            checkout_b.path(path);
+        }
+    }
+
+    if !had_path {
+        // If there we no paths then we do nothing
+        // because the default behavior of checkout builder is to select all files
+        // if it is not given a path
+        return Ok(());
+    }
+
+    repo.checkout_index(None, Some(&mut checkout_b))?;
+
+    Ok(())
+}
+
+fn git_discard_workspace_changes(workspace_path: &Path) -> Result<()> {
+    let repo = Repository::open(workspace_path)?;
+    let mut checkout_b = CheckoutBuilder::new();
+    checkout_b.force();
+
+    repo.checkout_index(None, Some(&mut checkout_b))?;
+
     Ok(())
 }
 

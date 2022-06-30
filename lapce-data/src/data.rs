@@ -1387,6 +1387,16 @@ impl LapceTabData {
                     Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
                 };
             }
+            LapceWorkbenchCommand::SourceControlDiscardActiveFileChanges => {
+                if let Some(editor) = self.main_split.active_editor() {
+                    if let BufferContent::File(path) = &editor.content {
+                        self.proxy.git_discard_file_changes(path);
+                    }
+                }
+            }
+            LapceWorkbenchCommand::SourceControlDiscardWorkspaceChanges => {
+                self.proxy.git_discard_workspace_changes();
+            }
             LapceWorkbenchCommand::CheckoutBranch => match data {
                 Some(Value::String(branch)) => self.proxy.git_checkout(&branch),
                 _ => log::error!("checkout called without a branch"), // TODO: How do I show a result to the user here?
