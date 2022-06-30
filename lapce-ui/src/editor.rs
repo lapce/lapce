@@ -1593,13 +1593,12 @@ impl LapceEditor {
                         let severity = diagnostic
                             .diagnostic
                             .severity
-                            .as_ref()
-                            .unwrap_or(&DiagnosticSeverity::Information);
+                            .unwrap_or(DiagnosticSeverity::INFORMATION);
                         let color = match severity {
-                            DiagnosticSeverity::Error => data
+                            DiagnosticSeverity::ERROR => data
                                 .config
                                 .get_color_unchecked(LapceTheme::LAPCE_ERROR),
-                            DiagnosticSeverity::Warning => data
+                            DiagnosticSeverity::WARNING => data
                                 .config
                                 .get_color_unchecked(LapceTheme::LAPCE_WARN),
                             _ => data
@@ -1689,13 +1688,12 @@ impl LapceEditor {
                 let severity = diagnostic
                     .diagnostic
                     .severity
-                    .as_ref()
-                    .unwrap_or(&DiagnosticSeverity::Information);
+                    .unwrap_or(DiagnosticSeverity::INFORMATION);
                 let color = match severity {
-                    DiagnosticSeverity::Error => {
+                    DiagnosticSeverity::ERROR => {
                         data.config.get_color_unchecked(LapceTheme::LAPCE_ERROR)
                     }
-                    DiagnosticSeverity::Warning => {
+                    DiagnosticSeverity::WARNING => {
                         data.config.get_color_unchecked(LapceTheme::LAPCE_WARN)
                     }
                     _ => data.config.get_color_unchecked(LapceTheme::LAPCE_WARN),

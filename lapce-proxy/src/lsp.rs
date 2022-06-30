@@ -822,7 +822,7 @@ impl LspClient {
             root_uri,
             initialization_options: self.options.clone(),
             capabilities: client_capabilities,
-            trace: Some(TraceOption::Verbose),
+            trace: Some(TraceValue::Verbose),
             workspace_folders: None,
             client_info: None,
             root_path: None,
@@ -1056,7 +1056,7 @@ impl LspClient {
         content_change: &TextDocumentContentChangeEvent,
         rev: u64,
     ) {
-        let sync_kind = self.get_sync_kind().unwrap_or(TextDocumentSyncKind::Full);
+        let sync_kind = self.get_sync_kind().unwrap_or(TextDocumentSyncKind::FULL);
         let changes = get_change_for_sync_kind(sync_kind, buffer, content_change);
         if let Some(changes) = changes {
             self.send_did_change(buffer, changes, rev);
@@ -1138,8 +1138,8 @@ pub fn get_change_for_sync_kind(
     content_change: &TextDocumentContentChangeEvent,
 ) -> Option<Vec<TextDocumentContentChangeEvent>> {
     match sync_kind {
-        TextDocumentSyncKind::None => None,
-        TextDocumentSyncKind::Full => {
+        TextDocumentSyncKind::NONE => None,
+        TextDocumentSyncKind::FULL => {
             let text_document_content_change_event =
                 TextDocumentContentChangeEvent {
                     range: None,
@@ -1148,7 +1148,8 @@ pub fn get_change_for_sync_kind(
                 };
             Some(vec![text_document_content_change_event])
         }
-        TextDocumentSyncKind::Incremental => Some(vec![content_change.clone()]),
+        TextDocumentSyncKind::INCREMENTAL => Some(vec![content_change.clone()]),
+        _ => None,
     }
 }
 
