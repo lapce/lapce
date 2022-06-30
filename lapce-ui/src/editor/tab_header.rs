@@ -40,6 +40,7 @@ impl LapceEditorTabHeader {
     pub fn new(widget_id: WidgetId) -> Self {
         let content = LapceScroll::new(LapceEditorTabHeaderContent::new(widget_id))
             .horizontal()
+            .hide_bar()
             .vertical_scroll_for_horizontal();
         Self {
             widget_id,
@@ -289,6 +290,44 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                 ),
             };
             self.icons.push(icon);
+
+            if data.config.editor.show_tab {
+                let x =
+                    size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
+                let icon = LapceIcon {
+                    icon: "chevron-right.svg",
+                    rect: Size::new(icon_size, icon_size)
+                        .to_rect()
+                        .with_origin(Point::new(x, gap)),
+                    command: Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::EditorTabNext),
+                            data: None,
+                        },
+                        Target::Widget(self.widget_id),
+                    ),
+                };
+                self.icons.push(icon);
+
+                let x =
+                    size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
+                let icon = LapceIcon {
+                    icon: "chevron-left.svg",
+                    rect: Size::new(icon_size, icon_size)
+                        .to_rect()
+                        .with_origin(Point::new(x, gap)),
+                    command: Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::EditorTabPrvious),
+                            data: None,
+                        },
+                        Target::Widget(self.widget_id),
+                    ),
+                };
+                self.icons.push(icon);
+            }
         }
 
         self.content.layout(

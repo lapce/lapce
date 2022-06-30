@@ -7,7 +7,6 @@ use druid::{
 use lapce_data::{
     config::LapceTheme,
     data::{LapceTabData, PanelKind},
-    split::SplitDirection,
 };
 use lapce_rpc::plugin::PluginDescription;
 use strum_macros::Display;
@@ -36,8 +35,6 @@ impl Plugin {
             PanelKind::Plugin,
             data.plugin.widget_id,
             split_id,
-            SplitDirection::Vertical,
-            PanelHeaderKind::Simple("Plugin".into()),
             vec![(split_id, PanelHeaderKind::None, Self::new().boxed(), None)],
         )
     }

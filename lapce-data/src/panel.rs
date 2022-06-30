@@ -1,10 +1,11 @@
 pub enum PanelResizePosition {
     Left,
     LeftSplit,
+    Right,
     Bottom,
 }
 
-#[derive(Eq, PartialEq, Hash, Clone, Copy)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 pub enum PanelPosition {
     LeftTop,
     LeftBottom,
@@ -14,7 +15,24 @@ pub enum PanelPosition {
     RightBottom,
 }
 
-#[derive(Eq, PartialEq, Hash, Clone, Copy)]
+impl PanelPosition {
+    pub fn is_bottom(&self) -> bool {
+        matches!(self, PanelPosition::BottomLeft | PanelPosition::BottomRight)
+    }
+
+    pub fn peer(&self) -> PanelPosition {
+        match &self {
+            PanelPosition::LeftTop => PanelPosition::LeftBottom,
+            PanelPosition::LeftBottom => PanelPosition::LeftTop,
+            PanelPosition::BottomLeft => PanelPosition::BottomRight,
+            PanelPosition::BottomRight => PanelPosition::BottomLeft,
+            PanelPosition::RightTop => PanelPosition::RightBottom,
+            PanelPosition::RightBottom => PanelPosition::RightTop,
+        }
+    }
+}
+
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 pub enum PanelContainerPosition {
     Left,
     Bottom,

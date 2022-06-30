@@ -285,6 +285,7 @@ impl LapceEditorTab {
                         }
                     }
                 }
+                DragContent::Panel(..) => {}
             }
         }
     }
@@ -313,20 +314,69 @@ impl Widget<LapceTabData> for LapceEditorTab {
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 ctx.set_handled();
                 let cmd = cmd.get_unchecked(LAPCE_COMMAND);
-                if let CommandKind::Focus(FocusCommand::SplitVertical) = cmd.kind {
-                    let editor_tab = data
-                        .main_split
-                        .editor_tabs
-                        .get_mut(&self.widget_id)
-                        .unwrap();
-                    ctx.submit_command(Command::new(
-                        LAPCE_COMMAND,
-                        LapceCommand {
-                            kind: CommandKind::Focus(FocusCommand::SplitVertical),
-                            data: None,
-                        },
-                        Target::Widget(editor_tab.active_child().widget_id()),
-                    ));
+                match cmd.kind {
+                    CommandKind::Focus(FocusCommand::SplitVertical) => {
+                        let editor_tab = data
+                            .main_split
+                            .editor_tabs
+                            .get_mut(&self.widget_id)
+                            .unwrap();
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Focus(
+                                    FocusCommand::SplitVertical,
+                                ),
+                                data: None,
+                            },
+                            Target::Widget(editor_tab.active_child().widget_id()),
+                        ));
+                    }
+                    CommandKind::Focus(FocusCommand::EditorTabNext) => {
+                        let editor_tab = data
+                            .main_split
+                            .editor_tabs
+                            .get(&self.widget_id)
+                            .unwrap();
+                        if !editor_tab.children.is_empty() {
+                            let index = if editor_tab.active
+                                == editor_tab.children.len() - 1
+                            {
+                                0
+                            } else {
+                                editor_tab.active + 1
+                            };
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::Focus,
+                                Target::Widget(
+                                    editor_tab.children[index].widget_id(),
+                                ),
+                            ));
+                        }
+                    }
+                    CommandKind::Focus(FocusCommand::EditorTabPrvious) => {
+                        let editor_tab = data
+                            .main_split
+                            .editor_tabs
+                            .get(&self.widget_id)
+                            .unwrap();
+                        if !editor_tab.children.is_empty() {
+                            let index = if editor_tab.active == 0 {
+                                editor_tab.children.len() - 1
+                            } else {
+                                editor_tab.active - 1
+                            };
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::Focus,
+                                Target::Widget(
+                                    editor_tab.children[index].widget_id(),
+                                ),
+                            ));
+                        }
+                    }
+                    _ => (),
                 }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
@@ -498,7 +548,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
         let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
         self.children[tab.active].paint(ctx, data, env);
         self.header.paint(ctx, data, env);
-        if ctx.is_hot() && data.drag.is_some() {
+        if ctx.is_hot() && data.is_drag_editor() {
             let width = size.width;
             let header_rect = self.header.layout_rect();
             let header_height = header_rect.height();

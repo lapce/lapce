@@ -195,6 +195,7 @@ pub struct LapceSplit {
     direction: SplitDirection,
     show_border: bool,
     commands: Vec<(LapceCommand, PietTextLayout, Rect, Option<KeyMap>)>,
+    panel: Option<PanelKind>,
 }
 
 struct ChildWidget {
@@ -213,11 +214,20 @@ impl LapceSplit {
             direction: SplitDirection::Vertical,
             show_border: true,
             commands: vec![],
+            panel: None,
         }
     }
 
     pub fn direction(mut self, direction: SplitDirection) -> Self {
         self.direction = direction;
+        self
+    }
+
+    /// Set the panel kind on the split, so that split can
+    /// determine the split direction based on the postion
+    /// of the panel
+    pub fn panel(mut self, panel: PanelKind) -> Self {
+        self.panel = Some(panel);
         self
     }
 
@@ -971,6 +981,15 @@ impl Widget<LapceTabData> for LapceSplit {
         env: &Env,
     ) -> Size {
         let my_size = bc.max();
+        if let Some(panel) = self.panel {
+            if let Some(pos) = data.panel_position(panel) {
+                if pos.is_bottom() {
+                    self.direction = SplitDirection::Vertical;
+                } else {
+                    self.direction = SplitDirection::Horizontal;
+                }
+            }
+        }
 
         let split_data = data.main_split.splits.get(&self.split_id);
 
@@ -1155,6 +1174,15 @@ impl Widget<LapceTabData> for LapceSplit {
         }
         for child in self.children.iter_mut() {
             child.widget.paint(ctx, data, env);
+        }
+        if let Some(panel) = self.panel {
+            if let Some(pos) = data.panel_position(panel) {
+                if pos.is_bottom() {
+                    self.show_border = true
+                } else {
+                    self.show_border = false
+                }
+            }
         }
         if self.show_border {
             self.paint_bar(ctx, &data.config);

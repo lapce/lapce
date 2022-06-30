@@ -198,6 +198,10 @@ pub enum FocusCommand {
     SplitUp,
     #[strum(serialize = "split_down")]
     SplitDown,
+    #[strum(serialize = "editor_tab_previous")]
+    EditorTabPrvious,
+    #[strum(serialize = "editor_tab_next")]
+    EditorTabNext,
     #[strum(serialize = "search_whole_word_forward")]
     SearchWholeWordForward,
     #[strum(serialize = "search_forward")]
