@@ -35,7 +35,6 @@ impl Plugin {
             PanelKind::Plugin,
             data.plugin.widget_id,
             split_id,
-            PanelHeaderKind::Simple("Plugin".into()),
             vec![(split_id, PanelHeaderKind::None, Self::new().boxed(), None)],
         )
     }

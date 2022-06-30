@@ -27,7 +27,6 @@ pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
         PanelKind::Problem,
         data.widget_id,
         data.split_id,
-        PanelHeaderKind::Simple("Problem".into()),
         vec![
             (
                 data.error_widget_id,

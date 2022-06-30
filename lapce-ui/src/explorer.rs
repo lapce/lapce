@@ -326,7 +326,6 @@ impl FileExplorer {
             PanelKind::FileExplorer,
             data.file_explorer.widget_id,
             split_id,
-            PanelHeaderKind::Simple("File Explorer".into()),
             vec![(
                 split_id,
                 PanelHeaderKind::None,

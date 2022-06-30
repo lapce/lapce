@@ -53,7 +53,6 @@ impl TerminalPanel {
             PanelKind::Terminal,
             data.terminal.widget_id,
             split_id,
-            PanelHeaderKind::Simple("Terminal".into()),
             vec![(
                 split_id,
                 PanelHeaderKind::None,

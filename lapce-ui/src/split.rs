@@ -1175,6 +1175,15 @@ impl Widget<LapceTabData> for LapceSplit {
         for child in self.children.iter_mut() {
             child.widget.paint(ctx, data, env);
         }
+        if let Some(panel) = self.panel {
+            if let Some(pos) = data.panel_position(panel) {
+                if pos.is_bottom() {
+                    self.show_border = true
+                } else {
+                    self.show_border = false
+                }
+            }
+        }
         if self.show_border {
             self.paint_bar(ctx, &data.config);
         }

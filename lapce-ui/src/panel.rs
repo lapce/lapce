@@ -4,8 +4,8 @@ use druid::{
     kurbo::Line,
     piet::{Text, TextLayout, TextLayoutBuilder, TextStorage},
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
+    Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{
@@ -16,12 +16,10 @@ use lapce_data::{
     data::{DragContent, LapceTabData, PanelKind},
     panel::{PanelContainerPosition, PanelPosition},
 };
-use serde_json::json;
 
 use crate::{scroll::LapceScroll, split::LapceSplit, svg::get_svg, tab::LapceIcon};
 
 pub struct LapcePanel {
-    header: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     split: WidgetPod<LapceTabData, LapceSplit>,
 }
 
@@ -33,7 +31,6 @@ impl Widget<LapceTabData> for LapcePanel {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        self.header.event(ctx, event, data, env);
         self.split.event(ctx, event, data, env);
     }
 
@@ -44,7 +41,6 @@ impl Widget<LapceTabData> for LapcePanel {
         data: &LapceTabData,
         env: &Env,
     ) {
-        self.header.lifecycle(ctx, event, data, env);
         self.split.lifecycle(ctx, event, data, env);
     }
 
@@ -55,7 +51,6 @@ impl Widget<LapceTabData> for LapcePanel {
         data: &LapceTabData,
         env: &Env,
     ) {
-        self.header.update(ctx, data, env);
         self.split.update(ctx, data, env);
     }
 
@@ -68,23 +63,14 @@ impl Widget<LapceTabData> for LapcePanel {
     ) -> Size {
         let self_size = bc.max();
 
-        let header_size = self.header.layout(ctx, bc, data, env);
-        self.header.set_origin(ctx, data, env, Point::ZERO);
-
-        let bc = BoxConstraints::tight(Size::new(
-            self_size.width,
-            self_size.height - header_size.height,
-        ));
-        self.split.layout(ctx, &bc, data, env);
-        self.split
-            .set_origin(ctx, data, env, Point::new(0.0, header_size.height));
+        self.split.layout(ctx, bc, data, env);
+        self.split.set_origin(ctx, data, env, Point::ZERO);
 
         self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.split.paint(ctx, data, env);
-        self.header.paint(ctx, data, env);
     }
 }
 
@@ -92,9 +78,8 @@ impl LapcePanel {
     #[allow(clippy::type_complexity)]
     pub fn new(
         kind: PanelKind,
-        widget_id: WidgetId,
+        _widget_id: WidgetId,
         split_id: WidgetId,
-        header: PanelHeaderKind,
         sections: Vec<(
             WidgetId,
             PanelHeaderKind,
@@ -120,18 +105,8 @@ impl LapcePanel {
                 split = split.with_flex_child(section, Some(section_widget_id), 1.0);
             }
         }
-        let header = match header {
-            PanelHeaderKind::None => {
-                PanelMainHeader::new(widget_id, kind, "".into()).boxed()
-            }
-            PanelHeaderKind::Simple(s) => {
-                PanelMainHeader::new(widget_id, kind, s).boxed()
-            }
-            PanelHeaderKind::Widget(w) => w,
-        };
         Self {
             split: WidgetPod::new(split),
-            header: WidgetPod::new(header),
         }
     }
 }
@@ -328,37 +303,31 @@ impl Widget<LapceTabData> for PanelSectionHeader {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let rect = ctx.size().to_rect();
-        ctx.with_save(|ctx| {
-            ctx.fill(
-                rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-            );
-            let shadow_width = data.config.ui.drop_shadow_width() as f64;
-            if shadow_width > 0.0 {
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        );
+        let shadow_width = data.config.ui.drop_shadow_width() as f64;
+        if shadow_width > 0.0 {
+            ctx.with_save(|ctx| {
+                let pos = data.panel_position(self.kind).unwrap();
+                if pos.is_bottom() {
+                    ctx.clip(rect.inset((0.0, 0.0, 0.0, 50.0)));
+                } else {
+                    ctx.clip(rect.inset((0.0, 50.0, 0.0, 50.0)));
+                }
+
                 ctx.blurred_rect(
                     rect,
                     shadow_width,
                     data.config
                         .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
                 );
-            } else if let Some(position) = data.panel_position(self.kind) {
-                match position {
-                    PanelPosition::BottomLeft | PanelPosition::BottomRight => {
-                        ctx.stroke(
-                            Line::new(
-                                Point::new(rect.x0, rect.y0 + 0.5),
-                                Point::new(rect.x1, rect.y0 + 0.5),
-                            ),
-                            data.config
-                                .get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                            1.0,
-                        );
-                    }
-                    _ => {}
-                }
-            }
+            });
+        }
 
+        ctx.with_save(|ctx| {
             ctx.clip(rect);
             let text_layout = ctx
                 .text()
@@ -377,231 +346,6 @@ impl Widget<LapceTabData> for PanelSectionHeader {
             let height = ctx.size().height;
             let y = (height - text_layout.size().height) / 2.0;
             ctx.draw_text(&text_layout, Point::new(10.0, y));
-        });
-    }
-}
-
-/// This struct is used as the outer container for a panel,
-/// it contains the heading such as "Terminal" or "File Explorer".
-pub struct PanelMainHeader {
-    text: ReadOnlyString,
-    icons: Vec<LapceIcon>,
-
-    kind: PanelKind,
-    mouse_pos: Point,
-}
-
-impl PanelMainHeader {
-    pub fn new(
-        _panel_widget_id: WidgetId,
-        kind: PanelKind,
-        text: ReadOnlyString,
-    ) -> Self {
-        Self {
-            kind,
-            text,
-            icons: Vec::new(),
-            mouse_pos: Point::ZERO,
-        }
-    }
-
-    fn update_icons(&mut self, self_size: Size, data: &LapceTabData) {
-        let icon_size = 24.0;
-        let gap = (self_size.height - icon_size) / 2.0;
-
-        let mut icons = Vec::new();
-        let x = self_size.width - ((icons.len() + 1) as f64) * (gap + icon_size);
-        let icon = LapceIcon {
-            icon: "close.svg",
-            rect: Size::new(icon_size, icon_size)
-                .to_rect()
-                .with_origin(Point::new(x, gap)),
-            command: Command::new(
-                LAPCE_COMMAND,
-                LapceCommand {
-                    kind: CommandKind::Workbench(LapceWorkbenchCommand::HidePanel),
-                    data: Some(json!(self.kind)),
-                },
-                Target::Widget(data.id),
-            ),
-        };
-        icons.push(icon);
-
-        if let Some(position) = data.panel_position(self.kind) {
-            if position == PanelPosition::BottomLeft
-                || position == PanelPosition::BottomRight
-            {
-                let mut icon_svg = "chevron-up.svg";
-                for (_, panel) in data.panels.iter() {
-                    if panel.widgets.contains(&self.kind) {
-                        if panel.maximized {
-                            icon_svg = "chevron-down.svg";
-                        }
-                        break;
-                    }
-                }
-
-                let x =
-                    self_size.width - ((icons.len() + 1) as f64) * (gap + icon_size);
-                let icon = LapceIcon {
-                    icon: icon_svg,
-                    rect: Size::new(icon_size, icon_size)
-                        .to_rect()
-                        .with_origin(Point::new(x, gap)),
-                    command: Command::new(
-                        LAPCE_COMMAND,
-                        LapceCommand {
-                            kind: CommandKind::Workbench(
-                                LapceWorkbenchCommand::ToggleMaximizedPanel,
-                            ),
-                            data: Some(json!(self.kind)),
-                        },
-                        Target::Widget(data.id),
-                    ),
-                };
-                icons.push(icon);
-            }
-        }
-
-        self.icons = icons;
-    }
-
-    fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
-        for icon in self.icons.iter() {
-            if icon.rect.contains(mouse_event.pos) {
-                ctx.submit_command(icon.command.clone());
-            }
-        }
-    }
-
-    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
-        for icon in self.icons.iter() {
-            if icon.rect.contains(mouse_event.pos) {
-                return true;
-            }
-        }
-        false
-    }
-}
-
-impl Widget<LapceTabData> for PanelMainHeader {
-    fn event(
-        &mut self,
-        ctx: &mut EventCtx,
-        event: &Event,
-        _data: &mut LapceTabData,
-        _env: &Env,
-    ) {
-        match event {
-            Event::MouseMove(mouse_event) => {
-                self.mouse_pos = mouse_event.pos;
-                if self.icon_hit_test(mouse_event) {
-                    ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
-                } else {
-                    ctx.clear_cursor();
-                    ctx.request_paint();
-                }
-            }
-            Event::MouseDown(mouse_event) => {
-                self.mouse_down(ctx, mouse_event);
-            }
-            _ => {}
-        }
-    }
-
-    fn lifecycle(
-        &mut self,
-        _ctx: &mut LifeCycleCtx,
-        _event: &LifeCycle,
-        _data: &LapceTabData,
-        _env: &Env,
-    ) {
-    }
-
-    fn update(
-        &mut self,
-        _ctx: &mut UpdateCtx,
-        _old_data: &LapceTabData,
-        _data: &LapceTabData,
-        _env: &Env,
-    ) {
-    }
-
-    fn layout(
-        &mut self,
-        _ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
-        data: &LapceTabData,
-        _env: &Env,
-    ) -> Size {
-        let self_size =
-            Size::new(bc.max().width, data.config.ui.header_height() as f64);
-        self.update_icons(self_size, data);
-        self_size
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        let rect = ctx.size().to_rect();
-        ctx.with_save(|ctx| {
-            let shadow_width = data.config.ui.drop_shadow_width() as f64;
-            if shadow_width > 0.0 {
-                ctx.clip(rect.inset((0.0, 0.0, 0.0, 50.0)));
-                ctx.blurred_rect(
-                    rect,
-                    shadow_width,
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-                );
-            } else {
-                ctx.stroke(
-                    Line::new(
-                        Point::new(rect.x0, rect.y1 + 0.5),
-                        Point::new(rect.x1, rect.y1 + 0.5),
-                    ),
-                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                    1.0,
-                );
-            }
-
-            let text_layout = ctx
-                .text()
-                .new_text_layout(self.text.clone())
-                .font(
-                    data.config.ui.font_family(),
-                    data.config.ui.font_size() as f64,
-                )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            let height = ctx.size().height;
-            let y = (height - text_layout.size().height) / 2.0;
-            ctx.draw_text(&text_layout, Point::new(10.0, y));
-
-            let icon_padding = 4.0;
-            for icon in self.icons.iter() {
-                if icon.rect.contains(self.mouse_pos) {
-                    ctx.fill(
-                        &icon.rect,
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
-                    );
-                }
-                if let Some(svg) = get_svg(icon.icon) {
-                    ctx.draw_svg(
-                        &svg,
-                        icon.rect.inflate(-icon_padding, -icon_padding),
-                        Some(
-                            data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                        ),
-                    );
-                }
-            }
         });
     }
 }

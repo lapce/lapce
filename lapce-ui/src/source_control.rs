@@ -60,7 +60,6 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
         PanelKind::SourceControl,
         data.source_control.widget_id,
         data.source_control.split_id,
-        PanelHeaderKind::Simple("Source Control".into()),
         vec![
             (
                 editor_data.view_id,

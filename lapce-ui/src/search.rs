@@ -44,7 +44,6 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
         PanelKind::Search,
         data.search.widget_id,
         data.search.split_id,
-        PanelHeaderKind::Simple("Search".into()),
         vec![(
             data.search.split_id,
             PanelHeaderKind::None,
