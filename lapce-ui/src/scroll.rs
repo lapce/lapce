@@ -783,6 +783,7 @@ impl ScrollComponent {
 pub struct LapceScroll<T, W> {
     clip: ClipBox<T, W>,
     scroll_component: ScrollComponent,
+    hide_bar: bool,
 }
 
 impl<T, W: Widget<T>> LapceScroll<T, W> {
@@ -795,6 +796,7 @@ impl<T, W: Widget<T>> LapceScroll<T, W> {
         Self {
             clip: ClipBox::new(child),
             scroll_component: ScrollComponent::new(),
+            hide_bar: false,
         }
     }
 
@@ -815,6 +817,11 @@ impl<T, W: Widget<T>> LapceScroll<T, W> {
             .constrain_vertical(true)
             .constrain_horizontal(false);
 
+        self
+    }
+
+    pub fn hide_bar(mut self) -> Self {
+        self.hide_bar = true;
         self
     }
 
@@ -946,12 +953,14 @@ impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
         self.clip.paint(ctx, data, env);
-        self.scroll_component.draw_bars(
-            ctx,
-            &self.clip.viewport(),
-            env,
-            data.get_config(),
-        );
+        if !self.hide_bar {
+            self.scroll_component.draw_bars(
+                ctx,
+                &self.clip.viewport(),
+                env,
+                data.get_config(),
+            );
+        }
     }
 }
 
