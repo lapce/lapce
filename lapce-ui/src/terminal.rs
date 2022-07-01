@@ -15,7 +15,8 @@ use lapce_core::mode::Mode;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::{FocusArea, LapceTabData, PanelKind},
+    data::{FocusArea, LapceTabData},
+    panel::PanelKind,
     terminal::{LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;
@@ -481,12 +482,14 @@ impl LapceTerminal {
         Arc::make_mut(&mut data.terminal).active_term_id = self.term_id;
         data.focus = self.widget_id;
         data.focus_area = FocusArea::Panel(PanelKind::Terminal);
-        for (pos, panel) in data.panels.iter_mut() {
-            if panel.widgets.contains(&PanelKind::Terminal) {
-                Arc::make_mut(panel).active = PanelKind::Terminal;
-                data.panel_active = *pos;
-                break;
+        if let Some((index, position)) =
+            data.panel.panel_position(&PanelKind::Terminal)
+        {
+            let panel = Arc::make_mut(&mut data.panel);
+            if let Some(style) = panel.style.get_mut(&position) {
+                style.active = index;
             }
+            panel.active = position;
         }
     }
 }

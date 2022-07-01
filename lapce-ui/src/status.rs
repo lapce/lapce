@@ -8,8 +8,8 @@ use lapce_core::mode::Mode;
 use lapce_data::{
     command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::{Config, LapceTheme},
-    data::{FocusArea, LapceTabData, PanelKind},
-    panel::PanelPosition,
+    data::{FocusArea, LapceTabData},
+    panel::{PanelContainerPosition, PanelKind},
 };
 
 use crate::{svg::get_svg, tab::LapceIcon};
@@ -30,25 +30,9 @@ impl LapceStatus {
     }
 
     fn panel_icons(&self, self_size: Size, data: &LapceTabData) -> Vec<LapceIcon> {
-        let left_panels = data
-            .panels
-            .get(&PanelPosition::BottomLeft)
-            .map(|p| p.widgets.clone())
-            .unwrap_or_default();
-        let mut right_panels = data
-            .panels
-            .get(&PanelPosition::BottomRight)
-            .map(|p| p.widgets.clone())
-            .unwrap_or_default();
-        let mut panels = left_panels;
-        panels.append(&mut right_panels);
-
-        let panel_icons_size = self_size.height * panels.len() as f64;
-        let offset = (self_size.width - panel_icons_size) / 2.0;
-
         let icons = [
             (
-                if data.panel_left_shown() {
+                if data.panel.is_container_shown(&PanelContainerPosition::Left) {
                     "layout-sidebar-left.svg"
                 } else {
                     "layout-sidebar-left-off.svg"
@@ -56,7 +40,10 @@ impl LapceStatus {
                 LapceWorkbenchCommand::TogglePanelLeftVisual,
             ),
             (
-                if data.panel_bottom_shown() {
+                if data
+                    .panel
+                    .is_container_shown(&PanelContainerPosition::Bottom)
+                {
                     "layout-panel.svg"
                 } else {
                     "layout-panel-off.svg"
@@ -64,7 +51,10 @@ impl LapceStatus {
                 LapceWorkbenchCommand::TogglePanelBottomVisual,
             ),
             (
-                if data.panel_right_shown() {
+                if data
+                    .panel
+                    .is_container_shown(&PanelContainerPosition::Right)
+                {
                     "layout-sidebar-right.svg"
                 } else {
                     "layout-sidebar-right-off.svg"
@@ -72,6 +62,9 @@ impl LapceStatus {
                 LapceWorkbenchCommand::TogglePanelRightVisual,
             ),
         ];
+
+        let panel_icons_size = self_size.height * icons.len() as f64;
+        let offset = (self_size.width - panel_icons_size) / 2.0;
 
         let icons: Vec<LapceIcon> = icons
             .into_iter()

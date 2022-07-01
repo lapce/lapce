@@ -220,6 +220,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
             };
             let mut window_data = LapceWindowData::new(
                 data.keypress.clone(),
+                data.panel_orders.clone(),
                 ctx.get_external_handle(),
                 &info,
                 data.db.clone(),

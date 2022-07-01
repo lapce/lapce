@@ -18,13 +18,11 @@ use lapce_data::{
         LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{EditorConfig, LapceTheme},
-    data::{
-        EditorTabChild, EditorView, FocusArea, LapceTabData, PanelData, PanelKind,
-    },
+    data::{EditorTabChild, EditorView, FocusArea, LapceTabData},
     document::{BufferContent, LocalBufferKind},
     editor::LapceEditorBufferData,
     keypress::KeyPressFocus,
-    panel::PanelPosition,
+    panel::{PanelData, PanelKind},
     settings::SettingsValueKind,
 };
 
@@ -185,7 +183,7 @@ impl LapceEditorView {
         ctx: &mut EventCtx,
         cmd: &LapceUICommand,
         data: &mut LapceEditorBufferData,
-        panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
+        panel: &PanelData,
         env: &Env,
     ) {
         match cmd {
@@ -193,16 +191,10 @@ impl LapceEditorView {
                 data.run_code_action(action);
             }
             LapceUICommand::EnsureCursorVisible(position) => {
-                self.ensure_cursor_visible(
-                    ctx,
-                    data,
-                    panels,
-                    position.as_ref(),
-                    env,
-                );
+                self.ensure_cursor_visible(ctx, data, panel, position.as_ref(), env);
             }
             LapceUICommand::EnsureCursorPosition(position) => {
-                self.ensure_cursor_position(ctx, data, panels, position, env);
+                self.ensure_cursor_position(ctx, data, panel, position, env);
             }
             LapceUICommand::EnsureRectVisible(rect) => {
                 self.ensure_rect_visible(ctx, data, *rect, env);
@@ -373,7 +365,7 @@ impl LapceEditorView {
         &mut self,
         ctx: &mut EventCtx,
         data: &LapceEditorBufferData,
-        panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
+        panel: &PanelData,
         position: &EnsureVisiblePosition,
         env: &Env,
     ) {
@@ -389,7 +381,7 @@ impl LapceEditorView {
             &data.config.editor,
         );
 
-        let size = LapceEditor::get_size(data, ctx.text(), editor_size, panels, env);
+        let size = LapceEditor::get_size(data, ctx.text(), editor_size, panel, env);
         let scroll = self.editor.widget_mut().editor.widget_mut().inner_mut();
         scroll.set_child_size(size);
         if scroll.scroll_to_visible(rect, env) {
@@ -405,13 +397,13 @@ impl LapceEditorView {
         &mut self,
         ctx: &mut EventCtx,
         data: &LapceEditorBufferData,
-        panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
+        panel: &PanelData,
         position: Option<&EnsureVisiblePosition>,
         env: &Env,
     ) {
         let line_height = data.config.editor.line_height as f64;
         let editor_size = *data.editor.size.borrow();
-        let size = LapceEditor::get_size(data, ctx.text(), editor_size, panels, env);
+        let size = LapceEditor::get_size(data, ctx.text(), editor_size, panel, env);
 
         let rect = Self::cursor_region(data, ctx.text());
         let scroll_id = self.editor.widget().scroll_id;
@@ -425,7 +417,7 @@ impl LapceEditorView {
                 Target::Widget(scroll_id),
             ));
             if let Some(position) = position {
-                self.ensure_cursor_position(ctx, data, panels, position, env);
+                self.ensure_cursor_position(ctx, data, panel, position, env);
             } else {
                 let scroll_offset = scroll.offset();
                 if (scroll_offset.y - old_scroll_offset.y).abs() > line_height * 2.0
@@ -433,7 +425,7 @@ impl LapceEditorView {
                     self.ensure_cursor_position(
                         ctx,
                         data,
-                        panels,
+                        panel,
                         &EnsureVisiblePosition::CenterOfWindow,
                         env,
                     );
@@ -554,7 +546,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     self.ensure_cursor_visible(
                         ctx,
                         &editor_data,
-                        &data.panels,
+                        &data.panel,
                         None,
                         env,
                     );
@@ -618,7 +610,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     self.ensure_cursor_visible(
                         ctx,
                         &editor_data,
-                        &data.panels,
+                        &data.panel,
                         None,
                         env,
                     );
@@ -647,7 +639,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                 self.ensure_cursor_visible(
                     ctx,
                     &editor_data,
-                    &data.panels,
+                    &data.panel,
                     None,
                     env,
                 );
@@ -658,7 +650,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     ctx,
                     cmd,
                     &mut editor_data,
-                    &data.panels,
+                    &data.panel,
                     env,
                 );
             }

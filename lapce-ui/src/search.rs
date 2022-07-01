@@ -7,8 +7,9 @@ use druid::{
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::{LapceTabData, PanelKind},
+    data::LapceTabData,
     editor::EditorLocation,
+    panel::PanelKind,
 };
 
 use crate::{

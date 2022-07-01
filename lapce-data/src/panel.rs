@@ -1,3 +1,241 @@
+use druid::Data;
+use serde::{Deserialize, Serialize};
+
+pub type PanelOrder = im::HashMap<PanelPosition, im::Vector<PanelKind>>;
+
+#[derive(Clone, Copy, PartialEq, Data, Serialize, Deserialize, Hash, Eq, Debug)]
+pub enum PanelKind {
+    FileExplorer,
+    SourceControl,
+    Plugin,
+    Terminal,
+    Search,
+    Problem,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PanelSize {
+    pub left: f64,
+    pub left_split: f64,
+    pub bottom: f64,
+    pub bottom_split: f64,
+    pub right: f64,
+    pub right_split: f64,
+}
+
+impl PanelKind {
+    pub fn svg_name(&self) -> &'static str {
+        match &self {
+            PanelKind::FileExplorer => "file-explorer.svg",
+            PanelKind::SourceControl => "git-icon.svg",
+            PanelKind::Plugin => "plugin-icon.svg",
+            PanelKind::Terminal => "terminal.svg",
+            PanelKind::Search => "search.svg",
+            PanelKind::Problem => "error.svg",
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PanelStyle {
+    pub active: usize,
+    pub shown: bool,
+    pub maximized: bool,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PanelData {
+    pub active: PanelPosition,
+    pub order: PanelOrder,
+    pub style: im::HashMap<PanelPosition, PanelStyle>,
+    pub size: PanelSize,
+}
+
+impl PanelData {
+    pub fn new(order: PanelOrder) -> Self {
+        let size = PanelSize {
+            left: 250.0,
+            left_split: 0.5,
+            bottom: 300.0,
+            bottom_split: 0.5,
+            right: 250.0,
+            right_split: 0.5,
+        };
+        let mut style = im::HashMap::new();
+        style.insert(
+            PanelPosition::LeftTop,
+            PanelStyle {
+                active: 0,
+                shown: true,
+                maximized: false,
+            },
+        );
+        style.insert(
+            PanelPosition::LeftBottom,
+            PanelStyle {
+                active: 0,
+                shown: false,
+                maximized: false,
+            },
+        );
+        style.insert(
+            PanelPosition::BottomLeft,
+            PanelStyle {
+                active: 0,
+                shown: true,
+                maximized: false,
+            },
+        );
+        style.insert(
+            PanelPosition::BottomRight,
+            PanelStyle {
+                active: 0,
+                shown: false,
+                maximized: false,
+            },
+        );
+        style.insert(
+            PanelPosition::RightTop,
+            PanelStyle {
+                active: 0,
+                shown: false,
+                maximized: false,
+            },
+        );
+        style.insert(
+            PanelPosition::RightBottom,
+            PanelStyle {
+                active: 0,
+                shown: false,
+                maximized: false,
+            },
+        );
+
+        Self {
+            active: PanelPosition::LeftTop,
+            order,
+            size,
+            style,
+        }
+    }
+
+    pub fn is_container_shown(&self, position: &PanelContainerPosition) -> bool {
+        self.is_position_shown(&position.first())
+            || self.is_position_shown(&position.second())
+    }
+
+    pub fn is_position_shown(&self, position: &PanelPosition) -> bool {
+        self.style.get(position).map(|s| s.shown).unwrap_or(false)
+    }
+
+    pub fn panel_bottom_maximized(&self) -> bool {
+        self.style
+            .get(&PanelPosition::BottomLeft)
+            .map(|p| p.maximized)
+            .unwrap_or(false)
+            || self
+                .style
+                .get(&PanelPosition::BottomRight)
+                .map(|p| p.maximized)
+                .unwrap_or(false)
+    }
+
+    pub fn panel_position(
+        &self,
+        kind: &PanelKind,
+    ) -> Option<(usize, PanelPosition)> {
+        for (pos, panels) in self.order.iter() {
+            let index = panels.iter().position(|k| k == kind);
+            match index {
+                Some(index) => return Some((index, *pos)),
+                None => (),
+            }
+        }
+        None
+    }
+
+    pub fn toggle_maximize(&mut self, kind: &PanelKind) {
+        if let Some((_, p)) = self.panel_position(kind) {
+            if let Some(style) = self.style.get_mut(&p) {
+                style.maximized = !style.maximized;
+            }
+        }
+    }
+
+    pub fn toggle_active_maximize(&mut self) {
+        if let Some(style) = self.style.get_mut(&self.active) {
+            style.maximized = !style.maximized;
+        }
+    }
+
+    pub fn set_shown(&mut self, position: &PanelPosition, shown: bool) {
+        if let Some(style) = self.style.get_mut(position) {
+            style.shown = shown;
+        }
+    }
+
+    pub fn toggle_container_visual(&mut self, position: &PanelContainerPosition) {
+        let shown = !self.is_container_shown(position);
+        self.set_shown(&position.first(), shown);
+        self.set_shown(&position.second(), shown);
+    }
+
+    pub fn position_has_panels(&self, position: &PanelPosition) -> bool {
+        self.order
+            .get(position)
+            .map(|o| !o.is_empty())
+            .unwrap_or(false)
+    }
+
+    pub fn active_panel_at_position(
+        &self,
+        position: &PanelPosition,
+    ) -> Option<(PanelKind, bool)> {
+        let style = self.style.get(position)?;
+        let order = self.order.get(position)?;
+        order
+            .get(style.active)
+            .cloned()
+            .or_else(|| order.last().cloned())
+            .map(|p| (p, style.shown))
+    }
+
+    pub fn hide_panel(&mut self, kind: &PanelKind) {
+        if let Some((_, position)) = self.panel_position(kind) {
+            if let Some((active_panel, _)) = self.active_panel_at_position(&position)
+            {
+                if &active_panel == kind {
+                    self.set_shown(&position, false);
+                    let peer_position = position.peer();
+                    if let Some(order) = self.order.get(&peer_position) {
+                        if order.is_empty() {
+                            self.set_shown(&peer_position, false);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn show_panel(&mut self, kind: &PanelKind) {
+        if let Some((index, position)) = self.panel_position(kind) {
+            if let Some(style) = self.style.get_mut(&position) {
+                style.shown = true;
+                style.active = index;
+            }
+        }
+    }
+
+    pub fn is_panel_visible(&self, kind: &PanelKind) -> bool {
+        if let Some((index, position)) = self.panel_position(kind) {
+            if let Some(style) = self.style.get(&position) {
+                return style.active == index && style.shown;
+            }
+        }
+        false
+    }
+}
+
 pub enum PanelResizePosition {
     Left,
     LeftSplit,
@@ -5,7 +243,7 @@ pub enum PanelResizePosition {
     Bottom,
 }
 
-#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum PanelPosition {
     LeftTop,
     LeftBottom,

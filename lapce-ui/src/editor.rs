@@ -22,15 +22,15 @@ use lapce_data::data::{EditorView, LapceData};
 use lapce_data::document::{BufferContent, InlayHintsLine, LocalBufferKind};
 use lapce_data::keypress::KeyPressFocus;
 use lapce_data::menu::MenuKind;
+use lapce_data::panel::{PanelData, PanelKind};
 use lapce_data::{
     command::{
         LapceCommand, LapceUICommand, LapceWorkbenchCommand, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
-    data::{LapceTabData, PanelData, PanelKind},
+    data::LapceTabData,
     editor::{LapceEditorBufferData, Syntax},
     menu::MenuItem,
-    panel::PanelPosition,
 };
 use lsp_types::{CodeActionOrCommand, DiagnosticSeverity};
 
@@ -318,7 +318,7 @@ impl LapceEditor {
         data: &LapceEditorBufferData,
         text: &mut PietText,
         editor_size: Size,
-        panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
+        panel: &PanelData,
         env: &Env,
     ) -> Size {
         let line_height = data.config.editor.line_height as f64;
@@ -394,32 +394,23 @@ impl LapceEditor {
                 }
             }
             BufferContent::Local(LocalBufferKind::SourceControl) => {
-                for (pos, panels) in panels.iter() {
-                    for panel_kind in panels.widgets.iter() {
-                        if panel_kind == &PanelKind::SourceControl {
-                            return match pos {
-                                PanelPosition::BottomLeft
-                                | PanelPosition::BottomRight => {
-                                    let width = 200.0;
-                                    Size::new(width, editor_size.height)
-                                }
-                                _ => {
-                                    let height = 100.0f64;
-                                    let height = height.max(
-                                        line_height
-                                            * data.doc.buffer().num_lines() as f64,
-                                    );
-                                    Size::new(
-                                        (width * data.doc.buffer().max_len() as f64)
-                                            .max(editor_size.width),
-                                        height,
-                                    )
-                                }
-                            };
-                        }
-                    }
+                let is_bottom = panel
+                    .panel_position(&PanelKind::SourceControl)
+                    .map(|(_, pos)| pos.is_bottom())
+                    .unwrap_or(false);
+                if is_bottom {
+                    let width = 200.0;
+                    Size::new(width, editor_size.height)
+                } else {
+                    let height = 100.0f64;
+                    let height = height
+                        .max(line_height * data.doc.buffer().num_lines() as f64);
+                    Size::new(
+                        (width * data.doc.buffer().max_len() as f64)
+                            .max(editor_size.width),
+                        height,
+                    )
                 }
-                Size::ZERO
             }
             // Almost the same as the general case below but with less vertical padding
             BufferContent::Local(LocalBufferKind::PathName) => Size::new(
@@ -1967,7 +1958,7 @@ impl Widget<LapceTabData> for LapceEditor {
         env: &Env,
     ) -> Size {
         let editor_data = data.editor_view_content(self.view_id);
-        Self::get_size(&editor_data, ctx.text(), bc.max(), &data.panels, env)
+        Self::get_size(&editor_data, ctx.text(), bc.max(), &data.panel, env)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
