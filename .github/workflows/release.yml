@@ -41,34 +41,13 @@ jobs:
         shell: pwsh
         run: |
           Compress-Archive ./target/release-lto/lapce.exe ./Lapce-windows-portable.zip
-          
-      - if: github.event_name == 'workflow_dispatch'
-        run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
-      - if: github.event_name == 'schedule'
-        run: echo 'TAG_NAME=nightly' >> $GITHUB_ENV
-      - if: github.event_name == 'push'
-        run: |
-          TAG_NAME=${{ github.ref }}
-          echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
-          
-      - name: Upload msi installer
-        uses: svenstaro/upload-release-action@v2
+      - uses: actions/upload-artifact@v3
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./Lapce-windows.msi
-          file_glob: true
-          tag: ${{ env.TAG_NAME }}
-          overwrite: true
-          prerelease: ${{ env.TAG_NAME == 'nightly' }}
-      - name: Upload portable
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./Lapce-windows-portable.zip
-          file_glob: true
-          tag: ${{ env.TAG_NAME }}
-          overwrite: true
-          prerelease: ${{ env.TAG_NAME == 'nightly' }}
+          name: lapce-windows
+          path: |
+            ./Lapce-windows-portable.zip
+            ./Lapce-windows.msi
+          retention-days: 1
 
   linux:
     runs-on: ubuntu-18.04
@@ -88,34 +67,13 @@ jobs:
           cp ./target/release-lto/lapce Lapce/
           tar -zcvf ./Lapce-linux.tar.gz Lapce
           gzip -c "./target/release-lto/lapce-proxy" > ./lapce-proxy-linux.gz
-          
-      - if: github.event_name == 'workflow_dispatch'
-        run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
-      - if: github.event_name == 'schedule'
-        run: echo 'TAG_NAME=nightly' >> $GITHUB_ENV
-      - if: github.event_name == 'push'
-        run: |
-          TAG_NAME=${{ github.ref }}
-          echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
-          
-      - name: Upload Application
-        uses: svenstaro/upload-release-action@v2
+      - uses: actions/upload-artifact@v3
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./Lapce-linux.tar.gz
-          file_glob: true
-          tag: ${{ env.TAG_NAME }}
-          overwrite: true
-          prerelease: ${{ env.TAG_NAME == 'nightly' }}
-      - name: Upload Application
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./lapce-proxy-linux.gz
-          file_glob: true
-          tag: ${{ env.TAG_NAME }}
-          overwrite: true
-          prerelease: ${{ env.TAG_NAME == 'nightly' }}
+          name: lapce-linux
+          path: |
+            ./Lapce-linux.tar.gz
+            ./lapce-proxy-linux.gz
+          retention-days: 1
 
   macos:
     runs-on: macos-11
@@ -145,7 +103,28 @@ jobs:
         uses: devbotsxyz/xcode-staple@v1
         with:
           product-path: "./target/release-lto/macos/Lapce-macos.dmg"
+      - uses: actions/upload-artifact@v3
+        with:
+          name: lapce-macos
+          path: |
+            ./target/release-lto/macos/Lapce-macos.dmg
+          retention-days: 1
           
+  publish:
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-20.04
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+    steps:
+      # Must perform checkout first, since it deletes the target directory
+      # before running, and would therefore delete the downloaded artifacts
+      - uses: actions/checkout@v3
+
+      - uses: actions/download-artifact@v3          
+      
       - if: github.event_name == 'workflow_dispatch'
         run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
       - if: github.event_name == 'schedule'
@@ -154,13 +133,18 @@ jobs:
         run: |
           TAG_NAME=${{ github.ref }}
           echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
-          
-      - name: Upload Application
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./target/release-lto/macos/Lapce-macos.dmg
-          file_glob: true
-          tag: ${{ env.TAG_NAME }}
-          overwrite: true
-          prerelease: ${{ env.TAG_NAME == 'nightly' }}
+      - if: env.TAG_NAME == 'nightly'
+        run: |
+          (echo 'SUBJECT=Lapce development build';
+           echo 'PRERELEASE=--prerelease') >> $GITHUB_ENV
+          gh release delete nightly --yes || true
+          git push origin :nightly || true
+      - if: env.TAG_NAME != 'nightly'
+        run: |
+          (echo 'SUBJECT=Lapce release build';
+           echo 'PRERELEASE=') >> $GITHUB_ENV
+      - name: Publish release
+        env:
+          DEBUG: api
+        run: |
+          gh release create $TAG_NAME $PRERELEASE --target $GITHUB_SHA lapce-macos/* lapce-linux/* lapce-windows/*
