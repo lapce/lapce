@@ -14,7 +14,8 @@ use lapce_rpc::{
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
-    Location, Position, ProgressParams, PublishDiagnosticsParams, TextEdit,
+    InlayHint, Location, Position, ProgressParams, PublishDiagnosticsParams,
+    TextEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
@@ -441,6 +442,11 @@ pub enum LapceUICommand {
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
     UpdateCompletion(usize, String, CompletionResponse),
     UpdateHover(usize, Arc<Vec<RichText>>),
+    UpdateInlayHints {
+        path: PathBuf,
+        rev: u64,
+        hints: Vec<InlayHint>,
+    },
     UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,
     RunCodeAction(CodeActionOrCommand),

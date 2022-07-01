@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     cell::RefCell,
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -33,8 +34,11 @@ use lapce_rpc::{
     buffer::{BufferId, NewBufferResponse},
     style::{LineStyle, LineStyles, Style},
 };
-use lsp_types::{CodeActionOrCommand, CodeActionResponse};
+use lsp_types::{
+    CodeActionOrCommand, CodeActionResponse, InlayHint, InlayHintLabel,
+};
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use xi_rope::{spans::Spans, Rope, RopeDelta};
 
 use crate::{
@@ -175,6 +179,156 @@ impl BufferContent {
 }
 
 #[derive(Clone)]
+pub struct InlayHints {
+    /// Hints should be sorted so that earlier hints come before later hints to simplify
+    /// code that uses them
+    hints: im::Vector<InlayHint>,
+}
+impl InlayHints {
+    pub fn new(inlay_hints: im::Vector<InlayHint>) -> InlayHints {
+        InlayHints { hints: inlay_hints }
+    }
+
+    pub fn clear(&mut self) {
+        self.hints.clear();
+    }
+
+    pub fn hints_at_line(&self, line: u32) -> InlayHintsLine {
+        let hints = self.iter_line(line).collect::<SmallVec<[_; 6]>>();
+        InlayHintsLine { hints }
+    }
+
+    /// Iterate over all the hints at the line
+    pub fn iter_line(&self, line: u32) -> impl Iterator<Item = &InlayHint> {
+        self.hints
+            .iter()
+            .filter(move |hint| hint.position.line == line)
+    }
+}
+
+#[derive(Default)]
+pub struct InlayHintsLine<'a> {
+    hints: SmallVec<[&'a InlayHint; 6]>,
+}
+impl<'a> InlayHintsLine<'a> {
+    /// Translate a column position into the text into what it would be after combining
+    pub fn col_at(&self, pre_col: usize) -> usize {
+        let mut last = pre_col;
+        for (col_shift, size, hint) in self.offset_size_iter() {
+            if pre_col >= hint.position.character as usize {
+                last = pre_col + col_shift + size;
+            }
+        }
+
+        last
+    }
+
+    /// Translate a column position into the text into what it would be after combining
+    /// If the cursor is right at the start then it will stay there
+    pub fn col_after(&self, pre_col: usize) -> usize {
+        let mut last = pre_col;
+        for (col_shift, size, hint) in self.offset_size_iter() {
+            if pre_col > hint.position.character as usize {
+                last = pre_col + col_shift + size;
+            }
+        }
+
+        last
+    }
+
+    /// Translate a column position into the position it would be before combining
+    pub fn before_col(&self, col: usize) -> usize {
+        let mut last = col;
+        for (col_shift, size, hint) in self.offset_size_iter() {
+            let shifted_start = hint.position.character as usize + col_shift;
+            let shifted_end = shifted_start + size;
+            if col >= shifted_start {
+                if col >= shifted_end {
+                    last = col - col_shift - size;
+                } else {
+                    last = hint.position.character as usize;
+                }
+            }
+        }
+        last
+    }
+
+    /// Insert the hints at their positions in the text
+    pub fn combine_with_text<'b>(&self, mut text: Cow<'b, str>) -> Cow<'b, str> {
+        let mut col_shift = 0;
+        for hint in self.hints.iter() {
+            let mut otext = text.into_owned();
+
+            let location = hint.position.character as usize + col_shift;
+
+            // Stop iterating if the location is bad
+            if otext.get(location..).is_none() {
+                return Cow::Owned(otext);
+            }
+
+            // Insert the right padding. This will be shifted to the right
+            // after we insert the text at location
+            if hint.padding_right == Some(true) {
+                otext.insert(location, ' ');
+                col_shift += 1;
+            }
+
+            match &hint.label {
+                InlayHintLabel::String(label) => {
+                    otext.insert_str(location, label.as_str());
+                    col_shift += label.len();
+                }
+                InlayHintLabel::LabelParts(parts) => {
+                    for part in parts.iter().rev() {
+                        otext.insert_str(location, part.value.as_str());
+                        col_shift += part.value.len();
+                    }
+                }
+            };
+
+            if hint.padding_left == Some(true) {
+                otext.insert(location, ' ');
+                col_shift += 1;
+            }
+
+            text = Cow::Owned(otext);
+        }
+
+        text
+    }
+
+    /// Iterator over (col_shift, size, hint)
+    pub fn offset_size_iter(
+        &self,
+    ) -> impl Iterator<Item = (usize, usize, &'a InlayHint)> + '_ {
+        let mut col_shift = 0;
+        self.hints.iter().map(move |hint| {
+            let pre_col_shift = col_shift;
+            match &hint.label {
+                InlayHintLabel::String(label) => {
+                    col_shift += label.len();
+                }
+                InlayHintLabel::LabelParts(parts) => {
+                    for part in parts {
+                        col_shift += part.value.len();
+                    }
+                }
+            }
+
+            if hint.padding_right == Some(true) {
+                col_shift += 1;
+            }
+
+            if hint.padding_left == Some(true) {
+                col_shift += 1;
+            }
+
+            (pre_col_shift, col_shift - pre_col_shift, *hint)
+        })
+    }
+}
+
+#[derive(Clone)]
 pub struct Document {
     id: BufferId,
     pub tab_id: WidgetId,
@@ -190,6 +344,7 @@ pub struct Document {
     pub cursor_offset: usize,
     pub scroll_offset: Vec2,
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
+    pub inlay_hints: InlayHints,
     pub find: Rc<RefCell<Find>>,
     find_progress: Rc<RefCell<FindProgress>>,
     pub event_sink: ExtEventSink,
@@ -229,6 +384,7 @@ impl Document {
             cursor_offset: 0,
             scroll_offset: Vec2::ZERO,
             code_actions: im::HashMap::new(),
+            inlay_hints: InlayHints::new(im::Vector::new()),
             find: Rc::new(RefCell::new(Find::new(0))),
             find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             event_sink,
@@ -276,6 +432,7 @@ impl Document {
 
     pub fn reload(&mut self, content: Rope, set_pristine: bool) {
         self.code_actions.clear();
+        self.inlay_hints.clear();
         let delta = self.buffer.reload(content, set_pristine);
         self.apply_deltas(&[delta]);
     }
@@ -581,6 +738,31 @@ impl Document {
                     Target::Widget(tab_id),
                 );
             });
+        }
+    }
+
+    /// Update the inlay hints with new ones
+    /// Clears any caches that need to be updated after change
+    pub fn update_inlay_hints(&mut self, mut inlay_hints: im::Vector<InlayHint>) {
+        // TODO: Can we do a smart comparison? Most of the time, the change isn't notable
+        // we could just ask the LSP for the data in the area around the edited range? or
+        // just in view?
+
+        // Remove all the text layouts that have existing hints
+        for hint in &self.inlay_hints.hints {
+            let line = hint.position.line as usize;
+            self.text_layouts.borrow_mut().layouts.remove(&line);
+        }
+
+        // Sort it to ensure the later inlay hints come after early hints
+        inlay_hints.sort_by(|a, b| a.position.cmp(&b.position));
+
+        self.inlay_hints.hints = inlay_hints;
+
+        // Remove all the text layouts that have new hints
+        for hint in &self.inlay_hints.hints {
+            let line = hint.position.line as usize;
+            self.text_layouts.borrow_mut().layouts.remove(&line);
         }
     }
 
@@ -963,9 +1145,16 @@ impl Document {
         let last_line = self.buffer.last_line();
         let line = ((point.y / config.editor.line_height as f64).floor() as usize)
             .min(last_line);
+
+        let inlay_hints = if config.editor.enable_inlay_hints {
+            self.inlay_hints.hints_at_line(line as u32)
+        } else {
+            InlayHintsLine::default()
+        };
+
         let text_layout = self.get_text_layout(text, line, font_size, config);
         let hit_point = text_layout.hit_test_point(Point::new(point.x, 0.0));
-        let col = hit_point.idx;
+        let col = inlay_hints.before_col(hit_point.idx);
         let max_col = self.buffer.line_end_col(line, mode != Mode::Normal);
         (
             self.buffer.offset_of_line_col(line, col.min(max_col)),
@@ -1015,6 +1204,15 @@ impl Document {
         config: &Config,
     ) -> PietTextLayout {
         let line_content = self.buffer.line_content(line);
+
+        let inlay_hints = if config.editor.enable_inlay_hints {
+            self.inlay_hints.hints_at_line(line as u32)
+        } else {
+            // empty inlay hints
+            InlayHintsLine::default()
+        };
+        let line_content = inlay_hints.combine_with_text(line_content);
+
         let tab_width =
             config.tab_width(text, config.editor.font_family(), font_size);
 
@@ -1038,16 +1236,42 @@ impl Document {
             )
             .set_tab_width(tab_width);
 
+        // Apply various styles to the lines text
         let styles = self.line_style(line);
         for line_style in styles.iter() {
             if let Some(fg_color) = line_style.style.fg_color.as_ref() {
                 if let Some(fg_color) = config.get_style_color(fg_color) {
+                    let start = inlay_hints.col_at(line_style.start);
+                    let end = inlay_hints.col_at(line_style.end);
                     layout_builder = layout_builder.range_attribute(
-                        line_style.start..line_style.end,
+                        start..end,
                         TextAttribute::TextColor(fg_color.clone()),
                     );
                 }
             }
+        }
+
+        // Give the inlay hints their styling
+        for (offset, size, hint) in inlay_hints.offset_size_iter() {
+            let start = hint.position.character as usize + offset;
+            let end = start + size;
+            // TODO: config option for the background
+            layout_builder = layout_builder.range_attribute(
+                start..end,
+                TextAttribute::FontSize(config.editor.inlay_hint_font_size()),
+            );
+            layout_builder = layout_builder.range_attribute(
+                start..end,
+                TextAttribute::FontFamily(config.editor.inlay_hint_font_family()),
+            );
+            layout_builder = layout_builder.range_attribute(
+                start..end,
+                TextAttribute::TextColor(
+                    config
+                        .get_color_unchecked(LapceTheme::INLAY_HINT_FOREGROUND)
+                        .clone(),
+                ),
+            );
         }
 
         layout_builder.build().unwrap()

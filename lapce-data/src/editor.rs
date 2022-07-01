@@ -44,6 +44,7 @@ use lsp_types::CodeActionOrCommand;
 use lsp_types::CompletionTextEdit;
 use lsp_types::DocumentChangeOperation;
 use lsp_types::DocumentChanges;
+use lsp_types::InlayHint;
 use lsp_types::OneOf;
 use lsp_types::TextEdit;
 use lsp_types::Url;
@@ -146,6 +147,48 @@ impl LapceEditorBufferData {
                 ),
                 None,
                 Modifiers::empty(),
+            );
+        }
+    }
+
+    pub fn get_inlay_hints(&self, ctx: &mut EventCtx) {
+        if !self.doc.loaded() {
+            return;
+        }
+
+        if !self.doc.content().is_file() {
+            return;
+        }
+
+        if !self.config.editor.enable_inlay_hints {
+            return;
+        }
+
+        if let BufferContent::File(path) = self.doc.content() {
+            // TODO: check if we already have inlay hints for this file?
+            let path = path.clone();
+            let buffer_id = self.doc.id();
+            let rev = self.doc.rev();
+            let event_sink = ctx.get_external_handle();
+            self.proxy.get_inlay_hints(
+                buffer_id,
+                Box::new(move |result| {
+                    if let Ok(res) = result {
+                        if let Ok(resp) =
+                            serde_json::from_value::<Vec<InlayHint>>(res)
+                        {
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdateInlayHints {
+                                    path,
+                                    rev,
+                                    hints: resp,
+                                },
+                                Target::Auto,
+                            );
+                        }
+                    }
+                }),
             );
         }
     }

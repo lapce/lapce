@@ -1200,6 +1200,13 @@ impl LapceTab {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateInlayHints { path, rev, hints } => {
+                        if let Some(doc) = data.main_split.open_docs.get_mut(path) {
+                            if doc.rev() == *rev {
+                                Arc::make_mut(doc).update_inlay_hints(hints.into());
+                            }
+                        }
+                    }
                     LapceUICommand::UpdateCodeActions(path, rev, offset, resp) => {
                         if let Some(doc) = data.main_split.open_docs.get_mut(path) {
                             if doc.rev() == *rev {

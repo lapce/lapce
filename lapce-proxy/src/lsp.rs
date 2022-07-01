@@ -335,6 +335,31 @@ impl LspCatalog {
         }
     }
 
+    pub fn get_inlay_hints(&self, id: RequestId, buffer: &Buffer) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            let uri = client.get_uri(buffer);
+            // Range over the entire buffer
+            let range = Range {
+                start: Position::new(0, 0),
+                end: buffer.offset_to_position(buffer.len()),
+            };
+            client.request_inlay_hints(uri, range, move |lsp_client, result| {
+                let mut resp = json!({ "id": id });
+                match result {
+                    Ok(v) => resp["result"] = v,
+                    Err(e) => {
+                        resp["error"] = json!({
+                            "code": 0,
+                            "message": format!("{}", e),
+                        })
+                    }
+                }
+
+                let _ = lsp_client.dispatcher.sender.send(resp);
+            });
+        }
+    }
+
     pub fn get_code_actions(
         &self,
         id: RequestId,
@@ -766,6 +791,9 @@ impl LspClient {
                     ]),
                     ..Default::default()
                 }),
+                inlay_hint: Some(InlayHintClientCapabilities {
+                    ..Default::default()
+                }),
                 code_action: Some(CodeActionClientCapabilities {
                     code_action_literal_support: Some(CodeActionLiteralSupport {
                         code_action_kind: CodeActionKindLiteralSupport {
@@ -886,6 +914,19 @@ impl LspClient {
         };
         let params = Params::from(serde_json::to_value(params).unwrap());
         self.send_request("textDocument/semanticTokens/full", params, Box::new(cb));
+    }
+
+    pub fn request_inlay_hints<CB>(&self, document_uri: Url, range: Range, cb: CB)
+    where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = InlayHintParams {
+            text_document: TextDocumentIdentifier { uri: document_uri },
+            range,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/inlayHint", params, Box::new(cb));
     }
 
     pub fn request_code_actions<CB>(&self, document_uri: Url, range: Range, cb: CB)

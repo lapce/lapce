@@ -2279,6 +2279,7 @@ dependencies = [
  "serde 1.0.137",
  "serde_json",
  "sled",
+ "smallvec",
  "structdesc",
  "strum 0.24.1",
  "strum_macros 0.24.0",

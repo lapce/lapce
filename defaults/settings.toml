@@ -14,6 +14,9 @@ scroll-beyond-last-line = true
 hover-delay = 300             # ms
 modal-mode-relative-line-numbers = true
 format-on-save = true
+enable-inlay-hints = true
+inlay-hint-font-family = ""
+inlay-hint-font-size = 0
 
 [terminal]
 font-family = ""
@@ -91,6 +94,8 @@ magenta = "#C678DD"
 "editor.selection" = "$grey"
 "editor.current_line" = "#2C313C"
 "editor.link" = "$cyan"
+
+"inlay_hint.foreground" = "$grey"
 
 "source_control.added" = "#50A14F32"
 "source_control.removed" = "#FF526632"

@@ -57,3 +57,4 @@ lapce-proxy = { path = "../lapce-proxy" }
 bytemuck = "1.8.0"
 # For parsing markdown data, such as in hovers
 pulldown-cmark = "0.9.1"
+smallvec = "1.8.0"
