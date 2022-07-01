@@ -548,11 +548,11 @@ impl Widget<LapceTabData> for PanelContainer {
         let panel_first = data
             .panel
             .active_panel_at_position(&self.position.first())
-            .map(|(panel, _)| panel);
+            .and_then(|(panel, shown)| if shown { Some(panel) } else { None });
         let panel_second = data
             .panel
             .active_panel_at_position(&self.position.second())
-            .map(|(panel, _)| panel);
+            .and_then(|(panel, shown)| if shown { Some(panel) } else { None });
 
         match (panel_first, panel_second) {
             (Some(panel_first), Some(panel_second)) => {

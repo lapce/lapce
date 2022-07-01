@@ -25,7 +25,6 @@ use crate::alert::AlertContentData;
 use crate::data::LapceWorkspace;
 use crate::document::BufferContent;
 use crate::menu::MenuKind;
-use crate::panel::{PanelKind, PanelPosition};
 use crate::rich_text::RichText;
 use crate::{
     data::{EditorTabChild, SplitContent},

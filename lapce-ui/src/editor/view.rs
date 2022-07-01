@@ -22,7 +22,7 @@ use lapce_data::{
     document::{BufferContent, LocalBufferKind},
     editor::LapceEditorBufferData,
     keypress::KeyPressFocus,
-    panel::{PanelData, PanelKind, PanelPosition},
+    panel::{PanelData, PanelKind},
     settings::SettingsValueKind,
 };
 

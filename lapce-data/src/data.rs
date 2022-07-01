@@ -58,7 +58,6 @@ use crate::{
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::{
         PanelContainerPosition, PanelData, PanelKind, PanelOrder, PanelPosition,
-        PanelSize,
     },
     picker::FilePickerData,
     plugin::PluginData,
@@ -576,7 +575,11 @@ impl LapceTabData {
         let terminal = Arc::new(TerminalSplitData::new(proxy.clone()));
         let problem = Arc::new(ProblemData::new());
         let panel = workspace_info
-            .map(|i| i.panel)
+            .map(|i| {
+                let mut panel = i.panel;
+                panel.order = panel_orders.clone();
+                panel
+            })
             .unwrap_or_else(|| PanelData::new(panel_orders));
 
         let focus = (*main_split.active).unwrap_or(*main_split.split_id);

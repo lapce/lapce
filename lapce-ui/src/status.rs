@@ -9,7 +9,7 @@ use lapce_data::{
     command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::{Config, LapceTheme},
     data::{FocusArea, LapceTabData},
-    panel::{PanelContainerPosition, PanelKind, PanelPosition},
+    panel::{PanelContainerPosition, PanelKind},
 };
 
 use crate::{svg::get_svg, tab::LapceIcon};

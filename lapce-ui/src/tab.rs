@@ -32,8 +32,8 @@ use lapce_data::{
     menu::MenuKind,
     palette::PaletteStatus,
     panel::{
-        PanelContainerPosition, PanelData, PanelKind, PanelPosition,
-        PanelResizePosition, PanelStyle,
+        PanelContainerPosition, PanelKind, PanelPosition, PanelResizePosition,
+        PanelStyle,
     },
     proxy::path_from_url,
 };
@@ -96,14 +96,6 @@ impl LapceTab {
         let hover = HoverContainer::new(&data.hover);
         let palette = Palette::new(data);
         let status = LapceStatus::new();
-
-        let file_explorer = FileExplorer::new_panel(data);
-        let source_control = new_source_control_panel(data);
-        let plugin = Plugin::new_panel(data);
-        let terminal = TerminalPanel::new_panel(data);
-        let search = new_search_panel(data);
-        let problem = new_problem_panel(&data.problem);
-
         let picker = FilePicker::new(data);
 
         let settings =
@@ -112,24 +104,62 @@ impl LapceTab {
         let alert = AlertBox::new(data);
 
         let mut panel_left = PanelContainer::new(PanelContainerPosition::Left);
-        panel_left.insert_panel(
-            PanelKind::FileExplorer,
-            WidgetPod::new(file_explorer.boxed()),
-        );
-        panel_left.insert_panel(
-            PanelKind::SourceControl,
-            WidgetPod::new(source_control.boxed()),
-        );
-        panel_left.insert_panel(PanelKind::Plugin, WidgetPod::new(plugin.boxed()));
-
         let mut panel_bottom = PanelContainer::new(PanelContainerPosition::Bottom);
-        panel_bottom
-            .insert_panel(PanelKind::Terminal, WidgetPod::new(terminal.boxed()));
-        panel_bottom.insert_panel(PanelKind::Search, WidgetPod::new(search.boxed()));
-        panel_bottom
-            .insert_panel(PanelKind::Problem, WidgetPod::new(problem.boxed()));
+        let mut panel_right = PanelContainer::new(PanelContainerPosition::Right);
 
-        let panel_right = PanelContainer::new(PanelContainerPosition::Right);
+        for (position, order) in data.panel.order.clone().iter() {
+            let panel = match position {
+                PanelPosition::LeftTop | PanelPosition::LeftBottom => {
+                    &mut panel_left
+                }
+                PanelPosition::RightTop | PanelPosition::RightBottom => {
+                    &mut panel_right
+                }
+                PanelPosition::BottomLeft | PanelPosition::BottomRight => {
+                    &mut panel_bottom
+                }
+            };
+            for kind in order.iter() {
+                match kind {
+                    PanelKind::FileExplorer => {
+                        panel.insert_panel(
+                            *kind,
+                            WidgetPod::new(FileExplorer::new_panel(data).boxed()),
+                        );
+                    }
+                    PanelKind::SourceControl => {
+                        panel.insert_panel(
+                            *kind,
+                            WidgetPod::new(new_source_control_panel(data).boxed()),
+                        );
+                    }
+                    PanelKind::Plugin => {
+                        panel.insert_panel(
+                            *kind,
+                            WidgetPod::new(Plugin::new_panel(data).boxed()),
+                        );
+                    }
+                    PanelKind::Terminal => {
+                        panel.insert_panel(
+                            *kind,
+                            WidgetPod::new(TerminalPanel::new_panel(data).boxed()),
+                        );
+                    }
+                    PanelKind::Search => {
+                        panel.insert_panel(
+                            *kind,
+                            WidgetPod::new(new_search_panel(data).boxed()),
+                        );
+                    }
+                    PanelKind::Problem => {
+                        panel.insert_panel(
+                            *kind,
+                            WidgetPod::new(new_problem_panel(&data.problem).boxed()),
+                        );
+                    }
+                }
+            }
+        }
 
         Self {
             id: data.id,
@@ -447,6 +477,7 @@ impl LapceTab {
                     let style = panel.style.get_mut(p).unwrap();
                     style.active = order.len() - 1;
                     style.shown = true;
+                    let _ = data.db.save_panel_orders(&panel.order);
                     return;
                 }
             }
@@ -1700,9 +1731,6 @@ impl Widget<LapceTabData> for LapceTab {
                     }
                 }
             }
-
-            println!("old panel order {:?}", old_data.panel.order);
-            println!("panel order {:?}", data.panel.order);
         }
 
         if !old_data.panel.same(&data.panel) {

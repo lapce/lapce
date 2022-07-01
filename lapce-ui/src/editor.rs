@@ -31,7 +31,6 @@ use lapce_data::{
     data::LapceTabData,
     editor::{LapceEditorBufferData, Syntax},
     menu::MenuItem,
-    panel::PanelPosition,
 };
 use lsp_types::{CodeActionOrCommand, DiagnosticSeverity};
 

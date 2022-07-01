@@ -493,6 +493,14 @@ impl LapceDb {
         Ok(panel_orders)
     }
 
+    pub fn save_panel_orders(&self, order: &PanelOrder) -> Result<()> {
+        let info = serde_json::to_string(order)?;
+        let sled_db = self.get_db()?;
+        sled_db.insert("panel_orders", info.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
     fn insert_workspace(
         &self,
         workspace: &LapceWorkspace,
