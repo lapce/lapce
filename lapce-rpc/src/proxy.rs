@@ -101,6 +101,9 @@ pub enum ProxyRequest {
         buffer_id: BufferId,
         position: Position,
     },
+    GetInlayHints {
+        buffer_id: BufferId,
+    },
     GetCodeActions {
         buffer_id: BufferId,
         position: Position,

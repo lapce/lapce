@@ -19,7 +19,7 @@ use lapce_core::{
 };
 use lapce_data::command::CommandKind;
 use lapce_data::data::{EditorView, LapceData};
-use lapce_data::document::{BufferContent, LocalBufferKind};
+use lapce_data::document::{BufferContent, InlayHintsLine, LocalBufferKind};
 use lapce_data::keypress::KeyPressFocus;
 use lapce_data::menu::MenuKind;
 use lapce_data::{
@@ -1086,15 +1086,25 @@ impl LapceEditor {
             .ceil() as usize;
         match &data.editor.cursor.mode {
             CursorMode::Normal(offset) => {
-                let line = data.doc.buffer().line_of_offset(*offset);
+                let (line, col) = data.doc.buffer().offset_to_line_col(*offset);
                 Self::paint_cursor_line(data, ctx, line, is_focused, placeholder);
 
                 if is_focused {
+                    let inlay_hints = if data.config.editor.enable_inlay_hints {
+                        data.doc.inlay_hints.hints_at_line(line as u32)
+                    } else {
+                        InlayHintsLine::default()
+                    };
+
+                    // Shift it by the inlay hints
+                    let col = inlay_hints.col_after(col);
+
                     let x0 = data
                         .doc
-                        .point_of_offset(
+                        .point_of_line_col(
                             ctx.text(),
-                            *offset,
+                            line,
+                            col,
                             font_size,
                             &data.config,
                         )
@@ -1109,11 +1119,15 @@ impl LapceEditor {
                         data.config.editor.font_size,
                         &data.config,
                     );
+                    let (_, right_col) =
+                        data.doc.buffer().offset_to_line_col(right_offset);
+                    let right_col = inlay_hints.col_after(right_col);
                     let x1 = data
                         .doc
-                        .point_of_offset(
+                        .point_of_line_col(
                             ctx.text(),
-                            right_offset,
+                            line,
+                            right_col,
                             font_size,
                             &data.config,
                         )
@@ -1180,6 +1194,15 @@ impl LapceEditor {
                         }
                     };
 
+                    let inlay_hints = if data.config.editor.enable_inlay_hints {
+                        data.doc.inlay_hints.hints_at_line(line as u32)
+                    } else {
+                        InlayHintsLine::default()
+                    };
+
+                    let left_col = inlay_hints.col_after(left_col);
+                    let right_col = inlay_hints.col_after(right_col);
+
                     let x0 = data
                         .doc
                         .point_of_line_col(
@@ -1213,6 +1236,7 @@ impl LapceEditor {
                     );
 
                     if is_focused {
+                        // TODO: probably need to mess with this
                         let line = data.doc.buffer().line_of_offset(*end);
 
                         let x0 = data
@@ -1305,6 +1329,17 @@ impl LapceEditor {
                                 _ => data.doc.buffer().line_end_col(line, true),
                             };
 
+                            let inlay_hints =
+                                if data.config.editor.enable_inlay_hints {
+                                    data.doc.inlay_hints.hints_at_line(line as u32)
+                                } else {
+                                    InlayHintsLine::default()
+                                };
+
+                            // Shift it by the inlay hints
+                            let left_col = inlay_hints.col_after(left_col);
+                            let right_col = inlay_hints.col_after(right_col);
+
                             if !line_content.is_empty() {
                                 let x0 = data
                                     .doc
@@ -1343,6 +1378,16 @@ impl LapceEditor {
                     if is_focused {
                         let (line, col) =
                             data.doc.buffer().offset_to_line_col(region.end());
+
+                        let inlay_hints = if data.config.editor.enable_inlay_hints {
+                            data.doc.inlay_hints.hints_at_line(line as u32)
+                        } else {
+                            InlayHintsLine::default()
+                        };
+
+                        // Shift it by the inlay hints
+                        let col = inlay_hints.col_after(col);
+
                         let x = data
                             .doc
                             .point_of_line_col(

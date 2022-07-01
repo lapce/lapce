@@ -48,6 +48,8 @@ impl LapceTheme {
     pub const EDITOR_CURRENT_LINE: &'static str = "editor.current_line";
     pub const EDITOR_LINK: &'static str = "editor.link";
 
+    pub const INLAY_HINT_FOREGROUND: &'static str = "inlay_hint.foreground";
+
     pub const SOURCE_CONTROL_ADDED: &'static str = "source_control.added";
     pub const SOURCE_CONTROL_REMOVED: &'static str = "source_control.removed";
     pub const SOURCE_CONTROL_MODIFIED: &'static str = "source_control.modified";
@@ -159,11 +161,37 @@ pub struct EditorConfig {
         desc = "Whether it should format the document on save (if there is an available formatter)"
     )]
     pub format_on_save: bool,
+    #[field_names(desc = "If inlay hints should be displayed")]
+    pub enable_inlay_hints: bool,
+    #[field_names(
+        desc = "Set the inlay hint font family. If empty, it uses the editor font family."
+    )]
+    pub inlay_hint_font_family: String,
+    #[field_names(
+        desc = "Set the inlay hint font size. If 0, it uses 0.8 * the editor's font size."
+    )]
+    pub inlay_hint_font_size: usize,
 }
 
 impl EditorConfig {
     pub fn font_family(&self) -> FontFamily {
         FontFamily::new_unchecked(self.font_family.clone())
+    }
+
+    pub fn inlay_hint_font_family(&self) -> FontFamily {
+        if self.inlay_hint_font_family.is_empty() {
+            self.font_family()
+        } else {
+            FontFamily::new_unchecked(self.inlay_hint_font_family.clone())
+        }
+    }
+
+    pub fn inlay_hint_font_size(&self) -> f64 {
+        if self.inlay_hint_font_size == 0 {
+            self.font_size as f64 * 0.8
+        } else {
+            self.inlay_hint_font_size as f64
+        }
     }
 }
 
