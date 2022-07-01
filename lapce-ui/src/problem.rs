@@ -10,8 +10,9 @@ use itertools::Itertools;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::{EditorDiagnostic, LapceTabData, PanelKind},
+    data::{EditorDiagnostic, LapceTabData},
     editor::EditorLocation,
+    panel::PanelKind,
     problem::ProblemData,
     proxy::path_from_url,
 };

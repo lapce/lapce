@@ -22,10 +22,11 @@ use lapce_data::{
     },
     config::{Config, LapceTheme},
     data::{
-        EditorTabChild, FocusArea, LapceEditorData, LapceTabData, PanelKind,
-        SplitContent, SplitData,
+        EditorTabChild, FocusArea, LapceEditorData, LapceTabData, SplitContent,
+        SplitData,
     },
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap},
+    panel::PanelKind,
     split::{SplitDirection, SplitMoveDirection},
     terminal::LapceTerminalData,
 };
@@ -540,10 +541,8 @@ impl LapceSplit {
 
             self.even_flex_children();
             ctx.children_changed();
-            for (_pos, panel) in data.panels.iter_mut() {
-                if panel.active == PanelKind::Terminal {
-                    Arc::make_mut(panel).shown = false;
-                }
+            if data.panel.is_panel_visible(&PanelKind::Terminal) {
+                Arc::make_mut(&mut data.panel).hide_panel(&PanelKind::Terminal);
             }
             if let Some(active) = *data.main_split.active_tab {
                 ctx.submit_command(Command::new(
@@ -982,7 +981,7 @@ impl Widget<LapceTabData> for LapceSplit {
     ) -> Size {
         let my_size = bc.max();
         if let Some(panel) = self.panel {
-            if let Some(pos) = data.panel_position(panel) {
+            if let Some((_, pos)) = data.panel.panel_position(&panel) {
                 if pos.is_bottom() {
                     self.direction = SplitDirection::Vertical;
                 } else {
@@ -1176,7 +1175,7 @@ impl Widget<LapceTabData> for LapceSplit {
             child.widget.paint(ctx, data, env);
         }
         if let Some(panel) = self.panel {
-            if let Some(pos) = data.panel_position(panel) {
+            if let Some((_, pos)) = data.panel.panel_position(&panel) {
                 if pos.is_bottom() {
                     self.show_border = true
                 } else {

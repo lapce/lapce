@@ -4,10 +4,7 @@ use druid::{
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size,
     UpdateCtx, Widget, WidgetExt, WidgetId,
 };
-use lapce_data::{
-    config::LapceTheme,
-    data::{LapceTabData, PanelKind},
-};
+use lapce_data::{config::LapceTheme, data::LapceTabData, panel::PanelKind};
 use lapce_rpc::plugin::PluginDescription;
 use strum_macros::Display;
 

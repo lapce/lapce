@@ -13,8 +13,8 @@ use lapce_data::{
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
-    data::{DragContent, LapceTabData, PanelKind},
-    panel::{PanelContainerPosition, PanelPosition},
+    data::{DragContent, LapceTabData},
+    panel::{PanelContainerPosition, PanelKind, PanelPosition},
 };
 
 use crate::{scroll::LapceScroll, split::LapceSplit, svg::get_svg, tab::LapceIcon};
@@ -311,7 +311,7 @@ impl Widget<LapceTabData> for PanelSectionHeader {
         let shadow_width = data.config.ui.drop_shadow_width() as f64;
         if shadow_width > 0.0 {
             ctx.with_save(|ctx| {
-                let pos = data.panel_position(self.kind).unwrap();
+                let (_, pos) = data.panel.panel_position(&self.kind).unwrap();
                 if pos.is_bottom() {
                     ctx.clip(rect.inset((0.0, 0.0, 0.0, 50.0)));
                 } else {
@@ -423,18 +423,22 @@ impl Widget<LapceTabData> for PanelContainer {
                 panel.event(ctx, event, data, env);
             }
         } else {
-            if let Some(panel) = data.panels.get(&self.position.first()) {
-                if panel.shown && !panel.widgets.is_empty() {
+            if let Some((panel, shown)) =
+                data.panel.active_panel_at_position(&self.position.first())
+            {
+                if shown {
                     self.panels
-                        .get_mut(&panel.active)
+                        .get_mut(&panel)
                         .unwrap()
                         .event(ctx, event, data, env);
                 }
             }
-            if let Some(panel) = data.panels.get(&self.position.second()) {
-                if panel.shown && !panel.widgets.is_empty() {
+            if let Some((panel, shown)) =
+                data.panel.active_panel_at_position(&self.position.second())
+            {
+                if shown {
                     self.panels
-                        .get_mut(&panel.active)
+                        .get_mut(&panel)
                         .unwrap()
                         .event(ctx, event, data, env);
                 }
@@ -465,16 +469,20 @@ impl Widget<LapceTabData> for PanelContainer {
     ) {
         self.switcher0.update(ctx, data, env);
         self.switcher1.update(ctx, data, env);
-        if let Some(panel) = data.panels.get(&self.position.first()) {
-            if panel.shown {
-                if let Some(panel) = self.panels.get_mut(&panel.active) {
+        if let Some((panel, shown)) =
+            data.panel.active_panel_at_position(&self.position.first())
+        {
+            if shown {
+                if let Some(panel) = self.panels.get_mut(&panel) {
                     panel.update(ctx, data, env);
                 }
             }
         }
-        if let Some(panel) = data.panels.get(&self.position.second()) {
-            if panel.shown {
-                if let Some(panel) = self.panels.get_mut(&panel.active) {
+        if let Some((panel, shown)) =
+            data.panel.active_panel_at_position(&self.position.second())
+        {
+            if shown {
+                if let Some(panel) = self.panels.get_mut(&panel) {
                     panel.update(ctx, data, env);
                 }
             }
@@ -493,34 +501,16 @@ impl Widget<LapceTabData> for PanelContainer {
 
         let (should_shown0, should_shown1) = match self.position {
             PanelContainerPosition::Left => (
-                data.panels
-                    .get(&PanelPosition::LeftTop)
-                    .map(|p| !p.widgets.is_empty())
-                    .unwrap_or(false),
-                data.panels
-                    .get(&PanelPosition::LeftBottom)
-                    .map(|p| !p.widgets.is_empty())
-                    .unwrap_or(false),
+                data.panel.position_has_panels(&PanelPosition::LeftTop),
+                data.panel.position_has_panels(&PanelPosition::LeftBottom),
             ),
             PanelContainerPosition::Right => (
-                data.panels
-                    .get(&PanelPosition::RightTop)
-                    .map(|p| !p.widgets.is_empty())
-                    .unwrap_or(false),
-                data.panels
-                    .get(&PanelPosition::RightBottom)
-                    .map(|p| !p.widgets.is_empty())
-                    .unwrap_or(false),
+                data.panel.position_has_panels(&PanelPosition::RightTop),
+                data.panel.position_has_panels(&PanelPosition::RightBottom),
             ),
             PanelContainerPosition::Bottom => (
-                data.panels
-                    .get(&PanelPosition::BottomLeft)
-                    .map(|p| !p.widgets.is_empty())
-                    .unwrap_or(false),
-                data.panels
-                    .get(&PanelPosition::BottomRight)
-                    .map(|p| !p.widgets.is_empty())
-                    .unwrap_or(false),
+                data.panel.position_has_panels(&PanelPosition::BottomLeft),
+                data.panel.position_has_panels(&PanelPosition::BottomRight),
             ),
         };
 
@@ -555,27 +545,21 @@ impl Widget<LapceTabData> for PanelContainer {
             );
         }
 
-        let panel_first = data.panels.get(&self.position.first()).and_then(|p| {
-            if p.shown && !p.widgets.is_empty() {
-                Some(&p.active)
-            } else {
-                None
-            }
-        });
-        let panel_second = data.panels.get(&self.position.second()).and_then(|p| {
-            if p.shown && !p.widgets.is_empty() {
-                Some(&p.active)
-            } else {
-                None
-            }
-        });
+        let panel_first = data
+            .panel
+            .active_panel_at_position(&self.position.first())
+            .map(|(panel, _)| panel);
+        let panel_second = data
+            .panel
+            .active_panel_at_position(&self.position.second())
+            .map(|(panel, _)| panel);
 
         match (panel_first, panel_second) {
             (Some(panel_first), Some(panel_second)) => {
                 let split = match self.position {
-                    PanelContainerPosition::Left => data.panel_size.left_split,
-                    PanelContainerPosition::Bottom => data.panel_size.bottom_split,
-                    PanelContainerPosition::Right => data.panel_size.right_split,
+                    PanelContainerPosition::Left => data.panel.size.left_split,
+                    PanelContainerPosition::Bottom => data.panel.size.bottom_split,
+                    PanelContainerPosition::Right => data.panel.size.right_split,
                 };
                 let separator = 4.0;
                 if is_bottom {
@@ -590,7 +574,7 @@ impl Widget<LapceTabData> for PanelContainer {
                         - switcher0_size
                         - switcher1_size
                         - size_fist;
-                    let panel_first = self.panels.get_mut(panel_first).unwrap();
+                    let panel_first = self.panels.get_mut(&panel_first).unwrap();
                     panel_first.layout(
                         ctx,
                         &BoxConstraints::tight(Size::new(
@@ -606,7 +590,7 @@ impl Widget<LapceTabData> for PanelContainer {
                         env,
                         Point::new(switcher0_size, 0.0),
                     );
-                    let panel_second = self.panels.get_mut(panel_second).unwrap();
+                    let panel_second = self.panels.get_mut(&panel_second).unwrap();
                     panel_second.layout(
                         ctx,
                         &BoxConstraints::tight(Size::new(
@@ -634,7 +618,7 @@ impl Widget<LapceTabData> for PanelContainer {
                         - switcher0_size
                         - switcher1_size
                         - size_fist;
-                    let panel_first = self.panels.get_mut(panel_first).unwrap();
+                    let panel_first = self.panels.get_mut(&panel_first).unwrap();
                     panel_first.layout(
                         ctx,
                         &BoxConstraints::tight(Size::new(
@@ -651,7 +635,7 @@ impl Widget<LapceTabData> for PanelContainer {
                         Point::new(0.0, switcher0_size),
                     );
 
-                    let panel_second = self.panels.get_mut(panel_second).unwrap();
+                    let panel_second = self.panels.get_mut(&panel_second).unwrap();
                     panel_second.layout(
                         ctx,
                         &BoxConstraints::tight(Size::new(
@@ -670,7 +654,7 @@ impl Widget<LapceTabData> for PanelContainer {
                 }
             }
             (Some(panel), None) | (None, Some(panel)) => {
-                let panel = self.panels.get_mut(panel).unwrap();
+                let panel = self.panels.get_mut(&panel).unwrap();
                 if is_bottom {
                     panel.layout(
                         ctx,
@@ -789,27 +773,35 @@ impl Widget<LapceTabData> for PanelContainer {
             }
         }
 
-        if let Some(panel) = data.panels.get(&self.position.first()) {
-            if panel.shown && !panel.widgets.is_empty() {
-                let panel = self.panels.get_mut(&panel.active).unwrap();
+        if let Some((panel, shown)) =
+            data.panel.active_panel_at_position(&self.position.first())
+        {
+            if shown {
+                let panel = self.panels.get_mut(&panel).unwrap();
                 panel.paint(ctx, data, env);
             }
         }
-        if let Some(panel) = data.panels.get(&self.position.second()) {
-            if panel.shown && !panel.widgets.is_empty() {
-                let panel = self.panels.get_mut(&panel.active).unwrap();
+        if let Some((panel, shown)) =
+            data.panel.active_panel_at_position(&self.position.second())
+        {
+            if shown {
+                let panel = self.panels.get_mut(&panel).unwrap();
                 panel.paint(ctx, data, env);
             }
         }
 
         let is_bottom = self.position.is_bottom();
-        if let Some(panel0) = data.panels.get(&self.position.first()) {
-            if panel0.shown && !panel0.widgets.is_empty() {
-                if let Some(panel1) = data.panels.get(&self.position.second()) {
-                    if panel1.shown && !panel1.widgets.is_empty() {
-                        let panel0 = self.panels.get_mut(&panel0.active).unwrap();
+        if let Some((panel0, shown0)) =
+            data.panel.active_panel_at_position(&self.position.first())
+        {
+            if shown0 {
+                if let Some((panel1, shown1)) =
+                    data.panel.active_panel_at_position(&self.position.second())
+                {
+                    if shown1 {
+                        let panel0 = self.panels.get_mut(&panel0).unwrap();
                         let panel0_rect = panel0.layout_rect();
-                        let panel1 = self.panels.get_mut(&panel1.active).unwrap();
+                        let panel1 = self.panels.get_mut(&panel1).unwrap();
                         let panel1_rect = panel1.layout_rect();
                         if is_bottom {
                             ctx.stroke(
@@ -887,8 +879,8 @@ impl PanelSwitcher {
 
     fn update_icons(&mut self, self_size: Size, data: &LapceTabData) {
         let mut icons = Vec::new();
-        if let Some(panel) = data.panels.get(&self.position) {
-            for kind in panel.widgets.iter() {
+        if let Some(order) = data.panel.order.get(&self.position) {
+            for kind in order.iter() {
                 icons.push(Self::panel_icon(kind, data));
             }
         }
@@ -1050,9 +1042,10 @@ impl Widget<LapceTabData> for PanelSwitcher {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let should_show = data
-            .panels
+            .panel
+            .order
             .get(&self.position)
-            .map(|p| !p.widgets.is_empty())
+            .map(|p| !p.is_empty())
             .unwrap_or(false);
         if !should_show {
             return;
@@ -1158,9 +1151,11 @@ impl Widget<LapceTabData> for PanelSwitcher {
         let icon_padding = Self::icon_padding(data);
         let is_bottom = self.position.is_bottom();
         let mut active_kinds = Vec::new();
-        if let Some(panel) = data.panels.get(&self.position) {
-            if panel.shown {
-                active_kinds.push(panel.active);
+        if let Some((panel, shown)) =
+            data.panel.active_panel_at_position(&self.position)
+        {
+            if shown {
+                active_kinds.push(panel);
             }
         }
         for (kind, icon) in self.icons.iter() {

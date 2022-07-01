@@ -23,6 +23,7 @@ use crate::{
     },
     document::{BufferContent, Document},
     editor::EditorLocation,
+    panel::{PanelData, PanelOrder},
     split::SplitDirection,
 };
 
@@ -216,6 +217,7 @@ impl SplitInfo {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WorkspaceInfo {
     pub split: SplitInfo,
+    pub panel: PanelData,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -479,6 +481,16 @@ impl LapceDb {
         let info = std::str::from_utf8(&info)?;
         let info: WindowInfo = serde_json::from_str(info)?;
         Ok(info)
+    }
+
+    pub fn get_panel_orders(&self) -> Result<PanelOrder> {
+        let sled_db = self.get_db()?;
+        let panel_orders = sled_db
+            .get("panel_orders")?
+            .ok_or_else(|| anyhow!("can't find panel orders"))?;
+        let panel_orders = std::str::from_utf8(&panel_orders)?;
+        let panel_orders: PanelOrder = serde_json::from_str(panel_orders)?;
+        Ok(panel_orders)
     }
 
     fn insert_workspace(

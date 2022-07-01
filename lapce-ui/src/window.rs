@@ -75,6 +75,7 @@ impl LapceWindow {
             workspace,
             data.db.clone(),
             data.keypress.clone(),
+            data.panel_orders.clone(),
             ctx.get_external_handle(),
         );
         let tab = LapceTab::new(&mut tab_data).lens(LapceTabLens(tab_id));

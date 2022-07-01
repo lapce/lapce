@@ -11,7 +11,9 @@ use druid::{
 use druid::{ExtEventSink, KbKey, WindowId};
 use lapce_data::data::{LapceData, LapceEditorData};
 use lapce_data::document::{BufferContent, LocalBufferKind};
+use lapce_data::explorer::FileExplorerData;
 use lapce_data::explorer::Naming;
+use lapce_data::panel::PanelKind;
 use lapce_data::proxy::LapceProxy;
 use lapce_data::{
     command::LapceUICommand,
@@ -19,7 +21,6 @@ use lapce_data::{
     config::{Config, LapceTheme},
     data::LapceTabData,
 };
-use lapce_data::{data::PanelKind, explorer::FileExplorerData};
 use lapce_rpc::file::FileNodeItem;
 
 use crate::editor::view::LapceEditorView;

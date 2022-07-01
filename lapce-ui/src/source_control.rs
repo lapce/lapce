@@ -13,7 +13,8 @@ use lapce_data::{
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
-    data::{FocusArea, LapceTabData, PanelKind},
+    data::{FocusArea, LapceTabData},
+    panel::PanelKind,
 };
 use lapce_rpc::source_control::FileDiff;
 

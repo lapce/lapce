@@ -21,13 +21,14 @@ use crate::command::CommandKind;
 use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::document::BufferContent;
 use crate::editor::EditorLocation;
+use crate::panel::PanelKind;
 use crate::proxy::path_from_url;
 use crate::{
     command::LAPCE_UI_COMMAND,
     command::{CommandExecuted, LAPCE_COMMAND},
     command::{LapceCommand, LapceUICommand},
     config::Config,
-    data::{FocusArea, LapceMainSplitData, LapceTabData, PanelKind},
+    data::{FocusArea, LapceMainSplitData, LapceTabData},
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
     proxy::LapceProxy,

@@ -56,7 +56,10 @@ use crate::{
     hover::HoverData,
     keypress::KeyPressData,
     palette::{PaletteData, PaletteType, PaletteViewData},
-    panel::PanelPosition,
+    panel::{
+        PanelContainerPosition, PanelData, PanelKind, PanelOrder, PanelPosition,
+        PanelSize,
+    },
     picker::FilePickerData,
     plugin::PluginData,
     problem::ProblemData,
@@ -82,6 +85,8 @@ pub struct LapceData {
     pub keypress: Arc<KeyPressData>,
     /// The persistent state of the program, such as recent workspaces.
     pub db: Arc<LapceDb>,
+    /// The order of panels in each postion
+    pub panel_orders: PanelOrder,
 }
 
 impl LapceData {
@@ -92,11 +97,15 @@ impl LapceData {
         let mut windows = im::HashMap::new();
         let config = Config::load(&LapceWorkspace::default()).unwrap_or_default();
         let keypress = Arc::new(KeyPressData::new(&config, event_sink.clone()));
+        let panel_orders = db
+            .get_panel_orders()
+            .unwrap_or_else(|_| Self::default_panel_orders());
 
         if let Ok(app) = db.get_app() {
             for info in app.windows.iter() {
                 let window = LapceWindowData::new(
                     keypress.clone(),
+                    panel_orders.clone(),
                     event_sink.clone(),
                     info,
                     db.clone(),
@@ -117,6 +126,7 @@ impl LapceData {
             });
             let window = LapceWindowData::new(
                 keypress.clone(),
+                panel_orders.clone(),
                 event_sink.clone(),
                 &info,
                 db.clone(),
@@ -137,7 +147,26 @@ impl LapceData {
             windows,
             keypress,
             db,
+            panel_orders,
         }
+    }
+
+    pub fn default_panel_orders() -> PanelOrder {
+        let mut order = PanelOrder::new();
+        order.insert(
+            PanelPosition::LeftTop,
+            im::vector![
+                PanelKind::FileExplorer,
+                PanelKind::SourceControl,
+                PanelKind::Plugin,
+            ],
+        );
+        order.insert(
+            PanelPosition::BottomLeft,
+            im::vector![PanelKind::Terminal, PanelKind::Search, PanelKind::Problem,],
+        );
+
+        order
     }
 
     pub fn reload_env(&self, env: &mut Env) {
@@ -212,6 +241,7 @@ pub struct LapceWindowData {
     pub maximised: bool,
     /// The position of the window.
     pub pos: Point,
+    pub panel_orders: PanelOrder,
 }
 
 impl Data for LapceWindowData {
@@ -223,12 +253,14 @@ impl Data for LapceWindowData {
             && self.maximised.same(&other.maximised)
             && self.keypress.same(&other.keypress)
             && self.plugins.same(&other.plugins)
+            && self.panel_orders.same(&other.panel_orders)
     }
 }
 
 impl LapceWindowData {
     pub fn new(
         keypress: Arc<KeyPressData>,
+        panel_orders: PanelOrder,
         event_sink: ExtEventSink,
         info: &WindowInfo,
         db: Arc<LapceDb>,
@@ -247,6 +279,7 @@ impl LapceWindowData {
                 workspace.clone(),
                 db.clone(),
                 keypress.clone(),
+                panel_orders.clone(),
                 event_sink.clone(),
             );
             tabs.insert(tab_id, tab);
@@ -265,6 +298,7 @@ impl LapceWindowData {
                 LapceWorkspace::default(),
                 db.clone(),
                 keypress.clone(),
+                panel_orders.clone(),
                 event_sink.clone(),
             );
             tabs.insert(tab_id, tab);
@@ -315,6 +349,7 @@ impl LapceWindowData {
             size: info.size,
             pos: info.pos,
             maximised: info.maximised,
+            panel_orders,
         }
     }
 
@@ -349,57 +384,6 @@ pub struct EditorDiagnostic {
     pub range: Option<(usize, usize)>,
     pub diagnostic: Diagnostic,
     pub lines: usize,
-}
-
-#[derive(Clone, Copy, PartialEq, Data, Serialize, Deserialize, Hash, Eq, Debug)]
-pub enum PanelKind {
-    FileExplorer,
-    SourceControl,
-    Plugin,
-    Terminal,
-    Search,
-    Problem,
-}
-
-impl PanelKind {
-    pub fn svg_name(&self) -> &'static str {
-        match &self {
-            PanelKind::FileExplorer => "file-explorer.svg",
-            PanelKind::SourceControl => "git-icon.svg",
-            PanelKind::Plugin => "plugin-icon.svg",
-            PanelKind::Terminal => "terminal.svg",
-            PanelKind::Search => "search.svg",
-            PanelKind::Problem => "error.svg",
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct PanelData {
-    pub active: PanelKind,
-    pub widgets: Vec<PanelKind>,
-    pub shown: bool,
-    pub maximized: bool,
-}
-
-impl PanelData {
-    pub fn is_shown(&self) -> bool {
-        self.shown && !self.widgets.is_empty()
-    }
-
-    pub fn is_maximized(&self) -> bool {
-        self.maximized && !self.widgets.is_empty()
-    }
-}
-
-#[derive(Clone, Data)]
-pub struct PanelSize {
-    pub left: f64,
-    pub left_split: f64,
-    pub bottom: f64,
-    pub bottom_split: f64,
-    pub right: f64,
-    pub right_split: f64,
 }
 
 #[derive(Clone)]
@@ -451,9 +435,7 @@ pub struct LapceTabData {
     pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
     pub term_rx: Option<Receiver<(TermId, TermEvent)>>,
     pub window_origin: Rc<RefCell<Point>>,
-    pub panels: im::HashMap<PanelPosition, Arc<PanelData>>,
-    pub panel_active: PanelPosition,
-    pub panel_size: PanelSize,
+    pub panel: Arc<PanelData>,
     pub config: Arc<Config>,
     pub focus: WidgetId,
     pub focus_area: FocusArea,
@@ -470,13 +452,11 @@ impl Data for LapceTabData {
             && self.palette.same(&other.palette)
             && self.workspace.same(&other.workspace)
             && self.source_control.same(&other.source_control)
-            && self.panels.same(&other.panels)
-            && self.panel_size.same(&other.panel_size)
+            && self.panel.same(&other.panel)
             && self.config.same(&other.config)
             && self.terminal.same(&other.terminal)
             && self.focus == other.focus
             && self.focus_area == other.focus_area
-            && self.panel_active == other.panel_active
             && self.proxy_status.same(&other.proxy_status)
             && self.find.same(&other.find)
             && self.alert.same(&other.alert)
@@ -506,6 +486,7 @@ impl LapceTabData {
         workspace: LapceWorkspace,
         db: Arc<LapceDb>,
         keypress: Arc<KeyPressData>,
+        panel_orders: PanelOrder,
         event_sink: ExtEventSink,
     ) -> Self {
         let config = Arc::new(Config::load(&workspace).unwrap_or_default());
@@ -594,43 +575,10 @@ impl LapceTabData {
 
         let terminal = Arc::new(TerminalSplitData::new(proxy.clone()));
         let problem = Arc::new(ProblemData::new());
+        let panel = workspace_info
+            .map(|i| i.panel)
+            .unwrap_or_else(|| PanelData::new(panel_orders));
 
-        let mut panels = im::HashMap::new();
-        panels.insert(
-            PanelPosition::LeftTop,
-            Arc::new(PanelData {
-                active: PanelKind::FileExplorer,
-                widgets: vec![
-                    PanelKind::FileExplorer,
-                    PanelKind::SourceControl,
-                    PanelKind::Plugin,
-                ],
-                shown: true,
-                maximized: false,
-            }),
-        );
-        panels.insert(
-            PanelPosition::BottomLeft,
-            Arc::new(PanelData {
-                active: PanelKind::Terminal,
-                widgets: vec![
-                    PanelKind::Terminal,
-                    PanelKind::Search,
-                    PanelKind::Problem,
-                ],
-                shown: true,
-                maximized: false,
-            }),
-        );
-        panels.insert(
-            PanelPosition::RightTop,
-            Arc::new(PanelData {
-                active: PanelKind::Terminal,
-                widgets: vec![],
-                shown: false,
-                maximized: false,
-            }),
-        );
         let focus = (*main_split.active).unwrap_or(*main_split.split_id);
         let mut tab = Self {
             id: tab_id,
@@ -659,16 +607,7 @@ impl LapceTabData {
             proxy_status: Arc::new(ProxyStatus::Connecting),
             keypress,
             window_origin: Rc::new(RefCell::new(Point::ZERO)),
-            panels,
-            panel_size: PanelSize {
-                left: 250.0,
-                left_split: 0.5,
-                bottom: 300.0,
-                bottom_split: 0.5,
-                right: 250.0,
-                right_split: 0.5,
-            },
-            panel_active: PanelPosition::LeftTop,
+            panel: Arc::new(panel),
             config,
             focus_area: FocusArea::Editor,
             db,
@@ -687,6 +626,7 @@ impl LapceTabData {
             .unwrap();
         WorkspaceInfo {
             split: main_split_data.split_info(self),
+            panel: (*self.panel).clone(),
         }
     }
 
@@ -775,65 +715,8 @@ impl LapceTabData {
         }
     }
 
-    pub fn panel_left_shown(&self) -> bool {
-        self.panels
-            .get(&PanelPosition::LeftTop)
-            .map(|p| p.shown)
-            .unwrap_or(false)
-            || self
-                .panels
-                .get(&PanelPosition::LeftBottom)
-                .map(|p| p.shown)
-                .unwrap_or(false)
-    }
-
     pub fn is_drag_editor(&self) -> bool {
         matches!(&*self.drag, Some((_, DragContent::EditorTab(..))))
-    }
-
-    pub fn panel_right_shown(&self) -> bool {
-        self.panels
-            .get(&PanelPosition::RightTop)
-            .map(|p| p.shown)
-            .unwrap_or(false)
-            || self
-                .panels
-                .get(&PanelPosition::RightBottom)
-                .map(|p| p.shown)
-                .unwrap_or(false)
-    }
-
-    pub fn panel_bottom_shown(&self) -> bool {
-        self.panels
-            .get(&PanelPosition::BottomLeft)
-            .map(|p| p.shown)
-            .unwrap_or(false)
-            || self
-                .panels
-                .get(&PanelPosition::BottomRight)
-                .map(|p| p.shown)
-                .unwrap_or(false)
-    }
-
-    pub fn panel_bottom_maximized(&self) -> bool {
-        self.panels
-            .get(&PanelPosition::BottomLeft)
-            .map(|p| p.maximized)
-            .unwrap_or(false)
-            || self
-                .panels
-                .get(&PanelPosition::BottomRight)
-                .map(|p| p.maximized)
-                .unwrap_or(false)
-    }
-
-    pub fn panel_position(&self, kind: PanelKind) -> Option<PanelPosition> {
-        for (pos, panels) in self.panels.iter() {
-            if panels.widgets.contains(&kind) {
-                return Some(*pos);
-            }
-        }
-        None
     }
 
     pub fn update_from_editor_buffer_data(
@@ -1228,20 +1111,10 @@ impl LapceTabData {
             LapceWorkbenchCommand::ToggleMaximizedPanel => {
                 if let Some(data) = data {
                     if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
-                        for (_, panel) in self.panels.iter_mut() {
-                            if panel.widgets.contains(&kind) {
-                                if panel.active == kind {
-                                    let panel = Arc::make_mut(panel);
-                                    panel.maximized = !panel.maximized;
-                                }
-                                break;
-                            }
-                        }
+                        Arc::make_mut(&mut self.panel).toggle_maximize(&kind);
                     }
                 } else {
-                    let panel = self.panels.get_mut(&self.panel_active).unwrap();
-                    let panel = Arc::make_mut(panel);
-                    panel.maximized = !panel.maximized;
+                    Arc::make_mut(&mut self.panel).toggle_active_maximize();
                 }
             }
             LapceWorkbenchCommand::FocusEditor => {
@@ -1287,35 +1160,16 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::TogglePanelLeftVisual => {
-                let shown = !self.panel_left_shown();
-                if let Some(panel) = self.panels.get_mut(&PanelPosition::LeftTop) {
-                    Arc::make_mut(panel).shown = shown;
-                }
-                if let Some(panel) = self.panels.get_mut(&PanelPosition::LeftBottom)
-                {
-                    Arc::make_mut(panel).shown = shown;
-                }
+                Arc::make_mut(&mut self.panel)
+                    .toggle_container_visual(&PanelContainerPosition::Left);
             }
             LapceWorkbenchCommand::TogglePanelRightVisual => {
-                let shown = !self.panel_right_shown();
-                if let Some(panel) = self.panels.get_mut(&PanelPosition::RightTop) {
-                    Arc::make_mut(panel).shown = shown;
-                }
-                if let Some(panel) = self.panels.get_mut(&PanelPosition::RightBottom)
-                {
-                    Arc::make_mut(panel).shown = shown;
-                }
+                Arc::make_mut(&mut self.panel)
+                    .toggle_container_visual(&PanelContainerPosition::Right);
             }
             LapceWorkbenchCommand::TogglePanelBottomVisual => {
-                let shown = !self.panel_bottom_shown();
-                if let Some(panel) = self.panels.get_mut(&PanelPosition::BottomLeft)
-                {
-                    Arc::make_mut(panel).shown = shown;
-                }
-                if let Some(panel) = self.panels.get_mut(&PanelPosition::BottomRight)
-                {
-                    Arc::make_mut(panel).shown = shown;
-                }
+                Arc::make_mut(&mut self.panel)
+                    .toggle_container_visual(&PanelContainerPosition::Bottom);
             }
             LapceWorkbenchCommand::ToggleSourceControlFocus => {
                 self.toggle_panel_focus(ctx, PanelKind::SourceControl);
@@ -1542,36 +1396,15 @@ impl LapceTabData {
         }
     }
 
-    fn is_panel_visible(&self, kind: PanelKind) -> bool {
-        for (_, panel) in self.panels.iter() {
-            if panel.widgets.contains(&kind) {
-                return panel.active == kind && panel.shown;
-            }
-        }
-
-        false
-    }
-
     fn is_panel_focused(&self, kind: PanelKind) -> bool {
         // Moving between e.g. Search and Problems doesn't affect focus, so we need to also check
         // visibility.
-        self.focus_area == FocusArea::Panel(kind) && self.is_panel_visible(kind)
+        self.focus_area == FocusArea::Panel(kind)
+            && self.panel.is_panel_visible(&kind)
     }
 
     fn hide_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
-        for (p, panel) in self.panels.iter_mut() {
-            if panel.active == kind && !panel.widgets.is_empty() {
-                let panel = Arc::make_mut(panel);
-                panel.shown = false;
-                let peer = p.peer();
-                if let Some(peer) = self.panels.get_mut(&peer) {
-                    if peer.widgets.is_empty() {
-                        Arc::make_mut(peer).shown = false;
-                    }
-                }
-                break;
-            }
-        }
+        Arc::make_mut(&mut self.panel).hide_panel(&kind);
         if let Some(active) = *self.main_split.active_tab {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
@@ -1581,44 +1414,37 @@ impl LapceTabData {
         }
     }
 
-    fn show_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
-        for (_, panel) in self.panels.iter_mut() {
-            if panel.widgets.contains(&kind) {
-                let panel = Arc::make_mut(panel);
-                panel.shown = true;
-                panel.active = kind;
-                let focus_id = match kind {
-                    PanelKind::FileExplorer => self.file_explorer.widget_id,
-                    PanelKind::SourceControl => self.source_control.active,
-                    PanelKind::Plugin => self.plugin.widget_id,
-                    PanelKind::Terminal => self.terminal.widget_id,
-                    PanelKind::Search => self.search.active,
-                    PanelKind::Problem => self.problem.widget_id,
-                };
-                if let PanelKind::Search = kind {
-                    ctx.submit_command(Command::new(
-                        LAPCE_COMMAND,
-                        LapceCommand {
-                            kind: CommandKind::MultiSelection(
-                                MultiSelectionCommand::SelectAll,
-                            ),
-                            data: None,
-                        },
-                        Target::Widget(focus_id),
-                    ));
-                }
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::Focus,
-                    Target::Widget(focus_id),
-                ));
-                break;
-            }
+    pub fn show_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
+        Arc::make_mut(&mut self.panel).show_panel(&kind);
+        let focus_id = match kind {
+            PanelKind::FileExplorer => self.file_explorer.widget_id,
+            PanelKind::SourceControl => self.source_control.active,
+            PanelKind::Plugin => self.plugin.widget_id,
+            PanelKind::Terminal => self.terminal.widget_id,
+            PanelKind::Search => self.search.active,
+            PanelKind::Problem => self.problem.widget_id,
+        };
+        if let PanelKind::Search = kind {
+            ctx.submit_command(Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::MultiSelection(
+                        MultiSelectionCommand::SelectAll,
+                    ),
+                    data: None,
+                },
+                Target::Widget(focus_id),
+            ));
         }
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(focus_id),
+        ));
     }
 
     fn toggle_panel_visual(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
-        if self.is_panel_visible(kind) {
+        if self.panel.is_panel_visible(&kind) {
             self.hide_panel(ctx, kind);
         } else {
             self.show_panel(ctx, kind);
@@ -1630,7 +1456,7 @@ impl LapceTabData {
             PanelKind::FileExplorer | PanelKind::Plugin | PanelKind::Problem => {
                 // Some panels don't accept focus (yet). Fall back to visibility check
                 // in those cases.
-                self.is_panel_visible(kind)
+                self.panel.is_panel_visible(&kind)
             }
             PanelKind::Terminal | PanelKind::SourceControl | PanelKind::Search => {
                 self.is_panel_focused(kind)
@@ -1741,8 +1567,14 @@ impl Lens<LapceWindowData, LapceTabData> for LapceTabLens {
         let mut tab = data.tabs.get(&self.0).unwrap().clone();
         tab.keypress = data.keypress.clone();
         tab.plugins = data.plugins.clone();
+        if !tab.panel.order.same(&data.panel_orders) {
+            Arc::make_mut(&mut tab.panel).order = data.panel_orders.clone();
+        }
         let result = f(&mut tab);
         data.keypress = tab.keypress.clone();
+        if !tab.panel.order.same(&data.panel_orders) {
+            data.panel_orders = tab.panel.order.clone();
+        }
         if !tab.same(data.tabs.get(&self.0).unwrap()) {
             data.tabs.insert(self.0, tab);
         }
@@ -1769,8 +1601,10 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
     ) -> V {
         let mut win = data.windows.get(&self.0).unwrap().clone();
         win.keypress = data.keypress.clone();
+        win.panel_orders = data.panel_orders.clone();
         let result = f(&mut win);
         data.keypress = win.keypress.clone();
+        data.panel_orders = win.panel_orders.clone();
         if !win.same(data.windows.get(&self.0).unwrap()) {
             data.windows.insert(self.0, win);
         }

@@ -22,10 +22,10 @@ use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use xi_rope::{spans::Spans, Rope};
 
 use crate::alert::AlertContentData;
-use crate::data::{LapceWorkspace, PanelKind};
+use crate::data::LapceWorkspace;
 use crate::document::BufferContent;
 use crate::menu::MenuKind;
-use crate::panel::PanelPosition;
+use crate::panel::{PanelKind, PanelPosition};
 use crate::rich_text::RichText;
 use crate::{
     data::{EditorTabChild, SplitContent},
@@ -512,11 +512,6 @@ pub enum LapceUICommand {
         rev: u64,
         history: String,
         changes: Arc<Vec<DiffLines>>,
-    },
-    MovePanel {
-        kind: PanelKind,
-        from: PanelPosition,
-        to: PanelPosition,
     },
     CenterOfWindow,
     UpdateLineChanges(BufferId),
