@@ -1,0 +1,68 @@
+[theme]
+name = "Sweet Raw"
+
+[ui]
+font-size = 14
+font-family = "Roboto"
+drop-shadow-width = 1
+status-height = 30
+header-height = 40
+tab-min-width = 120
+scroll-width = 15
+
+
+[terminal]
+font-family = "Roboto"
+font-size = 14
+line-height = 22
+shell = "bash"
+[theme.base]
+
+
+[theme.syntax]
+"comment" = "#5C6370"
+"constant" = "$yellow"
+"type" = "$yellow"
+"typeAlias" = "$yellow"
+"number" = "$yellow"
+"enum" = "$yellow"
+"struct" = "$yellow"
+"structure" = "$yellow"
+"interface" = "$yellow"
+"attribute" = "$yellow"
+"constructor" = "$yellow"
+"function" = "$blue"
+"method" = "$blue"
+"function.method" = "$blue"
+"keyword" = "$purple"
+"selfKeyword" = "$purple"
+"field" = "$red"
+"property" = "$red"
+"enumMember" = "$red"
+"enum-member" = "$red"
+"variable.other.member" = "$red"
+"string" = "$green"
+"type.builtin" = "$cyan"
+"builtinType" = "$cyan"
+"escape" = "$cyan"
+"embedded" = "$cyan"
+
+[theme.ui]
+"activity.background" = "#181b28"
+"completion.background" = "#181b28"
+"editor.background" = "#181b28"
+"lapce.border" = "#10121f"
+"lapce.dropdown_shadow" = "#10121f"
+"panel.background" = "#171926"
+"status.background" = "#171926"
+"terminal.background" = "#171926"
+"lapce.active_tab" = "#10121f"
+"activity.current" = "#181b28"
+"editor.focus" = "#c50ed2"
+"palette.background" = "#0c0e14"
+"palette.current" = "#202d40"
+
+[editor]
+font-family = "Roboto"
+font-size = 14
+tab-width = 5
