@@ -634,9 +634,16 @@ impl Document {
                 buffer_id,
                 Box::new(move |result| {
                     if let Ok(res) = result {
-                        if let Ok(resp) =
+                        if let Ok(mut resp) =
                             serde_json::from_value::<Vec<InlayHint>>(res)
                         {
+                            // Sort the inlay hints by their position, as the LSP does not guarantee that it will
+                            // provide them in the order that they are in within the file
+                            // as well, Spans does not iterate in the order that they appear
+                            resp.sort_by(|left, right| {
+                                left.position.cmp(&right.position)
+                            });
+
                             let mut hints_span = SpansBuilder::new(len);
                             for hint in resp {
                                 let offset = buffer
