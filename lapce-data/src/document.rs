@@ -14,7 +14,7 @@ use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    ExtEventSink, Point, SingleUse, Size, Target, Vec2, WidgetId,
+    Color, ExtEventSink, Point, SingleUse, Size, Target, Vec2, WidgetId,
 };
 use lapce_core::{
     buffer::{Buffer, DiffLines, InvalLines},
@@ -63,10 +63,20 @@ impl Clipboard for SystemClipboard {
     }
 }
 
+pub struct LineExtraStyle {
+    pub bg_color: Option<Color>,
+    pub under_line: Option<Color>,
+}
+
+pub struct TextLayoutLine {
+    pub extra_style: Vec<(f64, f64, LineExtraStyle)>,
+    pub text: PietTextLayout,
+}
+
 #[derive(Clone, Default)]
 pub struct TextLayoutCache {
     config_id: u64,
-    pub layouts: HashMap<usize, Arc<PietTextLayout>>,
+    pub layouts: HashMap<usize, Arc<TextLayoutLine>>,
 }
 
 impl TextLayoutCache {
@@ -1131,7 +1141,7 @@ impl Document {
         config: &Config,
     ) -> Point {
         let text_layout = self.get_text_layout(text, line, font_size, config);
-        text_layout.hit_test_text_position(col).point
+        text_layout.text.hit_test_text_position(col).point
     }
 
     pub fn offset_of_point(
@@ -1153,7 +1163,7 @@ impl Document {
         };
 
         let text_layout = self.get_text_layout(text, line, font_size, config);
-        let hit_point = text_layout.hit_test_point(Point::new(point.x, 0.0));
+        let hit_point = text_layout.text.hit_test_point(Point::new(point.x, 0.0));
         let col = inlay_hints.before_col(hit_point.idx);
         let max_col = self.buffer.line_end_col(line, mode != Mode::Normal);
         (
@@ -1171,7 +1181,7 @@ impl Document {
     ) -> Point {
         let (line, col) = self.buffer.offset_to_line_col(offset);
         let text_layout = self.get_text_layout(text, line, font_size, config);
-        text_layout.hit_test_text_position(col).point
+        text_layout.text.hit_test_text_position(col).point
     }
 
     pub fn get_text_layout(
@@ -1180,7 +1190,7 @@ impl Document {
         line: usize,
         font_size: usize,
         config: &Config,
-    ) -> Arc<PietTextLayout> {
+    ) -> Arc<TextLayoutLine> {
         self.text_layouts.borrow_mut().check_attributes(config.id);
         if self.text_layouts.borrow().layouts.get(&line).is_none() {
             self.text_layouts.borrow_mut().layouts.insert(
@@ -1202,7 +1212,7 @@ impl Document {
         line: usize,
         font_size: usize,
         config: &Config,
-    ) -> PietTextLayout {
+    ) -> TextLayoutLine {
         let line_content = self.buffer.line_content(line);
 
         let inlay_hints = if config.editor.enable_inlay_hints {
@@ -1255,7 +1265,6 @@ impl Document {
         for (offset, size, hint) in inlay_hints.offset_size_iter() {
             let start = hint.position.character as usize + offset;
             let end = start + size;
-            // TODO: config option for the background
             layout_builder = layout_builder.range_attribute(
                 start..end,
                 TextAttribute::FontSize(config.editor.inlay_hint_font_size()),
@@ -1274,7 +1283,28 @@ impl Document {
             );
         }
 
-        layout_builder.build().unwrap()
+        let text = layout_builder.build().unwrap();
+        let mut extra_style = Vec::new();
+        for (offset, size, hint) in inlay_hints.offset_size_iter() {
+            let start = hint.position.character as usize + offset;
+            let end = start + size;
+            let x0 = text.hit_test_text_position(start).point.x;
+            let x1 = text.hit_test_text_position(end).point.x;
+            extra_style.push((
+                x0,
+                x1,
+                LineExtraStyle {
+                    bg_color: Some(
+                        config
+                            .get_color_unchecked(LapceTheme::INLAY_HINT_BACKGROUND)
+                            .clone(),
+                    ),
+                    under_line: None,
+                },
+            ));
+        }
+
+        TextLayoutLine { text, extra_style }
     }
 
     pub fn line_horiz_col(
@@ -1290,7 +1320,7 @@ impl Document {
             ColPosition::Col(x) => {
                 let text_layout =
                     self.get_text_layout(text, line, font_size, config);
-                let n = text_layout.hit_test_point(Point::new(x, 0.0)).idx;
+                let n = text_layout.text.hit_test_point(Point::new(x, 0.0)).idx;
                 n.min(self.buffer.line_end_col(line, caret))
             }
             ColPosition::End => self.buffer.line_end_col(line, caret),

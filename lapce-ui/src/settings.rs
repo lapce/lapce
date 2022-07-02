@@ -1329,8 +1329,8 @@ impl Widget<LapceTabData> for ThemeSettings {
                         .default_theme
                         .syntax
                         .get(&self.keys[i])
-                        .unwrap()
-                        .to_string();
+                        .cloned()
+                        .unwrap_or_else(|| "".to_string());
                     (
                         data.config.theme.syntax.get(&self.keys[i]).unwrap()
                             != &default,

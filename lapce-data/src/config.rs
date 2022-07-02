@@ -49,6 +49,7 @@ impl LapceTheme {
     pub const EDITOR_LINK: &'static str = "editor.link";
 
     pub const INLAY_HINT_FOREGROUND: &'static str = "inlay_hint.foreground";
+    pub const INLAY_HINT_BACKGROUND: &'static str = "inlay_hint.background";
 
     pub const SOURCE_CONTROL_ADDED: &'static str = "source_control.added";
     pub const SOURCE_CONTROL_REMOVED: &'static str = "source_control.removed";
@@ -168,7 +169,7 @@ pub struct EditorConfig {
     )]
     pub inlay_hint_font_family: String,
     #[field_names(
-        desc = "Set the inlay hint font size. If 0, it uses 0.8 * the editor's font size."
+        desc = "Set the inlay hint font size. If less than 5 or greater than editor font size, it uses the editor font size."
     )]
     pub inlay_hint_font_size: usize,
 }
@@ -187,8 +188,10 @@ impl EditorConfig {
     }
 
     pub fn inlay_hint_font_size(&self) -> f64 {
-        if self.inlay_hint_font_size == 0 {
-            self.font_size as f64 * 0.8
+        if self.inlay_hint_font_size < 5
+            || self.inlay_hint_font_size > self.font_size
+        {
+            self.font_size as f64
         } else {
             self.inlay_hint_font_size as f64
         }
