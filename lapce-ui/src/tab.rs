@@ -953,6 +953,12 @@ impl LapceTab {
                                         }
                                     }
                                     lsp_types::WorkDoneProgress::End(_end) => {
+                                        for view_id in data.main_split.editors.keys()
+                                        {
+                                            let editor_data =
+                                                data.editor_view_content(*view_id);
+                                            editor_data.get_inlay_hints(ctx);
+                                        }
                                         for i in data
                                             .progresses
                                             .iter()
