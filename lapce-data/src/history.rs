@@ -5,7 +5,7 @@ use std::{
 };
 
 use druid::{
-    piet::{PietText, PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
+    piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
     Target,
 };
 use lapce_core::{
@@ -22,7 +22,7 @@ use xi_rope::{spans::Spans, Rope};
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    document::{BufferContent, Document, TextLayoutCache},
+    document::{BufferContent, Document, TextLayoutCache, TextLayoutLine},
 };
 
 #[derive(Clone)]
@@ -80,7 +80,7 @@ impl DocumentHistory {
         text: &mut PietText,
         line: usize,
         config: &Config,
-    ) -> Arc<PietTextLayout> {
+    ) -> Arc<TextLayoutLine> {
         self.text_layouts.borrow_mut().check_attributes(config.id);
         if self.text_layouts.borrow().layouts.get(&line).is_none() {
             self.text_layouts
@@ -101,7 +101,7 @@ impl DocumentHistory {
         text: &mut PietText,
         line: usize,
         config: &Config,
-    ) -> PietTextLayout {
+    ) -> TextLayoutLine {
         let line_content = self.buffer.as_ref().unwrap().line_content(line);
         let font_family = config.editor.font_family();
         let font_size = config.editor.font_size;
@@ -129,7 +129,10 @@ impl DocumentHistory {
             }
         }
 
-        layout_builder.build().unwrap()
+        TextLayoutLine {
+            text: layout_builder.build().unwrap(),
+            extra_style: Vec::new(),
+        }
     }
 
     fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {

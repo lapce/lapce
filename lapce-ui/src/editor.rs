@@ -422,6 +422,7 @@ impl LapceEditor {
                             data.config.editor.font_size,
                             &data.config,
                         )
+                        .text
                         .size()
                         .width,
                 ),
@@ -437,6 +438,7 @@ impl LapceEditor {
                             data.config.editor.font_size,
                             &data.config,
                         )
+                        .text
                         .size()
                         .width,
                 ),
@@ -540,7 +542,7 @@ impl LapceEditor {
                     &data.config,
                 );
                 ctx.draw_text(
-                    &text_layout,
+                    &text_layout.text,
                     Point::new(x, if is_small { y } else { y + y_shift }),
                 );
                 y += line_height as f64;
@@ -631,7 +633,7 @@ impl LapceEditor {
                                     &data.config,
                                 );
                                 ctx.draw_text(
-                                    &text_layout,
+                                    &text_layout.text,
                                     Point::new(
                                         0.0,
                                         line_height * l as f64 + y_shift,
@@ -718,7 +720,7 @@ impl LapceEditor {
                                     &data.config,
                                 );
                                 ctx.draw_text(
-                                    &text_layout,
+                                    &text_layout.text,
                                     Point::new(
                                         0.0,
                                         line_height * l as f64 + y_shift,
@@ -777,7 +779,7 @@ impl LapceEditor {
                                     &data.config,
                                 );
                                 ctx.draw_text(
-                                    &text_layout,
+                                    &text_layout.text,
                                     Point::new(
                                         0.0,
                                         line_height * l as f64 + y_shift,
@@ -817,15 +819,16 @@ impl LapceEditor {
                     font_size,
                     &data.config,
                 );
-                ctx.draw_text(
-                    &text_layout,
-                    Point::new(
-                        0.0,
-                        line_height * line as f64
-                            + (line_height - text_layout.size().height) / 2.0
-                            + line_padding,
-                    ),
-                );
+                let y = line_height * line as f64
+                    + (line_height - text_layout.text.size().height) / 2.0
+                    + line_padding;
+                let height = text_layout.text.size().height;
+                for (x0, x1, style) in text_layout.extra_style.iter() {
+                    if let Some(bg) = &style.bg_color {
+                        ctx.fill(Rect::new(*x0, y, *x1, y + height), bg);
+                    }
+                }
+                ctx.draw_text(&text_layout.text, Point::new(0.0, y));
             }
         }
 
@@ -1516,8 +1519,10 @@ impl LapceEditor {
                         data.config.editor.font_size,
                         &data.config,
                     );
-                    let x0 = text_layout.hit_test_text_position(left_col).point.x;
-                    let x1 = text_layout.hit_test_text_position(right_col).point.x;
+                    let x0 =
+                        text_layout.text.hit_test_text_position(left_col).point.x;
+                    let x1 =
+                        text_layout.text.hit_test_text_position(right_col).point.x;
                     let y0 = line as f64 * line_height;
                     let y1 = y0 + line_height;
                     let rect = Rect::new(x0, y0, x1, y1);
@@ -1673,7 +1678,7 @@ impl LapceEditor {
                         );
                         let x0 = if line == start.line as usize {
                             let col = inlay_hints.col_at(start.character as usize);
-                            text_layout.hit_test_text_position(col).point.x
+                            text_layout.text.hit_test_text_position(col).point.x
                         } else {
                             let (_, col) = data.doc.buffer().offset_to_line_col(
                                 data.doc
@@ -1681,16 +1686,16 @@ impl LapceEditor {
                                     .first_non_blank_character_on_line(line),
                             );
                             let col = inlay_hints.col_at(col);
-                            text_layout.hit_test_text_position(col).point.x
+                            text_layout.text.hit_test_text_position(col).point.x
                         };
                         let x1 = if line == end.line as usize {
                             let col = inlay_hints.col_at(end.character as usize);
-                            text_layout.hit_test_text_position(col).point.x
+                            text_layout.text.hit_test_text_position(col).point.x
                         } else {
                             let col =
                                 data.doc.buffer().line_end_col(line, false) + 1;
                             let col = inlay_hints.col_at(col);
-                            text_layout.hit_test_text_position(col).point.x
+                            text_layout.text.hit_test_text_position(col).point.x
                         };
                         let _y1 = (line + 1) as f64 * line_height;
                         let y0 = (line + 1) as f64 * line_height - 4.0;

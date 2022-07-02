@@ -71,7 +71,8 @@ magenta = "#C678DD"
 "editor.current_line" = "#2C313C"
 "editor.link" = "$cyan"
 
-"inlay_hint.foreground" = "#5C6370"
+"inlay_hint.foreground" = "#FFFFFF"
+"inlay_hint.background" = "#528bFF88"
 
 "source_control.added" = "#50A14F32"
 "source_control.removed" = "#FF526632"
