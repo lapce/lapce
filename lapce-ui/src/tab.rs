@@ -530,8 +530,11 @@ impl LapceTab {
                     );
                 }
                 DragContent::Panel(kind, rect) => {
-                    let icon_rect = rect.with_origin(self.mouse_pos - *offset);
-                    let padding = 5.0;
+                    let inflate = (rect.width() / 2.0).round();
+                    let icon_rect = rect
+                        .with_origin(self.mouse_pos - *offset)
+                        .inflate(inflate, inflate);
+                    let padding = (icon_rect.width() * 0.3).round();
                     let rect = icon_rect.inflate(padding, padding);
                     let shadow_width = data.config.ui.drop_shadow_width() as f64;
                     if shadow_width > 0.0 {
