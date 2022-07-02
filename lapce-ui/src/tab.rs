@@ -78,7 +78,6 @@ pub struct LapceTab {
     current_bar_hover: Option<PanelResizePosition>,
     width: f64,
     height: f64,
-    main_split_height: f64,
     status_height: f64,
     mouse_pos: Point,
 }
@@ -177,7 +176,6 @@ impl LapceTab {
             current_bar_hover: None,
             width: 0.0,
             height: 0.0,
-            main_split_height: 0.0,
             status_height: 0.0,
             mouse_pos: Point::ZERO,
         }
@@ -305,46 +303,26 @@ impl LapceTab {
         }
     }
 
-    fn bar_hit_test(
-        &self,
-        data: &LapceTabData,
-        mouse_pos: Point,
-    ) -> Option<PanelResizePosition> {
-        let left = if data.panel.is_container_shown(&PanelContainerPosition::Left) {
-            let left = data.panel.size.left;
-            if mouse_pos.x >= left - 3.0 && mouse_pos.x <= left + 3.0 {
-                return Some(PanelResizePosition::Left);
-            }
-            left
-        } else {
-            0.0
-        };
+    fn bar_hit_test(&self, mouse_pos: Point) -> Option<PanelResizePosition> {
+        let rect = self.main_split.layout_rect();
+        let left = rect.x0;
+        let right = rect.x1;
+        let bottom = rect.y1;
 
-        let right = if data
-            .panel
-            .is_container_shown(&PanelContainerPosition::Right)
-        {
-            let right = self.panel_right.layout_rect().x0;
-            if mouse_pos.x >= right - 3.0 && mouse_pos.x <= right + 3.0 {
-                return Some(PanelResizePosition::Right);
-            }
-            right
-        } else {
-            0.0
-        };
+        if mouse_pos.x >= left - 5.0 && mouse_pos.x <= left + 5.0 {
+            return Some(PanelResizePosition::Left);
+        }
 
-        if data
-            .panel
-            .is_container_shown(&PanelContainerPosition::Bottom)
+        if mouse_pos.x >= right - 5.0 && mouse_pos.x <= right + 5.0 {
+            return Some(PanelResizePosition::Right);
+        }
+
+        if mouse_pos.x > left
+            && mouse_pos.x < right
+            && mouse_pos.y >= bottom - 5.0
+            && mouse_pos.y <= bottom + 5.0
         {
-            let y = self.main_split_height;
-            if mouse_pos.x > left
-                && mouse_pos.x < right
-                && mouse_pos.y >= y - 3.0
-                && mouse_pos.y <= y + 3.0
-            {
-                return Some(PanelResizePosition::Bottom);
-            }
+            return Some(PanelResizePosition::Bottom);
         }
 
         None
@@ -603,7 +581,7 @@ impl LapceTab {
         match event {
             Event::MouseDown(mouse) => {
                 if mouse.button.is_left() {
-                    if let Some(position) = self.bar_hit_test(data, mouse.pos) {
+                    if let Some(position) = self.bar_hit_test(mouse.pos) {
                         self.current_bar_hover = Some(position);
                         ctx.set_active(true);
                         ctx.set_handled();
@@ -621,9 +599,13 @@ impl LapceTab {
                     self.update_split_point(ctx, data, mouse.pos);
                     ctx.request_layout();
                     ctx.set_handled();
-                } else {
-                    match self.bar_hit_test(data, mouse.pos) {
+                } else if data.drag.is_none() {
+                    match self.bar_hit_test(mouse.pos) {
                         Some(position) => {
+                            if self.current_bar_hover.as_ref() != Some(&position) {
+                                self.current_bar_hover = Some(position.clone());
+                                ctx.request_paint();
+                            }
                             match position {
                                 PanelResizePosition::Left => {
                                     ctx.set_cursor(&druid::Cursor::ResizeLeftRight);
@@ -641,6 +623,10 @@ impl LapceTab {
                             ctx.set_handled();
                         }
                         None => {
+                            if self.current_bar_hover.is_some() {
+                                self.current_bar_hover = None;
+                                ctx.request_paint();
+                            }
                             ctx.clear_cursor();
                         }
                     }
@@ -1881,7 +1867,6 @@ impl Widget<LapceTabData> for LapceTab {
         self.main_split.layout(ctx, &main_split_bc, data, env);
         self.main_split
             .set_origin(ctx, data, env, main_split_origin);
-        self.main_split_height = main_split_size.height;
 
         if data.completion.status != CompletionStatus::Inactive {
             let completion_origin =
@@ -1946,72 +1931,68 @@ impl Widget<LapceTabData> for LapceTab {
         {
             self.panel_right.paint(ctx, data, env);
         }
-        if ctx.is_active() {
-            if let Some(position) = self.current_bar_hover.as_ref() {
-                let (p0, p1) = match position {
-                    PanelResizePosition::Left => {
-                        let rect = self.panel_left.layout_rect();
-                        if !data
-                            .panel
-                            .is_container_shown(&PanelContainerPosition::Left)
-                        {
-                            (Point::new(1.0, rect.y0), Point::new(1.0, rect.y1))
-                        } else {
-                            (
-                                Point::new(rect.x1.round(), rect.y0),
-                                Point::new(rect.x1.round(), rect.y1),
-                            )
-                        }
-                    }
-                    PanelResizePosition::Right => {
-                        let rect = self.panel_right.layout_rect();
-                        if !data
-                            .panel
-                            .is_container_shown(&PanelContainerPosition::Right)
-                        {
-                            (
-                                Point::new(rect.x1 - 1.0, rect.y0),
-                                Point::new(rect.x1 - 1.0, rect.y1),
-                            )
-                        } else {
-                            (
-                                Point::new(rect.x0.round(), rect.y0),
-                                Point::new(rect.x0.round(), rect.y1),
-                            )
-                        }
-                    }
-                    PanelResizePosition::LeftSplit => {
-                        let rect = self.panel_left.layout_rect();
+        if let Some(position) = self.current_bar_hover.as_ref() {
+            let (p0, p1) = match position {
+                PanelResizePosition::Left => {
+                    let rect = self.panel_left.layout_rect();
+                    if !data.panel.is_container_shown(&PanelContainerPosition::Left)
+                    {
+                        (Point::new(1.0, rect.y0), Point::new(1.0, rect.y1))
+                    } else {
                         (
                             Point::new(rect.x1.round(), rect.y0),
                             Point::new(rect.x1.round(), rect.y1),
                         )
                     }
-                    PanelResizePosition::Bottom => {
-                        let rect = self.panel_bottom.layout_rect();
-                        if !data
-                            .panel
-                            .is_container_shown(&PanelContainerPosition::Bottom)
-                        {
-                            let status_rect = self.status.layout_rect();
-                            (
-                                Point::new(rect.x0, status_rect.y0 - 1.0),
-                                Point::new(rect.x1, status_rect.y0 - 1.0),
-                            )
-                        } else {
-                            (
-                                Point::new(rect.x0, rect.y0.round()),
-                                Point::new(rect.x1, rect.y0.round()),
-                            )
-                        }
+                }
+                PanelResizePosition::Right => {
+                    let rect = self.panel_right.layout_rect();
+                    if !data
+                        .panel
+                        .is_container_shown(&PanelContainerPosition::Right)
+                    {
+                        (
+                            Point::new(rect.x1 - 1.0, rect.y0),
+                            Point::new(rect.x1 - 1.0, rect.y1),
+                        )
+                    } else {
+                        (
+                            Point::new(rect.x0.round(), rect.y0),
+                            Point::new(rect.x0.round(), rect.y1),
+                        )
                     }
-                };
-                ctx.stroke(
-                    Line::new(p0, p1),
-                    data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
-                    2.0,
-                );
-            }
+                }
+                PanelResizePosition::LeftSplit => {
+                    let rect = self.panel_left.layout_rect();
+                    (
+                        Point::new(rect.x1.round(), rect.y0),
+                        Point::new(rect.x1.round(), rect.y1),
+                    )
+                }
+                PanelResizePosition::Bottom => {
+                    let rect = self.panel_bottom.layout_rect();
+                    if !data
+                        .panel
+                        .is_container_shown(&PanelContainerPosition::Bottom)
+                    {
+                        let status_rect = self.status.layout_rect();
+                        (
+                            Point::new(rect.x0, status_rect.y0 - 1.0),
+                            Point::new(rect.x1, status_rect.y0 - 1.0),
+                        )
+                    } else {
+                        (
+                            Point::new(rect.x0, rect.y0.round()),
+                            Point::new(rect.x1, rect.y0.round()),
+                        )
+                    }
+                }
+            };
+            ctx.stroke(
+                Line::new(p0, p1),
+                data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
+                2.0,
+            );
         }
         self.status.paint(ctx, data, env);
         self.completion.paint(ctx, data, env);
