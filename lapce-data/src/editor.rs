@@ -44,7 +44,6 @@ use lsp_types::CodeActionOrCommand;
 use lsp_types::CompletionTextEdit;
 use lsp_types::DocumentChangeOperation;
 use lsp_types::DocumentChanges;
-use lsp_types::InlayHint;
 use lsp_types::OneOf;
 use lsp_types::TextEdit;
 use lsp_types::Url;
@@ -60,8 +59,6 @@ use std::thread;
 use std::{collections::HashMap, sync::Arc};
 use std::{iter::Iterator, path::PathBuf};
 use std::{str::FromStr, time::Duration};
-use xi_rope::spans::SpansBuilder;
-use xi_rope::Interval;
 use xi_rope::{RopeDelta, Transformer};
 
 pub struct LapceUI {}
@@ -149,62 +146,6 @@ impl LapceEditorBufferData {
                 ),
                 None,
                 Modifiers::empty(),
-            );
-        }
-    }
-
-    pub fn get_inlay_hints(&self, ctx: &mut EventCtx) {
-        if !self.doc.loaded() {
-            return;
-        }
-
-        if !self.doc.content().is_file() {
-            return;
-        }
-
-        if !self.config.editor.enable_inlay_hints {
-            return;
-        }
-
-        if let BufferContent::File(path) = self.doc.content() {
-            // TODO: check if we already have inlay hints for this file?
-            let tab_id = self.doc.tab_id;
-            let path = path.clone();
-            let buffer_id = self.doc.id();
-            let rev = self.doc.rev();
-            let event_sink = ctx.get_external_handle();
-            let len = self.doc.buffer().len();
-            let buffer = self.doc.buffer().clone();
-            self.proxy.get_inlay_hints(
-                buffer_id,
-                Box::new(move |result| {
-                    if let Ok(res) = result {
-                        if let Ok(resp) =
-                            serde_json::from_value::<Vec<InlayHint>>(res)
-                        {
-                            let mut hints_span = SpansBuilder::new(len);
-                            for hint in resp {
-                                let offset = buffer
-                                    .offset_of_position(&hint.position)
-                                    .min(len);
-                                hints_span.add_span(
-                                    Interval::new(offset, (offset + 1).min(len)),
-                                    hint.clone(),
-                                );
-                            }
-                            let hints = hints_span.build();
-                            let _ = event_sink.submit_command(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::UpdateInlayHints {
-                                    path,
-                                    rev,
-                                    hints,
-                                },
-                                Target::Widget(tab_id),
-                            );
-                        }
-                    }
-                }),
             );
         }
     }

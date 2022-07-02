@@ -627,7 +627,6 @@ impl Widget<LapceTabData> for LapceEditorView {
                 editor_data.sync_buffer_position(
                     self.editor.widget().editor.widget().inner().offset(),
                 );
-                editor_data.get_inlay_hints(ctx);
                 editor_data.get_code_actions(ctx);
 
                 data.keypress = keypress.clone();

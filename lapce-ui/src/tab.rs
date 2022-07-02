@@ -957,7 +957,7 @@ impl LapceTab {
                                         {
                                             let editor_data =
                                                 data.editor_view_content(*view_id);
-                                            editor_data.get_inlay_hints(ctx);
+                                            editor_data.doc.get_inlay_hints();
                                         }
                                         for i in data
                                             .progresses

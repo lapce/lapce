@@ -39,7 +39,10 @@ use lsp_types::{
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use xi_rope::{spans::Spans, Rope, RopeDelta};
+use xi_rope::{
+    spans::{Spans, SpansBuilder},
+    Interval, Rope, RopeDelta,
+};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -610,9 +613,61 @@ impl Document {
         }
     }
 
+    pub fn get_inlay_hints(&self) {
+        if !self.loaded() {
+            return;
+        }
+
+        if !self.content().is_file() {
+            return;
+        }
+
+        if let BufferContent::File(path) = self.content() {
+            let tab_id = self.tab_id;
+            let path = path.clone();
+            let buffer_id = self.id();
+            let rev = self.rev();
+            let len = self.buffer().len();
+            let buffer = self.buffer().clone();
+            let event_sink = self.event_sink.clone();
+            self.proxy.get_inlay_hints(
+                buffer_id,
+                Box::new(move |result| {
+                    if let Ok(res) = result {
+                        if let Ok(resp) =
+                            serde_json::from_value::<Vec<InlayHint>>(res)
+                        {
+                            let mut hints_span = SpansBuilder::new(len);
+                            for hint in resp {
+                                let offset = buffer
+                                    .offset_of_position(&hint.position)
+                                    .min(len);
+                                hints_span.add_span(
+                                    Interval::new(offset, (offset + 1).min(len)),
+                                    hint.clone(),
+                                );
+                            }
+                            let hints = hints_span.build();
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdateInlayHints {
+                                    path,
+                                    rev,
+                                    hints,
+                                },
+                                Target::Widget(tab_id),
+                            );
+                        }
+                    }
+                }),
+            );
+        }
+    }
+
     fn on_update(&mut self, delta: Option<&RopeDelta>) {
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
+        self.get_inlay_hints();
         self.clear_style_cache();
         self.trigger_syntax_change(delta);
         self.trigger_head_change();
