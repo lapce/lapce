@@ -19,7 +19,7 @@ use lapce_data::{
     },
     config::{EditorConfig, LapceTheme},
     data::{EditorTabChild, EditorView, FocusArea, LapceTabData},
-    document::{BufferContent, InlayHintsLine, LocalBufferKind},
+    document::{BufferContent, LocalBufferKind},
     editor::LapceEditorBufferData,
     keypress::KeyPressFocus,
     panel::{PanelData, PanelKind},
@@ -437,11 +437,13 @@ impl LapceEditorView {
     fn cursor_region(data: &LapceEditorBufferData, text: &mut PietText) -> Rect {
         let offset = data.editor.cursor.offset();
         let (line, col) = data.doc.buffer().offset_to_line_col(offset);
-        let inlay_hints = if data.config.editor.enable_inlay_hints {
-            data.doc.inlay_hints.hints_at_line(line as u32)
-        } else {
-            InlayHintsLine::default()
-        };
+        let inlay_hints = data
+            .config
+            .editor
+            .enable_inlay_hints
+            .then_some(())
+            .and_then(|_| data.doc.line_inlay_hints(line))
+            .unwrap_or_default();
         let col = inlay_hints.col_at(col);
 
         let width = data.config.editor_char_width(text);

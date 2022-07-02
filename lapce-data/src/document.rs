@@ -188,44 +188,17 @@ impl BufferContent {
     }
 }
 
-#[derive(Clone)]
-pub struct InlayHints {
-    /// Hints should be sorted so that earlier hints come before later hints to simplify
-    /// code that uses them
-    hints: im::Vector<InlayHint>,
-}
-impl InlayHints {
-    pub fn new(inlay_hints: im::Vector<InlayHint>) -> InlayHints {
-        InlayHints { hints: inlay_hints }
-    }
-
-    pub fn clear(&mut self) {
-        self.hints.clear();
-    }
-
-    pub fn hints_at_line(&self, line: u32) -> InlayHintsLine {
-        let hints = self.iter_line(line).collect::<SmallVec<[_; 6]>>();
-        InlayHintsLine { hints }
-    }
-
-    /// Iterate over all the hints at the line
-    pub fn iter_line(&self, line: u32) -> impl Iterator<Item = &InlayHint> {
-        self.hints
-            .iter()
-            .filter(move |hint| hint.position.line == line)
-    }
-}
-
 #[derive(Default)]
 pub struct InlayHintsLine<'a> {
-    hints: SmallVec<[&'a InlayHint; 6]>,
+    hints: SmallVec<[(usize, &'a InlayHint); 6]>,
 }
+
 impl<'a> InlayHintsLine<'a> {
     /// Translate a column position into the text into what it would be after combining
     pub fn col_at(&self, pre_col: usize) -> usize {
         let mut last = pre_col;
-        for (col_shift, size, hint) in self.offset_size_iter() {
-            if pre_col >= hint.position.character as usize {
+        for (col_shift, size, _, col) in self.offset_size_iter() {
+            if pre_col >= col {
                 last = pre_col + col_shift + size;
             }
         }
@@ -237,8 +210,8 @@ impl<'a> InlayHintsLine<'a> {
     /// If the cursor is right at the start then it will stay there
     pub fn col_after(&self, pre_col: usize) -> usize {
         let mut last = pre_col;
-        for (col_shift, size, hint) in self.offset_size_iter() {
-            if pre_col > hint.position.character as usize {
+        for (col_shift, size, _, col) in self.offset_size_iter() {
+            if pre_col > col {
                 last = pre_col + col_shift + size;
             }
         }
@@ -249,14 +222,14 @@ impl<'a> InlayHintsLine<'a> {
     /// Translate a column position into the position it would be before combining
     pub fn before_col(&self, col: usize) -> usize {
         let mut last = col;
-        for (col_shift, size, hint) in self.offset_size_iter() {
-            let shifted_start = hint.position.character as usize + col_shift;
+        for (col_shift, size, _, hint_col) in self.offset_size_iter() {
+            let shifted_start = hint_col + col_shift;
             let shifted_end = shifted_start + size;
             if col >= shifted_start {
                 if col >= shifted_end {
                     last = col - col_shift - size;
                 } else {
-                    last = hint.position.character as usize;
+                    last = hint_col;
                 }
             }
         }
@@ -266,10 +239,10 @@ impl<'a> InlayHintsLine<'a> {
     /// Insert the hints at their positions in the text
     pub fn combine_with_text<'b>(&self, mut text: Cow<'b, str>) -> Cow<'b, str> {
         let mut col_shift = 0;
-        for hint in self.hints.iter() {
+        for (col, hint) in self.hints.iter() {
             let mut otext = text.into_owned();
 
-            let location = hint.position.character as usize + col_shift;
+            let location = col + col_shift;
 
             // Stop iterating if the location is bad
             if otext.get(location..).is_none() {
@@ -310,9 +283,9 @@ impl<'a> InlayHintsLine<'a> {
     /// Iterator over (col_shift, size, hint)
     pub fn offset_size_iter(
         &self,
-    ) -> impl Iterator<Item = (usize, usize, &'a InlayHint)> + '_ {
+    ) -> impl Iterator<Item = (usize, usize, &'a InlayHint, usize)> + '_ {
         let mut col_shift = 0;
-        self.hints.iter().map(move |hint| {
+        self.hints.iter().map(move |(col, hint)| {
             let pre_col_shift = col_shift;
             match &hint.label {
                 InlayHintLabel::String(label) => {
@@ -333,7 +306,7 @@ impl<'a> InlayHintsLine<'a> {
                 col_shift += 1;
             }
 
-            (pre_col_shift, col_shift - pre_col_shift, *hint)
+            (pre_col_shift, col_shift - pre_col_shift, *hint, *col)
         })
     }
 }
@@ -354,7 +327,7 @@ pub struct Document {
     pub cursor_offset: usize,
     pub scroll_offset: Vec2,
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
-    pub inlay_hints: InlayHints,
+    pub inlay_hints: Option<Spans<InlayHint>>,
     pub find: Rc<RefCell<Find>>,
     find_progress: Rc<RefCell<FindProgress>>,
     pub event_sink: ExtEventSink,
@@ -394,7 +367,7 @@ impl Document {
             cursor_offset: 0,
             scroll_offset: Vec2::ZERO,
             code_actions: im::HashMap::new(),
-            inlay_hints: InlayHints::new(im::Vector::new()),
+            inlay_hints: None,
             find: Rc::new(RefCell::new(Find::new(0))),
             find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             event_sink,
@@ -442,7 +415,7 @@ impl Document {
 
     pub fn reload(&mut self, content: Rope, set_pristine: bool) {
         self.code_actions.clear();
-        self.inlay_hints.clear();
+        self.inlay_hints = None;
         let delta = self.buffer.reload(content, set_pristine);
         self.apply_deltas(&[delta]);
     }
@@ -753,27 +726,9 @@ impl Document {
 
     /// Update the inlay hints with new ones
     /// Clears any caches that need to be updated after change
-    pub fn update_inlay_hints(&mut self, mut inlay_hints: im::Vector<InlayHint>) {
-        // TODO: Can we do a smart comparison? Most of the time, the change isn't notable
-        // we could just ask the LSP for the data in the area around the edited range? or
-        // just in view?
-
-        // Remove all the text layouts that have existing hints
-        for hint in &self.inlay_hints.hints {
-            let line = hint.position.line as usize;
-            self.text_layouts.borrow_mut().layouts.remove(&line);
-        }
-
-        // Sort it to ensure the later inlay hints come after early hints
-        inlay_hints.sort_by(|a, b| a.position.cmp(&b.position));
-
-        self.inlay_hints.hints = inlay_hints;
-
-        // Remove all the text layouts that have new hints
-        for hint in &self.inlay_hints.hints {
-            let line = hint.position.line as usize;
-            self.text_layouts.borrow_mut().layouts.remove(&line);
-        }
+    pub fn set_inlay_hints(&mut self, hints: Spans<InlayHint>) {
+        self.inlay_hints = Some(hints);
+        self.clear_text_layout_cache();
     }
 
     pub fn buffer(&self) -> &Buffer {
@@ -802,10 +757,37 @@ impl Document {
         }
     }
 
+    fn update_inlay_hints(&mut self, delta: &RopeDelta) {
+        if let Some(hints) = self.inlay_hints.as_mut() {
+            hints.apply_shape(delta);
+        }
+    }
+
+    pub fn line_inlay_hints(&self, line: usize) -> Option<InlayHintsLine> {
+        let start_offset = self.buffer.offset_of_line(line);
+        let end_offset = self.buffer.offset_of_line(line + 1);
+        self.inlay_hints.as_ref().map(|hints| InlayHintsLine {
+            hints: hints
+                .iter_chunks(start_offset..end_offset)
+                .filter_map(|(interval, inlay_hint)| {
+                    if interval.start >= start_offset && interval.start < end_offset
+                    {
+                        let (_, col) =
+                            self.buffer.offset_to_line_col(interval.start);
+                        Some((col, inlay_hint))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        })
+    }
+
     fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines)]) {
         let rev = self.rev() - deltas.len() as u64;
         for (i, (delta, _)) in deltas.iter().enumerate() {
             self.update_styles(delta);
+            self.update_inlay_hints(delta);
             if self.content.is_file() {
                 self.proxy.update(self.id, delta, rev + i as u64 + 1);
             }
@@ -1156,11 +1138,12 @@ impl Document {
         let line = ((point.y / config.editor.line_height as f64).floor() as usize)
             .min(last_line);
 
-        let inlay_hints = if config.editor.enable_inlay_hints {
-            self.inlay_hints.hints_at_line(line as u32)
-        } else {
-            InlayHintsLine::default()
-        };
+        let inlay_hints = config
+            .editor
+            .enable_inlay_hints
+            .then_some(())
+            .and_then(|_| self.line_inlay_hints(line))
+            .unwrap_or_default();
 
         let text_layout = self.get_text_layout(text, line, font_size, config);
         let hit_point = text_layout.text.hit_test_point(Point::new(point.x, 0.0));
@@ -1215,12 +1198,12 @@ impl Document {
     ) -> TextLayoutLine {
         let line_content = self.buffer.line_content(line);
 
-        let inlay_hints = if config.editor.enable_inlay_hints {
-            self.inlay_hints.hints_at_line(line as u32)
-        } else {
-            // empty inlay hints
-            InlayHintsLine::default()
-        };
+        let inlay_hints = config
+            .editor
+            .enable_inlay_hints
+            .then_some(())
+            .and_then(|_| self.line_inlay_hints(line))
+            .unwrap_or_default();
         let line_content = inlay_hints.combine_with_text(line_content);
 
         let tab_width =
@@ -1262,8 +1245,8 @@ impl Document {
         }
 
         // Give the inlay hints their styling
-        for (offset, size, hint) in inlay_hints.offset_size_iter() {
-            let start = hint.position.character as usize + offset;
+        for (offset, size, _, col) in inlay_hints.offset_size_iter() {
+            let start = col + offset;
             let end = start + size;
             layout_builder = layout_builder.range_attribute(
                 start..end,
@@ -1285,8 +1268,8 @@ impl Document {
 
         let text = layout_builder.build().unwrap();
         let mut extra_style = Vec::new();
-        for (offset, size, hint) in inlay_hints.offset_size_iter() {
-            let start = hint.position.character as usize + offset;
+        for (offset, size, _, col) in inlay_hints.offset_size_iter() {
+            let start = col + offset;
             let end = start + size;
             let x0 = text.hit_test_text_position(start).point.x;
             let x1 = text.hit_test_text_position(end).point.x;

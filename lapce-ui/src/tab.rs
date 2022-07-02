@@ -1250,7 +1250,7 @@ impl LapceTab {
                     LapceUICommand::UpdateInlayHints { path, rev, hints } => {
                         if let Some(doc) = data.main_split.open_docs.get_mut(path) {
                             if doc.rev() == *rev {
-                                Arc::make_mut(doc).update_inlay_hints(hints.into());
+                                Arc::make_mut(doc).set_inlay_hints(hints.clone());
                             }
                         }
                     }

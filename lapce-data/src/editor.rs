@@ -60,6 +60,8 @@ use std::thread;
 use std::{collections::HashMap, sync::Arc};
 use std::{iter::Iterator, path::PathBuf};
 use std::{str::FromStr, time::Duration};
+use xi_rope::spans::SpansBuilder;
+use xi_rope::Interval;
 use xi_rope::{RopeDelta, Transformer};
 
 pub struct LapceUI {}
@@ -166,10 +168,13 @@ impl LapceEditorBufferData {
 
         if let BufferContent::File(path) = self.doc.content() {
             // TODO: check if we already have inlay hints for this file?
+            let tab_id = self.doc.tab_id;
             let path = path.clone();
             let buffer_id = self.doc.id();
             let rev = self.doc.rev();
             let event_sink = ctx.get_external_handle();
+            let len = self.doc.buffer().len();
+            let buffer = self.doc.buffer().clone();
             self.proxy.get_inlay_hints(
                 buffer_id,
                 Box::new(move |result| {
@@ -177,14 +182,25 @@ impl LapceEditorBufferData {
                         if let Ok(resp) =
                             serde_json::from_value::<Vec<InlayHint>>(res)
                         {
+                            let mut hints_span = SpansBuilder::new(len);
+                            for hint in resp {
+                                let offset = buffer
+                                    .offset_of_position(&hint.position)
+                                    .min(len);
+                                hints_span.add_span(
+                                    Interval::new(offset, (offset + 1).min(len)),
+                                    hint.clone(),
+                                );
+                            }
+                            let hints = hints_span.build();
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::UpdateInlayHints {
                                     path,
                                     rev,
-                                    hints: resp,
+                                    hints,
                                 },
-                                Target::Auto,
+                                Target::Widget(tab_id),
                             );
                         }
                     }

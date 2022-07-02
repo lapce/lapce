@@ -445,7 +445,7 @@ pub enum LapceUICommand {
     UpdateInlayHints {
         path: PathBuf,
         rev: u64,
-        hints: Vec<InlayHint>,
+        hints: Spans<InlayHint>,
     },
     UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,
