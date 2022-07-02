@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use druid::{
     AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Size,
     Widget, WidgetExt, WindowDesc, WindowHandle, WindowId, WindowState,
@@ -61,6 +63,7 @@ pub fn launch() {
             window_data.size,
             window_data.pos,
             window_data.maximised,
+            &window_data.config,
         );
         launcher = launcher.with_window(window);
     }
@@ -75,6 +78,8 @@ fn new_window_desc<W, T: druid::Data>(
     size: Size,
     pos: Point,
     maximised: bool,
+    #[cfg(target_os = "windows")] config: &Arc<Config>,
+    #[cfg(not(target_os = "windows"))] _config: &Arc<Config>,
 ) -> WindowDesc<T>
 where
     W: Widget<T> + 'static,
@@ -83,6 +88,12 @@ where
         .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
         .window_size(size)
         .set_position(pos);
+
+    #[cfg(target_os = "windows")]
+    if config.ui.custom_titlebar() {
+        desc = desc.show_titlebar(false);
+    }
+
     if maximised {
         desc = desc.set_window_state(WindowState::Maximized);
     }
@@ -227,13 +238,14 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
             );
             let root = build_window(&mut window_data);
             let window_id = window_data.window_id;
-            data.windows.insert(window_id, window_data);
+            data.windows.insert(window_id, window_data.clone());
             let desc = new_window_desc(
                 window_id,
                 root,
                 info.size,
                 info.pos,
                 info.maximised,
+                &window_data.config,
             );
             ctx.new_window(desc);
             return druid::Handled::Yes;

@@ -32,6 +32,7 @@ status-height = 25
 tab-min-width = 100
 scroll-width = 10
 drop-shadow-width = 0
+custom-titlebar = false
 
 [theme]
 name = ""
