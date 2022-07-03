@@ -52,20 +52,20 @@ pub fn file_svg(path: &Path) -> Svg {
     
     // catch if path.to_str() is Some without calling it twice
     let path_str = path.to_str();
-    if path_str.is_none() {
+    if path_str == None {
         panic!("Missing path");
     }
     let file_name = path_str.unwrap(); // unwrap path_str safely now
 
     let file_type = if file_name == "LICENSE" {
         "file_type_license.svg"
-    } else if file_name == "makefile" {
+    } else if file_name.to_lowercase().contains("makefile") {
         "file_type_make.svg"
     } else if file_name.to_lowercase().contains("git") {
-        "git_icon.svg"
+        "git-icon.svg"
     } else if file_name.to_lowercase().contains("cargo") {
         "file_type_rust.svg"
-    } else if file_name == "CMakeLists.txt" {
+    } else if file_name.contains("CMakeLists") {
         "file_type_cmake.svg"
     } else {
         path.extension()
@@ -106,8 +106,13 @@ pub fn file_svg(path: &Path) -> Svg {
             })
             .unwrap_or("default_file.svg")
     };
-
-    get_svg(file_type).unwrap()
+    
+    let svg_file = get_svg(file_type);
+    if svg_file.is_none() {
+        panic!("Missing svg icon '{}'", file_type);
+    }
+    
+    return svg_file.unwrap();
 }
 
 pub fn symbol_svg(kind: &SymbolKind) -> Option<Svg> {
