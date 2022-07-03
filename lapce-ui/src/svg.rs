@@ -49,15 +49,33 @@ pub fn get_svg(name: &'static str) -> Option<Svg> {
 }
 
 pub fn file_svg(path: &Path) -> Svg {
-    let file_type = if path.file_name().and_then(OsStr::to_str) == Some("LICENSE") {
+    
+    // catch if path.to_str() is Some without calling it twice
+    let path_str = path.to_str();
+    if path_str.is_none() {
+        panic!("Missing path");
+    }
+    let file_name = path_str.unwrap(); // unwrap path_str safely now
+
+    let file_type = if file_name == "LICENSE" {
         "file_type_license.svg"
+    } else if file_name == "makefile" {
+        "file_type_make.svg"
+    } else if file_name.to_lowercase().contains("git") {
+        "git_icon.svg"
+    } else if file_name.to_lowercase().contains("cargo") {
+        "file_type_rust.svg"
+    } else if file_name == "CMakeLists.txt" {
+        "file_type_cmake.svg"
     } else {
         path.extension()
             .and_then(OsStr::to_str)
             .and_then(|extension| {
                 const TYPES: &[(&[&str], &str)] = &[
                     (&["c"], "file_type_c.svg"),
+                    (&["h"], "file_type_h.svg"),
                     (&["cxx", "cc", "c++", "cpp"], "file_type_cpp.svg"),
+                    (&["hxx", "hh", "h++", "hpp"], "file_type_hpp.svg)"),
                     (&["go"], "file_type_go.svg"),
                     (&["json"], "file_type_json.svg"),
                     (&["markdown", "md"], "file_type_markdown.svg"),
@@ -71,6 +89,9 @@ pub fn file_svg(path: &Path) -> Svg {
                     (&["js"], "file_type_js.svg"),
                     (&["ts"], "file_type_ts.svg"),
                     (&["css"], "file_type_css.svg"),
+                    (&["svg"], "file_type_svg.svg"),
+                    (&["cmake"], "file_type_cmake.svg"),
+                    (&["make"], "file_type_make.svg"),
                 ];
 
                 for (exts, file_type) in TYPES {
