@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use druid::{
     kurbo::BezPath,
@@ -259,7 +259,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
             }
             let y = self.line_height * line as f64;
             let (diff, checked) = diffs[line].clone();
-            let mut path = diff.path().clone();
+            let mut path: PathBuf = diff.path().clone();
             if let Some(workspace_path) = data.workspace.path.as_ref() {
                 path = path
                     .strip_prefix(workspace_path)
@@ -284,14 +284,14 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     ctx.stroke(path, &Color::rgb8(0, 0, 0), 2.0);
                 }
             }
-            let svg = file_svg(&path);
+            let (svg, svg_color) = file_svg(&path);
             let width = 13.0;
             let height = 13.0;
             let rect = Size::new(width, height).to_rect().with_origin(Point::new(
                 (self.line_height - width) / 2.0 + self.line_height,
                 (self.line_height - height) / 2.0 + y,
             ));
-            ctx.draw_svg(&svg, rect, None);
+            ctx.draw_svg(&svg, rect, svg_color);
 
             let file_name = path
                 .file_name()

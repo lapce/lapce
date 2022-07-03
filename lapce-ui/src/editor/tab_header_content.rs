@@ -358,7 +358,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 EditorTabChild::Editor(view_id, _, _) => {
                     let editor = data.main_split.editors.get(view_id).unwrap();
                     if let BufferContent::File(path) = &editor.content {
-                        svg = file_svg(path);
+                        (svg, _) = file_svg(path);
                         if let Some(file_name) = path.file_name() {
                             if let Some(s) = file_name.to_str() {
                                 text = s.to_string();
