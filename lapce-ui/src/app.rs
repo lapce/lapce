@@ -11,6 +11,7 @@ use lapce_data::{
     config::Config,
     data::{LapceData, LapceWindowData, LapceWindowLens},
     db::{TabsInfo, WindowInfo},
+    proxy::VERSION,
 };
 
 use crate::logging::override_log_levels;
@@ -26,6 +27,32 @@ pub fn build_window(data: &mut LapceWindowData) -> impl Widget<LapceData> {
 }
 
 pub fn launch() {
+    let mut args = std::env::args();
+    let mut path = None;
+    if args.len() > 1 {
+        args.next();
+        for arg in args {
+            match arg.as_str() {
+                "-v" | "--version" => {
+                    println!("lapce v{VERSION}");
+                    return;
+                }
+                "-h" | "--help" => {
+                    println!("lapce [-h|--help] [-v|--version] [PATH]");
+                    return;
+                }
+                v => {
+                    if v.starts_with('-') {
+                        eprintln!("lapce: unrecognized option: {v}");
+                        std::process::exit(1)
+                    } else {
+                        path = Some(v.to_string())
+                    }
+                }
+            }
+        }
+    }
+
     let mut log_dispatch = fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
@@ -54,7 +81,7 @@ pub fn launch() {
     }
 
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
-    let mut data = LapceData::load(launcher.get_external_handle());
+    let mut data = LapceData::load(launcher.get_external_handle(), path);
     for (_window_id, window_data) in data.windows.iter_mut() {
         let root = build_window(window_data);
         let window = new_window_desc(
