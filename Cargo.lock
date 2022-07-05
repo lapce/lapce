@@ -2302,6 +2302,7 @@ dependencies = [
  "crossbeam-channel",
  "directories",
  "git2",
+ "globset",
  "grep-matcher",
  "grep-regex",
  "grep-searcher",
