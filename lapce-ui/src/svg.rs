@@ -57,7 +57,7 @@ pub fn file_svg(path: &Path) -> Svg {
     }
     let file_name = path_str.unwrap(); // unwrap path_str safely now
 
-    let file_type = if file_name == "LICENSE" {
+    let file_type = if file_name.contains("LICENSE") {
         "file_type_license.svg"
     } else if file_name.to_lowercase().contains("makefile") {
         "file_type_make.svg"
@@ -97,7 +97,7 @@ pub fn file_svg(path: &Path) -> Svg {
                 for (exts, file_type) in TYPES {
                     for ext in exts.iter() {
                         if extension.eq_ignore_ascii_case(ext) {
-                            return Some(*file_type);
+                            Some(*file_type);
                         }
                     }
                 }
