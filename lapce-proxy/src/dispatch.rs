@@ -629,11 +629,13 @@ impl Dispatcher {
                 }
             }
             Save { rev, buffer_id } => {
-                let mut buffers = self.buffers.lock();
-                let buffer = buffers.get_mut(&buffer_id).unwrap();
-                let resp = buffer.save(rev).map(|_r| json!({}));
-                self.lsp.lock().save_buffer(buffer);
-                self.respond(id, resp);
+                if let Some(workspace) = self.workspace.lock().as_ref() {
+                    let mut buffers = self.buffers.lock();
+                    let buffer = buffers.get_mut(&buffer_id).unwrap();
+                    let resp = buffer.save(rev).map(|_r| json!({}));
+                    self.lsp.lock().save_buffer(buffer, workspace);
+                    self.respond(id, resp);
+                }
             }
             SaveBufferAs {
                 buffer_id,
