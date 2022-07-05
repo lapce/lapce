@@ -253,6 +253,12 @@ mode = "niv"
 when = "!search_focus && !modal_focus"
 
 [[keymaps]]
+key="Ctrl+c"
+command = "normal_mode"
+mode = "niv"
+when = "!search_focus && !modal_focus"
+
+[[keymaps]]
 key = "ctrl+["
 command = "normal_mode"
 mode = "niv"
