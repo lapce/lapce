@@ -249,6 +249,7 @@ pub enum PluginNotification {
         exec_path: String,
         language_id: String,
         options: Option<Value>,
+        system_lsp: bool,
     },
     DownloadFile {
         url: String,
@@ -271,8 +272,17 @@ fn host_handle_notification(plugin_env: &PluginEnv) {
                 exec_path,
                 language_id,
                 options,
+                system_lsp,
             } => {
-                plugin_env.dispatcher.lsp.lock().start_server(
+                let exec_path = if system_lsp {
+                    // System LSP should be handled by PATH during
+                    // process creation, so we forbid anything that
+                    // is not just an executable name
+                    match PathBuf::from(&exec_path).file_name() {
+                        Some(v) => v.to_str().unwrap().to_string(),
+                        None => return,
+                    }
+                } else {
                     plugin_env
                         .desc
                         .dir
@@ -280,7 +290,11 @@ fn host_handle_notification(plugin_env: &PluginEnv) {
                         .unwrap()
                         .join(&exec_path)
                         .to_str()
-                        .unwrap(),
+                        .unwrap()
+                        .to_string()
+                };
+                plugin_env.dispatcher.lsp.lock().start_server(
+                    &exec_path,
                     &language_id,
                     options,
                 );
