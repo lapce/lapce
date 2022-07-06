@@ -4,7 +4,11 @@ use std::{
     io::{BufReader, BufWriter, Write},
     path::Path,
     process::{self, Child, ChildStdout, Command, Stdio},
-    sync::{mpsc::channel, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::channel,
+        Arc,
+    },
     thread,
     time::Duration,
 };
@@ -93,6 +97,7 @@ pub struct LspClient {
     options: Option<Value>,
     state: Arc<Mutex<LspState>>,
     dispatcher: Dispatcher,
+    active: Arc<AtomicBool>,
 }
 
 impl LspCatalog {
@@ -534,6 +539,7 @@ impl LspClient {
                 is_initialized: false,
                 did_save_capabilities: Vec::new(),
             })),
+            active: Arc::new(AtomicBool::new(true)),
         });
 
         lsp_client.handle_stdout(stdout);
@@ -552,6 +558,9 @@ impl LspClient {
                         local_lsp_client.handle_message(message_str.as_ref());
                     }
                     Err(_err) => {
+                        if !local_lsp_client.active.load(Ordering::Acquire) {
+                            return;
+                        }
                         local_lsp_client.stop();
                         local_lsp_client.reload();
                         return;
@@ -595,6 +604,7 @@ impl LspClient {
     }
 
     fn stop(&self) {
+        self.active.store(false, Ordering::Release);
         let _ = self.state.lock().process.kill();
     }
 
