@@ -1180,7 +1180,7 @@ dependencies = [
 [[package]]
 name = "fount"
 version = "0.1.0"
-source = "git+https://github.com/lapce/fount#c08b06222c4ec900658ac311d082af4c1501aed3"
+source = "git+https://github.com/lapce/fount#02166f0f7b0e9bcb1c5ae5937e7678ba4597bbe4"
 dependencies = [
  "font-kit",
  "memmap2 0.5.4",
