@@ -550,6 +550,8 @@ impl Widget<LapceTabData> for LapceEditorView {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 if let LapceUICommand::Focus = command {
+                    self.cursor_blink_timer =
+                        ctx.request_timer(Duration::from_millis(500), None);
                     self.request_focus(ctx, data, true);
                     let editor_data = data.editor_view_content(self.view_id);
                     self.ensure_cursor_visible(
@@ -563,7 +565,7 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
             Event::Timer(id) if self.cursor_blink_timer == *id => {
                 ctx.set_handled();
-                if data.focus == self.view_id {
+                if ctx.is_focused() {
                     ctx.request_paint();
                     self.cursor_blink_timer =
                         ctx.request_timer(Duration::from_millis(500), None);

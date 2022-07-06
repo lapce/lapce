@@ -1,9 +1,9 @@
 use druid::{
     kurbo::Line,
     widget::{LensWrap, WidgetExt},
-    BoxConstraints, Command, Env, Event, EventCtx, InternalEvent, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, Widget,
-    WidgetId, WidgetPod, WindowState,
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, Widget, WidgetId,
+    WidgetPod, WindowState,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -356,10 +356,8 @@ impl Widget<LapceWindowData> for LapceWindow {
             | Event::MouseUp(_)
             | Event::MouseMove(_)
             | Event::Wheel(_)
-            | Event::KeyDown(_)
-            | Event::Timer(_)
             | Event::AnimFrame(_)
-            | Event::Internal(InternalEvent::RouteTimer(..))
+            | Event::KeyDown(_)
             | Event::KeyUp(_) => {}
             _ => {
                 for (i, tab) in self.tabs.iter_mut().enumerate() {
