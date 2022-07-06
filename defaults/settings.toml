@@ -33,6 +33,8 @@ tab-min-width = 100
 scroll-width = 10
 drop-shadow-width = 0
 custom-titlebar = false
+hover-font-family = ""
+hover-font-size = 0
 
 [theme]
 name = ""
