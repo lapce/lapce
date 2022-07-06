@@ -5792,7 +5792,7 @@ dependencies = [
 [[package]]
 name = "xi-rope"
 version = "0.3.0"
-source = "git+https://github.com/lapce/xi-editor#5578c7253ff8f644638bebace1261b6a412ce03c"
+source = "git+https://github.com/lapce/xi-editor#06816cc92e97996c12ec048aa9190b4efc00d1a6"
 dependencies = [
  "bytecount",
  "memchr",
