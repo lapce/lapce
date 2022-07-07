@@ -48,45 +48,74 @@ pub fn get_svg(name: &'static str) -> Option<Svg> {
     SVG_STORE.get_svg(name)
 }
 
-pub fn file_svg(path: &Path) -> Svg {
-    let file_type = if path.file_name().and_then(OsStr::to_str) == Some("LICENSE") {
-        "file_type_license.svg"
-    } else {
-        path.extension()
-            .and_then(OsStr::to_str)
-            .and_then(|extension| {
-                const TYPES: &[(&[&str], &str)] = &[
-                    (&["c"], "file_type_c.svg"),
-                    (&["cxx", "cc", "c++", "cpp"], "file_type_cpp.svg"),
-                    (&["go"], "file_type_go.svg"),
-                    (&["json"], "file_type_json.svg"),
-                    (&["markdown", "md"], "file_type_markdown.svg"),
-                    (&["rs"], "file_type_rust.svg"),
-                    (&["toml"], "file_type_toml.svg"),
-                    (&["yaml"], "file_type_yaml.svg"),
-                    (&["py"], "file_type_python.svg"),
-                    (&["lua"], "file_type_lua.svg"),
-                    (&["html", "htm"], "file_type_html.svg"),
-                    (&["zip"], "file_type_zip.svg"),
-                    (&["js"], "file_type_js.svg"),
-                    (&["ts"], "file_type_ts.svg"),
-                    (&["css"], "file_type_css.svg"),
+pub fn file_svg(path: &Path) -> (Svg, Option<&Color>) {
+    let icon_name: Option<&str>;
+    let icon_color: Option<&Color>;
+    (icon_name, icon_color) = match path.extension().and_then(OsStr::to_str) {
+        Some(extension) => {
+            const TYPES: &[(&[&str], &str, Option<&Color>)] = &[
+                (&["c"], "file_type_c.svg", None),
+                (&["h"], "file_type_c.svg", None),
+                (&["cxx", "cc", "c++", "cpp"], "file_type_cpp.svg", None),
+                (&["hxx", "hh", "h++", "hpp"], "file_type_cpp.svg", None),
+                (&["go"], "file_type_go.svg", None),
+                (&["json"], "file_type_json.svg", None),
+                (&["markdown", "md"], "file_type_markdown.svg", None),
+                (&["rs"], "file_type_rust.svg", None),
+                (&["toml"], "file_type_toml.svg", None),
+                (&["yaml"], "file_type_yaml.svg", None),
+                (&["py"], "file_type_python.svg", None),
+                (&["lua"], "file_type_lua.svg", None),
+                (&["html", "htm"], "file_type_html.svg", None),
+                (&["zip"], "file_type_zip.svg", None),
+                (&["js"], "file_type_js.svg", None),
+                (&["ts"], "file_type_ts.svg", None),
+                (&["css"], "file_type_css.svg", None),
+            ];
+
+            let (mut icon, mut color) = (None, None);
+
+            for (exts, file_type, col) in TYPES {
+                for ext in exts.iter() {
+                    if extension.eq_ignore_ascii_case(ext) {
+                        (icon, color) = (Some(*file_type), *col)
+                    }
+                }
+            }
+
+            (icon, color)
+        }
+        None => match path.file_name().and_then(OsStr::to_str) {
+            Some(file_name) => {
+                const FILES: &[(&[&str], &str, Option<&Color>)] = &[
+                    (&["LICENSE", "LICENCE"], "file_type_license.svg", None),
+                    (&["COPYRIGHT"], "file_type_license.svg", None),
+                    (&["NOTICE"], "file_type_license.svg", None),
                 ];
 
-                for (exts, file_type) in TYPES {
-                    for ext in exts.iter() {
-                        if extension.eq_ignore_ascii_case(ext) {
-                            return Some(*file_type);
+                let (mut icon, mut color) = (None, None);
+
+                for (filenames, file_type, col) in FILES {
+                    for filename in filenames.iter() {
+                        if file_name.to_lowercase().starts_with(filename) {
+                            (icon, color) = (Some(*file_type), *col)
                         }
                     }
                 }
 
-                None
-            })
-            .unwrap_or("default_file.svg")
+                (icon, color)
+            }
+            None => (Some("default_file.svg"), None),
+        },
     };
 
-    get_svg(file_type).unwrap()
+    match icon_name {
+        Some(icon_name) => match get_svg(icon_name) {
+            Some(svg) => (svg, icon_color),
+            None => (get_svg("default_file.svg").unwrap(), None),
+        },
+        None => (get_svg("default_file.svg").unwrap(), None),
+    }
 }
 
 pub fn symbol_svg(kind: &SymbolKind) -> Option<Svg> {
