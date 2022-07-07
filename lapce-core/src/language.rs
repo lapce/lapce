@@ -158,6 +158,8 @@ pub enum LapceLanguage {
     Zig,
     #[cfg(feature = "lang-bash")]
     Bash,
+    #[cfg(feature = "lang-yaml")]
+    Yaml,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -496,6 +498,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["sh", "bash"],
     },
+    #[cfg(feature = "lang-yaml")]
+    SyntaxProperties {
+        id: LapceLanguage::Yaml,
+        language: tree_sitter_yaml::language,
+        highlight: tree_sitter_yaml::HIGHLIGHTS_QUERY,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["yml", "yaml"],
+    },
 ];
 
 impl LapceLanguage {
@@ -770,5 +782,9 @@ mod test {
     #[cfg(feature = "lang-bash")]
     fn test_bash_lang() {
         assert_language(LapceLanguage::Bash, &["sh", "bash"]);
+    }
+    #[cfg(feature = "lang-yaml")]
+    fn test_yaml_lang() {
+        assert_language(LapceLanguage::Yaml, &["yml", "yaml"]);
     }
 }
