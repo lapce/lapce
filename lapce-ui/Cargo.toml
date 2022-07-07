@@ -87,9 +87,10 @@ all-languages = [
     "lang-hcl",
     "lang-scss",
     "lang-hare",
-    "lang-css",        
+    "lang-css",
     "lang-zig",
     "lang-bash",
+    "lang-yaml",
 ]
 
 lang-rust = ["lapce-core/lang-rust"]
@@ -120,3 +121,4 @@ lang-hare = ["lapce-core/lang-hare"]
 lang-css = ["lapce-core/lang-css"]
 lang-zig = ["lapce-core/lang-zig"]
 lang-bash = ["lapce-core/lang-bash"]
+lang-yaml = ["lapce-core/lang-yaml"]

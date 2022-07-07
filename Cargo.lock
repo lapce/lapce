@@ -2232,6 +2232,7 @@ dependencies = [
  "tree-sitter-swift",
  "tree-sitter-toml",
  "tree-sitter-typescript",
+ "tree-sitter-yaml",
  "tree-sitter-zig",
  "xi-rope",
 ]
@@ -4814,6 +4815,15 @@ name = "tree-sitter-typescript"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e8ed0ecb931cdff13c6a13f45ccd615156e2779d9ffb0395864e05505e6e86d"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-yaml"
+version = "0.0.1"
+source = "git+https://github.com/panekj/tree-sitter-yaml?branch=master#faed130c65531addfa3edf855e1d417b96c7f163"
 dependencies = [
  "cc",
  "tree-sitter",
