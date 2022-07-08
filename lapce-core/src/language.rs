@@ -1,5 +1,6 @@
 use std::{collections::HashSet, path::Path};
 
+use strum_macros::Display;
 use tree_sitter::{Parser, TreeCursor};
 
 use crate::style::HighlightConfiguration;
@@ -94,7 +95,7 @@ struct SyntaxProperties {
 // Do not assign values to the variants because the number of variants and
 // number of elements in the LANGUAGES array change as different features
 // selected by the cargo build command.
-#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, Display)]
 pub enum LapceLanguage {
     #[cfg(feature = "lang-rust")]
     Rust,
