@@ -146,6 +146,49 @@ impl LapceStatus {
         );
         left + text_layout.size().width
     }
+
+    fn paint_icon_with_label_from_right(
+        &self,
+        right: f64,
+        height: f64,
+        icon: &'static str,
+        label: String,
+        ctx: &mut PaintCtx,
+        config: &Config,
+    ) -> f64 {
+        let fg_color = config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout(label)
+            .font(config.ui.font_family(), config.ui.font_size() as f64)
+            .text_color(fg_color.clone())
+            .build()
+            .unwrap();
+
+        let icon_padding = (height - self.icon_size) / 2.0;
+
+        let mut right = right;
+
+        if let Some(warnings_icon) = get_svg(icon) {
+            let rect = Size::new(height, height)
+                .to_rect()
+                .inflate(-icon_padding, -icon_padding)
+                .with_origin(Point::new(right - 2.0 * icon_padding, icon_padding));
+            ctx.draw_svg(&warnings_icon, rect, Some(fg_color));
+
+            right += icon_padding + height;
+        }
+
+        ctx.draw_text(
+            &text_layout,
+            Point::new(
+                right - text_layout.size().width,
+                (height - text_layout.size().height) / 2.0,
+            ),
+        );
+        right - text_layout.size().width
+    }
 }
 
 impl Default for LapceStatus {
@@ -201,7 +244,9 @@ impl Widget<LapceTabData> for LapceStatus {
             data.main_split.active_editor(),
         ) {
             (Some(old_data), Some(data)) => {
-                if old_data.cursor.get_mode() != data.cursor.get_mode() {
+                if old_data.cursor.get_mode() != data.cursor.get_mode()
+                    || old_data.editor_id != data.editor_id
+                {
                     ctx.request_paint();
                 }
             }
@@ -262,6 +307,7 @@ impl Widget<LapceTabData> for LapceStatus {
         );
 
         let mut left = 0.0;
+        let mut _right = 0.0;
 
         if data.config.lapce.modal {
             let mode = if data.focus_area == FocusArea::Panel(PanelKind::Terminal) {
@@ -370,6 +416,21 @@ impl Widget<LapceTabData> for LapceStatus {
                     ),
                 );
             }
+        }
+
+        if let Some(editor) = &data.main_split.active_editor() {
+            let lang = match data.main_split.content_doc(&editor.content).syntax() {
+                Some(v) => v.language.to_string(),
+                None => String::from("Plain Text"),
+            };
+            _right = self.paint_icon_with_label_from_right(
+                size.width - 5.0,
+                size.height,
+                "",
+                lang,
+                ctx,
+                &data.config,
+            )
         }
     }
 }
