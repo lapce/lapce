@@ -236,14 +236,11 @@ impl LapceTerminalViewData {
     }
 
     pub fn send_keypress(&mut self, key: &KeyEvent) {
-        let mut raw = self.terminal.raw.lock();
-        let term = &mut raw.term;
-        term.scroll_display(Scroll::Bottom);
-        term.vi_mode_cursor.point.line = term.bottommost_line();
         if let Some(command) = LapceTerminalData::resolve_key_event(key) {
             self.terminal
                 .proxy
                 .terminal_write(self.terminal.term_id, command.as_ref());
+            self.terminal.raw.lock().term.scroll_display(Scroll::Bottom);
         }
     }
 }
@@ -459,6 +456,7 @@ impl KeyPressFocus for LapceTerminalViewData {
     fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
         if self.terminal.mode == Mode::Terminal {
             self.terminal.proxy.terminal_write(self.terminal.term_id, c);
+            self.terminal.raw.lock().term.scroll_display(Scroll::Bottom);
         }
     }
 }
