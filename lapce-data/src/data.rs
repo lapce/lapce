@@ -109,7 +109,6 @@ impl LapceData {
                 #[cfg(target_os = "windows")]
                 let workspace_type =
                     if !env::var("WSL_DISTRO_NAME").unwrap_or_default().is_empty()
-                        || !env::var("WSLENV").unwrap_or_default().is_empty()
                         || !env::var("WSL_INTEROP").unwrap_or_default().is_empty()
                     {
                         LapceWorkspaceType::RemoteWSL
