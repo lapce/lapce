@@ -80,6 +80,7 @@ pub struct TextLayoutLine {
 pub struct TextLayoutCache {
     config_id: u64,
     pub layouts: HashMap<usize, Arc<TextLayoutLine>>,
+    pub max_width: f64,
 }
 
 impl TextLayoutCache {
@@ -87,6 +88,7 @@ impl TextLayoutCache {
         Self {
             config_id: 0,
             layouts: HashMap::new(),
+            max_width: 0.0,
         }
     }
 
@@ -210,11 +212,11 @@ impl<'a> InlayHintsLine<'a> {
     }
 
     /// Translate a column position into the text into what it would be after combining
-    /// If the cursor is right at the start then it will stay there
-    pub fn col_after(&self, pre_col: usize) -> usize {
+    /// If before_cursor is false and the cursor is right at the start then it will stay there
+    pub fn col_after(&self, pre_col: usize, before_cursor: bool) -> usize {
         let mut last = pre_col;
         for (col_shift, size, _, col) in self.offset_size_iter() {
-            if pre_col > col {
+            if pre_col > col || (pre_col == col && before_cursor) {
                 last = pre_col + col_shift + size;
             }
         }
@@ -323,7 +325,7 @@ pub struct Document {
     syntax: Option<Syntax>,
     line_styles: Rc<RefCell<LineStyles>>,
     semantic_styles: Option<Arc<Spans<Style>>>,
-    text_layouts: Rc<RefCell<TextLayoutCache>>,
+    pub text_layouts: Rc<RefCell<TextLayoutCache>>,
     load_started: Rc<RefCell<bool>>,
     loaded: bool,
     histories: im::HashMap<String, DocumentHistory>,
@@ -1238,10 +1240,14 @@ impl Document {
     ) -> Arc<TextLayoutLine> {
         self.text_layouts.borrow_mut().check_attributes(config.id);
         if self.text_layouts.borrow().layouts.get(&line).is_none() {
-            self.text_layouts.borrow_mut().layouts.insert(
-                line,
-                Arc::new(self.new_text_layout(text, line, font_size, config)),
-            );
+            let mut cache = self.text_layouts.borrow_mut();
+            let text_layout =
+                Arc::new(self.new_text_layout(text, line, font_size, config));
+            let width = text_layout.text.size().width;
+            if width > cache.max_width {
+                cache.max_width = width;
+            }
+            cache.layouts.insert(line, text_layout);
         }
         self.text_layouts
             .borrow()

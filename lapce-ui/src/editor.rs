@@ -346,6 +346,7 @@ impl LapceEditor {
                             * data.config.editor.code_lens_font_size;
                         Size::new(
                             (width * data.doc.buffer().max_len() as f64)
+                                .max(data.doc.text_layouts.borrow().max_width)
                                 .max(editor_size.width),
                             if data.config.editor.scroll_beyond_last_line {
                                 (height as f64 - line_height).max(0.0)
@@ -1107,7 +1108,7 @@ impl LapceEditor {
                         .unwrap_or_default();
 
                     // Shift it by the inlay hints
-                    let col = inlay_hints.col_after(col);
+                    let col = inlay_hints.col_after(col, true);
 
                     let x0 = data
                         .doc
@@ -1131,7 +1132,7 @@ impl LapceEditor {
                     );
                     let (_, right_col) =
                         data.doc.buffer().offset_to_line_col(right_offset);
-                    let right_col = inlay_hints.col_after(right_col);
+                    let right_col = inlay_hints.col_after(right_col, false);
                     let x1 = data
                         .doc
                         .point_of_line_col(
@@ -1212,8 +1213,8 @@ impl LapceEditor {
                         .and_then(|_| data.doc.line_inlay_hints(line))
                         .unwrap_or_default();
 
-                    let left_col = inlay_hints.col_after(left_col);
-                    let right_col = inlay_hints.col_after(right_col);
+                    let left_col = inlay_hints.col_after(left_col, false);
+                    let right_col = inlay_hints.col_after(right_col, false);
 
                     let x0 = data
                         .doc
@@ -1257,7 +1258,7 @@ impl LapceEditor {
                             .and_then(|_| data.doc.line_inlay_hints(line))
                             .unwrap_or_default();
 
-                        let col = inlay_hints.col_after(col);
+                        let col = inlay_hints.col_after(col, true);
 
                         let x0 = data
                             .doc
@@ -1281,7 +1282,7 @@ impl LapceEditor {
                         );
                         let (_, right_col) =
                             data.doc.buffer().offset_to_line_col(right_offset);
-                        let right_col = inlay_hints.col_after(right_col);
+                        let right_col = inlay_hints.col_after(right_col, false);
                         let x1 = data
                             .doc
                             .point_of_line_col(
@@ -1363,8 +1364,8 @@ impl LapceEditor {
                                 .unwrap_or_default();
 
                             // Shift it by the inlay hints
-                            let left_col = inlay_hints.col_after(left_col);
-                            let right_col = inlay_hints.col_after(right_col);
+                            let left_col = inlay_hints.col_after(left_col, false);
+                            let right_col = inlay_hints.col_after(right_col, false);
 
                             if !line_content.is_empty() {
                                 let x0 = data
@@ -1414,7 +1415,7 @@ impl LapceEditor {
                             .unwrap_or_default();
 
                         // Shift it by the inlay hints
-                        let col = inlay_hints.col_after(col);
+                        let col = inlay_hints.col_after(col, false);
 
                         let x = data
                             .doc
