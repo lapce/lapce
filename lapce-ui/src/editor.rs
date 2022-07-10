@@ -346,7 +346,6 @@ impl LapceEditor {
                             * data.config.editor.code_lens_font_size;
                         Size::new(
                             (width * data.doc.buffer().max_len() as f64)
-                                .max(data.doc.text_layouts.borrow().max_width)
                                 .max(editor_size.width),
                             if data.config.editor.scroll_beyond_last_line {
                                 (height as f64 - line_height).max(0.0)
@@ -381,6 +380,7 @@ impl LapceEditor {
                 } else {
                     Size::new(
                         (width * data.doc.buffer().max_len() as f64)
+                            .max(data.doc.text_layouts.borrow().max_width)
                             .max(editor_size.width),
                         if data.config.editor.scroll_beyond_last_line {
                             (line_height * data.doc.buffer().num_lines() as f64
