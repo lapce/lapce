@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use crossbeam_channel::Sender;
 use lapce_rpc::buffer::BufferId;
 use std::ffi::OsString;
 use std::fs;
@@ -12,22 +11,18 @@ use std::{borrow::Cow, path::Path, time::SystemTime};
 use lsp_types::*;
 use xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 
+#[derive(Clone)]
 pub struct Buffer {
     pub language_id: String,
     pub id: BufferId,
     pub rope: Rope,
     pub path: PathBuf,
     pub rev: u64,
-    sender: Sender<(BufferId, u64)>,
     pub mod_time: Option<SystemTime>,
 }
 
 impl Buffer {
-    pub fn new(
-        id: BufferId,
-        path: PathBuf,
-        sender: Sender<(BufferId, u64)>,
-    ) -> Buffer {
+    pub fn new(id: BufferId, path: PathBuf) -> Buffer {
         let rope = if let Ok(rope) = load_rope(&path) {
             rope
         } else {
@@ -42,7 +37,6 @@ impl Buffer {
             path,
             language_id,
             rev,
-            sender,
             mod_time,
         }
     }
@@ -95,7 +89,6 @@ impl Buffer {
                 text: self.get_document(),
             },
         };
-        let _ = self.sender.send((self.id, self.rev));
         Some(content_change)
     }
 

@@ -6,7 +6,7 @@ use crate::watcher::{FileWatcher, Notify, WatchToken};
 use alacritty_terminal::event_loop::Msg;
 use alacritty_terminal::term::SizeInfo;
 use anyhow::{anyhow, Context, Result};
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender};
 use directories::BaseDirs;
 use git2::build::CheckoutBuilder;
 use git2::{DiffOptions, Repository};
@@ -38,7 +38,6 @@ const WORKSPACE_EVENT_TOKEN: WatchToken = WatchToken(2);
 #[derive(Clone)]
 pub struct Dispatcher {
     pub sender: Arc<Sender<Value>>,
-    pub git_sender: Sender<(BufferId, u64)>,
     pub workspace: Arc<Mutex<Option<PathBuf>>>,
     pub buffers: Arc<Mutex<HashMap<BufferId, Buffer>>>,
 
@@ -61,10 +60,8 @@ impl Notify for Dispatcher {
 impl Dispatcher {
     pub fn new(sender: Sender<Value>) -> Dispatcher {
         let plugins = PluginCatalog::new();
-        let (git_sender, git_receiver) = unbounded();
         let dispatcher = Dispatcher {
             sender: Arc::new(sender),
-            git_sender,
             workspace: Arc::new(Mutex::new(None)),
             buffers: Arc::new(Mutex::new(HashMap::new())),
             open_files: Arc::new(Mutex::new(HashMap::new())),
@@ -106,7 +103,6 @@ impl Dispatcher {
             }
         });
 
-        dispatcher.start_update_process(git_receiver);
         dispatcher.send_notification("proxy_connected", json!({}));
 
         dispatcher
@@ -143,32 +139,6 @@ impl Dispatcher {
             }
         }
         Ok(())
-    }
-
-    pub fn start_update_process(&self, receiver: Receiver<(BufferId, u64)>) {
-        let buffers = self.buffers.clone();
-        let lsp = self.lsp.clone();
-        thread::spawn(move || loop {
-            match receiver.recv() {
-                Ok((buffer_id, rev)) => {
-                    let buffers = buffers.lock();
-                    let buffer = buffers.get(&buffer_id).unwrap();
-                    let (_path, _content) = if buffer.rev != rev {
-                        continue;
-                    } else {
-                        (
-                            buffer.path.clone(),
-                            buffer.slice_to_cow(..buffer.len()).to_string(),
-                        )
-                    };
-
-                    lsp.lock().get_semantic_tokens(buffer);
-                }
-                Err(_) => {
-                    return;
-                }
-            }
-        });
     }
 
     pub fn next<R: BufRead>(
@@ -469,10 +439,9 @@ impl Dispatcher {
                 self.open_files
                     .lock()
                     .insert(path.to_str().unwrap().to_string(), buffer_id);
-                let buffer = Buffer::new(buffer_id, path, self.git_sender.clone());
+                let buffer = Buffer::new(buffer_id, path);
                 let content = buffer.rope.to_string();
                 self.buffers.lock().insert(buffer_id, buffer);
-                let _ = self.git_sender.send((buffer_id, 0));
                 let resp = NewBufferResponse { content };
                 let _ = self.sender.send(json!({
                     "id": id,
@@ -555,6 +524,11 @@ impl Dispatcher {
                 let buffers = self.buffers.lock();
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_inlay_hints(id, buffer);
+            }
+            GetSemanticTokens { buffer_id } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp.lock().get_semantic_tokens(id, buffer);
             }
             GetCodeActions {
                 buffer_id,
@@ -643,8 +617,7 @@ impl Dispatcher {
                 rev,
                 content,
             } => {
-                let mut buffer =
-                    Buffer::new(buffer_id, path.clone(), self.git_sender.clone());
+                let mut buffer = Buffer::new(buffer_id, path.clone());
                 buffer.rope = Rope::from(content);
                 buffer.rev = rev;
                 let resp = buffer.save(rev).map(|_r| json!({}));
@@ -653,7 +626,6 @@ impl Dispatcher {
                     self.open_files
                         .lock()
                         .insert(path.to_str().unwrap().to_string(), buffer_id);
-                    let _ = self.git_sender.send((buffer_id, 0));
                 }
                 self.respond(id, resp);
             }

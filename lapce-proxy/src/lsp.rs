@@ -20,7 +20,7 @@ use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_rpc::{
     buffer::BufferId,
-    style::{LineStyle, Style},
+    style::{LineStyle, SemanticStyles, Style},
     RequestId,
 };
 use lsp_types::*;
@@ -222,42 +222,33 @@ impl LspCatalog {
         }
     }
 
-    pub fn get_semantic_tokens(&self, buffer: &Buffer) {
-        let buffer_id = buffer.id;
-        let path = buffer.path.clone();
-        let rev = buffer.rev;
-        let len = buffer.len();
+    pub fn get_semantic_tokens(&self, id: RequestId, buffer: &Buffer) {
+        let buffer = buffer.clone();
         if let Some(client) = self.clients.get(&buffer.language_id) {
-            let uri = client.get_uri(buffer);
-            let local_dispatcher = self.dispatcher.clone().unwrap();
+            let uri = client.get_uri(&buffer);
             client.request_semantic_tokens(uri, move |lsp_client, result| {
-                if let Ok(res) = result {
-                    let buffers = local_dispatcher.buffers.lock();
-                    let buffer = buffers.get(&buffer_id).unwrap();
-                    if buffer.rev != rev {
-                        return;
-                    }
-                    let lsp_state = lsp_client.state.lock();
-                    let semantic_tokens_provider = &lsp_state
-                        .server_capabilities
-                        .as_ref()
-                        .unwrap()
-                        .semantic_tokens_provider;
-                    if let Some(styles) =
-                        format_semantic_styles(buffer, semantic_tokens_provider, res)
-                    {
-                        local_dispatcher.send_notification(
-                            "semantic_styles",
-                            json!({
-                                "rev": rev,
-                                "buffer_id": buffer_id,
-                                "path": path,
-                                "styles": styles,
-                                "len": len,
-                            }),
-                        )
-                    }
-                }
+                let lsp_state = lsp_client.state.lock();
+                let semantic_tokens_provider = &lsp_state
+                    .server_capabilities
+                    .as_ref()
+                    .unwrap()
+                    .semantic_tokens_provider;
+                let result = result.and_then(|value| {
+                    format_semantic_styles(&buffer, semantic_tokens_provider, value)
+                        .map(|styles| {
+                            serde_json::to_value(SemanticStyles {
+                                rev: buffer.rev,
+                                buffer_id: buffer.id,
+                                path: buffer.path.clone(),
+                                styles,
+                                len: buffer.len(),
+                            })
+                            .unwrap()
+                        })
+                        .ok_or_else(|| anyhow!("can't format semantic styles"))
+                });
+
+                lsp_client.dispatcher.respond(id, result);
             });
         }
     }

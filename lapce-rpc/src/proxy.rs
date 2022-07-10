@@ -104,6 +104,9 @@ pub enum ProxyRequest {
     GetInlayHints {
         buffer_id: BufferId,
     },
+    GetSemanticTokens {
+        buffer_id: BufferId,
+    },
     GetCodeActions {
         buffer_id: BufferId,
         position: Position,

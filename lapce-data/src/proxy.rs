@@ -28,8 +28,7 @@ use lsp_types::Url;
 use parking_lot::Mutex;
 use serde_json::json;
 use serde_json::Value;
-use xi_rope::spans::SpansBuilder;
-use xi_rope::{Interval, Rope, RopeDelta};
+use xi_rope::{Rope, RopeDelta};
 
 use crate::command::LapceUICommand;
 use crate::command::LAPCE_UI_COMMAND;
@@ -68,36 +67,6 @@ impl Handler for LapceProxy {
     fn handle_notification(&mut self, rpc: Self::Notification) -> ControlFlow {
         use lapce_rpc::core::CoreNotification::*;
         match rpc {
-            SemanticStyles {
-                rev,
-                buffer_id,
-                path,
-                styles,
-                len,
-            } => {
-                let event_sink = self.event_sink.clone();
-                let tab_id = self.tab_id;
-                rayon::spawn(move || {
-                    let mut styles_span = SpansBuilder::new(len);
-                    for style in styles {
-                        styles_span.add_span(
-                            Interval::new(style.start, style.end),
-                            style.style,
-                        );
-                    }
-                    let styles_span = Arc::new(styles_span.build());
-                    let _ = event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateSemanticStyles(
-                            buffer_id,
-                            path,
-                            rev,
-                            styles_span,
-                        ),
-                        Target::Widget(tab_id),
-                    );
-                });
-            }
             OpenFileChanged { path, content } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -703,6 +672,16 @@ impl LapceProxy {
     pub fn get_inlay_hints(&self, buffer_id: BufferId, f: Box<dyn Callback>) {
         self.rpc.send_rpc_request_async(
             "get_inlay_hints",
+            &json!({
+                "buffer_id": buffer_id,
+            }),
+            f,
+        );
+    }
+
+    pub fn get_semantic_tokens(&self, buffer_id: BufferId, f: Box<dyn Callback>) {
+        self.rpc.send_rpc_request_async(
+            "get_semantic_tokens",
             &json!({
                 "buffer_id": buffer_id,
             }),

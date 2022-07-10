@@ -32,7 +32,7 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::{BufferId, NewBufferResponse},
-    style::{LineStyle, LineStyles, Style},
+    style::{LineStyle, LineStyles, SemanticStyles, Style},
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, InlayHint, InlayHintLabel,
@@ -615,6 +615,55 @@ impl Document {
         }
     }
 
+    fn get_semantic_styles(&self) {
+        if !self.loaded() {
+            return;
+        }
+
+        if !self.content().is_file() {
+            return;
+        }
+        if let BufferContent::File(path) = self.content() {
+            let tab_id = self.tab_id;
+            let path = path.clone();
+            let buffer_id = self.id();
+            let rev = self.rev();
+            let len = self.buffer().len();
+            let event_sink = self.event_sink.clone();
+            self.proxy.get_semantic_tokens(
+                buffer_id,
+                Box::new(move |result| {
+                    if let Ok(res) = result {
+                        if let Ok(resp) =
+                            serde_json::from_value::<SemanticStyles>(res)
+                        {
+                            rayon::spawn(move || {
+                                let mut styles_span = SpansBuilder::new(len);
+                                for style in resp.styles {
+                                    styles_span.add_span(
+                                        Interval::new(style.start, style.end),
+                                        style.style,
+                                    );
+                                }
+                                let styles_span = Arc::new(styles_span.build());
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::UpdateSemanticStyles(
+                                        buffer_id,
+                                        path,
+                                        rev,
+                                        styles_span,
+                                    ),
+                                    Target::Widget(tab_id),
+                                );
+                            });
+                        }
+                    }
+                }),
+            );
+        }
+    }
+
     pub fn get_inlay_hints(&self) {
         if !self.loaded() {
             return;
@@ -677,6 +726,7 @@ impl Document {
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.get_inlay_hints();
+        self.get_semantic_styles();
         self.clear_style_cache();
         self.trigger_syntax_change(delta);
         self.trigger_head_change();
