@@ -227,12 +227,14 @@ impl PaletteItemContent {
                 ));
             }
             PaletteItemContent::Language(name) => {
-                let name = name.to_string();
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SetLanguage(name),
-                    Target::Auto,
-                ))
+                if !preview {
+                    let name = name.to_string();
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SetLanguage(name),
+                        Target::Auto,
+                    ))
+                }
             }
             PaletteItemContent::Command(command) => {
                 if !preview {
