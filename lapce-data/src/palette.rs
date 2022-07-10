@@ -7,6 +7,7 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use itertools::Itertools;
 use lapce_core::command::{EditCommand, FocusCommand};
+use lapce_core::language::LapceLanguage;
 use lapce_core::mode::Mode;
 use lapce_core::movement::Movement;
 use lsp_types::{DocumentSymbolResponse, Range, SymbolInformation, SymbolKind};
@@ -47,6 +48,7 @@ pub enum PaletteType {
     Reference,
     Theme,
     SshHost,
+    Language,
 }
 
 impl PaletteType {
@@ -62,6 +64,7 @@ impl PaletteType {
             PaletteType::Reference => "".to_string(),
             PaletteType::Theme => "".to_string(),
             PaletteType::SshHost => "".to_string(),
+            PaletteType::Language => "".to_string(),
         }
     }
 
@@ -80,7 +83,10 @@ impl PaletteType {
     /// [`PaletteType`] and the current input.
     fn get_palette_type(current_type: &PaletteType, input: &str) -> PaletteType {
         match current_type {
-            PaletteType::Reference | PaletteType::SshHost | PaletteType::Theme => {
+            PaletteType::Reference
+            | PaletteType::SshHost
+            | PaletteType::Theme
+            | PaletteType::Language => {
                 return current_type.clone();
             }
             _ => (),
@@ -136,6 +142,7 @@ pub enum PaletteItemContent {
     SshHost(String, String),
     Command(LapceCommand),
     Theme(String),
+    Language(String),
 }
 
 impl PaletteItemContent {
@@ -218,6 +225,14 @@ impl PaletteItemContent {
                     LapceUICommand::SetTheme(theme.to_string(), preview),
                     Target::Auto,
                 ));
+            }
+            PaletteItemContent::Language(name) => {
+                let name = name.to_string();
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SetLanguage(name),
+                    Target::Auto,
+                ))
             }
             PaletteItemContent::Command(command) => {
                 if !preview {
@@ -473,6 +488,7 @@ impl PaletteData {
             PaletteType::File => &self.input,
             PaletteType::Reference => &self.input,
             PaletteType::Theme => &self.input,
+            PaletteType::Language => &self.input,
             PaletteType::SshHost => &self.input,
             PaletteType::Line => &self.input[1..],
             PaletteType::DocumentSymbol => &self.input[1..],
@@ -598,6 +614,9 @@ impl PaletteViewData {
                 let config = self.config.clone();
                 self.get_themes(ctx, &config);
             }
+            PaletteType::Language => {
+                self.get_languages(ctx);
+            }
         }
     }
 
@@ -622,6 +641,7 @@ impl PaletteViewData {
             PaletteType::File => 0,
             PaletteType::Reference => 0,
             PaletteType::Theme => 0,
+            PaletteType::Language => 0,
             PaletteType::SshHost => 0,
             PaletteType::Line => 1,
             PaletteType::DocumentSymbol => 1,
@@ -846,6 +866,22 @@ impl PaletteViewData {
             .sorted_by_key(|(n, _)| n)
             .map(|(n, _)| PaletteItem {
                 content: PaletteItemContent::Theme(n.to_string()),
+                filter_text: n.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+    }
+
+    fn get_languages(&mut self, _ctx: &mut EventCtx) {
+        let palette = Arc::make_mut(&mut self.palette);
+        let mut langs = LapceLanguage::languages();
+        langs.push("Plain Text".to_string());
+        palette.items = langs
+            .iter()
+            .sorted()
+            .map(|n| PaletteItem {
+                content: PaletteItemContent::Language(n.to_string()),
                 filter_text: n.to_string(),
                 score: 0,
                 indices: vec![],

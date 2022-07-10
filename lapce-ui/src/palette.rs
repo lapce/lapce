@@ -640,6 +640,13 @@ impl PaletteContent {
                     "".to_string(),
                     vec![],
                 ),
+                PaletteItemContent::Language(name) => (
+                    None,
+                    name.to_string(),
+                    indices.to_vec(),
+                    "".to_string(),
+                    vec![],
+                ),
                 PaletteItemContent::TerminalLine(_line, content) => (
                     None,
                     content.clone(),

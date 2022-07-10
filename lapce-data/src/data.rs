@@ -1347,6 +1347,13 @@ impl LapceTabData {
             LapceWorkbenchCommand::InstallTheme => {
                 self.main_split.install_theme(ctx, &self.config);
             }
+            LapceWorkbenchCommand::ChangeFileLanguage => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::Language)),
+                    Target::Auto,
+                ))
+            }
         }
     }
 
