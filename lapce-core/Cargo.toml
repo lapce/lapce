@@ -50,6 +50,7 @@ tree-sitter-zig = { git = "https://github.com/maxxnino/tree-sitter-zig", branch 
 # switch to upstream version after this is merged  https://github.com/tree-sitter/tree-sitter-bash/pull/120
 tree-sitter-bash = { git = "https://github.com/syntacti/tree-sitter-bash", branch = "master", optional = true }
 tree-sitter-yaml = { git = "https://github.com/panekj/tree-sitter-yaml", branch = "master", optional = true }
+tree-sitter-julia = { git = "https://github.com/VarLad/tree-sitter-julia", branch = "master", optional = true }
 
 [features]
 default = []
@@ -85,3 +86,4 @@ lang-css = ["dep:tree-sitter-css"]
 lang-zig = ["dep:tree-sitter-zig"]
 lang-bash = ["dep:tree-sitter-bash"]
 lang-yaml = ["dep:tree-sitter-yaml"]
+lang-julia = ["dep:tree-sitter-julia"]
