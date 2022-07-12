@@ -162,6 +162,8 @@ pub enum LapceLanguage {
     Bash,
     #[cfg(feature = "lang-yaml")]
     Yaml,
+    #[cfg(feature = "lang-julia")]
+    Julia,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -510,6 +512,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["yml", "yaml"],
     },
+    #[cfg(feature = "lang-julia")]
+    SyntaxProperties {
+        id: LapceLanguage::Julia,
+        language: tree_sitter_julia::language,
+        highlight: include_str!("../queries/julia/highlights.scm"),
+        comment: "#",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["julia", "jl"],
+    },
 ];
 
 impl LapceLanguage {
@@ -806,5 +818,9 @@ mod test {
     #[cfg(feature = "lang-yaml")]
     fn test_yaml_lang() {
         assert_language(LapceLanguage::Yaml, &["yml", "yaml"]);
+    }
+    #[cfg(feature = "lang-julia")]
+    fn test_julia_lang() {
+        assert_language(LapceLanguage::Julia, &["julia", "jl"]);
     }
 }

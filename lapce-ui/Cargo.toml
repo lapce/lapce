@@ -91,6 +91,7 @@ all-languages = [
     "lang-zig",
     "lang-bash",
     "lang-yaml",
+    "lang-julia",
 ]
 
 lang-rust = ["lapce-core/lang-rust"]
@@ -122,3 +123,4 @@ lang-css = ["lapce-core/lang-css"]
 lang-zig = ["lapce-core/lang-zig"]
 lang-bash = ["lapce-core/lang-bash"]
 lang-yaml = ["lapce-core/lang-yaml"]
+lang-julia = ["lapce-core/lang-julia"]
