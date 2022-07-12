@@ -1,3 +1,4 @@
+#[cfg(feature = "terminal")]
 use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
@@ -22,8 +23,11 @@ use crate::command::CommandKind;
 use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::document::BufferContent;
 use crate::editor::EditorLocation;
+#[cfg(feature = "terminal")]
 use crate::panel::PanelKind;
 use crate::proxy::path_from_url;
+#[cfg(feature = "terminal")]
+use crate::terminal::TerminalSplitData;
 use crate::{
     command::LAPCE_UI_COMMAND,
     command::{CommandExecuted, LAPCE_COMMAND},
@@ -33,7 +37,6 @@ use crate::{
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
     proxy::LapceProxy,
-    terminal::TerminalSplitData,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -295,6 +298,7 @@ pub struct PaletteViewData {
     pub keypress: Arc<KeyPressData>,
     pub config: Arc<Config>,
     pub focus_area: FocusArea,
+    #[cfg(feature = "terminal")]
     pub terminal: Arc<TerminalSplitData>,
 }
 
@@ -915,6 +919,7 @@ impl PaletteViewData {
     }
 
     fn get_lines(&mut self, _ctx: &mut EventCtx) {
+        #[cfg(feature = "terminal")]
         if self.focus_area == FocusArea::Panel(PanelKind::Terminal) {
             if let Some(terminal) =
                 self.terminal.terminals.get(&self.terminal.active_term_id)

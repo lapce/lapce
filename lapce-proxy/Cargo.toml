@@ -18,7 +18,7 @@ wasmer-wasi = "2.1.1"
 directories = "4.0.1"
 locale_config = "0.3.0"
 base64 = "0.13.0"
-alacritty_terminal = "0.16"
+alacritty_terminal = { version = "0.16", optional = true }
 mio = "0.6.20"
 hotwatch = "0.4.6"
 notify = "5.0.0-pre.13"
@@ -36,3 +36,7 @@ git2 = { version = "0.14.4", features = ["vendored-openssl"] }
 lapce-rpc = { path = "../lapce-rpc" }
 trash = "2.1"
 log = "0.4.17"
+
+[features]
+default = ["terminal"]
+terminal = ["dep:alacritty_terminal"]

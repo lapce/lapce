@@ -8,9 +8,11 @@ use lapce_core::mode::Mode;
 use lapce_data::{
     command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::{Config, LapceTheme},
-    data::{FocusArea, LapceTabData},
-    panel::{PanelContainerPosition, PanelKind},
+    data::LapceTabData,
+    panel::PanelContainerPosition,
 };
+#[cfg(feature = "terminal")]
+use lapce_data::{data::FocusArea, panel::PanelKind};
 
 use crate::{svg::get_svg, tab::LapceIcon};
 
@@ -323,6 +325,7 @@ impl Widget<LapceTabData> for LapceStatus {
         let mut _right = 0.0;
 
         if data.config.lapce.modal {
+            #[cfg(feature = "terminal")]
             let mode = if data.focus_area == FocusArea::Panel(PanelKind::Terminal) {
                 data.terminal
                     .terminals
@@ -331,6 +334,9 @@ impl Widget<LapceTabData> for LapceStatus {
             } else {
                 data.main_split.active_editor().map(|e| e.cursor.get_mode())
             };
+
+            #[cfg(not(feature = "terminal"))]
+            let mode = data.main_split.active_editor().map(|e| e.cursor.get_mode());
 
             let (mode, color) = match mode.unwrap_or(Mode::Normal) {
                 Mode::Normal => ("Normal", LapceTheme::STATUS_MODAL_NORMAL),

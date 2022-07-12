@@ -42,13 +42,15 @@ use lsp_types::DiagnosticSeverity;
 use serde::Deserialize;
 use xi_rope::Rope;
 
+#[cfg(feature = "terminal")]
+use crate::terminal::TerminalPanel;
 use crate::{
     alert::AlertBox, completion::CompletionContainer, explorer::FileExplorer,
     hover::HoverContainer, palette::Palette, panel::PanelContainer,
     picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
     search::new_search_panel, settings::LapceSettingsPanel,
     source_control::new_source_control_panel, split::split_data_widget,
-    status::LapceStatus, svg::get_svg, terminal::TerminalPanel,
+    status::LapceStatus, svg::get_svg,
 };
 
 pub struct LapceIcon {
@@ -139,6 +141,7 @@ impl LapceTab {
                             WidgetPod::new(Plugin::new_panel(data).boxed()),
                         );
                     }
+                    #[cfg(feature = "terminal")]
                     PanelKind::Terminal => {
                         panel.insert_panel(
                             *kind,
@@ -854,6 +857,7 @@ impl LapceTab {
                         doc.load_history(version, content.clone());
                         ctx.set_handled();
                     }
+                    #[cfg(feature = "terminal")]
                     LapceUICommand::UpdateTerminalTitle(term_id, title) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
                         if let Some(terminal) =
@@ -879,6 +883,7 @@ impl LapceTab {
                         data.handle_file_change(ctx, event);
                         ctx.set_handled();
                     }
+                    #[cfg(feature = "terminal")]
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
                         if let Some(terminal) = terminal_panel.terminals.get_mut(id)
@@ -1179,6 +1184,7 @@ impl LapceTab {
                         );
                         ctx.set_handled();
                     }
+                    #[cfg(feature = "terminal")]
                     LapceUICommand::TerminalJumpToLine(line) => {
                         if let Some(terminal) = data
                             .terminal

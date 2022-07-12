@@ -917,6 +917,7 @@ impl PanelSwitcher {
                 LapceWorkbenchCommand::ToggleSourceControlVisual
             }
             PanelKind::Plugin => LapceWorkbenchCommand::TogglePluginVisual,
+            #[cfg(feature = "terminal")]
             PanelKind::Terminal => LapceWorkbenchCommand::ToggleTerminalVisual,
             PanelKind::Search => LapceWorkbenchCommand::ToggleSearchVisual,
             PanelKind::Problem => LapceWorkbenchCommand::ToggleProblemVisual,

@@ -1,3 +1,5 @@
+#![cfg(feature = "terminal")]
+
 use std::{
     borrow::Cow,
     collections::VecDeque,

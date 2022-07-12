@@ -6,8 +6,11 @@ use xi_rope::RopeDelta;
 
 use crate::{
     buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
-    source_control::FileDiff, terminal::TermId,
+    source_control::FileDiff,
 };
+
+#[cfg(feature = "terminal")]
+use crate::terminal::TermId;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -21,11 +24,6 @@ pub enum ProxyNotification {
         buffer_id: BufferId,
         delta: RopeDelta,
         rev: u64,
-    },
-    NewTerminal {
-        term_id: TermId,
-        cwd: Option<PathBuf>,
-        shell: String,
     },
     InstallPlugin {
         plugin: PluginDescription,
@@ -45,15 +43,24 @@ pub enum ProxyNotification {
     },
     GitDiscardWorkspaceChanges {},
     GitInit {},
+    #[cfg(feature = "terminal")]
+    NewTerminal {
+        term_id: TermId,
+        cwd: Option<PathBuf>,
+        shell: String,
+    },
+    #[cfg(feature = "terminal")]
     TerminalWrite {
         term_id: TermId,
         content: String,
     },
+    #[cfg(feature = "terminal")]
     TerminalResize {
         term_id: TermId,
         width: usize,
         height: usize,
     },
+    #[cfg(feature = "terminal")]
     TerminalClose {
         term_id: TermId,
     },

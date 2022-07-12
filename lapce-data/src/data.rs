@@ -12,6 +12,7 @@ use std::{
 use std::env;
 
 use anyhow::Result;
+#[cfg(feature = "terminal")]
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use directories::BaseDirs;
 use druid::{
@@ -29,9 +30,10 @@ use lapce_core::{
     register::Register,
     selection::Selection,
 };
+#[cfg(feature = "terminal")]
+use lapce_rpc::terminal::TermId;
 use lapce_rpc::{
     buffer::BufferId, plugin::PluginDescription, source_control::FileDiff,
-    terminal::TermId,
 };
 use lsp_types::{Diagnostic, Position, ProgressToken, TextEdit};
 use notify::Watcher;
@@ -65,13 +67,14 @@ use crate::{
     picker::FilePickerData,
     plugin::PluginData,
     problem::ProblemData,
-    proxy::{LapceProxy, ProxyStatus, TermEvent},
+    proxy::{LapceProxy, ProxyStatus},
     search::SearchData,
     settings::LapceSettingsPanelData,
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
-    terminal::TerminalSplitData,
 };
+#[cfg(feature = "terminal")]
+use crate::{proxy::TermEvent, terminal::TerminalSplitData};
 
 /// `LapceData` is the topmost structure in a tree of structures that holds
 /// the application model for Lapce.
@@ -203,7 +206,10 @@ impl LapceData {
         );
         order.insert(
             PanelPosition::BottomLeft,
+            #[cfg(feature = "terminal")]
             im::vector![PanelKind::Terminal, PanelKind::Search, PanelKind::Problem,],
+            #[cfg(not(feature = "terminal"))]
+            im::vector![PanelKind::Search, PanelKind::Problem,],
         );
 
         order
@@ -456,6 +462,7 @@ pub struct LapceTabData {
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
     pub hover: Arc<HoverData>,
+    #[cfg(feature = "terminal")]
     pub terminal: Arc<TerminalSplitData>,
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
@@ -472,7 +479,9 @@ pub struct LapceTabData {
     pub keypress: Arc<KeyPressData>,
     pub settings: Arc<LapceSettingsPanelData>,
     pub alert: Arc<AlertData>,
+    #[cfg(feature = "terminal")]
     pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
+    #[cfg(feature = "terminal")]
     pub term_rx: Option<Receiver<(TermId, TermEvent)>>,
     pub window_origin: Rc<RefCell<Point>>,
     pub panel: Arc<PanelData>,
@@ -494,7 +503,7 @@ impl Data for LapceTabData {
             && self.source_control.same(&other.source_control)
             && self.panel.same(&other.panel)
             && self.config.same(&other.config)
-            && self.terminal.same(&other.terminal)
+            // && self.terminal.same(&other.terminal)
             && self.focus == other.focus
             && self.focus_area == other.focus_area
             && self.proxy_status.same(&other.proxy_status)
@@ -537,10 +546,12 @@ impl LapceTabData {
             None
         };
 
+        #[cfg(feature = "terminal")]
         let (term_sender, term_receiver) = unbounded();
         let proxy = Arc::new(LapceProxy::new(
             tab_id,
             workspace.clone(),
+            #[cfg(feature = "terminal")]
             term_sender.clone(),
             event_sink.clone(),
         ));
@@ -613,6 +624,7 @@ impl LapceTabData {
             event_sink.clone(),
         );
 
+        #[cfg(feature = "terminal")]
         let terminal = Arc::new(TerminalSplitData::new(proxy.clone()));
         let problem = Arc::new(ProblemData::new());
         let panel = workspace_info
@@ -632,6 +644,7 @@ impl LapceTabData {
             main_split,
             completion,
             hover,
+            #[cfg(feature = "terminal")]
             terminal,
             plugin,
             problem,
@@ -642,7 +655,9 @@ impl LapceTabData {
             picker: file_picker,
             source_control,
             file_explorer,
+            #[cfg(feature = "terminal")]
             term_rx: Some(term_receiver),
+            #[cfg(feature = "terminal")]
             term_tx: Arc::new(term_sender),
             palette,
             proxy,
@@ -675,6 +690,7 @@ impl LapceTabData {
     }
 
     pub fn start_update_process(&mut self, event_sink: ExtEventSink) {
+        #[cfg(feature = "terminal")]
         if let Some(receiver) = self.term_rx.take() {
             let tab_id = self.id;
             let local_event_sink = event_sink.clone();
@@ -924,6 +940,7 @@ impl LapceTabData {
             config: self.config.clone(),
             find: self.find.clone(),
             focus_area: self.focus_area.clone(),
+            #[cfg(feature = "terminal")]
             terminal: self.terminal.clone(),
         }
     }
@@ -1170,6 +1187,7 @@ impl LapceTabData {
                     ));
                 }
             }
+            #[cfg(feature = "terminal")]
             LapceWorkbenchCommand::FocusTerminal => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
@@ -1193,6 +1211,7 @@ impl LapceTabData {
             LapceWorkbenchCommand::ToggleProblemVisual => {
                 self.toggle_panel_visual(ctx, PanelKind::Problem);
             }
+            #[cfg(feature = "terminal")]
             LapceWorkbenchCommand::ToggleTerminalVisual => {
                 self.toggle_panel_visual(ctx, PanelKind::Terminal);
             }
@@ -1230,6 +1249,7 @@ impl LapceTabData {
             LapceWorkbenchCommand::ToggleProblemFocus => {
                 self.toggle_panel_focus(ctx, PanelKind::Problem);
             }
+            #[cfg(feature = "terminal")]
             LapceWorkbenchCommand::ToggleTerminalFocus => {
                 self.toggle_panel_focus(ctx, PanelKind::Terminal);
             }
@@ -1392,6 +1412,7 @@ impl LapceTabData {
         }
     }
 
+    #[cfg(feature = "terminal")]
     pub fn terminal_update_process(
         tab_id: WidgetId,
         _palette_widget_id: WidgetId,
@@ -1471,6 +1492,7 @@ impl LapceTabData {
             PanelKind::FileExplorer => self.file_explorer.widget_id,
             PanelKind::SourceControl => self.source_control.active,
             PanelKind::Plugin => self.plugin.widget_id,
+            #[cfg(feature = "terminal")]
             PanelKind::Terminal => self.terminal.widget_id,
             PanelKind::Search => self.search.active,
             PanelKind::Problem => self.problem.widget_id,
@@ -1509,9 +1531,11 @@ impl LapceTabData {
                 // in those cases.
                 self.panel.is_panel_visible(&kind)
             }
-            PanelKind::Terminal | PanelKind::SourceControl | PanelKind::Search => {
+            PanelKind::SourceControl | PanelKind::Search => {
                 self.is_panel_focused(kind)
             }
+            #[cfg(feature = "terminal")]
+            PanelKind::Terminal => self.is_panel_focused(kind),
         };
         if should_hide {
             self.hide_panel(ctx, kind);

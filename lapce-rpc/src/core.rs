@@ -2,9 +2,10 @@ use lsp_types::{ProgressParams, PublishDiagnosticsParams};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf};
 
+#[cfg(feature = "terminal")]
+use crate::terminal::TermId;
 use crate::{
     file::FileNodeItem, plugin::PluginDescription, source_control::DiffInfo,
-    terminal::TermId,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,10 +46,12 @@ pub enum CoreNotification {
     DiffInfo {
         diff: DiffInfo,
     },
+    #[cfg(feature = "terminal")]
     UpdateTerminal {
         term_id: TermId,
         content: String,
     },
+    #[cfg(feature = "terminal")]
     CloseTerminal {
         term_id: TermId,
     },

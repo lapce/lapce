@@ -1,10 +1,11 @@
 use crate::buffer::{get_mod_time, load_file, Buffer};
 use crate::lsp::LspCatalog;
 use crate::plugin::PluginCatalog;
+#[cfg(feature = "terminal")]
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
-use alacritty_terminal::event_loop::Msg;
-use alacritty_terminal::term::SizeInfo;
+#[cfg(feature = "terminal")]
+use alacritty_terminal::{event_loop::Msg, term::SizeInfo};
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{Receiver, Sender};
 use directories::BaseDirs;
@@ -19,6 +20,7 @@ use lapce_rpc::core::CoreNotification;
 use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::proxy::{ProxyNotification, ProxyRequest, ReadDirResponse};
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
+#[cfg(feature = "terminal")]
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::{self, Call, RequestId, RpcObject};
 use parking_lot::Mutex;
@@ -41,6 +43,7 @@ pub struct Dispatcher {
     pub workspace: Arc<Mutex<Option<PathBuf>>>,
     pub buffers: Arc<Mutex<HashMap<BufferId, Buffer>>>,
 
+    #[cfg(feature = "terminal")]
     #[allow(deprecated)]
     pub terminals: Arc<Mutex<HashMap<TermId, mio::channel::Sender<Msg>>>>,
 
@@ -65,6 +68,7 @@ impl Dispatcher {
             workspace: Arc::new(Mutex::new(None)),
             buffers: Arc::new(Mutex::new(HashMap::new())),
             open_files: Arc::new(Mutex::new(HashMap::new())),
+            #[cfg(feature = "terminal")]
             terminals: Arc::new(Mutex::new(HashMap::new())),
             plugins: Arc::new(Mutex::new(plugins)),
             lsp: Arc::new(Mutex::new(LspCatalog::new())),
@@ -119,6 +123,7 @@ impl Dispatcher {
                     }
                     Ok(Call::Notification(notification)) => {
                         if let ProxyNotification::Shutdown {} = &notification {
+                            #[cfg(feature = "terminal")]
                             for (_, sender) in self.terminals.lock().iter() {
                                 #[allow(deprecated)]
                                 let _ = sender.send(Msg::Shutdown);
@@ -322,6 +327,7 @@ impl Dispatcher {
                     );
                 });
             }
+            #[cfg(feature = "terminal")]
             NewTerminal {
                 term_id,
                 cwd,
@@ -335,6 +341,7 @@ impl Dispatcher {
                     terminal.run(dispatcher);
                 });
             }
+            #[cfg(feature = "terminal")]
             TerminalClose { term_id } => {
                 let mut terminals = self.terminals.lock();
                 if let Some(tx) = terminals.remove(&term_id) {
@@ -342,6 +349,7 @@ impl Dispatcher {
                     let _ = tx.send(Msg::Shutdown);
                 }
             }
+            #[cfg(feature = "terminal")]
             TerminalWrite { term_id, content } => {
                 let terminals = self.terminals.lock();
                 if let Some(tx) = terminals.get(&term_id) {
@@ -349,6 +357,7 @@ impl Dispatcher {
                     let _ = tx.send(Msg::Input(content.into_bytes().into()));
                 }
             }
+            #[cfg(feature = "terminal")]
             TerminalResize {
                 term_id,
                 width,

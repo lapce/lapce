@@ -14,3 +14,7 @@ jsonrpc-lite = "0.5.0"
 crossbeam-channel = "0.5.0"
 lsp-types = { version = "0.93", features = ["proposed"] }
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
+
+[features]
+default = ["terminal"]
+terminal = []

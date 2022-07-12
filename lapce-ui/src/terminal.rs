@@ -1,3 +1,4 @@
+#![cfg(feature = "terminal")]
 use std::sync::Arc;
 
 use alacritty_terminal::{

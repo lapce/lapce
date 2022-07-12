@@ -8,9 +8,11 @@ use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
 use lapce_core::syntax::Syntax;
+#[cfg(feature = "terminal")]
+use lapce_rpc::terminal::TermId;
 use lapce_rpc::{
     buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
-    source_control::DiffInfo, style::Style, terminal::TermId,
+    source_control::DiffInfo, style::Style,
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
@@ -314,6 +316,7 @@ pub enum LapceWorkbenchCommand {
     TogglePanelBottomVisual,
 
     // Focus toggle commands
+    #[cfg(feature = "terminal")]
     #[strum(message = "Toggle Terminal Focus")]
     #[strum(serialize = "toggle_terminal_focus")]
     ToggleTerminalFocus,
@@ -338,6 +341,7 @@ pub enum LapceWorkbenchCommand {
     ToggleSearchFocus,
 
     // Visual toggle commands
+    #[cfg(feature = "terminal")]
     #[strum(serialize = "toggle_terminal_visual")]
     ToggleTerminalVisual,
 
@@ -359,6 +363,7 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "focus_editor")]
     FocusEditor,
 
+    #[cfg(feature = "terminal")]
     #[strum(serialize = "focus_terminal")]
     FocusTerminal,
 
@@ -504,6 +509,7 @@ pub enum LapceUICommand {
     DocumentSave(PathBuf, Option<WidgetId>),
     BufferSave(PathBuf, u64, Option<WidgetId>),
     UpdateSemanticStyles(BufferId, PathBuf, u64, Arc<Spans<Style>>),
+    #[cfg(feature = "terminal")]
     UpdateTerminalTitle(TermId, String),
     UpdateHistoryStyle {
         id: BufferId,
@@ -541,8 +547,11 @@ pub enum LapceUICommand {
     HomeDir(PathBuf),
     FileChange(notify::Event),
     ProxyUpdateStatus(ProxyStatus),
+    #[cfg(feature = "terminal")]
     CloseTerminal(TermId),
+    #[cfg(feature = "terminal")]
     SplitTerminal(bool, WidgetId),
+    #[cfg(feature = "terminal")]
     SplitTerminalClose(TermId, WidgetId),
     SplitEditor(bool, WidgetId),
     SplitEditorMove(SplitMoveDirection, WidgetId),

@@ -8,6 +8,7 @@ pub enum PanelKind {
     FileExplorer,
     SourceControl,
     Plugin,
+    #[cfg(feature = "terminal")]
     Terminal,
     Search,
     Problem,
@@ -29,6 +30,7 @@ impl PanelKind {
             PanelKind::FileExplorer => "file-explorer.svg",
             PanelKind::SourceControl => "git-icon.svg",
             PanelKind::Plugin => "plugin-icon.svg",
+            #[cfg(feature = "terminal")]
             PanelKind::Terminal => "terminal.svg",
             PanelKind::Search => "search.svg",
             PanelKind::Problem => "error.svg",

@@ -18,6 +18,7 @@ use lapce_rpc::core::{CoreNotification, CoreRequest};
 use lapce_rpc::plugin::PluginDescription;
 use lapce_rpc::proxy::ProxyRequest;
 use lapce_rpc::source_control::FileDiff;
+#[cfg(feature = "terminal")]
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::RpcHandler;
 use lapce_rpc::{stdio_transport, Callback};
@@ -25,6 +26,7 @@ use lapce_rpc::{ControlFlow, Handler};
 use lsp_types::CompletionItem;
 use lsp_types::Position;
 use lsp_types::Url;
+#[cfg(feature = "terminal")]
 use parking_lot::Mutex;
 use serde_json::json;
 use serde_json::Value;
@@ -34,10 +36,12 @@ use crate::command::LapceUICommand;
 use crate::command::LAPCE_UI_COMMAND;
 use crate::config::Config;
 use crate::data::{LapceWorkspace, LapceWorkspaceType};
+#[cfg(feature = "terminal")]
 use crate::terminal::RawTerminal;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[cfg(feature = "terminal")]
 pub enum TermEvent {
     NewTerminal(Arc<Mutex<RawTerminal>>),
     UpdateContent(String),
@@ -56,6 +60,7 @@ pub struct LapceProxy {
     pub tab_id: WidgetId,
     rpc: RpcHandler,
     proxy_receiver: Arc<Receiver<Value>>,
+    #[cfg(feature = "terminal")]
     term_tx: Sender<(TermId, TermEvent)>,
     event_sink: ExtEventSink,
 }
@@ -116,11 +121,13 @@ impl Handler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
+            #[cfg(feature = "terminal")]
             UpdateTerminal { term_id, content } => {
                 let _ = self
                     .term_tx
                     .send((term_id, TermEvent::UpdateContent(content)));
             }
+            #[cfg(feature = "terminal")]
             CloseTerminal { term_id } => {
                 let _ = self.term_tx.send((term_id, TermEvent::CloseTerminal));
                 let _ = self.event_sink.submit_command(
@@ -164,7 +171,7 @@ impl LapceProxy {
     pub fn new(
         tab_id: WidgetId,
         workspace: LapceWorkspace,
-        term_tx: Sender<(TermId, TermEvent)>,
+        #[cfg(feature = "terminal")] term_tx: Sender<(TermId, TermEvent)>,
         event_sink: ExtEventSink,
     ) -> Self {
         let (proxy_sender, proxy_receiver) = crossbeam_channel::unbounded();
@@ -173,6 +180,7 @@ impl LapceProxy {
             tab_id,
             rpc,
             proxy_receiver: Arc::new(proxy_receiver),
+            #[cfg(feature = "terminal")]
             term_tx,
             event_sink: event_sink.clone(),
         };
@@ -303,6 +311,7 @@ impl LapceProxy {
         )
     }
 
+    #[cfg(feature = "terminal")]
     pub fn terminal_close(&self, term_id: TermId) {
         self.rpc.send_rpc_notification(
             "terminal_close",
@@ -312,6 +321,7 @@ impl LapceProxy {
         )
     }
 
+    #[cfg(feature = "terminal")]
     pub fn terminal_resize(&self, term_id: TermId, width: usize, height: usize) {
         self.rpc.send_rpc_notification(
             "terminal_resize",
@@ -323,6 +333,7 @@ impl LapceProxy {
         )
     }
 
+    #[cfg(feature = "terminal")]
     pub fn terminal_write(&self, term_id: TermId, content: &str) {
         self.rpc.send_rpc_notification(
             "terminal_write",
@@ -333,6 +344,7 @@ impl LapceProxy {
         )
     }
 
+    #[cfg(feature = "terminal")]
     pub fn new_terminal(
         &self,
         term_id: TermId,

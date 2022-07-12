@@ -1,3 +1,4 @@
+#![cfg(feature = "terminal")]
 use serde::{Deserialize, Serialize};
 
 use crate::counter::Counter;

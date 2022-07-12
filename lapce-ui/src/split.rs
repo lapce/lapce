@@ -1,7 +1,8 @@
+#[cfg(feature = "terminal")]
+use crate::terminal::LapceTerminalView;
 use crate::{
     editor::{tab::LapceEditorTab, view::LapceEditorView},
     settings::LapceSettingsPanel,
-    terminal::LapceTerminalView,
 };
 use std::sync::Arc;
 
@@ -15,6 +16,8 @@ use druid::{
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
     PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WidgetPod,
 };
+#[cfg(feature = "terminal")]
+use lapce_data::terminal::LapceTerminalData;
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
@@ -28,8 +31,8 @@ use lapce_data::{
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap},
     panel::PanelKind,
     split::{SplitDirection, SplitMoveDirection},
-    terminal::LapceTerminalData,
 };
+#[cfg(feature = "terminal")]
 use lapce_rpc::terminal::TermId;
 
 struct LapceDynamicSplit {
@@ -486,6 +489,7 @@ impl LapceSplit {
         }
     }
 
+    #[cfg(feature = "terminal")]
     pub fn split_terminal(
         &mut self,
         ctx: &mut EventCtx,
@@ -523,6 +527,7 @@ impl LapceSplit {
         ctx.children_changed();
     }
 
+    #[cfg(feature = "terminal")]
     pub fn split_terminal_close(
         &mut self,
         ctx: &mut EventCtx,
@@ -899,12 +904,15 @@ impl Widget<LapceTabData> for LapceSplit {
                     LapceUICommand::SplitEditorClose(widget_id) => {
                         self.split_editor_close(ctx, data, *widget_id);
                     }
+                    #[cfg(feature = "terminal")]
                     LapceUICommand::SplitTerminal(vertical, widget_id) => {
                         self.split_terminal(ctx, data, *vertical, *widget_id);
                     }
+                    #[cfg(feature = "terminal")]
                     LapceUICommand::SplitTerminalClose(term_id, widget_id) => {
                         self.split_terminal_close(ctx, data, *term_id, *widget_id);
                     }
+                    #[cfg(feature = "terminal")]
                     LapceUICommand::InitTerminalPanel(focus) => {
                         if data.terminal.terminals.is_empty() {
                             let terminal_data = Arc::new(LapceTerminalData::new(
