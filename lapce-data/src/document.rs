@@ -32,14 +32,17 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::{BufferId, NewBufferResponse},
-    style::{LineStyle, LineStyles, Style},
+    style::{LineStyle, LineStyles, SemanticStyles, Style},
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, InlayHint, InlayHintLabel,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use xi_rope::{spans::Spans, Rope, RopeDelta};
+use xi_rope::{
+    spans::{Spans, SpansBuilder},
+    Interval, Rope, RopeDelta,
+};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -77,6 +80,7 @@ pub struct TextLayoutLine {
 pub struct TextLayoutCache {
     config_id: u64,
     pub layouts: HashMap<usize, Arc<TextLayoutLine>>,
+    pub max_width: f64,
 }
 
 impl TextLayoutCache {
@@ -84,6 +88,7 @@ impl TextLayoutCache {
         Self {
             config_id: 0,
             layouts: HashMap::new(),
+            max_width: 0.0,
         }
     }
 
@@ -188,44 +193,17 @@ impl BufferContent {
     }
 }
 
-#[derive(Clone)]
-pub struct InlayHints {
-    /// Hints should be sorted so that earlier hints come before later hints to simplify
-    /// code that uses them
-    hints: im::Vector<InlayHint>,
-}
-impl InlayHints {
-    pub fn new(inlay_hints: im::Vector<InlayHint>) -> InlayHints {
-        InlayHints { hints: inlay_hints }
-    }
-
-    pub fn clear(&mut self) {
-        self.hints.clear();
-    }
-
-    pub fn hints_at_line(&self, line: u32) -> InlayHintsLine {
-        let hints = self.iter_line(line).collect::<SmallVec<[_; 6]>>();
-        InlayHintsLine { hints }
-    }
-
-    /// Iterate over all the hints at the line
-    pub fn iter_line(&self, line: u32) -> impl Iterator<Item = &InlayHint> {
-        self.hints
-            .iter()
-            .filter(move |hint| hint.position.line == line)
-    }
-}
-
 #[derive(Default)]
 pub struct InlayHintsLine<'a> {
-    hints: SmallVec<[&'a InlayHint; 6]>,
+    hints: SmallVec<[(usize, &'a InlayHint); 6]>,
 }
+
 impl<'a> InlayHintsLine<'a> {
     /// Translate a column position into the text into what it would be after combining
     pub fn col_at(&self, pre_col: usize) -> usize {
         let mut last = pre_col;
-        for (col_shift, size, hint) in self.offset_size_iter() {
-            if pre_col >= hint.position.character as usize {
+        for (col_shift, size, _, col) in self.offset_size_iter() {
+            if pre_col >= col {
                 last = pre_col + col_shift + size;
             }
         }
@@ -234,11 +212,11 @@ impl<'a> InlayHintsLine<'a> {
     }
 
     /// Translate a column position into the text into what it would be after combining
-    /// If the cursor is right at the start then it will stay there
-    pub fn col_after(&self, pre_col: usize) -> usize {
+    /// If before_cursor is false and the cursor is right at the start then it will stay there
+    pub fn col_after(&self, pre_col: usize, before_cursor: bool) -> usize {
         let mut last = pre_col;
-        for (col_shift, size, hint) in self.offset_size_iter() {
-            if pre_col > hint.position.character as usize {
+        for (col_shift, size, _, col) in self.offset_size_iter() {
+            if pre_col > col || (pre_col == col && before_cursor) {
                 last = pre_col + col_shift + size;
             }
         }
@@ -249,14 +227,14 @@ impl<'a> InlayHintsLine<'a> {
     /// Translate a column position into the position it would be before combining
     pub fn before_col(&self, col: usize) -> usize {
         let mut last = col;
-        for (col_shift, size, hint) in self.offset_size_iter() {
-            let shifted_start = hint.position.character as usize + col_shift;
+        for (col_shift, size, _, hint_col) in self.offset_size_iter() {
+            let shifted_start = hint_col + col_shift;
             let shifted_end = shifted_start + size;
             if col >= shifted_start {
                 if col >= shifted_end {
                     last = col - col_shift - size;
                 } else {
-                    last = hint.position.character as usize;
+                    last = hint_col;
                 }
             }
         }
@@ -266,10 +244,10 @@ impl<'a> InlayHintsLine<'a> {
     /// Insert the hints at their positions in the text
     pub fn combine_with_text<'b>(&self, mut text: Cow<'b, str>) -> Cow<'b, str> {
         let mut col_shift = 0;
-        for hint in self.hints.iter() {
+        for (col, hint) in self.hints.iter() {
             let mut otext = text.into_owned();
 
-            let location = hint.position.character as usize + col_shift;
+            let location = col + col_shift;
 
             // Stop iterating if the location is bad
             if otext.get(location..).is_none() {
@@ -310,9 +288,9 @@ impl<'a> InlayHintsLine<'a> {
     /// Iterator over (col_shift, size, hint)
     pub fn offset_size_iter(
         &self,
-    ) -> impl Iterator<Item = (usize, usize, &'a InlayHint)> + '_ {
+    ) -> impl Iterator<Item = (usize, usize, &'a InlayHint, usize)> + '_ {
         let mut col_shift = 0;
-        self.hints.iter().map(move |hint| {
+        self.hints.iter().map(move |(col, hint)| {
             let pre_col_shift = col_shift;
             match &hint.label {
                 InlayHintLabel::String(label) => {
@@ -333,7 +311,7 @@ impl<'a> InlayHintsLine<'a> {
                 col_shift += 1;
             }
 
-            (pre_col_shift, col_shift - pre_col_shift, *hint)
+            (pre_col_shift, col_shift - pre_col_shift, *hint, *col)
         })
     }
 }
@@ -347,14 +325,14 @@ pub struct Document {
     syntax: Option<Syntax>,
     line_styles: Rc<RefCell<LineStyles>>,
     semantic_styles: Option<Arc<Spans<Style>>>,
-    text_layouts: Rc<RefCell<TextLayoutCache>>,
+    pub text_layouts: Rc<RefCell<TextLayoutCache>>,
     load_started: Rc<RefCell<bool>>,
     loaded: bool,
     histories: im::HashMap<String, DocumentHistory>,
     pub cursor_offset: usize,
     pub scroll_offset: Vec2,
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
-    pub inlay_hints: InlayHints,
+    pub inlay_hints: Option<Spans<InlayHint>>,
     pub find: Rc<RefCell<Find>>,
     find_progress: Rc<RefCell<FindProgress>>,
     pub event_sink: ExtEventSink,
@@ -394,7 +372,7 @@ impl Document {
             cursor_offset: 0,
             scroll_offset: Vec2::ZERO,
             code_actions: im::HashMap::new(),
-            inlay_hints: InlayHints::new(im::Vector::new()),
+            inlay_hints: None,
             find: Rc::new(RefCell::new(Find::new(0))),
             find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             event_sink,
@@ -442,7 +420,7 @@ impl Document {
 
     pub fn reload(&mut self, content: Rope, set_pristine: bool) {
         self.code_actions.clear();
-        self.inlay_hints.clear();
+        self.inlay_hints = None;
         let delta = self.buffer.reload(content, set_pristine);
         self.apply_deltas(&[delta]);
     }
@@ -637,9 +615,118 @@ impl Document {
         }
     }
 
+    fn get_semantic_styles(&self) {
+        if !self.loaded() {
+            return;
+        }
+
+        if !self.content().is_file() {
+            return;
+        }
+        if let BufferContent::File(path) = self.content() {
+            let tab_id = self.tab_id;
+            let path = path.clone();
+            let buffer_id = self.id();
+            let rev = self.rev();
+            let len = self.buffer().len();
+            let event_sink = self.event_sink.clone();
+            self.proxy.get_semantic_tokens(
+                buffer_id,
+                Box::new(move |result| {
+                    if let Ok(res) = result {
+                        if let Ok(resp) =
+                            serde_json::from_value::<SemanticStyles>(res)
+                        {
+                            rayon::spawn(move || {
+                                let mut styles_span = SpansBuilder::new(len);
+                                for style in resp.styles {
+                                    styles_span.add_span(
+                                        Interval::new(style.start, style.end),
+                                        style.style,
+                                    );
+                                }
+                                let styles_span = Arc::new(styles_span.build());
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::UpdateSemanticStyles(
+                                        buffer_id,
+                                        path,
+                                        rev,
+                                        styles_span,
+                                    ),
+                                    Target::Widget(tab_id),
+                                );
+                            });
+                        }
+                    }
+                }),
+            );
+        }
+    }
+
+    pub fn get_inlay_hints(&self) {
+        if !self.loaded() {
+            return;
+        }
+
+        if !self.content().is_file() {
+            return;
+        }
+
+        if let BufferContent::File(path) = self.content() {
+            let tab_id = self.tab_id;
+            let path = path.clone();
+            let buffer_id = self.id();
+            let rev = self.rev();
+            let len = self.buffer().len();
+            let buffer = self.buffer().clone();
+            let event_sink = self.event_sink.clone();
+            self.proxy.get_inlay_hints(
+                buffer_id,
+                Box::new(move |result| {
+                    if let Ok(res) = result {
+                        if let Ok(mut resp) =
+                            serde_json::from_value::<Vec<InlayHint>>(res)
+                        {
+                            // Sort the inlay hints by their position, as the LSP does not guarantee that it will
+                            // provide them in the order that they are in within the file
+                            // as well, Spans does not iterate in the order that they appear
+                            resp.sort_by(|left, right| {
+                                left.position.cmp(&right.position)
+                            });
+
+                            let mut hints_span = SpansBuilder::new(len);
+                            for hint in resp {
+                                let offset = buffer
+                                    .offset_of_position(&hint.position)
+                                    .min(len);
+                                hints_span.add_span(
+                                    Interval::new(offset, (offset + 1).min(len)),
+                                    hint.clone(),
+                                );
+                            }
+                            let hints = hints_span.build();
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdateInlayHints {
+                                    path,
+                                    rev,
+                                    hints,
+                                },
+                                Target::Widget(tab_id),
+                            );
+                        }
+                    }
+                }),
+            );
+        }
+    }
+
     fn on_update(&mut self, delta: Option<&RopeDelta>) {
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
+        self.get_inlay_hints();
+        self.get_semantic_styles();
         self.clear_style_cache();
         self.trigger_syntax_change(delta);
         self.trigger_head_change();
@@ -721,7 +808,7 @@ impl Document {
         self.text_layouts.borrow_mut().clear();
     }
 
-    fn trigger_syntax_change(&self, delta: Option<&RopeDelta>) {
+    pub fn trigger_syntax_change(&self, delta: Option<&RopeDelta>) {
         if let Some(syntax) = self.syntax.clone() {
             let content = self.content.clone();
             let rev = self.buffer.rev();
@@ -753,27 +840,9 @@ impl Document {
 
     /// Update the inlay hints with new ones
     /// Clears any caches that need to be updated after change
-    pub fn update_inlay_hints(&mut self, mut inlay_hints: im::Vector<InlayHint>) {
-        // TODO: Can we do a smart comparison? Most of the time, the change isn't notable
-        // we could just ask the LSP for the data in the area around the edited range? or
-        // just in view?
-
-        // Remove all the text layouts that have existing hints
-        for hint in &self.inlay_hints.hints {
-            let line = hint.position.line as usize;
-            self.text_layouts.borrow_mut().layouts.remove(&line);
-        }
-
-        // Sort it to ensure the later inlay hints come after early hints
-        inlay_hints.sort_by(|a, b| a.position.cmp(&b.position));
-
-        self.inlay_hints.hints = inlay_hints;
-
-        // Remove all the text layouts that have new hints
-        for hint in &self.inlay_hints.hints {
-            let line = hint.position.line as usize;
-            self.text_layouts.borrow_mut().layouts.remove(&line);
-        }
+    pub fn set_inlay_hints(&mut self, hints: Spans<InlayHint>) {
+        self.inlay_hints = Some(hints);
+        self.clear_text_layout_cache();
     }
 
     pub fn buffer(&self) -> &Buffer {
@@ -802,10 +871,37 @@ impl Document {
         }
     }
 
+    fn update_inlay_hints(&mut self, delta: &RopeDelta) {
+        if let Some(hints) = self.inlay_hints.as_mut() {
+            hints.apply_shape(delta);
+        }
+    }
+
+    pub fn line_inlay_hints(&self, line: usize) -> Option<InlayHintsLine> {
+        let start_offset = self.buffer.offset_of_line(line);
+        let end_offset = self.buffer.offset_of_line(line + 1);
+        self.inlay_hints.as_ref().map(|hints| InlayHintsLine {
+            hints: hints
+                .iter_chunks(start_offset..end_offset)
+                .filter_map(|(interval, inlay_hint)| {
+                    if interval.start >= start_offset && interval.start < end_offset
+                    {
+                        let (_, col) =
+                            self.buffer.offset_to_line_col(interval.start);
+                        Some((col, inlay_hint))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        })
+    }
+
     fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines)]) {
         let rev = self.rev() - deltas.len() as u64;
         for (i, (delta, _)) in deltas.iter().enumerate() {
             self.update_styles(delta);
+            self.update_inlay_hints(delta);
             if self.content.is_file() {
                 self.proxy.update(self.id, delta, rev + i as u64 + 1);
             }
@@ -1156,11 +1252,12 @@ impl Document {
         let line = ((point.y / config.editor.line_height as f64).floor() as usize)
             .min(last_line);
 
-        let inlay_hints = if config.editor.enable_inlay_hints {
-            self.inlay_hints.hints_at_line(line as u32)
-        } else {
-            InlayHintsLine::default()
-        };
+        let inlay_hints = config
+            .editor
+            .enable_inlay_hints
+            .then_some(())
+            .and_then(|_| self.line_inlay_hints(line))
+            .unwrap_or_default();
 
         let text_layout = self.get_text_layout(text, line, font_size, config);
         let hit_point = text_layout.text.hit_test_point(Point::new(point.x, 0.0));
@@ -1193,10 +1290,14 @@ impl Document {
     ) -> Arc<TextLayoutLine> {
         self.text_layouts.borrow_mut().check_attributes(config.id);
         if self.text_layouts.borrow().layouts.get(&line).is_none() {
-            self.text_layouts.borrow_mut().layouts.insert(
-                line,
-                Arc::new(self.new_text_layout(text, line, font_size, config)),
-            );
+            let mut cache = self.text_layouts.borrow_mut();
+            let text_layout =
+                Arc::new(self.new_text_layout(text, line, font_size, config));
+            let width = text_layout.text.size().width;
+            if width > cache.max_width {
+                cache.max_width = width;
+            }
+            cache.layouts.insert(line, text_layout);
         }
         self.text_layouts
             .borrow()
@@ -1215,12 +1316,12 @@ impl Document {
     ) -> TextLayoutLine {
         let line_content = self.buffer.line_content(line);
 
-        let inlay_hints = if config.editor.enable_inlay_hints {
-            self.inlay_hints.hints_at_line(line as u32)
-        } else {
-            // empty inlay hints
-            InlayHintsLine::default()
-        };
+        let inlay_hints = config
+            .editor
+            .enable_inlay_hints
+            .then_some(())
+            .and_then(|_| self.line_inlay_hints(line))
+            .unwrap_or_default();
         let line_content = inlay_hints.combine_with_text(line_content);
 
         let tab_width =
@@ -1262,8 +1363,8 @@ impl Document {
         }
 
         // Give the inlay hints their styling
-        for (offset, size, hint) in inlay_hints.offset_size_iter() {
-            let start = hint.position.character as usize + offset;
+        for (offset, size, _, col) in inlay_hints.offset_size_iter() {
+            let start = col + offset;
             let end = start + size;
             layout_builder = layout_builder.range_attribute(
                 start..end,
@@ -1285,8 +1386,8 @@ impl Document {
 
         let text = layout_builder.build().unwrap();
         let mut extra_style = Vec::new();
-        for (offset, size, hint) in inlay_hints.offset_size_iter() {
-            let start = hint.position.character as usize + offset;
+        for (offset, size, _, col) in inlay_hints.offset_size_iter() {
+            let start = col + offset;
             let end = start + size;
             let x0 = text.hit_test_text_position(start).point.x;
             let x1 = text.hit_test_text_position(end).point.x;

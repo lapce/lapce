@@ -240,6 +240,7 @@ impl LapceTerminalViewData {
             self.terminal
                 .proxy
                 .terminal_write(self.terminal.term_id, command.as_ref());
+            self.terminal.raw.lock().term.scroll_display(Scroll::Bottom);
         }
     }
 }
@@ -455,6 +456,7 @@ impl KeyPressFocus for LapceTerminalViewData {
     fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
         if self.terminal.mode == Mode::Terminal {
             self.terminal.proxy.terminal_write(self.terminal.term_id, c);
+            self.terminal.raw.lock().term.scroll_display(Scroll::Bottom);
         }
     }
 }

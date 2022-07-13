@@ -1,8 +1,8 @@
 use druid::{
     kurbo::Line,
-    piet::{Text, TextLayout, TextLayoutBuilder},
-    Command, Event, EventCtx, MouseEvent, PaintCtx, Point, RenderContext, Size,
-    Target, Widget,
+    piet::{PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
+    Command, Event, EventCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext,
+    Size, Target, Widget,
 };
 use lapce_core::mode::Mode;
 use lapce_data::{
@@ -16,6 +16,7 @@ use crate::{svg::get_svg, tab::LapceIcon};
 
 pub struct LapceStatus {
     panel_icons: Vec<LapceIcon>,
+    clickable_items: Vec<(Rect, Command)>,
     mouse_pos: Point,
     icon_size: f64,
 }
@@ -24,6 +25,7 @@ impl LapceStatus {
     pub fn new() -> Self {
         Self {
             panel_icons: Vec::new(),
+            clickable_items: Vec::new(),
             mouse_pos: Point::ZERO,
             icon_size: 13.0,
         }
@@ -96,6 +98,11 @@ impl LapceStatus {
                 return true;
             }
         }
+        for (rect, _) in self.clickable_items.iter() {
+            if rect.contains(mouse_event.pos) {
+                return true;
+            }
+        }
         false
     }
 
@@ -103,6 +110,13 @@ impl LapceStatus {
         for icon in self.panel_icons.iter() {
             if icon.rect.contains(mouse_event.pos) {
                 ctx.submit_command(icon.command.clone());
+                return;
+            }
+        }
+        for (rect, cmd) in self.clickable_items.iter() {
+            if rect.contains(mouse_event.pos) {
+                ctx.submit_command(cmd.clone());
+                return;
             }
         }
     }
@@ -115,7 +129,7 @@ impl LapceStatus {
         label: String,
         ctx: &mut PaintCtx,
         config: &Config,
-    ) -> f64 {
+    ) -> (f64, Option<(Rect, Svg)>, (Point, PietTextLayout)) {
         let fg_color = config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
 
         let text_layout = ctx
@@ -130,21 +144,62 @@ impl LapceStatus {
 
         let mut left = left;
 
-        if let Some(warnings_icon) = get_svg(icon) {
+        let svg = if let Some(warnings_icon) = get_svg(icon) {
             let rect = Size::new(height, height)
                 .to_rect()
                 .inflate(-icon_padding, -icon_padding)
                 .with_origin(Point::new(left + 2.0 * icon_padding, icon_padding));
-            ctx.draw_svg(&warnings_icon, rect, Some(fg_color));
 
             left += icon_padding + height;
-        }
+            Some((rect, warnings_icon))
+        } else {
+            None
+        };
 
-        ctx.draw_text(
-            &text_layout,
-            Point::new(left, (height - text_layout.size().height) / 2.0),
+        let point = Point::new(left, (height - text_layout.size().height) / 2.0);
+        (left + text_layout.size().width, svg, (point, text_layout))
+    }
+
+    fn paint_icon_with_label_from_right(
+        &self,
+        right: f64,
+        height: f64,
+        icon: &'static str,
+        label: String,
+        ctx: &mut PaintCtx,
+        config: &Config,
+    ) -> (f64, Option<(Rect, Svg)>, (Point, PietTextLayout)) {
+        let fg_color = config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout(label)
+            .font(config.ui.font_family(), config.ui.font_size() as f64)
+            .text_color(fg_color.clone())
+            .build()
+            .unwrap();
+
+        let icon_padding = (height - self.icon_size) / 2.0;
+
+        let mut right = right;
+
+        let svg = if let Some(warnings_icon) = get_svg(icon) {
+            let rect = Size::new(height, height)
+                .to_rect()
+                .inflate(-icon_padding, -icon_padding)
+                .with_origin(Point::new(right - 2.0 * icon_padding, icon_padding));
+
+            right += icon_padding + height;
+            Some((rect, warnings_icon))
+        } else {
+            None
+        };
+
+        let point = Point::new(
+            right - text_layout.size().width,
+            (height - text_layout.size().height) / 2.0,
         );
-        left + text_layout.size().width
+        (right - text_layout.size().width, svg, (point, text_layout))
     }
 }
 
@@ -201,7 +256,9 @@ impl Widget<LapceTabData> for LapceStatus {
             data.main_split.active_editor(),
         ) {
             (Some(old_data), Some(data)) => {
-                if old_data.cursor.get_mode() != data.cursor.get_mode() {
+                if old_data.cursor.get_mode() != data.cursor.get_mode()
+                    || old_data.editor_id != data.editor_id
+                {
                     ctx.request_paint();
                 }
             }
@@ -235,6 +292,7 @@ impl Widget<LapceTabData> for LapceStatus {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &druid::Env) {
+        self.clickable_items.clear();
         let size = ctx.size();
         let rect = size.to_rect();
         let shadow_width = data.config.ui.drop_shadow_width() as f64;
@@ -262,6 +320,7 @@ impl Widget<LapceTabData> for LapceStatus {
         );
 
         let mut left = 0.0;
+        let mut _right = 0.0;
 
         if data.config.lapce.modal {
             let mode = if data.focus_area == FocusArea::Panel(PanelKind::Terminal) {
@@ -304,22 +363,72 @@ impl Widget<LapceTabData> for LapceStatus {
             left += text_size.width + 10.0;
         }
 
-        left = self.paint_icon_with_label(
-            left,
-            size.height,
-            "error.svg",
-            data.main_split.error_count.to_string(),
-            ctx,
-            &data.config,
-        );
-        left = self.paint_icon_with_label(
-            left - 5.0,
-            size.height,
-            "warning.svg",
-            data.main_split.warning_count.to_string(),
-            ctx,
-            &data.config,
-        );
+        let x = left + 5.0;
+        let (new_left, error_svg, (error_point, error_text_layout)) = self
+            .paint_icon_with_label(
+                left,
+                size.height,
+                "error.svg",
+                data.main_split.error_count.to_string(),
+                ctx,
+                &data.config,
+            );
+        left = new_left;
+        let (new_left, warning_svg, (warning_point, warning_text_layout)) = self
+            .paint_icon_with_label(
+                left - 5.0,
+                size.height,
+                "warning.svg",
+                data.main_split.warning_count.to_string(),
+                ctx,
+                &data.config,
+            );
+        left = new_left;
+
+        let problem_rect = Rect::ZERO
+            .with_origin(Point::new(x, 0.0))
+            .with_size(Size::new(left + 5.0 - x, size.height));
+        if problem_rect.contains(self.mouse_pos) {
+            ctx.fill(
+                problem_rect,
+                data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+            );
+        }
+        if let Some((rect, svg)) = error_svg {
+            ctx.draw_svg(
+                &svg,
+                rect,
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                ),
+            );
+        }
+        ctx.draw_text(&error_text_layout, error_point);
+        if let Some((rect, svg)) = warning_svg {
+            ctx.draw_svg(
+                &svg,
+                rect,
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                ),
+            );
+        }
+        ctx.draw_text(&warning_text_layout, warning_point);
+        self.clickable_items.push((
+            problem_rect,
+            Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::ToggleProblemVisual,
+                    ),
+                    data: None,
+                },
+                Target::Widget(data.id),
+            ),
+        ));
 
         for progress in data.progresses.iter() {
             let mut text = progress.title.clone();
@@ -356,8 +465,7 @@ impl Widget<LapceTabData> for LapceStatus {
             if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
                     &icon.rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                    data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
                 );
             }
             if let Some(svg) = get_svg(icon.icon) {
@@ -370,6 +478,59 @@ impl Widget<LapceTabData> for LapceStatus {
                     ),
                 );
             }
+        }
+
+        let mut right = size.width - 5.0;
+        if let Some(editor) = &data.main_split.active_editor() {
+            let lang = match data.main_split.content_doc(&editor.content).syntax() {
+                Some(v) => v.language.to_string(),
+                None => String::from("Plain Text"),
+            };
+            let x1 = right;
+            let (new_right, svg, (point, text_layout)) = self
+                .paint_icon_with_label_from_right(
+                    right - 5.0,
+                    size.height,
+                    "",
+                    lang,
+                    ctx,
+                    &data.config,
+                );
+            right = new_right;
+            let x0 = right - 5.0;
+            let rect = Rect::ZERO
+                .with_origin(Point::new(x0, 0.0))
+                .with_size(Size::new(x1 - x0, size.height));
+            if rect.contains(self.mouse_pos) {
+                ctx.fill(
+                    rect,
+                    data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+                );
+            }
+            if let Some((rect, svg)) = svg {
+                ctx.draw_svg(
+                    &svg,
+                    rect,
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                    ),
+                );
+            }
+            ctx.draw_text(&text_layout, point);
+            self.clickable_items.push((
+                rect,
+                Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::ChangeFileLanguage,
+                        ),
+                        data: None,
+                    },
+                    Target::Widget(data.id),
+                ),
+            ));
         }
     }
 }

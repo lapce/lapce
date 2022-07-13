@@ -225,6 +225,18 @@ pub struct UIConfig {
 
     #[field_names(desc = "Controls the width of drop shadow in the UI")]
     drop_shadow_width: usize,
+
+    #[field_names(
+        desc = "Enable customised titlebar and disable OS native one (Windows only)"
+    )]
+    custom_titlebar: bool,
+
+    #[field_names(
+        desc = "Set the hover font family. If empty, it uses the UI font family"
+    )]
+    hover_font_family: String,
+    #[field_names(desc = "Set the hover font size. If 0, uses the UI font size")]
+    hover_font_size: usize,
 }
 
 impl UIConfig {
@@ -260,6 +272,26 @@ impl UIConfig {
 
     pub fn drop_shadow_width(&self) -> usize {
         self.drop_shadow_width
+    }
+
+    pub fn custom_titlebar(&self) -> bool {
+        self.custom_titlebar
+    }
+
+    pub fn hover_font_family(&self) -> FontFamily {
+        if self.hover_font_family.is_empty() {
+            self.font_family()
+        } else {
+            FontFamily::new_unchecked(self.hover_font_family.clone())
+        }
+    }
+
+    pub fn hover_font_size(&self) -> usize {
+        if self.hover_font_size == 0 {
+            self.font_size()
+        } else {
+            self.hover_font_size
+        }
     }
 }
 

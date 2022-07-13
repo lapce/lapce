@@ -13,6 +13,10 @@ strum = "0.24.0"
 strum_macros = "0.24"
 serde = "1.0"
 serde_json = "1.0"
+lsp-types = { version = "0.93", features = ["proposed"] }
+xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
+lapce-rpc = { path = "../lapce-rpc" }
+
 tree-sitter = "0.20.7"
 tree-sitter-highlight = "0.20.1"
 tree-sitter-rust = { version = "0.20.0", optional = true }
@@ -45,9 +49,8 @@ tree-sitter-css = { git = "https://github.com/syntacti/tree-sitter-css", branch 
 tree-sitter-zig = { git = "https://github.com/maxxnino/tree-sitter-zig", branch = "main", optional = true }
 # switch to upstream version after this is merged  https://github.com/tree-sitter/tree-sitter-bash/pull/120
 tree-sitter-bash = { git = "https://github.com/syntacti/tree-sitter-bash", branch = "master", optional = true }
-lsp-types = { version = "0.93", features = ["proposed"] }
-xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
-lapce-rpc = { path = "../lapce-rpc" }
+tree-sitter-yaml = { git = "https://github.com/panekj/tree-sitter-yaml", branch = "master", optional = true }
+tree-sitter-julia = { git = "https://github.com/VarLad/tree-sitter-julia", branch = "master", optional = true }
 
 [features]
 default = []
@@ -82,3 +85,5 @@ lang-hare = ["dep:tree-sitter-hare"]
 lang-css = ["dep:tree-sitter-css"]
 lang-zig = ["dep:tree-sitter-zig"]
 lang-bash = ["dep:tree-sitter-bash"]
+lang-yaml = ["dep:tree-sitter-yaml"]
+lang-julia = ["dep:tree-sitter-julia"]

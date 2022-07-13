@@ -96,11 +96,11 @@ fn paint_single_file_node_item(
             .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
         ctx.draw_svg(&svg, rect, None);
     } else {
-        let svg = file_svg(&item.path_buf);
+        let (svg, svg_color) = file_svg(&item.path_buf);
         let rect = Size::new(svg_size, svg_size)
             .to_rect()
             .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
-        ctx.draw_svg(&svg, rect, None);
+        ctx.draw_svg(&svg, rect, svg_color);
     }
     let text_layout = ctx
         .text()

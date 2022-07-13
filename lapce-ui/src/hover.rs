@@ -268,8 +268,8 @@ impl Widget<LapceTabData> for Hover {
                     .set_text(RichText::new(ArcStr::from("")));
             }
 
-            let font = FontDescriptor::new(data.config.ui.font_family())
-                .with_size(data.config.ui.font_size() as f64);
+            let font = FontDescriptor::new(data.config.ui.hover_font_family())
+                .with_size(data.config.ui.hover_font_size() as f64);
             let text_color = data
                 .config
                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

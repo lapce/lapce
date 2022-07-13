@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use druid::{
     AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Size,
     Widget, WidgetExt, WindowDesc, WindowHandle, WindowId, WindowState,
@@ -9,6 +11,7 @@ use lapce_data::{
     config::Config,
     data::{LapceData, LapceWindowData, LapceWindowLens},
     db::{TabsInfo, WindowInfo},
+    proxy::VERSION,
 };
 
 use crate::logging::override_log_levels;
@@ -24,6 +27,32 @@ pub fn build_window(data: &mut LapceWindowData) -> impl Widget<LapceData> {
 }
 
 pub fn launch() {
+    let mut args = std::env::args();
+    let mut path = None;
+    if args.len() > 1 {
+        args.next();
+        for arg in args {
+            match arg.as_str() {
+                "-v" | "--version" => {
+                    println!("lapce v{VERSION}");
+                    return;
+                }
+                "-h" | "--help" => {
+                    println!("lapce [-h|--help] [-v|--version] [PATH]");
+                    return;
+                }
+                v => {
+                    if v.starts_with('-') {
+                        eprintln!("lapce: unrecognized option: {v}");
+                        std::process::exit(1)
+                    } else {
+                        path = Some(v.to_string())
+                    }
+                }
+            }
+        }
+    }
+
     let mut log_dispatch = fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
@@ -52,7 +81,7 @@ pub fn launch() {
     }
 
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
-    let mut data = LapceData::load(launcher.get_external_handle());
+    let mut data = LapceData::load(launcher.get_external_handle(), path);
     for (_window_id, window_data) in data.windows.iter_mut() {
         let root = build_window(window_data);
         let window = new_window_desc(
@@ -61,6 +90,7 @@ pub fn launch() {
             window_data.size,
             window_data.pos,
             window_data.maximised,
+            &window_data.config,
         );
         launcher = launcher.with_window(window);
     }
@@ -75,6 +105,8 @@ fn new_window_desc<W, T: druid::Data>(
     size: Size,
     pos: Point,
     maximised: bool,
+    #[cfg(target_os = "windows")] config: &Arc<Config>,
+    #[cfg(not(target_os = "windows"))] _config: &Arc<Config>,
 ) -> WindowDesc<T>
 where
     W: Widget<T> + 'static,
@@ -83,6 +115,12 @@ where
         .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
         .window_size(size)
         .set_position(pos);
+
+    #[cfg(target_os = "windows")]
+    if config.ui.custom_titlebar() {
+        desc = desc.show_titlebar(false);
+    }
+
     if maximised {
         desc = desc.set_window_state(WindowState::Maximized);
     }
@@ -227,13 +265,14 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
             );
             let root = build_window(&mut window_data);
             let window_id = window_data.window_id;
-            data.windows.insert(window_id, window_data);
+            data.windows.insert(window_id, window_data.clone());
             let desc = new_window_desc(
                 window_id,
                 root,
                 info.size,
                 info.pos,
                 info.maximised,
+                &window_data.config,
             );
             ctx.new_window(desc);
             return druid::Handled::Yes;

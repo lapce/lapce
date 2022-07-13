@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontWeight,
@@ -200,12 +202,12 @@ impl Widget<LapceTabData> for SearchContent {
                 continue;
             }
 
-            let svg = file_svg(path);
+            let (svg, svg_color) = file_svg(path);
             let rect = Size::new(self.line_height, self.line_height)
                 .to_rect()
                 .with_origin(Point::new(0.0, self.line_height * i as f64))
                 .inflate(-padding, -padding);
-            ctx.draw_svg(&svg, rect, None);
+            ctx.draw_svg(&svg, rect, svg_color);
 
             let text_layout = ctx
                 .text()
@@ -232,7 +234,7 @@ impl Widget<LapceTabData> for SearchContent {
                 ),
             );
 
-            let mut path = path.clone();
+            let mut path: PathBuf = path.clone();
             if let Some(workspace_path) = data.workspace.path.as_ref() {
                 path = path
                     .strip_prefix(workspace_path)

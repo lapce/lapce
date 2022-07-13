@@ -95,6 +95,7 @@ impl LapceCommand {
                 | LapceWorkbenchCommand::PaletteLine
                 | LapceWorkbenchCommand::PaletteSymbol
                 | LapceWorkbenchCommand::PaletteCommand
+                | LapceWorkbenchCommand::ChangeFileLanguage
                 | LapceWorkbenchCommand::ChangeTheme
                 | LapceWorkbenchCommand::ConnectSshHost
                 | LapceWorkbenchCommand::ConnectWsl
@@ -383,6 +384,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "install_theme")]
     #[strum(message = "Install current theme file")]
     InstallTheme,
+
+    #[strum(serialize = "change_file_language")]
+    #[strum(message = "Change current file language")]
+    ChangeFileLanguage,
 }
 
 #[derive(Debug)]
@@ -445,7 +450,7 @@ pub enum LapceUICommand {
     UpdateInlayHints {
         path: PathBuf,
         rev: u64,
-        hints: Vec<InlayHint>,
+        hints: Spans<InlayHint>,
     },
     UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,
@@ -605,4 +610,5 @@ pub enum LapceUICommand {
         /// Whether it should name/rename the file with the input data
         apply_naming: bool,
     },
+    SetLanguage(String),
 }

@@ -1,5 +1,6 @@
-use std::{collections::HashSet, path::Path};
+use std::{collections::HashSet, path::Path, str::FromStr};
 
+use strum_macros::{Display, EnumString};
 use tree_sitter::{Parser, TreeCursor};
 
 use crate::style::HighlightConfiguration;
@@ -94,7 +95,8 @@ struct SyntaxProperties {
 // Do not assign values to the variants because the number of variants and
 // number of elements in the LANGUAGES array change as different features
 // selected by the cargo build command.
-#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, Display, EnumString)]
+#[strum(ascii_case_insensitive)]
 pub enum LapceLanguage {
     #[cfg(feature = "lang-rust")]
     Rust,
@@ -158,6 +160,10 @@ pub enum LapceLanguage {
     Zig,
     #[cfg(feature = "lang-bash")]
     Bash,
+    #[cfg(feature = "lang-yaml")]
+    Yaml,
+    #[cfg(feature = "lang-julia")]
+    Julia,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -294,7 +300,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        extensions: &["c"],
+        extensions: &["c", "h"],
     },
     #[cfg(feature = "lang-cpp")]
     SyntaxProperties {
@@ -496,6 +502,26 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["sh", "bash"],
     },
+    #[cfg(feature = "lang-yaml")]
+    SyntaxProperties {
+        id: LapceLanguage::Yaml,
+        language: tree_sitter_yaml::language,
+        highlight: tree_sitter_yaml::HIGHLIGHTS_QUERY,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["yml", "yaml"],
+    },
+    #[cfg(feature = "lang-julia")]
+    SyntaxProperties {
+        id: LapceLanguage::Julia,
+        language: tree_sitter_julia::language,
+        highlight: include_str!("../queries/julia/highlights.scm"),
+        comment: "#",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["julia", "jl"],
+    },
 ];
 
 impl LapceLanguage {
@@ -509,6 +535,24 @@ impl LapceLanguage {
             }
         }
         None
+    }
+
+    pub fn from_name(name: String) -> Option<LapceLanguage> {
+        match LapceLanguage::from_str(name.to_lowercase().as_str()) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                eprintln!("failed parsing LapceLanguage: {e}");
+                None
+            }
+        }
+    }
+
+    pub fn languages() -> Vec<String> {
+        let mut langs = vec![];
+        for l in LANGUAGES {
+            langs.push(format!("{}", l.id))
+        }
+        langs
     }
 
     // NOTE: Instead of using `&LANGUAGES[*self as usize]` directly, the
@@ -770,5 +814,13 @@ mod test {
     #[cfg(feature = "lang-bash")]
     fn test_bash_lang() {
         assert_language(LapceLanguage::Bash, &["sh", "bash"]);
+    }
+    #[cfg(feature = "lang-yaml")]
+    fn test_yaml_lang() {
+        assert_language(LapceLanguage::Yaml, &["yml", "yaml"]);
+    }
+    #[cfg(feature = "lang-julia")]
+    fn test_julia_lang() {
+        assert_language(LapceLanguage::Julia, &["julia", "jl"]);
     }
 }

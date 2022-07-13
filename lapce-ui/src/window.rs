@@ -356,6 +356,7 @@ impl Widget<LapceWindowData> for LapceWindow {
             | Event::MouseUp(_)
             | Event::MouseMove(_)
             | Event::Wheel(_)
+            | Event::AnimFrame(_)
             | Event::KeyDown(_)
             | Event::KeyUp(_) => {}
             _ => {

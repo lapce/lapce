@@ -99,7 +99,7 @@ impl LapceEditorTabHeader {
                 let editor_buffer = data.editor_view_content(*view_id);
 
                 if let BufferContent::File(path) = &editor_buffer.editor.content {
-                    svg = file_svg(path);
+                    (svg, _) = file_svg(path);
                     if let Some(file_name) = path.file_name() {
                         if let Some(s) = file_name.to_str() {
                             text = s.to_string();

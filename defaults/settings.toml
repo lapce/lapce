@@ -32,6 +32,9 @@ status-height = 25
 tab-min-width = 100
 scroll-width = 10
 drop-shadow-width = 0
+custom-titlebar = false
+hover-font-family = ""
+hover-font-size = 0
 
 [theme]
 name = ""
@@ -76,6 +79,17 @@ magenta = "#C678DD"
 "builtinType" = "$cyan"
 "escape" = "$cyan"
 "embedded" = "$cyan"
+"parameter" = "$green"
+"symbol" = "$yellow"
+"conditional" = "$blue"
+"exception" = "$red"
+"repeat" = "$green"
+"include" = "$magenta"
+"float" = "$yellow"
+"boolean" = "$blue"
+"character" =  "$purple"
+"punctuation.delimiter" = "$orange"
+"punctuation.bracket" = "$blue"
 
 [theme.ui]
 "lapce.active_tab" = "$black"

@@ -8,6 +8,9 @@ use std::{
     time::Instant,
 };
 
+#[cfg(target_os = "windows")]
+use std::env;
+
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use directories::BaseDirs;
@@ -91,7 +94,7 @@ pub struct LapceData {
 impl LapceData {
     /// Create a new `LapceData` struct by loading configuration, and state
     /// previously written to the Lapce database.
-    pub fn load(event_sink: ExtEventSink) -> Self {
+    pub fn load(event_sink: ExtEventSink, path: Option<String>) -> Self {
         let db = Arc::new(LapceDb::new().unwrap());
         let mut windows = im::HashMap::new();
         let config = Config::load(&LapceWorkspace::default()).unwrap_or_default();
@@ -100,7 +103,45 @@ impl LapceData {
             .get_panel_orders()
             .unwrap_or_else(|_| Self::default_panel_orders());
 
-        if let Ok(app) = db.get_app() {
+        if let Some(path) = path {
+            let path = PathBuf::from(path).canonicalize().unwrap();
+            if path.is_dir() {
+                #[cfg(target_os = "windows")]
+                let workspace_type =
+                    if !env::var("WSL_DISTRO_NAME").unwrap_or_default().is_empty()
+                        || !env::var("WSL_INTEROP").unwrap_or_default().is_empty()
+                    {
+                        LapceWorkspaceType::RemoteWSL
+                    } else {
+                        LapceWorkspaceType::Local
+                    };
+
+                #[cfg(not(target_os = "windows"))]
+                let workspace_type = LapceWorkspaceType::Local;
+
+                let info = WindowInfo {
+                    size: Size::new(800.0, 600.0),
+                    pos: Point::new(0.0, 0.0),
+                    maximised: false,
+                    tabs: TabsInfo {
+                        active_tab: 0,
+                        workspaces: vec![LapceWorkspace {
+                            kind: workspace_type,
+                            path: Some(path),
+                            last_open: 0,
+                        }],
+                    },
+                };
+                let window = LapceWindowData::new(
+                    keypress.clone(),
+                    panel_orders.clone(),
+                    event_sink.clone(),
+                    &info,
+                    db.clone(),
+                );
+                windows.insert(window.window_id, window);
+            }
+        } else if let Ok(app) = db.get_app() {
             for info in app.windows.iter() {
                 let window = LapceWindowData::new(
                     keypress.clone(),
@@ -1305,6 +1346,13 @@ impl LapceTabData {
             }
             LapceWorkbenchCommand::InstallTheme => {
                 self.main_split.install_theme(ctx, &self.config);
+            }
+            LapceWorkbenchCommand::ChangeFileLanguage => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::Language)),
+                    Target::Auto,
+                ))
             }
         }
     }

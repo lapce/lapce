@@ -1180,7 +1180,7 @@ dependencies = [
 [[package]]
 name = "fount"
 version = "0.1.0"
-source = "git+https://github.com/lapce/fount#bfe215c0f82595361dc2385bed5a8687a41e5dd2"
+source = "git+https://github.com/lapce/fount#02166f0f7b0e9bcb1c5ae5937e7678ba4597bbe4"
 dependencies = [
  "font-kit",
  "memmap2 0.5.4",
@@ -2221,6 +2221,7 @@ dependencies = [
  "tree-sitter-java",
  "tree-sitter-javascript",
  "tree-sitter-json",
+ "tree-sitter-julia",
  "tree-sitter-md",
  "tree-sitter-ocaml",
  "tree-sitter-php",
@@ -2232,6 +2233,7 @@ dependencies = [
  "tree-sitter-swift",
  "tree-sitter-toml",
  "tree-sitter-typescript",
+ "tree-sitter-yaml",
  "tree-sitter-zig",
  "xi-rope",
 ]
@@ -2302,6 +2304,7 @@ dependencies = [
  "crossbeam-channel",
  "directories",
  "git2",
+ "globset",
  "grep-matcher",
  "grep-regex",
  "grep-searcher",
@@ -4715,6 +4718,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-julia"
+version = "0.19.0"
+source = "git+https://github.com/VarLad/tree-sitter-julia?branch=master#05b4de163932f52bc1e57c5ff4deff291b6e8805"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-md"
 version = "0.0.1"
 source = "git+https://github.com/dzhou121/tree-sitter-markdown.git#134c7f870ad17b3c3e40cd90b8bbd08329ac4bbd"
@@ -4813,6 +4825,15 @@ name = "tree-sitter-typescript"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e8ed0ecb931cdff13c6a13f45ccd615156e2779d9ffb0395864e05505e6e86d"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-yaml"
+version = "0.0.1"
+source = "git+https://github.com/panekj/tree-sitter-yaml?branch=master#faed130c65531addfa3edf855e1d417b96c7f163"
 dependencies = [
  "cc",
  "tree-sitter",
@@ -5791,7 +5812,7 @@ dependencies = [
 [[package]]
 name = "xi-rope"
 version = "0.3.0"
-source = "git+https://github.com/lapce/xi-editor#5578c7253ff8f644638bebace1261b6a412ce03c"
+source = "git+https://github.com/lapce/xi-editor#06816cc92e97996c12ec048aa9190b4efc00d1a6"
 dependencies = [
  "bytecount",
  "memchr",

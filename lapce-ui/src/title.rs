@@ -8,7 +8,7 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget,
 };
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use druid::{WindowConfig, WindowState};
 use lapce_data::{
     command::{
@@ -64,8 +64,10 @@ impl Widget<LapceWindowData> for Title {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        #[cfg(target_os = "macos")] data: &mut LapceWindowData,
-        #[cfg(not(target_os = "macos"))] _data: &mut LapceWindowData,
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        data: &mut LapceWindowData,
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        _data: &mut LapceWindowData,
         _env: &Env,
     ) {
         match event {
@@ -77,14 +79,20 @@ impl Widget<LapceWindowData> for Title {
                 } else {
                     ctx.clear_cursor();
                     ctx.request_paint();
+
+                    #[cfg(target_os = "windows")]
+                    // ! Currently implemented on Windows only
+                    ctx.window().handle_titlebar(true);
                 }
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event);
             }
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::MouseUp(mouse_event) => {
-                if mouse_event.count >= 2 {
+                if (cfg!(target_os = "macos") || data.config.ui.custom_titlebar())
+                    && mouse_event.count >= 2
+                {
                     let state = match ctx.window().get_window_state() {
                         WindowState::Maximized => WindowState::Restored,
                         WindowState::Restored => WindowState::Maximized,
@@ -112,11 +120,25 @@ impl Widget<LapceWindowData> for Title {
 
     fn update(
         &mut self,
-        _ctx: &mut UpdateCtx,
-        _old_data: &LapceWindowData,
-        _data: &LapceWindowData,
+        #[cfg(target_os = "windows")] ctx: &mut UpdateCtx,
+        #[cfg(not(target_os = "windows"))] _ctx: &mut UpdateCtx,
+        #[cfg(target_os = "windows")] old_data: &LapceWindowData,
+        #[cfg(not(target_os = "windows"))] _old_data: &LapceWindowData,
+        #[cfg(target_os = "windows")] data: &LapceWindowData,
+        #[cfg(not(target_os = "windows"))] _data: &LapceWindowData,
         _env: &Env,
     ) {
+        #[cfg(target_os = "windows")]
+        if old_data.config.ui.custom_titlebar() != data.config.ui.custom_titlebar() {
+            ctx.submit_command(
+                druid::commands::CONFIGURE_WINDOW
+                    .with(
+                        WindowConfig::default()
+                            .show_titlebar(!data.config.ui.custom_titlebar()),
+                    )
+                    .to(Target::Window(data.window_id)),
+            )
+        }
     }
 
     fn layout(
@@ -126,7 +148,15 @@ impl Widget<LapceWindowData> for Title {
         _data: &LapceWindowData,
         _env: &Env,
     ) -> Size {
-        Size::new(bc.max().width, 28.0)
+        #[cfg(not(target_os = "windows"))]
+        {
+            Size::new(bc.max().width, 28.0)
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            Size::new(bc.max().width, 32.0)
+        }
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, _env: &Env) {
@@ -146,6 +176,27 @@ impl Widget<LapceWindowData> for Title {
         let mut x = 70.0;
 
         let padding = 15.0;
+
+        #[cfg(target_os = "windows")]
+        {
+            let logo_rect = Size::new(size.height, size.height)
+                .to_rect()
+                .with_origin(Point::new(x, 0.0));
+            let logo_svg = crate::svg::logo_svg();
+            ctx.draw_svg(
+                &logo_svg,
+                logo_rect.inflate(-5.0, -5.0),
+                Some(
+                    &data
+                        .config
+                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .clone()
+                        .with_alpha(0.5),
+                ),
+            );
+
+            x += size.height;
+        }
 
         let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
         let tab = data.tabs.get(&data.active_id).unwrap();
@@ -448,8 +499,39 @@ impl Widget<LapceWindowData> for Title {
             ctx.stroke(line, line_color, 1.0);
         }
 
-        x = size.width;
-        x -= size.height;
+        #[cfg(target_os = "windows")]
+        {
+            let title_layout = ctx
+                .text()
+                .new_text_layout(String::from("Lapce"))
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            ctx.draw_text(
+                &title_layout,
+                Point::new(
+                    (size.width - title_layout.size().width) / 2.0,
+                    (size.height - title_layout.size().height) / 2.0,
+                ),
+            );
+
+            if data.config.ui.custom_titlebar() {
+                x = size.width - (size.height * 4.0);
+            }
+        }
+
+        if cfg!(not(target_os = "windows")) || !data.config.ui.custom_titlebar() {
+            x = size.width - size.height;
+        }
+
         let settings_rect = Size::new(size.height, size.height)
             .to_rect()
             .with_origin(Point::new(x, 0.0));
@@ -505,5 +587,155 @@ impl Widget<LapceWindowData> for Title {
                 Target::Auto,
             ),
         ));
+
+        #[cfg(target_os = "windows")]
+        if data.config.ui.custom_titlebar() {
+            let font_size = 10.0;
+            let font_family = "Segoe MDL2 Assets";
+
+            #[derive(strum_macros::Display)]
+            enum WindowControls {
+                Minimise,
+                Maximise,
+                Restore,
+                Close,
+            }
+
+            impl WindowControls {
+                fn as_str(&self) -> &'static str {
+                    match self {
+                        WindowControls::Minimise => "\u{E949}",
+                        WindowControls::Maximise => "\u{E739}",
+                        WindowControls::Restore => "\u{E923}",
+                        WindowControls::Close => "\u{E106}",
+                    }
+                }
+            }
+
+            x += size.height;
+            let minimise_text = ctx
+                .text()
+                .new_text_layout(WindowControls::Minimise.as_str())
+                .font(ctx.text().font_family(font_family).unwrap(), font_size)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            ctx.draw_text(
+                &minimise_text,
+                Point::new(
+                    x + ((minimise_text.size().width + 5.0) / 2.0),
+                    (size.height - minimise_text.size().height) / 2.0,
+                ),
+            );
+            let minimise_rect = Size::new(
+                size.height
+                    + Some(minimise_text)
+                        .as_ref()
+                        .map(|t| t.size().width.round() + padding - 5.0)
+                        .unwrap_or(0.0),
+                size.height,
+            )
+            .to_rect()
+            .with_origin(Point::new(x, 0.0));
+
+            self.commands.push((
+                minimise_rect,
+                Command::new(
+                    druid::commands::CONFIGURE_WINDOW,
+                    WindowConfig::default().set_window_state(WindowState::Minimized),
+                    Target::Window(data.window_id),
+                ),
+            ));
+
+            x += size.height;
+
+            let max_res_icon;
+            let max_res_state;
+
+            if ctx.window().get_window_state() == WindowState::Restored {
+                max_res_icon = WindowControls::Maximise;
+                max_res_state = WindowState::Maximized;
+            } else {
+                max_res_icon = WindowControls::Restore;
+                max_res_state = WindowState::Restored;
+            };
+
+            let max_res_text = ctx
+                .text()
+                .new_text_layout(max_res_icon.as_str())
+                .font(ctx.text().font_family(font_family).unwrap(), font_size)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            ctx.draw_text(
+                &max_res_text,
+                Point::new(
+                    x + ((max_res_text.size().width + 5.0) / 2.0),
+                    (size.height - max_res_text.size().height) / 2.0,
+                ),
+            );
+
+            let max_res_rect = Size::new(
+                size.height
+                    + Some(max_res_text)
+                        .as_ref()
+                        .map(|t| t.size().width.round() + padding - 5.0)
+                        .unwrap_or(0.0),
+                size.height,
+            )
+            .to_rect()
+            .with_origin(Point::new(x, 0.0));
+            self.commands.push((
+                max_res_rect,
+                Command::new(
+                    druid::commands::CONFIGURE_WINDOW,
+                    WindowConfig::default().set_window_state(max_res_state),
+                    Target::Window(data.window_id),
+                ),
+            ));
+
+            x += size.height;
+            let close_text = ctx
+                .text()
+                .new_text_layout(WindowControls::Close.as_str())
+                .font(ctx.text().font_family(font_family).unwrap(), font_size)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            ctx.draw_text(
+                &close_text,
+                Point::new(
+                    x + ((close_text.size().width + 5.0) / 2.0),
+                    (size.height - close_text.size().height) / 2.0,
+                ),
+            );
+            let close_rect = Size::new(
+                size.height
+                    + Some(close_text)
+                        .as_ref()
+                        .map(|t| t.size().width.round() + padding + 5.0)
+                        .unwrap_or(0.0),
+                size.height,
+            )
+            .to_rect()
+            .with_origin(Point::new(x, 0.0));
+
+            self.commands.push((
+                close_rect,
+                Command::new(druid::commands::QUIT_APP, (), Target::Global),
+            ));
+        }
     }
 }

@@ -640,6 +640,13 @@ impl PaletteContent {
                     "".to_string(),
                     vec![],
                 ),
+                PaletteItemContent::Language(name) => (
+                    None,
+                    name.to_string(),
+                    indices.to_vec(),
+                    "".to_string(),
+                    vec![],
+                ),
                 PaletteItemContent::TerminalLine(_line, content) => (
                     None,
                     content.clone(),
@@ -794,7 +801,7 @@ impl PaletteContent {
         path: &Path,
         indices: &[usize],
     ) -> (Option<Svg>, String, Vec<usize>, String, Vec<usize>) {
-        let svg = file_svg(path);
+        let (svg, _) = file_svg(path);
         let file_name = path
             .file_name()
             .and_then(|s| s.to_str())

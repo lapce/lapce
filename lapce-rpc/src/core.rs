@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf};
 
 use crate::{
-    buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
-    source_control::DiffInfo, style::LineStyle, terminal::TermId,
+    file::FileNodeItem, plugin::PluginDescription, source_control::DiffInfo,
+    terminal::TermId,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,13 +12,6 @@ use crate::{
 #[serde(tag = "method", content = "params")]
 pub enum CoreNotification {
     ProxyConnected {},
-    SemanticStyles {
-        rev: u64,
-        buffer_id: BufferId,
-        path: PathBuf,
-        len: usize,
-        styles: Vec<LineStyle>,
-    },
     OpenFileChanged {
         path: PathBuf,
         content: String,

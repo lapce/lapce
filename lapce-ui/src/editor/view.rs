@@ -19,7 +19,7 @@ use lapce_data::{
     },
     config::{EditorConfig, LapceTheme},
     data::{EditorTabChild, EditorView, FocusArea, LapceTabData},
-    document::{BufferContent, InlayHintsLine, LocalBufferKind},
+    document::{BufferContent, LocalBufferKind},
     editor::LapceEditorBufferData,
     keypress::KeyPressFocus,
     panel::{PanelData, PanelKind},
@@ -437,11 +437,13 @@ impl LapceEditorView {
     fn cursor_region(data: &LapceEditorBufferData, text: &mut PietText) -> Rect {
         let offset = data.editor.cursor.offset();
         let (line, col) = data.doc.buffer().offset_to_line_col(offset);
-        let inlay_hints = if data.config.editor.enable_inlay_hints {
-            data.doc.inlay_hints.hints_at_line(line as u32)
-        } else {
-            InlayHintsLine::default()
-        };
+        let inlay_hints = data
+            .config
+            .editor
+            .enable_inlay_hints
+            .then_some(())
+            .and_then(|_| data.doc.line_inlay_hints(line))
+            .unwrap_or_default();
         let col = inlay_hints.col_at(col);
 
         let width = data.config.editor_char_width(text);
@@ -548,6 +550,8 @@ impl Widget<LapceTabData> for LapceEditorView {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 if let LapceUICommand::Focus = command {
+                    self.cursor_blink_timer =
+                        ctx.request_timer(Duration::from_millis(500), None);
                     self.request_focus(ctx, data, true);
                     let editor_data = data.editor_view_content(self.view_id);
                     self.ensure_cursor_visible(
@@ -561,7 +565,7 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
             Event::Timer(id) if self.cursor_blink_timer == *id => {
                 ctx.set_handled();
-                if data.focus == self.view_id {
+                if ctx.is_focused() {
                     ctx.request_paint();
                     self.cursor_blink_timer =
                         ctx.request_timer(Duration::from_millis(500), None);
@@ -625,7 +629,6 @@ impl Widget<LapceTabData> for LapceEditorView {
                 editor_data.sync_buffer_position(
                     self.editor.widget().editor.widget().inner().offset(),
                 );
-                editor_data.get_inlay_hints(ctx);
                 editor_data.get_code_actions(ctx);
 
                 data.keypress = keypress.clone();

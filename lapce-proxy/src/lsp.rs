@@ -2,8 +2,13 @@ use std::{
     collections::HashMap,
     io::BufRead,
     io::{BufReader, BufWriter, Write},
+    path::Path,
     process::{self, Child, ChildStdout, Command, Stdio},
-    sync::{mpsc::channel, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::channel,
+        Arc,
+    },
     thread,
     time::Duration,
 };
@@ -15,7 +20,7 @@ use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_rpc::{
     buffer::BufferId,
-    style::{LineStyle, Style},
+    style::{LineStyle, SemanticStyles, Style},
     RequestId,
 };
 use lsp_types::*;
@@ -52,6 +57,37 @@ pub struct LspState {
     pub server_capabilities: Option<ServerCapabilities>,
     pub opened_documents: HashMap<BufferId, Url>,
     pub is_initialized: bool,
+    pub did_save_capabilities: Vec<DidSaveCapability>,
+}
+
+pub struct DocumentFilter {
+    /// The document must have this language id, if it exists
+    pub language_id: Option<String>,
+    /// The document's path must match this glob, if it exists
+    pub pattern: Option<globset::GlobMatcher>,
+    // TODO: URI Scheme from lsp-types document filter
+}
+impl DocumentFilter {
+    /// Constructs a document filter from the LSP version
+    /// This ignores any fields that are badly constructed
+    fn from_lsp_filter_loose(filter: lsp_types::DocumentFilter) -> DocumentFilter {
+        DocumentFilter {
+            language_id: filter.language,
+            // TODO: clean this up
+            pattern: filter
+                .pattern
+                .as_deref()
+                .map(globset::Glob::new)
+                .and_then(Result::ok)
+                .map(|x| globset::Glob::compile_matcher(&x)),
+        }
+    }
+}
+pub struct DidSaveCapability {
+    /// A filter on what documents this applies to
+    filter: DocumentFilter,
+    /// Whether we are supposed to include the text when sending a didSave event
+    include_text: bool,
 }
 
 #[derive(Clone)]
@@ -61,6 +97,7 @@ pub struct LspClient {
     options: Option<Value>,
     state: Arc<Mutex<LspState>>,
     dispatcher: Dispatcher,
+    active: Arc<AtomicBool>,
 }
 
 impl LspCatalog {
@@ -135,49 +172,83 @@ impl LspCatalog {
         }
     }
 
-    pub fn save_buffer(&self, buffer: &Buffer) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
-            let uri = client.get_uri(buffer);
-            client.send_did_save(uri);
+    pub fn save_buffer(&self, buffer: &Buffer, workspace_path: &Path) {
+        for (client_language_id, client) in self.clients.iter() {
+            // Get rid of the workspace path prefix so that it can be used with the filters
+            let buffer_path = buffer
+                .path
+                .strip_prefix(workspace_path)
+                .unwrap_or(&buffer.path);
+
+            let mut passed_filter = client_language_id == &buffer.language_id;
+            let mut include_text = false;
+            if !passed_filter {
+                let lsp_state = client.state.lock();
+
+                // TODO: Should we iterate in reverse order so that later capabilities
+                // can overwrite old ones?
+                // Find the first capability that wants this file, if any.
+                for cap in &lsp_state.did_save_capabilities {
+                    if let Some(language_id) = &cap.filter.language_id {
+                        if language_id != &buffer.language_id {
+                            continue;
+                        }
+                    }
+
+                    if let Some(pattern) = &cap.filter.pattern {
+                        if !pattern.is_match(buffer_path) {
+                            continue;
+                        }
+                    }
+
+                    passed_filter = true;
+                    include_text = cap.include_text;
+                    break;
+                }
+
+                // Get rid of the mutex guard
+                drop(lsp_state);
+            }
+
+            if passed_filter {
+                let uri = client.get_uri(buffer);
+                let text = if include_text {
+                    Some(buffer.get_document())
+                } else {
+                    None
+                };
+                client.send_did_save(uri, text);
+            }
         }
     }
 
-    pub fn get_semantic_tokens(&self, buffer: &Buffer) {
-        let buffer_id = buffer.id;
-        let path = buffer.path.clone();
-        let rev = buffer.rev;
-        let len = buffer.len();
+    pub fn get_semantic_tokens(&self, id: RequestId, buffer: &Buffer) {
+        let buffer = buffer.clone();
         if let Some(client) = self.clients.get(&buffer.language_id) {
-            let uri = client.get_uri(buffer);
-            let local_dispatcher = self.dispatcher.clone().unwrap();
+            let uri = client.get_uri(&buffer);
             client.request_semantic_tokens(uri, move |lsp_client, result| {
-                if let Ok(res) = result {
-                    let buffers = local_dispatcher.buffers.lock();
-                    let buffer = buffers.get(&buffer_id).unwrap();
-                    if buffer.rev != rev {
-                        return;
-                    }
-                    let lsp_state = lsp_client.state.lock();
-                    let semantic_tokens_provider = &lsp_state
-                        .server_capabilities
-                        .as_ref()
-                        .unwrap()
-                        .semantic_tokens_provider;
-                    if let Some(styles) =
-                        format_semantic_styles(buffer, semantic_tokens_provider, res)
-                    {
-                        local_dispatcher.send_notification(
-                            "semantic_styles",
-                            json!({
-                                "rev": rev,
-                                "buffer_id": buffer_id,
-                                "path": path,
-                                "styles": styles,
-                                "len": len,
-                            }),
-                        )
-                    }
-                }
+                let lsp_state = lsp_client.state.lock();
+                let semantic_tokens_provider = &lsp_state
+                    .server_capabilities
+                    .as_ref()
+                    .unwrap()
+                    .semantic_tokens_provider;
+                let result = result.and_then(|value| {
+                    format_semantic_styles(&buffer, semantic_tokens_provider, value)
+                        .map(|styles| {
+                            serde_json::to_value(SemanticStyles {
+                                rev: buffer.rev,
+                                buffer_id: buffer.id,
+                                path: buffer.path.clone(),
+                                styles,
+                                len: buffer.len(),
+                            })
+                            .unwrap()
+                        })
+                        .ok_or_else(|| anyhow!("can't format semantic styles"))
+                });
+
+                lsp_client.dispatcher.respond(id, result);
             });
         }
     }
@@ -457,7 +528,9 @@ impl LspClient {
                 server_capabilities: None,
                 opened_documents: HashMap::new(),
                 is_initialized: false,
+                did_save_capabilities: Vec::new(),
             })),
+            active: Arc::new(AtomicBool::new(true)),
         });
 
         lsp_client.handle_stdout(stdout);
@@ -476,6 +549,9 @@ impl LspClient {
                         local_lsp_client.handle_message(message_str.as_ref());
                     }
                     Err(_err) => {
+                        if !local_lsp_client.active.load(Ordering::Acquire) {
+                            return;
+                        }
                         local_lsp_client.stop();
                         local_lsp_client.reload();
                         return;
@@ -519,6 +595,7 @@ impl LspClient {
     }
 
     fn stop(&self) {
+        self.active.store(false, Ordering::Release);
         let _ = self.state.lock().process.kill();
     }
 
@@ -577,13 +654,48 @@ impl LspClient {
         }
     }
 
-    pub fn handle_request(&self, method: &str, id: Id, _params: Params) {
+    pub fn handle_request(&self, method: &str, id: Id, params: Params) {
         match method {
             "window/workDoneProgress/create" => {
                 // Token is ignored as the workProgress Widget is always working
                 // In the future, for multiple workProgress Handling we should
                 // probably store the token
                 self.send_success_response(id, &json!({}));
+            }
+            "client/registerCapability" => {
+                if let Ok(registrations) =
+                    serde_json::from_value::<RegistrationParams>(json!(params))
+                {
+                    for registration in registrations.registrations {
+                        match registration.method.as_str() {
+                            "textDocument/didSave" => {
+                                if let Some(options) = registration.register_options {
+                                    if let Ok(options) = serde_json::from_value::<TextDocumentSaveRegistrationOptions>(options) {
+                                        if let Some(selectors) = options.text_document_registration_options.document_selector {
+                                            // TODO: is false a reasonable default?
+                                            let include_text = options.include_text.unwrap_or(false);
+
+                                            let mut lsp_state = self.state.lock();
+
+                                            // Add each selector our did save filtering
+                                            for selector in selectors {
+                                                let filter = DocumentFilter::from_lsp_filter_loose(selector);
+                                                let cap = DidSaveCapability {
+                                                    filter,
+                                                    include_text,
+                                                };
+
+                                                lsp_state.did_save_capabilities.push(cap);
+                                            }
+                                        }
+                                    }
+                                }
+                                // TODO: report error?
+                            }
+                            _ => println!("Received unhandled client/registerCapability request {}", registration.method),
+                        }
+                    }
+                }
             }
             method => {
                 println!("Received unhandled request {method}");
@@ -740,10 +852,10 @@ impl LspClient {
         self.send_notification("textDocument/didOpen", params);
     }
 
-    pub fn send_did_save(&self, uri: Url) {
+    pub fn send_did_save(&self, uri: Url, text: Option<String>) {
         let params = DidSaveTextDocumentParams {
             text_document: TextDocumentIdentifier { uri },
-            text: None,
+            text,
         };
         let params = Params::from(serde_json::to_value(params).unwrap());
         self.send_notification("textDocument/didSave", params);
@@ -759,6 +871,11 @@ impl LspClient {
     {
         let client_capabilities = ClientCapabilities {
             text_document: Some(TextDocumentClientCapabilities {
+                synchronization: Some(TextDocumentSyncClientCapabilities {
+                    did_save: Some(true),
+                    dynamic_registration: Some(true),
+                    ..Default::default()
+                }),
                 completion: Some(CompletionClientCapabilities {
                     completion_item: Some(CompletionItemCapability {
                         snippet_support: Some(true),
