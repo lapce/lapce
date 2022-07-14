@@ -1,6 +1,6 @@
 [package]
 name = "lapce-data"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
