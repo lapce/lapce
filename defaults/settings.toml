@@ -17,6 +17,10 @@ format-on-save = true
 enable-inlay-hints = true
 inlay-hint-font-family = ""
 inlay-hint-font-size = 0
+enable-error-lens = true
+error-lens-end-of-line = true
+error-lens-font-family = ""
+error-lens-font-size = 0
 
 [terminal]
 font-family = ""
@@ -111,6 +115,13 @@ magenta = "#C678DD"
 
 "inlay_hint.foreground" = "#FFFFFF"
 "inlay_hint.background" = "#528bFF88"
+
+"error_lens.error.foreground" = "$red"
+"error_lens.error.background" = "#E06C7520"
+"error_lens.warning.foreground" = "$yellow"
+"error_lens.warning.background" = "#E5C07B20"
+"error_lens.other.foreground" = "#5C6370"
+"error_lens.other.background" = "#5C637020"
 
 "source_control.added" = "#50A14F32"
 "source_control.removed" = "#FF526632"

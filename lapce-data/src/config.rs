@@ -51,6 +51,19 @@ impl LapceTheme {
     pub const INLAY_HINT_FOREGROUND: &'static str = "inlay_hint.foreground";
     pub const INLAY_HINT_BACKGROUND: &'static str = "inlay_hint.background";
 
+    pub const ERROR_LENS_ERROR_FOREGROUND: &'static str =
+        "error_lens.error.foreground";
+    pub const ERROR_LENS_ERROR_BACKGROUND: &'static str =
+        "error_lens.error.background";
+    pub const ERROR_LENS_WARNING_FOREGROUND: &'static str =
+        "error_lens.warning.foreground";
+    pub const ERROR_LENS_WARNING_BACKGROUND: &'static str =
+        "error_lens.warning.background";
+    pub const ERROR_LENS_OTHER_FOREGROUND: &'static str =
+        "error_lens.other.foreground";
+    pub const ERROR_LENS_OTHER_BACKGROUND: &'static str =
+        "error_lens.other.background";
+
     pub const SOURCE_CONTROL_ADDED: &'static str = "source_control.added";
     pub const SOURCE_CONTROL_REMOVED: &'static str = "source_control.removed";
     pub const SOURCE_CONTROL_MODIFIED: &'static str = "source_control.modified";
@@ -172,6 +185,20 @@ pub struct EditorConfig {
         desc = "Set the inlay hint font size. If less than 5 or greater than editor font size, it uses the editor font size."
     )]
     pub inlay_hint_font_size: usize,
+    #[field_names(desc = "If diagnostics should be displayed inline")]
+    pub enable_error_lens: bool,
+    #[field_names(
+        desc = "Whether error lens should go to the end of view line, or only to the end of the diagnostic"
+    )]
+    pub error_lens_end_of_line: bool,
+    #[field_names(
+        desc = "Set error lens font family. If empty, it uses the inlay hint font family."
+    )]
+    pub error_lens_font_family: String,
+    #[field_names(
+        desc = "Set the error lens font size. If 0 it uses the inlay hint font size."
+    )]
+    pub error_lens_font_size: usize,
 }
 
 impl EditorConfig {
@@ -187,13 +214,29 @@ impl EditorConfig {
         }
     }
 
-    pub fn inlay_hint_font_size(&self) -> f64 {
+    pub fn inlay_hint_font_size(&self) -> usize {
         if self.inlay_hint_font_size < 5
             || self.inlay_hint_font_size > self.font_size
         {
-            self.font_size as f64
+            self.font_size
         } else {
-            self.inlay_hint_font_size as f64
+            self.inlay_hint_font_size
+        }
+    }
+
+    pub fn error_lens_font_family(&self) -> FontFamily {
+        if self.error_lens_font_family.is_empty() {
+            self.inlay_hint_font_family()
+        } else {
+            FontFamily::new_unchecked(self.error_lens_font_family.clone())
+        }
+    }
+
+    pub fn error_lens_font_size(&self) -> usize {
+        if self.error_lens_font_size == 0 {
+            self.inlay_hint_font_size()
+        } else {
+            self.error_lens_font_size
         }
     }
 }

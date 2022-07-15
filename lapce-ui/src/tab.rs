@@ -988,9 +988,18 @@ impl LapceTab {
                                     + 1,
                             })
                             .collect();
-                        data.main_split
-                            .diagnostics
-                            .insert(path, Arc::new(diagnostics));
+                        let diagnostics: Arc<Vec<EditorDiagnostic>> =
+                            Arc::new(diagnostics);
+
+                        // inform the document about the diagnostics
+                        if let Some(document) =
+                            data.main_split.open_docs.get_mut(&path)
+                        {
+                            let document = Arc::make_mut(document);
+                            document.diagnostics = Some(diagnostics.clone());
+                        }
+
+                        data.main_split.diagnostics.insert(path, diagnostics);
 
                         let mut errors = 0;
                         let mut warnings = 0;
