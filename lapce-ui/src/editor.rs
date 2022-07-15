@@ -826,7 +826,8 @@ impl LapceEditor {
                 let height = text_layout.text.size().height;
                 for (x0, x1, style) in text_layout.extra_style.iter() {
                     if let Some(bg) = &style.bg_color {
-                        ctx.fill(Rect::new(*x0, y, *x1, y + height), bg);
+                        let x1 = x1.unwrap_or(self_size.width);
+                        ctx.fill(Rect::new(*x0, y, x1, y + height), bg);
                     }
                 }
                 ctx.draw_text(&text_layout.text, Point::new(0.0, y));
@@ -938,13 +939,8 @@ impl LapceEditor {
                 let start_offset = data.doc.buffer().offset_of_line(actual_line);
                 let end_offset = data.doc.buffer().offset_of_line(actual_line + 1);
                 let regions = selection.regions_in_range(start_offset, end_offset);
-                let inlay_hints = data
-                    .config
-                    .editor
-                    .enable_inlay_hints
-                    .then_some(())
-                    .and_then(|_| data.doc.line_inlay_hints(actual_line))
-                    .unwrap_or_default();
+                let phantom_text =
+                    data.doc.line_phantom_text(&data.config, actual_line);
                 for region in regions {
                     if region.is_caret() {
                         let caret_actual_line =
@@ -972,7 +968,7 @@ impl LapceEditor {
                             _ if actual_line == start_line => start_col,
                             _ => 0,
                         };
-                        let left_col = inlay_hints.col_at(left_col);
+                        let left_col = phantom_text.col_at(left_col);
                         let right_col = match actual_line {
                             _ if actual_line == end_line => {
                                 let max_col = data
@@ -983,7 +979,7 @@ impl LapceEditor {
                             }
                             _ => data.doc.buffer().line_end_col(actual_line, true),
                         };
-                        let right_col = inlay_hints.col_at(right_col);
+                        let right_col = phantom_text.col_at(right_col);
 
                         let x0 = left_col as f64 * char_width + x_shift;
                         let x1 = right_col as f64 * char_width + x_shift;
@@ -1001,7 +997,7 @@ impl LapceEditor {
                         let (caret_actual_line, col) =
                             data.doc.buffer().offset_to_line_col(region.end());
                         if caret_actual_line == actual_line {
-                            let col = inlay_hints.col_at(col);
+                            let col = phantom_text.col_at(col);
 
                             let x = col as f64 * char_width + x_shift;
                             ctx.stroke(
@@ -1099,13 +1095,7 @@ impl LapceEditor {
                 Self::paint_cursor_line(data, ctx, line, is_focused, placeholder);
 
                 if is_focused {
-                    let inlay_hints = data
-                        .config
-                        .editor
-                        .enable_inlay_hints
-                        .then_some(())
-                        .and_then(|_| data.doc.line_inlay_hints(line))
-                        .unwrap_or_default();
+                    let inlay_hints = data.doc.line_phantom_text(&data.config, line);
 
                     // Shift it by the inlay hints
                     let col = inlay_hints.col_after(col, true);
@@ -1205,16 +1195,10 @@ impl LapceEditor {
                         }
                     };
 
-                    let inlay_hints = data
-                        .config
-                        .editor
-                        .enable_inlay_hints
-                        .then_some(())
-                        .and_then(|_| data.doc.line_inlay_hints(line))
-                        .unwrap_or_default();
-
-                    let left_col = inlay_hints.col_after(left_col, false);
-                    let right_col = inlay_hints.col_after(right_col, false);
+                    let phantom_text =
+                        data.doc.line_phantom_text(&data.config, line);
+                    let left_col = phantom_text.col_after(left_col, false);
+                    let right_col = phantom_text.col_after(right_col, false);
 
                     let x0 = data
                         .doc
@@ -1250,15 +1234,10 @@ impl LapceEditor {
 
                     if is_focused {
                         let (line, col) = data.doc.buffer().offset_to_line_col(*end);
-                        let inlay_hints = data
-                            .config
-                            .editor
-                            .enable_inlay_hints
-                            .then_some(())
-                            .and_then(|_| data.doc.line_inlay_hints(line))
-                            .unwrap_or_default();
+                        let phantom_text =
+                            data.doc.line_phantom_text(&data.config, line);
 
-                        let col = inlay_hints.col_after(col, true);
+                        let col = phantom_text.col_after(col, true);
 
                         let x0 = data
                             .doc
@@ -1282,7 +1261,7 @@ impl LapceEditor {
                         );
                         let (_, right_col) =
                             data.doc.buffer().offset_to_line_col(right_offset);
-                        let right_col = inlay_hints.col_after(right_col, false);
+                        let right_col = phantom_text.col_after(right_col, false);
                         let x1 = data
                             .doc
                             .point_of_line_col(
@@ -1355,17 +1334,12 @@ impl LapceEditor {
                                 _ => data.doc.buffer().line_end_col(line, true),
                             };
 
-                            let inlay_hints = data
-                                .config
-                                .editor
-                                .enable_inlay_hints
-                                .then_some(())
-                                .and_then(|_| data.doc.line_inlay_hints(line))
-                                .unwrap_or_default();
+                            let phantom_text =
+                                data.doc.line_phantom_text(&data.config, line);
 
                             // Shift it by the inlay hints
-                            let left_col = inlay_hints.col_after(left_col, false);
-                            let right_col = inlay_hints.col_after(right_col, false);
+                            let left_col = phantom_text.col_after(left_col, false);
+                            let right_col = phantom_text.col_after(right_col, false);
 
                             if !line_content.is_empty() {
                                 let x0 = data
@@ -1406,16 +1380,11 @@ impl LapceEditor {
                         let (line, col) =
                             data.doc.buffer().offset_to_line_col(region.end());
 
-                        let inlay_hints = data
-                            .config
-                            .editor
-                            .enable_inlay_hints
-                            .then_some(())
-                            .and_then(|_| data.doc.line_inlay_hints(line))
-                            .unwrap_or_default();
+                        let phantom_text =
+                            data.doc.line_phantom_text(&data.config, line);
 
                         // Shift it by the inlay hints
-                        let col = inlay_hints.col_after(col, false);
+                        let col = phantom_text.col_after(col, false);
 
                         let x = data
                             .doc
@@ -1509,23 +1478,18 @@ impl LapceEditor {
                     data.doc.buffer().offset_to_line_col(start);
                 let (end_line, end_col) = data.doc.buffer().offset_to_line_col(end);
                 for line in start_line..end_line + 1 {
-                    let inlay_hints = data
-                        .config
-                        .editor
-                        .enable_inlay_hints
-                        .then_some(())
-                        .and_then(|_| data.doc.line_inlay_hints(line))
-                        .unwrap_or_default();
+                    let phantom_text =
+                        data.doc.line_phantom_text(&data.config, line);
 
                     let left_col = if line == start_line { start_col } else { 0 };
-                    let left_col = inlay_hints.col_at(left_col);
+                    let left_col = phantom_text.col_at(left_col);
 
                     let right_col = if line == end_line {
                         end_col
                     } else {
                         data.doc.buffer().line_end_col(line, true) + 1
                     };
-                    let right_col = inlay_hints.col_at(right_col);
+                    let right_col = phantom_text.col_at(right_col);
 
                     let text_layout = data.doc.get_text_layout(
                         ctx.text(),
@@ -1588,19 +1552,14 @@ impl LapceEditor {
 
                     let line_content = data.doc.buffer().line_content(line);
 
-                    let inlay_hints = data
-                        .config
-                        .editor
-                        .enable_inlay_hints
-                        .then_some(())
-                        .and_then(|_| data.doc.line_inlay_hints(line))
-                        .unwrap_or_default();
+                    let phantom_text =
+                        data.doc.line_phantom_text(&data.config, line);
 
                     let left_col = match line {
                         _ if line == start_line => start_col,
                         _ => 0,
                     };
-                    let left_col = inlay_hints.col_at(left_col);
+                    let left_col = phantom_text.col_at(left_col);
                     let x0 = data
                         .doc
                         .point_of_line_col(
@@ -1619,7 +1578,7 @@ impl LapceEditor {
                         }
                         _ => data.doc.buffer().line_end_col(line, true),
                     };
-                    let right_col = inlay_hints.col_at(right_col);
+                    let right_col = phantom_text.col_at(right_col);
 
                     if !line_content.is_empty() {
                         let x1 = data
@@ -1680,13 +1639,8 @@ impl LapceEditor {
                             break;
                         }
 
-                        let inlay_hints = data
-                            .config
-                            .editor
-                            .enable_inlay_hints
-                            .then_some(())
-                            .and_then(|_| data.doc.line_inlay_hints(line))
-                            .unwrap_or_default();
+                        let phantom_text =
+                            data.doc.line_phantom_text(&data.config, line);
 
                         let text_layout = data.doc.get_text_layout(
                             ctx.text(),
@@ -1695,7 +1649,7 @@ impl LapceEditor {
                             &data.config,
                         );
                         let x0 = if line == start.line as usize {
-                            let col = inlay_hints.col_at(start.character as usize);
+                            let col = phantom_text.col_at(start.character as usize);
                             text_layout.text.hit_test_text_position(col).point.x
                         } else {
                             let (_, col) = data.doc.buffer().offset_to_line_col(
@@ -1703,16 +1657,16 @@ impl LapceEditor {
                                     .buffer()
                                     .first_non_blank_character_on_line(line),
                             );
-                            let col = inlay_hints.col_at(col);
+                            let col = phantom_text.col_at(col);
                             text_layout.text.hit_test_text_position(col).point.x
                         };
                         let x1 = if line == end.line as usize {
-                            let col = inlay_hints.col_at(end.character as usize);
+                            let col = phantom_text.col_at(end.character as usize);
                             text_layout.text.hit_test_text_position(col).point.x
                         } else {
                             let col =
                                 data.doc.buffer().line_end_col(line, false) + 1;
-                            let col = inlay_hints.col_at(col);
+                            let col = phantom_text.col_at(col);
                             text_layout.text.hit_test_text_position(col).point.x
                         };
                         let _y1 = (line + 1) as f64 * line_height;
@@ -1994,17 +1948,11 @@ impl Widget<LapceTabData> for LapceEditor {
                                     .buffer()
                                     .offset_to_line_col(offset);
 
-                                let inlay_hints = data
-                                    .config
-                                    .editor
-                                    .enable_inlay_hints
-                                    .then_some(())
-                                    .and_then(|_| {
-                                        editor_data.doc.line_inlay_hints(line)
-                                    })
-                                    .unwrap_or_default();
+                                let phantom_text = editor_data
+                                    .doc
+                                    .line_phantom_text(&data.config, line);
 
-                                let col = inlay_hints.col_at(col);
+                                let col = phantom_text.col_at(col);
 
                                 let x = editor_data
                                     .doc
