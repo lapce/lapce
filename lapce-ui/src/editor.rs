@@ -857,6 +857,14 @@ impl LapceEditor {
         }
     }
 
+    fn paint_cursor_new(ctx: &mut PaintCtx, data: &LapceEditorBufferData) {
+        match &data.editor.cursor.mode {
+            CursorMode::Normal(_) => {}
+            CursorMode::Visual { start, end, mode } => {}
+            CursorMode::Insert(selection) => {}
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn paint_cursor_on_line(
         data: &LapceEditorBufferData,
