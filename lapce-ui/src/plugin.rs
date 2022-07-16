@@ -1,3 +1,4 @@
+use crate::scroll::LapceScroll;
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Cursor, Env, Event, EventCtx, FontWeight, LayoutCtx,
@@ -32,7 +33,12 @@ impl Plugin {
             PanelKind::Plugin,
             data.plugin.widget_id,
             split_id,
-            vec![(split_id, PanelHeaderKind::None, Self::new().boxed(), None)],
+            vec![(
+                split_id,
+                PanelHeaderKind::None,
+                LapceScroll::new(Self::new()).boxed(),
+                None,
+            )],
         )
     }
 
@@ -141,7 +147,13 @@ impl Widget<LapceTabData> for Plugin {
         _data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        bc.max()
+        if _data.plugins.is_empty() {
+            return bc.max();
+        }
+        let height = 3.0 * self.line_height * _data.plugins.len() as f64;
+        let height = height.max(bc.max().height);
+
+        Size::new(bc.max().width, height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
