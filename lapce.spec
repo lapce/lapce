@@ -1,4 +1,4 @@
-Name:           lapce
+Name:           lapce-git
 Version:        0.1.3.{{{ git_dir_version }}}
 Release:        1
 Summary:        Lightning-fast and Powerful Code Editor written in Rust
