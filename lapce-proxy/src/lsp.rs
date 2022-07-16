@@ -1,9 +1,10 @@
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::{
     collections::HashMap,
-    io::BufRead,
-    io::{BufReader, BufWriter, Write},
+    io::{BufRead, BufReader, BufWriter, Write},
     path::Path,
-    process::{self, Child, ChildStdout, Command, Stdio},
+    process::{self, Child, ChildStderr, ChildStdout, Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::channel,
@@ -13,9 +14,6 @@ use std::{
     time::Duration,
 };
 
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
-
 use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_rpc::{
@@ -23,12 +21,12 @@ use lapce_rpc::{
     style::{LineStyle, SemanticStyles, Style},
     RequestId,
 };
+use log::error;
 use lsp_types::*;
 use parking_lot::Mutex;
 use serde_json::{json, to_value, Value};
 
-use crate::buffer::Buffer;
-use crate::dispatch::Dispatcher;
+use crate::{buffer::Buffer, dispatch::Dispatcher};
 
 pub type Callback = Box<dyn Callable>;
 const HEADER_CONTENT_LENGTH: &str = "content-length";
@@ -504,7 +502,7 @@ impl Default for LspCatalog {
 
 impl LspClient {
     pub fn new(
-        _language_id: String,
+        language_id: String,
         exec_path: &str,
         options: Option<Value>,
         args: Vec<String>,
@@ -514,6 +512,7 @@ impl LspClient {
         let mut process = Self::process(exec_path, args.clone());
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
+        let stderr = process.stderr.take().unwrap();
 
         let lsp_client = Arc::new(LspClient {
             dispatcher,
@@ -534,6 +533,7 @@ impl LspClient {
         });
 
         lsp_client.handle_stdout(stdout);
+        lsp_client.handle_stderr(stderr, language_id);
         lsp_client.initialize();
 
         lsp_client
@@ -561,6 +561,24 @@ impl LspClient {
         });
     }
 
+    fn handle_stderr(&self, stderr: ChildStderr, language_id: String) {
+        thread::spawn(move || {
+            let mut reader = Box::new(BufReader::new(stderr));
+            loop {
+                let mut buffer = String::new();
+
+                loop {
+                    buffer.clear();
+                    let _result = reader.read_line(&mut buffer);
+                    if buffer.trim().is_empty() {
+                        continue;
+                    }
+                    error!("[LSP::{}] {}", language_id, buffer.trim())
+                }
+            }
+        });
+    }
+
     fn process(exec_path: &str, args: Vec<String>) -> Child {
         let mut process = Command::new(exec_path);
 
@@ -571,6 +589,7 @@ impl LspClient {
         process
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .spawn()
             .expect("Error Occurred")
     }
