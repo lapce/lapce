@@ -37,4 +37,5 @@ install -Dm766 extra/images/logo.png %{buildroot}/usr/share/pixmaps/dev.lapce.la
 /usr/share/pixmaps/dev.lapce.lapce.png
 
 %changelog
-{{{ git_dir_changelog }}}
+* Sat Jul 16 2022 Simon Garding <titaniumtown@gmail.com> - test
+- test
