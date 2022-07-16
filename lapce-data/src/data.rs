@@ -37,7 +37,7 @@ use lsp_types::{Diagnostic, Position, ProgressToken, TextEdit};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use xi_rope::{Rope, RopeDelta, Transformer};
+use xi_rope::{Rope, RopeDelta};
 
 use crate::{
     alert::{AlertContentData, AlertData},
@@ -419,7 +419,7 @@ impl LapceWindowData {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EditorDiagnostic {
     pub range: Option<(usize, usize)>,
     pub diagnostic: Diagnostic,
@@ -1879,50 +1879,6 @@ impl LapceMainSplitData {
         );
     }
 
-    fn initiate_diagnostics_offset(&mut self, path: &Path) {
-        if let Some(diagnostics) = self.diagnostics.get_mut(path) {
-            if let Some(doc) = self.open_docs.get(path) {
-                for diagnostic in Arc::make_mut(diagnostics).iter_mut() {
-                    if diagnostic.range.is_none() {
-                        diagnostic.range = Some((
-                            doc.buffer().offset_of_position(
-                                &diagnostic.diagnostic.range.start,
-                            ),
-                            doc.buffer().offset_of_position(
-                                &diagnostic.diagnostic.range.end,
-                            ),
-                        ));
-                    }
-                }
-            }
-        }
-    }
-
-    fn update_diagnostics_offset(&mut self, path: &Path, delta: &RopeDelta) {
-        if let Some(diagnostics) = self.diagnostics.get_mut(path) {
-            if let Some(doc) = self.open_docs.get(path) {
-                let mut transformer = Transformer::new(delta);
-                for diagnostic in Arc::make_mut(diagnostics).iter_mut() {
-                    let (start, end) = diagnostic.range.unwrap();
-                    let (new_start, new_end) = (
-                        transformer.transform(start, false),
-                        transformer.transform(end, true),
-                    );
-                    diagnostic.range = Some((new_start, new_end));
-                    if start != new_start {
-                        diagnostic.diagnostic.range.start =
-                            doc.buffer().offset_to_position(new_start);
-                    }
-                    if end != new_end {
-                        diagnostic.diagnostic.range.end =
-                            doc.buffer().offset_to_position(new_end);
-                        doc.buffer().offset_to_position(new_end);
-                    }
-                }
-            }
-        }
-    }
-
     fn cursor_apply_delta(&mut self, path: &Path, delta: &RopeDelta) {
         for (_view_id, editor) in self.editors.iter_mut() {
             if let BufferContent::File(current_path) = &editor.content {
@@ -1939,7 +1895,6 @@ impl LapceMainSplitData {
         edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
     ) -> Option<RopeDelta> {
-        self.initiate_diagnostics_offset(path);
         let doc = self.open_docs.get_mut(path)?;
 
         let buffer_len = doc.buffer().len();
@@ -1958,7 +1913,6 @@ impl LapceMainSplitData {
         if move_cursor {
             self.cursor_apply_delta(path, &delta);
         }
-        self.update_diagnostics_offset(path, &delta);
         Some(delta)
     }
 

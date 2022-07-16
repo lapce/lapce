@@ -730,7 +730,14 @@ impl LapceTab {
                         locations,
                     } => {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
-                        Arc::make_mut(doc).init_content(content.to_owned());
+                        let doc = Arc::make_mut(doc);
+                        doc.init_content(content.to_owned());
+                        if let BufferContent::File(path) = doc.content() {
+                            if let Some(d) = data.main_split.diagnostics.get(path) {
+                                doc.set_diagnostics(d);
+                            }
+                        }
+
                         for (view_id, location) in locations {
                             data.main_split.go_to_location(
                                 ctx,
@@ -996,7 +1003,7 @@ impl LapceTab {
                             data.main_split.open_docs.get_mut(&path)
                         {
                             let document = Arc::make_mut(document);
-                            document.diagnostics = Some(diagnostics.clone());
+                            document.set_diagnostics(&diagnostics);
                         }
 
                         data.main_split.diagnostics.insert(path, diagnostics);

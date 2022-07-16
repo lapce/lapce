@@ -71,6 +71,24 @@ impl ProblemContent {
             .diagnostics
             .iter()
             .filter_map(|(path, diagnostic)| {
+                if let Some(doc) = data.main_split.open_docs.get(path) {
+                    return match doc.diagnostics.as_ref() {
+                        Some(d) => {
+                            let diagnostics: Vec<&EditorDiagnostic> = d
+                                .iter()
+                                .filter(|d| {
+                                    d.diagnostic.severity == Some(self.severity)
+                                })
+                                .collect();
+                            if !diagnostics.is_empty() {
+                                Some((path, diagnostics))
+                            } else {
+                                None
+                            }
+                        }
+                        None => None,
+                    };
+                }
                 let diagnostics: Vec<&EditorDiagnostic> = diagnostic
                     .iter()
                     .filter(|d| d.diagnostic.severity == Some(self.severity))

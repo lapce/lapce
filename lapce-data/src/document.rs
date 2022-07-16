@@ -42,7 +42,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use xi_rope::{
     spans::{Spans, SpansBuilder},
-    Interval, Rope, RopeDelta,
+    Interval, Rope, RopeDelta, Transformer,
 };
 
 use crate::{
@@ -475,6 +475,52 @@ impl Document {
 
     pub fn set_language(&mut self, language: LapceLanguage) {
         self.syntax = Some(Syntax::from_language(language));
+    }
+
+    pub fn set_diagnostics(&mut self, diagnostics: &[EditorDiagnostic]) {
+        self.diagnostics = Some(Arc::new(
+            diagnostics
+                .iter()
+                .map(|d| EditorDiagnostic {
+                    range: Some((
+                        self.buffer.offset_of_position(&d.diagnostic.range.start),
+                        self.buffer.offset_of_position(&d.diagnostic.range.end),
+                    )),
+                    lines: d
+                        .diagnostic
+                        .related_information
+                        .as_ref()
+                        .map(|r| {
+                            r.iter()
+                                .map(|r| r.message.matches('\n').count() + 1 + 1)
+                                .sum()
+                        })
+                        .unwrap_or(0)
+                        + d.diagnostic.message.matches('\n').count()
+                        + 1,
+                    diagnostic: d.diagnostic.clone(),
+                })
+                .collect(),
+        ));
+    }
+
+    fn update_diagnostics(&mut self, delta: &RopeDelta) {
+        if let Some(mut diagnostics) = self.diagnostics.clone() {
+            for diagnostic in Arc::make_mut(&mut diagnostics).iter_mut() {
+                let mut transformer = Transformer::new(delta);
+                let (start, end) = diagnostic.range.unwrap();
+                let (new_start, new_end) = (
+                    transformer.transform(start, false),
+                    transformer.transform(end, true),
+                );
+                diagnostic.range = Some((new_start, new_end));
+                diagnostic.diagnostic.range.start =
+                    self.buffer().offset_to_position(new_start);
+                diagnostic.diagnostic.range.end =
+                    self.buffer().offset_to_position(new_end);
+            }
+            self.diagnostics = Some(diagnostics);
+        }
     }
 
     pub fn reload(&mut self, content: Rope, set_pristine: bool) {
@@ -988,6 +1034,7 @@ impl Document {
         for (i, (delta, _)) in deltas.iter().enumerate() {
             self.update_styles(delta);
             self.update_inlay_hints(delta);
+            self.update_diagnostics(delta);
             if self.content.is_file() {
                 self.proxy.update(self.id, delta, rev + i as u64 + 1);
             }
