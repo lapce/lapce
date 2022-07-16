@@ -15,7 +15,7 @@ Lapce is written in pure Rust with a UI in Druid (which is also written in Rust)
 It is designed with Rope Science from the Xi-Editor which makes for lightning-fast computation, and leverages OpenGL for rendering.
 
 %prep
-%autosetup
+{{{ git_dir_setup_macro }}}
 
 %build
 cargo build --profile release-lto
