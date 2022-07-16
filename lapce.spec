@@ -21,8 +21,8 @@ It is designed with Rope Science from the Xi-Editor which makes for lightning-fa
 cargo build --profile release-lto
 
 %install
-install -Dm755 target/release-lto/%{name} %{buildroot}%{_bindir}/lapce
-install -Dm755 target/release-lto/%{name}-proxy %{buildroot}%{_bindir}/lapce-proxy
+install -Dm755 target/release-lto/lapce %{buildroot}%{_bindir}/lapce
+install -Dm755 target/release-lto/lapce-proxy %{buildroot}%{_bindir}/lapce-proxy
 install -Dm755 extra/linux/dev.lapce.lapce.desktop %{buildroot}/usr/share/applications/dev.lapce.lapce.desktop
 install -Dm766 extra/linux/dev.lapce.lapce.metainfo.xml %{buildroot}/usr/share/metainfo/dev.lapce.lapce.metainfo.xml
 install -Dm766 extra/images/logo.png %{buildroot}/usr/share/pixmaps/dev.lapce.lapce.png
