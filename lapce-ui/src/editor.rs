@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 use std::{iter::Iterator, sync::Arc};
 
@@ -20,6 +21,7 @@ use lapce_core::{
 use lapce_data::command::CommandKind;
 use lapce_data::data::{EditorView, LapceData};
 use lapce_data::document::{BufferContent, LocalBufferKind};
+use lapce_data::history::DocumentHistory;
 use lapce_data::keypress::KeyPressFocus;
 use lapce_data::menu::MenuKind;
 use lapce_data::panel::{PanelData, PanelKind};
@@ -41,6 +43,18 @@ pub mod tab;
 pub mod tab_header;
 pub mod tab_header_content;
 pub mod view;
+
+struct ScreenLines {
+    lines: Vec<usize>,
+    info: HashMap<usize, LineInfo>,
+}
+
+struct LineInfo {
+    line: usize,
+    font_size: usize,
+    y: f64,
+    line_height: f64,
+}
 
 pub struct LapceEditor {
     view_id: WidgetId,
@@ -551,6 +565,189 @@ impl LapceEditor {
         }
     }
 
+    fn content_history_lines(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        history: &DocumentHistory,
+        env: &Env,
+    ) -> ScreenLines {
+        let line_height = Self::line_height(data, env);
+        let font_size = if data.editor.content.is_input() {
+            env.get(LapceTheme::INPUT_FONT_SIZE) as usize
+        } else {
+            data.config.editor.font_size
+        };
+
+        let self_size = ctx.size();
+        let rect = ctx.region().bounding_box();
+        let start_line = (rect.y0 / line_height).floor() as usize;
+        let end_line = (rect.y1 / line_height).ceil() as usize;
+        let cursor_line = data
+            .doc
+            .buffer()
+            .line_of_offset(data.editor.cursor.offset());
+
+        let mut line = 0;
+        let mut lines = Vec::new();
+        let mut info = HashMap::new();
+        for change in history.changes().iter() {
+            match change {
+                DiffLines::Left(range) => {
+                    let len = range.len();
+                    line += len;
+
+                    if line < start_line {
+                        continue;
+                    }
+                    ctx.fill(
+                        Size::new(self_size.width, line_height * len as f64)
+                            .to_rect()
+                            .with_origin(Point::new(
+                                0.0,
+                                line_height * (line - len) as f64,
+                            )),
+                        data.config
+                            .get_color_unchecked(LapceTheme::SOURCE_CONTROL_REMOVED),
+                    );
+                    for l in line - len..line {
+                        if l < start_line {
+                            continue;
+                        }
+                        let actual_line = l - (line - len) + range.start;
+                        let text_layout = history.get_text_layout(
+                            ctx.text(),
+                            actual_line,
+                            &data.config,
+                        );
+                        ctx.draw_text(
+                            &text_layout.text,
+                            Point::new(
+                                0.0,
+                                line_height * l as f64
+                                    + (line_height - text_layout.text.size().height)
+                                        / 2.0,
+                            ),
+                        );
+
+                        if l > end_line {
+                            break;
+                        }
+                    }
+                }
+                DiffLines::Skip(left, right) => {
+                    let rect = Size::new(self_size.width, line_height)
+                        .to_rect()
+                        .with_origin(Point::new(0.0, line_height * line as f64));
+                    ctx.fill(
+                        rect,
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                    );
+                    ctx.stroke(
+                        rect,
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        1.0,
+                    );
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout(format!(
+                            " -{}, +{}",
+                            left.end + 1,
+                            right.end + 1
+                        ))
+                        .font(data.config.editor.font_family(), font_size as f64)
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    ctx.draw_text(
+                        &text_layout,
+                        Point::new(
+                            0.0,
+                            line_height * line as f64
+                                + (line_height - text_layout.size().height) / 2.0,
+                        ),
+                    );
+                    line += 1;
+                }
+                DiffLines::Both(_left, right) => {
+                    let len = right.len();
+                    line += len;
+                    if line < start_line {
+                        continue;
+                    }
+                    for l in line - len..line {
+                        if l < start_line {
+                            continue;
+                        }
+                        let rope_line = l - (line - len) + right.start;
+
+                        lines.push(rope_line);
+                        info.insert(
+                            rope_line,
+                            LineInfo {
+                                line: rope_line,
+                                font_size,
+                                y: l as f64 * line_height,
+                                line_height,
+                            },
+                        );
+
+                        if l > end_line {
+                            break;
+                        }
+                    }
+                }
+                DiffLines::Right(range) => {
+                    let len = range.len();
+                    line += len;
+
+                    if line < start_line {
+                        continue;
+                    }
+
+                    ctx.fill(
+                        Size::new(self_size.width, line_height * range.len() as f64)
+                            .to_rect()
+                            .with_origin(Point::new(
+                                0.0,
+                                line_height * (line - range.len()) as f64,
+                            )),
+                        data.config
+                            .get_color_unchecked(LapceTheme::SOURCE_CONTROL_ADDED),
+                    );
+
+                    for l in line - len..line {
+                        if l < start_line {
+                            continue;
+                        }
+                        let rope_line = l - (line - len) + range.start;
+
+                        lines.push(rope_line);
+                        info.insert(
+                            rope_line,
+                            LineInfo {
+                                line: rope_line,
+                                font_size,
+                                y: l as f64 * line_height,
+                                line_height,
+                            },
+                        );
+
+                        if l > end_line {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        ScreenLines { lines, info }
+    }
+
     fn paint_content(
         &mut self,
         data: &LapceEditorBufferData,
@@ -564,28 +761,49 @@ impl LapceEditor {
             data.config.editor.font_size
         };
 
-        let line_padding = Self::line_padding(data, env);
-        let line_height = Self::line_height(data, env);
+        let screen_lines = match &data.editor.view {
+            EditorView::Normal => {
+                let line_padding = Self::line_padding(data, env);
+                let line_height = Self::line_height(data, env);
 
-        let rect = ctx.region().bounding_box();
-        let start_line = (rect.y0 / line_height).floor() as usize;
-        let end_line = (rect.y1 / line_height).ceil() as usize;
+                let rect = ctx.region().bounding_box();
+                let start_line = (rect.y0 / line_height).floor() as usize;
+                let end_line = (rect.y1 / line_height).ceil() as usize;
 
-        let lines: Vec<(usize, usize, usize, f64, f64)> = (start_line..end_line + 1)
-            .into_iter()
-            .map(|line| {
-                (
-                    line,
-                    line,
-                    font_size,
-                    line_height,
-                    line as f64 * line_height + line_padding,
-                )
-            })
-            .collect();
-        Self::paint_current_line(ctx, data, &lines);
-        Self::paint_cursor_new(ctx, data, &lines, is_focused, env);
-        Self::paint_text(ctx, data, &lines, env);
+                let mut lines = Vec::new();
+                let mut info = HashMap::new();
+                for line in start_line..end_line + 1 {
+                    lines.push(line);
+                    info.insert(
+                        line,
+                        LineInfo {
+                            line,
+                            font_size,
+                            y: line as f64 * line_height + line_padding,
+                            line_height,
+                        },
+                    );
+                }
+                ScreenLines { lines, info }
+            }
+            EditorView::Diff(version) => {
+                if let Some(history) = data.doc.get_history(version) {
+                    Self::content_history_lines(ctx, data, history, env)
+                } else {
+                    return;
+                }
+            }
+            EditorView::Lens => {
+                todo!()
+            }
+        };
+
+        Self::paint_current_line(ctx, data, &screen_lines);
+        Self::paint_cursor_new(ctx, data, &screen_lines, is_focused, env);
+        Self::paint_find(ctx, data, &screen_lines);
+        Self::paint_text(ctx, data, &screen_lines, env);
+        Self::paint_diagnostics(ctx, data, &screen_lines);
+        Self::paint_snippet(ctx, data, &screen_lines);
     }
 
     fn paint_content_old(
@@ -844,7 +1062,6 @@ impl LapceEditor {
                 font_size,
                 env,
             );
-            Self::paint_find(data, ctx, char_width, env);
 
             for line in start_line..end_line + 1 {
                 if line > last_line {
@@ -871,8 +1088,6 @@ impl LapceEditor {
             }
         }
 
-        Self::paint_snippet(data, ctx, font_size);
-        Self::paint_diagnostics(data, ctx);
         if data.doc.buffer().is_empty() {
             if let Some(placeholder) = self.placeholder.as_ref() {
                 let text_layout = ctx
@@ -897,25 +1112,27 @@ impl LapceEditor {
     fn paint_text(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
-        lines: &[(usize, usize, usize, f64, f64)],
+        screen_lines: &ScreenLines,
         _env: &Env,
     ) {
         let self_size = ctx.size();
 
-        for (line, _, font_size, line_height, y) in lines {
-            let last_line = data.doc.buffer().last_line();
+        for line in &screen_lines.lines {
             let line = *line;
-            let font_size = *font_size;
-            let line_height = *line_height;
-            let y = *y;
-
+            let last_line = data.doc.buffer().last_line();
             if line > last_line {
                 break;
             }
-            let text_layout =
-                data.doc
-                    .get_text_layout(ctx.text(), line, font_size, &data.config);
-            let y = y + (line_height - text_layout.text.size().height) / 2.0;
+
+            let info = screen_lines.info.get(&line).unwrap();
+            let text_layout = data.doc.get_text_layout(
+                ctx.text(),
+                line,
+                info.font_size,
+                &data.config,
+            );
+            let y =
+                info.y + (info.line_height - text_layout.text.size().height) / 2.0;
             let height = text_layout.text.size().height;
             for (x0, x1, style) in text_layout.extra_style.iter() {
                 if let Some(bg) = &style.bg_color {
@@ -998,36 +1215,29 @@ impl LapceEditor {
     fn paint_current_line(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
-        lines: &[(usize, usize, usize, f64, f64)],
+        screen_lines: &ScreenLines,
     ) {
         let self_size = ctx.size();
         match &data.editor.cursor.mode {
             CursorMode::Normal(offset) => {
                 let (cursor_line, _) = data.doc.buffer().offset_to_line_col(*offset);
-                for (line, _, _, line_height, y) in lines {
-                    let line = *line;
-                    let line_height = *line_height;
-                    let y = *y;
-                    if line == cursor_line {
-                        ctx.fill(
-                            Rect::ZERO
-                                .with_origin(Point::new(0.0, y))
-                                .with_size(Size::new(self_size.width, line_height)),
-                            data.config.get_color_unchecked(
-                                LapceTheme::EDITOR_CURRENT_LINE,
-                            ),
-                        );
-                        break;
-                    }
+                if let Some(info) = screen_lines.info.get(&cursor_line) {
+                    ctx.fill(
+                        Rect::ZERO
+                            .with_origin(Point::new(0.0, info.y))
+                            .with_size(Size::new(self_size.width, info.line_height)),
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                    );
                 }
             }
             CursorMode::Visual { .. } => {}
             CursorMode::Insert(selection) => {
-                if lines.is_empty() {
+                if screen_lines.lines.is_empty() {
                     return;
                 }
-                let start_line = lines.first().unwrap().0;
-                let end_line = lines.last().unwrap().0;
+                let start_line = *screen_lines.lines.first().unwrap();
+                let end_line = *screen_lines.lines.last().unwrap();
                 let start = data.doc.buffer().offset_of_line(start_line);
                 let end = data.doc.buffer().offset_of_line(end_line + 1);
                 let regions = selection.regions_in_range(start, end);
@@ -1035,24 +1245,18 @@ impl LapceEditor {
                     let cursor_offset = region.end();
                     let (cursor_line, _) =
                         data.doc.buffer().offset_to_line_col(cursor_offset);
-                    for (line, _, _, line_height, y) in lines {
-                        let line = *line;
-                        if line == cursor_line {
-                            let line_height = *line_height;
-                            let y = *y;
-                            ctx.fill(
-                                Rect::ZERO
-                                    .with_origin(Point::new(0.0, y))
-                                    .with_size(Size::new(
-                                        self_size.width,
-                                        line_height,
-                                    )),
-                                data.config.get_color_unchecked(
-                                    LapceTheme::EDITOR_CURRENT_LINE,
-                                ),
-                            );
-                            break;
-                        }
+                    if let Some(info) = screen_lines.info.get(&cursor_line) {
+                        ctx.fill(
+                            Rect::ZERO
+                                .with_origin(Point::new(0.0, info.y))
+                                .with_size(Size::new(
+                                    self_size.width,
+                                    info.line_height,
+                                )),
+                            data.config.get_color_unchecked(
+                                LapceTheme::EDITOR_CURRENT_LINE,
+                            ),
+                        );
                     }
                 }
             }
@@ -1062,7 +1266,7 @@ impl LapceEditor {
     fn paint_cursor_new(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
-        lines: &[(usize, usize, usize, f64, f64)],
+        screen_lines: &ScreenLines,
         is_focused: bool,
         _env: &Env,
     ) {
@@ -1070,51 +1274,47 @@ impl LapceEditor {
 
         match &data.editor.cursor.mode {
             CursorMode::Normal(offset) => {
-                let (cursor_line, _) = data.doc.buffer().offset_to_line_col(*offset);
-                for (actual_line, _, font_size, line_height, y) in lines {
-                    let actual_line = *actual_line;
-                    let line_height = *line_height;
-                    let font_size = *font_size;
-                    let y = *y;
-                    if actual_line == cursor_line {
-                        if is_focused {
-                            Self::paint_cursor_caret(
-                                ctx,
-                                data,
-                                *offset,
-                                font_size,
-                                y,
-                                line_height,
-                                char_width,
-                                true,
-                            );
-                        }
-                        break;
+                if is_focused {
+                    let (cursor_line, _) =
+                        data.doc.buffer().offset_to_line_col(*offset);
+                    if let Some(info) = screen_lines.info.get(&cursor_line) {
+                        Self::paint_cursor_caret(
+                            ctx,
+                            data,
+                            *offset,
+                            info.font_size,
+                            info.y,
+                            info.line_height,
+                            char_width,
+                            true,
+                        );
                     }
                 }
             }
             CursorMode::Visual { start, end, mode } => {
+                if screen_lines.lines.is_empty() {
+                    return;
+                }
+
                 let (start_line, start_col) =
                     data.doc.buffer().offset_to_line_col(*start.min(end));
                 let (end_line, end_col) =
                     data.doc.buffer().offset_to_line_col(*start.max(end));
                 let (cursor_line, _) = data.doc.buffer().offset_to_line_col(*end);
-                for (actual_line, _, font_size, line_height, y) in lines {
-                    let actual_line = *actual_line;
-                    let font_size = *font_size;
-                    let line_height = *line_height;
-                    let y = *y;
-                    if actual_line < start_line {
+                for line in &screen_lines.lines {
+                    let line = *line;
+                    if line < start_line {
                         continue;
                     }
 
-                    if actual_line > end_line {
+                    if line > end_line {
                         break;
                     }
 
+                    let info = screen_lines.info.get(&line).unwrap();
                     let left_col = match mode {
                         VisualMode::Normal => {
-                            if start_line == actual_line {
+                            if start_line == line {
                                 start_col
                             } else {
                                 0
@@ -1123,7 +1323,7 @@ impl LapceEditor {
                         VisualMode::Linewise => 0,
                         VisualMode::Blockwise => {
                             let max_col =
-                                data.doc.buffer().line_end_col(actual_line, false);
+                                data.doc.buffer().line_end_col(line, false);
                             let left = start_col.min(end_col);
                             if left > max_col {
                                 continue;
@@ -1134,11 +1334,9 @@ impl LapceEditor {
 
                     let (right_col, line_end) = match mode {
                         VisualMode::Normal => {
-                            if actual_line == end_line {
-                                let max_col = data
-                                    .doc
-                                    .buffer()
-                                    .line_end_col(actual_line, true);
+                            if line == end_line {
+                                let max_col =
+                                    data.doc.buffer().line_end_col(line, true);
 
                                 let (end_offset, _) = data.doc.move_offset(
                                     ctx.text(),
@@ -1147,7 +1345,7 @@ impl LapceEditor {
                                     1,
                                     &Movement::Right,
                                     Mode::Visual,
-                                    font_size,
+                                    info.font_size,
                                     &data.config,
                                 );
                                 let (_, end_col) =
@@ -1155,20 +1353,14 @@ impl LapceEditor {
 
                                 (end_col.min(max_col), false)
                             } else {
-                                (
-                                    data.doc
-                                        .buffer()
-                                        .line_end_col(actual_line, true),
-                                    true,
-                                )
+                                (data.doc.buffer().line_end_col(line, true), true)
                             }
                         }
                         VisualMode::Linewise => {
-                            (data.doc.buffer().line_end_col(actual_line, true), true)
+                            (data.doc.buffer().line_end_col(line, true), true)
                         }
                         VisualMode::Blockwise => {
-                            let max_col =
-                                data.doc.buffer().line_end_col(actual_line, true);
+                            let max_col = data.doc.buffer().line_end_col(line, true);
                             let right = match data.editor.cursor.horiz.as_ref() {
                                 Some(&ColPosition::End) => max_col,
                                 _ => {
@@ -1179,7 +1371,7 @@ impl LapceEditor {
                                         1,
                                         &Movement::Right,
                                         Mode::Visual,
-                                        font_size,
+                                        info.font_size,
                                         &data.config,
                                     );
                                     let (_, end_col) = data
@@ -1194,16 +1386,16 @@ impl LapceEditor {
                     };
 
                     let phantom_text =
-                        data.doc.line_phantom_text(&data.config, actual_line);
+                        data.doc.line_phantom_text(&data.config, line);
                     let left_col = phantom_text.col_after(left_col, false);
                     let right_col = phantom_text.col_after(right_col, false);
                     let x0 = data
                         .doc
                         .point_of_line_col(
                             ctx.text(),
-                            actual_line,
+                            line,
                             left_col,
-                            font_size,
+                            info.font_size,
                             &data.config,
                         )
                         .x;
@@ -1211,9 +1403,9 @@ impl LapceEditor {
                         .doc
                         .point_of_line_col(
                             ctx.text(),
-                            actual_line,
+                            line,
                             right_col,
-                            font_size,
+                            info.font_size,
                             &data.config,
                         )
                         .x;
@@ -1221,21 +1413,21 @@ impl LapceEditor {
                         x1 += char_width;
                     }
 
-                    let y0 = y;
-                    let y1 = y + line_height;
+                    let y0 = info.y;
+                    let y1 = info.y + info.line_height;
                     ctx.fill(
                         Rect::new(x0, y0, x1, y1),
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
                     );
-                    if is_focused && actual_line == cursor_line {
+                    if is_focused && line == cursor_line {
                         Self::paint_cursor_caret(
                             ctx,
                             data,
                             *end,
-                            font_size,
-                            y,
-                            line_height,
+                            info.font_size,
+                            info.y,
+                            info.line_height,
                             char_width,
                             true,
                         );
@@ -1243,11 +1435,11 @@ impl LapceEditor {
                 }
             }
             CursorMode::Insert(selection) => {
-                if lines.is_empty() {
+                if screen_lines.lines.is_empty() {
                     return;
                 }
-                let start_line = lines.first().unwrap().0;
-                let end_line = lines.last().unwrap().0;
+                let start_line = *screen_lines.lines.first().unwrap();
+                let end_line = *screen_lines.lines.last().unwrap();
                 let start = data.doc.buffer().offset_of_line(start_line);
                 let end = data.doc.buffer().offset_of_line(end_line + 1);
                 let regions = selection.regions_in_range(start, end);
@@ -1261,11 +1453,8 @@ impl LapceEditor {
                         data.doc.buffer().offset_to_line_col(start.min(end));
                     let (end_line, end_col) =
                         data.doc.buffer().offset_to_line_col(start.max(end));
-                    for (line, _, font_size, line_height, y) in lines {
+                    for line in &screen_lines.lines {
                         let line = *line;
-                        let font_size = *font_size;
-                        let y = *y;
-                        let line_height = *line_height;
                         if line < start_line {
                             continue;
                         }
@@ -1274,6 +1463,7 @@ impl LapceEditor {
                             break;
                         }
 
+                        let info = screen_lines.info.get(&line).unwrap();
                         let left_col = match line {
                             _ if line == start_line => start_col,
                             _ => 0,
@@ -1300,7 +1490,7 @@ impl LapceEditor {
                                 ctx.text(),
                                 line,
                                 left_col,
-                                font_size,
+                                info.font_size,
                                 &data.config,
                             )
                             .x;
@@ -1310,7 +1500,7 @@ impl LapceEditor {
                                 ctx.text(),
                                 line,
                                 right_col,
-                                font_size,
+                                info.font_size,
                                 &data.config,
                             )
                             .x;
@@ -1318,8 +1508,8 @@ impl LapceEditor {
                             x1 += char_width;
                         }
 
-                        let y0 = y;
-                        let y1 = y0 + line_height;
+                        let y0 = info.y;
+                        let y1 = y0 + info.line_height;
                         if start != end {
                             ctx.fill(
                                 Rect::new(x0, y0, x1, y1),
@@ -1333,9 +1523,9 @@ impl LapceEditor {
                                 ctx,
                                 data,
                                 cursor_offset,
-                                font_size,
-                                y,
-                                line_height,
+                                info.font_size,
+                                info.y,
+                                info.line_height,
                                 char_width,
                                 false,
                             );
@@ -1926,10 +2116,9 @@ impl LapceEditor {
     }
 
     fn paint_find(
-        data: &LapceEditorBufferData,
         ctx: &mut PaintCtx,
-        _char_width: f64,
-        env: &Env,
+        data: &LapceEditorBufferData,
+        screen_lines: &ScreenLines,
     ) {
         if data.editor.content.is_search() {
             return;
@@ -1937,16 +2126,15 @@ impl LapceEditor {
         if !data.find.visual {
             return;
         }
-        let line_height = Self::line_height(data, env);
-        let start_line =
-            (data.editor.scroll_offset.y / line_height).floor() as usize;
-        let end_line = ((data.editor.size.borrow().height
-            + data.editor.scroll_offset.y)
-            / line_height)
-            .ceil() as usize;
 
-        let start_offset = data.doc.buffer().offset_of_line(start_line);
-        let end_offset = data.doc.buffer().offset_of_line(end_line + 1);
+        if screen_lines.lines.is_empty() {
+            return;
+        }
+        let start_line = *screen_lines.lines.first().unwrap();
+        let end_line = *screen_lines.lines.last().unwrap();
+        let start = data.doc.buffer().offset_of_line(start_line);
+        let end = data.doc.buffer().offset_of_line(end_line + 1);
+
         let cursor_offset = data.editor.cursor.offset();
 
         // Update the find with the whole document, so the count will be accurate in the widget
@@ -1958,7 +2146,7 @@ impl LapceEditor {
                 .find
                 .borrow()
                 .occurrences()
-                .regions_in_range(start_offset, end_offset)
+                .regions_in_range(start, end)
             {
                 let start = region.min();
                 let end = region.max();
@@ -1966,18 +2154,27 @@ impl LapceEditor {
                 let (start_line, start_col) =
                     data.doc.buffer().offset_to_line_col(start);
                 let (end_line, end_col) = data.doc.buffer().offset_to_line_col(end);
-                for line in start_line..end_line + 1 {
-                    let phantom_text =
-                        data.doc.line_phantom_text(&data.config, line);
+                for line in &screen_lines.lines {
+                    let line = *line;
+                    if line < start_line {
+                        continue;
+                    }
+                    if line > end_line {
+                        break;
+                    }
+
+                    let info = screen_lines.info.get(&line).unwrap();
 
                     let left_col = if line == start_line { start_col } else { 0 };
-                    let left_col = phantom_text.col_at(left_col);
-
                     let right_col = if line == end_line {
                         end_col
                     } else {
                         data.doc.buffer().line_end_col(line, true) + 1
                     };
+
+                    let phantom_text =
+                        data.doc.line_phantom_text(&data.config, line);
+                    let left_col = phantom_text.col_at(left_col);
                     let right_col = phantom_text.col_at(right_col);
 
                     let text_layout = data.doc.get_text_layout(
@@ -1990,8 +2187,8 @@ impl LapceEditor {
                         text_layout.text.hit_test_text_position(left_col).point.x;
                     let x1 =
                         text_layout.text.hit_test_text_position(right_col).point.x;
-                    let y0 = line as f64 * line_height;
-                    let y1 = y0 + line_height;
+                    let y0 = info.y;
+                    let y1 = info.y + info.line_height;
                     let rect = Rect::new(x0, y0, x1, y1);
                     if active {
                         ctx.fill(
@@ -2015,51 +2212,32 @@ impl LapceEditor {
     }
 
     fn paint_snippet(
-        data: &LapceEditorBufferData,
         ctx: &mut PaintCtx,
-        font_size: usize,
+        data: &LapceEditorBufferData,
+        screen_lines: &ScreenLines,
     ) {
-        let line_height = data.config.editor.line_height as f64;
-        let start_line =
-            (data.editor.scroll_offset.y / line_height).floor() as usize;
-        let end_line = ((data.editor.size.borrow().height
-            + data.editor.scroll_offset.y)
-            / line_height)
-            .ceil() as usize;
         if let Some(snippet) = data.editor.snippet.as_ref() {
             for (_, (start, end)) in snippet {
-                let paint_start_line = start_line;
-                let paint_end_line = end_line;
                 let (start_line, start_col) =
                     data.doc.buffer().offset_to_line_col(*start.min(end));
                 let (end_line, end_col) =
                     data.doc.buffer().offset_to_line_col(*start.max(end));
-                for line in paint_start_line..paint_end_line {
-                    if line < start_line || line > end_line {
+
+                for line in &screen_lines.lines {
+                    let line = *line;
+                    if line < start_line {
                         continue;
                     }
+                    if line > end_line {
+                        break;
+                    }
 
-                    let line_content = data.doc.buffer().line_content(line);
-
-                    let phantom_text =
-                        data.doc.line_phantom_text(&data.config, line);
+                    let info = screen_lines.info.get(&line).unwrap();
 
                     let left_col = match line {
                         _ if line == start_line => start_col,
                         _ => 0,
                     };
-                    let left_col = phantom_text.col_at(left_col);
-                    let x0 = data
-                        .doc
-                        .point_of_line_col(
-                            ctx.text(),
-                            line,
-                            left_col,
-                            font_size,
-                            &data.config,
-                        )
-                        .x;
-
                     let right_col = match line {
                         _ if line == end_line => {
                             let max_col = data.doc.buffer().line_end_col(line, true);
@@ -2067,41 +2245,53 @@ impl LapceEditor {
                         }
                         _ => data.doc.buffer().line_end_col(line, true),
                     };
+
+                    let phantom_text =
+                        data.doc.line_phantom_text(&data.config, line);
+                    let left_col = phantom_text.col_at(left_col);
                     let right_col = phantom_text.col_at(right_col);
 
-                    if !line_content.is_empty() {
-                        let x1 = data
-                            .doc
-                            .point_of_line_col(
-                                ctx.text(),
-                                line,
-                                right_col,
-                                font_size,
-                                &data.config,
-                            )
-                            .x;
-                        let y0 = line as f64 * line_height;
-                        let y1 = y0 + line_height;
-                        ctx.stroke(
-                            Rect::new(x0, y0, x1, y1).inflate(1.0, -0.5),
-                            data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                            1.0,
-                        );
-                    }
+                    let x0 = data
+                        .doc
+                        .point_of_line_col(
+                            ctx.text(),
+                            line,
+                            left_col,
+                            info.font_size,
+                            &data.config,
+                        )
+                        .x;
+                    let x1 = data
+                        .doc
+                        .point_of_line_col(
+                            ctx.text(),
+                            line,
+                            right_col,
+                            info.font_size,
+                            &data.config,
+                        )
+                        .x;
+                    let y0 = info.y;
+                    let y1 = info.y + info.line_height;
+                    ctx.stroke(
+                        Rect::new(x0, y0, x1, y1).inflate(1.0, -0.5),
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        1.0,
+                    );
                 }
             }
         }
     }
 
-    fn paint_diagnostics(data: &LapceEditorBufferData, ctx: &mut PaintCtx) {
-        let line_height = data.config.editor.line_height as f64;
-        let start_line =
-            (data.editor.scroll_offset.y / line_height).floor() as usize;
-        let end_line = ((data.editor.size.borrow().height
-            + data.editor.scroll_offset.y)
-            / line_height)
-            .ceil() as usize;
+    fn paint_diagnostics(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        screen_lines: &ScreenLines,
+    ) {
+        if screen_lines.lines.is_empty() {
+            return;
+        }
 
         let mut current = None;
         let cursor_offset = data.editor.cursor.offset();
@@ -2109,184 +2299,171 @@ impl LapceEditor {
             for diagnostic in diagnostics.iter() {
                 let start = diagnostic.diagnostic.range.start;
                 let end = diagnostic.diagnostic.range.end;
-                if (start.line as usize) <= end_line
-                    && (end.line as usize) >= start_line
-                {
-                    let start_offset = diagnostic.range.0;
-                    if start_offset == cursor_offset {
-                        current = Some(diagnostic.clone());
+                let start_offset = diagnostic.range.0;
+                if start_offset == cursor_offset {
+                    current = Some(diagnostic.clone());
+                }
+                for line in &screen_lines.lines {
+                    let line = *line;
+                    if line < start.line as usize {
+                        continue;
                     }
-                    for line in start.line as usize..end.line as usize + 1 {
-                        if line < start_line {
-                            continue;
-                        }
-                        if line > end_line {
-                            break;
-                        }
-
-                        let phantom_text =
-                            data.doc.line_phantom_text(&data.config, line);
-
-                        let text_layout = data.doc.get_text_layout(
-                            ctx.text(),
-                            line,
-                            data.config.editor.font_size,
-                            &data.config,
-                        );
-                        let x0 = if line == start.line as usize {
-                            let col = phantom_text.col_at(start.character as usize);
-                            text_layout.text.hit_test_text_position(col).point.x
-                        } else {
-                            let (_, col) = data.doc.buffer().offset_to_line_col(
-                                data.doc
-                                    .buffer()
-                                    .first_non_blank_character_on_line(line),
-                            );
-                            let col = phantom_text.col_at(col);
-                            text_layout.text.hit_test_text_position(col).point.x
-                        };
-                        let x1 = if line == end.line as usize {
-                            let col = phantom_text.col_at(end.character as usize);
-                            text_layout.text.hit_test_text_position(col).point.x
-                        } else {
-                            let col =
-                                data.doc.buffer().line_end_col(line, false) + 1;
-                            let col = phantom_text.col_at(col);
-                            text_layout.text.hit_test_text_position(col).point.x
-                        };
-                        let _y1 = (line + 1) as f64 * line_height;
-                        let y0 = (line + 1) as f64 * line_height - 4.0;
-
-                        let severity = diagnostic
-                            .diagnostic
-                            .severity
-                            .unwrap_or(DiagnosticSeverity::INFORMATION);
-                        let color = match severity {
-                            DiagnosticSeverity::ERROR => data
-                                .config
-                                .get_color_unchecked(LapceTheme::LAPCE_ERROR),
-                            DiagnosticSeverity::WARNING => data
-                                .config
-                                .get_color_unchecked(LapceTheme::LAPCE_WARN),
-                            _ => data
-                                .config
-                                .get_color_unchecked(LapceTheme::LAPCE_WARN),
-                        };
-                        Self::paint_wave_line(
-                            ctx,
-                            Point::new(x0, y0),
-                            x1 - x0,
-                            color,
-                        );
+                    if line > end.line as usize {
+                        break;
                     }
+
+                    let info = screen_lines.info.get(&line).unwrap();
+
+                    let phantom_text =
+                        data.doc.line_phantom_text(&data.config, line);
+
+                    let text_layout = data.doc.get_text_layout(
+                        ctx.text(),
+                        line,
+                        data.config.editor.font_size,
+                        &data.config,
+                    );
+                    let x0 = if line == start.line as usize {
+                        let col = phantom_text.col_at(start.character as usize);
+                        text_layout.text.hit_test_text_position(col).point.x
+                    } else {
+                        let (_, col) = data.doc.buffer().offset_to_line_col(
+                            data.doc
+                                .buffer()
+                                .first_non_blank_character_on_line(line),
+                        );
+                        let col = phantom_text.col_at(col);
+                        text_layout.text.hit_test_text_position(col).point.x
+                    };
+                    let x1 = if line == end.line as usize {
+                        let col = phantom_text.col_at(end.character as usize);
+                        text_layout.text.hit_test_text_position(col).point.x
+                    } else {
+                        let col = data.doc.buffer().line_end_col(line, false) + 1;
+                        let col = phantom_text.col_at(col);
+                        text_layout.text.hit_test_text_position(col).point.x
+                    };
+                    let y0 = info.y + info.line_height - 4.0;
+
+                    let severity = diagnostic
+                        .diagnostic
+                        .severity
+                        .unwrap_or(DiagnosticSeverity::INFORMATION);
+                    let color = match severity {
+                        DiagnosticSeverity::ERROR => {
+                            data.config.get_color_unchecked(LapceTheme::LAPCE_ERROR)
+                        }
+                        DiagnosticSeverity::WARNING => {
+                            data.config.get_color_unchecked(LapceTheme::LAPCE_WARN)
+                        }
+                        _ => data.config.get_color_unchecked(LapceTheme::LAPCE_WARN),
+                    };
+                    Self::paint_wave_line(ctx, Point::new(x0, y0), x1 - x0, color);
                 }
             }
         }
 
         if let Some(diagnostic) = current {
-            if data.editor.cursor.is_normal() {
-                let text_layout = ctx
-                    .text()
-                    .new_text_layout(diagnostic.diagnostic.message.clone())
-                    .font(
-                        data.config.ui.font_family(),
-                        data.config.ui.font_size() as f64,
-                    )
-                    .text_color(
+            let start = diagnostic.diagnostic.range.start;
+            if let Some(info) = screen_lines.info.get(&(start.line as usize)) {
+                if data.editor.cursor.is_normal() {
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout(diagnostic.diagnostic.message.clone())
+                        .font(
+                            data.config.ui.font_family(),
+                            data.config.ui.font_size() as f64,
+                        )
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                .clone(),
+                        )
+                        .max_width(data.editor.size.borrow().width - 20.0)
+                        .build()
+                        .unwrap();
+                    let text_size = text_layout.size();
+                    let mut text_height = text_size.height;
+
+                    let related = diagnostic
+                        .diagnostic
+                        .related_information
+                        .map(|related| {
+                            related
+                                .iter()
+                                .map(|i| {
+                                    let text_layout = ctx
+                                        .text()
+                                        .new_text_layout(i.message.clone())
+                                        .font(
+                                            data.config.ui.font_family(),
+                                            data.config.ui.font_size() as f64,
+                                        )
+                                        .text_color(
+                                            data.config
+                                                .get_color_unchecked(
+                                                    LapceTheme::EDITOR_FOREGROUND,
+                                                )
+                                                .clone(),
+                                        )
+                                        .max_width(
+                                            data.editor.size.borrow().width - 20.0,
+                                        )
+                                        .build()
+                                        .unwrap();
+                                    text_height += 10.0 + text_layout.size().height;
+                                    text_layout
+                                })
+                                .collect::<Vec<PietTextLayout>>()
+                        })
+                        .unwrap_or_else(Vec::new);
+
+                    let rect = Rect::ZERO
+                        .with_origin(Point::new(0.0, info.y + info.line_height))
+                        .with_size(Size::new(
+                            data.editor.size.borrow().width,
+                            text_height + 20.0,
+                        ));
+                    ctx.fill(
+                        rect,
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                            .clone(),
-                    )
-                    .max_width(data.editor.size.borrow().width - 20.0)
-                    .build()
-                    .unwrap();
-                let text_size = text_layout.size();
-                let mut text_height = text_size.height;
+                            .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
+                    );
 
-                let related = diagnostic
-                    .diagnostic
-                    .related_information
-                    .map(|related| {
-                        related
-                            .iter()
-                            .map(|i| {
-                                let text_layout = ctx
-                                    .text()
-                                    .new_text_layout(i.message.clone())
-                                    .font(
-                                        data.config.ui.font_family(),
-                                        data.config.ui.font_size() as f64,
-                                    )
-                                    .text_color(
-                                        data.config
-                                            .get_color_unchecked(
-                                                LapceTheme::EDITOR_FOREGROUND,
-                                            )
-                                            .clone(),
-                                    )
-                                    .max_width(
-                                        data.editor.size.borrow().width - 20.0,
-                                    )
-                                    .build()
-                                    .unwrap();
-                                text_height += 10.0 + text_layout.size().height;
-                                text_layout
-                            })
-                            .collect::<Vec<PietTextLayout>>()
-                    })
-                    .unwrap_or_else(Vec::new);
-
-                let start = diagnostic.diagnostic.range.start;
-                let rect = Rect::ZERO
-                    .with_origin(Point::new(
-                        0.0,
-                        (start.line + 1) as f64 * line_height,
-                    ))
-                    .with_size(Size::new(
-                        data.editor.size.borrow().width,
-                        text_height + 20.0,
-                    ));
-                ctx.fill(
-                    rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
-                );
-
-                let severity = diagnostic
-                    .diagnostic
-                    .severity
-                    .unwrap_or(DiagnosticSeverity::INFORMATION);
-                let color = match severity {
-                    DiagnosticSeverity::ERROR => {
-                        data.config.get_color_unchecked(LapceTheme::LAPCE_ERROR)
-                    }
-                    DiagnosticSeverity::WARNING => {
-                        data.config.get_color_unchecked(LapceTheme::LAPCE_WARN)
-                    }
-                    _ => data.config.get_color_unchecked(LapceTheme::LAPCE_WARN),
-                };
-                ctx.stroke(rect, color, 1.0);
-                ctx.draw_text(
-                    &text_layout,
-                    Point::new(
-                        10.0 + data.editor.scroll_offset.x,
-                        (start.line + 1) as f64 * line_height + 10.0,
-                    ),
-                );
-                let mut text_height = text_size.height;
-
-                for text in related {
-                    text_height += 10.0;
+                    let severity = diagnostic
+                        .diagnostic
+                        .severity
+                        .unwrap_or(DiagnosticSeverity::INFORMATION);
+                    let color = match severity {
+                        DiagnosticSeverity::ERROR => {
+                            data.config.get_color_unchecked(LapceTheme::LAPCE_ERROR)
+                        }
+                        DiagnosticSeverity::WARNING => {
+                            data.config.get_color_unchecked(LapceTheme::LAPCE_WARN)
+                        }
+                        _ => data.config.get_color_unchecked(LapceTheme::LAPCE_WARN),
+                    };
+                    ctx.stroke(rect, color, 1.0);
                     ctx.draw_text(
-                        &text,
+                        &text_layout,
                         Point::new(
                             10.0 + data.editor.scroll_offset.x,
-                            (start.line + 1) as f64 * line_height
-                                + 10.0
-                                + text_height,
+                            info.y + info.line_height + 10.0,
                         ),
                     );
-                    text_height += text.size().height;
+                    let mut text_height = text_size.height;
+
+                    for text in related {
+                        text_height += 10.0;
+                        ctx.draw_text(
+                            &text,
+                            Point::new(
+                                10.0 + data.editor.scroll_offset.x,
+                                info.y + info.line_height + 10.0 + text_height,
+                            ),
+                        );
+                        text_height += text.size().height;
+                    }
                 }
             }
         }
