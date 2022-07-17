@@ -3,7 +3,6 @@ use lapce_rpc::buffer::BufferId;
 use std::ffi::OsString;
 use std::fs;
 use std::fs::File;
-use std::io::Read;
 use std::io::Write;
 use std::path::PathBuf;
 use std::{borrow::Cow, path::Path, time::SystemTime};
@@ -81,15 +80,13 @@ impl Buffer {
         self.rev += 1;
         let content_change = get_document_content_changes(delta, self);
         self.rope = delta.apply(&self.rope);
-        let content_change = match content_change {
-            Some(content_change) => content_change,
-            None => TextDocumentContentChangeEvent {
+        Some(content_change.unwrap_or_else(|| {
+            TextDocumentContentChangeEvent {
                 range: None,
                 range_length: None,
                 text: self.get_document(),
-            },
-        };
-        Some(content_change)
+            }
+        }))
     }
 
     pub fn get_document(&self) -> String {
@@ -131,17 +128,11 @@ impl Buffer {
 }
 
 pub fn load_file(path: &Path) -> Result<String> {
-    let mut f = File::open(path)?;
-    let mut bytes = Vec::new();
-    f.read_to_end(&mut bytes)?;
-    Ok(std::str::from_utf8(&bytes)?.to_string())
+    Ok(fs::read_to_string(path)?)
 }
 
 fn load_rope(path: &Path) -> Result<Rope> {
-    let mut f = File::open(path)?;
-    let mut bytes = Vec::new();
-    f.read_to_end(&mut bytes)?;
-    Ok(Rope::from(std::str::from_utf8(&bytes)?))
+    Ok(Rope::from(fs::read_to_string(path)?))
 }
 
 fn language_id_from_path(path: &Path) -> Option<&str> {
