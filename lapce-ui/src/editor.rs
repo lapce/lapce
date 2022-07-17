@@ -928,6 +928,7 @@ impl LapceEditor {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn paint_cursor_caret(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
@@ -942,7 +943,11 @@ impl LapceEditor {
         let phantom_text = data.doc.line_phantom_text(&data.config, line);
 
         // Shift it by the inlay hints
-        let col = phantom_text.col_after(col, true);
+        let col = if block {
+            phantom_text.col_after(col, true)
+        } else {
+            phantom_text.col_after(col, false)
+        };
 
         let x0 = data
             .doc
@@ -1235,7 +1240,7 @@ impl LapceEditor {
 
                         // Shift it by the inlay hints
                         let left_col = phantom_text.col_after(left_col, false);
-                        let right_col = phantom_text.col_after(right_col, true);
+                        let right_col = phantom_text.col_after(right_col, false);
 
                         let x0 = data
                             .doc
@@ -1263,11 +1268,14 @@ impl LapceEditor {
 
                         let y0 = y;
                         let y1 = y0 + line_height;
-                        ctx.fill(
-                            Rect::new(x0, y0, x1, y1),
-                            data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
-                        );
+                        if start != end {
+                            ctx.fill(
+                                Rect::new(x0, y0, x1, y1),
+                                data.config.get_color_unchecked(
+                                    LapceTheme::EDITOR_SELECTION,
+                                ),
+                            );
+                        }
                         if is_focused && cursor_line == line {
                             Self::paint_cursor_caret(
                                 ctx,
