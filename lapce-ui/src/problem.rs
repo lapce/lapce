@@ -6,11 +6,10 @@ use druid::{
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetExt,
 };
-use itertools::Itertools;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::{EditorDiagnostic, LapceTabData},
+    data::LapceTabData,
     editor::EditorLocation,
     panel::PanelKind,
     problem::ProblemData,
@@ -62,48 +61,6 @@ impl ProblemContent {
         }
     }
 
-    fn items<'a>(
-        &self,
-        data: &'a LapceTabData,
-    ) -> Vec<(&'a PathBuf, Vec<&'a EditorDiagnostic>)> {
-        let items: Vec<(&PathBuf, Vec<&EditorDiagnostic>)> = data
-            .main_split
-            .diagnostics
-            .iter()
-            .filter_map(|(path, diagnostic)| {
-                if let Some(doc) = data.main_split.open_docs.get(path) {
-                    return match doc.diagnostics.as_ref() {
-                        Some(d) => {
-                            let diagnostics: Vec<&EditorDiagnostic> = d
-                                .iter()
-                                .filter(|d| {
-                                    d.diagnostic.severity == Some(self.severity)
-                                })
-                                .collect();
-                            if !diagnostics.is_empty() {
-                                Some((path, diagnostics))
-                            } else {
-                                None
-                            }
-                        }
-                        None => None,
-                    };
-                }
-                let diagnostics: Vec<&EditorDiagnostic> = diagnostic
-                    .iter()
-                    .filter(|d| d.diagnostic.severity == Some(self.severity))
-                    .collect();
-                if !diagnostics.is_empty() {
-                    Some((path, diagnostics))
-                } else {
-                    None
-                }
-            })
-            .sorted_by_key(|(path, _)| (*path).clone())
-            .collect();
-        items
-    }
-
     fn mouse_down(
         &self,
         ctx: &mut EventCtx,
@@ -112,7 +69,7 @@ impl ProblemContent {
     ) {
         let n = (mouse_event.pos.y / self.line_height).floor() as usize;
 
-        let items = self.items(data);
+        let items = data.main_split.diagnostics_items(self.severity);
         let mut i = 0;
         for (path, diagnostics) in items {
             let diagnostics_len = diagnostics.iter().map(|d| d.lines).sum::<usize>();
@@ -254,7 +211,7 @@ impl Widget<LapceTabData> for ProblemContent {
         data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        let items = self.items(data);
+        let items = data.main_split.diagnostics_items(self.severity);
         let n = items
             .iter()
             .map(|(_, diagnostics)| {
@@ -276,7 +233,7 @@ impl Widget<LapceTabData> for ProblemContent {
         let min = (rect.y0 / line_height).floor() as usize;
         let max = (rect.y1 / line_height) as usize + 2;
 
-        let items = self.items(data);
+        let items = data.main_split.diagnostics_items(self.severity);
         let mut i = 0;
         for (path, diagnostics) in items {
             let diagnostics_len = diagnostics.iter().map(|d| d.lines).sum::<usize>();

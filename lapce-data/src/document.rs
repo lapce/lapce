@@ -482,22 +482,11 @@ impl Document {
             diagnostics
                 .iter()
                 .map(|d| EditorDiagnostic {
-                    range: Some((
+                    range: (
                         self.buffer.offset_of_position(&d.diagnostic.range.start),
                         self.buffer.offset_of_position(&d.diagnostic.range.end),
-                    )),
-                    lines: d
-                        .diagnostic
-                        .related_information
-                        .as_ref()
-                        .map(|r| {
-                            r.iter()
-                                .map(|r| r.message.matches('\n').count() + 1 + 1)
-                                .sum()
-                        })
-                        .unwrap_or(0)
-                        + d.diagnostic.message.matches('\n').count()
-                        + 1,
+                    ),
+                    lines: d.lines,
                     diagnostic: d.diagnostic.clone(),
                 })
                 .collect(),
@@ -508,12 +497,12 @@ impl Document {
         if let Some(mut diagnostics) = self.diagnostics.clone() {
             for diagnostic in Arc::make_mut(&mut diagnostics).iter_mut() {
                 let mut transformer = Transformer::new(delta);
-                let (start, end) = diagnostic.range.unwrap();
+                let (start, end) = diagnostic.range;
                 let (new_start, new_end) = (
                     transformer.transform(start, false),
                     transformer.transform(end, true),
                 );
-                diagnostic.range = Some((new_start, new_end));
+                diagnostic.range = (new_start, new_end);
                 diagnostic.diagnostic.range.start =
                     self.buffer().offset_to_position(new_start);
                 diagnostic.diagnostic.range.end =

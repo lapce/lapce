@@ -255,6 +255,7 @@ pub enum FocusCommand {
     JumpLocationBackward,
     #[strum(serialize = "jump_location_forward")]
     JumpLocationForward,
+    #[strum(message = "Next Error in Workspace")]
     #[strum(serialize = "next_error")]
     NextError,
     #[strum(serialize = "previous_error")]

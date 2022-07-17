@@ -19,6 +19,7 @@ use druid::{
     FileDialogOptions, Lens, Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
+use itertools::Itertools;
 use lapce_core::{
     command::{FocusCommand, MultiSelectionCommand},
     cursor::{Cursor, CursorMode},
@@ -33,7 +34,7 @@ use lapce_rpc::{
     buffer::BufferId, plugin::PluginDescription, source_control::FileDiff,
     terminal::TermId,
 };
-use lsp_types::{Diagnostic, Position, ProgressToken, TextEdit};
+use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdit};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -421,7 +422,7 @@ impl LapceWindowData {
 
 #[derive(Clone, Debug)]
 pub struct EditorDiagnostic {
-    pub range: Option<(usize, usize)>,
+    pub range: (usize, usize),
     pub diagnostic: Diagnostic,
     pub lines: usize,
 }
@@ -1877,6 +1878,43 @@ impl LapceMainSplitData {
                 }
             }),
         );
+    }
+
+    pub fn diagnostics_items(
+        &self,
+        severity: DiagnosticSeverity,
+    ) -> Vec<(&PathBuf, Vec<&EditorDiagnostic>)> {
+        self.diagnostics
+            .iter()
+            .filter_map(|(path, diagnostic)| {
+                if let Some(doc) = self.open_docs.get(path) {
+                    return match doc.diagnostics.as_ref() {
+                        Some(d) => {
+                            let diagnostics: Vec<&EditorDiagnostic> = d
+                                .iter()
+                                .filter(|d| d.diagnostic.severity == Some(severity))
+                                .collect();
+                            if !diagnostics.is_empty() {
+                                Some((path, diagnostics))
+                            } else {
+                                None
+                            }
+                        }
+                        None => None,
+                    };
+                }
+                let diagnostics: Vec<&EditorDiagnostic> = diagnostic
+                    .iter()
+                    .filter(|d| d.diagnostic.severity == Some(severity))
+                    .collect();
+                if !diagnostics.is_empty() {
+                    Some((path, diagnostics))
+                } else {
+                    None
+                }
+            })
+            .sorted_by_key(|(path, _)| (*path).clone())
+            .collect()
     }
 
     fn cursor_apply_delta(&mut self, path: &Path, delta: &RopeDelta) {

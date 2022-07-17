@@ -1623,11 +1623,7 @@ impl LapceEditor {
                 if (start.line as usize) <= end_line
                     && (end.line as usize) >= start_line
                 {
-                    let start_offset = if let Some(range) = diagnostic.range {
-                        range.0
-                    } else {
-                        data.doc.buffer().offset_of_position(&start)
-                    };
+                    let start_offset = diagnostic.range.0;
                     if start_offset == cursor_offset {
                         current = Some(diagnostic.clone());
                     }

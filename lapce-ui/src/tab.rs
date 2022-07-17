@@ -976,7 +976,7 @@ impl LapceTab {
                             .diagnostics
                             .iter()
                             .map(|d| EditorDiagnostic {
-                                range: None,
+                                range: (0, 0),
                                 diagnostic: d.clone(),
                                 lines: d
                                     .related_information
@@ -994,6 +994,7 @@ impl LapceTab {
                                     + d.message.matches('\n').count()
                                     + 1,
                             })
+                            .sorted_by_key(|d| d.diagnostic.range.start)
                             .collect();
                         let diagnostics: Arc<Vec<EditorDiagnostic>> =
                             Arc::new(diagnostics);

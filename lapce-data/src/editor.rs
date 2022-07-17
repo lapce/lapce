@@ -709,33 +709,14 @@ impl LapceEditorBufferData {
 
     fn next_error(&mut self, ctx: &mut EventCtx) {
         if let BufferContent::File(buffer_path) = self.doc.content() {
-            let mut file_diagnostics = self
+            let mut file_diagnostics: Vec<(&PathBuf, Vec<Position>)> = self
                 .main_split
-                .diagnostics
-                .iter()
-                .filter_map(|(path, diagnostics)| {
-                    //let buffer = self.get_buffer_from_path(ctx, ui_state, path);
-                    let mut errors: Vec<Position> = diagnostics
-                        .iter()
-                        .filter_map(|d| {
-                            let severity = d
-                                .diagnostic
-                                .severity
-                                .unwrap_or(DiagnosticSeverity::HINT);
-                            if severity != DiagnosticSeverity::ERROR {
-                                return None;
-                            }
-                            Some(d.diagnostic.range.start)
-                        })
-                        .collect();
-                    if errors.is_empty() {
-                        None
-                    } else {
-                        errors.sort();
-                        Some((path, errors))
-                    }
+                .diagnostics_items(DiagnosticSeverity::ERROR)
+                .into_iter()
+                .map(|(p, d)| {
+                    (p, d.iter().map(|d| d.diagnostic.range.start).collect())
                 })
-                .collect::<Vec<(&PathBuf, Vec<Position>)>>();
+                .collect();
             if file_diagnostics.is_empty() {
                 return;
             }
