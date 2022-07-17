@@ -166,14 +166,28 @@ impl LspCatalog {
         language_id: &str,
         text: String,
     ) {
-        let document_uri = Url::from_file_path(path).unwrap();
         if let Some(client) = self.clients.get(language_id) {
+            {
+                let state = client.state.lock();
+                if !state.is_initialized {
+                    return;
+                }
+            }
+
+            let document_uri = Url::from_file_path(path).unwrap();
             client.send_did_open(buffer_id, document_uri, language_id, text);
         }
     }
 
     pub fn save_buffer(&self, buffer: &Buffer, workspace_path: &Path) {
         for (client_language_id, client) in self.clients.iter() {
+            {
+                let state = client.state.lock();
+                if !state.is_initialized {
+                    return;
+                }
+            }
+
             // Get rid of the workspace path prefix so that it can be used with the filters
             let buffer_path = buffer
                 .path
@@ -225,6 +239,30 @@ impl LspCatalog {
     pub fn get_semantic_tokens(&self, id: RequestId, buffer: &Buffer) {
         let buffer = buffer.clone();
         if let Some(client) = self.clients.get(&buffer.language_id) {
+            {
+                let state = client.state.lock();
+
+                if !state.is_initialized {
+                    return;
+                }
+
+                let is_enabled = state
+                    .server_capabilities
+                    .as_ref()
+                    .and_then(|cap| cap.semantic_tokens_provider.as_ref())
+                    .map(|prov| match prov {
+                        SemanticTokensServerCapabilities::SemanticTokensOptions(opts) => opts,
+                        SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(reg) => &reg.semantic_tokens_options,
+                    }).map(|opts| {
+                        // TODO: handle opts.full delta
+                        opts.full.is_some()
+                    }).unwrap_or(false);
+
+                if !is_enabled {
+                    return;
+                }
+            }
+
             let uri = client.get_uri(&buffer);
             client.request_semantic_tokens(uri, move |lsp_client, result| {
                 let lsp_state = lsp_client.state.lock();
@@ -255,6 +293,25 @@ impl LspCatalog {
 
     pub fn get_document_symbols(&self, id: RequestId, buffer: &Buffer) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
+            {
+                let state = client.state.lock();
+
+                if !state.is_initialized {
+                    return;
+                }
+
+                let is_enabled = state
+                    .server_capabilities
+                    .as_ref()
+                    .and_then(|cap| cap.document_symbol_provider.as_ref())
+                    .map(|prov| prov != &OneOf::Left(false))
+                    .unwrap_or(false);
+
+                if !is_enabled {
+                    return;
+                }
+            }
+
             let uri = client.get_uri(buffer);
             client.request_document_symbols(uri, move |lsp_client, result| {
                 lsp_client.dispatcher.respond(id, result);
@@ -270,6 +327,25 @@ impl LspCatalog {
     ) {
         // TODO: We could collate workspace symbols from all the lsps?
         if let Some(client) = self.clients.get(&buffer.language_id) {
+            {
+                let state = client.state.lock();
+
+                if !state.is_initialized {
+                    return;
+                }
+
+                let is_enabled = state
+                    .server_capabilities
+                    .as_ref()
+                    .and_then(|cap| cap.workspace_symbol_provider.as_ref())
+                    .map(|prov| prov != &OneOf::Left(false))
+                    .unwrap_or(false);
+
+                if !is_enabled {
+                    return;
+                }
+            }
+
             client.request_workspace_symbols(query, move |lsp_client, result| {
                 lsp_client.dispatcher.respond(id, result);
             });
@@ -278,6 +354,25 @@ impl LspCatalog {
 
     pub fn get_document_formatting(&self, id: RequestId, buffer: &Buffer) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
+            {
+                let state = client.state.lock();
+
+                if !state.is_initialized {
+                    return;
+                }
+
+                let is_enabled = state
+                    .server_capabilities
+                    .as_ref()
+                    .and_then(|cap| cap.document_formatting_provider.as_ref())
+                    .map(|prov| prov != &OneOf::Left(false))
+                    .unwrap_or(false);
+
+                if !is_enabled {
+                    return;
+                }
+            }
+
             let uri = client.get_uri(buffer);
             client.request_document_formatting(uri, move |lsp_client, result| {
                 lsp_client.dispatcher.respond(id, result);
@@ -298,6 +393,25 @@ impl LspCatalog {
         position: Position,
     ) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
+            {
+                let state = client.state.lock();
+
+                if !state.is_initialized {
+                    return;
+                }
+
+                // TODO: pay attention to trigger characters
+                let is_enabled = state
+                    .server_capabilities
+                    .as_ref()
+                    .map(|cap| cap.completion_provider.is_some())
+                    .unwrap_or(false);
+
+                if !is_enabled {
+                    return;
+                }
+            }
+
             let uri = client.get_uri(buffer);
             client.request_completion(uri, position, move |lsp_client, result| {
                 let mut resp = json!({ "id": id });
@@ -346,6 +460,25 @@ impl LspCatalog {
         position: Position,
     ) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
+            {
+                let state = client.state.lock();
+
+                if !state.is_initialized {
+                    return;
+                }
+
+                let is_enabled = state
+                    .server_capabilities
+                    .as_ref()
+                    .and_then(|cap| cap.hover_provider.as_ref())
+                    .map(|prov| prov != &HoverProviderCapability::Simple(false))
+                    .unwrap_or(false);
+
+                if !is_enabled {
+                    return;
+                }
+            }
+
             let uri = client.get_uri(buffer);
             client.request_hover(uri, position, move |lsp_client, result| {
                 let mut resp = json!({ "id": id });
@@ -365,6 +498,25 @@ impl LspCatalog {
 
     pub fn get_signature(&self, id: RequestId, buffer: &Buffer, position: Position) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
+            {
+                let state = client.state.lock();
+
+                if !state.is_initialized {
+                    return;
+                }
+
+                // TODO: use the trigger characters fields
+                let is_enabled = state
+                    .server_capabilities
+                    .as_ref()
+                    .map(|cap| cap.signature_help_provider.is_some())
+                    .unwrap_or(false);
+
+                if !is_enabled {
+                    return;
+                }
+            }
+
             let uri = client.get_uri(buffer);
             client.request_signature(uri, position, move |lsp_client, result| {
                 let mut resp = json!({ "id": id });
@@ -389,6 +541,25 @@ impl LspCatalog {
         position: Position,
     ) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
+            {
+                let state = client.state.lock();
+
+                if !state.is_initialized {
+                    return;
+                }
+
+                let is_enabled = state
+                    .server_capabilities
+                    .as_ref()
+                    .and_then(|cap| cap.references_provider.as_ref())
+                    .map(|prov| prov != &OneOf::Left(false))
+                    .unwrap_or(false);
+
+                if !is_enabled {
+                    return;
+                }
+            }
+
             let uri = client.get_uri(buffer);
             client.request_references(uri, position, move |lsp_client, result| {
                 let mut resp = json!({ "id": id });
@@ -408,6 +579,25 @@ impl LspCatalog {
 
     pub fn get_inlay_hints(&self, id: RequestId, buffer: &Buffer) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
+            {
+                let state = client.state.lock();
+
+                if !state.is_initialized {
+                    return;
+                }
+
+                let is_enabled = state
+                    .server_capabilities
+                    .as_ref()
+                    .and_then(|cap| cap.inlay_hint_provider.as_ref())
+                    .map(|prov| prov != &OneOf::Left(false))
+                    .unwrap_or(false);
+
+                if !is_enabled {
+                    return;
+                }
+            }
+
             let uri = client.get_uri(buffer);
             // Range over the entire buffer
             let range = Range {
@@ -438,6 +628,25 @@ impl LspCatalog {
         position: Position,
     ) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
+            {
+                let state = client.state.lock();
+
+                if !state.is_initialized {
+                    return;
+                }
+
+                let is_enabled = state
+                    .server_capabilities
+                    .as_ref()
+                    .and_then(|cap| cap.code_action_provider.as_ref())
+                    .map(|prov| prov != &CodeActionProviderCapability::Simple(false))
+                    .unwrap_or(false);
+
+                if !is_enabled {
+                    return;
+                }
+            }
+
             let uri = client.get_uri(buffer);
             let range = Range {
                 start: position,
@@ -467,6 +676,25 @@ impl LspCatalog {
         position: Position,
     ) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
+            {
+                let state = client.state.lock();
+
+                if !state.is_initialized {
+                    return;
+                }
+
+                let is_enabled = state
+                    .server_capabilities
+                    .as_ref()
+                    .and_then(|cap| cap.definition_provider.as_ref())
+                    .map(|prov| prov != &OneOf::Left(false))
+                    .unwrap_or(false);
+
+                if !is_enabled {
+                    return;
+                }
+            }
+
             let uri = client.get_uri(buffer);
             client.request_definition(uri, position, move |lsp_client, result| {
                 let mut resp = json!({ "id": id });
@@ -660,7 +888,7 @@ impl LspClient {
                 // Token is ignored as the workProgress Widget is always working
                 // In the future, for multiple workProgress Handling we should
                 // probably store the token
-                self.send_success_response(id, &json!({}));
+                self.send_success_response(id, &Value::Null);
             }
             "client/registerCapability" => {
                 if let Ok(registrations) =
@@ -695,6 +923,19 @@ impl LspClient {
                             _ => println!("Received unhandled client/registerCapability request {}", registration.method),
                         }
                     }
+                }
+            }
+            "workspace/configuration" => {
+                if let Ok(config) =
+                    serde_json::from_value::<ConfigurationParams>(json!(params))
+                {
+                    let items = config
+                        .items
+                        .into_iter()
+                        .map(|_item| Value::Null)
+                        .collect::<Vec<Value>>();
+
+                    self.send_success_response(id, &Value::Array(items));
                 }
             }
             method => {
@@ -836,6 +1077,7 @@ impl LspClient {
 
         if !is_initialized {
             self.initialize();
+            return;
         }
 
         let text_document_did_open_params = DidOpenTextDocumentParams {
@@ -953,6 +1195,7 @@ impl LspClient {
                 symbol: Some(WorkspaceSymbolClientCapabilities {
                     ..Default::default()
                 }),
+                configuration: Some(true),
                 ..Default::default()
             }),
             experimental: Some(json!({
