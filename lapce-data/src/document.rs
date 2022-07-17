@@ -478,6 +478,7 @@ impl Document {
     }
 
     pub fn set_diagnostics(&mut self, diagnostics: &[EditorDiagnostic]) {
+        self.clear_text_layout_cache();
         self.diagnostics = Some(Arc::new(
             diagnostics
                 .iter()
