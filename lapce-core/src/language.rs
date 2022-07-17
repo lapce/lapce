@@ -164,6 +164,8 @@ pub enum LapceLanguage {
     Yaml,
     #[cfg(feature = "lang-julia")]
     Julia,
+    #[cfg(feature = "lang-nix")]
+    Nix,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -522,6 +524,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["julia", "jl"],
     },
+    #[cfg(feature = "lang-nix")]
+    SyntaxProperties {
+        id: LapceLanguage::Nix,
+        language: tree_sitter_nix::language,
+        highlight: tree_sitter_nix::HIGHLIGHT_QUERY,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["nix"],
+    },
 ];
 
 impl LapceLanguage {
@@ -822,5 +834,9 @@ mod test {
     #[cfg(feature = "lang-julia")]
     fn test_julia_lang() {
         assert_language(LapceLanguage::Julia, &["julia", "jl"]);
+    }
+    #[cfg(feature = "lang-nix")]
+    fn test_nix_lang() {
+        assert_language(LapceLanguage::Nix, &["nix"]);
     }
 }
