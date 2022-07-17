@@ -4,6 +4,7 @@ use crate::command::LAPCE_SAVE_FILE_AS;
 use crate::command::{CommandExecuted, CommandKind};
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::Config;
+use crate::data::EditorView;
 use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     SplitContent,
@@ -1680,6 +1681,12 @@ impl LapceEditorBufferData {
             ToggleCodeLens => {
                 let editor = Arc::make_mut(&mut self.editor);
                 editor.code_lens = !editor.code_lens;
+                editor.view = match editor.view {
+                    EditorView::Normal => EditorView::Lens,
+                    EditorView::Lens => EditorView::Normal,
+                    EditorView::Diff(_) => return CommandExecuted::Yes,
+                };
+                self.doc.clear_text_layout_cache();
             }
             FormatDocument => {
                 if let BufferContent::File(path) = self.doc.content() {

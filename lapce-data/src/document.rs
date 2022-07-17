@@ -899,7 +899,7 @@ impl Document {
         self.clear_text_layout_cache();
     }
 
-    fn clear_text_layout_cache(&self) {
+    pub fn clear_text_layout_cache(&self) {
         self.text_layouts.borrow_mut().clear();
     }
 
@@ -1483,7 +1483,9 @@ impl Document {
 
             layout_builder = layout_builder.range_attribute(
                 start..end,
-                TextAttribute::FontSize(config.editor.inlay_hint_font_size() as f64),
+                TextAttribute::FontSize(
+                    config.editor.inlay_hint_font_size().min(font_size) as f64,
+                ),
             );
             layout_builder = layout_builder.range_attribute(
                 start..end,
@@ -1524,7 +1526,9 @@ impl Document {
 
             layout_builder = layout_builder.range_attribute(
                 column..end,
-                TextAttribute::FontSize(config.editor.error_lens_font_size() as f64),
+                TextAttribute::FontSize(
+                    config.editor.error_lens_font_size().min(font_size) as f64,
+                ),
             );
             layout_builder = layout_builder.range_attribute(
                 column..end,

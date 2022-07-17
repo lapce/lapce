@@ -52,6 +52,7 @@ struct ScreenLines {
 struct LineInfo {
     line: usize,
     font_size: usize,
+    x: f64,
     y: f64,
     line_height: f64,
 }
@@ -565,6 +566,87 @@ impl LapceEditor {
         }
     }
 
+    fn code_lens_lines(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        env: &Env,
+    ) -> ScreenLines {
+        let empty_lens = Syntax::lens_from_normal_lines(
+            data.doc.buffer().len(),
+            data.config.editor.line_height,
+            data.config.editor.code_lens_font_size,
+            &[],
+        );
+        let lens = if let Some(syntax) = data.doc.syntax() {
+            &syntax.lens
+        } else {
+            &empty_lens
+        };
+
+        let normal_font_size = data.config.editor.font_size;
+
+        let rect = ctx.region().bounding_box();
+        let last_line = data.doc.buffer().line_of_offset(data.doc.buffer().len());
+        let start_line =
+            lens.line_of_height(rect.y0.floor() as usize).min(last_line);
+        let end_line = lens
+            .line_of_height(rect.y1.ceil() as usize + data.config.editor.line_height)
+            .min(last_line);
+        let start_offset = data.doc.buffer().offset_of_line(start_line);
+        let end_offset = data.doc.buffer().offset_of_line(end_line + 1);
+        let mut lines_iter =
+            data.doc.buffer().text().lines(start_offset..end_offset);
+
+        data.doc.clear_text_layout_cache();
+
+        let mut y = lens.height_of_line(start_line) as f64;
+        let mut lines = Vec::new();
+        let mut info = HashMap::new();
+        for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {
+            if let Some(line_content) = lines_iter.next() {
+                let is_small = line_height < data.config.editor.line_height;
+                let text_layout = data.doc.get_text_layout(
+                    ctx.text(),
+                    line,
+                    normal_font_size,
+                    &data.config,
+                );
+                let mut col = 0usize;
+                if is_small {
+                    for ch in line_content.chars() {
+                        if ch == ' ' || ch == '\t' {
+                            col += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                let x = text_layout.text.hit_test_text_position(col).point.x;
+
+                let line_height = line_height as f64;
+
+                lines.push(line);
+                info.insert(
+                    line,
+                    LineInfo {
+                        line,
+                        font_size: if is_small {
+                            data.config.editor.code_lens_font_size
+                        } else {
+                            data.config.editor.font_size
+                        },
+                        x,
+                        y,
+                        line_height,
+                    },
+                );
+                y += line_height;
+            }
+        }
+        data.doc.clear_text_layout_cache();
+        ScreenLines { lines, info }
+    }
+
     fn content_history_lines(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
@@ -582,10 +664,6 @@ impl LapceEditor {
         let rect = ctx.region().bounding_box();
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
-        let cursor_line = data
-            .doc
-            .buffer()
-            .line_of_offset(data.editor.cursor.offset());
 
         let mut line = 0;
         let mut lines = Vec::new();
@@ -692,6 +770,7 @@ impl LapceEditor {
                             LineInfo {
                                 line: rope_line,
                                 font_size,
+                                x: 0.0,
                                 y: l as f64 * line_height,
                                 line_height,
                             },
@@ -733,6 +812,7 @@ impl LapceEditor {
                             LineInfo {
                                 line: rope_line,
                                 font_size,
+                                x: 0.0,
                                 y: l as f64 * line_height,
                                 line_height,
                             },
@@ -779,6 +859,7 @@ impl LapceEditor {
                         LineInfo {
                             line,
                             font_size,
+                            x: 0.0,
                             y: line as f64 * line_height + line_padding,
                             line_height,
                         },
@@ -793,9 +874,7 @@ impl LapceEditor {
                     return;
                 }
             }
-            EditorView::Lens => {
-                todo!()
-            }
+            EditorView::Lens => Self::code_lens_lines(ctx, data, env),
         };
 
         Self::paint_current_line(ctx, data, &screen_lines);
@@ -1137,10 +1216,13 @@ impl LapceEditor {
             for (x0, x1, style) in text_layout.extra_style.iter() {
                 if let Some(bg) = &style.bg_color {
                     let x1 = x1.unwrap_or(self_size.width);
-                    ctx.fill(Rect::new(*x0, y, x1, y + height), bg);
+                    ctx.fill(
+                        Rect::new(*x0 + info.x, y, x1 + info.x, y + height),
+                        bg,
+                    );
                 }
             }
-            ctx.draw_text(&text_layout.text, Point::new(0.0, y));
+            ctx.draw_text(&text_layout.text, Point::new(info.x, y));
         }
     }
 
@@ -1150,6 +1232,7 @@ impl LapceEditor {
         data: &LapceEditorBufferData,
         offset: usize,
         font_size: usize,
+        x: f64,
         y: f64,
         line_height: f64,
         char_width: f64,
@@ -1195,17 +1278,20 @@ impl LapceEditor {
             let char_width = if x1 > x0 { x1 - x0 } else { char_width };
             ctx.fill(
                 Rect::ZERO
-                    .with_origin(Point::new(x0, y))
+                    .with_origin(Point::new(x0 + x, y))
                     .with_size(Size::new(char_width, line_height)),
                 data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
             );
         } else {
-            let x = data
+            let x0 = data
                 .doc
                 .point_of_line_col(ctx.text(), line, col, font_size, &data.config)
                 .x;
             ctx.stroke(
-                Line::new(Point::new(x, y), Point::new(x, y + line_height)),
+                Line::new(
+                    Point::new(x0 + x, y),
+                    Point::new(x0 + x, y + line_height),
+                ),
                 data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
                 2.0,
             )
@@ -1283,6 +1369,7 @@ impl LapceEditor {
                             data,
                             *offset,
                             info.font_size,
+                            info.x,
                             info.y,
                             info.line_height,
                             char_width,
@@ -1416,7 +1503,7 @@ impl LapceEditor {
                     let y0 = info.y;
                     let y1 = info.y + info.line_height;
                     ctx.fill(
-                        Rect::new(x0, y0, x1, y1),
+                        Rect::new(x0 + info.x, y0, x1 + info.x, y1),
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
                     );
@@ -1426,6 +1513,7 @@ impl LapceEditor {
                             data,
                             *end,
                             info.font_size,
+                            info.x,
                             info.y,
                             info.line_height,
                             char_width,
@@ -1512,7 +1600,7 @@ impl LapceEditor {
                         let y1 = y0 + info.line_height;
                         if start != end {
                             ctx.fill(
-                                Rect::new(x0, y0, x1, y1),
+                                Rect::new(x0 + info.x, y0, x1 + info.x, y1),
                                 data.config.get_color_unchecked(
                                     LapceTheme::EDITOR_SELECTION,
                                 ),
@@ -1524,6 +1612,7 @@ impl LapceEditor {
                                 data,
                                 cursor_offset,
                                 info.font_size,
+                                info.x,
                                 info.y,
                                 info.line_height,
                                 char_width,
@@ -2320,7 +2409,7 @@ impl LapceEditor {
                     let text_layout = data.doc.get_text_layout(
                         ctx.text(),
                         line,
-                        data.config.editor.font_size,
+                        info.font_size,
                         &data.config,
                     );
                     let x0 = if line == start.line as usize {
@@ -2343,7 +2432,9 @@ impl LapceEditor {
                         let col = phantom_text.col_at(col);
                         text_layout.text.hit_test_text_position(col).point.x
                     };
-                    let y0 = info.y + info.line_height - 4.0;
+                    let scale =
+                        info.font_size as f64 / data.config.editor.font_size as f64;
+                    let y0 = info.y + info.line_height - 4.0 * scale;
 
                     let severity = diagnostic
                         .diagnostic
@@ -2358,7 +2449,13 @@ impl LapceEditor {
                         }
                         _ => data.config.get_color_unchecked(LapceTheme::LAPCE_WARN),
                     };
-                    Self::paint_wave_line(ctx, Point::new(x0, y0), x1 - x0, color);
+                    Self::paint_wave_line(
+                        ctx,
+                        Point::new(x0 + info.x, y0),
+                        x1 - x0,
+                        scale,
+                        color,
+                    );
                 }
             }
         }
@@ -2489,12 +2586,13 @@ impl LapceEditor {
         ctx: &mut PaintCtx,
         origin: Point,
         max_width: f64,
+        scale: f64,
         color: &Color,
     ) {
         let mut path = BezPath::new();
         let mut x = 0.0;
-        let width = 3.5;
-        let height = 4.0;
+        let width = 3.5 * scale;
+        let height = 4.0 * scale;
         path.move_to(origin + (0.0, height / 2.0));
         let mut direction = 1.0;
         while x < max_width {
@@ -2505,7 +2603,7 @@ impl LapceEditor {
             x += width;
             direction *= -1.0;
         }
-        ctx.stroke(path, color, 1.4);
+        ctx.stroke(path, color, 1.4 * scale);
     }
 }
 
