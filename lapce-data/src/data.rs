@@ -1354,6 +1354,24 @@ impl LapceTabData {
                     Target::Auto,
                 ))
             }
+            LapceWorkbenchCommand::NextEditorTab => {
+                if let Some(active) = *self.main_split.active_tab {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::NextEditorTab,
+                        Target::Widget(active),
+                    ));
+                }
+            }
+            LapceWorkbenchCommand::PreviousEditorTab => {
+                if let Some(active) = *self.main_split.active_tab {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::NextEditorTab,
+                        Target::Widget(active),
+                    ));
+                }
+            }
         }
     }
 
