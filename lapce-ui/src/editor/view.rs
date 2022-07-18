@@ -443,7 +443,7 @@ impl LapceEditorView {
         let width = data.config.editor_char_width(text);
         let cursor_x = data
             .doc
-            .point_of_line_col(
+            .line_point_of_line_col(
                 text,
                 line,
                 col,
@@ -453,7 +453,7 @@ impl LapceEditorView {
             .x;
         let line_height = data.config.editor.line_height as f64;
 
-        let y = if data.editor.code_lens {
+        let y = if data.editor.is_code_lens() {
             let empty_vec = Vec::new();
             let normal_lines = data
                 .doc
@@ -845,10 +845,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         if editor_data.editor.content != old_editor_data.editor.content {
             ctx.request_layout();
         }
-        if editor_data.editor.compare != old_editor_data.editor.compare {
-            ctx.request_layout();
-        }
-        if editor_data.editor.code_lens != old_editor_data.editor.code_lens {
+        if editor_data.editor.view != old_editor_data.editor.view {
             ctx.request_layout();
         }
         if let EditorView::Diff(version) = &editor_data.editor.view {

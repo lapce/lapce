@@ -4,6 +4,7 @@ use crate::command::LAPCE_SAVE_FILE_AS;
 use crate::command::{CommandExecuted, CommandKind};
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::Config;
+use crate::data::EditorView;
 use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     SplitContent,
@@ -879,7 +880,7 @@ impl LapceEditorBufferData {
         pos: Point,
         config: &Config,
     ) -> usize {
-        let (line, char_width) = if self.editor.code_lens {
+        let (line, char_width) = if self.editor.is_code_lens() {
             let (line, font_size) = if let Some(syntax) = self.doc.syntax() {
                 let line = syntax.lens.line_of_height(pos.y.floor() as usize);
                 let line_height = syntax.lens.height_of_line(line + 1)
@@ -940,7 +941,7 @@ impl LapceEditorBufferData {
             ctx.text(),
             self.get_mode(),
             mouse_event.pos,
-            config.editor.font_size,
+            &self.editor.view,
             config,
         );
         let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
@@ -985,7 +986,7 @@ impl LapceEditorBufferData {
             ctx.text(),
             self.get_mode(),
             mouse_event.pos,
-            config.editor.font_size,
+            &self.editor.view,
             config,
         );
         let (start, end) = self.doc.buffer().select_word(mouse_offset);
@@ -1009,7 +1010,7 @@ impl LapceEditorBufferData {
             ctx.text(),
             self.get_mode(),
             mouse_event.pos,
-            config.editor.font_size,
+            &self.editor.view,
             config,
         );
         let line = self.doc.buffer().line_of_offset(mouse_offset);
@@ -1104,13 +1105,14 @@ impl LapceEditorBufferData {
 
         let register = Arc::make_mut(&mut self.main_split.register);
         let doc = Arc::make_mut(&mut self.doc);
+        let view = self.editor.view.clone();
         doc.move_cursor(
             ctx.text(),
             &mut Arc::make_mut(&mut self.editor).cursor,
             movement,
             count.unwrap_or(1),
             mods.shift(),
-            self.config.editor.font_size,
+            &view,
             register,
             &self.config,
         );
@@ -1679,7 +1681,11 @@ impl LapceEditorBufferData {
             }
             ToggleCodeLens => {
                 let editor = Arc::make_mut(&mut self.editor);
-                editor.code_lens = !editor.code_lens;
+                editor.view = match editor.view {
+                    EditorView::Normal => EditorView::Lens,
+                    EditorView::Lens => EditorView::Normal,
+                    EditorView::Diff(_) => return CommandExecuted::Yes,
+                };
             }
             FormatDocument => {
                 if let BufferContent::File(path) = self.doc.content() {
@@ -1817,9 +1823,10 @@ impl LapceEditorBufferData {
         ctx: &mut EventCtx,
         cmd: &MultiSelectionCommand,
     ) -> CommandExecuted {
+        let view = self.editor.view.clone();
         let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
         self.doc
-            .do_multi_selection(ctx.text(), cursor, cmd, &self.config);
+            .do_multi_selection(ctx.text(), cursor, cmd, &view, &self.config);
         self.cancel_completion();
         CommandExecuted::Yes
     }

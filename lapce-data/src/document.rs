@@ -48,7 +48,7 @@ use xi_rope::{
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    data::EditorDiagnostic,
+    data::{EditorDiagnostic, EditorView},
     editor::EditorLocation,
     find::{Find, FindProgress},
     history::DocumentHistory,
@@ -83,7 +83,7 @@ pub struct TextLayoutLine {
 #[derive(Clone, Default)]
 pub struct TextLayoutCache {
     config_id: u64,
-    pub layouts: HashMap<usize, Arc<TextLayoutLine>>,
+    pub layouts: HashMap<usize, HashMap<usize, Arc<TextLayoutLine>>>,
     pub max_width: f64,
 }
 
@@ -1091,6 +1091,7 @@ impl Document {
         text: &mut PietText,
         cursor: &mut Cursor,
         cmd: &MultiSelectionCommand,
+        view: &EditorView,
         config: &Config,
     ) {
         use MultiSelectionCommand::*;
@@ -1115,7 +1116,7 @@ impl Document {
                         1,
                         &Movement::Up,
                         Mode::Insert,
-                        config.editor.font_size,
+                        view,
                         config,
                     );
                     if new_offset != offset {
@@ -1136,7 +1137,7 @@ impl Document {
                         1,
                         &Movement::Down,
                         Mode::Insert,
-                        config.editor.font_size,
+                        view,
                         config,
                     );
                     if new_offset != offset {
@@ -1351,16 +1352,118 @@ impl Document {
         self.line_styles.borrow().get(&line).cloned().unwrap()
     }
 
-    pub fn point_of_line_col(
+    pub fn line_col_of_point(
         &self,
         text: &mut PietText,
-        line: usize,
-        col: usize,
-        font_size: usize,
+        mode: Mode,
+        point: Point,
+        view: &EditorView,
         config: &Config,
-    ) -> Point {
+    ) -> ((usize, usize), bool) {
+        let (line, font_size) = match view {
+            EditorView::Diff(version) => {
+                if let Some(history) = self.get_history(version) {
+                    let line_height = config.editor.line_height;
+                    let mut line = 0;
+                    let mut lines = 0;
+                    for change in history.changes().iter() {
+                        match change {
+                            DiffLines::Left(l) => {
+                                lines += l.len();
+                                if (lines * line_height) as f64 > point.y {
+                                    break;
+                                }
+                            }
+                            DiffLines::Skip(_l, r) => {
+                                lines += 1;
+                                if (lines * line_height) as f64 > point.y {
+                                    break;
+                                }
+                                line += r.len();
+                            }
+                            DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                                lines += r.len();
+                                if (lines * line_height) as f64 > point.y {
+                                    line += ((point.y
+                                        - ((lines - r.len()) * line_height) as f64)
+                                        / line_height as f64)
+                                        .floor()
+                                        as usize;
+                                    break;
+                                }
+                                line += r.len();
+                            }
+                        }
+                    }
+                    (line, config.editor.font_size)
+                } else {
+                    (0, config.editor.font_size)
+                }
+            }
+            EditorView::Lens => {
+                if let Some(syntax) = self.syntax() {
+                    let lens = &syntax.lens;
+                    let line = lens.line_of_height(point.y.round() as usize);
+                    let line_height =
+                        lens.height_of_line(line + 1) - lens.height_of_line(line);
+                    let font_size = if line_height < config.editor.line_height {
+                        config.editor.code_lens_font_size
+                    } else {
+                        config.editor.font_size
+                    };
+                    (line, font_size)
+                } else {
+                    (
+                        (point.y / config.editor.line_height as f64).floor()
+                            as usize,
+                        config.editor.font_size,
+                    )
+                }
+            }
+            EditorView::Normal => (
+                (point.y / config.editor.line_height as f64).floor() as usize,
+                config.editor.font_size,
+            ),
+        };
+
+        let line = line.min(self.buffer.last_line());
+
+        let mut x_shift = 0.0;
+        if font_size < config.editor.font_size {
+            let line_content = self.buffer.line_content(line);
+            let mut col = 0usize;
+            for ch in line_content.chars() {
+                if ch == ' ' || ch == '\t' {
+                    col += 1;
+                } else {
+                    break;
+                }
+            }
+
+            if col > 0 {
+                let normal_text_layout = self.get_text_layout(
+                    text,
+                    line,
+                    config.editor.font_size,
+                    config,
+                );
+                let small_text_layout =
+                    self.get_text_layout(text, line, font_size, config);
+                x_shift =
+                    normal_text_layout.text.hit_test_text_position(col).point.x
+                        - small_text_layout.text.hit_test_text_position(col).point.x;
+            }
+        }
+
         let text_layout = self.get_text_layout(text, line, font_size, config);
-        text_layout.text.hit_test_text_position(col).point
+        let hit_point = text_layout
+            .text
+            .hit_test_point(Point::new(point.x - x_shift, 0.0));
+        let phantom_text = self.line_phantom_text(config, line);
+        let col = phantom_text.before_col(hit_point.idx);
+        let max_col = self.buffer.line_end_col(line, mode != Mode::Normal);
+        let col = col.min(max_col);
+        ((line, col), hit_point.is_inside)
     }
 
     pub fn offset_of_point(
@@ -1368,26 +1471,182 @@ impl Document {
         text: &mut PietText,
         mode: Mode,
         point: Point,
-        font_size: usize,
+        view: &EditorView,
         config: &Config,
     ) -> (usize, bool) {
-        let last_line = self.buffer.last_line();
-        let line = ((point.y / config.editor.line_height as f64).floor() as usize)
-            .min(last_line);
+        let ((line, col), is_inside) =
+            self.line_col_of_point(text, mode, point, view, config);
+        (self.buffer.offset_of_line_col(line, col), is_inside)
+    }
 
-        let phantom_text = self.line_phantom_text(config, line);
+    pub fn points_of_offset(
+        &self,
+        text: &mut PietText,
+        offset: usize,
+        view: &EditorView,
+        config: &Config,
+    ) -> (Point, Point) {
+        let (line, col) = self.buffer.offset_to_line_col(offset);
+        self.points_of_line_col(text, line, col, view, config)
+    }
 
-        let text_layout = self.get_text_layout(text, line, font_size, config);
-        let hit_point = text_layout.text.hit_test_point(Point::new(point.x, 0.0));
-        let col = phantom_text.before_col(hit_point.idx);
-        let max_col = self.buffer.line_end_col(line, mode != Mode::Normal);
+    pub fn points_of_line_col(
+        &self,
+        text: &mut PietText,
+        line: usize,
+        col: usize,
+        view: &EditorView,
+        config: &Config,
+    ) -> (Point, Point) {
+        let (y, line_height, font_size) = match view {
+            EditorView::Diff(version) => {
+                if let Some(history) = self.get_history(version) {
+                    let line_height = config.editor.line_height;
+                    let mut current_line = 0;
+                    let mut y = 0;
+                    for change in history.changes().iter() {
+                        match change {
+                            DiffLines::Left(l) => {
+                                y += l.len() * line_height;
+                            }
+                            DiffLines::Skip(_l, r) => {
+                                if current_line + r.len() > line {
+                                    break;
+                                }
+                                y += line_height;
+                                current_line += r.len();
+                            }
+                            DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                                if current_line + r.len() > line {
+                                    y += line_height * (line - current_line);
+                                    break;
+                                }
+                                y += r.len() * line_height;
+                                current_line += r.len();
+                            }
+                        }
+                    }
+                    (y, config.editor.line_height, config.editor.font_size)
+                } else {
+                    (0, config.editor.line_height, config.editor.font_size)
+                }
+            }
+            EditorView::Lens => {
+                if let Some(syntax) = self.syntax() {
+                    let lens = &syntax.lens;
+                    let height = lens.height_of_line(line);
+                    let line_height =
+                        lens.height_of_line(line + 1) - lens.height_of_line(line);
+                    let font_size = if line_height < config.editor.line_height {
+                        config.editor.code_lens_font_size
+                    } else {
+                        config.editor.font_size
+                    };
+                    (height, line_height, font_size)
+                } else {
+                    (
+                        config.editor.line_height * line,
+                        config.editor.line_height,
+                        config.editor.font_size,
+                    )
+                }
+            }
+            EditorView::Normal => (
+                config.editor.line_height * line,
+                config.editor.line_height,
+                config.editor.font_size,
+            ),
+        };
+
+        let line = line.min(self.buffer.last_line());
+
+        let mut x_shift = 0.0;
+        if font_size < config.editor.font_size {
+            let line_content = self.buffer.line_content(line);
+            let mut col = 0usize;
+            for ch in line_content.chars() {
+                if ch == ' ' || ch == '\t' {
+                    col += 1;
+                } else {
+                    break;
+                }
+            }
+
+            if col > 0 {
+                let normal_text_layout = self.get_text_layout(
+                    text,
+                    line,
+                    config.editor.font_size,
+                    config,
+                );
+                let small_text_layout =
+                    self.get_text_layout(text, line, font_size, config);
+                x_shift =
+                    normal_text_layout.text.hit_test_text_position(col).point.x
+                        - small_text_layout.text.hit_test_text_position(col).point.x;
+            }
+        }
+
+        let x = self
+            .line_point_of_line_col(text, line, col, font_size, config)
+            .x
+            + x_shift;
         (
-            self.buffer.offset_of_line_col(line, col.min(max_col)),
-            hit_point.is_inside,
+            Point::new(x, y as f64),
+            Point::new(x, (y + line_height) as f64),
         )
     }
 
-    pub fn point_of_offset(
+    fn diff_cursor_line(&self, version: &str, line: usize) -> usize {
+        let mut cursor_line = 0;
+        if let Some(history) = self.get_history(version) {
+            for (_i, change) in history.changes().iter().enumerate() {
+                match change {
+                    DiffLines::Left(_range) => {}
+                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                        if r.contains(&line) {
+                            cursor_line += line - r.start;
+                            break;
+                        }
+                        cursor_line += r.len();
+                    }
+                    DiffLines::Skip(_, r) => {
+                        if r.contains(&line) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        cursor_line
+    }
+
+    fn diff_actual_line(&self, version: &str, cursor_line: usize) -> usize {
+        let mut current_cursor_line = 0;
+        let mut line = 0;
+        if let Some(history) = self.get_history(version) {
+            for (_i, change) in history.changes().iter().enumerate() {
+                match change {
+                    DiffLines::Left(_range) => {}
+                    DiffLines::Skip(_, _r) => {}
+                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                        current_cursor_line += r.len();
+                        if current_cursor_line > cursor_line {
+                            line = r.end - (current_cursor_line - cursor_line);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if current_cursor_line <= cursor_line {
+            self.buffer.last_line()
+        } else {
+            line
+        }
+    }
+
+    pub fn line_point_of_offset(
         &self,
         text: &mut PietText,
         offset: usize,
@@ -1395,6 +1654,17 @@ impl Document {
         config: &Config,
     ) -> Point {
         let (line, col) = self.buffer.offset_to_line_col(offset);
+        self.line_point_of_line_col(text, line, col, font_size, config)
+    }
+
+    pub fn line_point_of_line_col(
+        &self,
+        text: &mut PietText,
+        line: usize,
+        col: usize,
+        font_size: usize,
+        config: &Config,
+    ) -> Point {
         let text_layout = self.get_text_layout(text, line, font_size, config);
         text_layout.text.hit_test_text_position(col).point
     }
@@ -1407,7 +1677,19 @@ impl Document {
         config: &Config,
     ) -> Arc<TextLayoutLine> {
         self.text_layouts.borrow_mut().check_attributes(config.id);
-        if self.text_layouts.borrow().layouts.get(&line).is_none() {
+        if self.text_layouts.borrow().layouts.get(&font_size).is_none() {
+            let mut cache = self.text_layouts.borrow_mut();
+            cache.layouts.insert(font_size, HashMap::new());
+        }
+        if self
+            .text_layouts
+            .borrow()
+            .layouts
+            .get(&font_size)
+            .unwrap()
+            .get(&line)
+            .is_none()
+        {
             let mut cache = self.text_layouts.borrow_mut();
             let text_layout =
                 Arc::new(self.new_text_layout(text, line, font_size, config));
@@ -1415,11 +1697,17 @@ impl Document {
             if width > cache.max_width {
                 cache.max_width = width;
             }
-            cache.layouts.insert(line, text_layout);
+            cache
+                .layouts
+                .get_mut(&font_size)
+                .unwrap()
+                .insert(line, text_layout);
         }
         self.text_layouts
             .borrow()
             .layouts
+            .get(&font_size)
+            .unwrap()
             .get(&line)
             .cloned()
             .unwrap()
@@ -1483,7 +1771,9 @@ impl Document {
 
             layout_builder = layout_builder.range_attribute(
                 start..end,
-                TextAttribute::FontSize(config.editor.inlay_hint_font_size() as f64),
+                TextAttribute::FontSize(
+                    config.editor.inlay_hint_font_size().min(font_size) as f64,
+                ),
             );
             layout_builder = layout_builder.range_attribute(
                 start..end,
@@ -1524,7 +1814,9 @@ impl Document {
 
             layout_builder = layout_builder.range_attribute(
                 column..end,
-                TextAttribute::FontSize(config.editor.error_lens_font_size() as f64),
+                TextAttribute::FontSize(
+                    config.editor.error_lens_font_size().min(font_size) as f64,
+                ),
             );
             layout_builder = layout_builder.range_attribute(
                 column..end,
@@ -1642,7 +1934,7 @@ impl Document {
         modify: bool,
         movement: &Movement,
         mode: Mode,
-        font_size: usize,
+        view: &EditorView,
         config: &Config,
     ) -> SelRegion {
         let (end, horiz) = self.move_offset(
@@ -1652,7 +1944,7 @@ impl Document {
             count,
             movement,
             mode,
-            font_size,
+            view,
             config,
         );
         let start = match modify {
@@ -1670,7 +1962,7 @@ impl Document {
         movement: &Movement,
         count: usize,
         modify: bool,
-        font_size: usize,
+        view: &EditorView,
         register: &mut Register,
         config: &Config,
     ) {
@@ -1683,7 +1975,7 @@ impl Document {
                     count,
                     movement,
                     Mode::Normal,
-                    font_size,
+                    view,
                     config,
                 );
                 if let Some(motion_mode) = cursor.motion_mode.clone() {
@@ -1694,7 +1986,7 @@ impl Document {
                         1,
                         &Movement::Right,
                         Mode::Insert,
-                        font_size,
+                        view,
                         config,
                     );
                     let (start, end) = match movement {
@@ -1734,7 +2026,7 @@ impl Document {
                     count,
                     movement,
                     Mode::Visual,
-                    font_size,
+                    view,
                     config,
                 );
                 cursor.mode = CursorMode::Visual {
@@ -1753,7 +2045,7 @@ impl Document {
                     modify,
                     movement,
                     Mode::Insert,
-                    font_size,
+                    view,
                     config,
                 );
                 cursor.set_insert(selection);
@@ -1771,13 +2063,13 @@ impl Document {
         modify: bool,
         movement: &Movement,
         mode: Mode,
-        font_size: usize,
+        view: &EditorView,
         config: &Config,
     ) -> Selection {
         let mut new_selection = Selection::new();
         for region in selection.regions() {
             new_selection.add_region(self.move_region(
-                text, region, count, modify, movement, mode, font_size, config,
+                text, region, count, modify, movement, mode, view, config,
             ));
         }
         new_selection
@@ -1792,7 +2084,7 @@ impl Document {
         count: usize,
         movement: &Movement,
         mode: Mode,
-        font_size: usize,
+        view: &EditorView,
         config: &Config,
     ) -> (usize, Option<ColPosition>) {
         match movement {
@@ -1827,15 +2119,66 @@ impl Document {
             }
             Movement::Up => {
                 let line = self.buffer.line_of_offset(offset);
-                let line = if line == 0 {
-                    0
-                } else {
-                    line.saturating_sub(count)
+                if line == 0 {
+                    return (offset, horiz.cloned());
+                }
+
+                let (line, font_size) = match view {
+                    EditorView::Lens => {
+                        if let Some(syntax) = self.syntax() {
+                            let lens = &syntax.lens;
+                            let line = if count == 1 {
+                                let mut line = line - 1;
+                                loop {
+                                    if line == 0 {
+                                        break;
+                                    }
+
+                                    let line_height = lens.height_of_line(line + 1)
+                                        - lens.height_of_line(line);
+                                    if line_height == config.editor.line_height {
+                                        break;
+                                    }
+                                    line -= 1;
+                                }
+                                line
+                            } else {
+                                line.saturating_sub(count)
+                            };
+                            let line_height = lens.height_of_line(line + 1)
+                                - lens.height_of_line(line);
+                            let font_size =
+                                if line_height == config.editor.line_height {
+                                    config.editor.font_size
+                                } else {
+                                    config.editor.code_lens_font_size
+                                };
+
+                            (line, font_size)
+                        } else {
+                            (line.saturating_sub(count), config.editor.font_size)
+                        }
+                    }
+                    EditorView::Diff(version) => {
+                        let cursor_line = self.diff_cursor_line(version, line);
+                        let cursor_line = if cursor_line > count {
+                            cursor_line - count
+                        } else {
+                            0
+                        };
+                        (
+                            self.diff_actual_line(version, cursor_line),
+                            config.editor.font_size,
+                        )
+                    }
+                    EditorView::Normal => {
+                        (line.saturating_sub(count), config.editor.font_size)
+                    }
                 };
 
                 let horiz = horiz.cloned().unwrap_or_else(|| {
                     ColPosition::Col(
-                        self.point_of_offset(text, offset, font_size, config).x,
+                        self.line_point_of_offset(text, offset, font_size, config).x,
                     )
                 });
                 let col = self.line_horiz_col(
@@ -1853,11 +2196,58 @@ impl Document {
                 let last_line = self.buffer.last_line();
                 let line = self.buffer.line_of_offset(offset);
 
-                let line = (line + count).min(last_line);
+                let (line, font_size) = match view {
+                    EditorView::Lens => {
+                        if let Some(syntax) = self.syntax() {
+                            let lens = &syntax.lens;
+                            let line = if count == 1 {
+                                let mut line = (line + 1).min(last_line);
+                                loop {
+                                    if line == last_line {
+                                        break;
+                                    }
+
+                                    let line_height = lens.height_of_line(line + 1)
+                                        - lens.height_of_line(line);
+                                    if line_height == config.editor.line_height {
+                                        break;
+                                    }
+                                    line += 1;
+                                }
+                                line
+                            } else {
+                                line + count
+                            };
+                            let line_height = lens.height_of_line(line + 1)
+                                - lens.height_of_line(line);
+                            let font_size =
+                                if line_height == config.editor.line_height {
+                                    config.editor.font_size
+                                } else {
+                                    config.editor.code_lens_font_size
+                                };
+
+                            (line, font_size)
+                        } else {
+                            (line + count, config.editor.font_size)
+                        }
+                    }
+                    EditorView::Diff(version) => {
+                        let cursor_line = self.diff_cursor_line(version, line);
+                        let cursor_line = cursor_line + count;
+                        (
+                            self.diff_actual_line(version, cursor_line),
+                            config.editor.font_size,
+                        )
+                    }
+                    EditorView::Normal => (line + count, config.editor.font_size),
+                };
+
+                let line = line.min(last_line);
 
                 let horiz = horiz.cloned().unwrap_or_else(|| {
                     ColPosition::Col(
-                        self.point_of_offset(text, offset, font_size, config).x,
+                        self.line_point_of_offset(text, offset, font_size, config).x,
                     )
                 });
                 let col = self.line_horiz_col(
@@ -1914,9 +2304,26 @@ impl Document {
                     LinePosition::First => 0,
                     LinePosition::Last => self.buffer.last_line(),
                 };
+                let font_size = if let EditorView::Lens = view {
+                    if let Some(syntax) = self.syntax() {
+                        let lens = &syntax.lens;
+                        let line_height = lens.height_of_line(line + 1)
+                            - lens.height_of_line(line);
+
+                        if line_height == config.editor.line_height {
+                            config.editor.font_size
+                        } else {
+                            config.editor.code_lens_font_size
+                        }
+                    } else {
+                        config.editor.font_size
+                    }
+                } else {
+                    config.editor.font_size
+                };
                 let horiz = horiz.cloned().unwrap_or_else(|| {
                     ColPosition::Col(
-                        self.point_of_offset(text, offset, font_size, config).x,
+                        self.line_point_of_offset(text, offset, font_size, config).x,
                     )
                 });
                 let col = self.line_horiz_col(
