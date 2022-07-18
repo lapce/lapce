@@ -795,6 +795,34 @@ impl LapceEditor {
         Self::paint_text(ctx, data, &screen_lines, env);
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
+
+        if let Some(placeholder) = self.placeholder.as_ref() {
+            if data.doc.buffer().is_empty() {
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(placeholder.to_string())
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(
+                        0.0,
+                        (data.config.editor.line_height as f64
+                            - text_layout.size().height)
+                            / 2.0,
+                    ),
+                );
+            }
+        }
     }
 
     fn paint_text(
@@ -918,6 +946,9 @@ impl LapceEditor {
         data: &LapceEditorBufferData,
         screen_lines: &ScreenLines,
     ) {
+        if data.editor.content.is_input() {
+            return;
+        }
         let self_size = ctx.size();
         match &data.editor.cursor.mode {
             CursorMode::Normal(offset) => {
