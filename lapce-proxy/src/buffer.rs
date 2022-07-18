@@ -1,13 +1,12 @@
 use anyhow::{anyhow, Result};
 use lapce_rpc::buffer::BufferId;
+use lsp_types::*;
 use std::ffi::OsString;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::{borrow::Cow, path::Path, time::SystemTime};
-
-use lsp_types::*;
 use xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 
 #[derive(Clone)]
@@ -80,13 +79,13 @@ impl Buffer {
         self.rev += 1;
         let content_change = get_document_content_changes(delta, self);
         self.rope = delta.apply(&self.rope);
-        Some(content_change.unwrap_or_else(|| {
-            TextDocumentContentChangeEvent {
+        Some(
+            content_change.unwrap_or_else(|| TextDocumentContentChangeEvent {
                 range: None,
                 range_length: None,
                 text: self.get_document(),
-            }
-        }))
+            }),
+        )
     }
 
     pub fn get_document(&self) -> String {
