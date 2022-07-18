@@ -41,6 +41,7 @@ use lapce_core::command::{
 };
 use lapce_core::mode::{Mode, MotionMode};
 pub use lapce_core::syntax::Syntax;
+use lsp_types::request::GotoTypeDefinitionResponse;
 use lsp_types::CodeActionOrCommand;
 use lsp_types::CompletionTextEdit;
 use lsp_types::DocumentChangeOperation;
@@ -1661,6 +1662,61 @@ impl LapceEditorBufferData {
                                             Target::Auto,
                                         );
                                     }
+                                }
+                            }
+                        }
+                    }),
+                );
+            }
+            GotoTypeDefinition => {
+                let offset = self.editor.cursor.offset();
+                let event_sink = ctx.get_external_handle();
+                let buffer_id = self.doc.id();
+                let position = self.doc.buffer().offset_to_position(offset);
+                let editor_view_id = self.editor.view_id;
+                self.proxy.get_type_definition(
+                    offset,
+                    buffer_id,
+                    position,
+                    Box::new(move |result| {
+                        if let Ok(res) = result {
+                            if let Ok(resp) = serde_json::from_value::<
+                                GotoTypeDefinitionResponse,
+                            >(res)
+                            {
+                                match resp {
+                                    GotoTypeDefinitionResponse::Scalar(location) => {
+                                        let _ = event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::GotoDefinition(
+                                                editor_view_id,
+                                                offset,
+                                                EditorLocation {
+                                                    path: path_from_url(
+                                                        &location.uri,
+                                                    ),
+                                                    position: Some(
+                                                        location.range.start,
+                                                    ),
+                                                    scroll_offset: None,
+                                                    history: None,
+                                                },
+                                            ),
+                                            Target::Auto,
+                                        );
+                                    }
+                                    GotoTypeDefinitionResponse::Array(locations) => {
+                                        let _ = event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::PaletteReferences(
+                                                offset, locations,
+                                            ),
+                                            Target::Auto,
+                                        );
+                                    }
+                                    GotoTypeDefinitionResponse::Link(
+                                        _location_links,
+                                    ) => {}
                                 }
                             }
                         }

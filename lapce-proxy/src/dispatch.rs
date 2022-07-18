@@ -520,6 +520,17 @@ impl Dispatcher {
                     .lock()
                     .get_definition(id, request_id, buffer, position);
             }
+            GetTypeDefinition {
+                request_id,
+                buffer_id,
+                position,
+            } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp
+                    .lock()
+                    .get_type_definition(id, request_id, buffer, position);
+            }
             GetInlayHints { buffer_id } => {
                 let buffers = self.buffers.lock();
                 let buffer = buffers.get(&buffer_id).unwrap();
