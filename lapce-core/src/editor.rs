@@ -19,18 +19,30 @@ use crate::{
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EditType {
-    Other,
     InsertChars,
-    InsertNewline,
     Delete,
+    DeleteSelection,
+    InsertNewline,
+    Cut,
+    Paste,
+    Indent,
+    Outdent,
+    ToggleComment,
+    MoveLine,
+    Completion,
+    DeleteWord,
+    DeleteToBeginningOfLine,
+    MotionDelete,
     Undo,
     Redo,
+    Other,
 }
 
 impl EditType {
     /// Checks whether a new undo group should be created between two edits.
     pub fn breaks_undo_group(self, previous: EditType) -> bool {
-        self == EditType::Other || self != previous
+        !((self == EditType::InsertChars || self == EditType::Delete)
+            && self == previous)
     }
 }
 
@@ -356,7 +368,7 @@ impl Editor {
                 );
                 let selection = Selection::region(start, end);
                 let (delta, inval_lines) =
-                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                    buffer.edit(&[(&selection, "")], EditType::MotionDelete);
                 cursor.apply_delta(&delta);
                 deltas.push((delta, inval_lines));
             }
@@ -407,8 +419,8 @@ impl Editor {
                     }
                 };
                 let after = cursor.is_insert() || !data.content.contains('\n');
-                let (delta, inval_lines) = buffer
-                    .edit(&[(&selection, &data.content)], EditType::InsertChars);
+                let (delta, inval_lines) =
+                    buffer.edit(&[(&selection, &data.content)], EditType::Paste);
                 let selection =
                     selection.apply_delta(&delta, after, InsertDrift::Default);
                 deltas.push((delta, inval_lines));
@@ -459,7 +471,7 @@ impl Editor {
                     }
                 };
                 let (delta, inval_lines) =
-                    buffer.edit(&[(&selection, &content)], EditType::InsertChars);
+                    buffer.edit(&[(&selection, &content)], EditType::Paste);
                 let selection = selection.apply_delta(
                     &delta,
                     cursor.is_insert(),
@@ -519,7 +531,7 @@ impl Editor {
             }
         }
 
-        buffer.edit(&edits, EditType::InsertChars)
+        buffer.edit(&edits, EditType::Indent)
     }
 
     fn do_outdent(
@@ -557,7 +569,7 @@ impl Editor {
             }
         }
 
-        buffer.edit(&edits, EditType::Delete)
+        buffer.edit(&edits, EditType::Outdent)
     }
 
     pub fn do_edit<T: Clipboard>(
@@ -595,7 +607,7 @@ impl Editor {
                                         &content,
                                     ),
                                 ],
-                                EditType::InsertChars,
+                                EditType::MoveLine,
                             );
                             deltas.push((delta, inval_lines));
                             region.start -= previous_line_len;
@@ -631,7 +643,7 @@ impl Editor {
                                     ),
                                     (&Selection::region(start, end), ""),
                                 ],
-                                EditType::InsertChars,
+                                EditType::MoveLine,
                             );
                             deltas.push((delta, inval_lines));
                             region.start += next_line_len;
@@ -773,7 +785,7 @@ impl Editor {
                             None,
                         ))
                     }
-                    buffer.edit(&[(&selection, "")], EditType::Delete)
+                    buffer.edit(&[(&selection, "")], EditType::ToggleComment)
                 } else {
                     let mut selection = Selection::new();
                     for (line, _, _) in lines.iter() {
@@ -782,7 +794,7 @@ impl Editor {
                     }
                     buffer.edit(
                         &[(&selection, &format!("{comment_token} "))],
-                        EditType::InsertChars,
+                        EditType::ToggleComment,
                     )
                 };
                 cursor.apply_delta(&delta);
@@ -868,7 +880,7 @@ impl Editor {
                     };
 
                 let (delta, inval_lines) =
-                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                    buffer.edit(&[(&selection, "")], EditType::Cut);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
@@ -928,13 +940,21 @@ impl Editor {
                 Self::insert_new_line(buffer, cursor, Selection::caret(offset))
             }
             DeleteBackward => {
-                let selection = match cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-                        cursor.edit_selection(buffer)
+                let (selection, edit_type) = match cursor.mode {
+                    CursorMode::Normal(_) => {
+                        (cursor.edit_selection(buffer), EditType::Delete)
+                    }
+                    CursorMode::Visual { .. } => {
+                        (cursor.edit_selection(buffer), EditType::DeleteSelection)
                     }
                     CursorMode::Insert(_) => {
-                        let indent = buffer.indent_unit();
                         let selection = cursor.edit_selection(buffer);
+                        let edit_type = if selection.is_caret() {
+                            EditType::Delete
+                        } else {
+                            EditType::DeleteSelection
+                        };
+                        let indent = buffer.indent_unit();
                         let mut new_selection = Selection::new();
                         for region in selection.regions() {
                             let new_region = if region.is_caret() {
@@ -1005,23 +1025,31 @@ impl Editor {
                                 }
                             }
                         }
-                        selection
+                        (selection, edit_type)
                     }
                 };
                 let (delta, inval_lines) =
-                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                    buffer.edit(&[(&selection, "")], edit_type);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
                 vec![(delta, inval_lines)]
             }
             DeleteForward => {
-                let selection = match cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-                        cursor.edit_selection(buffer)
+                let (selection, edit_type) = match cursor.mode {
+                    CursorMode::Normal(_) => {
+                        (cursor.edit_selection(buffer), EditType::Delete)
+                    }
+                    CursorMode::Visual { .. } => {
+                        (cursor.edit_selection(buffer), EditType::DeleteSelection)
                     }
                     CursorMode::Insert(_) => {
                         let selection = cursor.edit_selection(buffer);
+                        let edit_type = if selection.is_caret() {
+                            EditType::Delete
+                        } else {
+                            EditType::DeleteSelection
+                        };
                         let mut new_selection = Selection::new();
                         for region in selection.regions() {
                             let new_region = if region.is_caret() {
@@ -1033,11 +1061,11 @@ impl Editor {
                             };
                             new_selection.add_region(new_region);
                         }
-                        new_selection
+                        (new_selection, edit_type)
                     }
                 };
                 let (delta, inval_lines) =
-                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                    buffer.edit(&[(&selection, "")], edit_type);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
@@ -1062,7 +1090,7 @@ impl Editor {
                     }
                 };
                 let (delta, inval_lines) =
-                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                    buffer.edit(&[(&selection, "")], EditType::DeleteWord);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
@@ -1087,7 +1115,7 @@ impl Editor {
                     }
                 };
                 let (delta, inval_lines) =
-                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                    buffer.edit(&[(&selection, "")], EditType::DeleteWord);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
@@ -1112,8 +1140,8 @@ impl Editor {
                         new_selection
                     }
                 };
-                let (delta, inval_lines) =
-                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                let (delta, inval_lines) = buffer
+                    .edit(&[(&selection, "")], EditType::DeleteToBeginningOfLine);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);

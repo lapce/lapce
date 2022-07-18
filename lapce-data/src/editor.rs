@@ -39,7 +39,10 @@ use lapce_core::buffer::{DiffLines, InvalLines};
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
 };
+use lapce_core::editor::EditType;
 use lapce_core::mode::{Mode, MotionMode};
+use lapce_core::selection::InsertDrift;
+use lapce_core::selection::Selection;
 pub use lapce_core::syntax::Syntax;
 use lsp_types::request::GotoTypeDefinitionResponse;
 use lsp_types::CodeActionOrCommand;
@@ -324,12 +327,12 @@ impl LapceEditorBufferData {
                                         &additional_edit[..],
                                     ]
                                     .concat(),
-                                    lapce_core::editor::EditType::InsertChars,
+                                    EditType::Completion,
                                 );
                             let selection = selection.apply_delta(
                                 &delta,
                                 true,
-                                lapce_core::selection::InsertDrift::Default,
+                                InsertDrift::Default,
                             );
                             Arc::make_mut(&mut self.editor)
                                 .cursor
@@ -347,12 +350,12 @@ impl LapceEditorBufferData {
                                         &additional_edit[..],
                                     ]
                                     .concat(),
-                                    lapce_core::editor::EditType::InsertChars,
+                                    EditType::Completion,
                                 );
                             let selection = selection.apply_delta(
                                 &delta,
                                 true,
-                                lapce_core::selection::InsertDrift::Default,
+                                InsertDrift::Default,
                             );
 
                             let mut transformer = Transformer::new(&delta);
@@ -393,8 +396,7 @@ impl LapceEditorBufferData {
         let offset = self.editor.cursor.offset();
         let start_offset = self.doc.buffer().prev_code_boundary(offset);
         let end_offset = self.doc.buffer().next_code_boundary(offset);
-        let selection =
-            lapce_core::selection::Selection::region(start_offset, end_offset);
+        let selection = Selection::region(start_offset, end_offset);
 
         let (delta, inval_lines) = Arc::make_mut(&mut self.doc).do_raw_edit(
             &[
@@ -405,13 +407,9 @@ impl LapceEditorBufferData {
                 &additional_edit[..],
             ]
             .concat(),
-            lapce_core::editor::EditType::InsertChars,
+            EditType::Completion,
         );
-        let selection = selection.apply_delta(
-            &delta,
-            true,
-            lapce_core::selection::InsertDrift::Default,
-        );
+        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
         Arc::make_mut(&mut self.editor)
             .cursor
             .update_selection(self.doc.buffer(), selection);

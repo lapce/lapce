@@ -172,6 +172,15 @@ impl Selection {
         self.regions.len()
     }
 
+    pub fn is_caret(&self) -> bool {
+        for region in self.regions.iter() {
+            if !region.is_caret() {
+                return false;
+            }
+        }
+        true
+    }
+
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
