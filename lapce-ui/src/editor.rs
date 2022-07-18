@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::time::Duration;
 use std::{iter::Iterator, sync::Arc};
 
-use druid::TimerToken;
 use druid::{
     kurbo::{BezPath, Line},
     piet::{PietText, PietTextLayout, Text, TextLayout as _, TextLayoutBuilder},
@@ -10,6 +9,7 @@ use druid::{
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point,
     Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
 };
+use druid::{Modifiers, TimerToken};
 use lapce_core::buffer::DiffLines;
 use lapce_core::command::EditCommand;
 use lapce_core::{
@@ -62,6 +62,7 @@ pub struct LapceEditor {
     placeholder: Option<String>,
 
     mouse_pos: Point,
+    mouse_mods: Modifiers,
     /// A timer for listening for when the user has hovered for long enough to trigger showing
     /// of hover info (if there is any)
     mouse_hover_timer: TimerToken,
@@ -75,6 +76,7 @@ impl LapceEditor {
             editor_id,
             placeholder: None,
             mouse_pos: Point::ZERO,
+            mouse_mods: Modifiers::empty(),
             mouse_hover_timer: TimerToken::INVALID,
             drag_timer: TimerToken::INVALID,
         }
@@ -158,6 +160,7 @@ impl LapceEditor {
         &mut self,
         ctx: &mut EventCtx,
         mouse_pos: Point,
+        mods: Modifiers,
         editor_data: &mut LapceEditorBufferData,
         config: &Config,
     ) {
@@ -180,7 +183,7 @@ impl LapceEditor {
                 config,
             );
             let editor = Arc::make_mut(&mut editor_data.editor);
-            editor.cursor.set_offset(new_offset, true, false);
+            editor.cursor.set_offset(new_offset, true, mods.alt());
             return;
         }
 
@@ -1706,15 +1709,18 @@ impl Widget<LapceTabData> for LapceEditor {
                 self.mouse_move(
                     ctx,
                     mouse_event.pos,
+                    mouse_event.mods,
                     &mut editor_data,
                     &data.config,
                 );
                 data.update_from_editor_buffer_data(editor_data, &editor, &doc);
             }
             Event::MouseUp(_mouse_event) => {
+                self.mouse_mods = Modifiers::empty();
                 ctx.set_active(false);
             }
             Event::MouseDown(mouse_event) => {
+                self.mouse_mods = mouse_event.mods;
                 let doc = data.main_split.editor_doc(self.view_id);
                 let editor =
                     data.main_split.editors.get(&self.view_id).unwrap().clone();
@@ -1745,6 +1751,7 @@ impl Widget<LapceTabData> for LapceEditor {
                     self.mouse_move(
                         ctx,
                         self.mouse_pos,
+                        self.mouse_mods,
                         &mut editor_data,
                         &data.config,
                     );
