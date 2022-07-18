@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    collections::HashMap,
     rc::Rc,
     sync::{atomic, Arc},
 };
@@ -81,16 +82,33 @@ impl DocumentHistory {
         line: usize,
         config: &Config,
     ) -> Arc<TextLayoutLine> {
+        let font_size = 0;
         self.text_layouts.borrow_mut().check_attributes(config.id);
-        if self.text_layouts.borrow().layouts.get(&line).is_none() {
+        if self.text_layouts.borrow().layouts.get(&font_size).is_none() {
+            let mut cache = self.text_layouts.borrow_mut();
+            cache.layouts.insert(font_size, HashMap::new());
+        }
+        if self
+            .text_layouts
+            .borrow()
+            .layouts
+            .get(&font_size)
+            .unwrap()
+            .get(&line)
+            .is_none()
+        {
             self.text_layouts
                 .borrow_mut()
                 .layouts
+                .get_mut(&font_size)
+                .unwrap()
                 .insert(line, Arc::new(self.new_text_layout(text, line, config)));
         }
         self.text_layouts
             .borrow()
             .layouts
+            .get(&font_size)
+            .unwrap()
             .get(&line)
             .cloned()
             .unwrap()

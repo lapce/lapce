@@ -569,7 +569,7 @@ impl LapceEditor {
     fn code_lens_lines(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
-        env: &Env,
+        _env: &Env,
     ) -> ScreenLines {
         let empty_lens = Syntax::lens_from_normal_lines(
             data.doc.buffer().len(),
@@ -584,6 +584,7 @@ impl LapceEditor {
         };
 
         let normal_font_size = data.config.editor.font_size;
+        let small_font_size = data.config.editor.code_lens_font_size;
 
         let rect = ctx.region().bounding_box();
         let last_line = data.doc.buffer().line_of_offset(data.doc.buffer().len());
@@ -597,22 +598,16 @@ impl LapceEditor {
         let mut lines_iter =
             data.doc.buffer().text().lines(start_offset..end_offset);
 
-        data.doc.clear_text_layout_cache();
-
         let mut y = lens.height_of_line(start_line) as f64;
         let mut lines = Vec::new();
         let mut info = HashMap::new();
         for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {
             if let Some(line_content) = lines_iter.next() {
                 let is_small = line_height < data.config.editor.line_height;
-                let text_layout = data.doc.get_text_layout(
-                    ctx.text(),
-                    line,
-                    normal_font_size,
-                    &data.config,
-                );
-                let mut col = 0usize;
+                let mut x = 0.0;
+
                 if is_small {
+                    let mut col = 0usize;
                     for ch in line_content.chars() {
                         if ch == ' ' || ch == '\t' {
                             col += 1;
@@ -620,8 +615,33 @@ impl LapceEditor {
                             break;
                         }
                     }
+
+                    let normal_text_layout = data.doc.get_text_layout(
+                        ctx.text(),
+                        line,
+                        normal_font_size,
+                        &data.config,
+                    );
+                    let small_text_layout = data.doc.get_text_layout(
+                        ctx.text(),
+                        line,
+                        small_font_size,
+                        &data.config,
+                    );
+
+                    if col > 0 {
+                        x = normal_text_layout
+                            .text
+                            .hit_test_text_position(col)
+                            .point
+                            .x
+                            - small_text_layout
+                                .text
+                                .hit_test_text_position(col)
+                                .point
+                                .x;
+                    }
                 }
-                let x = text_layout.text.hit_test_text_position(col).point.x;
 
                 let line_height = line_height as f64;
 
@@ -643,7 +663,6 @@ impl LapceEditor {
                 y += line_height;
             }
         }
-        data.doc.clear_text_layout_cache();
         ScreenLines { lines, info }
     }
 

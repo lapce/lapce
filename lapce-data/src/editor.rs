@@ -1686,7 +1686,6 @@ impl LapceEditorBufferData {
                     EditorView::Lens => EditorView::Normal,
                     EditorView::Diff(_) => return CommandExecuted::Yes,
                 };
-                self.doc.clear_text_layout_cache();
             }
             FormatDocument => {
                 if let BufferContent::File(path) = self.doc.content() {

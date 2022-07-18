@@ -83,7 +83,7 @@ pub struct TextLayoutLine {
 #[derive(Clone, Default)]
 pub struct TextLayoutCache {
     config_id: u64,
-    pub layouts: HashMap<usize, Arc<TextLayoutLine>>,
+    pub layouts: HashMap<usize, HashMap<usize, Arc<TextLayoutLine>>>,
     pub max_width: f64,
 }
 
@@ -899,7 +899,7 @@ impl Document {
         self.clear_text_layout_cache();
     }
 
-    pub fn clear_text_layout_cache(&self) {
+    fn clear_text_layout_cache(&self) {
         self.text_layouts.borrow_mut().clear();
     }
 
@@ -1407,7 +1407,19 @@ impl Document {
         config: &Config,
     ) -> Arc<TextLayoutLine> {
         self.text_layouts.borrow_mut().check_attributes(config.id);
-        if self.text_layouts.borrow().layouts.get(&line).is_none() {
+        if self.text_layouts.borrow().layouts.get(&font_size).is_none() {
+            let mut cache = self.text_layouts.borrow_mut();
+            cache.layouts.insert(font_size, HashMap::new());
+        }
+        if self
+            .text_layouts
+            .borrow()
+            .layouts
+            .get(&font_size)
+            .unwrap()
+            .get(&line)
+            .is_none()
+        {
             let mut cache = self.text_layouts.borrow_mut();
             let text_layout =
                 Arc::new(self.new_text_layout(text, line, font_size, config));
@@ -1415,11 +1427,17 @@ impl Document {
             if width > cache.max_width {
                 cache.max_width = width;
             }
-            cache.layouts.insert(line, text_layout);
+            cache
+                .layouts
+                .get_mut(&font_size)
+                .unwrap()
+                .insert(line, text_layout);
         }
         self.text_layouts
             .borrow()
             .layouts
+            .get(&font_size)
+            .unwrap()
             .get(&line)
             .cloned()
             .unwrap()
