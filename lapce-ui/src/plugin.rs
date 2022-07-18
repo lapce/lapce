@@ -20,11 +20,15 @@ enum PluginStatus {
 
 pub struct Plugin {
     line_height: f64,
+    width: f64,
 }
 
 impl Plugin {
     pub fn new() -> Self {
-        Self { line_height: 25.0 }
+        Self {
+            line_height: 25.0,
+            width: 0.0,
+        }
     }
 
     pub fn new_panel(data: &LapceTabData) -> LapcePanel {
@@ -152,7 +156,7 @@ impl Widget<LapceTabData> for Plugin {
         }
         let height = 3.0 * self.line_height * _data.plugins.len() as f64;
         let height = height.max(bc.max().height);
-
+        self.width = bc.max().width;
         Size::new(bc.max().width, height)
     }
 
@@ -211,7 +215,6 @@ impl Widget<LapceTabData> for Plugin {
                         y + (self.line_height - text_layout.size().height) / 2.0,
                     ),
                 );
-
                 let text_layout = ctx
                     .text()
                     .new_text_layout(plugin.description.clone())
@@ -226,14 +229,55 @@ impl Widget<LapceTabData> for Plugin {
                     )
                     .build()
                     .unwrap();
-                ctx.draw_text(
-                    &text_layout,
-                    Point::new(
-                        x,
-                        y + self.line_height
-                            + (self.line_height - text_layout.size().height) / 2.0,
-                    ),
-                );
+                // check if text is longer than plugin panel. If so, add ellipsis after description.
+                if text_layout.layout.width() > (self.width - x - 15.0) as f32 {
+                    let hit_point = text_layout
+                        .hit_test_point(Point::new(self.width - x - 15.0, 0.0));
+                    let description = plugin.description.clone();
+                    let end = description
+                        .char_indices()
+                        .filter(|(i, _)| hit_point.idx.overflowing_sub(*i).0 < 4)
+                        .collect::<Vec<(usize, char)>>();
+                    let end = if end.is_empty() {
+                        description.len()
+                    } else {
+                        end[0].0
+                    };
+                    let description = format!("{}...", (&description[0..end]));
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout(description)
+                        .font(
+                            data.config.ui.font_family(),
+                            data.config.ui.font_size() as f64,
+                        )
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    ctx.draw_text(
+                        &text_layout,
+                        Point::new(
+                            x,
+                            y + self.line_height
+                                + (self.line_height - text_layout.size().height)
+                                    / 2.0,
+                        ),
+                    );
+                } else {
+                    ctx.draw_text(
+                        &text_layout,
+                        Point::new(
+                            x,
+                            y + self.line_height
+                                + (self.line_height - text_layout.size().height)
+                                    / 2.0,
+                        ),
+                    );
+                }
 
                 let text_layout = ctx
                     .text()
