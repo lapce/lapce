@@ -443,7 +443,7 @@ impl LapceEditorView {
         let width = data.config.editor_char_width(text);
         let cursor_x = data
             .doc
-            .point_of_line_col(
+            .line_point_of_line_col(
                 text,
                 line,
                 col,

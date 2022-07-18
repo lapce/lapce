@@ -1478,7 +1478,7 @@ impl Document {
         (self.buffer.offset_of_line_col(line, col), is_inside)
     }
 
-    pub fn point_of_offset(
+    pub fn line_point_of_offset(
         &self,
         text: &mut PietText,
         offset: usize,
@@ -1490,7 +1490,7 @@ impl Document {
         text_layout.text.hit_test_text_position(col).point
     }
 
-    pub fn point_of_line_col(
+    pub fn line_point_of_line_col(
         &self,
         text: &mut PietText,
         line: usize,
@@ -1960,7 +1960,7 @@ impl Document {
 
                 let horiz = horiz.cloned().unwrap_or_else(|| {
                     ColPosition::Col(
-                        self.point_of_offset(text, offset, font_size, config).x,
+                        self.line_point_of_offset(text, offset, font_size, config).x,
                     )
                 });
                 let col = self.line_horiz_col(
@@ -1982,7 +1982,7 @@ impl Document {
 
                 let horiz = horiz.cloned().unwrap_or_else(|| {
                     ColPosition::Col(
-                        self.point_of_offset(text, offset, font_size, config).x,
+                        self.line_point_of_offset(text, offset, font_size, config).x,
                     )
                 });
                 let col = self.line_horiz_col(
@@ -2041,7 +2041,7 @@ impl Document {
                 };
                 let horiz = horiz.cloned().unwrap_or_else(|| {
                     ColPosition::Col(
-                        self.point_of_offset(text, offset, font_size, config).x,
+                        self.line_point_of_offset(text, offset, font_size, config).x,
                     )
                 });
                 let col = self.line_horiz_col(

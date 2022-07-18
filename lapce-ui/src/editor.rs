@@ -1269,7 +1269,7 @@ impl LapceEditor {
 
         let x0 = data
             .doc
-            .point_of_line_col(ctx.text(), line, col, font_size, &data.config)
+            .line_point_of_line_col(ctx.text(), line, col, font_size, &data.config)
             .x;
         if block {
             let (right_offset, _) = data.doc.move_offset(
@@ -1286,7 +1286,7 @@ impl LapceEditor {
             let right_col = phantom_text.col_after(right_col, false);
             let x1 = data
                 .doc
-                .point_of_line_col(
+                .line_point_of_line_col(
                     ctx.text(),
                     line,
                     right_col,
@@ -1304,7 +1304,13 @@ impl LapceEditor {
         } else {
             let x0 = data
                 .doc
-                .point_of_line_col(ctx.text(), line, col, font_size, &data.config)
+                .line_point_of_line_col(
+                    ctx.text(),
+                    line,
+                    col,
+                    font_size,
+                    &data.config,
+                )
                 .x;
             ctx.stroke(
                 Line::new(
@@ -1497,7 +1503,7 @@ impl LapceEditor {
                     let right_col = phantom_text.col_after(right_col, false);
                     let x0 = data
                         .doc
-                        .point_of_line_col(
+                        .line_point_of_line_col(
                             ctx.text(),
                             line,
                             left_col,
@@ -1507,7 +1513,7 @@ impl LapceEditor {
                         .x;
                     let mut x1 = data
                         .doc
-                        .point_of_line_col(
+                        .line_point_of_line_col(
                             ctx.text(),
                             line,
                             right_col,
@@ -1593,7 +1599,7 @@ impl LapceEditor {
 
                         let x0 = data
                             .doc
-                            .point_of_line_col(
+                            .line_point_of_line_col(
                                 ctx.text(),
                                 line,
                                 left_col,
@@ -1603,7 +1609,7 @@ impl LapceEditor {
                             .x;
                         let mut x1 = data
                             .doc
-                            .point_of_line_col(
+                            .line_point_of_line_col(
                                 ctx.text(),
                                 line,
                                 right_col,
@@ -1817,7 +1823,7 @@ impl LapceEditor {
                     if is_focused {
                         let x0 = data
                             .doc
-                            .point_of_offset(
+                            .line_point_of_offset(
                                 ctx.text(),
                                 data.editor.cursor.offset(),
                                 data.config.editor.font_size,
@@ -1836,7 +1842,7 @@ impl LapceEditor {
                         );
                         let x1 = data
                             .doc
-                            .point_of_offset(
+                            .line_point_of_offset(
                                 ctx.text(),
                                 right_offset,
                                 data.config.editor.font_size,
@@ -1889,7 +1895,7 @@ impl LapceEditor {
 
                     let x0 = data
                         .doc
-                        .point_of_line_col(
+                        .line_point_of_line_col(
                             ctx.text(),
                             line,
                             col,
@@ -1912,7 +1918,7 @@ impl LapceEditor {
                     let right_col = inlay_hints.col_after(right_col, false);
                     let x1 = data
                         .doc
-                        .point_of_line_col(
+                        .line_point_of_line_col(
                             ctx.text(),
                             line,
                             right_col,
@@ -1989,7 +1995,7 @@ impl LapceEditor {
 
                     let x0 = data
                         .doc
-                        .point_of_line_col(
+                        .line_point_of_line_col(
                             ctx.text(),
                             line,
                             left_col,
@@ -1999,7 +2005,7 @@ impl LapceEditor {
                         .x;
                     let mut x1 = data
                         .doc
-                        .point_of_line_col(
+                        .line_point_of_line_col(
                             ctx.text(),
                             line,
                             right_col,
@@ -2028,7 +2034,7 @@ impl LapceEditor {
 
                         let x0 = data
                             .doc
-                            .point_of_line_col(
+                            .line_point_of_line_col(
                                 ctx.text(),
                                 line,
                                 col,
@@ -2051,7 +2057,7 @@ impl LapceEditor {
                         let right_col = phantom_text.col_after(right_col, false);
                         let x1 = data
                             .doc
-                            .point_of_line_col(
+                            .line_point_of_line_col(
                                 ctx.text(),
                                 line,
                                 right_col,
@@ -2131,7 +2137,7 @@ impl LapceEditor {
                             if !line_content.is_empty() {
                                 let x0 = data
                                     .doc
-                                    .point_of_line_col(
+                                    .line_point_of_line_col(
                                         ctx.text(),
                                         line,
                                         left_col,
@@ -2141,7 +2147,7 @@ impl LapceEditor {
                                     .x;
                                 let x1 = data
                                     .doc
-                                    .point_of_line_col(
+                                    .line_point_of_line_col(
                                         ctx.text(),
                                         line,
                                         right_col,
@@ -2175,7 +2181,7 @@ impl LapceEditor {
 
                         let x = data
                             .doc
-                            .point_of_line_col(
+                            .line_point_of_line_col(
                                 ctx.text(),
                                 line,
                                 col,
@@ -2361,7 +2367,7 @@ impl LapceEditor {
 
                     let x0 = data
                         .doc
-                        .point_of_line_col(
+                        .line_point_of_line_col(
                             ctx.text(),
                             line,
                             left_col,
@@ -2371,7 +2377,7 @@ impl LapceEditor {
                         .x;
                     let x1 = data
                         .doc
-                        .point_of_line_col(
+                        .line_point_of_line_col(
                             ctx.text(),
                             line,
                             right_col,
@@ -2736,7 +2742,7 @@ impl Widget<LapceTabData> for LapceEditor {
 
                                 let x = editor_data
                                     .doc
-                                    .point_of_line_col(
+                                    .line_point_of_line_col(
                                         ctx.text(),
                                         line,
                                         col,

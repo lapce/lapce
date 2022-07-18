@@ -888,7 +888,7 @@ impl LapceTabData {
                 let doc = self.main_split.editor_doc(editor.view_id);
                 let offset = self.hover.offset;
                 let (line, col) = doc.buffer().offset_to_line_col(offset);
-                let point = doc.point_of_line_col(
+                let point = doc.line_point_of_line_col(
                     text,
                     line,
                     col,
