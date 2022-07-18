@@ -288,9 +288,7 @@ impl LapceEditor {
             MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
-                    kind: CommandKind::Workbench(
-                        LapceWorkbenchCommand::PaletteCommand,
-                    ),
+                    kind: CommandKind::Focus(FocusCommand::GotoTypeDefinition),
                     data: None,
                 },
             }),
@@ -313,6 +311,16 @@ impl LapceEditor {
                 desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Edit(EditCommand::ClipboardPaste),
+                    data: None,
+                },
+            }),
+            MenuKind::Separator,
+            MenuKind::Item(MenuItem {
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::PaletteCommand,
+                    ),
                     data: None,
                 },
             }),
