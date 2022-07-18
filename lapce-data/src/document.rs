@@ -48,7 +48,7 @@ use xi_rope::{
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    data::EditorDiagnostic,
+    data::{EditorDiagnostic, EditorView},
     editor::EditorLocation,
     find::{Find, FindProgress},
     history::DocumentHistory,
@@ -1363,28 +1363,131 @@ impl Document {
         text_layout.text.hit_test_text_position(col).point
     }
 
+    pub fn line_col_of_point(
+        &self,
+        text: &mut PietText,
+        mode: Mode,
+        point: Point,
+        view: &EditorView,
+        config: &Config,
+    ) -> ((usize, usize), bool) {
+        let (line, font_size) = match view {
+            EditorView::Diff(version) => {
+                if let Some(history) = self.get_history(version) {
+                    let line_height = config.editor.line_height;
+                    let mut line = 0;
+                    let mut lines = 0;
+                    for change in history.changes().iter() {
+                        match change {
+                            DiffLines::Left(l) => {
+                                lines += l.len();
+                                if (lines * line_height) as f64 > point.y {
+                                    break;
+                                }
+                            }
+                            DiffLines::Skip(_l, r) => {
+                                lines += 1;
+                                if (lines * line_height) as f64 > point.y {
+                                    break;
+                                }
+                                line += r.len();
+                            }
+                            DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                                lines += r.len();
+                                if (lines * line_height) as f64 > point.y {
+                                    line += ((point.y
+                                        - ((lines - r.len()) * line_height) as f64)
+                                        / line_height as f64)
+                                        .floor()
+                                        as usize;
+                                    break;
+                                }
+                                line += r.len();
+                            }
+                        }
+                    }
+                    (line, config.editor.font_size)
+                } else {
+                    (0, config.editor.font_size)
+                }
+            }
+            EditorView::Lens => {
+                if let Some(syntax) = self.syntax() {
+                    let lens = &syntax.lens;
+                    let line = lens.line_of_height(point.y.round() as usize);
+                    let line_height =
+                        lens.height_of_line(line + 1) - lens.height_of_line(line);
+                    let font_size = if line_height < config.editor.line_height {
+                        config.editor.code_lens_font_size
+                    } else {
+                        config.editor.font_size
+                    };
+                    (line, font_size)
+                } else {
+                    (
+                        (point.y / config.editor.line_height as f64).floor()
+                            as usize,
+                        config.editor.font_size,
+                    )
+                }
+            }
+            EditorView::Normal => (
+                (point.y / config.editor.line_height as f64).floor() as usize,
+                config.editor.font_size,
+            ),
+        };
+
+        let line = line.min(self.buffer.last_line());
+
+        let mut x_shift = 0.0;
+        if font_size < config.editor.font_size {
+            let line_content = self.buffer.line_content(line);
+            let mut col = 0usize;
+            for ch in line_content.chars() {
+                if ch == ' ' || ch == '\t' {
+                    col += 1;
+                } else {
+                    break;
+                }
+            }
+
+            if col > 0 {
+                let normal_text_layout = self.get_text_layout(
+                    text,
+                    line,
+                    config.editor.font_size,
+                    config,
+                );
+                let small_text_layout =
+                    self.get_text_layout(text, line, font_size, config);
+                x_shift =
+                    normal_text_layout.text.hit_test_text_position(col).point.x
+                        - small_text_layout.text.hit_test_text_position(col).point.x;
+            }
+        }
+
+        let text_layout = self.get_text_layout(text, line, font_size, config);
+        let hit_point = text_layout
+            .text
+            .hit_test_point(Point::new(point.x - x_shift, 0.0));
+        let phantom_text = self.line_phantom_text(config, line);
+        let col = phantom_text.before_col(hit_point.idx);
+        let max_col = self.buffer.line_end_col(line, mode != Mode::Normal);
+        let col = col.min(max_col);
+        ((line, col), hit_point.is_inside)
+    }
+
     pub fn offset_of_point(
         &self,
         text: &mut PietText,
         mode: Mode,
         point: Point,
-        font_size: usize,
+        view: &EditorView,
         config: &Config,
     ) -> (usize, bool) {
-        let last_line = self.buffer.last_line();
-        let line = ((point.y / config.editor.line_height as f64).floor() as usize)
-            .min(last_line);
-
-        let phantom_text = self.line_phantom_text(config, line);
-
-        let text_layout = self.get_text_layout(text, line, font_size, config);
-        let hit_point = text_layout.text.hit_test_point(Point::new(point.x, 0.0));
-        let col = phantom_text.before_col(hit_point.idx);
-        let max_col = self.buffer.line_end_col(line, mode != Mode::Normal);
-        (
-            self.buffer.offset_of_line_col(line, col.min(max_col)),
-            hit_point.is_inside,
-        )
+        let ((line, col), is_inside) =
+            self.line_col_of_point(text, mode, point, view, config);
+        (self.buffer.offset_of_line_col(line, col), is_inside)
     }
 
     pub fn point_of_offset(

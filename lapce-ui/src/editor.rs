@@ -177,7 +177,7 @@ impl LapceEditor {
                 ctx.text(),
                 editor_data.get_mode(),
                 mouse_pos,
-                config.editor.font_size,
+                &editor_data.editor.view,
                 config,
             );
             let editor = Arc::make_mut(&mut editor_data.editor);
@@ -189,7 +189,7 @@ impl LapceEditor {
             ctx.text(),
             Mode::Insert,
             mouse_pos,
-            config.editor.font_size,
+            &editor_data.editor.view,
             config,
         );
         let within_scroll = self.mouse_within_scroll(editor_data, mouse_pos);
@@ -265,7 +265,7 @@ impl LapceEditor {
             ctx.text(),
             editor_data.get_mode(),
             mouse_event.pos,
-            config.editor.font_size,
+            &editor_data.editor.view,
             config,
         );
 
@@ -2676,7 +2676,7 @@ impl Widget<LapceTabData> for LapceEditor {
                         ctx.text(),
                         editor.cursor.get_mode(),
                         self.mouse_pos,
-                        data.config.editor.font_size,
+                        &editor.view,
                         &data.config,
                     );
                     editor_data.update_hover(ctx, offset);

@@ -941,7 +941,7 @@ impl LapceEditorBufferData {
             ctx.text(),
             self.get_mode(),
             mouse_event.pos,
-            config.editor.font_size,
+            &self.editor.view,
             config,
         );
         let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
@@ -986,7 +986,7 @@ impl LapceEditorBufferData {
             ctx.text(),
             self.get_mode(),
             mouse_event.pos,
-            config.editor.font_size,
+            &self.editor.view,
             config,
         );
         let (start, end) = self.doc.buffer().select_word(mouse_offset);
@@ -1010,7 +1010,7 @@ impl LapceEditorBufferData {
             ctx.text(),
             self.get_mode(),
             mouse_event.pos,
-            config.editor.font_size,
+            &self.editor.view,
             config,
         );
         let line = self.doc.buffer().line_of_offset(mouse_offset);
