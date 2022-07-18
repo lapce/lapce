@@ -869,7 +869,7 @@ impl LapceEditor {
                 1,
                 &Movement::Right,
                 Mode::Insert,
-                data.config.editor.font_size,
+                &data.editor.view,
                 &data.config,
             );
             let (_, right_col) = data.doc.buffer().offset_to_line_col(right_offset);
@@ -1047,7 +1047,7 @@ impl LapceEditor {
                                     1,
                                     &Movement::Right,
                                     Mode::Visual,
-                                    info.font_size,
+                                    &data.editor.view,
                                     &data.config,
                                 );
                                 let (_, end_col) =
@@ -1073,7 +1073,7 @@ impl LapceEditor {
                                         1,
                                         &Movement::Right,
                                         Mode::Visual,
-                                        info.font_size,
+                                        &data.editor.view,
                                         &data.config,
                                     );
                                     let (_, end_col) = data

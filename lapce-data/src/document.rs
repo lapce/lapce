@@ -1091,6 +1091,7 @@ impl Document {
         text: &mut PietText,
         cursor: &mut Cursor,
         cmd: &MultiSelectionCommand,
+        view: &EditorView,
         config: &Config,
     ) {
         use MultiSelectionCommand::*;
@@ -1115,7 +1116,7 @@ impl Document {
                         1,
                         &Movement::Up,
                         Mode::Insert,
-                        config.editor.font_size,
+                        view,
                         config,
                     );
                     if new_offset != offset {
@@ -1136,7 +1137,7 @@ impl Document {
                         1,
                         &Movement::Down,
                         Mode::Insert,
-                        config.editor.font_size,
+                        view,
                         config,
                     );
                     if new_offset != offset {
@@ -1596,6 +1597,55 @@ impl Document {
         )
     }
 
+    fn diff_cursor_line(&self, version: &str, line: usize) -> usize {
+        let mut cursor_line = 0;
+        if let Some(history) = self.get_history(version) {
+            for (_i, change) in history.changes().iter().enumerate() {
+                match change {
+                    DiffLines::Left(_range) => {}
+                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                        if r.contains(&line) {
+                            cursor_line += line - r.start;
+                            break;
+                        }
+                        cursor_line += r.len();
+                    }
+                    DiffLines::Skip(_, r) => {
+                        if r.contains(&line) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        cursor_line
+    }
+
+    fn diff_actual_line(&self, version: &str, cursor_line: usize) -> usize {
+        let mut current_cursor_line = 0;
+        let mut line = 0;
+        if let Some(history) = self.get_history(version) {
+            for (_i, change) in history.changes().iter().enumerate() {
+                match change {
+                    DiffLines::Left(_range) => {}
+                    DiffLines::Skip(_, _r) => {}
+                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                        current_cursor_line += r.len();
+                        if current_cursor_line > cursor_line {
+                            line = r.end - (current_cursor_line - cursor_line);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if current_cursor_line <= cursor_line {
+            self.buffer.last_line()
+        } else {
+            line
+        }
+    }
+
     pub fn line_point_of_offset(
         &self,
         text: &mut PietText,
@@ -1884,7 +1934,7 @@ impl Document {
         modify: bool,
         movement: &Movement,
         mode: Mode,
-        font_size: usize,
+        view: &EditorView,
         config: &Config,
     ) -> SelRegion {
         let (end, horiz) = self.move_offset(
@@ -1894,7 +1944,7 @@ impl Document {
             count,
             movement,
             mode,
-            font_size,
+            view,
             config,
         );
         let start = match modify {
@@ -1912,7 +1962,7 @@ impl Document {
         movement: &Movement,
         count: usize,
         modify: bool,
-        font_size: usize,
+        view: &EditorView,
         register: &mut Register,
         config: &Config,
     ) {
@@ -1925,7 +1975,7 @@ impl Document {
                     count,
                     movement,
                     Mode::Normal,
-                    font_size,
+                    view,
                     config,
                 );
                 if let Some(motion_mode) = cursor.motion_mode.clone() {
@@ -1936,7 +1986,7 @@ impl Document {
                         1,
                         &Movement::Right,
                         Mode::Insert,
-                        font_size,
+                        view,
                         config,
                     );
                     let (start, end) = match movement {
@@ -1976,7 +2026,7 @@ impl Document {
                     count,
                     movement,
                     Mode::Visual,
-                    font_size,
+                    view,
                     config,
                 );
                 cursor.mode = CursorMode::Visual {
@@ -1995,7 +2045,7 @@ impl Document {
                     modify,
                     movement,
                     Mode::Insert,
-                    font_size,
+                    view,
                     config,
                 );
                 cursor.set_insert(selection);
@@ -2013,13 +2063,13 @@ impl Document {
         modify: bool,
         movement: &Movement,
         mode: Mode,
-        font_size: usize,
+        view: &EditorView,
         config: &Config,
     ) -> Selection {
         let mut new_selection = Selection::new();
         for region in selection.regions() {
             new_selection.add_region(self.move_region(
-                text, region, count, modify, movement, mode, font_size, config,
+                text, region, count, modify, movement, mode, view, config,
             ));
         }
         new_selection
@@ -2034,7 +2084,7 @@ impl Document {
         count: usize,
         movement: &Movement,
         mode: Mode,
-        font_size: usize,
+        view: &EditorView,
         config: &Config,
     ) -> (usize, Option<ColPosition>) {
         match movement {
@@ -2069,10 +2119,61 @@ impl Document {
             }
             Movement::Up => {
                 let line = self.buffer.line_of_offset(offset);
-                let line = if line == 0 {
-                    0
-                } else {
-                    line.saturating_sub(count)
+                if line == 0 {
+                    return (offset, horiz.cloned());
+                }
+
+                let (line, font_size) = match view {
+                    EditorView::Lens => {
+                        if let Some(syntax) = self.syntax() {
+                            let lens = &syntax.lens;
+                            let line = if count == 1 {
+                                let mut line = line - 1;
+                                loop {
+                                    if line == 0 {
+                                        break;
+                                    }
+
+                                    let line_height = lens.height_of_line(line + 1)
+                                        - lens.height_of_line(line);
+                                    if line_height == config.editor.line_height {
+                                        break;
+                                    }
+                                    line -= 1;
+                                }
+                                line
+                            } else {
+                                line.saturating_sub(count)
+                            };
+                            let line_height = lens.height_of_line(line + 1)
+                                - lens.height_of_line(line);
+                            let font_size =
+                                if line_height == config.editor.line_height {
+                                    config.editor.font_size
+                                } else {
+                                    config.editor.code_lens_font_size
+                                };
+
+                            (line, font_size)
+                        } else {
+                            (line.saturating_sub(count), config.editor.font_size)
+                        }
+                    }
+                    EditorView::Diff(version) => {
+                        let cursor_line = self.diff_cursor_line(version, line);
+                        let cursor_line = if cursor_line > count {
+                            cursor_line - count
+                        } else {
+                            0
+                        };
+                        (
+                            self.diff_actual_line(version, cursor_line),
+                            config.editor.font_size,
+                        )
+                    }
+                    EditorView::Normal => {
+                        (line.saturating_sub(count), config.editor.font_size)
+                    }
                 };
 
                 let horiz = horiz.cloned().unwrap_or_else(|| {
@@ -2095,7 +2196,54 @@ impl Document {
                 let last_line = self.buffer.last_line();
                 let line = self.buffer.line_of_offset(offset);
 
-                let line = (line + count).min(last_line);
+                let (line, font_size) = match view {
+                    EditorView::Lens => {
+                        if let Some(syntax) = self.syntax() {
+                            let lens = &syntax.lens;
+                            let line = if count == 1 {
+                                let mut line = (line + 1).min(last_line);
+                                loop {
+                                    if line == last_line {
+                                        break;
+                                    }
+
+                                    let line_height = lens.height_of_line(line + 1)
+                                        - lens.height_of_line(line);
+                                    if line_height == config.editor.line_height {
+                                        break;
+                                    }
+                                    line += 1;
+                                }
+                                line
+                            } else {
+                                line + count
+                            };
+                            let line_height = lens.height_of_line(line + 1)
+                                - lens.height_of_line(line);
+                            let font_size =
+                                if line_height == config.editor.line_height {
+                                    config.editor.font_size
+                                } else {
+                                    config.editor.code_lens_font_size
+                                };
+
+                            (line, font_size)
+                        } else {
+                            (line + count, config.editor.font_size)
+                        }
+                    }
+                    EditorView::Diff(version) => {
+                        let cursor_line = self.diff_cursor_line(version, line);
+                        let cursor_line = cursor_line + count;
+                        (
+                            self.diff_actual_line(version, cursor_line),
+                            config.editor.font_size,
+                        )
+                    }
+                    EditorView::Normal => (line + count, config.editor.font_size),
+                };
+
+                let line = line.min(last_line);
 
                 let horiz = horiz.cloned().unwrap_or_else(|| {
                     ColPosition::Col(
@@ -2155,6 +2303,23 @@ impl Document {
                     }
                     LinePosition::First => 0,
                     LinePosition::Last => self.buffer.last_line(),
+                };
+                let font_size = if let EditorView::Lens = view {
+                    if let Some(syntax) = self.syntax() {
+                        let lens = &syntax.lens;
+                        let line_height = lens.height_of_line(line + 1)
+                            - lens.height_of_line(line);
+                        let font_size = if line_height == config.editor.line_height {
+                            config.editor.font_size
+                        } else {
+                            config.editor.code_lens_font_size
+                        };
+                        font_size
+                    } else {
+                        config.editor.font_size
+                    }
+                } else {
+                    config.editor.font_size
                 };
                 let horiz = horiz.cloned().unwrap_or_else(|| {
                     ColPosition::Col(

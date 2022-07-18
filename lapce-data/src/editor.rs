@@ -1105,13 +1105,14 @@ impl LapceEditorBufferData {
 
         let register = Arc::make_mut(&mut self.main_split.register);
         let doc = Arc::make_mut(&mut self.doc);
+        let view = self.editor.view.clone();
         doc.move_cursor(
             ctx.text(),
             &mut Arc::make_mut(&mut self.editor).cursor,
             movement,
             count.unwrap_or(1),
             mods.shift(),
-            self.config.editor.font_size,
+            &view,
             register,
             &self.config,
         );
@@ -1822,9 +1823,10 @@ impl LapceEditorBufferData {
         ctx: &mut EventCtx,
         cmd: &MultiSelectionCommand,
     ) -> CommandExecuted {
+        let view = self.editor.view.clone();
         let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
         self.doc
-            .do_multi_selection(ctx.text(), cursor, cmd, &self.config);
+            .do_multi_selection(ctx.text(), cursor, cmd, &view, &self.config);
         self.cancel_completion();
         CommandExecuted::Yes
     }
