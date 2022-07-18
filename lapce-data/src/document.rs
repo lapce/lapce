@@ -1351,18 +1351,6 @@ impl Document {
         self.line_styles.borrow().get(&line).cloned().unwrap()
     }
 
-    pub fn point_of_line_col(
-        &self,
-        text: &mut PietText,
-        line: usize,
-        col: usize,
-        font_size: usize,
-        config: &Config,
-    ) -> Point {
-        let text_layout = self.get_text_layout(text, line, font_size, config);
-        text_layout.text.hit_test_text_position(col).point
-    }
-
     pub fn line_col_of_point(
         &self,
         text: &mut PietText,
@@ -1498,6 +1486,18 @@ impl Document {
         config: &Config,
     ) -> Point {
         let (line, col) = self.buffer.offset_to_line_col(offset);
+        let text_layout = self.get_text_layout(text, line, font_size, config);
+        text_layout.text.hit_test_text_position(col).point
+    }
+
+    pub fn point_of_line_col(
+        &self,
+        text: &mut PietText,
+        line: usize,
+        col: usize,
+        font_size: usize,
+        config: &Config,
+    ) -> Point {
         let text_layout = self.get_text_layout(text, line, font_size, config);
         text_layout.text.hit_test_text_position(col).point
     }
