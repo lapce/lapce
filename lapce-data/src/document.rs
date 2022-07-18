@@ -2309,12 +2309,12 @@ impl Document {
                         let lens = &syntax.lens;
                         let line_height = lens.height_of_line(line + 1)
                             - lens.height_of_line(line);
-                        let font_size = if line_height == config.editor.line_height {
+
+                        if line_height == config.editor.line_height {
                             config.editor.font_size
                         } else {
                             config.editor.code_lens_font_size
-                        };
-                        font_size
+                        }
                     } else {
                         config.editor.font_size
                     }
