@@ -22,7 +22,7 @@ use lapce_rpc::{
     RequestId,
 };
 use log::error;
-use lsp_types::*;
+use lsp_types::{request::GotoTypeDefinitionParams, *};
 use parking_lot::Mutex;
 use serde_json::{json, to_value, Value};
 
@@ -710,6 +710,57 @@ impl LspCatalog {
         }
     }
 
+    pub fn get_type_definition(
+        &self,
+        id: RequestId,
+        _request_id: usize,
+        buffer: &Buffer,
+        position: Position,
+    ) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            {
+                let state = client.state.lock();
+
+                if !state.is_initialized {
+                    return;
+                }
+
+                let is_enabled = state
+                    .server_capabilities
+                    .as_ref()
+                    .and_then(|cap| cap.type_definition_provider.as_ref())
+                    .map(|prov| {
+                        prov != &TypeDefinitionProviderCapability::Simple(false)
+                    })
+                    .unwrap_or(false);
+
+                if !is_enabled {
+                    return;
+                }
+            }
+
+            let uri = client.get_uri(buffer);
+            client.request_type_definition(
+                uri,
+                position,
+                move |lsp_client, result| {
+                    let mut resp = json!({ "id": id });
+                    match result {
+                        Ok(v) => resp["result"] = v,
+                        Err(e) => {
+                            resp["error"] = json!({
+                                "code": 0,
+                                "message": format!("{}", e),
+                            })
+                        }
+                    }
+
+                    let _ = lsp_client.dispatcher.sender.send(resp);
+                },
+            );
+        }
+    }
+
     pub fn update(
         &self,
         buffer: &Buffer,
@@ -1198,7 +1249,9 @@ impl LspClient {
                 semantic_tokens: Some(SemanticTokensClientCapabilities {
                     ..Default::default()
                 }),
-
+                type_definition: Some(GotoCapability {
+                    ..Default::default()
+                }),
                 ..Default::default()
             }),
             window: Some(WindowClientCapabilities {
@@ -1364,6 +1417,26 @@ impl LspClient {
         };
         let params = Params::from(serde_json::to_value(params).unwrap());
         self.send_request("textDocument/definition", params, Box::new(cb));
+    }
+
+    pub fn request_type_definition<CB>(
+        &self,
+        document_uri: Url,
+        position: Position,
+        cb: CB,
+    ) where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = GotoTypeDefinitionParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: document_uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/typeDefinition", params, Box::new(cb));
     }
 
     pub fn request_completion<CB>(
