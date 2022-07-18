@@ -9,7 +9,7 @@ use tree_sitter::{
     Language, LossyUtf8, Node, Point, Query, QueryCaptures, QueryCursor, QueryError,
     QueryMatch, Range, Tree,
 };
-use xi_rope::{spans::Spans, Rope};
+use xi_rope::{spans::Spans, LinesMetric, Rope};
 
 const CANCELLATION_CHECK_INTERVAL: usize = 100;
 const BUFFER_HTML_RESERVE_CAPACITY: usize = 10 * 1024;
@@ -967,6 +967,12 @@ pub fn line_styles(
     line: usize,
     styles: &Spans<Style>,
 ) -> Vec<LineStyle> {
+    let max_line = text.measure::<LinesMetric>() + 1;
+
+    if line >= max_line {
+        return Vec::new();
+    }
+
     let start_offset = text.offset_of_line(line);
     let end_offset = text.offset_of_line(line + 1);
     let line_styles: Vec<LineStyle> = styles
