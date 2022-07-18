@@ -1478,6 +1478,124 @@ impl Document {
         (self.buffer.offset_of_line_col(line, col), is_inside)
     }
 
+    pub fn points_of_offset(
+        &self,
+        text: &mut PietText,
+        offset: usize,
+        view: &EditorView,
+        config: &Config,
+    ) -> (Point, Point) {
+        let (line, col) = self.buffer.offset_to_line_col(offset);
+        self.points_of_line_col(text, line, col, view, config)
+    }
+
+    pub fn points_of_line_col(
+        &self,
+        text: &mut PietText,
+        line: usize,
+        col: usize,
+        view: &EditorView,
+        config: &Config,
+    ) -> (Point, Point) {
+        let (y, line_height, font_size) = match view {
+            EditorView::Diff(version) => {
+                if let Some(history) = self.get_history(version) {
+                    let line_height = config.editor.line_height;
+                    let mut current_line = 0;
+                    let mut y = 0;
+                    for change in history.changes().iter() {
+                        match change {
+                            DiffLines::Left(l) => {
+                                y += l.len() * line_height;
+                            }
+                            DiffLines::Skip(_l, r) => {
+                                if current_line + r.len() > line {
+                                    break;
+                                }
+                                y += line_height;
+                                current_line += r.len();
+                            }
+                            DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                                if current_line + r.len() > line {
+                                    y += line_height * (line - current_line);
+                                    break;
+                                }
+                                y += r.len() * line_height;
+                                current_line += r.len();
+                            }
+                        }
+                    }
+                    (y, config.editor.line_height, config.editor.font_size)
+                } else {
+                    (0, config.editor.line_height, config.editor.font_size)
+                }
+            }
+            EditorView::Lens => {
+                if let Some(syntax) = self.syntax() {
+                    let lens = &syntax.lens;
+                    let height = lens.height_of_line(line);
+                    let line_height =
+                        lens.height_of_line(line + 1) - lens.height_of_line(line);
+                    let font_size = if line_height < config.editor.line_height {
+                        config.editor.code_lens_font_size
+                    } else {
+                        config.editor.font_size
+                    };
+                    (height, line_height, font_size)
+                } else {
+                    (
+                        config.editor.line_height * line,
+                        config.editor.line_height,
+                        config.editor.font_size,
+                    )
+                }
+            }
+            EditorView::Normal => (
+                config.editor.line_height * line,
+                config.editor.line_height,
+                config.editor.font_size,
+            ),
+        };
+
+        let line = line.min(self.buffer.last_line());
+
+        let mut x_shift = 0.0;
+        if font_size < config.editor.font_size {
+            let line_content = self.buffer.line_content(line);
+            let mut col = 0usize;
+            for ch in line_content.chars() {
+                if ch == ' ' || ch == '\t' {
+                    col += 1;
+                } else {
+                    break;
+                }
+            }
+
+            if col > 0 {
+                let normal_text_layout = self.get_text_layout(
+                    text,
+                    line,
+                    config.editor.font_size,
+                    config,
+                );
+                let small_text_layout =
+                    self.get_text_layout(text, line, font_size, config);
+                x_shift =
+                    normal_text_layout.text.hit_test_text_position(col).point.x
+                        - small_text_layout.text.hit_test_text_position(col).point.x;
+            }
+        }
+
+        let x = self
+            .line_point_of_line_col(text, line, col, font_size, config)
+            .x
+            + x_shift;
+        (
+            Point::new(x, y as f64),
+            Point::new(x, (y + line_height) as f64),
+        )
+    }
+
     pub fn line_point_of_offset(
         &self,
         text: &mut PietText,
@@ -1486,8 +1604,7 @@ impl Document {
         config: &Config,
     ) -> Point {
         let (line, col) = self.buffer.offset_to_line_col(offset);
-        let text_layout = self.get_text_layout(text, line, font_size, config);
-        text_layout.text.hit_test_text_position(col).point
+        self.line_point_of_line_col(text, line, col, font_size, config)
     }
 
     pub fn line_point_of_line_col(

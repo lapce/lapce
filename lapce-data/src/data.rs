@@ -831,13 +831,12 @@ impl LapceTabData {
             BufferContent::File(_) | BufferContent::Scratch(..) => {
                 let doc = self.main_split.editor_doc(editor.view_id);
                 let offset = self.completion.offset;
-                let (line, col) = doc.buffer().offset_to_line_col(offset);
-                let width = config.editor_char_width(text);
-                let x = col as f64 * width - line_height - 5.0;
-                let y = (line + 1) as f64 * line_height;
+                let (point_above, point_below) =
+                    doc.points_of_offset(text, offset, &editor.view, config);
+
                 let mut origin = *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
-                    + Vec2::new(x, y);
+                    + Vec2::new(point_below.x - line_height - 5.0, point_below.y);
                 if origin.y + self.completion.size.height + 1.0 > tab_size.height {
                     let height = self
                         .completion
@@ -846,7 +845,7 @@ impl LapceTabData {
                         .min(self.completion.len() as f64 * line_height);
                     origin.y = editor.window_origin.borrow().y
                         - self.window_origin.borrow().y
-                        + line as f64 * line_height
+                        + point_above.y
                         - height;
                 }
                 if origin.x + self.completion.size.width + 1.0 > tab_size.width {
