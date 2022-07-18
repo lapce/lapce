@@ -50,6 +50,12 @@ There is an community package that can be installed with `pacman`:
 sudo pacman -Syu lapce
 ```
 
+### Fedora
+```bash
+sudo dnf copr enable titaniumtown/lapce
+sudo dnf install lapce
+```
+
 ### Flatpak
 
 Lapce is available as a flatpak [here](https://flathub.org/apps/details/dev.lapce.lapce)
