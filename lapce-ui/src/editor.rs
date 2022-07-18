@@ -342,7 +342,7 @@ impl LapceEditor {
             BufferContent::File(_)
             | BufferContent::Scratch(..)
             | BufferContent::Local(LocalBufferKind::Empty) => {
-                if data.editor.code_lens {
+                if data.editor.is_code_lens() {
                     if let Some(syntax) = data.doc.syntax() {
                         let height =
                             syntax.lens.height_of_line(syntax.lens.len() + 1);
@@ -947,7 +947,7 @@ impl LapceEditor {
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
 
-        if !data.editor.content.is_input() && data.editor.code_lens {
+        if !data.editor.content.is_input() && data.editor.is_code_lens() {
             Self::paint_code_lens_content(data, ctx, is_focused);
         } else if let EditorView::Diff(version) = &data.editor.view {
             if let Some(history) = data.doc.get_history(version) {
@@ -2288,7 +2288,7 @@ impl LapceEditor {
                     let text_layout = data.doc.get_text_layout(
                         ctx.text(),
                         line,
-                        data.config.editor.font_size,
+                        info.font_size,
                         &data.config,
                     );
                     let x0 =
@@ -2297,7 +2297,7 @@ impl LapceEditor {
                         text_layout.text.hit_test_text_position(right_col).point.x;
                     let y0 = info.y;
                     let y1 = info.y + info.line_height;
-                    let rect = Rect::new(x0, y0, x1, y1);
+                    let rect = Rect::new(x0 + info.x, y0, x1 + info.x, y1);
                     if active {
                         ctx.fill(
                             rect,
@@ -2382,7 +2382,8 @@ impl LapceEditor {
                     let y0 = info.y;
                     let y1 = info.y + info.line_height;
                     ctx.stroke(
-                        Rect::new(x0, y0, x1, y1).inflate(1.0, -0.5),
+                        Rect::new(x0 + info.x, y0, x1 + info.x, y1)
+                            .inflate(1.0, -0.5),
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
                         1.0,

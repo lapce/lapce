@@ -880,7 +880,7 @@ impl LapceEditorBufferData {
         pos: Point,
         config: &Config,
     ) -> usize {
-        let (line, char_width) = if self.editor.code_lens {
+        let (line, char_width) = if self.editor.is_code_lens() {
             let (line, font_size) = if let Some(syntax) = self.doc.syntax() {
                 let line = syntax.lens.line_of_height(pos.y.floor() as usize);
                 let line_height = syntax.lens.height_of_line(line + 1)
@@ -1680,7 +1680,6 @@ impl LapceEditorBufferData {
             }
             ToggleCodeLens => {
                 let editor = Arc::make_mut(&mut self.editor);
-                editor.code_lens = !editor.code_lens;
                 editor.view = match editor.view {
                     EditorView::Normal => EditorView::Lens,
                     EditorView::Lens => EditorView::Normal,

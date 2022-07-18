@@ -519,7 +519,7 @@ impl LapceEditorGutter {
                 self.paint_gutter_inline_diff(data, ctx, version);
                 return;
             }
-            if data.editor.code_lens {
+            if data.editor.is_code_lens() {
                 self.paint_gutter_code_lens(data, ctx);
                 return;
             }

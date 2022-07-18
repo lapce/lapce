@@ -3203,7 +3203,7 @@ pub struct SelectionHistory {
     pub selections: im::Vector<Selection>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum EditorView {
     Normal,
     Diff(String),
@@ -3220,7 +3220,6 @@ pub struct LapceEditorData {
     pub content: BufferContent,
     pub view: EditorView,
     pub compare: Option<String>,
-    pub code_lens: bool,
     pub scroll_offset: Vec2,
     pub cursor: Cursor,
     pub last_cursor_instant: Rc<RefCell<Instant>>,
@@ -3266,7 +3265,6 @@ impl LapceEditorData {
             content,
             size: Rc::new(RefCell::new(Size::ZERO)),
             compare: None,
-            code_lens: false,
             window_origin: Rc::new(RefCell::new(Point::ZERO)),
             snippet: None,
             locations: vec![],
@@ -3288,6 +3286,10 @@ impl LapceEditorData {
         new_editor.size = Rc::new(RefCell::new(Size::ZERO));
         new_editor.window_origin = Rc::new(RefCell::new(Point::ZERO));
         new_editor
+    }
+
+    pub fn is_code_lens(&self) -> bool {
+        matches!(self.view, EditorView::Lens)
     }
 
     pub fn add_snippet_placeholders(
