@@ -300,11 +300,8 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                         .to_rect()
                         .with_origin(Point::new(x, gap)),
                     command: Command::new(
-                        LAPCE_COMMAND,
-                        LapceCommand {
-                            kind: CommandKind::Focus(FocusCommand::EditorTabNext),
-                            data: None,
-                        },
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::NextEditorTab,
                         Target::Widget(self.widget_id),
                     ),
                 };
@@ -318,11 +315,8 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                         .to_rect()
                         .with_origin(Point::new(x, gap)),
                     command: Command::new(
-                        LAPCE_COMMAND,
-                        LapceCommand {
-                            kind: CommandKind::Focus(FocusCommand::EditorTabPrvious),
-                            data: None,
-                        },
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::PreviousEditorTab,
                         Target::Widget(self.widget_id),
                     ),
                 };

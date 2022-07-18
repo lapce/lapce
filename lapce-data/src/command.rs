@@ -388,6 +388,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "change_file_language")]
     #[strum(message = "Change current file language")]
     ChangeFileLanguage,
+
+    #[strum(serialize = "next_editor_tab")]
+    #[strum(message = "Next editor tab")]
+    NextEditorTab,
+
+    #[strum(serialize = "previous_editor_tab")]
+    #[strum(message = "Previous editor tab")]
+    PreviousEditorTab,
 }
 
 #[derive(Debug)]
@@ -492,6 +500,8 @@ pub enum LapceUICommand {
     NewTab,
     NextTab,
     PreviousTab,
+    NextEditorTab,
+    PreviousEditorTab,
     FilterItems,
     NewWindow(WindowId),
     ReloadWindow,
