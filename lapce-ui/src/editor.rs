@@ -1860,16 +1860,27 @@ impl Widget<LapceTabData> for LapceEditor {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let is_focused = data.focus == self.view_id;
         let data = data.editor_view_content(self.view_id);
+
+        // TODO: u128 is supported by config-rs since 0.12.0, but also the API changed heavily,
+        // casting blink_interval to u128 for now but can be removed once config-rs is bumped
+        /*
+            is_focus is used in paint_cursor_new to decide whether to draw cursor (and animate it / "blink")
+            cursor will blink based if below conditions are true:
+            - editor is focused
+            - blink_interval is not 0
+            - time since last blink is exact to blink_interval
+        */
         let is_focused = is_focused
-            && (data
-                .editor
-                .last_cursor_instant
-                .borrow()
-                .elapsed()
-                .as_millis()
-                / 500)
-                % 2
-                == 0;
+            && (data.config.editor.blink_interval == 0
+                || (data
+                    .editor
+                    .last_cursor_instant
+                    .borrow()
+                    .elapsed()
+                    .as_millis()
+                    / data.config.editor.blink_interval as u128)
+                    % 2
+                    == 0);
         self.paint_content(&data, ctx, is_focused, env);
     }
 }

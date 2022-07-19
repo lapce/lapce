@@ -10,7 +10,8 @@ RUN apk add --no-cache doas cargo rust-src freetype-dev \
     gtk+3.0-dev libgit2-dev libssh2-dev libxcb-dev \
     libxfixes-dev libxkbcommon-dev openssl-dev python3 \
     vulkan-loader-dev wayland-dev curl wget alpine-sdk \
-    zsh fish bash less coreutils util-linux
+    zsh fish bash less coreutils util-linux rustfmt \
+    rust-clippy rust-analyzer rust-doc rust-wasm
 
 RUN echo "permit nopass :wheel" > /etc/doas.d/doas.conf
 

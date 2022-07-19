@@ -22,6 +22,7 @@ enable-error-lens = true
 error-lens-end-of-line = true
 error-lens-font-family = ""
 error-lens-font-size = 0
+blink-interval = 500 # ms
 
 [terminal]
 font-family = ""
