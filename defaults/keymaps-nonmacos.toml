@@ -173,10 +173,6 @@ command = "split_close"
 key = "ctrl+\\"
 command = "split_vertical"
 
-[[keymaps]]
-key = "ctrl+tab"
-command = "next_editor_tab"
-
 # --------------------------------- Rich Language Editing ----------------------------
 
 [[keymaps]]

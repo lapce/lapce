@@ -178,10 +178,6 @@ command = "close_folder"
 key = "meta+\\"
 command = "split_vertical"
 
-[[keymaps]]
-key = "meta+tab"
-command = "next_editor_tab"
-
 # --------------------------------- Rich Language Editing ----------------------------
 
 [[keymaps]]

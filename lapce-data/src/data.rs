@@ -1367,7 +1367,7 @@ impl LapceTabData {
                 if let Some(active) = *self.main_split.active_tab {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::NextEditorTab,
+                        LapceUICommand::PreviousEditorTab,
                         Target::Widget(active),
                     ));
                 }
