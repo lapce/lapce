@@ -1276,6 +1276,17 @@ impl LspClient {
                 configuration: Some(true),
                 ..Default::default()
             }),
+
+            // TODO: GeneralClientCapabilities is getting a position encoding option
+            // as the standardized version of this, but it is not yet in lsp-types
+            // (and probably not as supported due to how new it is?)
+
+            // Inform the LSP that we would prefer utf8 encoding if possible
+            // Though, of course, we have to support utf16
+            // We could also inform that we support utf32 (there's technically some perf on the table there if
+            //   we do utf32 -> utf8 rather than utf32 -> utf16 -> utf8) but that is uncommon and is not even
+            // an option in the upcoming standardized version of this field.
+            offset_encoding: Some(vec!["utf-8".to_string(), "utf-16".to_string()]),
             experimental: Some(json!({
                 "serverStatusNotification": true,
             })),
