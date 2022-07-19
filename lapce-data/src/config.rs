@@ -199,6 +199,10 @@ pub struct EditorConfig {
         desc = "Set the error lens font size. If 0 it uses the inlay hint font size."
     )]
     pub error_lens_font_size: usize,
+    #[field_names(
+        desc = "Set the cursor blink interval (in milliseconds). Set to 0 to completely disable."
+    )]
+    pub blink_interval: u64, // TODO: change to u128 when upgrading config-rs to >0.11
 }
 
 impl EditorConfig {
