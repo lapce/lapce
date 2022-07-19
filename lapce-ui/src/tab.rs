@@ -510,7 +510,8 @@ impl LapceTab {
                         &data
                             .config
                             .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                            .clone(),
+                            .clone()
+                            .with_alpha(0.8),
                     );
 
                     let width = 13.0;
@@ -559,7 +560,8 @@ impl LapceTab {
                         &data
                             .config
                             .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                            .clone(),
+                            .clone()
+                            .with_alpha(0.8),
                     );
                     let svg = get_svg(kind.svg_name()).unwrap();
                     ctx.draw_svg(
@@ -1962,6 +1964,7 @@ impl Widget<LapceTabData> for LapceTab {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.main_split.paint(ctx, data, env);
+        ctx.incr_alpha_depth();
         if data
             .panel
             .is_container_shown(&PanelContainerPosition::Bottom)
@@ -2046,8 +2049,10 @@ impl Widget<LapceTabData> for LapceTab {
         self.palette.paint(ctx, data, env);
         self.picker.paint(ctx, data, env);
         self.settings.paint(ctx, data, env);
+        ctx.incr_alpha_depth();
         self.paint_drag_on_panel(ctx, data);
         self.paint_drag(ctx, data);
+        ctx.incr_alpha_depth();
         self.alert.paint(ctx, data, env);
     }
 }

@@ -96,7 +96,7 @@ magenta = "#A626A4"
 "editor.current_line" = "#F2F2F2"
 "editor.link" = "$cyan"
 
-"inlay_hint.foreground" = "#000000"
+"inlay_hint.foreground" = "$black"
 "inlay_hint.background" = "#528bFF55"
 
 "error_lens.error.foreground" = "$red"

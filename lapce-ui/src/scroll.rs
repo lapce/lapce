@@ -526,19 +526,23 @@ impl ScrollComponent {
         let _radius = env.get(theme::SCROLLBAR_RADIUS);
         let edge_width = env.get(theme::SCROLLBAR_EDGE_WIDTH);
 
-        // Vertical bar
-        if let Some(bounds) = self.calc_vertical_bar_bounds(port, config, env) {
-            let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
-            ctx.render_ctx.fill(rect, &brush);
-            ctx.render_ctx.stroke(rect, &border_brush, edge_width);
-        }
+        ctx.with_save(|ctx| {
+            ctx.incr_alpha_depth();
+            // Vertical bar
+            if let Some(bounds) = self.calc_vertical_bar_bounds(port, config, env) {
+                let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
+                ctx.render_ctx.fill(rect, &brush);
+                ctx.render_ctx.stroke(rect, &border_brush, edge_width);
+            }
 
-        // Horizontal bar
-        if let Some(bounds) = self.calc_horizontal_bar_bounds(port, config, env) {
-            let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
-            ctx.render_ctx.fill(rect, &brush);
-            ctx.render_ctx.stroke(rect, &border_brush, edge_width);
-        }
+            // Horizontal bar
+            if let Some(bounds) = self.calc_horizontal_bar_bounds(port, config, env)
+            {
+                let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
+                ctx.render_ctx.fill(rect, &brush);
+                ctx.render_ctx.stroke(rect, &border_brush, edge_width);
+            }
+        })
     }
 
     /// Tests if the specified point overlaps the vertical scrollbar
