@@ -843,19 +843,22 @@ impl LspClient {
     fn handle_stderr(&self, stderr: ChildStderr, language_id: String) {
         thread::spawn(move || {
             let mut reader = Box::new(BufReader::new(stderr));
-            loop {
-                let mut buffer = String::new();
+            let mut buffer = String::new();
 
-                loop {
-                    buffer.clear();
-                    if reader.read_line(&mut buffer).is_err() {
-                        return;
+            loop {
+                buffer.clear();
+                match reader.read_line(&mut buffer) {
+                    Ok(bytes) => {
+                        if bytes == 0 {
+                            return;
+                        }
                     }
-                    if buffer.trim().is_empty() {
-                        continue;
-                    }
-                    error!("[LSP::{}] {}", language_id, buffer.trim())
+                    Err(_) => return,
                 }
+                if buffer.trim().is_empty() {
+                    continue;
+                }
+                error!("[LSP::{}] {}", language_id, buffer.trim())
             }
         });
     }
