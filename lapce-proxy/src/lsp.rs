@@ -895,6 +895,7 @@ impl LspClient {
     fn stop(&self) {
         self.active.store(false, Ordering::Release);
         let _ = self.state.lock().process.kill();
+        let _ = self.state.lock().process.wait();
     }
 
     pub fn get_uri(&self, buffer: &Buffer) -> Url {
