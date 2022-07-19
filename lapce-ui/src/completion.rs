@@ -3,18 +3,21 @@ use std::{cmp::Ordering, fmt::Display, sync::Arc};
 use anyhow::Error;
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, FontWeight,
-    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetId, WidgetPod,
+    theme, ArcStr, BoxConstraints, Command, Data, Env, Event, EventCtx,
+    FontDescriptor, FontFamily, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx,
+    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx,
+    Widget, WidgetId, WidgetPod,
 };
 use itertools::Itertools;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     completion::{CompletionData, CompletionStatus, ScoredCompletionItem},
-    config::LapceTheme,
+    config::{Config, LapceTheme},
     data::LapceTabData,
+    markdown::parse_markdown,
+    rich_text::{RichText, RichTextBuilder},
 };
-use lsp_types::CompletionItem;
+use lsp_types::{CompletionItem, Documentation, MarkupKind};
 use regex::Regex;
 use std::str::FromStr;
 
@@ -182,7 +185,12 @@ pub struct CompletionContainer {
         LapceTabData,
         LapceIdentityWrapper<LapceScroll<LapceTabData, Completion>>,
     >,
-    content_size: Size,
+    completion_content_size: Size,
+    documentation: WidgetPod<
+        LapceTabData,
+        LapceIdentityWrapper<LapceScroll<LapceTabData, CompletionDocumentation>>,
+    >,
+    documentation_content_size: Size,
 }
 
 impl CompletionContainer {
@@ -191,11 +199,17 @@ impl CompletionContainer {
             LapceScroll::new(Completion::new()).vertical(),
             data.scroll_id,
         );
+        let completion_doc = LapceIdentityWrapper::wrap(
+            LapceScroll::new(CompletionDocumentation::new()).vertical(),
+            data.documentation_scroll_id,
+        );
         Self {
             id: data.id,
             completion: WidgetPod::new(completion),
             scroll_id: data.scroll_id,
-            content_size: Size::ZERO,
+            completion_content_size: Size::ZERO,
+            documentation: WidgetPod::new(completion_doc),
+            documentation_content_size: Size::ZERO,
         }
     }
 
@@ -225,6 +239,38 @@ impl CompletionContainer {
                 Target::Widget(self.scroll_id),
             ));
         }
+    }
+
+    fn update_documentation(&mut self, data: &LapceTabData) {
+        let documentation = if data.config.editor.completion_show_documentation {
+            let current_item = (!data.completion.is_empty())
+                .then(|| data.completion.current_item());
+
+            current_item.and_then(|item| item.documentation.as_ref())
+        } else {
+            None
+        };
+
+        let text = if let Some(documentation) = documentation {
+            parse_documentation(documentation, &data.config)
+        } else {
+            // There is no documentation so we clear the text
+            RichText::new(ArcStr::from(""))
+        };
+
+        let doc = self.documentation.widget_mut().inner_mut().child_mut();
+
+        doc.doc_layout.set_text(text);
+
+        let font = FontDescriptor::new(data.config.ui.hover_font_family())
+            .with_size(data.config.ui.hover_font_size() as f64);
+        let text_color = data
+            .config
+            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+            .clone();
+
+        doc.doc_layout.set_font(font);
+        doc.doc_layout.set_text_color(text_color);
     }
 }
 
@@ -264,6 +310,7 @@ impl Widget<LapceTabData> for CompletionContainer {
             _ => {}
         }
         self.completion.event(ctx, event, data, env);
+        self.documentation.event(ctx, event, data, env);
     }
 
     fn lifecycle(
@@ -274,6 +321,7 @@ impl Widget<LapceTabData> for CompletionContainer {
         env: &Env,
     ) {
         self.completion.lifecycle(ctx, event, data, env);
+        self.documentation.lifecycle(ctx, event, data, env);
     }
 
     fn update(
@@ -316,6 +364,7 @@ impl Widget<LapceTabData> for CompletionContainer {
                 .filtered_items
                 .same(&data.completion.filtered_items)
         {
+            self.update_documentation(data);
             ctx.request_layout();
         }
 
@@ -332,7 +381,19 @@ impl Widget<LapceTabData> for CompletionContainer {
 
         if old_completion.index != completion.index {
             self.ensure_item_visible(ctx, data, env);
+            self.update_documentation(data);
             ctx.request_paint();
+        }
+
+        if self
+            .documentation
+            .widget_mut()
+            .inner_mut()
+            .child_mut()
+            .doc_layout
+            .needs_rebuild_after_update(ctx)
+        {
+            ctx.request_layout();
         }
     }
 
@@ -343,19 +404,36 @@ impl Widget<LapceTabData> for CompletionContainer {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let size = data.completion.size;
-        let bc = BoxConstraints::new(Size::ZERO, size);
-        self.content_size = self.completion.layout(ctx, &bc, data, env);
+        let completion_size = data.completion.size;
+        let bc = BoxConstraints::new(Size::ZERO, completion_size);
+        self.completion_content_size = self.completion.layout(ctx, &bc, data, env);
         self.completion.set_origin(ctx, data, env, Point::ZERO);
+
+        // Position the documentation over the current completion item to the right
+        let documentation_size = data.completion.documentation_size;
+        let bc = BoxConstraints::new(Size::ZERO, documentation_size);
+        self.documentation_content_size =
+            self.documentation.layout(ctx, &bc, data, env);
+        self.documentation.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new(self.completion_content_size.width, 0.0),
+        );
+
         ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
-        size
+
+        Size::new(
+            completion_size.width + documentation_size.width,
+            completion_size.height.max(documentation_size.height),
+        )
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         if data.completion.status != CompletionStatus::Inactive
             && data.completion.len() > 0
         {
-            let rect = self.content_size.to_rect();
+            let rect = self.completion_content_size.to_rect();
             let shadow_width = data.config.ui.drop_shadow_width() as f64;
             if shadow_width > 0.0 {
                 ctx.blurred_rect(
@@ -372,6 +450,7 @@ impl Widget<LapceTabData> for CompletionContainer {
                 );
             }
             self.completion.paint(ctx, data, env);
+            self.documentation.paint(ctx, data, env);
         }
     }
 }
@@ -525,6 +604,127 @@ impl Widget<LapceTabData> for Completion {
             let text_layout = text_layout.build().unwrap();
             ctx.draw_text(&text_layout, point);
         }
+    }
+}
+
+struct CompletionDocumentation {
+    doc_layout: TextLayout<RichText>,
+}
+impl CompletionDocumentation {
+    const STARTING_Y: f64 = 5.0;
+    const STARTING_X: f64 = 10.0;
+
+    fn new() -> CompletionDocumentation {
+        Self {
+            doc_layout: {
+                let mut layout = TextLayout::new();
+                layout.set_text(RichText::new(ArcStr::from("")));
+                layout
+            },
+        }
+    }
+
+    fn has_text(&self) -> bool {
+        self.doc_layout
+            .text()
+            .map(|text| !text.is_empty())
+            .unwrap_or(false)
+    }
+}
+impl Widget<LapceTabData> for CompletionDocumentation {
+    fn event(
+        &mut self,
+        _ctx: &mut EventCtx,
+        _event: &Event,
+        _data: &mut LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+        // This is managed by the completion container
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        _data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        let width = bc.max().width;
+        let max_width = width
+            - CompletionDocumentation::STARTING_X
+            - env.get(theme::SCROLLBAR_WIDTH)
+            - env.get(theme::SCROLLBAR_PAD);
+
+        self.doc_layout.set_wrap_width(max_width);
+        self.doc_layout.rebuild_if_needed(ctx.text(), env);
+
+        let text_metrics = self.doc_layout.layout_metrics();
+        ctx.set_baseline_offset(
+            text_metrics.size.height - text_metrics.first_baseline,
+        );
+
+        Size::new(
+            width,
+            text_metrics.size.height + CompletionDocumentation::STARTING_Y * 2.0,
+        )
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+        if data.completion.status == CompletionStatus::Inactive || !self.has_text() {
+            return;
+        }
+
+        let rect = ctx.region().bounding_box();
+
+        // Draw the background
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::HOVER_BACKGROUND),
+        );
+
+        let origin = Point::new(Self::STARTING_X, Self::STARTING_Y);
+
+        self.doc_layout.draw(ctx, origin);
+    }
+}
+
+fn parse_documentation(doc: &Documentation, config: &Config) -> RichText {
+    match doc {
+        // We assume this is plain text
+        Documentation::String(text) => {
+            let mut builder = RichTextBuilder::new();
+            builder.set_line_height(1.5);
+            builder.push(text);
+            builder.build()
+        }
+        Documentation::MarkupContent(content) => match content.kind {
+            MarkupKind::PlainText => {
+                let mut builder = RichTextBuilder::new();
+                builder.set_line_height(1.5);
+                builder.push(&content.value);
+                builder.build()
+            }
+            MarkupKind::Markdown => parse_markdown(&content.value, config),
+        },
     }
 }
 
