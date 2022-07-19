@@ -69,6 +69,16 @@ key = "alt+I"
 command = "insert_cursor_end_of_line"
 mode = "i"
 
+# ----------------------------------- Editor Management -------------------------------
+
+[[keymaps]]
+key = "ctrl+tab"
+command = "next_editor_tab"
+
+[[keymaps]]
+key = "ctrl+shift+tab"
+command = "previous_editor_tab"
+
 # --------------------------------- Rich Language Editing ----------------------------
 
 [[keymaps]]
