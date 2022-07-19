@@ -237,6 +237,7 @@ pub enum CompletionStatus {
 pub struct CompletionData {
     pub id: WidgetId,
     pub scroll_id: WidgetId,
+    pub documentation_scroll_id: WidgetId,
     pub request_id: usize,
     pub status: CompletionStatus,
     pub offset: usize,
@@ -247,7 +248,10 @@ pub struct CompletionData {
     empty: Arc<Vec<ScoredCompletionItem>>,
     pub filtered_items: Arc<Vec<ScoredCompletionItem>>,
     pub matcher: Arc<SkimMatcherV2>,
+    /// The size of the completion list
     pub size: Size,
+    /// The size of the documentation view
+    pub documentation_size: Size,
 }
 
 impl CompletionData {
@@ -255,6 +259,7 @@ impl CompletionData {
         Self {
             id: WidgetId::next(),
             scroll_id: WidgetId::next(),
+            documentation_scroll_id: WidgetId::next(),
             request_id: 0,
             index: 0,
             offset: 0,
@@ -265,6 +270,8 @@ impl CompletionData {
             filtered_items: Arc::new(Vec::new()),
             matcher: Arc::new(SkimMatcherV2::default().ignore_case()),
             size: Size::new(400.0, 300.0),
+            // TODO: Make this configurable
+            documentation_size: Size::new(400.0, 300.0),
             empty: Arc::new(Vec::new()),
         }
     }

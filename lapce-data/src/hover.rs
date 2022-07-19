@@ -1,19 +1,17 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-use druid::{ExtEventSink, FontStyle, FontWeight, Size, Target, WidgetId};
-use lapce_core::syntax::Syntax;
+use druid::{ExtEventSink, Size, Target, WidgetId};
 use lapce_rpc::buffer::BufferId;
 use lsp_types::{Hover, HoverContents, MarkedString, MarkupKind, Position};
-use pulldown_cmark::Tag;
-use xi_rope::Rope;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     data::EditorDiagnostic,
     document::Document,
+    markdown::{from_marked_string, parse_markdown},
     proxy::LapceProxy,
-    rich_text::{AttributesAdder, RichText, RichTextBuilder},
+    rich_text::{RichText, RichTextBuilder},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,7 +123,6 @@ impl HoverData {
         config: Arc<Config>,
     ) {
         let buffer_id = doc.id();
-        let syntax = doc.syntax().cloned();
 
         // Clone config for use inside the proxy callback
         let p_config = config.clone();
@@ -137,8 +134,7 @@ impl HoverData {
             Box::new(move |result| {
                 if let Ok(resp) = result {
                     if let Ok(resp) = serde_json::from_value::<Hover>(resp) {
-                        let items =
-                            parse_hover_resp(syntax.as_ref(), resp, &p_config);
+                        let items = parse_hover_resp(resp, &p_config);
 
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
@@ -240,168 +236,20 @@ impl Default for HoverData {
     }
 }
 
-fn parse_hover_markdown(
-    syntax: Option<&Syntax>,
-    text: &str,
-    config: &Config,
-) -> RichText {
-    use pulldown_cmark::{CowStr, Event, Options, Parser};
-
-    let mut builder = RichTextBuilder::new();
-    builder.set_line_height(1.5);
-
-    // Our position within the text
-    let mut pos = 0;
-
-    // TODO: (minor): This could use a smallvec since most tags are probably not that nested
-    // Stores the current tags (like italics/bold/strikethrough) so that they can be nested
-    let mut tag_stack = Vec::new();
-
-    let mut code_block_indices = Vec::new();
-
-    // Construct the markdown parser. We enable most of the options in order to provide the most
-    // compatibility that pulldown_cmark allows.
-    let parser = Parser::new_ext(
-        text,
-        Options::ENABLE_TABLES
-            | Options::ENABLE_FOOTNOTES
-            | Options::ENABLE_STRIKETHROUGH
-            | Options::ENABLE_TASKLISTS
-            | Options::ENABLE_HEADING_ATTRIBUTES,
-    );
-    let mut last_text = CowStr::from("");
-    for event in parser {
-        match event {
-            Event::Start(tag) => {
-                tag_stack.push((pos, tag));
-            }
-            Event::End(end_tag) => {
-                if let Some((start_offset, tag)) = tag_stack.pop() {
-                    if end_tag != tag {
-                        log::warn!("Mismatched markdown tag");
-                        continue;
-                    }
-
-                    if let Tag::CodeBlock(_kind) = &tag {
-                        code_block_indices.push(start_offset..pos);
-                    }
-
-                    add_attribute_for_tag(
-                        &tag,
-                        builder.add_attributes_for_range(start_offset..pos),
-                        config,
-                    );
-
-                    if let Tag::CodeBlock(_) = &tag {
-                        if let Some(syntax) = syntax {
-                            if let Some(styles) =
-                                syntax.parse(0, Rope::from(&last_text), None).styles
-                            {
-                                for (range, style) in styles.iter() {
-                                    if let Some(color) = style
-                                        .fg_color
-                                        .as_ref()
-                                        .and_then(|fg| config.get_style_color(fg))
-                                    {
-                                        builder
-                                            .add_attributes_for_range(
-                                                start_offset + range.start
-                                                    ..start_offset + range.end,
-                                            )
-                                            .text_color(color.clone());
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if should_add_newline_after_tag(&tag) {
-                        builder.push("\n");
-                        pos += 1;
-                    }
-                } else {
-                    log::warn!("Unbalanced markdown tag")
-                }
-            }
-            Event::Text(text) => {
-                builder.push(&text);
-                pos += text.len();
-                last_text = text;
-            }
-            Event::Code(text) => {
-                builder.push(&text).font_family(config.editor.font_family());
-                code_block_indices.push(pos..(pos + text.len()));
-                pos += text.len();
-            }
-            // TODO: Some minimal 'parsing' of html could be useful here, since some things use
-            // basic html like `<code>text</code>`.
-            Event::Html(text) => {
-                builder
-                    .push(&text)
-                    .font_family(config.editor.font_family())
-                    .text_color(
-                        config
-                            .get_color_unchecked(LapceTheme::MARKDOWN_BLOCKQUOTE)
-                            .clone(),
-                    );
-                pos += text.len();
-            }
-            Event::HardBreak => {
-                builder.push("\n");
-                pos += 1;
-            }
-            Event::SoftBreak => {
-                builder.push(" ");
-                pos += 1;
-            }
-            Event::Rule => {}
-            Event::FootnoteReference(_text) => {}
-            Event::TaskListMarker(_text) => {}
-        }
-    }
-
-    builder.build()
-}
-
-fn from_marked_string(
-    syntax: Option<&Syntax>,
-    text: MarkedString,
-    config: &Config,
-) -> RichText {
-    match text {
-        MarkedString::String(text) => parse_hover_markdown(syntax, &text, config),
-        // This is a short version of a code block
-        MarkedString::LanguageString(code) => {
-            // TODO: We could simply construct the MarkdownText directly
-            // Simply construct the string as if it was written directly
-            parse_hover_markdown(
-                syntax,
-                &format!("```{}\n{}\n```", code.language, code.value),
-                config,
-            )
-        }
-    }
-}
-
-fn parse_hover_resp(
-    syntax: Option<&Syntax>,
-    hover: lsp_types::Hover,
-    config: &Config,
-) -> Vec<RichText> {
+fn parse_hover_resp(hover: lsp_types::Hover, config: &Config) -> Vec<RichText> {
     match hover.contents {
         HoverContents::Scalar(text) => match text {
             MarkedString::String(text) => {
-                vec![parse_hover_markdown(syntax, &text, config)]
+                vec![parse_markdown(&text, config)]
             }
-            MarkedString::LanguageString(code) => vec![parse_hover_markdown(
-                syntax,
+            MarkedString::LanguageString(code) => vec![parse_markdown(
                 &format!("```{}\n{}\n```", code.language, code.value),
                 config,
             )],
         },
         HoverContents::Array(array) => array
             .into_iter()
-            .map(|t| from_marked_string(syntax, t, config))
+            .map(|t| from_marked_string(t, config))
             .collect(),
         HoverContents::Markup(content) => match content.kind {
             MarkupKind::PlainText => {
@@ -411,63 +259,8 @@ fn parse_hover_resp(
                 vec![builder.build()]
             }
             MarkupKind::Markdown => {
-                vec![parse_hover_markdown(syntax, &content.value, config)]
+                vec![parse_markdown(&content.value, config)]
             }
         },
     }
-}
-
-fn add_attribute_for_tag(tag: &Tag, mut attrs: AttributesAdder, config: &Config) {
-    use pulldown_cmark::HeadingLevel;
-    match tag {
-        Tag::Heading(level, _, _) => {
-            // The size calculations are based on the em values given at
-            // https://drafts.csswg.org/css2/#html-stylesheet
-            let font_scale = match level {
-                HeadingLevel::H1 => 2.0,
-                HeadingLevel::H2 => 1.5,
-                HeadingLevel::H3 => 1.17,
-                HeadingLevel::H4 => 1.0,
-                HeadingLevel::H5 => 0.83,
-                HeadingLevel::H6 => 0.75,
-            };
-            let font_size = font_scale * config.ui.font_size() as f64;
-            attrs.size(font_size).weight(FontWeight::BOLD);
-        }
-        Tag::BlockQuote => {
-            attrs.style(FontStyle::Italic).text_color(
-                config
-                    .get_color_unchecked(LapceTheme::MARKDOWN_BLOCKQUOTE)
-                    .clone(),
-            );
-        }
-        // TODO: We could use the language paired with treesitter to highlight the code
-        // within code blocks.
-        Tag::CodeBlock(_) => {
-            attrs.font_family(config.editor.font_family());
-        }
-        Tag::Emphasis => {
-            attrs.style(FontStyle::Italic);
-        }
-        Tag::Strong => {
-            attrs.weight(FontWeight::BOLD);
-        }
-        // TODO: Strikethrough support
-        Tag::Link(_link_type, _target, _title) => {
-            // TODO: Link support
-            attrs.underline(true).text_color(
-                config.get_color_unchecked(LapceTheme::EDITOR_LINK).clone(),
-            );
-        }
-        // All other tags are currently ignored
-        _ => {}
-    }
-}
-
-/// Decides whether newlines should be added after a specific markdown tag
-fn should_add_newline_after_tag(tag: &Tag) -> bool {
-    !matches!(
-        tag,
-        Tag::Emphasis | Tag::Strong | Tag::Strikethrough | Tag::Link(..)
-    )
 }
