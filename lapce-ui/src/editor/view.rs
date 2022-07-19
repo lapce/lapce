@@ -544,14 +544,17 @@ impl Widget<LapceTabData> for LapceEditorView {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 if let LapceUICommand::Focus = command {
+                    let editor_data = data.editor_view_content(self.view_id);
                     if data.config.editor.blink_interval > 0 {
                         self.cursor_blink_timer = ctx.request_timer(
                             Duration::from_millis(data.config.editor.blink_interval),
                             None,
                         );
+                        *editor_data.editor.last_cursor_instant.borrow_mut() =
+                            Instant::now();
+                        ctx.request_paint();
                     }
                     self.request_focus(ctx, data, true);
-                    let editor_data = data.editor_view_content(self.view_id);
                     self.ensure_cursor_visible(
                         ctx,
                         &editor_data,
@@ -776,31 +779,29 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
         }
 
-        if data.config.editor.blink_interval > 0 {
-            if data.focus == self.view_id {
-                let reset = if old_data.focus != self.view_id {
-                    true
-                } else {
-                    let mode = editor_data.editor.cursor.get_mode();
-                    let old_mode = old_editor_data.editor.cursor.get_mode();
-                    let offset = editor_data.editor.cursor.offset();
-                    let old_offset = old_editor_data.editor.cursor.offset();
-                    let (line, col) =
-                        editor_data.doc.buffer().offset_to_line_col(offset);
-                    let (old_line, old_col) =
-                        old_editor_data.doc.buffer().offset_to_line_col(old_offset);
-                    mode != old_mode || line != old_line || col != old_col
-                };
+        if data.config.editor.blink_interval > 0 && data.focus == self.view_id {
+            let reset = if old_data.focus != self.view_id {
+                true
+            } else {
+                let mode = editor_data.editor.cursor.get_mode();
+                let old_mode = old_editor_data.editor.cursor.get_mode();
+                let offset = editor_data.editor.cursor.offset();
+                let old_offset = old_editor_data.editor.cursor.offset();
+                let (line, col) =
+                    editor_data.doc.buffer().offset_to_line_col(offset);
+                let (old_line, old_col) =
+                    old_editor_data.doc.buffer().offset_to_line_col(old_offset);
+                mode != old_mode || line != old_line || col != old_col
+            };
 
-                if reset {
-                    self.cursor_blink_timer = ctx.request_timer(
-                        Duration::from_millis(data.config.editor.blink_interval),
-                        None,
-                    );
-                    *editor_data.editor.last_cursor_instant.borrow_mut() =
-                        Instant::now();
-                    ctx.request_paint();
-                }
+            if reset {
+                self.cursor_blink_timer = ctx.request_timer(
+                    Duration::from_millis(data.config.editor.blink_interval),
+                    None,
+                );
+                *editor_data.editor.last_cursor_instant.borrow_mut() =
+                    Instant::now();
+                ctx.request_paint();
             }
         }
 
