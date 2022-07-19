@@ -848,7 +848,9 @@ impl LspClient {
 
                 loop {
                     buffer.clear();
-                    let _result = reader.read_line(&mut buffer);
+                    if reader.read_line(&mut buffer).is_err() {
+                        return;
+                    }
                     if buffer.trim().is_empty() {
                         continue;
                     }
