@@ -262,7 +262,19 @@ impl LspCatalog {
             }
 
             let uri = client.get_uri(&buffer);
+            let old_buffer = buffer;
+
             client.request_semantic_tokens(uri, move |lsp_client, result| {
+                let buffers = lsp_client.dispatcher.buffers.lock();
+                let buffer = buffers.get(&old_buffer.id).unwrap();
+                // If the revision changed while we were requesting, then we refuse the request as it will have made another one
+                if buffer.rev != old_buffer.rev {
+                    lsp_client
+                        .dispatcher
+                        .respond(id, Err(anyhow!("revision changed")));
+                    return;
+                }
+
                 let lsp_state = lsp_client.state.lock();
                 let semantic_tokens_provider = &lsp_state
                     .server_capabilities
@@ -270,7 +282,7 @@ impl LspCatalog {
                     .unwrap()
                     .semantic_tokens_provider;
                 let result = result.and_then(|value| {
-                    format_semantic_styles(&buffer, semantic_tokens_provider, value)
+                    format_semantic_styles(buffer, semantic_tokens_provider, value)
                         .map(|styles| {
                             serde_json::to_value(SemanticStyles {
                                 rev: buffer.rev,
