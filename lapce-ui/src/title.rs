@@ -356,7 +356,7 @@ impl Widget<LapceTabData> for Title {
             ),
         );
         x += size.height;
-        let text = if let Some(workspace_path) = tab.workspace.path.as_ref() {
+        let text = if let Some(workspace_path) = data.workspace.path.as_ref() {
             workspace_path
                 .file_name()
                 .unwrap_or(workspace_path.as_os_str())
@@ -420,7 +420,7 @@ impl Widget<LapceTabData> for Title {
         let line = Line::new(Point::new(x, 0.0), Point::new(x, size.height));
         ctx.stroke(line, line_color, 1.0);
 
-        if !tab.source_control.branch.is_empty() {
+        if !data.source_control.branch.is_empty() {
             let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
 
             x += 5.0;
@@ -438,8 +438,8 @@ impl Widget<LapceTabData> for Title {
             );
             x += size.height;
 
-            let mut branch = tab.source_control.branch.clone();
-            if !tab.source_control.file_diffs.is_empty() {
+            let mut branch = data.source_control.branch.clone();
+            if !data.source_control.file_diffs.is_empty() {
                 branch += "*";
             }
             let text_layout = ctx
@@ -464,7 +464,7 @@ impl Widget<LapceTabData> for Title {
 
             let command_rect =
                 command_rect.with_size(Size::new(x - command_rect.x0, size.height));
-            let menu_items = tab
+            let menu_items = data
                 .source_control
                 .branches
                 .iter()

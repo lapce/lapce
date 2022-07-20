@@ -13,10 +13,7 @@ use lapce_data::{
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use crate::{
-    tab::{LapceTab, LapceTabHeader},
-    title::Title,
-};
+use crate::tab::{LapceTab, LapceTabHeader};
 
 pub struct LapceWindow {
     // pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
@@ -31,7 +28,6 @@ pub struct LapceWindow {
 
 impl LapceWindow {
     pub fn new(data: &mut LapceWindowData) -> Self {
-        let title = WidgetPod::new(Title::new().boxed());
         let tabs = data
             .tabs_order
             .iter()
