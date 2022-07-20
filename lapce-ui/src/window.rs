@@ -198,6 +198,7 @@ impl Widget<LapceWindowData> for LapceWindow {
             #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::MouseUp(mouse_event) => {
                 if (cfg!(target_os = "macos") || data.config.ui.custom_titlebar())
+                    && data.tabs.len() > 1
                     && mouse_event.count >= 2
                     && self
                         .dragable_area
@@ -441,9 +442,6 @@ impl Widget<LapceWindowData> for LapceWindow {
     ) -> Size {
         let self_size = bc.max();
 
-        // let title_size = self.title.layout(ctx, bc, data, env);
-        // self.title.set_origin(ctx, data, env, Point::ZERO);
-
         let (tab_size, tab_origin) = if self.tabs.len() > 1 {
             let tab_header_height = 36.0;
             let tab_header_padding = 0.0;
@@ -520,11 +518,6 @@ impl Widget<LapceWindowData> for LapceWindow {
                 tab_header.set_origin(ctx, data, env, Point::new(0.0, 0.0));
             }
             let tab_size = self_size;
-
-            let mut region = Region::EMPTY;
-            region.add_rect(Size::new(self_size.width, 36.0).to_rect());
-            // ctx.window().set_dragable_area(region.clone());
-            self.dragable_area = region;
 
             (tab_size, Point::ZERO)
         };

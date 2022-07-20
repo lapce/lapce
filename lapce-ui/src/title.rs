@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
 use crate::{palette::Palette, svg::get_svg};
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use druid::WindowConfig;
 use druid::{
     kurbo::Line,
     piet::{PietText, PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    Widget, WidgetExt, WidgetPod, WindowState,
+    LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, Region, RenderContext, Size,
+    Target, Widget, WidgetExt, WidgetPod, WindowState,
 };
 use lapce_data::{
     command::{
@@ -27,7 +29,9 @@ pub struct Title {
     svgs: Vec<(Svg, Rect, Option<Color>)>,
     text_layouts: Vec<(PietTextLayout, Point)>,
     borders: Vec<Line>,
+    rects: Vec<(Rect, Color)>,
     palette: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    dragable_area: Region,
 }
 
 impl Title {
@@ -39,7 +43,9 @@ impl Title {
             svgs: Vec::new(),
             text_layouts: Vec::new(),
             borders: Vec::new(),
+            rects: Vec::new(),
             palette: WidgetPod::new(palette.boxed()),
+            dragable_area: Region::EMPTY,
         }
     }
 
@@ -49,11 +55,12 @@ impl Title {
         window_state: &WindowState,
         piet_text: &mut PietText,
         size: Size,
-    ) {
+    ) -> Rect {
         self.commands.clear();
         self.svgs.clear();
         self.text_layouts.clear();
         self.borders.clear();
+        self.rects.clear();
 
         #[cfg(not(target_os = "macos"))]
         let mut x = 0.0;
@@ -82,86 +89,53 @@ impl Title {
 
         let padding = 15.0;
         x = self.update_remote(data, piet_text, size, padding, x);
-        self.update_source_control(data, piet_text, size, padding, x);
+        x = self.update_source_control(data, piet_text, size, padding, x);
+
+        let mut region = Region::EMPTY;
+
         if data.palette.status == PaletteStatus::Inactive {
             self.update_folder(data, piet_text, size);
         }
 
-        let x = size.width;
-        self.update_settings(data, window_state, piet_text, size, padding, x);
+        let right_x = size.width;
+        let right_x = self.update_settings(
+            data,
+            window_state,
+            piet_text,
+            size,
+            padding,
+            right_x,
+        );
+
+        if !data.multiple_tab {
+            region.add_rect(
+                Size::new(right_x - x, size.height)
+                    .to_rect()
+                    .with_origin(Point::new(x, 0.0)),
+            );
+        }
+
+        self.dragable_area = region;
+
+        Size::new(right_x - x, size.height)
+            .to_rect()
+            .with_origin(Point::new(x, 0.0))
     }
 
     fn update_remote(
         &mut self,
         data: &LapceTabData,
-        piet_text: &mut PietText,
+        _piet_text: &mut PietText,
         size: Size,
-        padding: f64,
+        _padding: f64,
         x: f64,
     ) -> f64 {
         let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
-        let remote_text = match &data.workspace.kind {
-            LapceWorkspaceType::Local => None,
-            LapceWorkspaceType::RemoteSSH(_, host) => {
-                let text = match *data.proxy_status {
-                    ProxyStatus::Connecting => {
-                        format!("Connecting to SSH: {host} ...")
-                    }
-                    ProxyStatus::Connected => format!("SSH: {host}"),
-                    ProxyStatus::Disconnected => {
-                        format!("Disconnected SSH: {host}")
-                    }
-                };
-                let text_layout = piet_text
-                    .new_text_layout(text)
-                    .font(
-                        data.config.ui.font_family(),
-                        data.config.ui.font_size() as f64,
-                    )
-                    .text_color(
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                            .clone(),
-                    )
-                    .build()
-                    .unwrap();
-                Some(text_layout)
-            }
-            LapceWorkspaceType::RemoteWSL => {
-                let text = match *data.proxy_status {
-                    ProxyStatus::Connecting => "Connecting to WSL ...".to_string(),
-                    ProxyStatus::Connected => "WSL".to_string(),
-                    ProxyStatus::Disconnected => "Disconnected WSL".to_string(),
-                };
-                let text_layout = piet_text
-                    .new_text_layout(text)
-                    .font(
-                        data.config.ui.font_family(),
-                        data.config.ui.font_size() as f64,
-                    )
-                    .text_color(
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                            .clone(),
-                    )
-                    .build()
-                    .unwrap();
-                Some(text_layout)
-            }
-        };
 
-        let remote_rect = Size::new(
-            size.height
-                + 10.0
-                + remote_text
-                    .as_ref()
-                    .map(|t| t.size().width.round() + padding - 5.0)
-                    .unwrap_or(0.0),
-            size.height,
-        )
-        .to_rect()
-        .with_origin(Point::new(x, 0.0));
-        let _color = match &data.workspace.kind {
+        let remote_rect = Size::new(size.height + 10.0, size.height)
+            .to_rect()
+            .with_origin(Point::new(x, 0.0));
+        let color = match &data.workspace.kind {
             LapceWorkspaceType::Local => Color::rgb8(64, 120, 242),
             LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL => {
                 match *data.proxy_status {
@@ -171,7 +145,7 @@ impl Title {
                 }
             }
         };
-        // ctx.fill(remote_rect, &color);
+        self.rects.push((remote_rect, color));
         let remote_svg = get_svg("remote.svg").unwrap();
         self.svgs.push((
             remote_svg,
@@ -185,13 +159,6 @@ impl Title {
                     .clone(),
             ),
         ));
-        if let Some(text_layout) = remote_text {
-            let point = Point::new(
-                x + size.height + 5.0,
-                (size.height - text_layout.size().height) / 2.0,
-            );
-            self.text_layouts.push((text_layout, point));
-        }
         let x = x + remote_rect.width();
         let command_rect =
             command_rect.with_size(Size::new(x - command_rect.x0, size.height));
@@ -331,10 +298,8 @@ impl Title {
                 Point::new(command_rect.x1, command_rect.y0),
                 Point::new(command_rect.x1, command_rect.y1),
             ));
-            self.borders.push(Line::new(
-                Point::new(command_rect.x0, command_rect.y0),
-                Point::new(command_rect.x0, command_rect.y1),
-            ));
+
+            x = command_rect.x1
         }
         x
     }
@@ -349,7 +314,7 @@ impl Title {
         size: Size,
         _padding: f64,
         x: f64,
-    ) {
+    ) -> f64 {
         let mut x = x;
         if cfg!(not(target_os = "windows")) || !data.config.ui.custom_titlebar() {
             x -= size.height;
@@ -558,6 +523,7 @@ impl Title {
                 Command::new(druid::commands::QUIT_APP, (), Target::Global),
             ));
         }
+        x
     }
 
     fn update_folder(
@@ -566,7 +532,7 @@ impl Title {
         piet_text: &mut PietText,
         size: Size,
     ) {
-        let text = if let Some(workspace_path) = data.workspace.path.as_ref() {
+        let path = if let Some(workspace_path) = data.workspace.path.as_ref() {
             workspace_path
                 .file_name()
                 .unwrap_or(workspace_path.as_os_str())
@@ -575,6 +541,14 @@ impl Title {
         } else {
             "Open Folder".to_string()
         };
+        let remote = match &data.workspace.kind {
+            LapceWorkspaceType::Local => "".to_string(),
+            LapceWorkspaceType::RemoteSSH(_, host) => {
+                format!(" (SSH: {host})")
+            }
+            LapceWorkspaceType::RemoteWSL => " (WSL)".to_string(),
+        };
+        let text = format!("{path}{remote}");
         let text_layout = piet_text
             .new_text_layout(text)
             .font(
@@ -593,21 +567,31 @@ impl Title {
         let point = Point::new(x, (size.height - text_layout.size().height) / 2.0);
         self.text_layouts.push((text_layout, point));
 
-        let folder_svg = get_svg("default_folder.svg").unwrap();
         let folder_rect = Size::new(size.height, size.height)
             .to_rect()
             .with_origin(Point::new(x - size.height, 0.0));
+        let (folder_svg, folder_rect) = if data.workspace.path.is_none() {
+            (
+                get_svg("default_folder.svg").unwrap(),
+                folder_rect.inflate(-9.0, -9.0),
+            )
+        } else {
+            (
+                get_svg("search.svg").unwrap(),
+                folder_rect.inflate(-12.0, -12.0),
+            )
+        };
 
         self.svgs.push((
             folder_svg,
-            folder_rect.inflate(-9.0, -9.0),
+            folder_rect,
             Some(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                     .clone(),
             ),
         ));
-        let _menu_items = vec![
+        let menu_items = vec![
             MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
@@ -625,21 +609,32 @@ impl Title {
                 },
             }),
         ];
-        let _command_rect = Size::new(x, size.height).to_rect();
-        // self.commands.push((
-        //     command_rect,
-        //     Command::new(
-        //         LAPCE_UI_COMMAND,
-        //         LapceUICommand::ShowMenu(
-        //             Point::new(
-        //                 command_rect.x0,
-        //                 command_rect.y1 + if data.multiple_tab { 36.0 } else { 0.0 },
-        //             ),
-        //             Arc::new(menu_items),
-        //         ),
-        //         Target::Auto,
-        //     ),
-        // ));
+        let command_rect = Size::new(size.height, size.height)
+            .to_rect()
+            .with_origin(Point::new(x + text_size.width - 8.0, 0.0));
+        self.svgs.push((
+            get_svg("chevron-down.svg").unwrap(),
+            command_rect.inflate(-12.0, -12.0),
+            Some(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            ),
+        ));
+        self.commands.push((
+            command_rect,
+            Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ShowMenu(
+                    Point::new(
+                        x,
+                        size.height + if data.multiple_tab { 36.0 } else { 0.0 },
+                    ),
+                    Arc::new(menu_items),
+                ),
+                Target::Auto,
+            ),
+        ));
     }
 
     fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
@@ -670,16 +665,13 @@ impl Widget<LapceTabData> for Title {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        self.palette.event(ctx, event, data, env);
-        if ctx.is_handled() {
-            return;
-        }
         match event {
             Event::MouseMove(mouse_event) => {
                 self.mouse_pos = mouse_event.pos;
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
                     ctx.request_paint();
+                    ctx.set_handled();
                 } else {
                     ctx.clear_cursor();
                     ctx.request_paint();
@@ -692,8 +684,32 @@ impl Widget<LapceTabData> for Title {
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event);
             }
+            Event::MouseUp(mouse_event) => {
+                if (cfg!(target_os = "macos") || data.config.ui.custom_titlebar())
+                    && !data.multiple_tab
+                    && mouse_event.count >= 2
+                    && self
+                        .dragable_area
+                        .rects()
+                        .iter()
+                        .any(|r| r.contains(mouse_event.pos))
+                {
+                    let state = match ctx.window().get_window_state() {
+                        WindowState::Maximized => WindowState::Restored,
+                        WindowState::Restored => WindowState::Maximized,
+                        WindowState::Minimized => WindowState::Maximized,
+                    };
+                    ctx.set_handled();
+                    ctx.submit_command(
+                        druid::commands::CONFIGURE_WINDOW
+                            .with(WindowConfig::default().set_window_state(state))
+                            .to(Target::Window(data.window_id)),
+                    );
+                }
+            }
             _ => {}
         }
+        self.palette.event(ctx, event, data, env);
     }
 
     fn lifecycle(
@@ -736,25 +752,51 @@ impl Widget<LapceTabData> for Title {
         env: &Env,
     ) -> Size {
         let window_state = ctx.window().get_window_state();
-        self.update_content(
+        let remaining_rect = self.update_content(
             data,
             &window_state,
             ctx.text(),
             Size::new(bc.max().width, 36.0),
         );
 
+        let remaining = bc.max().width
+            - (remaining_rect.x0.max(bc.max().width - remaining_rect.x1)) * 2.0
+            - 80.0;
+
+        let min_palette_width = if data.palette.status == PaletteStatus::Inactive {
+            100.0
+        } else {
+            300.0
+        };
+        let palette_width = remaining.min(500.0).max(min_palette_width);
         let palette_size = self.palette.layout(
             ctx,
-            &BoxConstraints::tight(Size::new(500.0, bc.max().height)),
+            &BoxConstraints::tight(Size::new(palette_width, bc.max().height)),
             data,
             env,
         );
-        self.palette.set_origin(
-            ctx,
-            data,
-            env,
-            Point::new((bc.max().width - palette_size.width) / 2.0, 0.0),
-        );
+        let palette_origin =
+            Point::new((bc.max().width - palette_size.width) / 2.0, 0.0);
+        self.palette.set_origin(ctx, data, env, palette_origin);
+        let palette_rect = self.palette.layout_rect();
+
+        self.dragable_area.clear();
+        if !data.multiple_tab {
+            self.dragable_area.add_rect(Rect::new(
+                remaining_rect.x0,
+                0.0,
+                palette_rect.x0,
+                36.0,
+            ));
+            self.dragable_area.add_rect(Rect::new(
+                palette_rect.x1,
+                0.0,
+                remaining_rect.x1,
+                36.0,
+            ));
+            ctx.window().set_dragable_area(self.dragable_area.clone());
+        }
+
         bc.max()
     }
 
@@ -775,7 +817,13 @@ impl Widget<LapceTabData> for Title {
             1.0,
         );
 
-        self.palette.paint(ctx, data, env);
+        if data.palette.status == PaletteStatus::Inactive {
+            self.palette.paint(ctx, data, env);
+        }
+
+        for (rect, color) in self.rects.iter() {
+            ctx.fill(rect, color);
+        }
 
         for (svg, rect, color) in self.svgs.iter() {
             ctx.draw_svg(svg, *rect, color.as_ref());
@@ -785,19 +833,16 @@ impl Widget<LapceTabData> for Title {
             ctx.draw_text(text_layout, *point);
         }
 
-        for (rect, _) in self.commands.iter() {
-            let line_color =
-                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
-            let line = Line::new(
-                Point::new(rect.x1, rect.y0),
-                Point::new(rect.x1, rect.y1),
+        for line in self.borders.iter() {
+            ctx.stroke(
+                line,
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
             );
-            ctx.stroke(line, line_color, 1.0);
-            let line = Line::new(
-                Point::new(rect.x0, rect.y0),
-                Point::new(rect.x0, rect.y1),
-            );
-            ctx.stroke(line, line_color, 1.0);
+        }
+
+        if data.palette.status != PaletteStatus::Inactive {
+            self.palette.paint(ctx, data, env);
         }
     }
 

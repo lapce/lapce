@@ -24,6 +24,7 @@ use lapce_data::document::{BufferContent, LocalBufferKind};
 use lapce_data::history::DocumentHistory;
 use lapce_data::keypress::KeyPressFocus;
 use lapce_data::menu::MenuKind;
+use lapce_data::palette::PaletteStatus;
 use lapce_data::panel::{PanelData, PanelKind};
 use lapce_data::{
     command::{
@@ -764,6 +765,13 @@ impl LapceEditor {
         is_focused: bool,
         env: &Env,
     ) {
+        if data.editor.content.is_palette()
+            && data.palette.status == PaletteStatus::Inactive
+        {
+            // Don't draw anything if palette is inactive
+            return;
+        }
+
         let font_size = if data.editor.content.is_input() {
             env.get(LapceTheme::INPUT_FONT_SIZE) as usize
         } else {

@@ -15,13 +15,14 @@ use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_data::{
     command::{
         CommandExecuted, CommandKind, EnsureVisiblePosition, LapceCommand,
-        LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
+        LapceUICommand, LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{EditorConfig, LapceTheme},
     data::{EditorTabChild, EditorView, FocusArea, LapceTabData},
     document::{BufferContent, LocalBufferKind},
     editor::LapceEditorBufferData,
     keypress::KeyPressFocus,
+    palette::PaletteStatus,
     panel::{PanelData, PanelKind},
     settings::SettingsValueKind,
 };
@@ -853,6 +854,26 @@ impl Widget<LapceTabData> for LapceEditorView {
                     );
                 });
             }
+        }
+
+        if editor_data.editor.content.is_palette()
+            && data.focus == self.view_id
+            && old_data.focus != self.view_id
+            && data.palette.status == PaletteStatus::Inactive
+        {
+            let cmd = if data.workspace.path.is_none() {
+                LapceWorkbenchCommand::PaletteWorkspace
+            } else {
+                LapceWorkbenchCommand::Palette
+            };
+            ctx.submit_command(Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Workbench(cmd),
+                    data: None,
+                },
+                Target::Auto,
+            ));
         }
 
         if editor_data.editor.content != old_editor_data.editor.content {
