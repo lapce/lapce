@@ -1937,7 +1937,7 @@ impl Widget<LapceTabData> for LapceTab {
                 ctx,
                 data,
                 env,
-                Point::new((self_size.width - palette_size.width) / 2.0, 0.0),
+                Point::new((self_size.width - palette_size.width) / 2.0, -36.0),
             );
         }
 
@@ -2057,6 +2057,11 @@ impl Widget<LapceTabData> for LapceTab {
     }
 }
 
+/// The tab header of window tabs where you can click to focus and
+/// drag to re order them
+///
+/// Each window tab hosts a sperate workspace, which gives you an alternative
+/// way to work with multiple workspaces.
 pub struct LapceTabHeader {
     pub drag_start: Option<(Point, Point)>,
     pub mouse_pos: Point,
@@ -2159,8 +2164,8 @@ impl Widget<LapceTabData> for LapceTabHeader {
         let size = bc.max();
 
         let close_icon_width = size.height;
-        let padding = 4.0;
-        let origin = Point::new(size.width - close_icon_width, padding);
+        let padding = 9.0;
+        let origin = Point::new(size.width - 25.0, padding);
         self.close_icon_rect = Size::new(close_icon_width, close_icon_width)
             .to_rect()
             .inflate(-padding, -padding)

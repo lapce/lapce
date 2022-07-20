@@ -911,6 +911,7 @@ impl Widget<PaletteViewData> for PaletteContent {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, _env: &Env) {
         let rect = ctx.region().bounding_box();
+        println!("paint rect {rect:?}");
         let size = ctx.size();
 
         let items = data.palette.current_items();

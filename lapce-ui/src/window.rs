@@ -2,8 +2,8 @@ use druid::{
     kurbo::Line,
     widget::{LensWrap, WidgetExt},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, Widget, WidgetId,
-    WidgetPod, WindowState,
+    LifeCycleCtx, PaintCtx, Point, Region, RenderContext, Size, Target, Widget,
+    WidgetId, WidgetPod, WindowState,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -19,7 +19,7 @@ use crate::{
 };
 
 pub struct LapceWindow {
-    pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
+    // pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
     pub tabs: Vec<WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>>,
     tab_headers: Vec<
         WidgetPod<
@@ -51,7 +51,7 @@ impl LapceWindow {
             })
             .collect();
         Self {
-            title,
+            // title,
             tabs,
             tab_headers,
         }
@@ -370,7 +370,7 @@ impl Widget<LapceWindowData> for LapceWindow {
         for tab_header in self.tab_headers.iter_mut() {
             tab_header.event(ctx, event, data, env);
         }
-        self.title.event(ctx, event, data, env);
+        // self.title.event(ctx, event, data, env);
     }
 
     fn lifecycle(
@@ -380,7 +380,7 @@ impl Widget<LapceWindowData> for LapceWindow {
         data: &LapceWindowData,
         env: &Env,
     ) {
-        self.title.lifecycle(ctx, event, data, env);
+        // self.title.lifecycle(ctx, event, data, env);
         for tab in self.tabs.iter_mut() {
             tab.lifecycle(ctx, event, data, env);
         }
@@ -396,7 +396,7 @@ impl Widget<LapceWindowData> for LapceWindow {
         data: &LapceWindowData,
         env: &Env,
     ) {
-        self.title.update(ctx, data, env);
+        // self.title.update(ctx, data, env);
 
         if old_data.active != data.active {
             ctx.request_layout();
@@ -420,32 +420,59 @@ impl Widget<LapceWindowData> for LapceWindow {
     ) -> Size {
         let self_size = bc.max();
 
-        let title_size = self.title.layout(ctx, bc, data, env);
-        self.title.set_origin(ctx, data, env, Point::ZERO);
+        // let title_size = self.title.layout(ctx, bc, data, env);
+        // self.title.set_origin(ctx, data, env, Point::ZERO);
 
         let (tab_size, tab_origin) = if self.tabs.len() > 1 {
-            let tab_height = 25.0;
+            let tab_header_height = 36.0;
+            let tab_header_padding = 0.0;
             let tab_size = Size::new(
                 self_size.width,
-                self_size.height - tab_height - title_size.height,
+                self_size.height - tab_header_height - tab_header_padding,
             );
-            let tab_origin = Point::new(0.0, tab_height + title_size.height);
+            let tab_origin = Point::new(0.0, tab_header_height + tab_header_padding);
 
-            let num = self.tabs.len();
-            let section = self_size.width / num as f64;
+            #[cfg(not(target_os = "macos"))]
+            let left_padding = 0.0;
+            #[cfg(target_os = "macos")]
+            let left_padding = 78.0;
 
+            let right_padding = 100.0;
+
+            let total_width = self_size.width - left_padding - right_padding;
+            let width =
+                ((total_width / self.tab_headers.len() as f64).min(200.0)).round();
+
+            let mut x = left_padding;
             let mut drag = None;
+            let bc = BoxConstraints::tight(Size::new(width, tab_header_height));
             for (i, tab_header) in self.tab_headers.iter_mut().enumerate() {
-                let bc = BoxConstraints::tight(Size::new(section, tab_height));
-                tab_header.layout(ctx, &bc, data, env);
-                let mut origin = Point::new(section * i as f64, title_size.height);
+                let size = tab_header.layout(ctx, &bc, data, env);
+                let mut origin = Point::new(x, tab_header_padding);
                 let header = tab_header.widget().child();
                 if let Some(o) = header.origin() {
-                    origin = Point::new(o.x, title_size.height);
+                    origin = Point::new(o.x, tab_header_padding);
                     drag = Some((i, header.mouse_pos));
                 }
                 tab_header.set_origin(ctx, data, env, origin);
+                x += size.width;
             }
+            x += 36.0;
+
+            let mut region = Region::EMPTY;
+            region.add_rect(
+                Size::new(self_size.width - x, 36.0)
+                    .to_rect()
+                    .with_origin(Point::new(x, 0.0)),
+            );
+            if left_padding > 0.0 {
+                region.add_rect(
+                    Size::new(left_padding, 36.0)
+                        .to_rect()
+                        .with_origin(Point::new(0.0, 0.0)),
+                );
+            }
+            ctx.window().set_dragable_area(region);
 
             if let Some((index, mouse_pos)) = drag {
                 for (i, tab_header) in self.tab_headers.iter().enumerate() {
@@ -468,16 +495,15 @@ impl Widget<LapceWindowData> for LapceWindow {
             for (_i, tab_header) in self.tab_headers.iter_mut().enumerate() {
                 let bc = BoxConstraints::tight(Size::new(self_size.width, 0.0));
                 tab_header.layout(ctx, &bc, data, env);
-                tab_header.set_origin(
-                    ctx,
-                    data,
-                    env,
-                    Point::new(0.0, title_size.height),
-                );
+                tab_header.set_origin(ctx, data, env, Point::new(0.0, 0.0));
             }
-            let tab_size =
-                Size::new(self_size.width, self_size.height - title_size.height);
-            (tab_size, Point::new(0.0, title_size.height))
+            let tab_size = self_size;
+
+            let mut region = Region::EMPTY;
+            region.add_rect(Size::new(self_size.width, 36.0).to_rect());
+            ctx.window().set_dragable_area(region);
+
+            (tab_size, Point::ZERO)
         };
 
         let bc = BoxConstraints::tight(tab_size);
@@ -489,76 +515,119 @@ impl Widget<LapceWindowData> for LapceWindow {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {
         let _start = std::time::SystemTime::now();
+        self.tabs[data.active].paint(ctx, data, env);
 
-        let title_height = self.title.layout_rect().height();
+        // let title_height = self.title.layout_rect().height();
 
-        let tab_height = 25.0;
+        let tab_height = 36.0;
         let size = ctx.size();
         if self.tabs.len() > 1 {
+            let rect = Size::new(size.width, tab_height).to_rect();
             ctx.fill(
-                Size::new(size.width, tab_height)
-                    .to_rect()
-                    .with_origin(Point::new(0.0, title_height)),
+                rect,
                 data.config
                     .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
             );
-            for tab_header in self.tab_headers.iter_mut() {
+            for (i, tab_header) in self.tab_headers.iter_mut().enumerate() {
                 tab_header.paint(ctx, data, env);
-            }
-        }
-
-        ctx.with_save(|ctx| {
-            ctx.clip(self.tabs[data.active].layout_rect());
-            self.tabs[data.active].paint(ctx, data, env);
-        });
-
-        let line_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
-        if self.tabs.len() > 1 {
-            let num = self.tabs.len();
-            let section = ctx.size().width / num as f64;
-            for i in 1..num {
-                let line = Line::new(
-                    Point::new(i as f64 * section, title_height),
-                    Point::new(i as f64 * section, title_height + tab_height),
+                let rect = tab_header.layout_rect();
+                if i == 0 {
+                    ctx.stroke(
+                        Line::new(
+                            Point::new(rect.x0, rect.y0 + 8.0),
+                            Point::new(rect.x0, rect.y1 - 8.0),
+                        ),
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                        1.0,
+                    );
+                }
+                ctx.stroke(
+                    Line::new(
+                        Point::new(rect.x1, rect.y0 + 8.0),
+                        Point::new(rect.x1, rect.y1 - 8.0),
+                    ),
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
                 );
-                ctx.stroke(line, line_color, 1.0);
+            }
+            let shadow_width = data.config.ui.drop_shadow_width() as f64;
+            if shadow_width > 0.0 {
+                ctx.blurred_rect(
+                    self.tabs[data.active].layout_rect(),
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            } else {
+                ctx.stroke(
+                    self.tabs[data.active].layout_rect(),
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
             }
 
             let rect = self.tab_headers[data.active].layout_rect();
-            let clip_rect = Size::new(size.width, tab_height)
-                .to_rect()
-                .with_origin(Point::new(0.0, title_height));
-            ctx.with_save(|ctx| {
-                ctx.clip(clip_rect);
-                let shadow_width = data.config.ui.drop_shadow_width() as f64;
-                if shadow_width > 0.0 {
-                    ctx.blurred_rect(
-                        rect,
-                        shadow_width,
-                        data.config
-                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-                    );
-                }
-                ctx.fill(
-                    rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-                );
-            });
-            self.tab_headers[data.active].paint(ctx, data, env);
-
-            let line = Line::new(
-                Point::new(0.0, title_height + tab_height - 0.5),
-                Point::new(size.width, title_height + tab_height - 0.5),
+            ctx.stroke(
+                Line::new(
+                    Point::new(rect.x0, rect.y1 - 2.0),
+                    Point::new(rect.x1, rect.y1 - 2.0),
+                ),
+                data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
+                2.0,
             );
-            ctx.stroke(line, line_color, 1.0);
         }
 
-        self.title.paint(ctx, data, env);
-        let line = Line::new(
-            Point::new(0.0, title_height - 0.5),
-            Point::new(size.width, title_height - 0.5),
-        );
-        ctx.stroke(line, line_color, 1.0);
+        // ctx.with_save(|ctx| {
+        // ctx.clip(self.tabs[data.active].layout_rect());
+        // });
+
+        // let line_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
+        // if self.tabs.len() > 1 {
+        //     let num = self.tabs.len();
+        //     let section = ctx.size().width / num as f64;
+        //     for i in 1..num {
+        //         let line = Line::new(
+        //             Point::new(i as f64 * section, 0.0),
+        //             Point::new(i as f64 * section, tab_height),
+        //         );
+        //         ctx.stroke(line, line_color, 1.0);
+        //     }
+
+        //     let rect = self.tab_headers[data.active].layout_rect();
+        //     let clip_rect = Size::new(size.width, tab_height)
+        //         .to_rect()
+        //         .with_origin(Point::new(0.0, 0.0));
+        //     ctx.with_save(|ctx| {
+        //         ctx.clip(clip_rect);
+        //         let shadow_width = data.config.ui.drop_shadow_width() as f64;
+        //         if shadow_width > 0.0 {
+        //             ctx.blurred_rect(
+        //                 rect,
+        //                 shadow_width,
+        //                 data.config
+        //                     .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+        //             );
+        //         }
+        //         ctx.fill(
+        //             rect,
+        //             data.config
+        //                 .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        //         );
+        //     });
+        //     self.tab_headers[data.active].paint(ctx, data, env);
+
+        //     let line = Line::new(
+        //         Point::new(0.0, tab_height - 0.5),
+        //         Point::new(size.width, tab_height - 0.5),
+        //     );
+        //     ctx.stroke(line, line_color, 1.0);
+        // }
+
+        // self.title.paint(ctx, data, env);
+        // let line = Line::new(
+        //     Point::new(0.0, title_height - 0.5),
+        //     Point::new(size.width, title_height - 0.5),
+        // );
+        // ctx.stroke(line, line_color, 1.0);
     }
 }

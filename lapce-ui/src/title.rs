@@ -16,7 +16,7 @@ use lapce_data::{
         LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
-    data::{LapceWindowData, LapceWorkspaceType},
+    data::{LapceTabData, LapceWorkspaceType},
     menu::{MenuItem, MenuKind},
     proxy::ProxyStatus,
 };
@@ -59,15 +59,15 @@ impl Default for Title {
     }
 }
 
-impl Widget<LapceWindowData> for Title {
+impl Widget<LapceTabData> for Title {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
         #[cfg(any(target_os = "macos", target_os = "windows"))]
-        data: &mut LapceWindowData,
+        data: &mut LapceTabData,
         #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        _data: &mut LapceWindowData,
+        _data: &mut LapceTabData,
         _env: &Env,
     ) {
         match event {
@@ -113,7 +113,7 @@ impl Widget<LapceWindowData> for Title {
         &mut self,
         _ctx: &mut LifeCycleCtx,
         _event: &LifeCycle,
-        _data: &LapceWindowData,
+        _data: &LapceTabData,
         _env: &Env,
     ) {
     }
@@ -122,10 +122,10 @@ impl Widget<LapceWindowData> for Title {
         &mut self,
         #[cfg(target_os = "windows")] ctx: &mut UpdateCtx,
         #[cfg(not(target_os = "windows"))] _ctx: &mut UpdateCtx,
-        #[cfg(target_os = "windows")] old_data: &LapceWindowData,
-        #[cfg(not(target_os = "windows"))] _old_data: &LapceWindowData,
-        #[cfg(target_os = "windows")] data: &LapceWindowData,
-        #[cfg(not(target_os = "windows"))] _data: &LapceWindowData,
+        #[cfg(target_os = "windows")] old_data: &LapceTabData,
+        #[cfg(not(target_os = "windows"))] _old_data: &LapceTabData,
+        #[cfg(target_os = "windows")] data: &LapceTabData,
+        #[cfg(not(target_os = "windows"))] _data: &LapceTabData,
         _env: &Env,
     ) {
         #[cfg(target_os = "windows")]
@@ -145,7 +145,7 @@ impl Widget<LapceWindowData> for Title {
         &mut self,
         _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        _data: &LapceWindowData,
+        _data: &LapceTabData,
         _env: &Env,
     ) -> Size {
         #[cfg(not(target_os = "windows"))]
@@ -159,7 +159,7 @@ impl Widget<LapceWindowData> for Title {
         }
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, _env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let size = ctx.size();
         let rect = size.to_rect();
         ctx.fill(
@@ -173,7 +173,7 @@ impl Widget<LapceWindowData> for Title {
         #[cfg(not(target_os = "macos"))]
         let mut x = 0.0;
         #[cfg(target_os = "macos")]
-        let mut x = 70.0;
+        let mut x = 78.0;
 
         let padding = 15.0;
 
@@ -199,11 +199,10 @@ impl Widget<LapceWindowData> for Title {
         }
 
         let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
-        let tab = data.tabs.get(&data.active_id).unwrap();
-        let remote_text = match &tab.workspace.kind {
+        let remote_text = match &data.workspace.kind {
             LapceWorkspaceType::Local => None,
             LapceWorkspaceType::RemoteSSH(_, host) => {
-                let text = match *tab.proxy_status {
+                let text = match *data.proxy_status {
                     ProxyStatus::Connecting => {
                         format!("Connecting to SSH: {host} ...")
                     }
@@ -229,7 +228,7 @@ impl Widget<LapceWindowData> for Title {
                 Some(text_layout)
             }
             LapceWorkspaceType::RemoteWSL => {
-                let text = match *tab.proxy_status {
+                let text = match *data.proxy_status {
                     ProxyStatus::Connecting => "Connecting to WSL ...".to_string(),
                     ProxyStatus::Connected => "WSL".to_string(),
                     ProxyStatus::Disconnected => "Disconnected WSL".to_string(),
@@ -263,10 +262,10 @@ impl Widget<LapceWindowData> for Title {
         )
         .to_rect()
         .with_origin(Point::new(x, 0.0));
-        let color = match &tab.workspace.kind {
+        let color = match &data.workspace.kind {
             LapceWorkspaceType::Local => Color::rgb8(64, 120, 242),
             LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL => {
-                match *tab.proxy_status {
+                match *data.proxy_status {
                     ProxyStatus::Connecting => Color::rgb8(193, 132, 1),
                     ProxyStatus::Connected => Color::rgb8(80, 161, 79),
                     ProxyStatus::Disconnected => Color::rgb8(228, 86, 73),
@@ -317,7 +316,7 @@ impl Widget<LapceWindowData> for Title {
             }));
         }
 
-        if tab.workspace.kind.is_remote() {
+        if data.workspace.kind.is_remote() {
             menu_items.push(MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
