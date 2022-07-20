@@ -1237,25 +1237,6 @@ impl LapceTab {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::GotoReference(
-                        editor_view_id,
-                        offset,
-                        location,
-                    ) => {
-                        if let Some(editor) = data.main_split.active_editor() {
-                            if *editor_view_id == editor.view_id
-                                && *offset == editor.cursor.offset()
-                            {
-                                data.main_split.jump_to_location(
-                                    ctx,
-                                    Some(*editor_view_id),
-                                    location.clone(),
-                                    &data.config,
-                                );
-                            }
-                        }
-                        ctx.set_handled();
-                    }
                     LapceUICommand::UpdateInlayHints { path, rev, hints } => {
                         if let Some(doc) = data.main_split.open_docs.get_mut(path) {
                             if doc.rev() == *rev {

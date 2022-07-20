@@ -1633,10 +1633,7 @@ impl LapceEditorBufferData {
                                             position,
                                             Box::new(move |result| {
                                                 let _ = process_get_references(
-                                                    editor_view_id,
-                                                    offset,
-                                                    result,
-                                                    event_sink,
+                                                    offset, result, event_sink,
                                                 );
                                             }),
                                         );
@@ -2075,7 +2072,6 @@ fn next_in_file_errors_offset(
 }
 
 fn process_get_references(
-    editor_view_id: WidgetId,
     offset: usize,
     result: Result<Value, Value>,
     event_sink: ExtEventSink,
@@ -2086,12 +2082,12 @@ fn process_get_references(
         return Ok(());
     }
     if locations.len() == 1 {
+        // If there's only a single location then just jump directly to it
         let location = &locations[0];
         let _ = event_sink.submit_command(
             LAPCE_UI_COMMAND,
-            LapceUICommand::GotoReference(
-                editor_view_id,
-                offset,
+            LapceUICommand::JumpToLocation(
+                None,
                 EditorLocation {
                     path: path_from_url(&location.uri),
                     position: Some(location.range.start),
@@ -2101,12 +2097,13 @@ fn process_get_references(
             ),
             Target::Auto,
         );
+    } else {
+        let _ = event_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::PaletteReferences(offset, locations),
+            Target::Auto,
+        );
     }
-    let _ = event_sink.submit_command(
-        LAPCE_UI_COMMAND,
-        LapceUICommand::PaletteReferences(offset, locations),
-        Target::Auto,
-    );
     Ok(())
 }
 
