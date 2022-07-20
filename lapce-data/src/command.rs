@@ -574,7 +574,6 @@ pub enum LapceUICommand {
     JumpToLocation(Option<WidgetId>, EditorLocation),
     TerminalJumpToLine(i32),
     GoToLocationNew(WidgetId, EditorLocation),
-    GotoReference(WidgetId, usize, EditorLocation),
     GotoDefinition(WidgetId, usize, EditorLocation),
     PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),
