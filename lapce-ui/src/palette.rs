@@ -204,6 +204,8 @@ impl Widget<LapceTabData> for Palette {
         self.container.layout(ctx, bc, data, env);
         self.container.set_origin(ctx, data, env, Point::ZERO);
 
+        ctx.set_paint_insets(4000.0);
+
         self_size
     }
 

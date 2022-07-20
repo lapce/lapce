@@ -31,7 +31,6 @@ use lapce_data::{
     hover::HoverStatus,
     keypress::{DefaultKeyPressHandler, KeyPressData},
     menu::MenuKind,
-    palette::PaletteStatus,
     panel::{
         PanelContainerPosition, PanelKind, PanelPosition, PanelResizePosition,
         PanelStyle,
@@ -44,11 +43,11 @@ use xi_rope::Rope;
 
 use crate::{
     alert::AlertBox, completion::CompletionContainer, explorer::FileExplorer,
-    hover::HoverContainer, palette::Palette, panel::PanelContainer,
-    picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
-    search::new_search_panel, settings::LapceSettingsPanel,
-    source_control::new_source_control_panel, split::split_data_widget,
-    status::LapceStatus, svg::get_svg, terminal::TerminalPanel, title::Title,
+    hover::HoverContainer, panel::PanelContainer, picker::FilePicker,
+    plugin::Plugin, problem::new_problem_panel, search::new_search_panel,
+    settings::LapceSettingsPanel, source_control::new_source_control_panel,
+    split::split_data_widget, status::LapceStatus, svg::get_svg,
+    terminal::TerminalPanel, title::Title,
 };
 
 pub struct LapceIcon {
@@ -69,7 +68,6 @@ pub struct LapceTab {
     main_split: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     completion: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     hover: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
-    palette: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     picker: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     settings: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
@@ -86,7 +84,7 @@ pub struct LapceTab {
 
 impl LapceTab {
     pub fn new(data: &mut LapceTabData) -> Self {
-        let title = WidgetPod::new(Title::new().boxed());
+        let title = WidgetPod::new(Title::new(data).boxed());
         let split_data = data
             .main_split
             .splits
@@ -96,7 +94,6 @@ impl LapceTab {
 
         let completion = CompletionContainer::new(&data.completion);
         let hover = HoverContainer::new(&data.hover);
-        let palette = Palette::new(data);
         let status = LapceStatus::new();
         let picker = FilePicker::new(data);
 
@@ -170,7 +167,6 @@ impl LapceTab {
             completion: WidgetPod::new(completion.boxed()),
             hover: WidgetPod::new(hover.boxed()),
             picker: WidgetPod::new(picker.boxed()),
-            palette: WidgetPod::new(palette.boxed()),
             status: WidgetPod::new(status.boxed()),
             settings: WidgetPod::new(settings.boxed()),
             alert: WidgetPod::new(alert.boxed()),
@@ -1643,11 +1639,6 @@ impl Widget<LapceTabData> for LapceTab {
         if data.picker.active || event.should_propagate_to_hidden() {
             self.picker.event(ctx, event, data, env);
         }
-        if data.palette.status != PaletteStatus::Inactive
-            || event.should_propagate_to_hidden()
-        {
-            self.palette.event(ctx, event, data, env);
-        }
         self.title.event(ctx, event, data, env);
         if data.completion.status == CompletionStatus::Started
             || event.should_propagate_to_hidden()
@@ -1729,7 +1720,6 @@ impl Widget<LapceTabData> for LapceTab {
             }
         }
         self.title.lifecycle(ctx, event, data, env);
-        self.palette.lifecycle(ctx, event, data, env);
         self.main_split.lifecycle(ctx, event, data, env);
         self.status.lifecycle(ctx, event, data, env);
         self.completion.lifecycle(ctx, event, data, env);
@@ -1797,7 +1787,6 @@ impl Widget<LapceTabData> for LapceTab {
             ctx.request_layout();
         }
 
-        self.palette.update(ctx, data, env);
         self.title.update(ctx, data, env);
         self.main_split.update(ctx, data, env);
         self.completion.update(ctx, data, env);
@@ -1823,8 +1812,9 @@ impl Widget<LapceTabData> for LapceTab {
         self.height = self_size.height;
         self.width = self_size.width;
 
-        let title_size = self.title.layout(ctx, bc, data, env);
+        self.title.layout(ctx, bc, data, env);
         self.title.set_origin(ctx, data, env, Point::ZERO);
+        let title_height = 36.0;
 
         let status_size = self.status.layout(ctx, bc, data, env);
         self.status.set_origin(
@@ -1840,17 +1830,13 @@ impl Widget<LapceTabData> for LapceTab {
             ctx,
             &BoxConstraints::tight(Size::new(
                 left_width,
-                self_size.height - status_size.height - title_size.height,
+                self_size.height - status_size.height - title_height,
             )),
             data,
             env,
         );
-        self.panel_left.set_origin(
-            ctx,
-            data,
-            env,
-            Point::new(0.0, title_size.height),
-        );
+        self.panel_left
+            .set_origin(ctx, data, env, Point::new(0.0, title_height));
         let panel_left_width =
             if data.panel.is_container_shown(&PanelContainerPosition::Left) {
                 left_width
@@ -1863,7 +1849,7 @@ impl Widget<LapceTabData> for LapceTab {
             ctx,
             &BoxConstraints::tight(Size::new(
                 right_width,
-                self_size.height - status_size.height - title_size.height,
+                self_size.height - status_size.height - title_height,
             )),
             data,
             env,
@@ -1872,7 +1858,7 @@ impl Widget<LapceTabData> for LapceTab {
             ctx,
             data,
             env,
-            Point::new(self_size.width - right_width, title_size.height),
+            Point::new(self_size.width - right_width, title_height),
         );
         let panel_right_width = if data
             .panel
@@ -1884,7 +1870,7 @@ impl Widget<LapceTabData> for LapceTab {
         };
 
         let bottom_height = if data.panel.panel_bottom_maximized() {
-            self_size.height - status_size.height - title_size.height
+            self_size.height - status_size.height - title_height
         } else {
             data.panel.size.bottom
         };
@@ -1920,10 +1906,10 @@ impl Widget<LapceTabData> for LapceTab {
             self_size.height
                 - status_size.height
                 - panel_bottom_height
-                - title_size.height,
+                - title_height,
         );
         let main_split_bc = BoxConstraints::tight(main_split_size);
-        let main_split_origin = Point::new(panel_left_width, title_size.height);
+        let main_split_origin = Point::new(panel_left_width, title_height);
         data.main_split.update_split_layout_rect(
             *data.main_split.split_id,
             main_split_size.to_rect().with_origin(main_split_origin),
@@ -1946,19 +1932,6 @@ impl Widget<LapceTabData> for LapceTab {
                 data.hover_origin(ctx.text(), self_size, &data.config);
             self.hover.set_origin(ctx, data, env, hover_origin);
         }
-
-        let palette_size = self.palette.layout(
-            ctx,
-            &BoxConstraints::tight(Size::new(600.0, self_size.height)),
-            data,
-            env,
-        );
-        self.palette.set_origin(
-            ctx,
-            data,
-            env,
-            Point::new((self_size.width - palette_size.width) / 2.0, 0.0),
-        );
 
         if data.picker.active {
             let picker_size = self.picker.layout(ctx, bc, data, env);
@@ -2066,7 +2039,6 @@ impl Widget<LapceTabData> for LapceTab {
         self.status.paint(ctx, data, env);
         self.completion.paint(ctx, data, env);
         self.hover.paint(ctx, data, env);
-        self.palette.paint(ctx, data, env);
         self.picker.paint(ctx, data, env);
         self.settings.paint(ctx, data, env);
         ctx.incr_alpha_depth();

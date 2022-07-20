@@ -523,7 +523,7 @@ impl Widget<LapceWindowData> for LapceWindow {
 
             let mut region = Region::EMPTY;
             region.add_rect(Size::new(self_size.width, 36.0).to_rect());
-            ctx.window().set_dragable_area(region.clone());
+            // ctx.window().set_dragable_area(region.clone());
             self.dragable_area = region;
 
             (tab_size, Point::ZERO)
