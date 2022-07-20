@@ -319,6 +319,8 @@ impl Title {
         let mut x = x;
         if cfg!(not(target_os = "windows")) || !data.config.ui.custom_titlebar() {
             x -= size.height;
+        } else {
+            x = size.width - (size.height * 4.0);
         }
 
         let settings_rect = Size::new(size.height, size.height)
