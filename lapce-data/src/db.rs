@@ -54,7 +54,6 @@ impl SplitContentInfo {
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
-        unsaved_buffers: im::HashMap<String, String>,
     ) -> SplitContent {
         match &self {
             SplitContentInfo::EditorTab(tab_info) => {
@@ -65,7 +64,6 @@ impl SplitContentInfo {
                     tab_id,
                     config,
                     event_sink,
-                    unsaved_buffers,
                 );
                 SplitContent::EditorTab(tab_data.widget_id)
             }
@@ -77,7 +75,6 @@ impl SplitContentInfo {
                     tab_id,
                     config,
                     event_sink,
-                    unsaved_buffers,
                 );
                 SplitContent::Split(split_data.widget_id)
             }
@@ -101,7 +98,6 @@ impl EditorTabInfo {
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
-        unsaved_buffers: im::HashMap<String, String>,
     ) -> LapceEditorTabData {
         let editor_tab_id = WidgetId::next();
         let editor_tab_data = LapceEditorTabData {
@@ -119,7 +115,6 @@ impl EditorTabInfo {
                         tab_id,
                         config,
                         event_sink.clone(),
-                        unsaved_buffers.clone(),
                     )
                 })
                 .collect(),
@@ -153,7 +148,6 @@ impl EditorTabChildInfo {
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
-        unsaved_buffers: im::HashMap<String, String>,
     ) -> EditorTabChild {
         match &self {
             EditorTabChildInfo::Editor(editor_info) => {
@@ -164,7 +158,6 @@ impl EditorTabChildInfo {
                     tab_id,
                     config,
                     event_sink,
-                    unsaved_buffers,
                 );
                 EditorTabChild::Editor(
                     editor_data.view_id,
@@ -194,7 +187,6 @@ impl SplitInfo {
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
-        unsaved_buffers: im::HashMap<String, String>,
     ) -> SplitData {
         let split_id = WidgetId::next();
         let split_data = SplitData {
@@ -212,7 +204,6 @@ impl SplitInfo {
                         tab_id,
                         config,
                         event_sink.clone(),
-                        unsaved_buffers.clone(),
                     )
                 })
                 .collect(),
@@ -273,7 +264,6 @@ impl EditorInfo {
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
-        unsaved_buffers: im::HashMap<String, String>,
     ) -> LapceEditorData {
         let editor_data = LapceEditorData::new(
             None,
@@ -301,25 +291,15 @@ impl EditorInfo {
             ));
 
             if !data.open_docs.contains_key(path) {
-                let mut doc = Document::new(
-                    BufferContent::File(path.clone()),
-                    tab_id,
-                    event_sink,
-                    data.proxy.clone(),
+                data.open_docs.insert(
+                    path.clone(),
+                    Arc::new(Document::new(
+                        BufferContent::File(path.clone()),
+                        tab_id,
+                        event_sink,
+                        data.proxy.clone(),
+                    )),
                 );
-                let string_path = path.to_str().unwrap().to_string();
-                if let Some(val) = unsaved_buffers.get(&string_path) {
-                    println!(
-                        "CURRENT SAVED BUFFER FOR PATH {}:\n {}",
-                        string_path, val
-                    );
-                    let new_rope = Rope::from(val);
-
-                    doc.buffer_mut().init_content(new_rope);
-                    println!("AFTER VAL: {}", doc.buffer_mut().text().to_string());
-                };
-                let doc = Arc::new(doc);
-                data.open_docs.insert(path.clone(), doc);
             }
         } else if let BufferContent::Scratch(id, _) = &self.content {
             if !data.scratch_docs.contains_key(id) {
@@ -586,10 +566,14 @@ impl LapceDb {
         let sled_db = self.get_db()?;
 
         for (path, doc) in &main_split.open_docs {
-            let path_str = path.to_str().unwrap();
-            let buf_text = doc.buffer().text().to_string();
-            sled_db
-                .insert(format!("unsaved_buffer:{}", path_str), buf_text.as_str())?;
+            if !doc.buffer().is_pristine() && doc.content().is_file() {
+                let path_str = path.to_str().unwrap();
+                let buf_text = doc.buffer().text().to_string();
+                sled_db.insert(
+                    format!("unsaved_buffer:{}", path_str),
+                    buf_text.as_str(),
+                )?;
+            }
         }
         sled_db.flush()?;
 

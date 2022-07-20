@@ -612,15 +612,13 @@ impl LapceTabData {
         let search = Arc::new(SearchData::new());
         let file_picker = Arc::new(FilePickerData::new());
 
-        let mut unsaved_buffers = match db.get_unsaved_buffers() {
+        let unsaved_buffers = match db.get_unsaved_buffers() {
             Ok(val) => val,
             Err(err) => {
                 log::warn!("Error during unsaved buffer fetching : {:}", err);
                 im::HashMap::new()
             }
         };
-
-        unsaved_buffers.clear();
 
         let mut main_split = LapceMainSplitData::new(
             tab_id,
@@ -633,30 +631,6 @@ impl LapceTabData {
             db.clone(),
             unsaved_buffers,
         );
-
-        let unsaved_buffers = match db.get_unsaved_buffers() {
-            Ok(val) => val,
-            Err(err) => {
-                log::warn!("Error during unsaved buffer fetching : {:}", err);
-                im::HashMap::new()
-            }
-        };
-
-        for (doc_path, doc) in main_split.open_docs.iter_mut() {
-            let doc_path_string = doc_path.to_str().unwrap().to_string();
-            // if doc_path_string.contains("main.go") {
-            //     println!("SKIPPING");
-            //     continue;
-            // }
-            let val = match unsaved_buffers.get(&doc_path_string) {
-                Some(val) => val,
-                None => continue,
-            };
-
-            let new_rope = Rope::from(val);
-
-            Arc::make_mut(doc).buffer_mut().init_content(new_rope);
-        }
 
         main_split.add_editor(
             source_control.editor_view_id,
@@ -712,33 +686,6 @@ impl LapceTabData {
             .unwrap_or_else(|| PanelData::new(panel_orders));
 
         let focus = (*main_split.active).unwrap_or(*main_split.split_id);
-
-        // if unsave_buffers.is_ok() {
-        // let unsave_buffers = unsave_buffers.unwrap();
-
-        // for (path, doc) in main_split.open_docs.iter() {
-        //     for (path_buf, content) in &unsave_buffers {
-        //         let path_buf = PathBuf::from(path_buf);
-        //         if path == &path_buf {
-        //             let doc = main_split.open_docs.get_mut(&path_buf).unwrap();
-        //             let new_rope = Rope::from(content);
-        //             doc.init_content(new_rope);
-
-        //             // main_split.open_docs.insert(path_buf, Arc::new(doc));
-        //         }
-        //     }
-        //     println!(
-        //         "Current new lapceTabData: {:?} {:?}",
-        //         path,
-        //         doc.buffer().text()
-        //     );
-        // }
-        // } else {
-        // log::warn!(
-        // "Error during unsaved buffer fetching : {:?}",
-        // unsave_buffers.unwrap_err()
-        // );
-        // }
 
         let mut tab = Self {
             id: tab_id,
@@ -1962,7 +1909,12 @@ impl LapceMainSplitData {
         exit_widget_id: Option<WidgetId>,
     ) {
         let doc = self.open_docs.get(path).unwrap();
-        println!("DOCUMENT SAVE:\n {:?}", doc.buffer().text());
+        println!("DOCUMENT SAVE:\n");
+        println!(
+            "buffer: {:?}\nrev: {:?}",
+            doc.buffer().text(),
+            doc.buffer().rev()
+        );
         let rev = doc.rev();
         let buffer_id = doc.id();
         let event_sink = ctx.get_external_handle();
@@ -2505,7 +2457,7 @@ impl LapceMainSplitData {
                     Vec2::new(info.scroll_offset.0, info.scroll_offset.1);
                 doc.cursor_offset = info.cursor_offset;
             }
-            doc.retrieve_file(vec![(editor_view_id, location)]);
+            doc.retrieve_file(vec![(editor_view_id, location)], None);
             self.open_docs.insert(path.clone(), Arc::new(doc));
         } else {
             let doc = self.open_docs.get_mut(&path).unwrap().clone();
@@ -2712,12 +2664,16 @@ impl LapceMainSplitData {
                 tab_id,
                 config,
                 event_sink,
-                unsaved_buffers,
             );
             main_split_data.split_id = Arc::new(split_data.widget_id);
             for (path, locations) in positions.into_iter() {
+                let unsaved_buffer =
+                    match unsaved_buffers.get(&path.to_str().unwrap().to_string()) {
+                        Some(val) => Some(Rope::from(val)),
+                        None => None,
+                    };
                 Arc::make_mut(main_split_data.open_docs.get_mut(&path).unwrap())
-                    .retrieve_file(locations.clone());
+                    .retrieve_file(locations.clone(), unsaved_buffer);
             }
         } else {
             main_split_data.splits.insert(
