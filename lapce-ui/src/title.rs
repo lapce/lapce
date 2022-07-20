@@ -150,8 +150,8 @@ impl Widget<LapceTabData> for Title {
         );
         ctx.stroke(
             Line::new(
-                Point::new(rect.x0, rect.y1 - 0.5),
-                Point::new(rect.x1, rect.y1 - 0.5),
+                Point::new(rect.x0, rect.y1 + 0.5),
+                Point::new(rect.x1, rect.y1 + 0.5),
             ),
             data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
             1.0,

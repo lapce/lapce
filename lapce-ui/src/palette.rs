@@ -57,17 +57,17 @@ impl Widget<LapceTabData> for Palette {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        match event {
-            Event::MouseDown(_)
-            | Event::MouseMove(_)
-            | Event::Wheel(_)
-            | Event::MouseUp(_) => {
-                if data.palette.status == PaletteStatus::Inactive {
-                    return;
-                }
-            }
-            _ => (),
-        }
+        // match event {
+        //     Event::MouseDown(_)
+        //     | Event::MouseMove(_)
+        //     | Event::Wheel(_)
+        //     | Event::MouseUp(_) => {
+        //         if data.palette.status == PaletteStatus::Inactive {
+        //             return;
+        //         }
+        //     }
+        //     _ => (),
+        // }
 
         match event {
             // Event::KeyDown(key_event) => {
@@ -205,22 +205,17 @@ impl Widget<LapceTabData> for Palette {
         let bc = BoxConstraints::tight(self_size);
         self.container.layout(ctx, &bc, data, env);
         self.container.set_origin(ctx, data, env, Point::ZERO);
-        ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
 
         self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        if data.palette.status == PaletteStatus::Inactive {
-            return;
-        }
-
         self.container.paint(ctx, data, env);
     }
 }
 
 struct PaletteContainer {
-    content_size: Size,
+    content_rect: Rect,
     line_height: f64,
     input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     #[allow(clippy::type_complexity)]
@@ -244,7 +239,7 @@ impl PaletteContainer {
             LapceEditorView::new(data.palette.input_editor, WidgetId::next(), None)
                 .hide_header()
                 .hide_gutter()
-                .padding(10.0);
+                .padding((10.0, 5.0, 10.0, 5.0));
         let content = LapceIdentityWrapper::wrap(
             LapceScroll::new(PaletteContent::new().lens(PaletteViewLens).boxed())
                 .vertical(),
@@ -253,7 +248,7 @@ impl PaletteContainer {
         let preview =
             LapceEditorView::new(preview_editor.view_id, WidgetId::next(), None);
         Self {
-            content_size: Size::ZERO,
+            content_rect: Rect::ZERO,
             input: WidgetPod::new(input.boxed()),
             content: WidgetPod::new(content),
             preview: WidgetPod::new(preview.boxed()),
@@ -355,13 +350,13 @@ impl Widget<LapceTabData> for PaletteContainer {
             .set_origin(ctx, data, env, Point::new(0.0, input_size.height));
         let mut content_height = content_size.height;
         if content_height > 0.0 {
-            content_height += 6.0;
+            content_height += 5.0;
         }
 
         let max_preview_height = max_height
             - input_size.height
             - max_items as f64 * self.line_height
-            - 6.0;
+            - 5.0;
         let preview_height = if data.palette.palette_type.has_preview() {
             if content_height > 0.0 {
                 max_preview_height
@@ -380,37 +375,45 @@ impl Widget<LapceTabData> for PaletteContainer {
             Point::new(0.0, input_size.height + content_height),
         );
 
-        ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
         let self_size =
             Size::new(width, input_size.height + content_height + preview_height);
-        self.content_size = self_size;
+        self.content_rect = Size::new(width, self_size.height)
+            .to_rect()
+            .with_origin(Point::new(0.0, 0.0));
         self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let rect = self.content_size.to_rect();
-        let shadow_width = data.config.ui.drop_shadow_width() as f64;
-        if shadow_width > 0.0 {
-            ctx.blurred_rect(
+        if data.palette.status != PaletteStatus::Inactive {
+            let rect = self.content_rect;
+            let shadow_width = data.config.ui.drop_shadow_width() as f64;
+            if shadow_width > 0.0 {
+                ctx.blurred_rect(
+                    rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            } else {
+                ctx.stroke(
+                    rect.inflate(0.5, 0.5),
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
+            }
+            ctx.fill(
                 rect,
-                shadow_width,
                 data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
-        } else {
-            ctx.stroke(
-                rect.inflate(0.5, 0.5),
-                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                1.0,
+                    .get_color_unchecked(LapceTheme::PALETTE_BACKGROUND),
             );
         }
-        ctx.fill(
-            rect,
-            data.config
-                .get_color_unchecked(LapceTheme::PALETTE_BACKGROUND),
-        );
 
         self.input.paint(ctx, data, env);
+
+        if data.palette.status == PaletteStatus::Inactive {
+            return;
+        }
+
         self.content.paint(ctx, data, env);
 
         if !data.palette.current_items().is_empty()

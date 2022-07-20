@@ -168,6 +168,15 @@ impl BufferContent {
         }
     }
 
+    pub fn is_palette(&self) -> bool {
+        match &self {
+            BufferContent::File(_) => false,
+            BufferContent::SettingsValue(..) => false,
+            BufferContent::Scratch(..) => false,
+            BufferContent::Local(local) => matches!(local, LocalBufferKind::Palette),
+        }
+    }
+
     pub fn is_search(&self) -> bool {
         match &self {
             BufferContent::File(_) => false,

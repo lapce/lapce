@@ -1947,15 +1947,13 @@ impl Widget<LapceTabData> for LapceTab {
             self.hover.set_origin(ctx, data, env, hover_origin);
         }
 
-        if data.palette.status != PaletteStatus::Inactive {
-            let palette_size = self.palette.layout(ctx, bc, data, env);
-            self.palette.set_origin(
-                ctx,
-                data,
-                env,
-                Point::new((self_size.width - palette_size.width) / 2.0, 0.0),
-            );
-        }
+        let palette_size = self.palette.layout(ctx, bc, data, env);
+        self.palette.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new((self_size.width - palette_size.width) / 2.0, 0.0),
+        );
 
         if data.picker.active {
             let picker_size = self.picker.layout(ctx, bc, data, env);
