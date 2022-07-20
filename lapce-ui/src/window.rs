@@ -491,6 +491,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                         .with_origin(Point::new(0.0, 0.0)),
                 );
             }
+            #[cfg(target_os = "macos")]
             ctx.window().set_dragable_area(region.clone());
             self.dragable_area = region;
 

@@ -794,6 +794,7 @@ impl Widget<LapceTabData> for Title {
                 remaining_rect.x1,
                 36.0,
             ));
+            #[cfg(target_os = "macos")]
             ctx.window().set_dragable_area(self.dragable_area.clone());
         }
 
