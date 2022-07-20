@@ -224,7 +224,7 @@ impl Widget<LapceTabData> for Plugin {
                     )
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
                             .clone(),
                     )
                     .build()
@@ -253,7 +253,7 @@ impl Widget<LapceTabData> for Plugin {
                         )
                         .text_color(
                             data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                .get_color_unchecked(LapceTheme::EDITOR_DIM)
                                 .clone(),
                         )
                         .build()
@@ -288,7 +288,7 @@ impl Widget<LapceTabData> for Plugin {
                     )
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
                             .clone(),
                     )
                     .build()
