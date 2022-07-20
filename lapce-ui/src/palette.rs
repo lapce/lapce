@@ -199,11 +199,9 @@ impl Widget<LapceTabData> for Palette {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let width = 600.0;
-        let self_size = Size::new(width, bc.max().height);
+        let self_size = bc.max();
 
-        let bc = BoxConstraints::tight(self_size);
-        self.container.layout(ctx, &bc, data, env);
+        self.container.layout(ctx, bc, data, env);
         self.container.set_origin(ctx, data, env, Point::ZERO);
 
         self_size
@@ -334,7 +332,7 @@ impl Widget<LapceTabData> for PaletteContainer {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let width = 600.0;
+        let width = bc.max().width;
         let max_height = bc.max().height;
 
         let bc = BoxConstraints::tight(Size::new(width, bc.max().height));

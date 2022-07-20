@@ -1947,7 +1947,12 @@ impl Widget<LapceTabData> for LapceTab {
             self.hover.set_origin(ctx, data, env, hover_origin);
         }
 
-        let palette_size = self.palette.layout(ctx, bc, data, env);
+        let palette_size = self.palette.layout(
+            ctx,
+            &BoxConstraints::tight(Size::new(600.0, self_size.height)),
+            data,
+            env,
+        );
         self.palette.set_origin(
             ctx,
             data,
