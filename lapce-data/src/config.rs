@@ -110,6 +110,10 @@ impl LapceTheme {
     pub const STATUS_MODAL_VISUAL: &'static str = "status.modal.visual";
     pub const STATUS_MODAL_TERMINAL: &'static str = "status.modal.terminal";
 
+    pub const PALETTE_INPUT_LINE_HEIGHT: druid::Key<f64> =
+        druid::Key::new("lapce.palette_input_line_height");
+    pub const PALETTE_INPUT_LINE_PADDING: druid::Key<f64> =
+        druid::Key::new("lapce.palette_input_line_padding");
     pub const INPUT_LINE_HEIGHT: druid::Key<f64> =
         druid::Key::new("lapce.input_line_height");
     pub const INPUT_LINE_PADDING: druid::Key<f64> =

@@ -24,6 +24,7 @@ use lapce_data::document::{BufferContent, LocalBufferKind};
 use lapce_data::history::DocumentHistory;
 use lapce_data::keypress::KeyPressFocus;
 use lapce_data::menu::MenuKind;
+use lapce_data::palette::PaletteStatus;
 use lapce_data::panel::{PanelData, PanelKind};
 use lapce_data::{
     command::{
@@ -468,8 +469,13 @@ impl LapceEditor {
                         .size()
                         .width,
                 ),
-                env.get(LapceTheme::INPUT_LINE_HEIGHT)
-                    + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
+                if data.editor.content.is_palette() {
+                    env.get(LapceTheme::PALETTE_INPUT_LINE_HEIGHT)
+                        + env.get(LapceTheme::PALETTE_INPUT_LINE_PADDING) * 2.0
+                } else {
+                    env.get(LapceTheme::INPUT_LINE_HEIGHT)
+                        + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0
+                },
             ),
         }
     }
@@ -759,6 +765,13 @@ impl LapceEditor {
         is_focused: bool,
         env: &Env,
     ) {
+        if data.editor.content.is_palette()
+            && data.palette.status == PaletteStatus::Inactive
+        {
+            // Don't draw anything if palette is inactive
+            return;
+        }
+
         let font_size = if data.editor.content.is_input() {
             env.get(LapceTheme::INPUT_FONT_SIZE) as usize
         } else {
@@ -1646,7 +1659,9 @@ impl LapceEditor {
     }
 
     fn line_height(data: &LapceEditorBufferData, env: &Env) -> f64 {
-        if data.editor.content.is_input() {
+        if data.editor.content.is_palette() {
+            env.get(LapceTheme::PALETTE_INPUT_LINE_HEIGHT)
+        } else if data.editor.content.is_input() {
             env.get(LapceTheme::INPUT_LINE_HEIGHT)
         } else {
             data.config.editor.line_height as f64
@@ -1654,7 +1669,9 @@ impl LapceEditor {
     }
 
     fn line_padding(data: &LapceEditorBufferData, env: &Env) -> f64 {
-        if data.editor.content.is_input() {
+        if data.editor.content.is_palette() {
+            env.get(LapceTheme::PALETTE_INPUT_LINE_PADDING)
+        } else if data.editor.content.is_input() {
             env.get(LapceTheme::INPUT_LINE_PADDING)
         } else {
             0.0
