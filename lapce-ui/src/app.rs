@@ -180,6 +180,7 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
     })
 }
 
+/// The delegate handler for Top-Level Druid events (terminate, new window, etc.)
 struct LapceAppDelegate {}
 
 impl LapceAppDelegate {
@@ -203,6 +204,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         data: &mut LapceData,
         _env: &Env,
     ) -> Option<Event> {
+        //FIXME: no event::aplicationWillTerminate is sent.
         if let Event::ApplicationWillTerminate = event {
             let _ = data.db.save_app(data);
             return None;
@@ -217,8 +219,20 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         _env: &Env,
         _ctx: &mut druid::DelegateCtx,
     ) {
+        println!("Removing window!");
         if let Some(window) = data.windows.remove(&id) {
+            // let tmp = window.tabs.get(&window.active_id).unwrap();
+            // let tmp = tmp.main_split.active_editor().unwrap();
+            // println!("Buffer value: {:?}", tmp.content);
             for (_, tab) in window.tabs.iter() {
+                let split = &tab.main_split;
+                for (path, open_doc) in &split.open_docs {
+                    println!(
+                        "PATH: {:?}\nContent: {:?}",
+                        path,
+                        open_doc.buffer().text()
+                    );
+                }
                 let _ = data.db.save_workspace(tab);
             }
             data.db.save_last_window(&window);

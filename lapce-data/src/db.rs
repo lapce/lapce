@@ -54,6 +54,7 @@ impl SplitContentInfo {
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
+        unsaved_buffers: im::HashMap<String, String>,
     ) -> SplitContent {
         match &self {
             SplitContentInfo::EditorTab(tab_info) => {
@@ -64,6 +65,7 @@ impl SplitContentInfo {
                     tab_id,
                     config,
                     event_sink,
+                    unsaved_buffers,
                 );
                 SplitContent::EditorTab(tab_data.widget_id)
             }
@@ -75,6 +77,7 @@ impl SplitContentInfo {
                     tab_id,
                     config,
                     event_sink,
+                    unsaved_buffers,
                 );
                 SplitContent::Split(split_data.widget_id)
             }
@@ -98,6 +101,7 @@ impl EditorTabInfo {
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
+        unsaved_buffers: im::HashMap<String, String>,
     ) -> LapceEditorTabData {
         let editor_tab_id = WidgetId::next();
         let editor_tab_data = LapceEditorTabData {
@@ -115,6 +119,7 @@ impl EditorTabInfo {
                         tab_id,
                         config,
                         event_sink.clone(),
+                        unsaved_buffers.clone(),
                     )
                 })
                 .collect(),
@@ -148,6 +153,7 @@ impl EditorTabChildInfo {
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
+        unsaved_buffers: im::HashMap<String, String>,
     ) -> EditorTabChild {
         match &self {
             EditorTabChildInfo::Editor(editor_info) => {
@@ -158,6 +164,7 @@ impl EditorTabChildInfo {
                     tab_id,
                     config,
                     event_sink,
+                    unsaved_buffers,
                 );
                 EditorTabChild::Editor(
                     editor_data.view_id,
@@ -187,6 +194,7 @@ impl SplitInfo {
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
+        unsaved_buffers: im::HashMap<String, String>,
     ) -> SplitData {
         let split_id = WidgetId::next();
         let split_data = SplitData {
@@ -204,6 +212,7 @@ impl SplitInfo {
                         tab_id,
                         config,
                         event_sink.clone(),
+                        unsaved_buffers.clone(),
                     )
                 })
                 .collect(),
@@ -264,6 +273,7 @@ impl EditorInfo {
         tab_id: WidgetId,
         config: &Config,
         event_sink: ExtEventSink,
+        unsaved_buffers: im::HashMap<String, String>,
     ) -> LapceEditorData {
         let editor_data = LapceEditorData::new(
             None,
@@ -291,12 +301,24 @@ impl EditorInfo {
             ));
 
             if !data.open_docs.contains_key(path) {
-                let doc = Arc::new(Document::new(
+                let mut doc = Document::new(
                     BufferContent::File(path.clone()),
                     tab_id,
                     event_sink,
                     data.proxy.clone(),
-                ));
+                );
+                let string_path = path.to_str().unwrap().to_string();
+                if let Some(val) = unsaved_buffers.get(&string_path) {
+                    println!(
+                        "CURRENT SAVED BUFFER FOR PATH {}:\n {}",
+                        string_path, val
+                    );
+                    let new_rope = Rope::from(val);
+
+                    doc.buffer_mut().init_content(new_rope);
+                    println!("AFTER VAL: {}", doc.buffer_mut().text().to_string());
+                };
+                let doc = Arc::new(doc);
                 data.open_docs.insert(path.clone(), doc);
             }
         } else if let BufferContent::Scratch(id, _) = &self.content {
@@ -428,6 +450,39 @@ impl LapceDb {
         Ok(info)
     }
 
+    pub fn get_unsaved_buffers(&self) -> Result<im::HashMap<String, String>> {
+        let sled_db = self.get_db()?;
+        let mut buffers = im::HashMap::new();
+        let mut unsaved_paths = Vec::new();
+
+        for val in sled_db.iter().keys() {
+            let val = val.unwrap();
+            let s = String::from_utf8((&val).to_vec())
+                .expect("invalid utf-8 sequence retrieving unsaved buffer");
+
+            if s.contains("unsaved_buffer") {
+                unsaved_paths.push(s.clone())
+            }
+        }
+
+        for path in &unsaved_paths {
+            let res = sled_db.get(path)?;
+
+            let res = match res {
+                Some(val) => val,
+                None => return Ok(buffers),
+            };
+
+            let s1 = String::from_utf8(res.to_vec())?;
+            let path_stripped =
+                String::from(path.strip_prefix("unsaved_buffer:").unwrap());
+
+            buffers.insert(path_stripped, s1);
+        }
+
+        Ok(buffers)
+    }
+
     pub fn get_buffer_info(
         &self,
         workspace: &LapceWorkspace,
@@ -518,7 +573,26 @@ impl LapceDb {
         let workspace = (*data.workspace).clone();
         let workspace_info = data.workspace_info();
 
+        // Buffer for auto save on quit
+        let main_split = &data.main_split;
+
         self.insert_workspace(&workspace, &workspace_info)?;
+        self.insert_unsaved_buffer(main_split)?;
+
+        Ok(())
+    }
+
+    fn insert_unsaved_buffer(&self, main_split: &LapceMainSplitData) -> Result<()> {
+        let sled_db = self.get_db()?;
+
+        for (path, doc) in &main_split.open_docs {
+            let path_str = path.to_str().unwrap();
+            let buf_text = doc.buffer().text().to_string();
+            sled_db
+                .insert(format!("unsaved_buffer:{}", path_str), buf_text.as_str())?;
+        }
+        sled_db.flush()?;
+
         Ok(())
     }
 
