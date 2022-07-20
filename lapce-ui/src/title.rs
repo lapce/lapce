@@ -150,7 +150,7 @@ impl Widget<LapceWindowData> for Title {
     ) -> Size {
         #[cfg(not(target_os = "windows"))]
         {
-            Size::new(bc.max().width, 28.0)
+            Size::new(bc.max().width, 36.0)
         }
 
         #[cfg(target_os = "windows")]
@@ -280,7 +280,7 @@ impl Widget<LapceWindowData> for Title {
             Size::new(size.height, size.height)
                 .to_rect()
                 .with_origin(Point::new(x + 5.0, 0.0))
-                .inflate(-5.0, -5.0),
+                .inflate(-8.0, -8.0),
             Some(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
@@ -350,7 +350,7 @@ impl Widget<LapceWindowData> for Title {
             .with_origin(Point::new(x, 0.0));
         ctx.draw_svg(
             &folder_svg,
-            folder_rect.inflate(-5.0, -5.0),
+            folder_rect.inflate(-9.0, -9.0),
             Some(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
@@ -431,7 +431,7 @@ impl Widget<LapceWindowData> for Title {
                 .with_origin(Point::new(x, 0.0));
             ctx.draw_svg(
                 &folder_svg,
-                folder_rect.inflate(-6.5, -6.5),
+                folder_rect.inflate(-10.5, -10.5),
                 Some(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
@@ -538,7 +538,7 @@ impl Widget<LapceWindowData> for Title {
         let settings_svg = get_svg("settings.svg").unwrap();
         ctx.draw_svg(
             &settings_svg,
-            settings_rect.inflate(-7.0, -7.0),
+            settings_rect.inflate(-10.5, -10.5),
             Some(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),

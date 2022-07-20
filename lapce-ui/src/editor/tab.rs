@@ -544,7 +544,6 @@ impl Widget<LapceTabData> for LapceEditorTab {
 
         let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
         self.children[tab.active].paint(ctx, data, env);
-        self.header.paint(ctx, data, env);
         if ctx.is_hot() && data.is_drag_editor() {
             let width = size.width;
             let header_rect = self.header.layout_rect();
@@ -584,16 +583,23 @@ impl Widget<LapceTabData> for LapceEditorTab {
                         .to_rect()
                         .with_origin(Point::new(0.0, header_height))
                 };
-                ctx.fill(
-                    rect,
-                    &data
-                        .config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
-                        .clone()
-                        .with_alpha(0.8),
-                );
+                ctx.with_save(|ctx| {
+                    ctx.incr_alpha_depth();
+                    ctx.fill(
+                        rect,
+                        &data
+                            .config
+                            .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
+                            .clone()
+                            .with_alpha(0.8),
+                    );
+                });
             }
         }
+        ctx.with_save(|ctx| {
+            ctx.incr_alpha_depth();
+            self.header.paint(ctx, data, env);
+        });
     }
 }
 
