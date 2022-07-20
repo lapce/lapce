@@ -24,18 +24,6 @@ pub const SCOPES: &[&str] = &[
     "function",
     "label",
     "keyword",
-    "field",
-    "method",
-    "parameter",
-    "symbol",
-    "conditional",
-    "exception",
-    "repeat",
-    "include",
-    "number",
-    "float",
-    "boolean",
-    "character",
     "string",
     "variable",
     "variable.other.member",
@@ -43,8 +31,7 @@ pub const SCOPES: &[&str] = &[
     "attribute",
     "escape",
     "embedded",
-    "punctuation.delimiter",
-    "punctuation.bracket",
+    "symbol",
 ];
 
 /// Indicates which highlight should be applied to a region of source code.

@@ -1,15 +1,3 @@
-(identifier) @variable
-
-(operator) @operator
-(range_expression ":" @operator)
-(pair_expression "=>" @operator)
-
-;; In case you want type highlighting based on Julia naming conventions (this might collide with mathematical notation)
-;((identifier) @type ; exception: mark `A_foo` sort of identifiers as variables
-  ;(match? @type "^[A-Z][^_]"))
-((identifier) @constant
-  (#match? @constant "^[A-Z][A-Z_]{2}[A-Z_]*$"))
-
 (macro_identifier) @function.macro
 (macro_identifier (identifier) @function.macro) ; for any one using the variable highlight
 (macro_definition
@@ -18,53 +6,53 @@
 
 (field_expression
   (identifier)
-  (identifier) @field .)
+  (identifier) @variable.other.member .)
 
 (function_definition
   name: (identifier) @function)
 (call_expression
   (identifier) @function)
 (call_expression
-  (field_expression (identifier) @method .))
+  (field_expression (identifier) @function.method .))
 (broadcast_call_expression
   (identifier) @function)
 (broadcast_call_expression
-  (field_expression (identifier) @method .))
+  (field_expression (identifier) @function.method .))
 (parameter_list
-  (identifier) @parameter)
+  (identifier) @variable.parameter)
 (parameter_list
   (optional_parameter .
-    (identifier) @parameter))
+    (identifier) @variable.parameter))
 (typed_parameter
-  (identifier) @parameter
+  (identifier) @variable.parameter
   (identifier) @type)
 (type_parameter_list
   (identifier) @type)
 (typed_parameter
-  (identifier) @parameter
+  (identifier) @variable.parameter
   (parameterized_identifier) @type)
 (function_expression
-  . (identifier) @parameter)
-(spread_parameter) @parameter
+  . (identifier) @variable.parameter)
+(spread_parameter) @variable.parameter
 (spread_parameter
-  (identifier) @parameter)
+  (identifier) @variable.parameter)
 (named_argument
-    . (identifier) @parameter)
+    . (identifier) @variable.parameter)
 (argument_list
   (typed_expression
-    (identifier) @parameter
+    (identifier) @variable.parameter
     (identifier) @type))
 (argument_list
   (typed_expression
-    (identifier) @parameter
+    (identifier) @variable.parameter
     (parameterized_identifier) @type))
 
 ;; Symbol expressions (:my-wanna-be-lisp-keyword)
 (quote_expression
- (identifier)) @symbol
+ (identifier)) @string.special.symbol
 
-;; Parsing error! foo (::Type) gets parsed as two quote expressions
-(argument_list
+;; Parsing error! foo (::Type) get's parsed as two quote expressions
+(argument_list 
   (quote_expression
     (quote_expression
       (identifier) @type)))
@@ -73,104 +61,100 @@
   (identifier) @type)
 (parameterized_identifier (_)) @type
 (argument_list
-  (typed_expression . (identifier) @parameter))
+  (typed_expression . (identifier) @variable.parameter))
 
 (typed_expression
   (identifier) @type .)
 (typed_expression
   (parameterized_identifier) @type .)
 
-(abstract_definition
-  name: (identifier) @type)
 (struct_definition
   name: (identifier) @type)
+(range_expression
+    (identifier) @constant.numeric.integer
+      (eq? @constant.numeric.integer "end"))
+(range_expression
+  (_
+    (identifier) @constant.numeric.integer
+      (eq? @constant.numeric.integer "end")))
+(coefficient_expression
+  (identifier) @constant.builtin)
 
-(subscript_expression
-  (_)
-  (range_expression
-    (identifier) @constant.builtin .)
-  (#eq? @constant.builtin "end"))
+;; TODO: operators.
+;; Those are a bit difficult to implement since the respective nodes are hidden right now (_power_operator)
+;; and heavily use Unicode chars (support for those are bad in vim/lua regexes)
+;[;
+    ;(power_operator);
+    ;(times_operator);
+    ;(plus_operator);
+    ;(arrow_operator);
+    ;(comparison_operator);
+    ;(assign_operator);
+;] @operator ;
 
 "end" @keyword
 
 (if_statement
-  ["if" "end"] @conditional)
+  ["if" "end"] @keyword.control.conditional)
 (elseif_clause
-  ["elseif"] @conditional)
+  ["elseif"] @keyword.control.conditional)
 (else_clause
-  ["else"] @conditional)
+  ["else"] @keyword.control.conditional)
 (ternary_expression
-  ["?" ":"] @conditional)
+  ["?" ":"] @keyword.control.conditional)
 
 (function_definition ["function" "end"] @keyword.function)
 
 [
-  "abstract"
   "const"
+  "return"
   "macro"
-  "primitive"
   "struct"
+  "primitive"
   "type"
 ] @keyword
 
-"return" @keyword.return
-
-((identifier) @keyword (#any-of? @keyword "global" "local"))
+((identifier) @keyword (match? @keyword "global|local"))
 
 (compound_expression
   ["begin" "end"] @keyword)
 (try_statement
-  ["try" "end" ] @exception)
+  ["try" "end" ] @keyword.control.exception)
 (finally_clause
-  "finally" @exception)
+  "finally" @keyword.control.exception)
 (catch_clause
-  "catch" @exception)
+  "catch" @keyword.control.exception)
 (quote_statement
   ["quote" "end"] @keyword)
 (let_statement
   ["let" "end"] @keyword)
 (for_statement
-  ["for" "end"] @repeat)
+  ["for" "end"] @keyword.control.repeat)
 (while_statement
-  ["while" "end"] @repeat)
-(break_statement) @repeat
-(continue_statement) @repeat
+  ["while" "end"] @keyword.control.repeat)
+(break_statement) @keyword.control.repeat
+(continue_statement) @keyword.control.repeat
+(for_binding
+  "in" @keyword.control.repeat)
 (for_clause
-  "for" @repeat)
+  "for" @keyword.control.repeat)
 (do_clause
   ["do" "end"] @keyword)
 
-"in" @keyword.operator
-
 (export_statement
-  ["export"] @include)
+  ["export"] @keyword.control.import)
 
-(import_statement
-  ["import" "using"] @include)
+[
+  "using"
+  "module"
+  "import"
+] @keyword.control.import
 
-(module_definition
-  ["module" "end"] @include)
+((identifier) @keyword.control.import (#eq? @keyword.control.import "baremodule"))
 
-((identifier) @include (#eq? @include "baremodule"))
-
-
-;;; Literals
-
-(integer_literal) @number
-(float_literal) @float
-
-((identifier) @float
-  (#any-of? @float "NaN" "NaN16" "NaN32"
-                   "Inf" "Inf16" "Inf32"))
-
-((identifier) @boolean
-  (#any-of? @boolean "true" "false"))
-
-((identifier) @constant.builtin
-  (#any-of? @constant.builtin "nothing" "missing"))
-
-(character_literal) @character
-(escape_sequence) @string.escape
+(((identifier) @constant.builtin) (match? @constant.builtin "^(nothing|Inf|NaN)$"))
+(((identifier) @constant.builtin.boolean) (#eq? @constant.builtin.boolean "true"))
+(((identifier) @constant.builtin.boolean) (#eq? @constant.builtin.boolean "false"))
 
 (string_literal) @string
 (prefixed_string_literal
@@ -185,8 +169,16 @@
   (block_comment)
 ] @comment
 
-;;; Punctuation
 
 (quote_expression ":" @symbol)
 ["::" "." "," "..."] @punctuation.delimiter
 ["[" "]" "(" ")" "{" "}"] @punctuation.bracket
+
+["="] @operator
+
+(identifier) @variable
+;; In case you want type highlighting based on Julia naming conventions (this might collide with mathematical notation)
+;((identifier) @type ; exception: mark `A_foo` sort of identifiers as variables
+  ;(match? @type "^[A-Z][^_]"))
+((identifier) @constant
+  (match? @constant "^[A-Z][A-Z_]{2}[A-Z_]*$"))
