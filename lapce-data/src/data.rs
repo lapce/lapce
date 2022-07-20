@@ -2661,11 +2661,9 @@ impl LapceMainSplitData {
             );
             main_split_data.split_id = Arc::new(split_data.widget_id);
             for (path, locations) in positions.into_iter() {
-                let unsaved_buffer =
-                    match unsaved_buffers.get(&path.to_str().unwrap().to_string()) {
-                        Some(val) => Some(Rope::from(val)),
-                        None => None,
-                    };
+                let unsaved_buffer = unsaved_buffers
+                    .get(&path.to_str().unwrap().to_string())
+                    .map(Rope::from);
                 Arc::make_mut(main_split_data.open_docs.get_mut(&path).unwrap())
                     .retrieve_file(locations.clone(), unsaved_buffer);
             }
