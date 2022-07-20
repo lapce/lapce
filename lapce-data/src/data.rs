@@ -1909,12 +1909,6 @@ impl LapceMainSplitData {
         exit_widget_id: Option<WidgetId>,
     ) {
         let doc = self.open_docs.get(path).unwrap();
-        println!("DOCUMENT SAVE:\n");
-        println!(
-            "buffer: {:?}\nrev: {:?}",
-            doc.buffer().text(),
-            doc.buffer().rev()
-        );
         let rev = doc.rev();
         let buffer_id = doc.id();
         let event_sink = ctx.get_external_handle();

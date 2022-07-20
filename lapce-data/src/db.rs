@@ -430,6 +430,9 @@ impl LapceDb {
         Ok(info)
     }
 
+    /// fetches all the files stored in the database that are tagged as `unsaved_buffer`.<br>
+    /// Returns a hashmap of the form HashMap<path, file_content><br>
+    /// *Note: The file is deleted from the database right after as to prevent "ghost" buffers*
     pub fn get_unsaved_buffers(&self) -> Result<im::HashMap<String, String>> {
         let sled_db = self.get_db()?;
         let mut buffers = im::HashMap::new();
@@ -458,6 +461,10 @@ impl LapceDb {
                 String::from(path.strip_prefix("unsaved_buffer:").unwrap());
 
             buffers.insert(path_stripped, s1);
+            let res = sled_db.remove(path);
+            if res.is_err() {
+                log::warn!("Could not properly delete unsaved buffer of path {} from the database: {:?}", path, res);
+            }
         }
 
         Ok(buffers)
