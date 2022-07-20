@@ -31,8 +31,8 @@ use lapce_core::{
     word::WordCursor,
 };
 use lapce_rpc::{
-    buffer::{BufferId, NewBufferResponse},
-    style::{LineStyle, LineStyles, SemanticStyles, Style},
+    buffer::BufferId,
+    style::{LineStyle, LineStyles, Style},
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, DiagnosticSeverity, InlayHint,
@@ -548,27 +548,19 @@ impl Document {
             let event_sink = self.event_sink.clone();
             let proxy = self.proxy.clone();
             std::thread::spawn(move || {
-                proxy.new_buffer(
-                    id,
-                    path.clone(),
-                    Box::new(move |result| {
-                        if let Ok(res) = result {
-                            if let Ok(resp) =
-                                serde_json::from_value::<NewBufferResponse>(res)
-                            {
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::InitBufferContent {
-                                        path,
-                                        content: Rope::from(resp.content),
-                                        locations,
-                                    },
-                                    Target::Widget(tab_id),
-                                );
-                            }
-                        };
-                    }),
-                )
+                proxy.new_buffer(id, path.clone(), move |result| {
+                    if let Ok(resp) = result {
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::InitBufferContent {
+                                path,
+                                content: Rope::from(resp.content),
+                                locations,
+                            },
+                            Target::Widget(tab_id),
+                        );
+                    };
+                })
             });
         }
 
@@ -734,37 +726,30 @@ impl Document {
             let rev = self.rev();
             let len = self.buffer().len();
             let event_sink = self.event_sink.clone();
-            self.proxy.get_semantic_tokens(
-                buffer_id,
-                Box::new(move |result| {
-                    if let Ok(res) = result {
-                        if let Ok(resp) =
-                            serde_json::from_value::<SemanticStyles>(res)
-                        {
-                            rayon::spawn(move || {
-                                let mut styles_span = SpansBuilder::new(len);
-                                for style in resp.styles {
-                                    styles_span.add_span(
-                                        Interval::new(style.start, style.end),
-                                        style.style,
-                                    );
-                                }
-                                let styles_span = Arc::new(styles_span.build());
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::UpdateSemanticStyles(
-                                        buffer_id,
-                                        path,
-                                        rev,
-                                        styles_span,
-                                    ),
-                                    Target::Widget(tab_id),
-                                );
-                            });
+            self.proxy.get_semantic_tokens(buffer_id, move |result| {
+                if let Ok(resp) = result {
+                    rayon::spawn(move || {
+                        let mut styles_span = SpansBuilder::new(len);
+                        for style in resp.styles {
+                            styles_span.add_span(
+                                Interval::new(style.start, style.end),
+                                style.style,
+                            );
                         }
-                    }
-                }),
-            );
+                        let styles_span = Arc::new(styles_span.build());
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateSemanticStyles(
+                                buffer_id,
+                                path,
+                                rev,
+                                styles_span,
+                            ),
+                            Target::Widget(tab_id),
+                        );
+                    });
+                }
+            });
         }
     }
 
@@ -785,44 +770,30 @@ impl Document {
             let len = self.buffer().len();
             let buffer = self.buffer().clone();
             let event_sink = self.event_sink.clone();
-            self.proxy.get_inlay_hints(
-                buffer_id,
-                Box::new(move |result| {
-                    if let Ok(res) = result {
-                        if let Ok(mut resp) =
-                            serde_json::from_value::<Vec<InlayHint>>(res)
-                        {
-                            // Sort the inlay hints by their position, as the LSP does not guarantee that it will
-                            // provide them in the order that they are in within the file
-                            // as well, Spans does not iterate in the order that they appear
-                            resp.sort_by(|left, right| {
-                                left.position.cmp(&right.position)
-                            });
+            self.proxy.get_inlay_hints(buffer_id, move |result| {
+                if let Ok(mut resp) = result {
+                    // Sort the inlay hints by their position, as the LSP does not guarantee that it will
+                    // provide them in the order that they are in within the file
+                    // as well, Spans does not iterate in the order that they appear
+                    resp.sort_by(|left, right| left.position.cmp(&right.position));
 
-                            let mut hints_span = SpansBuilder::new(len);
-                            for hint in resp {
-                                let offset = buffer
-                                    .offset_of_position(&hint.position)
-                                    .min(len);
-                                hints_span.add_span(
-                                    Interval::new(offset, (offset + 1).min(len)),
-                                    hint.clone(),
-                                );
-                            }
-                            let hints = hints_span.build();
-                            let _ = event_sink.submit_command(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::UpdateInlayHints {
-                                    path,
-                                    rev,
-                                    hints,
-                                },
-                                Target::Widget(tab_id),
-                            );
-                        }
+                    let mut hints_span = SpansBuilder::new(len);
+                    for hint in resp {
+                        let offset =
+                            buffer.offset_of_position(&hint.position).min(len);
+                        hints_span.add_span(
+                            Interval::new(offset, (offset + 1).min(len)),
+                            hint.clone(),
+                        );
                     }
-                }),
-            );
+                    let hints = hints_span.build();
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateInlayHints { path, rev, hints },
+                        Target::Widget(tab_id),
+                    );
+                }
+            });
         }
     }
 

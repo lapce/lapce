@@ -1833,33 +1833,29 @@ impl LapceMainSplitData {
         &mut self,
         path: &Path,
         rev: u64,
-        result: &Result<Value>,
+        edits: &Result<Vec<TextEdit>>,
     ) {
         let doc = self.open_docs.get(path).unwrap();
         if doc.rev() != rev {
             return;
         }
 
-        if let Ok(res) = result {
-            let edits: Result<Vec<TextEdit>, serde_json::Error> =
-                serde_json::from_value(res.clone());
-            if let Ok(edits) = edits {
-                if !edits.is_empty() {
-                    let doc = self.open_docs.get_mut(path).unwrap();
+        if let Ok(edits) = edits {
+            if !edits.is_empty() {
+                let doc = self.open_docs.get_mut(path).unwrap();
 
-                    let edits: Vec<(Selection, &str)> = edits
-                        .iter()
-                        .map(|edit| {
-                            let selection = Selection::region(
-                                doc.buffer().offset_of_position(&edit.range.start),
-                                doc.buffer().offset_of_position(&edit.range.end),
-                            );
-                            (selection, edit.new_text.as_str())
-                        })
-                        .collect();
+                let edits: Vec<(Selection, &str)> = edits
+                    .iter()
+                    .map(|edit| {
+                        let selection = Selection::region(
+                            doc.buffer().offset_of_position(&edit.range.start),
+                            doc.buffer().offset_of_position(&edit.range.end),
+                        );
+                        (selection, edit.new_text.as_str())
+                    })
+                    .collect();
 
-                    self.edit(path, &edits, EditType::Other);
-                }
+                self.edit(path, &edits, EditType::Other);
             }
         }
     }
@@ -1869,7 +1865,7 @@ impl LapceMainSplitData {
         ctx: &mut EventCtx,
         path: &Path,
         rev: u64,
-        result: &Result<Value>,
+        result: &Result<Vec<TextEdit>>,
         exit_widget_id: Option<WidgetId>,
     ) {
         self.document_format(path, rev, result);

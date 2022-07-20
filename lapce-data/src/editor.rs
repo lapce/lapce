@@ -18,6 +18,7 @@ use crate::keypress::KeyMap;
 use crate::keypress::KeyPressFocus;
 use crate::palette::PaletteData;
 use crate::proxy::path_from_url;
+use crate::proxy::RequestError;
 use crate::{
     command::{EnsureVisiblePosition, LapceUICommand, LAPCE_UI_COMMAND},
     split::SplitMoveDirection,
@@ -57,7 +58,6 @@ use lsp_types::{
     CodeActionResponse, CompletionItem, DiagnosticSeverity, GotoDefinitionResponse,
     Location, Position,
 };
-use serde_json::Value;
 use std::cmp::Ordering;
 use std::path::Path;
 use std::thread;
@@ -171,28 +171,21 @@ impl LapceEditorBufferData {
                 let position = self.doc.buffer().offset_to_position(prev_offset);
                 let rev = self.doc.rev();
                 let event_sink = ctx.get_external_handle();
-                self.proxy.get_code_actions(
-                    buffer_id,
-                    position,
-                    Box::new(move |result| {
-                        if let Ok(res) = result {
-                            if let Ok(resp) =
-                                serde_json::from_value::<CodeActionResponse>(res)
-                            {
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::UpdateCodeActions(
-                                        path,
-                                        rev,
-                                        prev_offset,
-                                        resp,
-                                    ),
-                                    Target::Auto,
-                                );
-                            }
+                self.proxy
+                    .get_code_actions(buffer_id, position, move |result| {
+                        if let Ok(resp) = result {
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdateCodeActions(
+                                    path,
+                                    rev,
+                                    prev_offset,
+                                    resp,
+                                ),
+                                Target::Auto,
+                            );
                         }
-                    }),
-                );
+                    });
             }
         }
     }
@@ -1432,15 +1425,8 @@ impl LapceEditorBufferData {
                         self.proxy.completion_resolve(
                             buffer_id,
                             item.clone(),
-                            Box::new(move |result| {
-                                let mut item = item.clone();
-                                if let Ok(res) = result {
-                                    if let Ok(i) =
-                                        serde_json::from_value::<CompletionItem>(res)
-                                    {
-                                        item = i;
-                                    }
-                                };
+                            move |result| {
+                                let item = result.unwrap_or_else(|_| item.clone());
                                 let _ = event_sink.submit_command(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::ResolveCompletion(
@@ -1451,7 +1437,7 @@ impl LapceEditorBufferData {
                                     ),
                                     Target::Widget(view_id),
                                 );
-                            }),
+                            },
                         );
                     } else {
                         let _ = self.apply_completion_item(&item);
@@ -1607,60 +1593,52 @@ impl LapceEditorBufferData {
                     offset,
                     buffer_id,
                     position,
-                    Box::new(move |result| {
-                        if let Ok(res) = result {
-                            if let Ok(resp) =
-                                serde_json::from_value::<GotoDefinitionResponse>(res)
-                            {
-                                if let Some(location) = match resp {
-                                    GotoDefinitionResponse::Scalar(location) => {
-                                        Some(location)
-                                    }
-                                    GotoDefinitionResponse::Array(locations) => {
-                                        if !locations.is_empty() {
-                                            Some(locations[0].clone())
-                                        } else {
-                                            None
-                                        }
-                                    }
-                                    GotoDefinitionResponse::Link(
-                                        _location_links,
-                                    ) => None,
-                                } {
-                                    if location.range.start == start_position {
-                                        proxy.get_references(
-                                            buffer_id,
-                                            position,
-                                            Box::new(move |result| {
-                                                let _ = process_get_references(
-                                                    offset, result, event_sink,
-                                                );
-                                            }),
-                                        );
+                    move |result| {
+                        if let Ok(resp) = result {
+                            if let Some(location) = match resp {
+                                GotoDefinitionResponse::Scalar(location) => {
+                                    Some(location)
+                                }
+                                GotoDefinitionResponse::Array(locations) => {
+                                    if !locations.is_empty() {
+                                        Some(locations[0].clone())
                                     } else {
-                                        let _ = event_sink.submit_command(
-                                            LAPCE_UI_COMMAND,
-                                            LapceUICommand::GotoDefinition(
-                                                editor_view_id,
-                                                offset,
-                                                EditorLocation {
-                                                    path: path_from_url(
-                                                        &location.uri,
-                                                    ),
-                                                    position: Some(
-                                                        location.range.start,
-                                                    ),
-                                                    scroll_offset: None,
-                                                    history: None,
-                                                },
-                                            ),
-                                            Target::Auto,
-                                        );
+                                        None
                                     }
+                                }
+                                GotoDefinitionResponse::Link(_location_links) => {
+                                    None
+                                }
+                            } {
+                                if location.range.start == start_position {
+                                    proxy.get_references(
+                                        buffer_id,
+                                        position,
+                                        move |result| {
+                                            let _ = process_get_references(
+                                                offset, result, event_sink,
+                                            );
+                                        },
+                                    );
+                                } else {
+                                    let _ = event_sink.submit_command(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::GotoDefinition(
+                                            editor_view_id,
+                                            offset,
+                                            EditorLocation {
+                                                path: path_from_url(&location.uri),
+                                                position: Some(location.range.start),
+                                                scroll_offset: None,
+                                                history: None,
+                                            },
+                                        ),
+                                        Target::Auto,
+                                    );
                                 }
                             }
                         }
-                    }),
+                    },
                 );
             }
             GotoTypeDefinition => {
@@ -1673,77 +1651,66 @@ impl LapceEditorBufferData {
                     offset,
                     buffer_id,
                     position,
-                    Box::new(move |result| {
-                        if let Ok(res) = result {
-                            if let Ok(resp) = serde_json::from_value::<
-                                GotoTypeDefinitionResponse,
-                            >(res)
-                            {
-                                match resp {
-                                    GotoTypeDefinitionResponse::Scalar(location) => {
-                                        let _ = event_sink.submit_command(
-                                            LAPCE_UI_COMMAND,
-                                            LapceUICommand::GotoDefinition(
-                                                editor_view_id,
-                                                offset,
-                                                EditorLocation {
-                                                    path: path_from_url(
-                                                        &location.uri,
-                                                    ),
-                                                    position: Some(
-                                                        location.range.start,
-                                                    ),
-                                                    scroll_offset: None,
-                                                    history: None,
-                                                },
-                                            ),
-                                            Target::Auto,
-                                        );
-                                    }
-                                    GotoTypeDefinitionResponse::Array(locations) => {
-                                        let len = locations.len();
-                                        match len {
-                                            1 => {
-                                                let _ = event_sink.submit_command(
-                                                    LAPCE_UI_COMMAND,
-                                                    LapceUICommand::GotoDefinition(
-                                                        editor_view_id,
-                                                        offset,
-                                                        EditorLocation {
-                                                            path: path_from_url(
-                                                                &locations[0].uri,
-                                                            ),
-                                                            position: Some(
-                                                                locations[0]
-                                                                    .range
-                                                                    .start,
-                                                            ),
-                                                            scroll_offset: None,
-                                                            history: None,
-                                                        },
-                                                    ),
-                                                    Target::Auto,
-                                                );
-                                            }
-                                            _ if len > 1 => {
-                                                let _ = event_sink.submit_command(
+                    move |result| {
+                        if let Ok(resp) = result {
+                            match resp {
+                                GotoTypeDefinitionResponse::Scalar(location) => {
+                                    let _ = event_sink.submit_command(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::GotoDefinition(
+                                            editor_view_id,
+                                            offset,
+                                            EditorLocation {
+                                                path: path_from_url(&location.uri),
+                                                position: Some(location.range.start),
+                                                scroll_offset: None,
+                                                history: None,
+                                            },
+                                        ),
+                                        Target::Auto,
+                                    );
+                                }
+                                GotoTypeDefinitionResponse::Array(locations) => {
+                                    let len = locations.len();
+                                    match len {
+                                        1 => {
+                                            let _ = event_sink.submit_command(
+                                                LAPCE_UI_COMMAND,
+                                                LapceUICommand::GotoDefinition(
+                                                    editor_view_id,
+                                                    offset,
+                                                    EditorLocation {
+                                                        path: path_from_url(
+                                                            &locations[0].uri,
+                                                        ),
+                                                        position: Some(
+                                                            locations[0].range.start,
+                                                        ),
+                                                        scroll_offset: None,
+                                                        history: None,
+                                                    },
+                                                ),
+                                                Target::Auto,
+                                            );
+                                        }
+                                        _ if len > 1 => {
+                                            let _ = event_sink.submit_command(
                                                 LAPCE_UI_COMMAND,
                                                 LapceUICommand::PaletteReferences(
                                                     offset, locations,
                                                 ),
                                                 Target::Auto,
                                             );
-                                            }
-                                            _ => (),
                                         }
+                                        _ => (),
                                     }
-                                    GotoTypeDefinitionResponse::Link(
-                                        _location_links,
-                                    ) => {}
                                 }
+                                GotoTypeDefinitionResponse::Link(
+                                    _location_links,
+                                ) => {}
                             }
                         }
-                    }),
+                    },
                 );
             }
             JumpLocationBackward => {
@@ -2073,11 +2040,10 @@ fn next_in_file_errors_offset(
 
 fn process_get_references(
     offset: usize,
-    result: Result<Value, Value>,
+    result: Result<Vec<Location>, RequestError>,
     event_sink: ExtEventSink,
 ) -> Result<()> {
-    let res = result.map_err(|e| anyhow!("{:?}", e))?;
-    let locations: Vec<Location> = serde_json::from_value(res)?;
+    let locations = result.map_err(|e| anyhow!("{:?}", e))?;
     if locations.is_empty() {
         return Ok(());
     }

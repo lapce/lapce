@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use druid::{
     kurbo::Line,
@@ -810,35 +810,20 @@ impl LapceTab {
                             let event_sink = ctx.get_external_handle();
                             let tab_id = data.id;
                             data.proxy.global_search(
-                                    pattern.clone(),
-                                    Box::new(move |result| {
-                                        if let Ok(matches) = result {
-                                            if let Ok(matches) =
-                                                serde_json::from_value::<
-                                                    HashMap<
-                                                        PathBuf,
-                                                        Vec<(
-                                                            usize,
-                                                            (usize, usize),
-                                                            String,
-                                                        )>,
-                                                    >,
-                                                >(
-                                                    matches
-                                                )
-                                            {
-                                                let _ = event_sink.submit_command(
-                                                    LAPCE_UI_COMMAND,
-                                                    LapceUICommand::GlobalSearchResult(
-                                                        pattern,
-                                                        Arc::new(matches),
-                                                    ),
-                                                    Target::Widget(tab_id),
-                                                );
-                                            }
-                                        }
-                                    }),
-                                )
+                                pattern.clone(),
+                                Box::new(move |result| {
+                                    if let Ok(matches) = result {
+                                        let _ = event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::GlobalSearchResult(
+                                                pattern,
+                                                Arc::new(matches),
+                                            ),
+                                            Target::Widget(tab_id),
+                                        );
+                                    }
+                                }),
+                            )
                         }
                     }
                     LapceUICommand::GlobalSearchResult(pattern, matches) => {
