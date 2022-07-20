@@ -312,7 +312,8 @@ impl Title {
         #[cfg(target_os = "windows")] piet_text: &mut PietText,
         #[cfg(not(target_os = "windows"))] _piet_text: &mut PietText,
         size: Size,
-        _padding: f64,
+        #[cfg(target_os = "windows")] padding: f64,
+        #[cfg(not(target_os = "windows"))] _padding: f64,
         x: f64,
     ) -> f64 {
         let mut x = x;
@@ -413,17 +414,14 @@ impl Title {
                 )
                 .build()
                 .unwrap();
+            let minimise_text_size = minimise_text.size();
             let point = Point::new(
-                x + ((minimise_text.size().width + 5.0) / 2.0),
-                (size.height - minimise_text.size().height) / 2.0,
+                x + ((minimise_text_size.width + 5.0) / 2.0),
+                (size.height - minimise_text_size.height) / 2.0,
             );
             self.text_layouts.push((minimise_text, point));
             let minimise_rect = Size::new(
-                size.height
-                    + Some(minimise_text)
-                        .as_ref()
-                        .map(|t| t.size().width.round() + padding - 5.0)
-                        .unwrap_or(0.0),
+                size.height + minimise_text_size.width.round() + padding - 5.0,
                 size.height,
             )
             .to_rect()
@@ -443,7 +441,7 @@ impl Title {
             let max_res_icon;
             let max_res_state;
 
-            if window.get_window_state() == WindowState::Restored {
+            if window_state == &WindowState::Restored {
                 max_res_icon = WindowControls::Maximise;
                 max_res_state = WindowState::Maximized;
             } else {
@@ -453,7 +451,7 @@ impl Title {
 
             let max_res_text = piet_text
                 .new_text_layout(max_res_icon.as_str())
-                .font(ctx.text().font_family(font_family).unwrap(), font_size)
+                .font(piet_text.font_family(font_family).unwrap(), font_size)
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -461,20 +459,15 @@ impl Title {
                 )
                 .build()
                 .unwrap();
-            ctx.draw_text(
-                &max_res_text,
-                Point::new(
-                    x + ((max_res_text.size().width + 5.0) / 2.0),
-                    (size.height - max_res_text.size().height) / 2.0,
-                ),
+            let max_res_text_size = max_res_text.size();
+            let point = Point::new(
+                x + ((max_res_text_size.width + 5.0) / 2.0),
+                (size.height - max_res_text_size.height) / 2.0,
             );
+            self.text_layouts.push((max_res_text, point));
 
             let max_res_rect = Size::new(
-                size.height
-                    + Some(max_res_text)
-                        .as_ref()
-                        .map(|t| t.size().width.round() + padding - 5.0)
-                        .unwrap_or(0.0),
+                size.height + max_res_text_size.width.round() + padding - 5.0,
                 size.height,
             )
             .to_rect()
@@ -489,10 +482,9 @@ impl Title {
             ));
 
             x += size.height;
-            let close_text = ctx
-                .text()
+            let close_text = piet_text
                 .new_text_layout(WindowControls::Close.as_str())
-                .font(ctx.text().font_family(font_family).unwrap(), font_size)
+                .font(piet_text.font_family(font_family).unwrap(), font_size)
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -500,19 +492,14 @@ impl Title {
                 )
                 .build()
                 .unwrap();
-            ctx.draw_text(
-                &close_text,
-                Point::new(
-                    x + ((close_text.size().width + 5.0) / 2.0),
-                    (size.height - close_text.size().height) / 2.0,
-                ),
+            let close_text_size = close_text.size();
+            let point = Point::new(
+                x + ((close_text_size.width + 5.0) / 2.0),
+                (size.height - close_text_size.height) / 2.0,
             );
+            self.text_layouts.push((close_text, point));
             let close_rect = Size::new(
-                size.height
-                    + Some(close_text)
-                        .as_ref()
-                        .map(|t| t.size().width.round() + padding + 5.0)
-                        .unwrap_or(0.0),
+                size.height + close_text_size.width.round() + padding + 5.0,
                 size.height,
             )
             .to_rect()
@@ -678,7 +665,12 @@ impl Widget<LapceTabData> for Title {
 
                     #[cfg(target_os = "windows")]
                     // ! Currently implemented on Windows only
-                    ctx.window().handle_titlebar(true);
+                    if Size::new(ctx.size().width, 36.0)
+                        .to_rect()
+                        .contains(mouse_event.pos)
+                    {
+                        ctx.window().handle_titlebar(true);
+                    }
                 }
             }
             Event::MouseDown(mouse_event) => {
