@@ -784,7 +784,7 @@ dependencies = [
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#c0c917cbf7cda636ce6c102efadaf3b8d15b4d53"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#19e2de833b9ca21c52ab353131d104360546532b"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -807,7 +807,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#c0c917cbf7cda636ce6c102efadaf3b8d15b4d53"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#19e2de833b9ca21c52ab353131d104360546532b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -817,7 +817,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#c0c917cbf7cda636ce6c102efadaf3b8d15b4d53"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#19e2de833b9ca21c52ab353131d104360546532b"
 dependencies = [
  "anyhow",
  "bitflags",
