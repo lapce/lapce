@@ -684,6 +684,7 @@ impl Widget<LapceTabData> for Title {
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event);
             }
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::MouseUp(mouse_event) => {
                 if (cfg!(target_os = "macos") || data.config.ui.custom_titlebar())
                     && !data.multiple_tab
@@ -794,8 +795,10 @@ impl Widget<LapceTabData> for Title {
                 remaining_rect.x1,
                 36.0,
             ));
-            #[cfg(target_os = "macos")]
-            ctx.window().set_dragable_area(self.dragable_area.clone());
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            if cfg!(target_os = "macos") || data.config.ui.custom_titlebar() {
+                ctx.window().set_dragable_area(self.dragable_area.clone());
+            }
         }
 
         bc.max()

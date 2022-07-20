@@ -491,9 +491,13 @@ impl Widget<LapceWindowData> for LapceWindow {
                         .with_origin(Point::new(0.0, 0.0)),
                 );
             }
-            #[cfg(target_os = "macos")]
-            ctx.window().set_dragable_area(region.clone());
-            self.dragable_area = region;
+
+            self.dragable_area.clear();
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            if cfg!(target_os = "macos") || data.config.ui.custom_titlebar() {
+                ctx.window().set_dragable_area(region.clone());
+                self.dragable_area = region;
+            }
 
             if let Some((index, mouse_pos)) = drag {
                 for (i, tab_header) in self.tab_headers.iter().enumerate() {
