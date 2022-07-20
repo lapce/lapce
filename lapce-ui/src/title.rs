@@ -8,8 +8,6 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget,
 };
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use druid::{WindowConfig, WindowState};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
@@ -88,23 +86,6 @@ impl Widget<LapceTabData> for Title {
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event);
             }
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
-            Event::MouseUp(mouse_event) => {
-                if (cfg!(target_os = "macos") || data.config.ui.custom_titlebar())
-                    && mouse_event.count >= 2
-                {
-                    let state = match ctx.window().get_window_state() {
-                        WindowState::Maximized => WindowState::Restored,
-                        WindowState::Restored => WindowState::Maximized,
-                        WindowState::Minimized => WindowState::Maximized,
-                    };
-                    ctx.submit_command(
-                        druid::commands::CONFIGURE_WINDOW
-                            .with(WindowConfig::default().set_window_state(state))
-                            .to(Target::Window(data.window_id)),
-                    )
-                }
-            }
             _ => {}
         }
     }
@@ -167,13 +148,21 @@ impl Widget<LapceTabData> for Title {
             data.config
                 .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
         );
+        ctx.stroke(
+            Line::new(
+                Point::new(rect.x0, rect.y1 - 0.5),
+                Point::new(rect.x1, rect.y1 - 0.5),
+            ),
+            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+            1.0,
+        );
 
         self.commands.clear();
 
         #[cfg(not(target_os = "macos"))]
         let mut x = 0.0;
         #[cfg(target_os = "macos")]
-        let mut x = 78.0;
+        let mut x = if data.multiple_tab { 0.0 } else { 78.0 };
 
         let padding = 15.0;
 

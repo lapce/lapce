@@ -352,7 +352,6 @@ impl<T: Data, W: Widget<T>> Widget<T> for ClipBox<T, W> {
             ctx.transform(Affine::translate(-offset));
 
             let mut visible = ctx.region().clone();
-            println!("visible {visible:?}");
             visible += offset;
             ctx.with_child_ctx(visible, |ctx| self.child.paint_raw(ctx, data, env));
         });

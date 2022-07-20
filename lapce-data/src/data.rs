@@ -453,6 +453,7 @@ pub enum DragContent {
 pub struct LapceTabData {
     pub id: WidgetId,
     pub window_id: WindowId,
+    pub multiple_tab: bool,
     pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
@@ -627,6 +628,7 @@ impl LapceTabData {
         let focus = (*main_split.active).unwrap_or(*main_split.split_id);
         let mut tab = Self {
             id: tab_id,
+            multiple_tab: false,
             window_id,
             workspace: Arc::new(workspace),
             focus,
@@ -1636,6 +1638,7 @@ impl Lens<LapceWindowData, LapceTabData> for LapceTabLens {
         let mut tab = data.tabs.get(&self.0).unwrap().clone();
         tab.keypress = data.keypress.clone();
         tab.plugins = data.plugins.clone();
+        tab.multiple_tab = data.tabs.len() > 1;
         if !tab.panel.order.same(&data.panel_orders) {
             Arc::make_mut(&mut tab.panel).order = data.panel_orders.clone();
         }

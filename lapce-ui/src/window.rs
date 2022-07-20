@@ -1,3 +1,5 @@
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use druid::WindowConfig;
 use druid::{
     kurbo::Line,
     widget::{LensWrap, WidgetExt},
@@ -24,6 +26,7 @@ pub struct LapceWindow {
             LensWrap<LapceWindowData, LapceTabData, LapceTabLens, LapceTabHeader>,
         >,
     >,
+    dragable_area: Region,
 }
 
 impl LapceWindow {
@@ -47,7 +50,7 @@ impl LapceWindow {
             })
             .collect();
         Self {
-            // title,
+            dragable_area: Region::EMPTY,
             tabs,
             tab_headers,
         }
@@ -191,6 +194,28 @@ impl Widget<LapceWindowData> for LapceWindow {
                     LapceUICommand::Focus,
                     Target::Widget(data.active_id),
                 ));
+            }
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::MouseUp(mouse_event) => {
+                if (cfg!(target_os = "macos") || data.config.ui.custom_titlebar())
+                    && mouse_event.count >= 2
+                    && self
+                        .dragable_area
+                        .rects()
+                        .iter()
+                        .any(|r| r.contains(mouse_event.pos))
+                {
+                    let state = match ctx.window().get_window_state() {
+                        WindowState::Maximized => WindowState::Restored,
+                        WindowState::Restored => WindowState::Maximized,
+                        WindowState::Minimized => WindowState::Maximized,
+                    };
+                    ctx.submit_command(
+                        druid::commands::CONFIGURE_WINDOW
+                            .with(WindowConfig::default().set_window_state(state))
+                            .to(Target::Window(data.window_id)),
+                    )
+                }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
@@ -468,7 +493,8 @@ impl Widget<LapceWindowData> for LapceWindow {
                         .with_origin(Point::new(0.0, 0.0)),
                 );
             }
-            ctx.window().set_dragable_area(region);
+            ctx.window().set_dragable_area(region.clone());
+            self.dragable_area = region;
 
             if let Some((index, mouse_pos)) = drag {
                 for (i, tab_header) in self.tab_headers.iter().enumerate() {
@@ -497,7 +523,8 @@ impl Widget<LapceWindowData> for LapceWindow {
 
             let mut region = Region::EMPTY;
             region.add_rect(Size::new(self_size.width, 36.0).to_rect());
-            ctx.window().set_dragable_area(region);
+            ctx.window().set_dragable_area(region.clone());
+            self.dragable_area = region;
 
             (tab_size, Point::ZERO)
         };
