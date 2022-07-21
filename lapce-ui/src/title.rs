@@ -53,7 +53,8 @@ impl Title {
         &mut self,
         data: &LapceTabData,
         window_state: &WindowState,
-        is_fullscreen: bool,
+        #[cfg(not(target_os = "macos"))] _is_fullscreen: bool,
+        #[cfg(target_os = "macos")] is_fullscreen: bool,
         piet_text: &mut PietText,
         size: Size,
     ) -> Rect {
