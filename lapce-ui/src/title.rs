@@ -327,6 +327,8 @@ impl Title {
             x = size.width - (size.height * 4.0);
         }
 
+        let offset = x;
+
         let settings_rect = Size::new(size.height, size.height)
             .to_rect()
             .with_origin(Point::new(x, 0.0));
@@ -516,7 +518,8 @@ impl Title {
                 Command::new(druid::commands::QUIT_APP, (), Target::Global),
             ));
         }
-        x
+
+        offset
     }
 
     fn update_folder(
@@ -671,9 +674,11 @@ impl Widget<LapceTabData> for Title {
 
                     #[cfg(target_os = "windows")]
                     // ! Currently implemented on Windows only
-                    if Size::new(ctx.size().width, 36.0)
-                        .to_rect()
-                        .contains(mouse_event.pos)
+                    if self
+                        .dragable_area
+                        .rects()
+                        .iter()
+                        .any(|r| r.contains(mouse_event.pos))
                     {
                         ctx.window().handle_titlebar(true);
                     }
