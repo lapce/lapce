@@ -2,10 +2,11 @@
 use druid::WindowConfig;
 use druid::{
     kurbo::Line,
+    piet::{PietText, PietTextLayout, Svg, Text, TextLayoutBuilder},
     widget::{LensWrap, WidgetExt},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Region, RenderContext, Size, Target, Widget,
-    WidgetId, WidgetPod, WindowState,
+    LifeCycleCtx, PaintCtx, Point, Rect, Region, RenderContext, Size, Target,
+    Widget, WidgetId, WidgetPod, WindowConfig, WindowId, WindowState,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -15,7 +16,10 @@ use lapce_data::{
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use crate::tab::{LapceTab, LapceTabHeader};
+use crate::{
+    svg::get_svg,
+    tab::{LapceTab, LapceTabHeader},
+};
 
 pub struct LapceWindow {
     // pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
@@ -601,58 +605,122 @@ impl Widget<LapceWindowData> for LapceWindow {
                 2.0,
             );
         }
-
-        // ctx.with_save(|ctx| {
-        // ctx.clip(self.tabs[data.active].layout_rect());
-        // });
-
-        // let line_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
-        // if self.tabs.len() > 1 {
-        //     let num = self.tabs.len();
-        //     let section = ctx.size().width / num as f64;
-        //     for i in 1..num {
-        //         let line = Line::new(
-        //             Point::new(i as f64 * section, 0.0),
-        //             Point::new(i as f64 * section, tab_height),
-        //         );
-        //         ctx.stroke(line, line_color, 1.0);
-        //     }
-
-        //     let rect = self.tab_headers[data.active].layout_rect();
-        //     let clip_rect = Size::new(size.width, tab_height)
-        //         .to_rect()
-        //         .with_origin(Point::new(0.0, 0.0));
-        //     ctx.with_save(|ctx| {
-        //         ctx.clip(clip_rect);
-        //         let shadow_width = data.config.ui.drop_shadow_width() as f64;
-        //         if shadow_width > 0.0 {
-        //             ctx.blurred_rect(
-        //                 rect,
-        //                 shadow_width,
-        //                 data.config
-        //                     .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        //             );
-        //         }
-        //         ctx.fill(
-        //             rect,
-        //             data.config
-        //                 .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-        //         );
-        //     });
-        //     self.tab_headers[data.active].paint(ctx, data, env);
-
-        //     let line = Line::new(
-        //         Point::new(0.0, tab_height - 0.5),
-        //         Point::new(size.width, tab_height - 0.5),
-        //     );
-        //     ctx.stroke(line, line_color, 1.0);
-        // }
-
-        // self.title.paint(ctx, data, env);
-        // let line = Line::new(
-        //     Point::new(0.0, title_height - 0.5),
-        //     Point::new(size.width, title_height - 0.5),
-        // );
-        // ctx.stroke(line, line_color, 1.0);
     }
+}
+
+#[allow(clippy::type_complexity)]
+pub fn window_controls(
+    window_id: WindowId,
+    window_state: &WindowState,
+    piet_text: &mut PietText,
+    x: f64,
+    width: f64,
+    config: &Config,
+) -> (
+    Vec<(Rect, Command)>,
+    Vec<(Svg, Rect)>,
+    Vec<(PietTextLayout, Point)>,
+) {
+    let mut commands = Vec::new();
+
+    let minimise_rect = Size::new(width, width)
+        .to_rect()
+        .with_origin(Point::new(x, 0.0));
+    commands.push((
+        minimise_rect,
+        Command::new(
+            druid::commands::CONFIGURE_WINDOW,
+            WindowConfig::default().set_window_state(WindowState::Minimized),
+            Target::Window(window_id),
+        ),
+    ));
+
+    let max_res_state = if window_state == &WindowState::Restored {
+        WindowState::Maximized
+    } else {
+        WindowState::Restored
+    };
+
+    let max_res_rect = Size::new(width, width)
+        .to_rect()
+        .with_origin(Point::new(x + width, 0.0));
+    commands.push((
+        max_res_rect,
+        Command::new(
+            druid::commands::CONFIGURE_WINDOW,
+            WindowConfig::default().set_window_state(max_res_state),
+            Target::Window(window_id),
+        ),
+    ));
+
+    let close_rect = Size::new(width, width)
+        .to_rect()
+        .with_origin(Point::new(x + 2.0 * width, 0.0));
+
+    commands.push((
+        close_rect,
+        Command::new(druid::commands::QUIT_APP, (), Target::Global),
+    ));
+
+    let mut svgs = Vec::new();
+    if cfg!(target_os = "linux") {
+        let minimize_rect = Size::new(width, width)
+            .to_rect()
+            .with_origin(Point::new(x, 0.0))
+            .inflate(-10.0, -10.0);
+        svgs.push((get_svg("chrome-minimize.svg").unwrap(), minimize_rect));
+
+        let max_res_rect = Size::new(width, width)
+            .to_rect()
+            .with_origin(Point::new(x + width, 0.0))
+            .inflate(-10.0, -10.0);
+        let max_res_svg = if window_state == &WindowState::Restored {
+            get_svg("chrome-maximize.svg").unwrap()
+        } else {
+            get_svg("chrome-restore.svg").unwrap()
+        };
+        svgs.push((max_res_svg, max_res_rect));
+
+        let close_rect = Size::new(width, width)
+            .to_rect()
+            .with_origin(Point::new(x + 2.0 * width, 0.0))
+            .inflate(-10.0, -10.0);
+        svgs.push((get_svg("chrome-close.svg").unwrap(), close_rect));
+    }
+
+    let mut text_layouts = Vec::new();
+    if cfg!(target_os = "windows") {
+        let texts = vec![
+            "\u{E949}",
+            if window_state == &WindowState::Restored {
+                "\u{E739}"
+            } else {
+                "\u{E923}"
+            },
+            "\u{E106}",
+        ];
+        let font_size = 10.0;
+        let font_family = "Segoe MDL2 Assets";
+        for (i, text_layout) in texts
+            .iter()
+            .map(|text| {
+                piet_text
+                    .new_text_layout(text.to_string())
+                    .font(piet_text.font_family(font_family).unwrap(), font_size)
+                    .text_color(
+                        config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap()
+            })
+            .enumerate()
+        {
+            let point = Point::new(x + i as f64 * width, 0.0);
+            text_layouts.push((text_layout, point));
+        }
+    }
+
+    (commands, svgs, text_layouts)
 }

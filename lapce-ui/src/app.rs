@@ -18,17 +18,6 @@ use crate::logging::override_log_levels;
 use crate::window::LapceWindow;
 
 #[cfg(target_os = "linux")]
-pub const CLOSE_SVG: &[u8] = include_bytes!("../../extra/linux/chrome-close.svg");
-#[cfg(target_os = "linux")]
-pub const MINIMIZE_SVG: &[u8] =
-    include_bytes!("../../extra/linux/chrome-minimize.svg");
-#[cfg(target_os = "linux")]
-pub const MAXIMIZE_SVG: &[u8] =
-    include_bytes!("../../extra/linux/chrome-maximize.svg");
-#[cfg(target_os = "linux")]
-pub const RESTORE_SVG: &[u8] =
-    include_bytes!("../../extra/linux/chrome-restore.svg");
-#[cfg(target_os = "linux")]
 const LOGO_PNG: &[u8] = include_bytes!("../../extra/images/logo.png");
 #[cfg(target_os = "windows")]
 const LOGO_ICO: &[u8] = include_bytes!("../../extra/windows/lapce.ico");
