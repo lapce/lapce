@@ -11,7 +11,6 @@ use druid::{Target, WidgetId};
 use lapce_core::cursor::CursorMode;
 use lapce_core::selection::Selection;
 use lapce_rpc::file::FileNodeItem;
-use lapce_rpc::proxy::ReadDirResponse;
 use xi_rope::Rope;
 
 use crate::data::LapceMainSplitData;
@@ -227,29 +226,20 @@ impl FileExplorerData {
     ) {
         let path = PathBuf::from(path);
         let local_path = path.clone();
-        proxy.read_dir(
-            &local_path,
-            Box::new(move |result| {
-                if let Ok(res) = result {
-                    let path = path.clone();
-                    let resp: Result<ReadDirResponse, serde_json::Error> =
-                        serde_json::from_value(res);
-                    if let Ok(resp) = resp {
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateExplorerItems(
-                                path, resp.items, expand,
-                            ),
-                            Target::Widget(tab_id),
-                        );
+        proxy.read_dir(&local_path, move |result| {
+            if let Ok(resp) = result {
+                let path = path.clone();
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateExplorerItems(path, resp.items, expand),
+                    Target::Widget(tab_id),
+                );
 
-                        if let Some(on_finished) = on_finished.take() {
-                            on_finished();
-                        }
-                    }
+                if let Some(on_finished) = on_finished.take() {
+                    on_finished();
                 }
-            }),
-        );
+            }
+        });
     }
 
     /// Stop naming the file/directory, discarding any changes

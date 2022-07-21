@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use druid::{ExtEventSink, Size, Target, WidgetId};
 use lapce_rpc::buffer::BufferId;
-use lsp_types::{Hover, HoverContents, MarkedString, MarkupKind, Position};
+use lsp_types::{HoverContents, MarkedString, MarkupKind, Position};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -133,15 +133,13 @@ impl HoverData {
             position,
             Box::new(move |result| {
                 if let Ok(resp) = result {
-                    if let Ok(resp) = serde_json::from_value::<Hover>(resp) {
-                        let items = parse_hover_resp(resp, &p_config);
+                    let items = parse_hover_resp(resp, &p_config);
 
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateHover(request_id, Arc::new(items)),
-                            Target::Widget(hover_widget_id),
-                        );
-                    }
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateHover(request_id, Arc::new(items)),
+                        Target::Widget(hover_widget_id),
+                    );
                 }
             }),
         );

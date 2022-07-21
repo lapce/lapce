@@ -331,18 +331,12 @@ impl CompletionData {
             buffer_id,
             position,
             Box::new(move |result| {
-                if let Ok(res) = result {
-                    if let Ok(resp) =
-                        serde_json::from_value::<CompletionResponse>(res)
-                    {
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateCompletion(
-                                request_id, input, resp,
-                            ),
-                            Target::Widget(completion_widget_id),
-                        );
-                    }
+                if let Ok(resp) = result {
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateCompletion(request_id, input, resp),
+                        Target::Widget(completion_widget_id),
+                    );
                 }
             }),
         );

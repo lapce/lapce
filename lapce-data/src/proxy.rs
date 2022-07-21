@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::BufReader;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -13,21 +14,28 @@ use druid::Target;
 use druid::{ExtEventSink, WidgetId};
 use flate2::read::GzDecoder;
 use lapce_proxy::dispatch::Dispatcher;
-use lapce_rpc::buffer::BufferId;
+use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
 use lapce_rpc::core::{CoreNotification, CoreRequest};
 use lapce_rpc::plugin::PluginDescription;
-use lapce_rpc::proxy::ProxyRequest;
+use lapce_rpc::proxy::{ProxyRequest, ReadDirResponse};
 use lapce_rpc::source_control::FileDiff;
+use lapce_rpc::style::SemanticStyles;
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::RpcHandler;
 use lapce_rpc::{stdio_transport, Callback};
 use lapce_rpc::{ControlFlow, Handler};
-use lsp_types::CompletionItem;
-use lsp_types::Position;
-use lsp_types::Url;
+use lsp_types::request::GotoTypeDefinitionResponse;
+use lsp_types::{
+    CodeActionResponse, CompletionItem, CompletionResponse, DocumentSymbolResponse,
+    GotoDefinitionResponse, InlayHint, SymbolInformation, TextEdit,
+};
+use lsp_types::{Hover, Position};
+use lsp_types::{Location, Url};
 use parking_lot::Mutex;
+use serde::de::DeserializeOwned;
 use serde_json::json;
 use serde_json::Value;
+use thiserror::Error;
 use xi_rope::{Rope, RopeDelta};
 
 use crate::command::LapceUICommand;
@@ -49,6 +57,15 @@ pub enum ProxyStatus {
     Connecting,
     Connected,
     Disconnected,
+}
+
+#[derive(Error, Debug)]
+pub enum RequestError {
+    /// Error in deserializing to the expected value
+    #[error("failed to deserialize")]
+    Deser(serde_json::Error),
+    #[error("response failed")]
+    Rpc(Value),
 }
 
 #[derive(Clone)]
@@ -406,20 +423,31 @@ impl LapceProxy {
         &self,
         buffer_id: BufferId,
         path: PathBuf,
-        f: Box<dyn Callback>,
+        f: impl FnOnce(Result<BufferHeadResponse, RequestError>) + Send + 'static,
     ) {
         self.rpc.send_rpc_request_async(
             "buffer_head",
             &json!({ "buffer_id": buffer_id, "path": path, }),
-            f,
+            box_json_cb(f),
         );
     }
 
-    pub fn global_search(&self, pattern: String, f: Box<dyn Callback>) {
+    // TODO: Make this type more explicit
+    pub fn global_search(
+        &self,
+        pattern: String,
+        f: impl FnOnce(
+                Result<
+                    HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
+                    RequestError,
+                >,
+            ) + Send
+            + 'static,
+    ) {
         self.rpc.send_rpc_request_async(
             "global_search",
             &json!({ "pattern": pattern }),
-            f,
+            box_json_cb(f),
         );
     }
 
@@ -427,12 +455,12 @@ impl LapceProxy {
         &self,
         buffer_id: BufferId,
         path: PathBuf,
-        f: Box<dyn Callback>,
+        f: impl FnOnce(Result<NewBufferResponse, RequestError>) + Send + 'static,
     ) {
         self.rpc.send_rpc_request_async(
             "new_buffer",
             &json!({ "buffer_id": buffer_id, "path": path }),
-            f,
+            box_json_cb(f),
         );
     }
 
@@ -526,7 +554,7 @@ impl LapceProxy {
         request_id: usize,
         buffer_id: BufferId,
         position: Position,
-        f: Box<dyn Callback>,
+        f: impl FnOnce(Result<CompletionResponse, RequestError>) + Send + 'static,
     ) {
         self.rpc.send_rpc_request_async(
             "get_completion",
@@ -535,7 +563,7 @@ impl LapceProxy {
                 "buffer_id": buffer_id,
                 "position": position,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
@@ -543,7 +571,7 @@ impl LapceProxy {
         &self,
         buffer_id: BufferId,
         completion_item: CompletionItem,
-        f: Box<dyn Callback>,
+        f: impl FnOnce(Result<CompletionItem, RequestError>) + Send + 'static,
     ) {
         self.rpc.send_rpc_request_async(
             "completion_resolve",
@@ -551,7 +579,7 @@ impl LapceProxy {
                 "buffer_id": buffer_id,
                 "completion_item": completion_item,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
@@ -560,7 +588,7 @@ impl LapceProxy {
         request_id: usize,
         buffer_id: BufferId,
         position: Position,
-        f: Box<dyn Callback>,
+        f: impl FnOnce(Result<Hover, RequestError>) + Send + 'static,
     ) {
         self.rpc.send_rpc_request_async(
             "get_hover",
@@ -569,7 +597,7 @@ impl LapceProxy {
                 "buffer_id": buffer_id,
                 "position": position,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
@@ -593,7 +621,7 @@ impl LapceProxy {
         &self,
         buffer_id: BufferId,
         position: Position,
-        f: Box<dyn Callback>,
+        f: impl FnOnce(Result<Vec<Location>, RequestError>) + Send + 'static,
     ) {
         self.rpc.send_rpc_request_async(
             "get_references",
@@ -601,27 +629,34 @@ impl LapceProxy {
                 "buffer_id": buffer_id,
                 "position": position,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
-    pub fn get_files(&self, f: Box<dyn Callback>) {
+    pub fn get_files(
+        &self,
+        f: impl FnOnce(Result<Vec<PathBuf>, RequestError>) + Send + 'static,
+    ) {
         self.rpc.send_rpc_request_async(
             "get_files",
             &json!({
                 "path": "path",
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
-    pub fn read_dir(&self, path: &Path, f: Box<dyn Callback>) {
+    pub fn read_dir(
+        &self,
+        path: &Path,
+        f: impl FnOnce(Result<ReadDirResponse, RequestError>) + Send + 'static,
+    ) {
         self.rpc.send_rpc_request_async(
             "read_dir",
             &json!({
                 "path": path,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
@@ -630,7 +665,7 @@ impl LapceProxy {
         request_id: usize,
         buffer_id: BufferId,
         position: Position,
-        f: Box<dyn Callback>,
+        f: impl FnOnce(Result<GotoDefinitionResponse, RequestError>) + Send + 'static,
     ) {
         self.rpc.send_rpc_request_async(
             "get_definition",
@@ -639,7 +674,7 @@ impl LapceProxy {
                 "buffer_id": buffer_id,
                 "position": position,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
@@ -648,7 +683,7 @@ impl LapceProxy {
         request_id: usize,
         buffer_id: BufferId,
         position: Position,
-        f: Box<dyn Callback>,
+        f: impl FnOnce(Result<GotoTypeDefinitionResponse, RequestError>) + Send + 'static,
     ) {
         self.rpc.send_rpc_request_async(
             "get_type_definition",
@@ -657,17 +692,21 @@ impl LapceProxy {
                 "buffer_id": buffer_id,
                 "position": position,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
-    pub fn get_document_symbols(&self, buffer_id: BufferId, f: Box<dyn Callback>) {
+    pub fn get_document_symbols(
+        &self,
+        buffer_id: BufferId,
+        f: impl FnOnce(Result<DocumentSymbolResponse, RequestError>) + Send + 'static,
+    ) {
         self.rpc.send_rpc_request_async(
             "get_document_symbols",
             &json!({
                 "buffer_id": buffer_id,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
@@ -675,7 +714,9 @@ impl LapceProxy {
         &self,
         buffer_id: BufferId,
         query: &str,
-        f: Box<dyn Callback>,
+        f: impl FnOnce(Result<Option<Vec<SymbolInformation>>, RequestError>)
+            + Send
+            + 'static,
     ) {
         self.rpc.send_rpc_request_async(
             "get_workspace_symbols",
@@ -683,27 +724,35 @@ impl LapceProxy {
                 "buffer_id": buffer_id,
                 "query": query,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
-    pub fn get_inlay_hints(&self, buffer_id: BufferId, f: Box<dyn Callback>) {
+    pub fn get_inlay_hints(
+        &self,
+        buffer_id: BufferId,
+        f: impl FnOnce(Result<Vec<InlayHint>, RequestError>) + Send + 'static,
+    ) {
         self.rpc.send_rpc_request_async(
             "get_inlay_hints",
             &json!({
                 "buffer_id": buffer_id,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
-    pub fn get_semantic_tokens(&self, buffer_id: BufferId, f: Box<dyn Callback>) {
+    pub fn get_semantic_tokens(
+        &self,
+        buffer_id: BufferId,
+        f: impl FnOnce(Result<SemanticStyles, RequestError>) + Send + 'static,
+    ) {
         self.rpc.send_rpc_request_async(
             "get_semantic_tokens",
             &json!({
                 "buffer_id": buffer_id,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
@@ -711,7 +760,7 @@ impl LapceProxy {
         &self,
         buffer_id: BufferId,
         position: Position,
-        f: Box<dyn Callback>,
+        f: impl FnOnce(Result<CodeActionResponse, RequestError>) + Send + 'static,
     ) {
         self.rpc.send_rpc_request_async(
             "get_code_actions",
@@ -719,21 +768,21 @@ impl LapceProxy {
                 "buffer_id": buffer_id,
                 "position": position,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
     pub fn get_document_formatting(
         &self,
         buffer_id: BufferId,
-        f: Box<dyn Callback>,
+        f: impl FnOnce(Result<Vec<TextEdit>, RequestError>) + Send + 'static,
     ) {
         self.rpc.send_rpc_request_async(
             "get_document_formatting",
             &json!({
                 "buffer_id": buffer_id,
             }),
-            f,
+            box_json_cb(f),
         );
     }
 
@@ -908,4 +957,20 @@ pub fn path_from_url(url: &Url) -> PathBuf {
 #[cfg(not(windows))]
 pub fn path_from_url(url: &Url) -> PathBuf {
     PathBuf::from(url.path())
+}
+
+/// Create a callback that receives an unparsed json result
+/// Then parse it to the given type and pass it to the callback
+/// Most callbacks currently don't need to do anything beyond parsing it to a specific type
+fn box_json_cb<
+    T: DeserializeOwned,
+    F: FnOnce(Result<T, RequestError>) + Send + 'static,
+>(
+    f: F,
+) -> Box<dyn Callback> {
+    Box::new(|res: Result<Value, Value>| {
+        f(res.map_err(RequestError::Rpc).and_then(|x| {
+            serde_json::from_value::<T>(x).map_err(RequestError::Deser)
+        }))
+    })
 }

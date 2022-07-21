@@ -14,10 +14,7 @@ use lapce_core::{
     style::line_styles,
     syntax::Syntax,
 };
-use lapce_rpc::{
-    buffer::BufferHeadResponse,
-    style::{LineStyle, LineStyles, Style},
-};
+use lapce_rpc::style::{LineStyle, LineStyles, Style};
 use xi_rope::{spans::Spans, Rope};
 
 use crate::{
@@ -175,27 +172,19 @@ impl DocumentHistory {
             let proxy = doc.proxy.clone();
             let event_sink = doc.event_sink.clone();
             std::thread::spawn(move || {
-                proxy.get_buffer_head(
-                    id,
-                    path.clone(),
-                    Box::new(move |result| {
-                        if let Ok(res) = result {
-                            if let Ok(resp) =
-                                serde_json::from_value::<BufferHeadResponse>(res)
-                            {
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::LoadBufferHead {
-                                        path,
-                                        content: Rope::from(resp.content),
-                                        version: resp.version,
-                                    },
-                                    Target::Widget(tab_id),
-                                );
-                            }
-                        }
-                    }),
-                )
+                proxy.get_buffer_head(id, path.clone(), move |result| {
+                    if let Ok(resp) = result {
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::LoadBufferHead {
+                                path,
+                                content: Rope::from(resp.content),
+                                version: resp.version,
+                            },
+                            Target::Widget(tab_id),
+                        );
+                    }
+                })
             });
         }
     }
