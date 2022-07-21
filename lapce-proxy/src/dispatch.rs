@@ -272,18 +272,25 @@ impl Dispatcher {
 
             let mut handler = self.workspace_fs_change_handler.lock();
             if let Some(sender) = handler.as_mut() {
-                let _ = sender.send(explorer_change);
+                if explorer_change {
+                    // only send the value if we need to update file explorer as well
+                    let _ = sender.send(explorer_change);
+                }
                 return;
             }
             let (sender, receiver) = crossbeam_channel::unbounded();
+            if explorer_change {
+                // only send the value if we need to update file explorer as well
+                let _ = sender.send(explorer_change);
+            }
 
             let local_handler = self.workspace_fs_change_handler.clone();
             let local_dispatcher = self.clone();
             thread::spawn(move || {
                 thread::sleep(Duration::from_secs(1));
-                let mut handler = local_handler.lock();
-                if let Some(sender) = handler.take() {
-                    drop(sender);
+
+                {
+                    local_handler.lock().take();
                 }
 
                 let mut explorer_change = false;
