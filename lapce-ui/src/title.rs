@@ -792,10 +792,7 @@ impl Widget<LapceTabData> for Title {
                 remaining_rect.x1,
                 36.0,
             ));
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
-            if cfg!(target_os = "macos") || data.config.ui.custom_titlebar() {
-                ctx.window().set_dragable_area(self.dragable_area.clone());
-            }
+            ctx.window().set_dragable_area(self.dragable_area.clone());
         }
 
         bc.max()
