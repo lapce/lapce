@@ -220,9 +220,6 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         _ctx: &mut druid::DelegateCtx,
     ) {
         if let Some(window) = data.windows.remove(&id) {
-            // let tmp = window.tabs.get(&window.active_id).unwrap();
-            // let tmp = tmp.main_split.active_editor().unwrap();
-            // println!("Buffer value: {:?}", tmp.content);
             for (_, tab) in window.tabs.iter() {
                 let _ = data.db.save_workspace(tab);
             }
