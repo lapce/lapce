@@ -75,8 +75,8 @@ impl Title {
         {
             let logo_rect = Size::new(size.height, size.height)
                 .to_rect()
-                .with_origin(Point::new(x, 0.0))
-                .inflate(-5.0, -5.0);
+                .with_origin(Point::new(x + 2.0, 0.0))
+                .inflate(-9.0, -9.0);
             let logo_svg = crate::svg::logo_svg();
             self.svgs.push((
                 logo_svg,
