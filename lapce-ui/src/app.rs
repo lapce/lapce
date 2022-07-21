@@ -105,8 +105,8 @@ fn new_window_desc<W, T: druid::Data>(
     size: Size,
     pos: Point,
     maximised: bool,
-    #[cfg(target_os = "windows")] config: &Arc<Config>,
-    #[cfg(not(target_os = "windows"))] _config: &Arc<Config>,
+    #[cfg(any(target_os = "windows", target_os = "linux"))] config: &Arc<Config>,
+    #[cfg(target_os = "macos")] _config: &Arc<Config>,
 ) -> WindowDesc<T>
 where
     W: Widget<T> + 'static,
@@ -118,6 +118,11 @@ where
         .set_position(pos);
 
     #[cfg(target_os = "windows")]
+    if config.ui.custom_titlebar() {
+        desc = desc.show_titlebar(false);
+    }
+
+    #[cfg(target_os = "linux")]
     if config.ui.custom_titlebar() {
         desc = desc.show_titlebar(false);
     }
