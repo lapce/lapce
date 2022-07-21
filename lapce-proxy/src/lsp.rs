@@ -1268,6 +1268,9 @@ impl LspClient {
                     ..Default::default()
                 }),
                 type_definition: Some(GotoCapability {
+                    // Note: This is explicitly specified rather than left to the Default because
+                    // of a bug in lsp-types https://github.com/gluon-lang/lsp-types/pull/244
+                    link_support: Some(false),
                     ..Default::default()
                 }),
                 ..Default::default()
