@@ -428,12 +428,9 @@ impl Title {
                 (size.height - minimise_text_size.height) / 2.0,
             );
             self.text_layouts.push((minimise_text, point));
-            let minimise_rect = Size::new(
-                size.height + minimise_text_size.width.round() + padding - 5.0,
-                size.height,
-            )
-            .to_rect()
-            .with_origin(Point::new(x, 0.0));
+            let minimise_rect = Size::new(size.height, size.height)
+                .to_rect()
+                .with_origin(Point::new(x, 0.0));
 
             self.commands.push((
                 minimise_rect,
@@ -474,12 +471,9 @@ impl Title {
             );
             self.text_layouts.push((max_res_text, point));
 
-            let max_res_rect = Size::new(
-                size.height + max_res_text_size.width.round() + padding - 5.0,
-                size.height,
-            )
-            .to_rect()
-            .with_origin(Point::new(x, 0.0));
+            let max_res_rect = Size::new(size.height, size.height)
+                .to_rect()
+                .with_origin(Point::new(x, 0.0));
             self.commands.push((
                 max_res_rect,
                 Command::new(
@@ -506,12 +500,9 @@ impl Title {
                 (size.height - close_text_size.height) / 2.0,
             );
             self.text_layouts.push((close_text, point));
-            let close_rect = Size::new(
-                size.height + close_text_size.width.round() + padding + 5.0,
-                size.height,
-            )
-            .to_rect()
-            .with_origin(Point::new(x, 0.0));
+            let close_rect = Size::new(size.height, size.height)
+                .to_rect()
+                .with_origin(Point::new(x, 0.0));
 
             self.commands.push((
                 close_rect,
