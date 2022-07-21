@@ -65,7 +65,11 @@ impl Title {
         #[cfg(not(target_os = "macos"))]
         let mut x = 0.0;
         #[cfg(target_os = "macos")]
-        let mut x = if data.multiple_tab { 0.0 } else { 78.0 };
+        let mut x = if data.multiple_tab || window_state == &WindowState::Maximized {
+            0.0
+        } else {
+            78.0
+        };
 
         #[cfg(target_os = "windows")]
         {

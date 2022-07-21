@@ -784,7 +784,7 @@ dependencies = [
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#af5c10985506ee47e0ad903db43a8a77ceaad623"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#c34ab58b5499b11298c0b11af573a9c54a520613"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -807,7 +807,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#af5c10985506ee47e0ad903db43a8a77ceaad623"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#c34ab58b5499b11298c0b11af573a9c54a520613"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -817,7 +817,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#af5c10985506ee47e0ad903db43a8a77ceaad623"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#c34ab58b5499b11298c0b11af573a9c54a520613"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -4720,7 +4720,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-julia"
 version = "0.19.0"
-source = "git+https://github.com/VarLad/tree-sitter-julia?branch=master#05b4de163932f52bc1e57c5ff4deff291b6e8805"
+source = "git+https://github.com/varlad/tree-sitter-julia?branch=master#05b4de163932f52bc1e57c5ff4deff291b6e8805"
 dependencies = [
  "cc",
  "tree-sitter",

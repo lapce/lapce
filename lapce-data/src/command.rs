@@ -523,7 +523,6 @@ pub enum LapceUICommand {
     },
     UpdateSyntax {
         content: BufferContent,
-        rev: u64,
         syntax: SingleUse<Syntax>,
     },
     UpdateHistoryChanges {
