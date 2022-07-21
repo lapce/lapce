@@ -1469,6 +1469,7 @@ impl LapceTab {
                         let path_c = path.clone();
                         let event_sink = ctx.get_external_handle();
                         let tab_id = data.id;
+                        let explorer = data.file_explorer.clone();
                         data.proxy.create_file(
                             path,
                             Box::new(move |res| {
@@ -1488,14 +1489,16 @@ impl LapceTab {
                                         );
                                     }
                                 }
+                                explorer.reload();
                             }),
                         );
                         ctx.set_handled();
                     }
                     LapceUICommand::CreateDirectory { path } => {
+                        let explorer = data.file_explorer.clone();
                         data.proxy.create_directory(
                             path,
-                            Box::new(|res| {
+                            Box::new(move |res| {
                                 if let Err(err) = res {
                                     // TODO: Inform the user through a corner-notif
                                     log::warn!(
@@ -1503,30 +1506,35 @@ impl LapceTab {
                                         err
                                     );
                                 }
+                                explorer.reload();
                             }),
                         );
                         ctx.set_handled();
                     }
                     LapceUICommand::RenamePath { from, to } => {
+                        let explorer = data.file_explorer.clone();
                         data.proxy.rename_path(
                             from,
                             to,
-                            Box::new(|res| {
+                            Box::new(move |res| {
                                 if let Err(err) = res {
                                     // TODO: inform the user through a corner-notif
                                     log::warn!("Failed to rename path: {:?}", err);
                                 }
+                                explorer.reload();
                             }),
                         );
                     }
                     LapceUICommand::TrashPath { path } => {
+                        let explorer = data.file_explorer.clone();
                         data.proxy.trash_path(
                             path,
-                            Box::new(|res| {
+                            Box::new(move |res| {
                                 if let Err(err) = res {
                                     // TODO: inform the user through a corner-notif
                                     log::warn!("Failed to trash path: {:?}", err);
                                 }
+                                explorer.reload();
                             }),
                         );
                         ctx.set_handled();

@@ -647,7 +647,10 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             menu = menu.entry(item);
                         }
 
-                        ctx.show_context_menu::<LapceData>(menu, mouse_event.pos);
+                        ctx.show_context_menu::<LapceData>(
+                            menu,
+                            ctx.to_window(mouse_event.pos),
+                        );
                     }
                 }
             }
