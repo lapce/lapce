@@ -454,12 +454,11 @@ impl Widget<LapceWindowData> for LapceWindow {
             #[cfg(not(target_os = "macos"))]
             let left_padding = 0.0;
             #[cfg(target_os = "macos")]
-            let left_padding =
-                if ctx.window().get_window_state() != WindowState::Maximized {
-                    78.0
-                } else {
-                    0.0
-                };
+            let left_padding = if ctx.window().is_fullscreen() {
+                0.0
+            } else {
+                78.0
+            };
 
             let right_padding = 100.0;
 

@@ -53,6 +53,7 @@ impl Title {
         &mut self,
         data: &LapceTabData,
         window_state: &WindowState,
+        is_fullscreen: bool,
         piet_text: &mut PietText,
         size: Size,
     ) -> Rect {
@@ -65,7 +66,7 @@ impl Title {
         #[cfg(not(target_os = "macos"))]
         let mut x = 0.0;
         #[cfg(target_os = "macos")]
-        let mut x = if data.multiple_tab || window_state == &WindowState::Maximized {
+        let mut x = if data.multiple_tab || is_fullscreen {
             0.0
         } else {
             78.0
@@ -750,6 +751,7 @@ impl Widget<LapceTabData> for Title {
         let remaining_rect = self.update_content(
             data,
             &window_state,
+            ctx.window().is_fullscreen(),
             ctx.text(),
             Size::new(bc.max().width, 36.0),
         );
