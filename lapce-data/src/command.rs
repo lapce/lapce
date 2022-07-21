@@ -523,7 +523,6 @@ pub enum LapceUICommand {
     },
     UpdateSyntax {
         content: BufferContent,
-        rev: u64,
         syntax: SingleUse<Syntax>,
     },
     UpdateHistoryChanges {
@@ -549,7 +548,7 @@ pub enum LapceUICommand {
     SaveAs(BufferContent, PathBuf, WidgetId, bool),
     SaveAsSuccess(BufferContent, u64, PathBuf, WidgetId, bool),
     HomeDir(PathBuf),
-    FileChange(notify::Event),
+    WorkspaceFileChange,
     ProxyUpdateStatus(ProxyStatus),
     CloseTerminal(TermId),
     SplitTerminal(bool, WidgetId),

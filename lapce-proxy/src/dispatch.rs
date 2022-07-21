@@ -29,6 +29,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 use std::{collections::HashSet, io::BufRead};
 use xi_rope::Rope;
 
@@ -48,6 +49,7 @@ pub struct Dispatcher {
     plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
     pub file_watcher: Arc<Mutex<Option<FileWatcher>>>,
+    workspace_fs_change_handler: Arc<Mutex<Option<Sender<bool>>>>,
     last_diff: Arc<Mutex<DiffInfo>>,
 }
 
@@ -70,6 +72,7 @@ impl Dispatcher {
             lsp: Arc::new(Mutex::new(LspCatalog::new())),
             file_watcher: Arc::new(Mutex::new(None)),
             last_diff: Arc::new(Mutex::new(DiffInfo::default())),
+            workspace_fs_change_handler: Arc::new(Mutex::new(None)),
         };
         *dispatcher.file_watcher.lock() = Some(FileWatcher::new(dispatcher.clone()));
         dispatcher.lsp.lock().dispatcher = Some(dispatcher.clone());
@@ -257,18 +260,65 @@ impl Dispatcher {
 
     fn handle_workspace_fs_event(&self, event: notify::Event) {
         if let Some(workspace) = self.workspace.lock().clone() {
-            self.send_rpc_notification(CoreNotification::FileChange { event });
-            if let Some(diff) = git_diff_new(&workspace) {
-                if diff != *self.last_diff.lock() {
-                    self.send_notification(
-                        "diff_info",
-                        json!({
-                            "diff": diff,
-                        }),
-                    );
-                    *self.last_diff.lock() = diff;
+            let explorer_change = match &event.kind {
+                notify::EventKind::Create(_)
+                | notify::EventKind::Remove(_)
+                | notify::EventKind::Modify(notify::event::ModifyKind::Name(_)) => {
+                    true
                 }
+                notify::EventKind::Modify(_) => false,
+                _ => return,
+            };
+
+            let mut handler = self.workspace_fs_change_handler.lock();
+            if let Some(sender) = handler.as_mut() {
+                if explorer_change {
+                    // only send the value if we need to update file explorer as well
+                    let _ = sender.send(explorer_change);
+                }
+                return;
             }
+            let (sender, receiver) = crossbeam_channel::unbounded();
+            if explorer_change {
+                // only send the value if we need to update file explorer as well
+                let _ = sender.send(explorer_change);
+            }
+
+            let local_handler = self.workspace_fs_change_handler.clone();
+            let local_dispatcher = self.clone();
+            thread::spawn(move || {
+                thread::sleep(Duration::from_secs(1));
+
+                {
+                    local_handler.lock().take();
+                }
+
+                let mut explorer_change = false;
+                for e in receiver {
+                    if e {
+                        explorer_change = true;
+                        break;
+                    }
+                }
+                if explorer_change {
+                    local_dispatcher.send_rpc_notification(
+                        CoreNotification::WorkspaceFileChange {},
+                    );
+                }
+                if let Some(diff) = git_diff_new(&workspace) {
+                    let mut last_diff = local_dispatcher.last_diff.lock();
+                    if diff != *last_diff {
+                        local_dispatcher.send_notification(
+                            "diff_info",
+                            json!({
+                                "diff": diff,
+                            }),
+                        );
+                        *last_diff = diff;
+                    }
+                }
+            });
+            *handler = Some(sender);
         }
     }
 

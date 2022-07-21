@@ -868,8 +868,8 @@ impl LapceTab {
                         data.set_picker_pwd(path.clone());
                         ctx.set_handled();
                     }
-                    LapceUICommand::FileChange(event) => {
-                        data.handle_file_change(ctx, event);
+                    LapceUICommand::WorkspaceFileChange => {
+                        data.handle_workspace_file_change(ctx);
                         ctx.set_handled();
                     }
                     LapceUICommand::CloseTerminal(id) => {
@@ -1371,11 +1371,7 @@ impl LapceTab {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateSyntax {
-                        content,
-                        rev,
-                        syntax,
-                    } => {
+                    LapceUICommand::UpdateSyntax { content, syntax } => {
                         ctx.set_handled();
                         let doc = match content {
                             BufferContent::File(path) => {
@@ -1392,8 +1388,8 @@ impl LapceTab {
                             }
                         };
                         let doc = Arc::make_mut(doc);
-                        if doc.rev() == *rev {
-                            if let Some(syntax) = syntax.take() {
+                        if let Some(syntax) = syntax.take() {
+                            if doc.rev() == syntax.rev {
                                 doc.set_syntax(Some(syntax));
                             }
                         }

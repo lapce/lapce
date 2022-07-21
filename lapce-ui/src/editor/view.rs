@@ -840,14 +840,12 @@ impl Widget<LapceTabData> for LapceEditorView {
                 let mut syntax = syntax.clone();
                 let line_height = data.config.editor.line_height;
                 let lens_height = data.config.editor.code_lens_font_size;
-                let rev = editor_data.doc.rev();
                 rayon::spawn(move || {
                     syntax.update_lens_height(line_height, lens_height);
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateSyntax {
                             content,
-                            rev,
                             syntax: SingleUse::new(syntax),
                         },
                         Target::Widget(tab_id),

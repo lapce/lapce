@@ -904,7 +904,6 @@ impl Document {
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateSyntax {
                         content,
-                        rev,
                         syntax: SingleUse::new(new_syntax),
                     },
                     Target::Widget(tab_id),

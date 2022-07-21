@@ -21,9 +21,7 @@ pub enum CoreNotification {
         content: String,
         rev: u64,
     },
-    FileChange {
-        event: notify::Event,
-    },
+    WorkspaceFileChange {},
     PublishDiagnostics {
         diagnostics: PublishDiagnosticsParams,
     },
