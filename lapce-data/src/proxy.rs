@@ -13,8 +13,8 @@ use crossbeam_channel::Sender;
 use druid::Target;
 use druid::{ExtEventSink, WidgetId};
 use flate2::read::GzDecoder;
-use lapce_proxy::dispatch::Dispatcher;
 pub use lapce_proxy::VERSION;
+use lapce_proxy::{dispatch::Dispatcher, APPLICATION_NAME};
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
 use lapce_rpc::core::{CoreNotification, CoreRequest};
 use lapce_rpc::plugin::PluginDescription;
@@ -65,6 +65,38 @@ pub enum RequestError {
     Deser(serde_json::Error),
     #[error("response failed")]
     Rpc(Value),
+}
+
+#[derive(Clone, Copy, Error, Debug, PartialEq, Eq, strum_macros::Display)]
+#[strum(ascii_case_insensitive)]
+enum HostPlatform {
+    UnknownOS,
+    #[strum(serialize = "windows")]
+    Windows,
+    #[strum(serialize = "linux")]
+    Linux,
+    #[strum(serialize = "darwin")]
+    Darwin,
+    #[strum(serialize = "bsd")]
+    Bsd,
+}
+
+/// serialise via strum to arch name that is used
+/// in CI artefacts
+#[derive(Clone, Copy, Error, Debug, PartialEq, Eq, strum_macros::Display)]
+#[strum(ascii_case_insensitive)]
+enum HostArchitecture {
+    UnknownArch,
+    #[strum(serialize = "x86_64")]
+    AMD64,
+    #[strum(serialize = "x86")]
+    X86,
+    #[strum(serialize = "aarch64")]
+    ARM64,
+    #[strum(serialize = "armv7")]
+    ARM32v7,
+    #[strum(serialize = "armhf")]
+    ARM32v6,
 }
 
 #[derive(Clone)]
@@ -261,21 +293,54 @@ impl LapceProxy {
         remote: impl Remote,
         core_sender: Sender<Value>,
     ) -> Result<()> {
-        let proxy_filename = format!("lapce-proxy-{VERSION}");
-        let remote_proxy_file = format!("~/.lapce/{}", proxy_filename);
+        remote.connection_debug();
 
-        let cmd = remote
-            .command_builder()
-            .arg("test")
-            .arg("-e")
-            .arg(&remote_proxy_file)
-            .status()?;
+        use HostPlatform::*;
+        let (platform, architecture) = self.host_specification(&remote).unwrap();
+
+        if platform == UnknownOS || architecture == HostArchitecture::UnknownArch {
+            log::error!(target: "lapce_data::proxy::start_remote", "detected remote host: {platform}/{architecture}");
+            return Err(anyhow!("Unknown OS and/or architecture"));
+        }
+
+        let proxy_filename = "lapce-proxy";
+
+        // ! Below paths have to be synced with what is
+        // ! returned by Config::proxy_directory()
+        let remote_proxy_path = match platform {
+            Windows => format!("%HOMEDRIVE%%HOMEPATH%\\AppData\\Local\\lapce\\{APPLICATION_NAME}\\data\\proxy"),
+            Darwin => format!("~/Library/Application Support/dev.lapce.{APPLICATION_NAME}/proxy"),
+            _ => format!("~/.local/share/{APPLICATION_NAME}/proxy").to_lowercase(),
+        };
+
+        let remote_proxy_file = match platform {
+            Windows => format!("{remote_proxy_path}\\{proxy_filename}.exe"),
+            _ => format!("{remote_proxy_path}/{proxy_filename}"),
+        };
+
+        let proxy_filename =
+            format!("{proxy_filename}-{}-{}", platform, architecture);
+
+        log::debug!(target: "lapce_data::proxy::start_remote", "remote proxy path: {remote_proxy_path}");
+
+        let cmd = match platform {
+            Windows => remote
+                .command_builder()
+                .args(["dir", &remote_proxy_file])
+                .status()?,
+            _ => remote
+                .command_builder()
+                .arg("test")
+                .arg("-e")
+                .arg(&remote_proxy_file)
+                .status()?,
+        };
         if !cmd.success() {
-            let local_proxy_file = Config::config_directory()
-                .ok_or_else(|| anyhow!("can't find config dir"))?
+            let local_proxy_file = Config::proxy_directory()
+                .ok_or_else(|| anyhow!("can't find proxy directory"))?
                 .join(&proxy_filename);
             if !local_proxy_file.exists() {
-                let url = format!("https://github.com/lapce/lapce/releases/download/{}/lapce-proxy-linux.gz", if VERSION.eq("nightly") { VERSION.to_string() } else { format!("v{VERSION}") });
+                let url = format!("https://github.com/lapce/lapce/releases/download/{}/{proxy_filename}.gz", if VERSION.eq("nightly") { VERSION.to_string() } else { format!("v{VERSION}") });
                 let mut resp = reqwest::blocking::get(url).expect("request failed");
                 let mut out = std::fs::File::create(&local_proxy_file)
                     .expect("failed to create file");
@@ -286,11 +351,13 @@ impl LapceProxy {
             remote
                 .command_builder()
                 .arg("mkdir")
-                .arg("~/.lapce/")
+                .arg(remote_proxy_path)
                 .status()?;
 
             remote.upload_file(&local_proxy_file, &remote_proxy_file)?;
+        }
 
+        if platform != Windows {
             remote
                 .command_builder()
                 .arg("chmod")
@@ -320,6 +387,62 @@ impl LapceProxy {
         stdio_transport(stdin, proxy_receiver, stdout, core_sender);
 
         Ok(())
+    }
+
+    fn host_specification(
+        &self,
+        remote: &impl Remote,
+    ) -> Result<(HostPlatform, HostArchitecture)> {
+        use HostArchitecture::*;
+        use HostPlatform::*;
+
+        let cmd = remote.command_builder().arg("uname -sm").output();
+
+        let spec = match cmd {
+            Ok(cmd) => {
+                let stdout = String::from_utf8_lossy(&cmd.stdout).to_lowercase();
+                let stdout = stdout.trim();
+                log::debug!(target: "lapce_data::proxy::host_platform", "{}", &stdout);
+                match stdout {
+                    "" => {
+                        let cmd = remote
+                            .command_builder()
+                            .args(["echo", "%OS%", "%PROCESSOR_ARCHITECTURE%"])
+                            .output();
+                        match cmd {
+                            Ok(cmd) => {
+                                let stdout = String::from_utf8_lossy(&cmd.stdout)
+                                    .to_lowercase();
+                                let stdout = stdout.trim();
+                                log::debug!(target: "lapce_data::proxy::host_platform", "{}", &stdout);
+                                match stdout.split_once(' ') {
+                                    Some((os, arch)) => {
+                                        (parse_os(os), parse_arch(arch))
+                                    }
+                                    None => (UnknownOS, UnknownArch),
+                                }
+                            }
+                            Err(e) => {
+                                log::error!(target: "lapce_data::proxy::host_platform", "{e}");
+                                (UnknownOS, UnknownArch)
+                            }
+                        }
+                    }
+                    v => {
+                        if let Some((os, arch)) = v.split_once(' ') {
+                            (parse_os(os), parse_arch(arch))
+                        } else {
+                            (UnknownOS, UnknownArch)
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!(target: "lapce_data::proxy::host_platform", "{e}");
+                (UnknownOS, UnknownArch)
+            }
+        };
+        Ok(spec)
     }
 
     pub fn initialize(&self, workspace: PathBuf) {
@@ -845,6 +968,8 @@ trait Remote: Sized {
     fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()>;
 
     fn command_builder(&self) -> Command;
+
+    fn connection_debug(&self);
 }
 
 struct SshRemote {
@@ -871,6 +996,10 @@ impl SshRemote {
     fn command_builder(user: &str, host: &str) -> Command {
         let mut cmd = new_command("ssh");
         cmd.arg(format!("{}@{}", user, host)).args(Self::SSH_ARGS);
+
+        #[cfg(debug_assertions)]
+        cmd.arg("-v");
+
         cmd
     }
 }
@@ -887,6 +1016,20 @@ impl Remote for SshRemote {
 
     fn command_builder(&self) -> Command {
         Self::command_builder(&self.user, &self.host)
+    }
+
+    fn connection_debug(&self) {
+        if let Ok(out) = self.command_builder().arg("-v").arg("exit").output() {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            for line in stderr.split_terminator(['\n', '\r']) {
+                if line.is_empty() {
+                    continue;
+                }
+                log::debug!(target: "lapce_data::proxy::connection_debug", "{line}");
+            }
+        } else {
+            log::debug!(target: "lapce_data::proxy::connection_debug", "ssh debug output failed");
+        }
     }
 }
 
@@ -955,6 +1098,8 @@ impl Remote for WslRemote {
         cmd.arg("-d").arg(&self.distro).arg("--");
         cmd
     }
+
+    fn connection_debug(&self) {}
 }
 
 // Rust-analyzer returns paths in the form of "file:///<drive>:/...", which gets parsed into URL
@@ -999,4 +1144,33 @@ fn box_json_cb<
             serde_json::from_value::<T>(x).map_err(RequestError::Deser)
         }))
     })
+}
+
+fn parse_arch(arch: &str) -> HostArchitecture {
+    use HostArchitecture::*;
+    // processor architectures be like that
+    match arch {
+        "amd64" | "x64" | "x86_64" => AMD64,
+        "x86" | "i386" | "i586" | "i686" => X86,
+        "arm" | "armhf" | "armv6" => ARM32v6,
+        "armv7" | "armv7l" => ARM32v7,
+        "arm64" | "armv8" | "aarch64" => ARM64,
+        _ => UnknownArch,
+    }
+}
+
+fn parse_os(os: &str) -> HostPlatform {
+    use HostPlatform::*;
+    match os {
+        "linux" => Linux,
+        "darwin" => Darwin,
+        "windows_nt" => Windows,
+        v => {
+            if v.ends_with("bsd") {
+                Bsd
+            } else {
+                UnknownOS
+            }
+        }
+    }
 }
