@@ -883,8 +883,8 @@ impl LapceTab {
                         data.set_picker_pwd(path.clone());
                         ctx.set_handled();
                     }
-                    LapceUICommand::FileChange(event) => {
-                        data.handle_file_change(ctx, event);
+                    LapceUICommand::WorkspaceFileChange => {
+                        data.handle_workspace_file_change(ctx);
                         ctx.set_handled();
                     }
                     LapceUICommand::CloseTerminal(id) => {

@@ -144,10 +144,10 @@ impl Handler for LapceProxy {
                 );
             }
             ListDir { .. } | DiffFiles { .. } => {}
-            FileChange { event } => {
+            WorkspaceFileChange {} => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::FileChange(event),
+                    LapceUICommand::WorkspaceFileChange,
                     Target::Widget(self.tab_id),
                 );
             }

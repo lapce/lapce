@@ -63,6 +63,8 @@ pub struct FileExplorerData {
     pub naming: Option<Naming>,
     /// The id of the editor (in `main_split.editors`) for renaming
     pub renaming_editor_view_id: WidgetId,
+    pub proxy: Arc<LapceProxy>,
+    pub event_sink: ExtEventSink,
 }
 
 impl FileExplorerData {
@@ -84,9 +86,7 @@ impl FileExplorerData {
                 children_open_count: 0,
             });
             let path = path.clone();
-            std::thread::spawn(move || {
-                Self::read_dir(&path, true, tab_id, &proxy, event_sink);
-            });
+            Self::read_dir(&path, true, tab_id, &proxy, event_sink.clone());
         }
         Self {
             tab_id,
@@ -102,6 +102,8 @@ impl FileExplorerData {
             active_selected: None,
             naming: None,
             renaming_editor_view_id: WidgetId::next(),
+            proxy,
+            event_sink,
         }
     }
 
@@ -188,7 +190,17 @@ impl FileExplorerData {
         }
 
         for (path, child) in children.into_iter() {
-            if !node.children.contains_key(&path) {
+            if let Some(existing) = node.children.get(&path) {
+                if existing.read {
+                    Self::read_dir(
+                        &path,
+                        existing.open,
+                        self.tab_id,
+                        &self.proxy,
+                        self.event_sink.clone(),
+                    );
+                }
+            } else {
                 node.children.insert(child.path_buf.clone(), child);
             }
         }
@@ -203,6 +215,19 @@ impl FileExplorerData {
         }
 
         Some(())
+    }
+
+    pub fn reload(&self) {
+        if let Some(workspace) = self.workspace.as_ref() {
+            let workspace = workspace.clone();
+            Self::read_dir(
+                &workspace.path_buf,
+                true,
+                self.tab_id,
+                &self.proxy,
+                self.event_sink.clone(),
+            );
+        }
     }
 
     pub fn read_dir(

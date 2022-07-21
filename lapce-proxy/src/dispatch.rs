@@ -256,8 +256,15 @@ impl Dispatcher {
     }
 
     fn handle_workspace_fs_event(&self, event: notify::Event) {
+        match &event.kind {
+            notify::EventKind::Create(_)
+            | notify::EventKind::Remove(_)
+            | notify::EventKind::Modify(notify::event::ModifyKind::Name(_)) => {}
+            _ => return,
+        };
+
         if let Some(workspace) = self.workspace.lock().clone() {
-            self.send_rpc_notification(CoreNotification::FileChange { event });
+            self.send_rpc_notification(CoreNotification::WorkspaceFileChange {});
             if let Some(diff) = git_diff_new(&workspace) {
                 if diff != *self.last_diff.lock() {
                     self.send_notification(

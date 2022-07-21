@@ -1584,39 +1584,8 @@ impl LapceTabData {
         }
     }
 
-    pub fn handle_file_change(&mut self, ctx: &mut EventCtx, event: &notify::Event) {
-        if self.file_explorer.workspace.is_some() {
-            match &event.kind {
-                notify::EventKind::Create(_)
-                | notify::EventKind::Modify(notify::event::ModifyKind::Name(_))
-                | notify::EventKind::Remove(_) => {
-                    for path in event.paths.iter() {
-                        if let Some(path) = path.parent() {
-                            FileExplorerData::read_dir(
-                                path,
-                                false,
-                                self.id,
-                                &self.proxy,
-                                ctx.get_external_handle(),
-                            );
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        // let doc = self
-        //     .main_split
-        //     .local_docs
-        //     .get_mut(&LocalBufferKind::Search)
-        //     .unwrap();
-        // let pattern = doc.buffer().text().to_string();
-        // ctx.submit_command(Command::new(
-        //     LAPCE_UI_COMMAND,
-        //     LapceUICommand::UpdateSearch(pattern),
-        //     Target::Widget(self.id),
-        // ));
+    pub fn handle_workspace_file_change(&self, _ctx: &mut EventCtx) {
+        self.file_explorer.reload();
     }
 }
 
