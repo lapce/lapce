@@ -443,7 +443,7 @@ impl LapceDb {
             let s = String::from_utf8((&val).to_vec())
                 .expect("invalid utf-8 sequence retrieving unsaved buffer");
 
-            if s.contains("unsaved_buffer") {
+            if s.starts_with("unsaved_buffer:") {
                 unsaved_paths.push(s.clone())
             }
         }
