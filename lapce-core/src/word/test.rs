@@ -41,7 +41,7 @@ fn test_end_boundary_by_spaces() {
     let mut cursor = WordCursor::new(buffer.text(), 0);
     assert_eq!(cursor.end_boundary(), Some(4));
     assert_eq!(cursor.end_boundary(), Some(9));
-    // This end of word bounary is expected to go 1 beyond the buffer end.
+    // This end of word boundary is expected to go 1 beyond the buffer end.
     assert_eq!(cursor.end_boundary(), Some(buffer.len()));
     assert_eq!(cursor.end_boundary(), None);
 }
