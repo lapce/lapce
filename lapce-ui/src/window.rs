@@ -2,7 +2,7 @@
 use druid::WindowConfig;
 use druid::{
     kurbo::Line,
-    piet::{PietText, PietTextLayout, Svg, Text, TextLayoutBuilder},
+    piet::{PietText, PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
     widget::{LensWrap, WidgetExt},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, Rect, Region, RenderContext, Size, Target,
@@ -667,7 +667,7 @@ pub fn window_controls(
         let minimize_rect = Size::new(width, width)
             .to_rect()
             .with_origin(Point::new(x, 0.0))
-            .inflate(-10.0, -10.0);
+            .inflate(-12.0, -12.0);
         svgs.push((get_svg("chrome-minimize.svg").unwrap(), minimize_rect));
 
         let max_res_rect = Size::new(width, width)
@@ -717,7 +717,10 @@ pub fn window_controls(
             })
             .enumerate()
         {
-            let point = Point::new(x + i as f64 * width, 0.0);
+            let point = Point::new(
+                x + i as f64 * width + ((text_layout.size().width + 5.0) / 2.0),
+                0.0,
+            );
             text_layouts.push((text_layout, point));
         }
     }

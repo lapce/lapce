@@ -73,7 +73,7 @@ impl Title {
             78.0
         };
 
-        #[cfg(target_os = "windows")]
+        #[cfg(not(target_os = "macos"))]
         {
             let logo_rect = Size::new(size.height, size.height)
                 .to_rect()
@@ -589,11 +589,9 @@ impl Widget<LapceTabData> for Title {
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event);
             }
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::MouseUp(mouse_event) => {
-                if (cfg!(target_os = "macos") || data.config.ui.custom_titlebar())
-                    && !data.multiple_tab
-                    && mouse_event.count >= 2
+                if !data.multiple_tab
+                    && mouse_event.count == 2
                     && self
                         .dragable_area
                         .rects()
