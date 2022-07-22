@@ -34,6 +34,9 @@ use lapce_rpc::{
     buffer::BufferId, plugin::PluginDescription, source_control::FileDiff,
     terminal::TermId,
 };
+
+use lapce_proxy::plugin::PluginCatalog;
+
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdit};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
@@ -176,6 +179,18 @@ impl LapceData {
         }
 
         thread::spawn(move || {
+            let mut catalog = PluginCatalog::new();
+            catalog.reload();
+            let plugins = catalog
+                .items
+                .values()
+                .cloned()
+                .collect::<Vec<PluginDescription>>();
+            let _ = event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdatePluginDescriptions(plugins),
+                Target::Auto,
+            );
             if let Ok(plugins) = LapceData::load_plugin_descriptions() {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
