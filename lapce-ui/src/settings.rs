@@ -106,6 +106,20 @@ impl LapceSettingsPanel {
     }
 
     fn request_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        let editor_tab = data
+            .main_split
+            .editor_tabs
+            .get_mut(&self.editor_tab_id)
+            .unwrap();
+        let editor_tab = Arc::make_mut(editor_tab);
+        if let Some(index) = editor_tab
+            .children
+            .iter()
+            .position(|child| child.widget_id() == self.widget_id)
+        {
+            editor_tab.active = index;
+        }
+
         data.main_split.active_tab = Arc::new(Some(self.editor_tab_id));
         data.focus = self.widget_id;
         data.focus_area = FocusArea::Editor;

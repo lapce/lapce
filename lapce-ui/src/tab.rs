@@ -1661,7 +1661,9 @@ impl Widget<LapceTabData> for LapceTab {
                 }
             }
             Event::MouseDown(_) => {
-                if data.palette.status != PaletteStatus::Inactive {
+                if !ctx.is_handled()
+                    && data.palette.status != PaletteStatus::Inactive
+                {
                     ctx.submit_command(Command::new(
                         LAPCE_COMMAND,
                         LapceCommand {
