@@ -1,5 +1,3 @@
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use druid::WindowConfig;
 use druid::{
     kurbo::Line,
     piet::{PietText, PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},

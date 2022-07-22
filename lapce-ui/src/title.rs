@@ -313,10 +313,8 @@ impl Title {
     fn update_settings(
         &mut self,
         data: &LapceTabData,
-        #[cfg(not(target_os = "macos"))] window_state: &WindowState,
-        #[cfg(target_os = "macos")] _window_state: &WindowState,
-        #[cfg(not(target_os = "macos"))] piet_text: &mut PietText,
-        #[cfg(target_os = "macos")] _piet_text: &mut PietText,
+        window_state: &WindowState,
+        piet_text: &mut PietText,
         size: Size,
         #[cfg(target_os = "windows")] padding: f64,
         #[cfg(not(target_os = "windows"))] _padding: f64,
