@@ -3,7 +3,7 @@ use std::os::windows::process::CommandExt;
 use std::{
     collections::HashMap,
     io::{BufRead, BufReader, BufWriter, Write},
-    path::Path,
+    path::{Path, PathBuf},
     process::{self, Child, ChildStderr, ChildStdout, Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -800,7 +800,8 @@ impl LspClient {
         dispatcher: Dispatcher,
     ) -> Arc<LspClient> {
         //TODO: better handling of binary args in plugin
-        let mut process = Self::process(exec_path, args.clone());
+        let workspace = dispatcher.workspace.lock().clone();
+        let mut process = Self::process(workspace, exec_path, args.clone());
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
         let stderr = process.stderr.take().unwrap();
@@ -875,8 +876,15 @@ impl LspClient {
         });
     }
 
-    fn process(exec_path: &str, args: Vec<String>) -> Child {
+    fn process(
+        workspace: Option<PathBuf>,
+        exec_path: &str,
+        args: Vec<String>,
+    ) -> Child {
         let mut process = Command::new(exec_path);
+        if let Some(workspace) = workspace {
+            process.current_dir(&workspace);
+        }
 
         process.args(args);
 
@@ -892,7 +900,11 @@ impl LspClient {
 
     fn reload(&self) {
         //TODO: avoid clone using a &[String] ?
-        let mut process = Self::process(&self.exec_path, self.args.clone());
+        let mut process = Self::process(
+            self.dispatcher.workspace.lock().clone(),
+            &self.exec_path,
+            self.args.clone(),
+        );
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
