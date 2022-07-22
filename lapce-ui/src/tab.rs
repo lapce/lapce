@@ -31,6 +31,7 @@ use lapce_data::{
     hover::HoverStatus,
     keypress::{DefaultKeyPressHandler, KeyPressData},
     menu::MenuKind,
+    palette::PaletteStatus,
     panel::{
         PanelContainerPosition, PanelKind, PanelPosition, PanelResizePosition,
         PanelStyle,
@@ -1657,6 +1658,18 @@ impl Widget<LapceTabData> for LapceTab {
             Event::MouseMove(_) => {
                 if data.drag.is_some() {
                     ctx.request_paint();
+                }
+            }
+            Event::MouseDown(_) => {
+                if data.palette.status != PaletteStatus::Inactive {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::ModalClose),
+                            data: None,
+                        },
+                        Target::Widget(data.palette.widget_id),
+                    ));
                 }
             }
             Event::KeyDown(key_event) if !ctx.is_handled() => {

@@ -22,7 +22,7 @@ use lapce_data::{
         LAPCE_UI_COMMAND,
     },
     config::{EditorConfig, LapceConfig, LapceTheme, TerminalConfig, UIConfig},
-    data::{LapceEditorData, LapceTabData},
+    data::{FocusArea, LapceEditorData, LapceTabData},
     document::{BufferContent, Document},
     keypress::KeyPressFocus,
     settings::{LapceSettingsFocusData, SettingsValueKind},
@@ -107,6 +107,8 @@ impl LapceSettingsPanel {
 
     fn request_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         data.main_split.active_tab = Arc::new(Some(self.editor_tab_id));
+        data.focus = self.widget_id;
+        data.focus_area = FocusArea::Editor;
         ctx.request_focus();
     }
 }
