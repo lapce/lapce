@@ -34,6 +34,9 @@ use lapce_rpc::{
     buffer::BufferId, plugin::PluginDescription, source_control::FileDiff,
     terminal::TermId,
 };
+
+use lapce_proxy::plugin::PluginCatalog;
+
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdit};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
@@ -176,10 +179,47 @@ impl LapceData {
         }
 
         thread::spawn(move || {
-            if let Ok(plugins) = LapceData::load_plugin_descriptions() {
+            let mut catalog = PluginCatalog::new();
+            catalog.reload();
+            let plugins = catalog
+                .items
+                .values()
+                .cloned()
+                .collect::<Vec<PluginDescription>>();
+            let _ = event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdateInstalledPluginDescriptions(Some(
+                    plugins.clone(),
+                )),
+                Target::Auto,
+            );
+            if let Ok(fetched_plugins) = LapceData::load_plugin_descriptions() {
+                let (installed, uninstalled) =
+                    fetched_plugins.into_iter().partition(|p| {
+                        plugins
+                            .iter()
+                            .find(|ip| ip.name == p.name)
+                            .ok_or(())
+                            .is_ok()
+                    });
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdatePluginDescriptions(plugins),
+                    LapceUICommand::UpdateInstalledPluginDescriptions(Some(
+                        installed,
+                    )),
+                    Target::Auto,
+                );
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateUninstalledPluginDescriptions(Some(
+                        uninstalled,
+                    )),
+                    Target::Auto,
+                );
+            } else {
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateUninstalledPluginDescriptions(None),
                     Target::Auto,
                 );
             }
@@ -469,6 +509,8 @@ pub struct LapceTabData {
     pub plugin: Arc<PluginData>,
     pub picker: Arc<FilePickerData>,
     pub plugins: Arc<Vec<PluginDescription>>,
+    pub installed_plugins_desc: Arc<Option<Vec<PluginDescription>>>,
+    pub uninstalled_plugins_desc: Arc<Option<Vec<PluginDescription>>>,
     pub installed_plugins: Arc<HashMap<String, PluginDescription>>,
     pub file_explorer: Arc<FileExplorerData>,
     pub proxy: Arc<LapceProxy>,
@@ -509,6 +551,12 @@ impl Data for LapceTabData {
             && self.plugin.same(&other.plugin)
             && self.problem.same(&other.problem)
             && self.search.same(&other.search)
+            && self
+                .installed_plugins_desc
+                .same(&other.installed_plugins_desc)
+            && self
+                .uninstalled_plugins_desc
+                .same(&other.uninstalled_plugins_desc)
             && self.installed_plugins.same(&other.installed_plugins)
             && self.picker.same(&other.picker)
             && self.drag.same(&other.drag)
@@ -642,6 +690,8 @@ impl LapceTabData {
             problem,
             search,
             plugins: Arc::new(Vec::new()),
+            installed_plugins_desc: Arc::new(Some(Vec::new())),
+            uninstalled_plugins_desc: Arc::new(Some(Vec::new())),
             installed_plugins: Arc::new(HashMap::new()),
             find: Arc::new(Find::new(0)),
             picker: file_picker,

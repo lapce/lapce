@@ -37,6 +37,7 @@ use lapce_data::{
     },
     proxy::path_from_url,
 };
+use lapce_rpc::plugin::PluginDescription;
 use lsp_types::DiagnosticSeverity;
 use serde::Deserialize;
 use xi_rope::Rope;
@@ -890,6 +891,46 @@ impl LapceTab {
                     }
                     LapceUICommand::UpdateInstalledPlugins(plugins) => {
                         data.installed_plugins = Arc::new(plugins.to_owned());
+                    }
+                    LapceUICommand::UpdateInstalledPluginDescriptions(plugins) => {
+                        data.installed_plugins_desc = Arc::new(plugins.to_owned());
+                    }
+                    LapceUICommand::UpdateUninstalledPluginDescriptions(plugins) => {
+                        data.uninstalled_plugins_desc = Arc::new(plugins.to_owned());
+                    }
+                    LapceUICommand::DeleteUninstalledPluginDescriptions(plugins) => {
+                        let new_installed_plugin = plugins
+                            .iter()
+                            .filter(|p| {
+                                if let Some(ref plugins) =
+                                    *data.uninstalled_plugins_desc
+                                {
+                                    plugins
+                                        .iter()
+                                        .find(|up| up.name == p.name)
+                                        .ok_or(())
+                                        .is_ok()
+                                } else {
+                                    false
+                                }
+                            })
+                            .collect::<Vec<&PluginDescription>>();
+                        if !new_installed_plugin.is_empty() {
+                            let plugin_desc =
+                                (*data.uninstalled_plugins_desc).clone().map(|pd| {
+                                    pd.iter()
+                                        .filter_map(|p| {
+                                            if p.name != new_installed_plugin[0].name
+                                            {
+                                                Some(p.to_owned())
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .collect::<Vec<PluginDescription>>()
+                                });
+                            data.uninstalled_plugins_desc = Arc::new(plugin_desc);
+                        }
                     }
                     LapceUICommand::UpdateDiffInfo(diff) => {
                         let source_control = Arc::make_mut(&mut data.source_control);

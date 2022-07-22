@@ -122,7 +122,25 @@ impl Handler for LapceProxy {
             InstalledPlugins { plugins } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateInstalledPlugins(plugins),
+                    LapceUICommand::UpdateInstalledPlugins(plugins.clone()),
+                    Target::Widget(self.tab_id),
+                );
+                let plugins_desc = plugins
+                    .iter()
+                    .map(|(_, desc)| desc.to_owned())
+                    .collect::<Vec<PluginDescription>>();
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateInstalledPluginDescriptions(Some(
+                        plugins_desc.clone(),
+                    )),
+                    Target::Widget(self.tab_id),
+                );
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::DeleteUninstalledPluginDescriptions(
+                        plugins_desc,
+                    ),
                     Target::Widget(self.tab_id),
                 );
             }
