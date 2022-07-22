@@ -687,8 +687,12 @@ impl Buffer {
     }
 
     pub fn line_of_offset(&self, offset: usize) -> usize {
-        let max = self.len();
-        let offset = if offset > max { max } else { offset };
+        let offset = offset.min(self.len());
+        let offset = self
+            .text
+            .at_or_prev_codepoint_boundary(offset)
+            .unwrap_or(offset);
+
         self.text.line_of_offset(offset)
     }
 
