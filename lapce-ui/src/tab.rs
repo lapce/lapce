@@ -2063,7 +2063,7 @@ impl Widget<LapceTabData> for LapceTab {
 /// The tab header of window tabs where you can click to focus and
 /// drag to re order them
 ///
-/// Each window tab hosts a sperate workspace, which gives you an alternative
+/// Each window tab hosts a separate workspace, which gives you an alternative
 /// way to work with multiple workspaces.
 pub struct LapceTabHeader {
     pub drag_start: Option<(Point, Point)>,

@@ -225,7 +225,7 @@ impl LapceSplit {
     }
 
     /// Set the panel kind on the split, so that split can
-    /// determine the split direction based on the postion
+    /// determine the split direction based on the position
     /// of the panel
     pub fn panel(mut self, panel: PanelKind) -> Self {
         self.panel = Some(panel);
