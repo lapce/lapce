@@ -1311,11 +1311,16 @@ impl LspClient {
         #[allow(deprecated)]
         let init_params = InitializeParams {
             process_id: Some(process::id()),
-            root_uri,
+            root_uri: root_uri.clone(),
             initialization_options: self.options.clone(),
             capabilities: client_capabilities,
             trace: Some(TraceValue::Verbose),
-            workspace_folders: None,
+            workspace_folders: root_uri.map(|uri| {
+                vec![WorkspaceFolder {
+                    name: uri.as_str().to_string(),
+                    uri,
+                }]
+            }),
             client_info: None,
             root_path: None,
             locale: None,
