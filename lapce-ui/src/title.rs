@@ -319,8 +319,7 @@ impl Title {
         #[cfg(not(target_os = "macos"))] piet_text: &mut PietText,
         #[cfg(target_os = "macos")] _piet_text: &mut PietText,
         size: Size,
-        #[cfg(target_os = "windows")] padding: f64,
-        #[cfg(not(target_os = "windows"))] _padding: f64,
+        _padding: f64,
         x: f64,
     ) -> f64 {
         let mut x = x;
