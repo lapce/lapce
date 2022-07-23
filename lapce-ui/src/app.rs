@@ -112,20 +112,11 @@ where
     W: Widget<T> + 'static,
 {
     let mut desc = WindowDesc::new_with_id(window_id, root)
+        .show_titlebar(false)
         .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
         .with_min_size(Size::new(384.0, 384.0))
         .window_size(size)
         .set_position(pos);
-
-    #[cfg(target_os = "windows")]
-    if config.ui.custom_titlebar() {
-        desc = desc.show_titlebar(false);
-    }
-
-    #[cfg(target_os = "linux")]
-    if config.ui.custom_titlebar() {
-        desc = desc.show_titlebar(false);
-    }
 
     if maximised {
         desc = desc.set_window_state(WindowState::Maximized);
@@ -136,7 +127,7 @@ where
     }
 
     #[cfg(target_os = "macos")]
-    if true {
+    {
         desc = macos_window_desc(desc);
     }
 
@@ -170,7 +161,7 @@ fn window_icon() -> Option<druid::Icon> {
 
 #[cfg(target_os = "macos")]
 fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
-    desc.show_titlebar(false).menu(|_, _, _| {
+    desc.menu(|_, _, _| {
         Menu::new("Lapce").entry(
             Menu::new("")
                 .entry(MenuItem::new("About Lapce"))

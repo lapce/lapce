@@ -635,17 +635,6 @@ impl Widget<LapceTabData> for Title {
         env: &Env,
     ) {
         self.palette.update(ctx, data, env);
-        #[cfg(target_os = "windows")]
-        if old_data.config.ui.custom_titlebar() != data.config.ui.custom_titlebar() {
-            ctx.submit_command(
-                druid::commands::CONFIGURE_WINDOW
-                    .with(
-                        WindowConfig::default()
-                            .show_titlebar(!data.config.ui.custom_titlebar()),
-                    )
-                    .to(Target::Window(data.window_id)),
-            )
-        }
     }
 
     fn layout(
