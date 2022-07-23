@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
+#[cfg(not(target_os = "macos"))]
+use crate::window::window_controls;
 use crate::{palette::Palette, svg::get_svg};
-#[cfg(any(target_os = "macos", target_os = "windows"))]
 use druid::WindowConfig;
 use druid::{
     kurbo::Line,
@@ -73,7 +74,7 @@ impl Title {
             78.0
         };
 
-        #[cfg(target_os = "windows")]
+        #[cfg(not(target_os = "macos"))]
         {
             let logo_rect = Size::new(size.height, size.height)
                 .to_rect()
@@ -313,17 +314,16 @@ impl Title {
     fn update_settings(
         &mut self,
         data: &LapceTabData,
-        #[cfg(target_os = "windows")] window_state: &WindowState,
-        #[cfg(not(target_os = "windows"))] _window_state: &WindowState,
-        #[cfg(target_os = "windows")] piet_text: &mut PietText,
-        #[cfg(not(target_os = "windows"))] _piet_text: &mut PietText,
+        #[cfg(not(target_os = "macos"))] window_state: &WindowState,
+        #[cfg(target_os = "macos")] _window_state: &WindowState,
+        #[cfg(not(target_os = "macos"))] piet_text: &mut PietText,
+        #[cfg(target_os = "macos")] _piet_text: &mut PietText,
         size: Size,
-        #[cfg(target_os = "windows")] padding: f64,
-        #[cfg(not(target_os = "windows"))] _padding: f64,
+        _padding: f64,
         x: f64,
     ) -> f64 {
         let mut x = x;
-        if cfg!(not(target_os = "windows")) || !data.config.ui.custom_titlebar() {
+        if cfg!(target_os = "macos") || data.multiple_tab {
             x -= size.height;
         } else {
             x = size.width - (size.height * 4.0);
@@ -389,127 +389,37 @@ impl Title {
             ),
         ));
 
-        #[cfg(target_os = "windows")]
-        if data.config.ui.custom_titlebar() {
-            let font_size = 10.0;
-            let font_family = "Segoe MDL2 Assets";
+        #[cfg(not(target_os = "macos"))]
+        if !data.multiple_tab {
+            x += size.height;
+            let (commands, svgs, text_layouts) = window_controls(
+                data.window_id,
+                window_state,
+                piet_text,
+                x,
+                size.height,
+                &data.config,
+            );
 
-            #[derive(strum_macros::Display)]
-            enum WindowControls {
-                Minimise,
-                Maximise,
-                Restore,
-                Close,
+            for command in commands {
+                self.commands.push(command);
             }
 
-            impl WindowControls {
-                fn as_str(&self) -> &'static str {
-                    match self {
-                        WindowControls::Minimise => "\u{E949}",
-                        WindowControls::Maximise => "\u{E739}",
-                        WindowControls::Restore => "\u{E923}",
-                        WindowControls::Close => "\u{E106}",
-                    }
-                }
+            for (svg, rect) in svgs {
+                self.svgs.push((
+                    svg,
+                    rect,
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    ),
+                ));
             }
 
-            x += size.height;
-            let minimise_text = piet_text
-                .new_text_layout(WindowControls::Minimise.as_str())
-                .font(piet_text.font_family(font_family).unwrap(), font_size)
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            let minimise_text_size = minimise_text.size();
-            let point = Point::new(
-                x + ((minimise_text_size.width + 5.0) / 2.0),
-                (size.height - minimise_text_size.height) / 2.0,
-            );
-            self.text_layouts.push((minimise_text, point));
-            let minimise_rect = Size::new(size.height, size.height)
-                .to_rect()
-                .with_origin(Point::new(x, 0.0));
-
-            self.commands.push((
-                minimise_rect,
-                Command::new(
-                    druid::commands::CONFIGURE_WINDOW,
-                    WindowConfig::default().set_window_state(WindowState::Minimized),
-                    Target::Window(data.window_id),
-                ),
-            ));
-
-            x += size.height;
-
-            let max_res_icon;
-            let max_res_state;
-
-            if window_state == &WindowState::Restored {
-                max_res_icon = WindowControls::Maximise;
-                max_res_state = WindowState::Maximized;
-            } else {
-                max_res_icon = WindowControls::Restore;
-                max_res_state = WindowState::Restored;
-            };
-
-            let max_res_text = piet_text
-                .new_text_layout(max_res_icon.as_str())
-                .font(piet_text.font_family(font_family).unwrap(), font_size)
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            let max_res_text_size = max_res_text.size();
-            let point = Point::new(
-                x + ((max_res_text_size.width + 5.0) / 2.0),
-                (size.height - max_res_text_size.height) / 2.0,
-            );
-            self.text_layouts.push((max_res_text, point));
-
-            let max_res_rect = Size::new(size.height, size.height)
-                .to_rect()
-                .with_origin(Point::new(x, 0.0));
-            self.commands.push((
-                max_res_rect,
-                Command::new(
-                    druid::commands::CONFIGURE_WINDOW,
-                    WindowConfig::default().set_window_state(max_res_state),
-                    Target::Window(data.window_id),
-                ),
-            ));
-
-            x += size.height;
-            let close_text = piet_text
-                .new_text_layout(WindowControls::Close.as_str())
-                .font(piet_text.font_family(font_family).unwrap(), font_size)
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            let close_text_size = close_text.size();
-            let point = Point::new(
-                x + ((close_text_size.width + 5.0) / 2.0),
-                (size.height - close_text_size.height) / 2.0,
-            );
-            self.text_layouts.push((close_text, point));
-            let close_rect = Size::new(size.height, size.height)
-                .to_rect()
-                .with_origin(Point::new(x, 0.0));
-
-            self.commands.push((
-                close_rect,
-                Command::new(druid::commands::QUIT_APP, (), Target::Global),
-            ));
+            for text_layout in text_layouts {
+                self.text_layouts.push(text_layout);
+            }
         }
 
         offset
@@ -667,11 +577,12 @@ impl Widget<LapceTabData> for Title {
 
                     #[cfg(target_os = "windows")]
                     // ! Currently implemented on Windows only
-                    if self
-                        .dragable_area
-                        .rects()
-                        .iter()
-                        .any(|r| r.contains(mouse_event.pos))
+                    if !data.multiple_tab
+                        && self
+                            .dragable_area
+                            .rects()
+                            .iter()
+                            .any(|r| r.contains(mouse_event.pos))
                     {
                         ctx.window().handle_titlebar(true);
                     }
@@ -680,11 +591,9 @@ impl Widget<LapceTabData> for Title {
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event);
             }
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::MouseUp(mouse_event) => {
-                if (cfg!(target_os = "macos") || data.config.ui.custom_titlebar())
-                    && !data.multiple_tab
-                    && mouse_event.count >= 2
+                if !data.multiple_tab
+                    && mouse_event.count == 2
                     && self
                         .dragable_area
                         .rects()
@@ -722,23 +631,11 @@ impl Widget<LapceTabData> for Title {
     fn update(
         &mut self,
         ctx: &mut druid::UpdateCtx,
-        #[cfg(target_os = "windows")] old_data: &LapceTabData,
-        #[cfg(not(target_os = "windows"))] _old_data: &LapceTabData,
+        _old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
         self.palette.update(ctx, data, env);
-        #[cfg(target_os = "windows")]
-        if old_data.config.ui.custom_titlebar() != data.config.ui.custom_titlebar() {
-            ctx.submit_command(
-                druid::commands::CONFIGURE_WINDOW
-                    .with(
-                        WindowConfig::default()
-                            .show_titlebar(!data.config.ui.custom_titlebar()),
-                    )
-                    .to(Target::Window(data.window_id)),
-            )
-        }
     }
 
     fn layout(
@@ -792,10 +689,7 @@ impl Widget<LapceTabData> for Title {
                 remaining_rect.x1,
                 36.0,
             ));
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
-            if cfg!(target_os = "macos") || data.config.ui.custom_titlebar() {
-                ctx.window().set_dragable_area(self.dragable_area.clone());
-            }
+            ctx.window().set_dragable_area(self.dragable_area.clone());
         }
 
         bc.max()

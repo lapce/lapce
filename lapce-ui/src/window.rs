@@ -1,11 +1,10 @@
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use druid::WindowConfig;
 use druid::{
     kurbo::Line,
+    piet::{PietText, PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
     widget::{LensWrap, WidgetExt},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Region, RenderContext, Size, Target, Widget,
-    WidgetId, WidgetPod, WindowState,
+    LifeCycleCtx, PaintCtx, Point, Rect, Region, RenderContext, Size, Target,
+    Widget, WidgetId, WidgetPod, WindowConfig, WindowId, WindowState,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -15,7 +14,10 @@ use lapce_data::{
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use crate::tab::{LapceTab, LapceTabHeader};
+use crate::{
+    svg::get_svg,
+    tab::{LapceTab, LapceTabHeader},
+};
 
 pub struct LapceWindow {
     // pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
@@ -27,6 +29,8 @@ pub struct LapceWindow {
         >,
     >,
     dragable_area: Region,
+    tab_header_cmds: Vec<(Rect, Command)>,
+    mouse_down_cmd: Option<(Rect, Command)>,
 }
 
 impl LapceWindow {
@@ -53,6 +57,8 @@ impl LapceWindow {
             dragable_area: Region::EMPTY,
             tabs,
             tab_headers,
+            tab_header_cmds: Vec::new(),
+            mouse_down_cmd: None,
         }
     }
 
@@ -195,11 +201,45 @@ impl Widget<LapceWindowData> for LapceWindow {
                     Target::Widget(data.active_id),
                 ));
             }
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::MouseMove(mouse_event) => {
+                ctx.clear_cursor();
+                if data.tabs.len() > 1 && cfg!(not(target_os = "macos")) {
+                    for (rect, _) in self.tab_header_cmds.iter() {
+                        if rect.contains(mouse_event.pos) {
+                            ctx.set_cursor(&druid::Cursor::Pointer);
+                            break;
+                        }
+                    }
+                }
+
+                #[cfg(target_os = "windows")]
+                if data.tabs.len() > 1
+                    && self
+                        .dragable_area
+                        .rects()
+                        .iter()
+                        .any(|r| r.contains(mouse_event.pos))
+                {
+                    ctx.window().handle_titlebar(true);
+                }
+            }
+            Event::MouseDown(mouse_event) => {
+                self.mouse_down_cmd = None;
+                if data.tabs.len() > 1
+                    && mouse_event.count == 1
+                    && cfg!(not(target_os = "macos"))
+                {
+                    for (rect, cmd) in self.tab_header_cmds.iter() {
+                        if rect.contains(mouse_event.pos) {
+                            self.mouse_down_cmd = Some((*rect, cmd.clone()));
+                            break;
+                        }
+                    }
+                }
+            }
             Event::MouseUp(mouse_event) => {
-                if (cfg!(target_os = "macos") || data.config.ui.custom_titlebar())
-                    && data.tabs.len() > 1
-                    && mouse_event.count >= 2
+                if data.tabs.len() > 1
+                    && mouse_event.count == 2
                     && self
                         .dragable_area
                         .rects()
@@ -216,6 +256,16 @@ impl Widget<LapceWindowData> for LapceWindow {
                             .with(WindowConfig::default().set_window_state(state))
                             .to(Target::Window(data.window_id)),
                     )
+                }
+                if data.tabs.len() > 1
+                    && mouse_event.count < 2
+                    && cfg!(not(target_os = "macos"))
+                {
+                    if let Some((rect, cmd)) = self.mouse_down_cmd.as_ref() {
+                        if rect.contains(mouse_event.pos) {
+                            ctx.submit_command(cmd.clone());
+                        }
+                    }
                 }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
@@ -460,7 +510,11 @@ impl Widget<LapceWindowData> for LapceWindow {
                 78.0
             };
 
-            let right_padding = 100.0;
+            let right_padding = if cfg!(target_os = "macos") {
+                100.0
+            } else {
+                100.0 + 36.0 * 3.0
+            };
 
             let total_width = self_size.width - left_padding - right_padding;
             let width =
@@ -484,9 +538,18 @@ impl Widget<LapceWindowData> for LapceWindow {
 
             let mut region = Region::EMPTY;
             region.add_rect(
-                Size::new(self_size.width - x, 36.0)
-                    .to_rect()
-                    .with_origin(Point::new(x, 0.0)),
+                Size::new(
+                    self_size.width
+                        - x
+                        - if cfg!(target_os = "macos") {
+                            0.0
+                        } else {
+                            36.0 * 3.0
+                        },
+                    36.0,
+                )
+                .to_rect()
+                .with_origin(Point::new(x, 0.0)),
             );
             if left_padding > 0.0 {
                 region.add_rect(
@@ -497,11 +560,8 @@ impl Widget<LapceWindowData> for LapceWindow {
             }
 
             self.dragable_area.clear();
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
-            if cfg!(target_os = "macos") || data.config.ui.custom_titlebar() {
-                ctx.window().set_dragable_area(region.clone());
-                self.dragable_area = region;
-            }
+            ctx.window().set_dragable_area(region.clone());
+            self.dragable_area = region;
 
             if let Some((index, mouse_pos)) = drag {
                 for (i, tab_header) in self.tab_headers.iter().enumerate() {
@@ -600,59 +660,155 @@ impl Widget<LapceWindowData> for LapceWindow {
                 data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
                 2.0,
             );
+
+            self.tab_header_cmds.clear();
+            if cfg!(not(target_os = "macos")) {
+                let (cmds, svgs, text_layouts) = window_controls(
+                    data.window_id,
+                    &ctx.window().get_window_state(),
+                    ctx.text(),
+                    size.width - 36.0 * 3.0,
+                    36.0,
+                    &data.config,
+                );
+                self.tab_header_cmds = cmds;
+
+                for (svg, rect) in svgs {
+                    ctx.draw_svg(
+                        &svg,
+                        rect,
+                        Some(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        ),
+                    );
+                }
+
+                for (text_layout, point) in text_layouts {
+                    ctx.draw_text(&text_layout, point);
+                }
+            }
         }
-
-        // ctx.with_save(|ctx| {
-        // ctx.clip(self.tabs[data.active].layout_rect());
-        // });
-
-        // let line_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
-        // if self.tabs.len() > 1 {
-        //     let num = self.tabs.len();
-        //     let section = ctx.size().width / num as f64;
-        //     for i in 1..num {
-        //         let line = Line::new(
-        //             Point::new(i as f64 * section, 0.0),
-        //             Point::new(i as f64 * section, tab_height),
-        //         );
-        //         ctx.stroke(line, line_color, 1.0);
-        //     }
-
-        //     let rect = self.tab_headers[data.active].layout_rect();
-        //     let clip_rect = Size::new(size.width, tab_height)
-        //         .to_rect()
-        //         .with_origin(Point::new(0.0, 0.0));
-        //     ctx.with_save(|ctx| {
-        //         ctx.clip(clip_rect);
-        //         let shadow_width = data.config.ui.drop_shadow_width() as f64;
-        //         if shadow_width > 0.0 {
-        //             ctx.blurred_rect(
-        //                 rect,
-        //                 shadow_width,
-        //                 data.config
-        //                     .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        //             );
-        //         }
-        //         ctx.fill(
-        //             rect,
-        //             data.config
-        //                 .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-        //         );
-        //     });
-        //     self.tab_headers[data.active].paint(ctx, data, env);
-
-        //     let line = Line::new(
-        //         Point::new(0.0, tab_height - 0.5),
-        //         Point::new(size.width, tab_height - 0.5),
-        //     );
-        //     ctx.stroke(line, line_color, 1.0);
-        // }
-
-        // self.title.paint(ctx, data, env);
-        // let line = Line::new(
-        //     Point::new(0.0, title_height - 0.5),
-        //     Point::new(size.width, title_height - 0.5),
-        // );
-        // ctx.stroke(line, line_color, 1.0);
     }
+}
+
+#[allow(clippy::type_complexity)]
+pub fn window_controls(
+    window_id: WindowId,
+    window_state: &WindowState,
+    piet_text: &mut PietText,
+    x: f64,
+    width: f64,
+    config: &Config,
+) -> (
+    Vec<(Rect, Command)>,
+    Vec<(Svg, Rect)>,
+    Vec<(PietTextLayout, Point)>,
+) {
+    let mut commands = Vec::new();
+
+    let minimise_rect = Size::new(width, width)
+        .to_rect()
+        .with_origin(Point::new(x, 0.0));
+    commands.push((
+        minimise_rect,
+        Command::new(
+            druid::commands::CONFIGURE_WINDOW,
+            WindowConfig::default().set_window_state(WindowState::Minimized),
+            Target::Window(window_id),
+        ),
+    ));
+
+    let max_res_state = if window_state == &WindowState::Restored {
+        WindowState::Maximized
+    } else {
+        WindowState::Restored
+    };
+
+    let max_res_rect = Size::new(width, width)
+        .to_rect()
+        .with_origin(Point::new(x + width, 0.0));
+    commands.push((
+        max_res_rect,
+        Command::new(
+            druid::commands::CONFIGURE_WINDOW,
+            WindowConfig::default().set_window_state(max_res_state),
+            Target::Window(window_id),
+        ),
+    ));
+
+    let close_rect = Size::new(width, width)
+        .to_rect()
+        .with_origin(Point::new(x + 2.0 * width, 0.0));
+
+    commands.push((
+        close_rect,
+        Command::new(druid::commands::QUIT_APP, (), Target::Global),
+    ));
+
+    let mut svgs = Vec::new();
+    if cfg!(target_os = "linux") {
+        let minimize_rect = Size::new(width, width)
+            .to_rect()
+            .with_origin(Point::new(x, 0.0))
+            .inflate(-12.0, -12.0);
+        svgs.push((get_svg("chrome-minimize.svg").unwrap(), minimize_rect));
+
+        let max_res_rect = Size::new(width, width)
+            .to_rect()
+            .with_origin(Point::new(x + width, 0.0))
+            .inflate(-10.0, -10.0);
+        let max_res_svg = if window_state == &WindowState::Restored {
+            get_svg("chrome-maximize.svg").unwrap()
+        } else {
+            get_svg("chrome-restore.svg").unwrap()
+        };
+        svgs.push((max_res_svg, max_res_rect));
+
+        let close_rect = Size::new(width, width)
+            .to_rect()
+            .with_origin(Point::new(x + 2.0 * width, 0.0))
+            .inflate(-10.0, -10.0);
+        svgs.push((get_svg("chrome-close.svg").unwrap(), close_rect));
+    }
+
+    let mut text_layouts = Vec::new();
+    if cfg!(target_os = "windows") {
+        let texts = vec![
+            "\u{E949}",
+            if window_state == &WindowState::Restored {
+                "\u{E739}"
+            } else {
+                "\u{E923}"
+            },
+            "\u{E106}",
+        ];
+        let font_size = 10.0;
+        let font_family = "Segoe MDL2 Assets";
+        for (i, text_layout) in texts
+            .iter()
+            .map(|text| {
+                piet_text
+                    .new_text_layout(text.to_string())
+                    .font(piet_text.font_family(font_family).unwrap(), font_size)
+                    .text_color(
+                        config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap()
+            })
+            .enumerate()
+        {
+            let text_size = text_layout.size();
+            let point = Point::new(
+                x + i as f64 * width + ((text_size.width + 5.0) / 2.0),
+                (36.0 - text_size.height) / 2.0,
+            );
+            text_layouts.push((text_layout, point));
+        }
+    }
+
+    (commands, svgs, text_layouts)
 }

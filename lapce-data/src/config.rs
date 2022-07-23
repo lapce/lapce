@@ -282,11 +282,6 @@ pub struct UIConfig {
     drop_shadow_width: usize,
 
     #[field_names(
-        desc = "Enable customised titlebar and disable OS native one (Windows only)"
-    )]
-    custom_titlebar: bool,
-
-    #[field_names(
         desc = "Set the hover font family. If empty, it uses the UI font family"
     )]
     hover_font_family: String,
@@ -327,10 +322,6 @@ impl UIConfig {
 
     pub fn drop_shadow_width(&self) -> usize {
         self.drop_shadow_width
-    }
-
-    pub fn custom_titlebar(&self) -> bool {
-        self.custom_titlebar
     }
 
     pub fn hover_font_family(&self) -> FontFamily {

@@ -16,7 +16,6 @@ use lapce_core::{
     command::FocusCommand,
     cursor::{ColPosition, CursorMode},
     mode::{Mode, VisualMode},
-    movement::Movement,
 };
 use lapce_data::command::CommandKind;
 use lapce_data::data::{EditorView, LapceData};
@@ -914,16 +913,7 @@ impl LapceEditor {
             .line_point_of_line_col(ctx.text(), line, col, font_size, &data.config)
             .x;
         if block {
-            let (right_offset, _) = data.doc.move_offset(
-                ctx.text(),
-                offset,
-                None,
-                1,
-                &Movement::Right,
-                Mode::Insert,
-                &data.editor.view,
-                &data.config,
-            );
+            let right_offset = data.doc.buffer().move_right(offset, Mode::Insert, 1);
             let (_, right_col) = data.doc.buffer().offset_to_line_col(right_offset);
             let right_col = phantom_text.col_after(right_col, false);
             let x1 = data
@@ -1095,15 +1085,10 @@ impl LapceEditor {
                                 let max_col =
                                     data.doc.buffer().line_end_col(line, true);
 
-                                let (end_offset, _) = data.doc.move_offset(
-                                    ctx.text(),
+                                let end_offset = data.doc.buffer().move_right(
                                     *start.max(end),
-                                    None,
-                                    1,
-                                    &Movement::Right,
                                     Mode::Visual,
-                                    &data.editor.view,
-                                    &data.config,
+                                    1,
                                 );
                                 let (_, end_col) =
                                     data.doc.buffer().offset_to_line_col(end_offset);
@@ -1121,15 +1106,10 @@ impl LapceEditor {
                             let right = match data.editor.cursor.horiz.as_ref() {
                                 Some(&ColPosition::End) => max_col,
                                 _ => {
-                                    let (end_offset, _) = data.doc.move_offset(
-                                        ctx.text(),
+                                    let end_offset = data.doc.buffer().move_right(
                                         *start.max(end),
-                                        None,
-                                        1,
-                                        &Movement::Right,
                                         Mode::Visual,
-                                        &data.editor.view,
-                                        &data.config,
+                                        1,
                                     );
                                     let (_, end_col) = data
                                         .doc

@@ -2068,32 +2068,11 @@ impl Document {
     ) -> (usize, Option<ColPosition>) {
         match movement {
             Movement::Left => {
-                let line = self.buffer.line_of_offset(offset);
-                let line_start_offset = self.buffer.offset_of_line(line);
-
-                let min_offset = if mode == Mode::Insert {
-                    0
-                } else {
-                    line_start_offset
-                };
-
-                let new_offset =
-                    self.buffer.prev_grapheme_offset(offset, count, min_offset);
+                let new_offset = self.buffer.move_left(offset, mode, count);
                 (new_offset, None)
             }
             Movement::Right => {
-                let line_end =
-                    self.buffer.offset_line_end(offset, mode != Mode::Normal);
-
-                let max_offset = if mode == Mode::Insert {
-                    self.buffer.len()
-                } else {
-                    line_end
-                };
-
-                let new_offset =
-                    self.buffer.next_grapheme_offset(offset, count, max_offset);
-
+                let new_offset = self.buffer.move_right(offset, mode, count);
                 (new_offset, None)
             }
             Movement::Up => {

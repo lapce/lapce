@@ -687,8 +687,12 @@ impl Buffer {
     }
 
     pub fn line_of_offset(&self, offset: usize) -> usize {
-        let max = self.len();
-        let offset = if offset > max { max } else { offset };
+        let offset = offset.min(self.len());
+        let offset = self
+            .text
+            .at_or_prev_codepoint_boundary(offset)
+            .unwrap_or(offset);
+
         self.text.line_of_offset(offset)
     }
 
@@ -815,24 +819,20 @@ impl Buffer {
     }
 
     pub fn move_left(&self, offset: usize, mode: Mode, count: usize) -> usize {
-        let line = self.line_of_offset(offset);
-        let line_start_offset = self.offset_of_line(line);
         let min_offset = if mode == Mode::Insert {
             0
         } else {
-            line_start_offset
+            let line = self.line_of_offset(offset);
+            self.offset_of_line(line)
         };
-
         self.prev_grapheme_offset(offset, count, min_offset)
     }
 
     pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
-        let line_end = self.offset_line_end(offset, mode != Mode::Normal);
-
         let max_offset = if mode == Mode::Insert {
             self.len()
         } else {
-            line_end
+            self.offset_line_end(offset, mode != Mode::Normal)
         };
 
         self.next_grapheme_offset(offset, count, max_offset)
