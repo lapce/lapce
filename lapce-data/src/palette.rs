@@ -517,6 +517,12 @@ impl PaletteViewData {
                 LapceUICommand::Focus,
                 Target::Widget(active),
             ));
+        } else {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(*self.main_split.split_id),
+            ));
         }
     }
 

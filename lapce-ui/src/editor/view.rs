@@ -736,6 +736,22 @@ impl Widget<LapceTabData> for LapceEditorView {
                         }
                         _ => {}
                     }
+                } else if editor.content.is_palette()
+                    && data.palette.status == PaletteStatus::Inactive
+                {
+                    let cmd = if data.workspace.path.is_none() {
+                        LapceWorkbenchCommand::PaletteWorkspace
+                    } else {
+                        LapceWorkbenchCommand::Palette
+                    };
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(cmd),
+                            data: None,
+                        },
+                        Target::Auto,
+                    ));
                 }
             }
             LifeCycle::HotChanged(is_hot) => {
@@ -852,26 +868,6 @@ impl Widget<LapceTabData> for LapceEditorView {
                     );
                 });
             }
-        }
-
-        if editor_data.editor.content.is_palette()
-            && data.focus == self.view_id
-            && old_data.focus != self.view_id
-            && data.palette.status == PaletteStatus::Inactive
-        {
-            let cmd = if data.workspace.path.is_none() {
-                LapceWorkbenchCommand::PaletteWorkspace
-            } else {
-                LapceWorkbenchCommand::Palette
-            };
-            ctx.submit_command(Command::new(
-                LAPCE_COMMAND,
-                LapceCommand {
-                    kind: CommandKind::Workbench(cmd),
-                    data: None,
-                },
-                Target::Auto,
-            ));
         }
 
         if editor_data.editor.content != old_editor_data.editor.content {
