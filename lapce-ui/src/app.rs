@@ -105,8 +105,7 @@ fn new_window_desc<W, T: druid::Data>(
     size: Size,
     pos: Point,
     maximised: bool,
-    #[cfg(any(target_os = "windows", target_os = "linux"))] config: &Arc<Config>,
-    #[cfg(target_os = "macos")] _config: &Arc<Config>,
+    _config: &Arc<Config>,
 ) -> WindowDesc<T>
 where
     W: Widget<T> + 'static,
