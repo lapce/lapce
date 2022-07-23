@@ -790,9 +790,10 @@ pub fn window_controls(
             })
             .enumerate()
         {
+            let text_size = text_layout.size();
             let point = Point::new(
-                x + i as f64 * width + ((text_layout.size().width + 5.0) / 2.0),
-                0.0,
+                x + i as f64 * width + ((text_size.width + 5.0) / 2.0),
+                (36.0 - text_size.height) / 2.0,
             );
             text_layouts.push((text_layout, point));
         }
