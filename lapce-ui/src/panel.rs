@@ -1052,6 +1052,15 @@ impl Widget<LapceTabData> for PanelSwitcher {
         }
 
         let rect = ctx.size().to_rect();
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(if self.position.is_bottom() {
+                    LapceTheme::EDITOR_BACKGROUND
+                } else {
+                    LapceTheme::PANEL_BACKGROUND
+                }),
+        );
         let shadow_width = data.config.ui.drop_shadow_width() as f64;
         match self.position {
             PanelPosition::LeftTop | PanelPosition::RightTop => {
