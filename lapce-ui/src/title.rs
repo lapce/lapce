@@ -321,7 +321,7 @@ impl Title {
         x: f64,
     ) -> f64 {
         let mut x = x;
-        if cfg!(target_os = "macos") {
+        if cfg!(target_os = "macos") || data.multiple_tab {
             x -= size.height;
         } else {
             x = size.width - (size.height * 4.0);
@@ -387,7 +387,8 @@ impl Title {
             ),
         ));
 
-        if cfg!(not(target_os = "macos")) {
+        #[cfg(not(target_os = "macos"))]
+        if !data.multiple_tab {
             x += size.height;
             let (commands, svgs, text_layouts) = window_controls(
                 data.window_id,

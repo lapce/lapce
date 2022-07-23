@@ -29,6 +29,8 @@ pub struct LapceWindow {
         >,
     >,
     dragable_area: Region,
+    tab_header_cmds: Vec<(Rect, Command)>,
+    mouse_down_cmd: Option<(Rect, Command)>,
 }
 
 impl LapceWindow {
@@ -55,6 +57,8 @@ impl LapceWindow {
             dragable_area: Region::EMPTY,
             tabs,
             tab_headers,
+            tab_header_cmds: Vec::new(),
+            mouse_down_cmd: None,
         }
     }
 
@@ -197,11 +201,34 @@ impl Widget<LapceWindowData> for LapceWindow {
                     Target::Widget(data.active_id),
                 ));
             }
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::MouseMove(mouse_event) => {
+                ctx.clear_cursor();
+                if data.tabs.len() > 1 && cfg!(not(target_os = "macos")) {
+                    for (rect, _) in self.tab_header_cmds.iter() {
+                        if rect.contains(mouse_event.pos) {
+                            ctx.set_cursor(&druid::Cursor::Pointer);
+                            break;
+                        }
+                    }
+                }
+            }
+            Event::MouseDown(mouse_event) => {
+                self.mouse_down_cmd = None;
+                if data.tabs.len() > 1
+                    && mouse_event.count == 1
+                    && cfg!(not(target_os = "macos"))
+                {
+                    for (rect, cmd) in self.tab_header_cmds.iter() {
+                        if rect.contains(mouse_event.pos) {
+                            self.mouse_down_cmd = Some((*rect, cmd.clone()));
+                            break;
+                        }
+                    }
+                }
+            }
             Event::MouseUp(mouse_event) => {
-                if (cfg!(target_os = "macos") || data.config.ui.custom_titlebar())
-                    && data.tabs.len() > 1
-                    && mouse_event.count >= 2
+                if data.tabs.len() > 1
+                    && mouse_event.count == 2
                     && self
                         .dragable_area
                         .rects()
@@ -218,6 +245,16 @@ impl Widget<LapceWindowData> for LapceWindow {
                             .with(WindowConfig::default().set_window_state(state))
                             .to(Target::Window(data.window_id)),
                     )
+                }
+                if data.tabs.len() > 1
+                    && mouse_event.count == 1
+                    && cfg!(not(target_os = "macos"))
+                {
+                    if let Some((rect, cmd)) = self.mouse_down_cmd.as_ref() {
+                        if rect.contains(mouse_event.pos) {
+                            ctx.submit_command(cmd.clone());
+                        }
+                    }
                 }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
@@ -462,7 +499,11 @@ impl Widget<LapceWindowData> for LapceWindow {
                 78.0
             };
 
-            let right_padding = 100.0;
+            let right_padding = if cfg!(target_os = "macos") {
+                100.0
+            } else {
+                100.0 + 36.0 * 3.0
+            };
 
             let total_width = self_size.width - left_padding - right_padding;
             let width =
@@ -486,9 +527,18 @@ impl Widget<LapceWindowData> for LapceWindow {
 
             let mut region = Region::EMPTY;
             region.add_rect(
-                Size::new(self_size.width - x, 36.0)
-                    .to_rect()
-                    .with_origin(Point::new(x, 0.0)),
+                Size::new(
+                    self_size.width
+                        - x
+                        - if cfg!(target_os = "macos") {
+                            0.0
+                        } else {
+                            36.0 * 3.0
+                        },
+                    36.0,
+                )
+                .to_rect()
+                .with_origin(Point::new(x, 0.0)),
             );
             if left_padding > 0.0 {
                 region.add_rect(
@@ -499,11 +549,8 @@ impl Widget<LapceWindowData> for LapceWindow {
             }
 
             self.dragable_area.clear();
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
-            if cfg!(target_os = "macos") || data.config.ui.custom_titlebar() {
-                ctx.window().set_dragable_area(region.clone());
-                self.dragable_area = region;
-            }
+            ctx.window().set_dragable_area(region.clone());
+            self.dragable_area = region;
 
             if let Some((index, mouse_pos)) = drag {
                 for (i, tab_header) in self.tab_headers.iter().enumerate() {
@@ -602,6 +649,34 @@ impl Widget<LapceWindowData> for LapceWindow {
                 data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
                 2.0,
             );
+
+            self.tab_header_cmds.clear();
+            if cfg!(not(target_os = "macos")) {
+                let (cmds, svgs, text_layouts) = window_controls(
+                    data.window_id,
+                    &ctx.window().get_window_state(),
+                    ctx.text(),
+                    size.width - 36.0 * 3.0,
+                    36.0,
+                    &data.config,
+                );
+                self.tab_header_cmds = cmds;
+
+                for (svg, rect) in svgs {
+                    ctx.draw_svg(
+                        &svg,
+                        rect,
+                        Some(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        ),
+                    );
+                }
+
+                for (text_layout, point) in text_layouts {
+                    ctx.draw_text(&text_layout, point);
+                }
+            }
         }
     }
 }
