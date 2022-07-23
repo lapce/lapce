@@ -211,6 +211,17 @@ impl Widget<LapceWindowData> for LapceWindow {
                         }
                     }
                 }
+
+                #[cfg(target_os = "windows")]
+                if data.tabs.len() > 1
+                    && self
+                        .dragable_area
+                        .rects()
+                        .iter()
+                        .any(|r| r.contains(mouse_event.pos))
+                {
+                    ctx.window().handle_titlebar(true);
+                }
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down_cmd = None;

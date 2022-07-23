@@ -575,11 +575,12 @@ impl Widget<LapceTabData> for Title {
 
                     #[cfg(target_os = "windows")]
                     // ! Currently implemented on Windows only
-                    if self
-                        .dragable_area
-                        .rects()
-                        .iter()
-                        .any(|r| r.contains(mouse_event.pos))
+                    if !data.multiple_tab
+                        && self
+                            .dragable_area
+                            .rects()
+                            .iter()
+                            .any(|r| r.contains(mouse_event.pos))
                     {
                         ctx.window().handle_titlebar(true);
                     }
