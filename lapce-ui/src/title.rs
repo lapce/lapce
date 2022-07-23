@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+#[cfg(not(target_os = "macos"))]
 use crate::window::window_controls;
 use crate::{palette::Palette, svg::get_svg};
 use druid::WindowConfig;
@@ -313,8 +314,10 @@ impl Title {
     fn update_settings(
         &mut self,
         data: &LapceTabData,
-        window_state: &WindowState,
-        piet_text: &mut PietText,
+        #[cfg(not(target_os = "macos"))] window_state: &WindowState,
+        #[cfg(target_os = "macos")] _window_state: &WindowState,
+        #[cfg(not(target_os = "macos"))] piet_text: &mut PietText,
+        #[cfg(target_os = "macos")] _piet_text: &mut PietText,
         size: Size,
         #[cfg(target_os = "windows")] padding: f64,
         #[cfg(not(target_os = "windows"))] _padding: f64,
@@ -629,8 +632,7 @@ impl Widget<LapceTabData> for Title {
     fn update(
         &mut self,
         ctx: &mut druid::UpdateCtx,
-        #[cfg(target_os = "windows")] old_data: &LapceTabData,
-        #[cfg(not(target_os = "windows"))] _old_data: &LapceTabData,
+        _old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
