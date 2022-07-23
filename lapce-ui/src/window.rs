@@ -257,12 +257,8 @@ impl Widget<LapceWindowData> for LapceWindow {
                             .to(Target::Window(data.window_id)),
                     )
                 }
-                println!(
-                    "mouse up count {} {:?}",
-                    mouse_event.count, self.mouse_down_cmd
-                );
                 if data.tabs.len() > 1
-                    && mouse_event.count == 1
+                    && mouse_event.count < 2
                     && cfg!(not(target_os = "macos"))
                 {
                     if let Some((rect, cmd)) = self.mouse_down_cmd.as_ref() {
