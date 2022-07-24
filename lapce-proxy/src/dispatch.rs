@@ -17,12 +17,12 @@ use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
-use lapce_rpc::core::CoreNotification;
+use lapce_rpc::core::{CoreNotification, CoreResponse, CoreRpc};
 use lapce_rpc::file::FileNodeItem;
-use lapce_rpc::proxy::{ProxyNotification, ProxyRequest, ReadDirResponse};
+use lapce_rpc::proxy::{ProxyNotification, ProxyRequest, ProxyRpc, ReadDirResponse};
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
-use lapce_rpc::{self, Call, RequestId, RpcObject};
+use lapce_rpc::{self, Call, RequestId, RpcError, RpcObject};
 use parking_lot::Mutex;
 use serde_json::json;
 use serde_json::Value;
@@ -37,6 +37,155 @@ use xi_rope::Rope;
 
 const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(1);
 const WORKSPACE_EVENT_TOKEN: WatchToken = WatchToken(2);
+
+pub struct NewDispatcher {
+    /// channel sender from proxy to core
+    core_sender: Sender<CoreRpc>,
+    buffers: HashMap<PathBuf, Buffer>,
+}
+
+impl NewDispatcher {
+    pub fn new(core_sender: Sender<CoreRpc>) -> Self {
+        Self {
+            core_sender,
+            buffers: HashMap::new(),
+        }
+    }
+
+    /// handles the channel receiver from core to proxy
+    pub fn mainloop(&mut self, core_receiver: Receiver<ProxyRpc>) {
+        for msg in core_receiver {
+            match msg {
+                ProxyRpc::Request(id, request) => {
+                    self.handle_request(id, request);
+                }
+                ProxyRpc::Notification(notification) => {
+                    if let ProxyNotification::Shutdown {} = &notification {
+                        return;
+                    }
+                    self.handle_notification(notification);
+                }
+            }
+        }
+    }
+
+    fn respond_rpc(&self, id: RequestId, result: Result<CoreResponse>) {
+        let msg = match result {
+            Ok(r) => CoreRpc::Response(id, r),
+            Err(e) => CoreRpc::Error(
+                id,
+                RpcError {
+                    code: 0,
+                    message: e.to_string(),
+                },
+            ),
+        };
+        let _ = self.core_sender.send(msg);
+    }
+
+    fn handle_request(&mut self, id: RequestId, rpc: ProxyRequest) {
+        use ProxyRequest::*;
+        match rpc {
+            NewBuffer { buffer_id, path } => {
+                let buffer = Buffer::new(buffer_id, path.clone());
+                let content = buffer.rope.to_string();
+                self.buffers.insert(path, buffer);
+                self.respond_rpc(
+                    id,
+                    Ok(CoreResponse::NewBufferResponse { content }),
+                );
+            }
+            BufferHead { buffer_id, path } => todo!(),
+            GetCompletion {
+                request_id,
+                buffer_id,
+                position,
+            } => todo!(),
+            GlobalSearch { pattern } => todo!(),
+            CompletionResolve {
+                buffer_id,
+                completion_item,
+            } => todo!(),
+            GetHover {
+                request_id,
+                buffer_id,
+                position,
+            } => todo!(),
+            GetSignature {
+                buffer_id,
+                position,
+            } => todo!(),
+            GetReferences {
+                buffer_id,
+                position,
+            } => todo!(),
+            GetDefinition {
+                request_id,
+                buffer_id,
+                position,
+            } => todo!(),
+            GetTypeDefinition {
+                request_id,
+                buffer_id,
+                position,
+            } => todo!(),
+            GetInlayHints { buffer_id } => todo!(),
+            GetSemanticTokens { buffer_id } => todo!(),
+            GetCodeActions {
+                buffer_id,
+                position,
+            } => todo!(),
+            GetDocumentSymbols { buffer_id } => todo!(),
+            GetWorkspaceSymbols { query, buffer_id } => todo!(),
+            GetDocumentFormatting { buffer_id } => todo!(),
+            GetFiles { path } => todo!(),
+            ReadDir { path } => todo!(),
+            Save { rev, buffer_id } => todo!(),
+            SaveBufferAs {
+                buffer_id,
+                path,
+                rev,
+                content,
+            } => todo!(),
+            CreateFile { path } => todo!(),
+            CreateDirectory { path } => todo!(),
+            TrashPath { path } => todo!(),
+            RenamePath { from, to } => todo!(),
+        }
+    }
+
+    fn handle_notification(&self, rpc: ProxyNotification) {
+        use ProxyNotification::*;
+        match rpc {
+            Initialize { workspace } => todo!(),
+            Shutdown {} => todo!(),
+            Update {
+                buffer_id,
+                delta,
+                rev,
+            } => todo!(),
+            NewTerminal {
+                term_id,
+                cwd,
+                shell,
+            } => todo!(),
+            InstallPlugin { plugin } => todo!(),
+            GitCommit { message, diffs } => todo!(),
+            GitCheckout { branch } => todo!(),
+            GitDiscardFileChanges { file } => todo!(),
+            GitDiscardFilesChanges { files } => todo!(),
+            GitDiscardWorkspaceChanges {} => todo!(),
+            GitInit {} => todo!(),
+            TerminalWrite { term_id, content } => todo!(),
+            TerminalResize {
+                term_id,
+                width,
+                height,
+            } => todo!(),
+            TerminalClose { term_id } => todo!(),
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct Dispatcher {

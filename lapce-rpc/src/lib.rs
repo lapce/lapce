@@ -25,12 +25,24 @@ pub use parse::Call;
 pub use parse::RequestId;
 pub use parse::RpcObject;
 use serde::de::DeserializeOwned;
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::json;
 use serde_json::Value;
 
 pub use stdio::stdio_transport;
 
-pub fn stdio() -> (Sender<Value>, Receiver<Value>) {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RpcError {
+    pub code: usize,
+    pub message: String,
+}
+
+pub fn stdio<S, D>() -> (Sender<S>, Receiver<D>)
+where
+    S: 'static + Serialize + Send + Sync,
+    D: 'static + DeserializeOwned + Send + Sync,
+{
     let stdout = stdout();
     let stdin = BufReader::new(stdin());
     let (writer_sender, writer_receiver) = crossbeam_channel::unbounded();

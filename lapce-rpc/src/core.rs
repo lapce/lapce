@@ -4,8 +4,15 @@ use std::{collections::HashMap, path::PathBuf};
 
 use crate::{
     file::FileNodeItem, plugin::PluginDescription, source_control::DiffInfo,
-    terminal::TermId,
+    terminal::TermId, RequestId, RpcError,
 };
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CoreRpc {
+    Notificiation(CoreNotification),
+    Response(RequestId, CoreResponse),
+    Error(RequestId, RpcError),
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -57,3 +64,10 @@ pub enum CoreNotification {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CoreRequest {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum CoreResponse {
+    NewBufferResponse { content: String },
+}

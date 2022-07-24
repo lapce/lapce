@@ -15,10 +15,12 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use crossbeam_channel::Receiver;
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::encoding::offset_utf16_to_utf8;
 use lapce_rpc::{
     buffer::BufferId,
+    proxy::{ProxyNotification, ProxyRequest},
     style::{LineStyle, SemanticStyles, Style},
     RequestId,
 };
@@ -39,6 +41,24 @@ pub trait Callable: Send {
 impl<F: Send + FnOnce(&LspClient, Result<Value>)> Callable for F {
     fn call(self: Box<F>, client: &LspClient, result: Result<Value>) {
         (*self)(client, result)
+    }
+}
+
+pub enum LspRequest {}
+
+pub enum LspNotification {}
+
+pub enum LspRpc {
+    Response(),
+    Request(RequestId, LspRequest),
+    Notification(LspNotification),
+}
+
+pub struct NewLspCatalog {}
+
+impl NewLspCatalog {
+    pub fn mainloop(&mut self, proxy_receiver: Receiver<LspRpc>) {
+        for msg in proxy_receiver {}
     }
 }
 

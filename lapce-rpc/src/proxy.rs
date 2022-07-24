@@ -6,8 +6,14 @@ use xi_rope::RopeDelta;
 
 use crate::{
     buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
-    source_control::FileDiff, terminal::TermId,
+    source_control::FileDiff, terminal::TermId, RequestId,
 };
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ProxyRpc {
+    Request(RequestId, ProxyRequest),
+    Notification(ProxyNotification),
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
