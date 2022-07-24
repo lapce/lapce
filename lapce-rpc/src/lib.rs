@@ -32,10 +32,55 @@ use serde_json::Value;
 
 pub use stdio::stdio_transport;
 
+pub enum RpcMessage<Req, Notif, Resp> {
+    Request(RequestId, Req),
+    Response(RequestId, Resp),
+    Notificiation(Notif),
+    Error(RequestId, RpcError),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RpcError {
     pub code: usize,
     pub message: String,
+}
+
+#[derive(Clone)]
+pub struct NewRpcHandler<Req, Notif, Resp> {
+    sender: Sender<RpcMessage<Req, Notif, Resp>>,
+    id: Arc<AtomicU64>,
+    pending: Arc<Mutex<HashMap<u64, ResponseHandler>>>,
+}
+
+impl<Req, Notif, Resp> NewRpcHandler<Req, Notif, Resp> {
+    pub fn new(sender: Sender<RpcMessage<Req, Notif, Resp>>) -> Self {
+        Self {
+            sender,
+            id: Arc::new(AtomicU64::new(0)),
+            pending: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    pub fn mainloop<H>(
+        &mut self,
+        receiver: Receiver<RpcMessage<Req, Notif, Resp>>,
+        handler: &mut H,
+    ) where
+        H: NewHandler<Req, Notif, Resp>,
+    {
+        for msg in receiver {
+            match msg {
+                RpcMessage::Request(id, request) => {
+                    handler.handle_request(request);
+                }
+                RpcMessage::Notificiation(notification) => {
+                    handler.handle_notification(notification);
+                }
+                RpcMessage::Response(id, resp) => {}
+                RpcMessage::Error(id, err) => {}
+            }
+        }
+    }
 }
 
 pub fn stdio<S, D>() -> (Sender<S>, Receiver<D>)
@@ -89,6 +134,11 @@ pub trait Handler {
 
     fn handle_notification(&mut self, rpc: Self::Notification) -> ControlFlow;
     fn handle_request(&mut self, rpc: Self::Request) -> Result<Value, Value>;
+}
+
+pub trait NewHandler<Req, Notif, Resp> {
+    fn handle_notification(&mut self, rpc: Notif) -> ControlFlow;
+    fn handle_request(&mut self, rpc: Req) -> Result<Resp, Value>;
 }
 
 #[derive(Clone)]
