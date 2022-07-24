@@ -83,6 +83,23 @@ impl<Req, Notif, Resp> NewRpcHandler<Req, Notif, Resp> {
     }
 }
 
+pub fn new_stdio<Req, Notif, Resp>() -> (
+    Sender<RpcMessage<Req, Notif, Resp>>,
+    Receiver<RpcMessage<Req, Notif, Resp>>,
+)
+where
+    Req: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Notif: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Resp: 'static + Serialize + DeserializeOwned + Send + Sync,
+{
+    let stdout = stdout();
+    let stdin = BufReader::new(stdin());
+    let (writer_sender, writer_receiver) = crossbeam_channel::unbounded();
+    let (reader_sender, reader_receiver) = crossbeam_channel::unbounded();
+    stdio::new_stdio_transport(stdout, writer_receiver, stdin, reader_sender);
+    (writer_sender, reader_receiver)
+}
+
 pub fn stdio<S, D>() -> (Sender<S>, Receiver<D>)
 where
     S: 'static + Serialize + Send + Sync,
