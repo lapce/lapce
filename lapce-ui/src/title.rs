@@ -20,7 +20,7 @@ use lapce_data::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{LapceTabData, LapceWorkspaceType},
     menu::{MenuItem, MenuKind},
     palette::PaletteStatus,
@@ -167,7 +167,7 @@ impl Title {
             }
         };
         self.rects.push((remote_rect, color));
-        let remote_svg = get_svg("remote.svg").unwrap();
+        let remote_svg = get_svg(LapceIcons::REMOTE).unwrap();
         self.svgs.push((
             remote_svg,
             Size::new(size.height, size.height)
@@ -249,7 +249,7 @@ impl Title {
             let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
 
             x += 5.0;
-            let folder_svg = get_svg("git-icon.svg").unwrap();
+            let folder_svg = get_svg(LapceIcons::VCS).unwrap();
             let folder_rect = Size::new(size.height, size.height)
                 .to_rect()
                 .with_origin(Point::new(x, 0.0));
@@ -381,7 +381,7 @@ impl Title {
         let settings_rect = Size::new(size.height, size.height)
             .to_rect()
             .with_origin(Point::new(x, 0.0));
-        let settings_svg = get_svg("settings.svg").unwrap();
+        let settings_svg = get_svg(LapceIcons::SETTINGS).unwrap();
         self.svgs.push((
             settings_svg,
             settings_rect.inflate(-10.0, -10.0),
@@ -576,12 +576,12 @@ impl Title {
             .with_origin(Point::new(x - size.height, 0.0));
         let (folder_svg, folder_rect) = if data.workspace.path.is_none() {
             (
-                get_svg("default_folder.svg").unwrap(),
+                get_svg(LapceIcons::DIRECTORY_CLOSED).unwrap(),
                 folder_rect.inflate(-9.0, -9.0),
             )
         } else {
             (
-                get_svg("search.svg").unwrap(),
+                get_svg(LapceIcons::SEARCH).unwrap(),
                 folder_rect.inflate(-12.0, -12.0),
             )
         };
@@ -620,7 +620,7 @@ impl Title {
             .to_rect()
             .with_origin(Point::new(x + text_size.width - 8.0, 0.0));
         self.svgs.push((
-            get_svg("chevron-down.svg").unwrap(),
+            get_svg(LapceIcons::ITEM_OPENED).unwrap(),
             command_rect.inflate(-12.0, -12.0),
             Some(
                 data.config
@@ -883,7 +883,7 @@ impl Widget<LapceTabData> for Title {
             )
         };
         self.svgs.push((
-            get_svg("arrow-left.svg").unwrap(),
+            get_svg(LapceIcons::PALETTE_PREVIOUS).unwrap(),
             arrow_left_rect.inflate(-10.5, -10.5),
             arrow_left_svg_color,
             arrow_left_svg_hover_color,
@@ -930,7 +930,7 @@ impl Widget<LapceTabData> for Title {
             )
         };
         self.svgs.push((
-            get_svg("arrow-right.svg").unwrap(),
+            get_svg(LapceIcons::PALETTE_NEXT).unwrap(),
             arrow_right_rect.inflate(-10.5, -10.5),
             arrow_right_svg_color,
             arrow_right_svg_hover_color,

@@ -7,7 +7,7 @@ use druid::{
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{CommandKind, LapceCommand, LAPCE_COMMAND},
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::LapceTabData,
 };
 
@@ -34,7 +34,7 @@ impl FindBox {
             .padding((10.0, 5.0));
         let icons = vec![
             LapceIcon {
-                icon: "arrow-up.svg",
+                icon: LapceIcons::SEARCH_BACKWARD,
                 rect: Rect::ZERO,
                 command: Command::new(
                     LAPCE_COMMAND,
@@ -46,7 +46,7 @@ impl FindBox {
                 ),
             },
             LapceIcon {
-                icon: "arrow-down.svg",
+                icon: LapceIcons::SEARCH_FORWARD,
                 rect: Rect::ZERO,
                 command: Command::new(
                     LAPCE_COMMAND,
@@ -58,7 +58,7 @@ impl FindBox {
                 ),
             },
             LapceIcon {
-                icon: "close.svg",
+                icon: LapceIcons::SEARCH_CLEAR,
                 rect: Rect::ZERO,
                 command: Command::new(
                     LAPCE_COMMAND,

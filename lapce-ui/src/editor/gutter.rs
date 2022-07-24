@@ -8,7 +8,7 @@ use druid::{
 use lapce_core::buffer::DiffLines;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{EditorView, LapceTabData},
     editor::{LapceEditorBufferData, Syntax},
 };
@@ -505,7 +505,7 @@ impl LapceEditorGutter {
     ) {
         if let Some(actions) = data.current_code_actions() {
             if !actions.is_empty() {
-                let svg = get_svg("lightbulb.svg").unwrap();
+                let svg = get_svg(LapceIcons::LIGHTBULB).unwrap();
                 let rect = self.code_actions_rect(ctx.text(), data);
                 ctx.draw_svg(
                     &svg,

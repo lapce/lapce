@@ -2,12 +2,11 @@ use std::{collections::HashMap, ffi::OsStr, path::Path, str::FromStr};
 
 use druid::{piet::Svg, Color};
 use include_dir::{include_dir, Dir};
+use lapce_data::config::{Config, LapceIcons, LOGO};
 use lazy_static::lazy_static;
 use lsp_types::{CompletionItemKind, SymbolKind};
 
-use lapce_data::config::{Config, LOGO};
-
-const ICONS_DIR: Dir = include_dir!("../icons");
+const UI_ICONS_DIR: Dir = include_dir!("../icons");
 
 lazy_static! {
     static ref SVG_STORE: SvgStore = SvgStore::new();
@@ -17,20 +16,26 @@ struct SvgStore {
     svgs: HashMap<&'static str, Option<Svg>>,
 }
 
+fn insert_svgs(svgs: &'static Dir, map: &mut HashMap<&'static str, Option<Svg>>) {
+    for file in svgs.files() {
+        let file_path = file.path();
+        if file_path.extension().is_some() {
+            if let Some(file_name) = file_path.file_stem().and_then(OsStr::to_str) {
+                let svg = file
+                    .contents_utf8()
+                    .and_then(|content| Svg::from_str(content).ok());
+
+                map.insert(file_name, svg);
+            }
+        }
+    }
+}
+
 impl SvgStore {
     fn new() -> Self {
         let mut svgs = HashMap::new();
         svgs.insert("lapce_logo", Svg::from_str(LOGO).ok());
-
-        for file in ICONS_DIR.files() {
-            if let Some(file_name) = file.path().file_name().and_then(OsStr::to_str)
-            {
-                let svg =
-                    file.contents_utf8().and_then(|str| Svg::from_str(str).ok());
-
-                svgs.insert(file_name, svg);
-            }
-        }
+        insert_svgs(&UI_ICONS_DIR, &mut svgs);
 
         Self { svgs }
     }
@@ -41,36 +46,46 @@ impl SvgStore {
 }
 
 pub fn logo_svg() -> Svg {
-    get_svg("lapce_logo").unwrap()
+    get_svg(LapceIcons::LAPCE_LOGO).unwrap()
 }
 
 pub fn get_svg(name: &'static str) -> Option<Svg> {
     SVG_STORE.get_svg(name)
 }
 
+#[allow(unused)]
 pub fn file_svg(path: &Path) -> (Svg, Option<&Color>) {
     let icon_name: Option<&str>;
     let icon_color: Option<&Color>;
     (icon_name, icon_color) = match path.extension().and_then(OsStr::to_str) {
         Some(extension) => {
+            // Fallback
             const TYPES: &[(&[&str], &str, Option<&Color>)] = &[
-                (&["c"], "file_type_c.svg", None),
-                (&["h"], "file_type_c.svg", None),
-                (&["cxx", "cc", "c++", "cpp"], "file_type_cpp.svg", None),
-                (&["hxx", "hh", "h++", "hpp"], "file_type_cpp.svg", None),
-                (&["go"], "file_type_go.svg", None),
-                (&["json"], "file_type_json.svg", None),
-                (&["markdown", "md"], "file_type_markdown.svg", None),
-                (&["rs"], "file_type_rust.svg", None),
-                (&["toml"], "file_type_toml.svg", None),
-                (&["yaml"], "file_type_yaml.svg", None),
-                (&["py"], "file_type_python.svg", None),
-                (&["lua"], "file_type_lua.svg", None),
-                (&["html", "htm"], "file_type_html.svg", None),
-                (&["zip"], "file_type_zip.svg", None),
-                (&["js"], "file_type_js.svg", None),
-                (&["ts"], "file_type_ts.svg", None),
-                (&["css"], "file_type_css.svg", None),
+                (&["c"], "c", None),
+                (&["h"], "c", None),
+                (&["cxx", "cc", "c++", "cpp"], "C++", None),
+                (&["hxx", "hh", "h++", "hpp"], "C++", None),
+                (&["go"], "go", None),
+                (&["json"], "json", None),
+                (&["markdown", "md"], "markdown", None),
+                (&["rs"], "rust", None),
+                // (&["toml"], "toml", None),
+                (&["yaml"], "yaml", None),
+                (&["py"], "python", None),
+                (&["lua"], "lua", None),
+                (&["html", "htm"], "html", None),
+                (&["zip"], "zip", None),
+                (&["js"], "js", None),
+                (&["ts"], "ts", None),
+                (&["css"], "css", None),
+                (
+                    &[
+                        "svg", "png", "jpeg", "webp", "gif", "tiff", "bmp", "jpg",
+                        "jfif", "mp4", "avi", "",
+                    ],
+                    LapceIcons::FILE_TYPE_MEDIA,
+                    None,
+                ),
             ];
 
             let (mut icon, mut color) = (None, None);
@@ -88,9 +103,9 @@ pub fn file_svg(path: &Path) -> (Svg, Option<&Color>) {
         None => match path.file_name().and_then(OsStr::to_str) {
             Some(file_name) => {
                 const FILES: &[(&[&str], &str, Option<&Color>)] = &[
-                    (&["LICENSE", "LICENCE"], "file_type_license.svg", None),
-                    (&["COPYRIGHT"], "file_type_license.svg", None),
-                    (&["NOTICE"], "file_type_license.svg", None),
+                    // (&["LICENSE", "LICENCE"], "license", None),
+                    // (&["COPYRIGHT"], "license", None),
+                    // (&["NOTICE"], "license", None),
                 ];
 
                 let (mut icon, mut color) = (None, None);
@@ -105,43 +120,40 @@ pub fn file_svg(path: &Path) -> (Svg, Option<&Color>) {
 
                 (icon, color)
             }
-            None => (Some("default_file.svg"), None),
+            None => (None, None),
         },
     };
 
     match icon_name {
-        Some(icon_name) => match get_svg(icon_name) {
-            Some(svg) => (svg, icon_color),
-            None => (get_svg("default_file.svg").unwrap(), None),
-        },
-        None => (get_svg("default_file.svg").unwrap(), None),
+        Some(svg) => (get_svg(svg).unwrap(), Some(&Color::WHITE)),
+        None => (get_svg(LapceIcons::FILE).unwrap(), Some(&Color::WHITE)),
     }
 }
 
 pub fn symbol_svg(kind: &SymbolKind) -> Option<Svg> {
     let kind_str = match *kind {
-        SymbolKind::ARRAY => "symbol-array.svg",
-        SymbolKind::BOOLEAN => "symbol-boolean.svg",
-        SymbolKind::CLASS => "symbol-class.svg",
-        SymbolKind::CONSTANT => "symbol-constant.svg",
-        SymbolKind::ENUM_MEMBER => "symbol-enum-member.svg",
-        SymbolKind::ENUM => "symbol-enum.svg",
-        SymbolKind::EVENT => "symbol-event.svg",
-        SymbolKind::FIELD => "symbol-field.svg",
-        SymbolKind::FILE => "symbol-file.svg",
-        SymbolKind::INTERFACE => "symbol-interface.svg",
-        SymbolKind::KEY => "symbol-key.svg",
-        SymbolKind::FUNCTION => "symbol-method.svg",
-        SymbolKind::METHOD => "symbol-method.svg",
-        SymbolKind::OBJECT => "symbol-namespace.svg",
-        SymbolKind::NAMESPACE => "symbol-namespace.svg",
-        SymbolKind::NUMBER => "symbol-numeric.svg",
-        SymbolKind::OPERATOR => "symbol-operator.svg",
-        SymbolKind::TYPE_PARAMETER => "symbol-parameter.svg",
-        SymbolKind::PROPERTY => "symbol-property.svg",
-        SymbolKind::STRING => "symbol-string.svg",
-        SymbolKind::STRUCT => "symbol-structure.svg",
-        SymbolKind::VARIABLE => "symbol-variable.svg",
+        SymbolKind::ARRAY => LapceIcons::SYMBOL_KIND_ARRAY,
+        SymbolKind::BOOLEAN => LapceIcons::SYMBOL_KIND_BOOLEAN,
+        SymbolKind::CLASS => LapceIcons::SYMBOL_KIND_CLASS,
+        SymbolKind::CONSTANT => LapceIcons::SYMBOL_KIND_CONSTANT,
+        SymbolKind::ENUM_MEMBER => LapceIcons::SYMBOL_KIND_ENUM_MEMBER,
+        SymbolKind::ENUM => LapceIcons::SYMBOL_KIND_ENUM,
+        SymbolKind::EVENT => LapceIcons::SYMBOL_KIND_EVENT,
+        SymbolKind::FIELD => LapceIcons::SYMBOL_KIND_FIELD,
+        SymbolKind::FILE => LapceIcons::SYMBOL_KIND_FILE,
+        SymbolKind::INTERFACE => LapceIcons::SYMBOL_KIND_INTERFACE,
+        SymbolKind::KEY => LapceIcons::SYMBOL_KIND_KEY,
+        SymbolKind::FUNCTION => LapceIcons::SYMBOL_KIND_FUNCTION,
+        SymbolKind::METHOD => LapceIcons::SYMBOL_KIND_METHOD,
+        SymbolKind::OBJECT => LapceIcons::SYMBOL_KIND_OBJECT,
+        SymbolKind::NAMESPACE => LapceIcons::SYMBOL_KIND_NAMESPACE,
+        SymbolKind::NUMBER => LapceIcons::SYMBOL_KIND_NUMBER,
+        SymbolKind::OPERATOR => LapceIcons::SYMBOL_KIND_OPERATOR,
+        SymbolKind::TYPE_PARAMETER => LapceIcons::SYMBOL_KIND_TYPE_PARAMETER,
+        SymbolKind::PROPERTY => LapceIcons::SYMBOL_KIND_PROPERTY,
+        SymbolKind::STRING => LapceIcons::SYMBOL_KIND_STRING,
+        SymbolKind::STRUCT => LapceIcons::SYMBOL_KIND_STRUCT,
+        SymbolKind::VARIABLE => LapceIcons::SYMBOL_KIND_VARIABLE,
         _ => return None,
     };
 
@@ -154,21 +166,23 @@ pub fn completion_svg(
 ) -> Option<(Svg, Option<Color>)> {
     let kind = kind?;
     let kind_str = match kind {
-        CompletionItemKind::METHOD => "symbol-method.svg",
-        CompletionItemKind::FUNCTION => "symbol-method.svg",
-        CompletionItemKind::ENUM => "symbol-enum.svg",
-        CompletionItemKind::ENUM_MEMBER => "symbol-enum-member.svg",
-        CompletionItemKind::CLASS => "symbol-class.svg",
-        CompletionItemKind::VARIABLE => "symbol-variable.svg",
-        CompletionItemKind::STRUCT => "symbol-structure.svg",
-        CompletionItemKind::KEYWORD => "symbol-keyword.svg",
-        CompletionItemKind::CONSTANT => "symbol-constant.svg",
-        CompletionItemKind::PROPERTY => "symbol-property.svg",
-        CompletionItemKind::FIELD => "symbol-field.svg",
-        CompletionItemKind::INTERFACE => "symbol-interface.svg",
-        CompletionItemKind::SNIPPET => "symbol-snippet.svg",
-        CompletionItemKind::MODULE => "symbol-namespace.svg",
-        _ => "symbol-string.svg",
+        CompletionItemKind::METHOD => LapceIcons::COMPLETION_ITEM_KIND_METHOD,
+        CompletionItemKind::FUNCTION => LapceIcons::COMPLETION_ITEM_KIND_FUNCTION,
+        CompletionItemKind::ENUM => LapceIcons::COMPLETION_ITEM_KIND_ENUM,
+        CompletionItemKind::ENUM_MEMBER => {
+            LapceIcons::COMPLETION_ITEM_KIND_ENUM_MEMBER
+        }
+        CompletionItemKind::CLASS => LapceIcons::COMPLETION_ITEM_KIND_CLASS,
+        CompletionItemKind::VARIABLE => LapceIcons::SYMBOL_KIND_VARIABLE,
+        CompletionItemKind::STRUCT => LapceIcons::SYMBOL_KIND_STRUCT,
+        CompletionItemKind::KEYWORD => LapceIcons::COMPLETION_ITEM_KIND_KEYWORD,
+        CompletionItemKind::CONSTANT => LapceIcons::COMPLETION_ITEM_KIND_CONSTANT,
+        CompletionItemKind::PROPERTY => LapceIcons::COMPLETION_ITEM_KIND_PROPERTY,
+        CompletionItemKind::FIELD => LapceIcons::COMPLETION_ITEM_KIND_FIELD,
+        CompletionItemKind::INTERFACE => LapceIcons::COMPLETION_ITEM_KIND_INTERFACE,
+        CompletionItemKind::SNIPPET => LapceIcons::COMPLETION_ITEM_KIND_SNIPPET,
+        CompletionItemKind::MODULE => LapceIcons::COMPLETION_ITEM_KIND_MODULE,
+        _ => LapceIcons::COMPLETION_ITEM_KIND_STRING,
     };
     let theme_str = match kind {
         CompletionItemKind::METHOD => "method",

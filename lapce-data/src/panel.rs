@@ -1,6 +1,8 @@
 use druid::Data;
 use serde::{Deserialize, Serialize};
 
+use crate::config::LapceIcons;
+
 pub type PanelOrder = im::HashMap<PanelPosition, im::Vector<PanelKind>>;
 
 #[derive(Clone, Copy, PartialEq, Data, Serialize, Deserialize, Hash, Eq, Debug)]
@@ -26,12 +28,12 @@ pub struct PanelSize {
 impl PanelKind {
     pub fn svg_name(&self) -> &'static str {
         match &self {
-            PanelKind::FileExplorer => "file-explorer.svg",
-            PanelKind::SourceControl => "git-icon.svg",
-            PanelKind::Plugin => "plugin-icon.svg",
-            PanelKind::Terminal => "terminal.svg",
-            PanelKind::Search => "search.svg",
-            PanelKind::Problem => "error.svg",
+            PanelKind::FileExplorer => LapceIcons::FILE_EXPLORER,
+            PanelKind::SourceControl => LapceIcons::VCS,
+            PanelKind::Plugin => LapceIcons::EXTENSIONS,
+            PanelKind::Terminal => LapceIcons::TERMINAL,
+            PanelKind::Search => LapceIcons::SEARCH,
+            PanelKind::Problem => LapceIcons::PROBLEM,
         }
     }
 }

@@ -8,7 +8,7 @@ use druid::{
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{EditorDiagnostic, LapceTabData},
     editor::EditorLocation,
     panel::PanelKind,
@@ -337,8 +337,8 @@ impl Widget<LapceTabData> for ProblemContent {
                 }
 
                 let svg = match self.severity {
-                    DiagnosticSeverity::ERROR => get_svg("error.svg").unwrap(),
-                    _ => get_svg("warning.svg").unwrap(),
+                    DiagnosticSeverity::ERROR => get_svg(LapceIcons::ERROR).unwrap(),
+                    _ => get_svg(LapceIcons::WARNING).unwrap(),
                 };
                 let rect = Size::new(line_height, line_height)
                     .to_rect()
@@ -407,7 +407,7 @@ impl Widget<LapceTabData> for ProblemContent {
                         }
                     }
 
-                    let svg = get_svg("link.svg").unwrap();
+                    let svg = get_svg(LapceIcons::LINK).unwrap();
                     let rect = Size::new(line_height, line_height)
                         .to_rect()
                         .with_origin(Point::new(

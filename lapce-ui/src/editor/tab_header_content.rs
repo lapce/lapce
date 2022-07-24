@@ -12,7 +12,7 @@ use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{DragContent, EditorTabChild, LapceTabData},
     document::BufferContent,
     editor::TabRect,
@@ -356,7 +356,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
         let mut x = 0.0;
         for (_i, child) in editor_tab.children.iter().enumerate() {
             let mut text = "".to_string();
-            let mut svg = get_svg("default_file.svg").unwrap();
+            let mut svg = get_svg(LapceIcons::FILE).unwrap();
             match child {
                 EditorTabChild::Editor(view_id, _, _) => {
                     let editor = data.main_split.editors.get(view_id).unwrap();

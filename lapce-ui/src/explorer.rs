@@ -13,6 +13,7 @@ use druid::{ExtEventSink, KbKey, WindowId};
 use itertools::Itertools;
 use lapce_core::command::FocusCommand;
 use lapce_data::command::{CommandKind, LapceCommand, LAPCE_COMMAND};
+use lapce_data::config::LapceIcons;
 use lapce_data::data::{EditorTabChild, LapceData, LapceEditorData};
 use lapce_data::document::{BufferContent, LocalBufferKind};
 use lapce_data::explorer::FileExplorerData;
@@ -74,9 +75,9 @@ fn paint_single_file_node_item(
     let padding = 15.0 * level as f64;
     if item.is_dir {
         let icon_name = if item.open {
-            "chevron-down.svg"
+            LapceIcons::ITEM_OPENED
         } else {
-            "chevron-right.svg"
+            LapceIcons::ITEM_CLOSED
         };
         let svg = get_svg(icon_name).unwrap();
         let rect = Size::new(svg_size, svg_size)
@@ -90,9 +91,9 @@ fn paint_single_file_node_item(
         toggle_rects.insert(current, rect);
 
         let icon_name = if item.open {
-            "default_folder_opened.svg"
+            LapceIcons::DIRECTORY_OPENED
         } else {
-            "default_folder.svg"
+            LapceIcons::DIRECTORY_CLOSED
         };
         let svg = get_svg(icon_name).unwrap();
         let rect = Size::new(svg_size, svg_size)
@@ -979,7 +980,7 @@ impl OpenEditorList {
         let size = ctx.size();
         let mut text = "".to_string();
         let mut hint = "".to_string();
-        let mut svg = get_svg("default_file.svg").unwrap();
+        let mut svg = get_svg(LapceIcons::FILE).unwrap();
         let mut pristine = true;
         match child {
             EditorTabChild::Editor(view_id, _, _) => {
@@ -1059,11 +1060,11 @@ impl OpenEditorList {
                 close_rect.inflate(2.0, 2.0),
                 data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
             );
-            Some(get_svg("close.svg").unwrap())
+            Some(get_svg(LapceIcons::CLOSE).unwrap())
         } else if pristine {
             None
         } else {
-            Some(get_svg("unsaved.svg").unwrap())
+            Some(get_svg(LapceIcons::UNSAVED).unwrap())
         };
         if let Some(close_svg) = close_svg {
             ctx.draw_svg(&close_svg, close_rect, None);

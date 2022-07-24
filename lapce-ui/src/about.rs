@@ -12,7 +12,7 @@ use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceTheme, LapceIcons},
     data::LapceTabData,
     proxy::VERSION,
 };
@@ -464,7 +464,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
         }
 
         ctx.draw_svg(
-            &get_svg("chrome-close.svg").unwrap(),
+            &get_svg(LapceIcons::CLOSE).unwrap(),
             self.close_rect.inflate(-2.0, -2.0),
             Some(
                 data.config

@@ -9,7 +9,7 @@ use druid::{
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
+    config::{Config, LapceIcons, LapceTheme},
     data::LapceTabData,
     picker::FilePickerData,
 };
@@ -277,7 +277,7 @@ impl Widget<LapceTabData> for FilePickerPwd {
         let rect = Size::new(icon_size, icon_size)
             .to_rect()
             .with_origin(Point::new(x, gap));
-        let svg = get_svg("arrow-up.svg").unwrap();
+        let svg = get_svg("arrow-up").unwrap();
         self.icons.push((rect, svg));
 
         self_size
@@ -583,9 +583,9 @@ pub fn paint_file_node_item_by_index(
         let padding = 15.0 * level as f64;
         if item.is_dir {
             let icon_name = if item.open {
-                "chevron-down.svg"
+                LapceIcons::ITEM_OPENED
             } else {
-                "chevron-right.svg"
+                LapceIcons::ITEM_CLOSED
             };
             let svg = get_svg(icon_name).unwrap();
             let rect = Size::new(svg_size, svg_size)
@@ -599,9 +599,9 @@ pub fn paint_file_node_item_by_index(
             toggle_rects.insert(current, rect);
 
             let icon_name = if item.open {
-                "default_folder_opened.svg"
+                LapceIcons::DIRECTORY_OPENED
             } else {
-                "default_folder.svg"
+                LapceIcons::DIRECTORY_CLOSED
             };
             let svg = get_svg(icon_name).unwrap();
             let rect = Size::new(svg_size, svg_size)

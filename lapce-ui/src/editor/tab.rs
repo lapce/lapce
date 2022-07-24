@@ -10,7 +10,7 @@ use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{
         DragContent, EditorTabChild, FocusArea, LapceEditorTabData, LapceTabData,
         SplitContent,
@@ -675,7 +675,7 @@ impl TabRectRenderer for TabRect {
                 );
             }
             if self.rect.contains(mouse_pos) {
-                let svg = get_svg("close.svg").unwrap();
+                let svg = get_svg(LapceIcons::CLOSE).unwrap();
                 ctx.draw_svg(
                     &svg,
                     self.close_rect.inflate(-padding, -padding),
@@ -699,7 +699,7 @@ impl TabRectRenderer for TabRect {
             };
 
             if !is_pristine {
-                let svg = get_svg("unsaved.svg").unwrap();
+                let svg = get_svg(LapceIcons::UNSAVED).unwrap();
                 ctx.draw_svg(
                     &svg,
                     self.close_rect.inflate(-padding, -padding),

@@ -790,6 +790,7 @@ pub fn window_controls(
 ) {
     use crate::svg::get_svg;
     use druid::Color;
+    use lapce_data::config::LapceIcons;
 
     let mut commands = Vec::new();
 
@@ -866,7 +867,7 @@ pub fn window_controls(
         .with_origin(Point::new(x, 0.0))
         .inflate(-10.0, -10.0);
     svgs.push((
-        get_svg("chrome-minimize.svg").unwrap(),
+        get_svg(LapceIcons::WINDOW_MINIMISE).unwrap(),
         minimize_rect,
         hover_color.clone(),
     ));
@@ -876,9 +877,9 @@ pub fn window_controls(
         .with_origin(Point::new(x + width, 0.0))
         .inflate(-10.0, -10.0);
     let max_res_svg = if window_state == &WindowState::Restored {
-        get_svg("chrome-maximize.svg").unwrap()
+        get_svg(LapceIcons::WINDOW_MAXIMISE).unwrap()
     } else {
-        get_svg("chrome-restore.svg").unwrap()
+        get_svg(LapceIcons::WINDOW_RESTORE).unwrap()
     };
     svgs.push((max_res_svg, max_res_rect, hover_color));
 
@@ -887,7 +888,7 @@ pub fn window_controls(
         .with_origin(Point::new(x + 2.0 * width, 0.0))
         .inflate(-10.0, -10.0);
     svgs.push((
-        get_svg("chrome-close.svg").unwrap(),
+        get_svg(LapceIcons::WINDOW_CLOSE).unwrap(),
         close_rect,
         Color::rgb8(210, 16, 33),
     ));

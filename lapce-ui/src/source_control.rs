@@ -12,7 +12,7 @@ use lapce_data::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{FocusArea, LapceTabData},
     panel::PanelKind,
 };
@@ -353,22 +353,22 @@ impl Widget<LapceTabData> for SourceControlFileList {
 
             let (svg, color) = match diff {
                 FileDiff::Modified(_) => (
-                    "diff-modified.svg",
+                    LapceIcons::VCS_DIFF_MODIFIED,
                     data.config
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_MODIFIED),
                 ),
                 FileDiff::Added(_) => (
-                    "diff-added.svg",
+                    LapceIcons::VCS_DIFF_ADDED,
                     data.config
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_ADDED),
                 ),
                 FileDiff::Deleted(_) => (
-                    "diff-removed.svg",
+                    LapceIcons::VCS_DIFF_REMOVED,
                     data.config
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_REMOVED),
                 ),
                 FileDiff::Renamed(_, _) => (
-                    "diff-renamed.svg",
+                    LapceIcons::VCS_DIFF_RENAMED,
                     data.config
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_MODIFIED),
                 ),

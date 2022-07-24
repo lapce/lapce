@@ -1,0 +1,95 @@
+[ui]
+LAPCE_LOGO = "lapce_logo"
+
+WINDOW_CLOSE = "chrome-close"
+WINDOW_MAXIMISE = "chrome-maximize"
+WINDOW_MINIMISE = "chrome-minimize"
+WINDOW_RESTORE = "chrome-restore"
+
+ERROR = "error"
+EXTENSIONS = "extensions"
+LIGHTBULB = "lightbulb"
+PROBLEM = "error"
+WARNING = "warning"
+
+FILE = "file"
+FILE_EXPLORER = "files"
+
+CLOSE = "close"
+LINK = "link"
+REMOTE = "vm-connect"
+SETTINGS = "settings"
+TERMINAL = "terminal"
+UNSAVED = "circle-filled"
+
+VCS = "source-control"
+VCS_DIFF_ADDED = "diff-added"
+VCS_DIFF_MODIFIED = "diff-modified"
+VCS_DIFF_REMOVED = "diff-removed"
+VCS_DIFF_RENAMED = "diff-renamed"
+
+ITEM_CLOSED = "chevron-right"
+ITEM_OPENED = "chevron-down"
+
+DIRECTORY_CLOSED = "folder"
+DIRECTORY_OPENED = "folder-opened"
+
+SPLIT_HORIZONTAL = "split-horizontal"
+
+TAB_CLOSE = "chevron-left"
+TAB_SHOW = "chevron-right"
+
+[ui.layout]
+SIDEBAR_LEFT = "layout-sidebar-left"
+SIDEBAR_LEFT_OFF = "layout-sidebar-left-off"
+SIDEBAR_RIGHT = "layout-sidebar-right"
+SIDEBAR_RIGHT_OFF = "layout-sidebar-right-off"
+PANEL = "layout-panel"
+PANEL_OFF = "layout-panel-off"
+
+[ui.search]
+SEARCH = "search"
+BACKWARD = "arrow-up"
+CLEAR = "close"
+FORWARD = "arrow-down"
+
+[ui.symbol-kind]
+ARRAY = "symbol-array"
+BOOLEAN = "symbol-boolean"
+CLASS = "symbol-class"
+CONSTANT = "symbol-constant"
+ENUM = "symbol-enum"
+ENUM_MEMBER = "symbol-enum-member"
+EVENT = "symbol-event"
+FIELD = "symbol-field"
+FILE = "symbol-file"
+FUNCTION = "symbol-method"
+INTERFACE = "symbol-interface"
+KEY = "symbol-key"
+METHOD = "symbol-method"
+NAMESPACE = "symbol-namespace"
+NUMBER = "symbol-numeric"
+OBJECT = "symbol-namespace"
+OPERATOR = "symbol-operator"
+PROPERTY = "symbol-property"
+STRING = "symbol-string"
+STRUCT = "symbol-structure"
+TYPE_PARAMETER = "symbol-parameter"
+VARIABLE = "symbol-variable"
+
+[ui.completion-item-kind]
+CLASS = "symbol-class"
+CONSTANT = "symbol-constant"
+ENUM = "symbol-enum"
+ENUM_MEMBER = "symbol-enum-member"
+FIELD = "symbol-field"
+FUNCTION = "symbol-method"
+INTERFACE = "symbol-interface"
+KEYWORD = "symbol-keyword"
+METHOD = "symbol-method"
+MODULE = "symbol-namespace"
+PROPERTY = "symbol-property"
+SNIPPET = "symbol-snippet"
+STRING = "symbol-string"
+STRUCT = "symbol-structure"
+VARIABLE = "symbol-variable"

@@ -22,7 +22,7 @@ use lapce_data::{
         LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
-    config::{Config, LapceTheme},
+    config::{Config, LapceIcons, LapceTheme},
     data::{
         DragContent, EditorDiagnostic, FocusArea, LapceData, LapceTabData,
         LapceWindowData, LapceWorkspace, LapceWorkspaceType, WorkProgress,
@@ -2528,7 +2528,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
         ctx.draw_text(&text_layout, Point::new(x, y));
 
         if ctx.is_hot() {
-            let svg = get_svg("close.svg").unwrap();
+            let svg = get_svg(LapceIcons::CLOSE).unwrap();
             ctx.draw_svg(
                 &svg,
                 self.close_icon_rect,

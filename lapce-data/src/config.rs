@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::Write,
     path::{Path, PathBuf},
     sync::Arc,
@@ -13,7 +14,6 @@ use indexmap::IndexMap;
 use lapce_proxy::{directory::Directory, plugin::wasi::find_all_volts};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use structdesc::FieldNames;
 use thiserror::Error;
 use toml_edit::easy as toml;
@@ -28,6 +28,7 @@ pub use lapce_proxy::APPLICATION_NAME;
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
 const DEFAULT_LIGHT_THEME: &str = include_str!("../../defaults/light-theme.toml");
 const DEFAULT_DARK_THEME: &str = include_str!("../../defaults/dark-theme.toml");
+const DEFAULT_ICON_THEME: &str = include_str!("../../defaults/icon-theme.toml");
 pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
 
 pub struct LapceTheme {}
@@ -107,6 +108,7 @@ impl LapceTheme {
     pub const PANEL_HOVERED: &'static str = "panel.hovered";
 
     pub const STATUS_BACKGROUND: &'static str = "status.background";
+    pub const STATUS_FOREGROUND: &'static str = "status.foreground";
     pub const STATUS_MODAL_NORMAL: &'static str = "status.modal.normal";
     pub const STATUS_MODAL_INSERT: &'static str = "status.modal.insert";
     pub const STATUS_MODAL_VISUAL: &'static str = "status.modal.visual";
@@ -139,6 +141,113 @@ pub enum LoadThemeError {
     Read(std::io::Error),
 }
 
+pub struct LapceIcons(&'static str);
+
+impl LapceIcons {
+    pub const LAPCE_LOGO: &'static str = "lapce_logo";
+
+    pub const WINDOW_CLOSE: &'static str = "chrome-close";
+    pub const WINDOW_RESTORE: &'static str = "chrome-restore";
+    pub const WINDOW_MAXIMISE: &'static str = "chrome-maximize";
+    pub const WINDOW_MINIMISE: &'static str = "chrome-minimize";
+
+    pub const ERROR: &'static str = "error";
+    pub const WARNING: &'static str = "warning";
+    pub const LIGHTBULB: &'static str = "lightbulb"; // TODO: Rename to something better like "CODE_SUGGESTION" or "CODE_ACTION"
+    pub const EXTENSIONS: &'static str = "extensions";
+    pub const PROBLEM: &'static str = "error";
+
+    pub const FILE: &'static str = "file";
+    pub const FILE_EXPLORER: &'static str = "files";
+
+    pub const LINK: &'static str = "link";
+    pub const CLOSE: &'static str = "close";
+    pub const REMOTE: &'static str = "vm-connect";
+    pub const UNSAVED: &'static str = "circle-filled";
+    pub const TERMINAL: &'static str = "terminal";
+    pub const SETTINGS: &'static str = "settings";
+
+    pub const VCS: &'static str = "source-control";
+    pub const VCS_DIFF_MODIFIED: &'static str = "diff-modified";
+    pub const VCS_DIFF_ADDED: &'static str = "diff-added";
+    pub const VCS_DIFF_REMOVED: &'static str = "diff-removed";
+    pub const VCS_DIFF_RENAMED: &'static str = "diff-renamed";
+
+    pub const PALETTE_PREVIOUS: &'static str = "arrow-left";
+    pub const PALETTE_NEXT: &'static str = "arrow-right";
+
+    pub const ITEM_OPENED: &'static str = "chevron-down";
+    pub const ITEM_CLOSED: &'static str = "chevron-right";
+
+    pub const DIRECTORY_CLOSED: &'static str = "folder";
+    pub const DIRECTORY_OPENED: &'static str = "folder-opened";
+
+    pub const SPLIT_HORIZONTAL: &'static str = "split-horizontal";
+
+    pub const TAB_SHOW: &'static str = "chevron-right";
+    pub const TAB_CLOSE: &'static str = "chevron-left";
+
+    pub const SIDEBAR_LEFT: &'static str = "layout-sidebar-left";
+    pub const SIDEBAR_LEFT_OFF: &'static str = "layout-sidebar-left-off";
+    pub const SIDEBAR_RIGHT: &'static str = "layout-sidebar-right";
+    pub const SIDEBAR_RIGHT_OFF: &'static str = "layout-sidebar-right-off";
+
+    pub const LAYOUT_PANEL: &'static str = "layout-panel";
+    pub const LAYOUT_PANEL_OFF: &'static str = "layout-panel-off";
+
+    pub const SEARCH: &'static str = "search";
+    pub const SEARCH_CLEAR: &'static str = "close";
+    pub const SEARCH_FORWARD: &'static str = "arrow-down";
+    pub const SEARCH_BACKWARD: &'static str = "arrow-up";
+
+    pub const FILE_TYPE_CODE: &'static str = "file-code";
+    pub const FILE_TYPE_MEDIA: &'static str = "file-media";
+    pub const FILE_TYPE_BINARY: &'static str = "file-binary";
+    pub const FILE_TYPE_ARCHIVE: &'static str = "file-zip";
+    pub const FILE_TYPE_SUBMODULE: &'static str = "file-submodule";
+    pub const FILE_TYPE_SYMLINK_FILE: &'static str = "file-symlink-file";
+    pub const FILE_TYPE_SYMLINK_DIRECTORY: &'static str = "file-symlink-directory";
+
+    pub const SYMBOL_KIND_ARRAY: &'static str = "symbol-array";
+    pub const SYMBOL_KIND_BOOLEAN: &'static str = "symbol-boolean";
+    pub const SYMBOL_KIND_CLASS: &'static str = "symbol-class";
+    pub const SYMBOL_KIND_CONSTANT: &'static str = "symbol-constant";
+    pub const SYMBOL_KIND_ENUM_MEMBER: &'static str = "symbol-enum-member";
+    pub const SYMBOL_KIND_ENUM: &'static str = "symbol-enum";
+    pub const SYMBOL_KIND_EVENT: &'static str = "symbol-event";
+    pub const SYMBOL_KIND_FIELD: &'static str = "symbol-field";
+    pub const SYMBOL_KIND_FILE: &'static str = "symbol-file";
+    pub const SYMBOL_KIND_INTERFACE: &'static str = "symbol-interface";
+    pub const SYMBOL_KIND_KEY: &'static str = "symbol-key";
+    pub const SYMBOL_KIND_FUNCTION: &'static str = "symbol-method";
+    pub const SYMBOL_KIND_METHOD: &'static str = "symbol-method";
+    pub const SYMBOL_KIND_OBJECT: &'static str = "symbol-namespace";
+    pub const SYMBOL_KIND_NAMESPACE: &'static str = "symbol-namespace";
+    pub const SYMBOL_KIND_NUMBER: &'static str = "symbol-numeric";
+    pub const SYMBOL_KIND_OPERATOR: &'static str = "symbol-operator";
+    pub const SYMBOL_KIND_TYPE_PARAMETER: &'static str = "symbol-parameter";
+    pub const SYMBOL_KIND_PROPERTY: &'static str = "symbol-property";
+    pub const SYMBOL_KIND_STRING: &'static str = "symbol-string";
+    pub const SYMBOL_KIND_STRUCT: &'static str = "symbol-structure";
+    pub const SYMBOL_KIND_VARIABLE: &'static str = "symbol-variable";
+
+    pub const COMPLETION_ITEM_KIND_STRING: &'static str = "symbol-string";
+    pub const COMPLETION_ITEM_KIND_METHOD: &'static str = "symbol-method";
+    pub const COMPLETION_ITEM_KIND_FUNCTION: &'static str = "symbol-method";
+    pub const COMPLETION_ITEM_KIND_ENUM: &'static str = "symbol-enum";
+    pub const COMPLETION_ITEM_KIND_ENUM_MEMBER: &'static str = "symbol-enum-member";
+    pub const COMPLETION_ITEM_KIND_CLASS: &'static str = "symbol-class";
+    pub const COMPLETION_ITEM_KIND_VARIABLE: &'static str = "symbol-variable";
+    pub const COMPLETION_ITEM_KIND_STRUCT: &'static str = "symbol-structure";
+    pub const COMPLETION_ITEM_KIND_KEYWORD: &'static str = "symbol-keyword";
+    pub const COMPLETION_ITEM_KIND_CONSTANT: &'static str = "symbol-constant";
+    pub const COMPLETION_ITEM_KIND_PROPERTY: &'static str = "symbol-property";
+    pub const COMPLETION_ITEM_KIND_FIELD: &'static str = "symbol-field";
+    pub const COMPLETION_ITEM_KIND_INTERFACE: &'static str = "symbol-interface";
+    pub const COMPLETION_ITEM_KIND_SNIPPET: &'static str = "symbol-snippet";
+    pub const COMPLETION_ITEM_KIND_MODULE: &'static str = "symbol-namespace";
+}
+
 pub trait GetConfig {
     fn get_config(&self) -> &Config;
 }
@@ -154,6 +263,8 @@ pub struct LapceConfig {
         desc = "Enable customised titlebar and disable OS native one (Linux, BSD, Windows)"
     )]
     pub custom_titlebar: bool,
+    #[field_names(desc = "Set the icon theme for Lapce")]
+    pub icon_theme: String,
 }
 
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
@@ -300,6 +411,10 @@ pub struct UIConfig {
     hover_font_family: String,
     #[field_names(desc = "Set the hover font size. If 0, uses the UI font size")]
     hover_font_size: usize,
+    #[field_names(
+        desc = "Enable customised titlebar and disable OS native one (Windows and Linux only)"
+    )]
+    custom_titlebar: bool,
 }
 
 impl UIConfig {
@@ -355,6 +470,10 @@ impl UIConfig {
         } else {
             self.hover_font_size
         }
+    }
+
+    pub fn custom_titlebar(&self) -> bool {
+        self.custom_titlebar
     }
 }
 
@@ -598,6 +717,53 @@ impl ThemeBaseColor {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct IconThemeConfig {
+    #[serde(skip)]
+    pub path: PathBuf,
+    pub name: String,
+    pub ui: IndexMap<String, String>,
+    pub lang: IndexMap<String, String>,
+}
+
+impl IconThemeConfig {
+    pub fn resolve_icon(
+        &self,
+        icons: &IndexMap<String, String>,
+        default: Option<&HashMap<String, String>>,
+    ) -> HashMap<String, String> {
+        icons
+            .iter()
+            .map(|(name, file)| {
+                if !file.is_empty() {
+                    return (name.to_string(), file.clone());
+                }
+                if let Some(default) = default {
+                    if let Some(file) = default.get(name) {
+                        return (name.to_string(), file.clone());
+                    }
+                }
+                (name.to_string(), "blank".to_string())
+            })
+            .collect()
+    }
+
+    // fn resolve_ui_color(
+    //     &self,
+    //     default: Option<&HashMap<String, Color>>,
+    // ) -> HashMap<String, Color> {
+    //     Self::resolve_color(&self.ui, base, default)
+    // }
+
+    // fn resolve_syntax_color(
+    //     &self,
+    //     base: &ThemeBaseColor,
+    //     default: Option<&HashMap<String, Color>>,
+    // ) -> HashMap<String, Color> {
+    //     Self::resolve_color(&self.syntax, base, default)
+    // }
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
     #[serde(skip)]
@@ -613,6 +779,8 @@ pub struct Config {
     pub default_theme: ThemeConfig,
     #[serde(skip)]
     pub color: ThemeColor,
+    #[serde(skip)]
+    pub icon_theme: IconThemeConfig,
     #[serde(skip)]
     pub available_themes: HashMap<String, (String, config::Config)>,
     #[serde(skip)]
@@ -726,6 +894,17 @@ impl Config {
             &self.color.base,
             default_config.map(|c| &c.color.syntax),
         );
+    }
+
+    fn resolve_icons(&mut self, default_config: Option<&Config>) {
+        // self.icons.ui = self
+        //     .icon_theme
+        //     .ui
+        //     .resolve_ui_icon(default_config.map(|c| &c.icon_theme.ui));
+        // self.icons.lang = self
+        //     .icon_theme
+        //     .lang
+        //     .resolve_lang_icon(default_config.map(|c| &c.icon_theme.lang));
     }
 
     fn load_themes() -> HashMap<String, (String, config::Config)> {
