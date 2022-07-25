@@ -193,6 +193,13 @@ impl LapceData {
                 )),
                 Target::Auto,
             );
+            let _ = event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdateUninstalledPluginDescriptions(Some(vec![
+                    PluginDescription::dummy_loading_plugin(),
+                ])),
+                Target::Auto,
+            );
             if let Ok(fetched_plugins) = LapceData::load_plugin_descriptions() {
                 let (installed, uninstalled) =
                     fetched_plugins.into_iter().partition(|p| {

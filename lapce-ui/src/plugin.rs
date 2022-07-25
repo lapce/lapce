@@ -220,7 +220,31 @@ impl Widget<LapceTabData> for Plugin {
                     .unwrap();
                 ctx.draw_text(&layout, Point::new(x, y));
             } else if let Some(ref plugins) = **fetched_plugins {
-                if !plugins.is_empty() {
+                let first = plugins.get(0);
+                if let Some(plugin) = first {
+                    if plugin.name == *"loading" && plugin.author == *"loading" {
+                        let y = self.line_height;
+                        let x = self.line_height;
+                        let layout = ctx
+                            .text()
+                            .new_text_layout("Loading plugin information...")
+                            .font(
+                                data.config.ui.font_family(),
+                                data.config.ui.font_size() as f64,
+                            )
+                            .default_attribute(TextAttribute::Weight(
+                                FontWeight::SEMI_BOLD,
+                            ))
+                            .text_color(
+                                data.config
+                                    .get_color_unchecked(LapceTheme::LAPCE_WARN)
+                                    .clone(),
+                            )
+                            .build()
+                            .unwrap();
+                        ctx.draw_text(&layout, Point::new(x, y));
+                        return;
+                    }
                     for (i, plugin) in plugins.iter().enumerate() {
                         let y = 3.0 * self.line_height * i as f64;
                         let x = 3.0 * self.line_height;
@@ -410,27 +434,6 @@ impl Widget<LapceTabData> for Plugin {
                             ),
                         );
                     }
-                } else {
-                    let y = self.line_height;
-                    let x = self.line_height;
-                    let layout = ctx
-                        .text()
-                        .new_text_layout("Loading plugin information...")
-                        .font(
-                            data.config.ui.font_family(),
-                            data.config.ui.font_size() as f64,
-                        )
-                        .default_attribute(TextAttribute::Weight(
-                            FontWeight::SEMI_BOLD,
-                        ))
-                        .text_color(
-                            data.config
-                                .get_color_unchecked(LapceTheme::LAPCE_WARN)
-                                .clone(),
-                        )
-                        .build()
-                        .unwrap();
-                    ctx.draw_text(&layout, Point::new(x, y));
                 }
             }
         });

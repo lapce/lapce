@@ -101,4 +101,19 @@ impl PluginDescription {
             .map(|(k, v)| (k.into(), v.into()))
             .collect::<Vec<(String, String)>>())
     }
+
+    pub fn dummy_loading_plugin() -> Self {
+        Self {
+            name: String::from("loading"),
+            version: String::from("loading"),
+            display_name: String::from("loading"),
+            author: String::from("loading"),
+            description: String::from("loading"),
+            repository: String::from("loading"),
+            wasm: None,
+            themes: None,
+            dir: None,
+            configuration: None,
+        }
+    }
 }
