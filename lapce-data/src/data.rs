@@ -57,7 +57,7 @@ use crate::{
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
     },
     document::{BufferContent, Document, LocalBufferKind},
-    editor::{EditorLocation, LapceEditorBufferData, TabRect},
+    editor::{EditorLocation, EditorLspLocation, LapceEditorBufferData, TabRect},
     explorer::FileExplorerData,
     find::Find,
     hover::HoverData,
@@ -2213,15 +2213,60 @@ impl LapceMainSplitData {
     ) {
         let editor =
             self.get_editor_or_new(ctx, editor_view_id, None, false, config);
-        if let BufferContent::File(path) = &editor.content {
+        let path = if let BufferContent::File(path) = &editor.content {
+            Some(path.clone())
+        } else {
+            None
+        };
+        let view_id = editor.view_id;
+
+        if let Some(path) = path {
+            let doc = self.editor_doc(view_id);
+            let offset = doc.buffer().offset_of_position(&position);
             let location = EditorLocation {
-                path: path.clone(),
-                position: Some(position),
+                path,
+                position: Some(offset),
                 scroll_offset: None,
                 history: None,
             };
             self.jump_to_location(ctx, editor_view_id, location, config);
         }
+    }
+
+    pub fn jump_to_lsp_location(
+        &mut self,
+        ctx: &mut EventCtx,
+        editor_view_id: Option<WidgetId>,
+        location: EditorLspLocation,
+        config: &Config,
+    ) -> WidgetId {
+        let editor_view_id = self
+            .get_editor_or_new(
+                ctx,
+                editor_view_id,
+                Some(location.path.clone()),
+                false,
+                config,
+            )
+            .view_id;
+        let doc = self.editor_doc(editor_view_id);
+
+        // Decompoase the lsp location, so that we can map the position to an offset
+        let EditorLspLocation {
+            path,
+            position,
+            scroll_offset,
+            history,
+        } = location;
+        let position = position.map(|pos| doc.buffer().offset_of_position(&pos));
+
+        let location = EditorLocation {
+            path,
+            position,
+            scroll_offset,
+            history,
+        };
+        self.jump_to_location(ctx, Some(editor_view_id), location, config)
     }
 
     pub fn open_settings(&mut self, ctx: &mut EventCtx, show_key_bindings: bool) {
@@ -2437,16 +2482,15 @@ impl LapceMainSplitData {
             let doc = self.open_docs.get_mut(&path).unwrap().clone();
 
             let (offset, scroll_offset) = match &location.position {
-                Some(position) => {
-                    let offset = doc.buffer().offset_of_position(position);
+                Some(offset) => {
                     let doc = self.open_docs.get_mut(&path).unwrap();
                     let doc = Arc::make_mut(doc);
-                    doc.cursor_offset = offset;
+                    doc.cursor_offset = *offset;
                     if let Some(scroll_offset) = location.scroll_offset.as_ref() {
                         doc.scroll_offset = *scroll_offset;
                     }
 
-                    (offset, location.scroll_offset.as_ref())
+                    (*offset, location.scroll_offset.as_ref())
                 }
                 None => (doc.cursor_offset, Some(&doc.scroll_offset)),
             };
@@ -2520,6 +2564,35 @@ impl LapceMainSplitData {
         });
         let position = doc.buffer().offset_to_position(offset);
         self.jump_to_position(ctx, Some(editor_view_id), position, config);
+    }
+
+    pub fn jump_to_line_column_path(
+        &mut self,
+        ctx: &mut EventCtx,
+        editor_view_id: Option<WidgetId>,
+        path: PathBuf,
+        line: usize,
+        column: usize,
+        config: &Config,
+    ) {
+        let editor_view_id = self
+            .get_editor_or_new(
+                ctx,
+                editor_view_id,
+                Some(path.clone()),
+                false,
+                config,
+            )
+            .view_id;
+        let doc = self.editor_doc(editor_view_id);
+        let offset = doc.buffer().offset_of_line_col(line, column);
+        let location = EditorLocation {
+            path,
+            position: Some(offset),
+            scroll_offset: None,
+            history: None,
+        };
+        self.jump_to_location(ctx, Some(editor_view_id), location, config);
     }
 }
 
@@ -3360,9 +3433,7 @@ impl LapceEditorData {
         if let BufferContent::File(path) = doc.content() {
             let location = EditorLocation {
                 path: path.clone(),
-                position: Some(
-                    doc.buffer().offset_to_position(self.cursor.offset()),
-                ),
+                position: Some(self.cursor.offset()),
                 scroll_offset: Some(self.scroll_offset),
                 history: None,
             };
@@ -3378,18 +3449,17 @@ impl LapceEditorData {
         } else {
             None
         };
-        let info = EditorInfo {
+
+        EditorInfo {
             content: self.content.clone(),
             unsaved,
             scroll_offset: (self.scroll_offset.x, self.scroll_offset.y),
-            position: if let BufferContent::File(path) = &self.content {
-                let doc = data.main_split.open_docs.get(path).unwrap().clone();
-                Some(doc.buffer().offset_to_position(self.cursor.offset()))
+            position: if let BufferContent::File(_) = &self.content {
+                Some(self.cursor.offset())
             } else {
                 None
             },
-        };
-        info
+        }
     }
 }
 

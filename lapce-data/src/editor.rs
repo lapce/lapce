@@ -80,6 +80,14 @@ pub enum EditorOperator {
 #[derive(Clone, Debug)]
 pub struct EditorLocation {
     pub path: PathBuf,
+    pub position: Option<usize>,
+    pub scroll_offset: Option<Vec2>,
+    pub history: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct EditorLspLocation {
+    pub path: PathBuf,
     pub position: Option<Position>,
     pub scroll_offset: Option<Vec2>,
     pub history: Option<String>,
@@ -626,7 +634,9 @@ impl LapceEditorBufferData {
             if self.source_control.file_diffs.is_empty() {
                 return;
             }
-            let mut diff_files: Vec<(PathBuf, Vec<Position>)> = self
+
+            let buffer = self.doc.buffer();
+            let mut diff_files: Vec<(PathBuf, Vec<usize>)> = self
                 .source_control
                 .file_diffs
                 .iter()
@@ -645,16 +655,14 @@ impl LapceEditorBufferData {
                                                 DiffLines::Right(_) => {}
                                                 DiffLines::Left(_) => {}
                                                 DiffLines::Both(_, r) => {
-                                                    positions.push(Position {
-                                                        line: r.start as u32,
-                                                        character: 0,
-                                                    });
+                                                    let start = buffer
+                                                        .offset_of_line(r.start);
+                                                    positions.push(start);
                                                 }
                                                 DiffLines::Skip(_, r) => {
-                                                    positions.push(Position {
-                                                        line: r.start as u32,
-                                                        character: 0,
-                                                    });
+                                                    let start = buffer
+                                                        .offset_of_line(r.start);
+                                                    positions.push(start);
                                                 }
                                             }
                                         }
@@ -662,20 +670,15 @@ impl LapceEditorBufferData {
                                     DiffLines::Both(_, _) => {}
                                     DiffLines::Skip(_, _) => {}
                                     DiffLines::Right(r) => {
-                                        positions.push(Position {
-                                            line: r.start as u32,
-                                            character: 0,
-                                        });
+                                        let start = buffer.offset_of_line(r.start);
+                                        positions.push(start);
                                     }
                                 }
                             }
                         }
                     }
                     if positions.is_empty() {
-                        positions.push(Position {
-                            line: 0,
-                            character: 0,
-                        });
+                        positions.push(0);
                     }
                     (path.clone(), positions)
                 })
@@ -683,12 +686,11 @@ impl LapceEditorBufferData {
             diff_files.sort();
 
             let offset = self.editor.cursor.offset();
-            let position = self.doc.buffer().offset_to_position(offset);
-            let (path, position) =
-                next_in_file_diff_offset(position, buffer_path, &diff_files);
+            let (path, offset) =
+                next_in_file_diff_offset(offset, buffer_path, &diff_files);
             let location = EditorLocation {
                 path,
-                position: Some(position),
+                position: Some(offset),
                 scroll_offset: None,
                 history: Some("head".to_string()),
             };
@@ -719,7 +721,7 @@ impl LapceEditorBufferData {
             let position = self.doc.buffer().offset_to_position(offset);
             let (path, position) =
                 next_in_file_errors_offset(position, buffer_path, &file_diagnostics);
-            let location = EditorLocation {
+            let location = EditorLspLocation {
                 path,
                 position: Some(position),
                 scroll_offset: None,
@@ -727,7 +729,7 @@ impl LapceEditorBufferData {
             };
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::JumpToLocation(None, location),
+                LapceUICommand::JumpToLspLocation(None, location),
                 Target::Auto,
             ));
         }
@@ -1623,16 +1625,16 @@ impl LapceEditorBufferData {
                                 } else {
                                     let _ = event_sink.submit_command(
                                         LAPCE_UI_COMMAND,
-                                        LapceUICommand::GotoDefinition(
+                                        LapceUICommand::GotoDefinition {
                                             editor_view_id,
                                             offset,
-                                            EditorLocation {
+                                            location: EditorLspLocation {
                                                 path: path_from_url(&location.uri),
                                                 position: Some(location.range.start),
                                                 scroll_offset: None,
                                                 history: None,
                                             },
-                                        ),
+                                        },
                                         Target::Auto,
                                     );
                                 }
@@ -1657,16 +1659,16 @@ impl LapceEditorBufferData {
                                 GotoTypeDefinitionResponse::Scalar(location) => {
                                     let _ = event_sink.submit_command(
                                         LAPCE_UI_COMMAND,
-                                        LapceUICommand::GotoDefinition(
+                                        LapceUICommand::GotoDefinition {
                                             editor_view_id,
                                             offset,
-                                            EditorLocation {
+                                            location: EditorLspLocation {
                                                 path: path_from_url(&location.uri),
                                                 position: Some(location.range.start),
                                                 scroll_offset: None,
                                                 history: None,
                                             },
-                                        ),
+                                        },
                                         Target::Auto,
                                     );
                                 }
@@ -1676,10 +1678,10 @@ impl LapceEditorBufferData {
                                         1 => {
                                             let _ = event_sink.submit_command(
                                                 LAPCE_UI_COMMAND,
-                                                LapceUICommand::GotoDefinition(
+                                                LapceUICommand::GotoDefinition {
                                                     editor_view_id,
                                                     offset,
-                                                    EditorLocation {
+                                                    location: EditorLspLocation {
                                                         path: path_from_url(
                                                             &locations[0].uri,
                                                         ),
@@ -1689,7 +1691,7 @@ impl LapceEditorBufferData {
                                                         scroll_offset: None,
                                                         history: None,
                                                     },
-                                                ),
+                                                },
                                                 Target::Auto,
                                             );
                                         }
@@ -1993,23 +1995,20 @@ pub struct HighlightTextLayout {
 }
 
 fn next_in_file_diff_offset(
-    position: Position,
+    offset: usize,
     path: &Path,
-    file_diffs: &[(PathBuf, Vec<Position>)],
-) -> (PathBuf, Position) {
-    for (current_path, positions) in file_diffs {
+    file_diffs: &[(PathBuf, Vec<usize>)],
+) -> (PathBuf, usize) {
+    for (current_path, offsets) in file_diffs {
         if path == current_path {
-            for diff_position in positions {
-                if diff_position.line > position.line
-                    || (diff_position.line == position.line
-                        && diff_position.character > position.character)
-                {
-                    return ((*current_path).clone(), *diff_position);
+            for diff_offset in offsets {
+                if *diff_offset > offset {
+                    return ((*current_path).clone(), *diff_offset);
                 }
             }
         }
         if current_path > path {
-            return ((*current_path).clone(), positions[0]);
+            return ((*current_path).clone(), offsets[0]);
         }
     }
     ((file_diffs[0].0).clone(), file_diffs[0].1[0])
@@ -2052,9 +2051,9 @@ fn process_get_references(
         let location = &locations[0];
         let _ = event_sink.submit_command(
             LAPCE_UI_COMMAND,
-            LapceUICommand::JumpToLocation(
+            LapceUICommand::JumpToLspLocation(
                 None,
-                EditorLocation {
+                EditorLspLocation {
                     path: path_from_url(&location.uri),
                     position: Some(location.range.start),
                     scroll_offset: None,

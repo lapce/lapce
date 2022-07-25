@@ -10,7 +10,7 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
 use directories::ProjectDirs;
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
-use lsp_types::Position;
+
 use serde::{Deserialize, Serialize};
 use xi_rope::Rope;
 
@@ -247,7 +247,7 @@ pub struct EditorInfo {
     pub content: BufferContent,
     pub unsaved: Option<String>,
     pub scroll_offset: (f64, f64),
-    pub position: Option<Position>,
+    pub position: Option<usize>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

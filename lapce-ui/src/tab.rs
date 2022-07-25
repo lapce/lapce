@@ -27,7 +27,7 @@ use lapce_data::{
         LapceWorkspace, LapceWorkspaceType, WorkProgress,
     },
     document::{BufferContent, LocalBufferKind},
-    editor::EditorLocation,
+    editor::{EditorLocation, EditorLspLocation},
     hover::HoverStatus,
     keypress::{DefaultKeyPressHandler, KeyPressData},
     menu::MenuKind,
@@ -1215,6 +1215,31 @@ impl LapceTab {
                         );
                         ctx.set_handled();
                     }
+                    LapceUICommand::JumpToLspLocation(editor_view_id, location) => {
+                        data.main_split.jump_to_lsp_location(
+                            ctx,
+                            *editor_view_id,
+                            location.clone(),
+                            &data.config,
+                        );
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::JumpToLineColumnPath {
+                        editor_view_id,
+                        path,
+                        line,
+                        column,
+                    } => {
+                        data.main_split.jump_to_line_column_path(
+                            ctx,
+                            *editor_view_id,
+                            path.clone(),
+                            *line,
+                            *column,
+                            &data.config,
+                        );
+                        ctx.set_handled();
+                    }
                     LapceUICommand::JumpToLine(editor_view_id, line) => {
                         data.main_split.jump_to_line(
                             ctx,
@@ -1244,16 +1269,16 @@ impl LapceTab {
                         // ));
                         ctx.set_handled();
                     }
-                    LapceUICommand::GotoDefinition(
+                    LapceUICommand::GotoDefinition {
                         editor_view_id,
                         offset,
                         location,
-                    ) => {
+                    } => {
                         if let Some(editor) = data.main_split.active_editor() {
                             if *editor_view_id == editor.view_id
                                 && *offset == editor.cursor.offset()
                             {
-                                data.main_split.jump_to_location(
+                                data.main_split.jump_to_lsp_location(
                                     ctx,
                                     None,
                                     location.clone(),
@@ -1284,7 +1309,7 @@ impl LapceTab {
                             if *offset == editor.cursor.offset() {
                                 let locations = locations
                                     .iter()
-                                    .map(|l| EditorLocation {
+                                    .map(|l| EditorLspLocation {
                                         path: path_from_url(&l.uri),
                                         position: Some(l.range.start),
                                         scroll_offset: None,
