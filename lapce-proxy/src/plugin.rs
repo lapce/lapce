@@ -3,8 +3,10 @@ use directories::ProjectDirs;
 use hotwatch::Hotwatch;
 use lapce_rpc::counter::Counter;
 use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo, PluginRpcMessage};
-use lapce_rpc::proxy::ProxyRpcMessage;
-use lapce_rpc::{RequestId, RpcMessage};
+use lapce_rpc::proxy::{
+    ProxyNotification, ProxyRequest, ProxyResponse, ProxyRpcMessage,
+};
+use lapce_rpc::{NewHandler, NewRpcHandler, RequestId, RpcMessage};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -43,6 +45,16 @@ pub(crate) struct NewPluginEnv {
 pub(crate) struct NewPlugin {
     instance: wasmer::Instance,
     env: NewPluginEnv,
+}
+
+impl NewHandler<ProxyRequest, ProxyNotification, ProxyResponse> for NewPlugin {
+    fn handle_notification(&mut self, rpc: ProxyNotification) {
+        todo!()
+    }
+
+    fn handle_request(&mut self, rpc: ProxyRequest) {
+        todo!()
+    }
 }
 
 #[derive(WasmerEnv, Clone)]
@@ -102,8 +114,47 @@ impl NewPluginCatalog {
     }
 
     fn start_plugin(&mut self, plugin_desc: PluginDescription) -> Result<()> {
-        let engine = wasmtime::Engine::default();
-        WasiCtxBuilder::new().stdin(f);
+        let store = Store::default();
+        let module = wasmer::Module::from_file(
+            &store,
+            plugin_desc
+                .wasm
+                .as_ref()
+                .ok_or_else(|| anyhow!("no wasm in plugin"))?,
+        )?;
+
+        let output = Pipe::new();
+        let input = Pipe::new();
+        let env = plugin_desc.get_plugin_env()?;
+        let mut wasi_env = WasiState::new("Lapce")
+            .map_dir("/", plugin_desc.dir.clone().unwrap())?
+            .stdin(Box::new(input))
+            .stdout(Box::new(output))
+            .envs(env)
+            .finalize()?;
+        let wasi = wasi_env.import_object(&module)?;
+
+        let plugin_env = NewPluginEnv {
+            wasi_env,
+            desc: plugin_desc.clone(),
+        };
+        let lapce = new_lapce_exports(&store, &plugin_env);
+        let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
+        let mut plugin = NewPlugin {
+            instance,
+            env: plugin_env.clone(),
+        };
+
+        let (plugin_sender, plugin_receiver) =
+            crossbeam_channel::unbounded::<PluginRpcMessage>();
+        let (proxy_sender, proxy_receiver) = crossbeam_channel::unbounded();
+        let mut rpc_handler = NewRpcHandler::new(plugin_sender);
+        rpc_handler.mainloop(proxy_receiver, &mut plugin);
+
+        for msg in plugin_receiver {
+            wasi_write_object(&plugin_env.wasi_env, &msg.to_value().unwrap());
+        }
+
         Ok(())
     }
 }

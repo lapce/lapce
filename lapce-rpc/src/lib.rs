@@ -40,6 +40,26 @@ pub enum RpcMessage<Req, Notif, Resp> {
     Error(RequestId, RpcError),
 }
 
+impl<Req: Serialize, Notif: Serialize, Resp: Serialize>
+    RpcMessage<Req, Notif, Resp>
+{
+    pub fn to_value(&self) -> Result<Value> {
+        let value = match self {
+            RpcMessage::Request(id, req) => {
+                let mut msg = serde_json::to_value(req)?;
+                msg.as_object_mut()
+                    .ok_or(anyhow::anyhow!(""))?
+                    .insert("id".into(), (*id).into());
+                msg
+            }
+            RpcMessage::Response(_, _) => todo!(),
+            RpcMessage::Notification(_) => todo!(),
+            RpcMessage::Error(_, _) => todo!(),
+        };
+        Ok(value)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RpcError {
     pub code: usize,
