@@ -1,5 +1,6 @@
-use crate::lsp::LspCatalog;
-use crate::plugin::PluginCatalog;
+use crate::buffer::{get_mod_time, load_file, Buffer};
+use crate::lsp::{LspCatalog, NewLspCatalog};
+use crate::plugin::{NewPluginCatalog, PluginCatalog};
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
 use crate::{
@@ -17,14 +18,21 @@ use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
-use lapce_rpc::core::{CoreNotification, CoreResponse, CoreRpc, CoreRpcMessage};
+use lapce_rpc::core::{
+    CoreNotification, CoreRequest, CoreResponse, CoreRpc, CoreRpcMessage,
+};
 use lapce_rpc::file::FileNodeItem;
+use lapce_rpc::lsp::LspRpcMessage;
+use lapce_rpc::plugin::PluginRpcMessage;
 use lapce_rpc::proxy::{
-    ProxyNotification, ProxyRequest, ProxyRpc, ProxyRpcMessage, ReadDirResponse,
+    ProxyNotification, ProxyRequest, ProxyResponse, ProxyRpc, ProxyRpcMessage,
+    ReadDirResponse,
 };
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
-use lapce_rpc::{self, Call, RequestId, RpcError, RpcObject};
+use lapce_rpc::{
+    self, Call, NewHandler, NewRpcHandler, RequestId, RpcError, RpcObject,
+};
 use parking_lot::Mutex;
 use serde_json::json;
 use serde_json::Value;
@@ -42,16 +50,26 @@ const WORKSPACE_EVENT_TOKEN: WatchToken = WatchToken(2);
 
 pub struct NewDispatcher {
     workspace: Option<PathBuf>,
-    /// channel sender from proxy to core
+    // channel sender from proxy to core
     core_sender: Sender<CoreRpcMessage>,
+    // channel sender from proxy to plugin
+    plugin_sender: Sender<PluginRpcMessage>,
     buffers: HashMap<PathBuf, Buffer>,
 }
 
 impl NewDispatcher {
-    pub fn new(core_sender: Sender<CoreRpcMessage>) -> Self {
+    pub fn new(
+        core_sender: Sender<CoreRpcMessage>,
+        proxy_sender: Sender<ProxyRpcMessage>,
+    ) -> Self {
+        let (plugin_sender, plugin_receiver) = crossbeam_channel::unbounded();
+        thread::spawn(move || {
+            NewPluginCatalog::mainloop(proxy_sender, plugin_receiver);
+        });
         Self {
             workspace: None,
             core_sender,
+            plugin_sender,
             buffers: HashMap::new(),
         }
     }

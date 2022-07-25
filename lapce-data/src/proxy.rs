@@ -108,17 +108,18 @@ pub struct LapceProxy {
     new_rpc:
         NewRpcHandler<ProxyRequest, ProxyNotification, ProxyResponse, CoreResponse>,
     proxy_receiver: Arc<Receiver<Value>>,
+    new_proxy_sender: Arc<Sender<ProxyRpcMessage>>,
     new_proxy_receiver: Arc<Receiver<ProxyRpcMessage>>,
     term_tx: Sender<(TermId, TermEvent)>,
     event_sink: ExtEventSink,
 }
 
 impl NewHandler<CoreRequest, CoreNotification, CoreResponse> for LapceProxy {
-    fn handle_notification(&mut self, rpc: CoreNotification) -> ControlFlow {
+    fn handle_notification(&mut self, rpc: CoreNotification) {
         todo!()
     }
 
-    fn handle_request(&mut self, rpc: CoreRequest) -> Result<CoreResponse, Value> {
+    fn handle_request(&mut self, rpc: CoreRequest) {
         todo!()
     }
 }
@@ -246,7 +247,7 @@ impl LapceProxy {
         let rpc = RpcHandler::new(proxy_sender);
 
         let (new_proxy_sender, new_proxy_receiver) = crossbeam_channel::unbounded();
-        let new_rpc = NewRpcHandler::new(new_proxy_sender);
+        let new_rpc = NewRpcHandler::new(new_proxy_sender.clone());
 
         let proxy = Self {
             tab_id,
@@ -254,6 +255,7 @@ impl LapceProxy {
             new_rpc,
             proxy_receiver: Arc::new(proxy_receiver),
             new_proxy_receiver: Arc::new(new_proxy_receiver),
+            new_proxy_sender: Arc::new(new_proxy_sender),
             term_tx,
             event_sink: event_sink.clone(),
         };
@@ -290,9 +292,11 @@ impl LapceProxy {
                     let _ = dispatcher.mainloop(proxy_receiver);
                 });
 
+                let new_proxy_sender = (*self.new_proxy_sender).clone();
                 let new_proxy_receiver = (*self.new_proxy_receiver).clone();
                 thread::spawn(move || {
-                    let mut dispatcher = NewDispatcher::new(new_core_sender);
+                    let mut dispatcher =
+                        NewDispatcher::new(new_core_sender, new_proxy_sender);
                     dispatcher.mainloop(new_proxy_receiver);
                 });
             }

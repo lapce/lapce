@@ -2,7 +2,9 @@ use anyhow::{anyhow, Result};
 use directories::ProjectDirs;
 use hotwatch::Hotwatch;
 use lapce_rpc::counter::Counter;
-use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo};
+use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo, PluginRpcMessage};
+use lapce_rpc::proxy::ProxyRpcMessage;
+use lapce_rpc::{RequestId, RpcMessage};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -16,6 +18,8 @@ use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::Duration;
 use toml_edit::easy as toml;
+use wasi_common::pipe::ReadPipe;
+use wasi_common::WasiCtx;
 use wasmer::ChainableNamedResolver;
 use wasmer::ImportObject;
 use wasmer::Store;
@@ -23,10 +27,23 @@ use wasmer::WasmerEnv;
 use wasmer_wasi::Pipe;
 use wasmer_wasi::WasiEnv;
 use wasmer_wasi::WasiState;
+use wasmtime_wasi::WasiCtxBuilder;
 
 use crate::{dispatch::Dispatcher, APPLICATION_NAME};
 
 pub type PluginName = String;
+
+#[derive(WasmerEnv, Clone)]
+pub(crate) struct NewPluginEnv {
+    wasi_env: WasiEnv,
+    desc: PluginDescription,
+}
+
+#[derive(Clone)]
+pub(crate) struct NewPlugin {
+    instance: wasmer::Instance,
+    env: NewPluginEnv,
+}
 
 #[derive(WasmerEnv, Clone)]
 pub(crate) struct PluginEnv {
@@ -45,6 +62,50 @@ pub(crate) struct Plugin {
 #[serde(rename_all = "kebab-case")]
 struct PluginConfig {
     disabled: Vec<String>,
+}
+
+pub struct NewPluginCatalog {
+    proxy_sender: Sender<ProxyRpcMessage>,
+}
+
+impl NewPluginCatalog {
+    pub fn mainloop(
+        proxy_sender: Sender<ProxyRpcMessage>,
+        plugin_receiver: Receiver<PluginRpcMessage>,
+    ) {
+        let mut plugin = Self { proxy_sender };
+        for msg in plugin_receiver {
+            match msg {
+                RpcMessage::Request(_, _) => todo!(),
+                RpcMessage::Response(_, _) => todo!(),
+                RpcMessage::Notification(_) => todo!(),
+                RpcMessage::Error(_, _) => todo!(),
+            }
+        }
+    }
+
+    fn handle_request(&mut self, id: RequestId, rpc: PluginRequest) {
+        use PluginRequest::*;
+        match rpc {}
+    }
+
+    pub fn load(&mut self) {
+        let all_plugins = find_all_plugins();
+        for plugin_path in &all_plugins {
+            match load_plugin(plugin_path) {
+                Err(_e) => (),
+                Ok(plugin_desc) => {
+                    self.start_plugin(plugin_desc);
+                }
+            }
+        }
+    }
+
+    fn start_plugin(&mut self, plugin_desc: PluginDescription) -> Result<()> {
+        let engine = wasmtime::Engine::default();
+        WasiCtxBuilder::new().stdin(f);
+        Ok(())
+    }
 }
 
 pub struct PluginCatalog {
@@ -380,6 +441,26 @@ impl Default for PluginCatalog {
     }
 }
 
+pub(crate) fn new_lapce_exports(
+    store: &Store,
+    plugin_env: &NewPluginEnv,
+) -> ImportObject {
+    macro_rules! lapce_export {
+        ($($host_function:ident),+ $(,)?) => {
+            wasmer::imports! {
+                "lapce" => {
+                    $(stringify!($host_function) =>
+                        wasmer::Function::new_native_with_env(store, plugin_env.clone(), $host_function),)+
+                }
+            }
+        }
+    }
+
+    lapce_export! {
+        new_host_handle_notification,
+    }
+}
+
 pub(crate) fn lapce_exports(store: &Store, plugin_env: &PluginEnv) -> ImportObject {
     macro_rules! lapce_export {
         ($($host_function:ident),+ $(,)?) => {
@@ -418,6 +499,8 @@ pub enum PluginNotification {
         path: PathBuf,
     },
 }
+
+fn new_host_handle_notification(plugin_env: &NewPluginEnv) {}
 
 fn host_handle_notification(plugin_env: &PluginEnv) {
     let notification: Result<PluginNotification> =

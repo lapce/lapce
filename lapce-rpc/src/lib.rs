@@ -2,6 +2,7 @@ pub mod buffer;
 pub mod core;
 pub mod counter;
 pub mod file;
+pub mod lsp;
 mod parse;
 pub mod plugin;
 pub mod proxy;
@@ -125,6 +126,7 @@ impl<Req, Notif, Resp, Resp2> NewRpcHandler<Req, Notif, Resp, Resp2> {
 
 pub fn new_stdio<Req1, Notif1, Resp1, Req2, Notif2, Resp2>() -> (
     Sender<RpcMessage<Req1, Notif1, Resp1>>,
+    Sender<RpcMessage<Req2, Notif2, Resp2>>,
     Receiver<RpcMessage<Req2, Notif2, Resp2>>,
 )
 where
@@ -139,8 +141,13 @@ where
     let stdin = BufReader::new(stdin());
     let (writer_sender, writer_receiver) = crossbeam_channel::unbounded();
     let (reader_sender, reader_receiver) = crossbeam_channel::unbounded();
-    stdio::new_stdio_transport(stdout, writer_receiver, stdin, reader_sender);
-    (writer_sender, reader_receiver)
+    stdio::new_stdio_transport(
+        stdout,
+        writer_receiver,
+        stdin,
+        reader_sender.clone(),
+    );
+    (writer_sender, reader_sender, reader_receiver)
 }
 
 pub fn stdio<S, D>() -> (Sender<S>, Receiver<D>)
@@ -219,8 +226,8 @@ pub trait Handler {
 }
 
 pub trait NewHandler<Req, Notif, Resp> {
-    fn handle_notification(&mut self, rpc: Notif) -> ControlFlow;
-    fn handle_request(&mut self, rpc: Req) -> Result<Resp, Value>;
+    fn handle_notification(&mut self, rpc: Notif);
+    fn handle_request(&mut self, rpc: Req);
 }
 
 #[derive(Clone)]

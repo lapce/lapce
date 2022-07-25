@@ -4,8 +4,28 @@ use anyhow::{format_err, Error};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::RpcMessage;
+
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
 pub struct PluginId(pub u64);
+
+pub type PluginRpcMessage =
+    RpcMessage<PluginRequest, PluginNotification, PluginResponse>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum PluginRequest {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum PluginNotification {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum PluginResponse {}
 
 #[derive(Deserialize, Clone, Debug, Serialize)]
 #[serde(rename_all = "kebab-case")]

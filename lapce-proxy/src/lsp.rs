@@ -15,14 +15,15 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::Receiver;
+use crossbeam_channel::{Receiver, Sender};
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::encoding::offset_utf16_to_utf8;
 use lapce_rpc::{
     buffer::BufferId,
-    proxy::{ProxyNotification, ProxyRequest},
+    lsp::{LspNotification, LspRequest, LspResponse, LspRpcMessage},
+    proxy::{ProxyNotification, ProxyRequest, ProxyRpcMessage},
     style::{LineStyle, SemanticStyles, Style},
-    RequestId,
+    NewHandler, NewRpcHandler, RequestId,
 };
 use lsp_types::{request::GotoTypeDefinitionParams, *};
 use parking_lot::Mutex;
@@ -44,21 +45,26 @@ impl<F: Send + FnOnce(&LspClient, Result<Value>)> Callable for F {
     }
 }
 
-pub enum LspRequest {}
-
-pub enum LspNotification {}
-
-pub enum LspRpc {
-    Response(),
-    Request(RequestId, LspRequest),
-    Notification(LspNotification),
-}
-
 pub struct NewLspCatalog {}
 
+impl NewHandler<LspRequest, LspNotification, LspResponse> for NewLspCatalog {
+    fn handle_notification(&mut self, rpc: LspNotification) {
+        todo!()
+    }
+
+    fn handle_request(&mut self, rpc: LspRequest) {
+        todo!()
+    }
+}
+
 impl NewLspCatalog {
-    pub fn mainloop(&mut self, proxy_receiver: Receiver<LspRpc>) {
-        for msg in proxy_receiver {}
+    pub fn mainloop(
+        proxy_sender: Sender<ProxyRpcMessage>,
+        lsp_receiver: Receiver<LspRpcMessage>,
+    ) {
+        let mut lsp = Self {};
+        let mut handler = NewRpcHandler::new(proxy_sender);
+        handler.mainloop(lsp_receiver, &mut lsp);
     }
 }
 
