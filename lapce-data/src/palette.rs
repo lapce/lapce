@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::command::CommandKind;
 use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::document::BufferContent;
-use crate::editor::EditorLocation;
+use crate::editor::EditorLspLocation;
 use crate::panel::PanelKind;
 use crate::proxy::path_from_url;
 use crate::{
@@ -134,9 +134,9 @@ pub enum PaletteItemContent {
         kind: SymbolKind,
         name: String,
         container_name: Option<String>,
-        location: EditorLocation,
+        location: EditorLspLocation,
     },
-    ReferenceLocation(PathBuf, EditorLocation),
+    ReferenceLocation(PathBuf, EditorLspLocation),
     Workspace(LapceWorkspace),
     SshHost(String, String),
     Command(LapceCommand),
@@ -181,7 +181,7 @@ impl PaletteItemContent {
                 };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToLocation(editor_id, location.clone()),
+                    LapceUICommand::JumpToLspLocation(editor_id, location.clone()),
                     Target::Auto,
                 ));
             }
@@ -205,7 +205,7 @@ impl PaletteItemContent {
                 };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToLocation(editor_id, location.clone()),
+                    LapceUICommand::JumpToLspLocation(editor_id, location.clone()),
                     Target::Auto,
                 ));
             }
@@ -529,7 +529,7 @@ impl PaletteViewData {
     pub fn run_references(
         &mut self,
         ctx: &mut EventCtx,
-        locations: &[EditorLocation],
+        locations: &[EditorLspLocation],
     ) {
         self.run(ctx, Some(PaletteType::Reference), None);
         let items: Vec<PaletteItem> = locations
@@ -1104,7 +1104,7 @@ impl PaletteViewData {
                                             PaletteItemContent::WorkspaceSymbol {
                                                 kind: s.kind,
                                                 name: s.name.clone(),
-                                                location: EditorLocation {
+                                                location: EditorLspLocation {
                                                     path: path_from_url(
                                                         &s.location.uri,
                                                     ),

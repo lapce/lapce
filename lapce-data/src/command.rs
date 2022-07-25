@@ -25,6 +25,7 @@ use xi_rope::{spans::Spans, Rope};
 use crate::alert::AlertContentData;
 use crate::data::LapceWorkspace;
 use crate::document::BufferContent;
+use crate::editor::EditorLspLocation;
 use crate::menu::MenuKind;
 use crate::rich_text::RichText;
 use crate::{
@@ -474,7 +475,7 @@ pub enum LapceUICommand {
     ShowKeybindings,
     FocusEditor,
     RunPalette(Option<PaletteType>),
-    RunPaletteReferences(Vec<EditorLocation>),
+    RunPaletteReferences(Vec<EditorLspLocation>),
     InitPaletteInput(String),
     UpdatePaletteInput(String),
     UpdatePaletteItems(String, Vec<PaletteItem>),
@@ -574,9 +575,20 @@ pub enum LapceUICommand {
     JumpToPosition(Option<WidgetId>, Position),
     JumpToLine(Option<WidgetId>, usize),
     JumpToLocation(Option<WidgetId>, EditorLocation),
+    JumpToLspLocation(Option<WidgetId>, EditorLspLocation),
+    JumpToLineColumnPath {
+        editor_view_id: Option<WidgetId>,
+        path: PathBuf,
+        line: usize,
+        column: usize,
+    },
     TerminalJumpToLine(i32),
     GoToLocationNew(WidgetId, EditorLocation),
-    GotoDefinition(WidgetId, usize, EditorLocation),
+    GotoDefinition {
+        editor_view_id: WidgetId,
+        offset: usize,
+        location: EditorLspLocation,
+    },
     PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),
     ActiveFileChanged {

@@ -10,7 +10,7 @@ use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
-    editor::EditorLocation,
+    editor::EditorLspLocation,
     panel::PanelKind,
     problem::ProblemData,
     proxy::path_from_url,
@@ -102,9 +102,9 @@ impl ProblemContent {
                 if ctx.is_hot() && i < n && n < i + 1 + msg_lines {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::JumpToLocation(
+                        LapceUICommand::JumpToLspLocation(
                             None,
-                            EditorLocation {
+                            EditorLspLocation {
                                 path: path.clone(),
                                 position: Some(d.diagnostic.range.start),
                                 scroll_offset: None,
@@ -127,9 +127,9 @@ impl ProblemContent {
                     if i <= n && n <= i + lines {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::JumpToLocation(
+                            LapceUICommand::JumpToLspLocation(
                                 None,
-                                EditorLocation {
+                                EditorLspLocation {
                                     path: related
                                         .location
                                         .uri
