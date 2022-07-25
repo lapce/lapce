@@ -14,7 +14,10 @@ use lapce_core::{
     style::line_styles,
     syntax::Syntax,
 };
-use lapce_rpc::style::{LineStyle, LineStyles, Style};
+use lapce_rpc::{
+    core::CoreResponse,
+    style::{LineStyle, LineStyles, Style},
+};
 use xi_rope::{spans::Spans, Rope};
 
 use crate::{
@@ -174,15 +177,21 @@ impl DocumentHistory {
             std::thread::spawn(move || {
                 proxy.get_buffer_head(id, path.clone(), move |result| {
                     if let Ok(resp) = result {
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::LoadBufferHead {
-                                path,
-                                content: Rope::from(resp.content),
-                                version: resp.version,
-                            },
-                            Target::Widget(tab_id),
-                        );
+                        if let CoreResponse::BufferHeadResponse {
+                            version,
+                            content,
+                        } = resp
+                        {
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::LoadBufferHead {
+                                    path,
+                                    content: Rope::from(content),
+                                    version,
+                                },
+                                Target::Widget(tab_id),
+                            );
+                        }
                     }
                 })
             });

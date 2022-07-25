@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
-use serde::{de::DeserializeOwned, Deserialize, Serialize, Serializer};
-use serde_json::{json, Value};
+use serde::{de::DeserializeOwned, Serialize};
+use serde_json::Value;
 use std::{
     io::{self, BufRead, Write},
     thread,
@@ -9,17 +9,20 @@ use std::{
 
 use crate::{RpcError, RpcMessage, RpcObject};
 
-pub fn new_stdio_transport<W, R, Req, Notif, Resp>(
+pub fn new_stdio_transport<W, R, Req1, Notif1, Resp1, Req2, Notif2, Resp2>(
     mut writer: W,
-    writer_receiver: Receiver<RpcMessage<Req, Notif, Resp>>,
+    writer_receiver: Receiver<RpcMessage<Req2, Notif2, Resp2>>,
     mut reader: R,
-    reader_sender: Sender<RpcMessage<Req, Notif, Resp>>,
+    reader_sender: Sender<RpcMessage<Req1, Notif1, Resp1>>,
 ) where
     W: 'static + Write + Send,
     R: 'static + BufRead + Send,
-    Req: 'static + Serialize + DeserializeOwned + Send + Sync,
-    Notif: 'static + Serialize + DeserializeOwned + Send + Sync,
-    Resp: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Req1: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Notif1: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Resp1: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Req2: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Notif2: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Resp2: 'static + Serialize + DeserializeOwned + Send + Sync,
 {
     thread::spawn(move || {
         for value in writer_receiver {
@@ -74,12 +77,12 @@ where
         RpcMessage::Request(id, req) => {
             let mut msg = serde_json::to_value(&req)?;
             msg.as_object_mut()
-                .ok_or_else(|| io::ErrorKind::NotFound)?
+                .ok_or(io::ErrorKind::NotFound)?
                 .insert("id".into(), id.into());
             msg
         }
         RpcMessage::Response(_, _) => todo!(),
-        RpcMessage::Notificiation(_) => todo!(),
+        RpcMessage::Notification(_) => todo!(),
         RpcMessage::Error(_, _) => todo!(),
     };
     let msg = format!("{}\n", serde_json::to_string(&value)?);
@@ -103,10 +106,10 @@ where
     let object = RpcObject(value);
     let is_response = object.is_response();
     let msg = if is_response {
-        let id = object.get_id().ok_or_else(|| io::ErrorKind::NotFound)?;
+        let id = object.get_id().ok_or(io::ErrorKind::NotFound)?;
         let resp = object
             .into_response()
-            .map_err(|e| io::ErrorKind::NotFound)?;
+            .map_err(|_| io::ErrorKind::NotFound)?;
         match resp {
             Ok(value) => {
                 let resp: Resp = serde_json::from_value(value)?;
@@ -125,7 +128,7 @@ where
             }
             None => {
                 let notif: Notif = serde_json::from_value(object.0)?;
-                RpcMessage::Notificiation(notif)
+                RpcMessage::Notification(notif)
             }
         }
     };

@@ -6,8 +6,11 @@ use xi_rope::RopeDelta;
 
 use crate::{
     buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
-    source_control::FileDiff, terminal::TermId, RequestId,
+    source_control::FileDiff, terminal::TermId, RequestId, RpcMessage,
 };
+
+pub type ProxyRpcMessage =
+    RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ProxyRpc {
@@ -173,6 +176,11 @@ pub enum ProxyRequest {
         to: PathBuf,
     },
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum ProxyResponse {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadDirResponse {

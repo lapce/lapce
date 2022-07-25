@@ -26,7 +26,7 @@ pub fn mainloop() {
 }
 
 pub fn new_mainloop() {
-    let (core_sender, core_receiver) = lapce_rpc::stdio();
+    let (core_sender, proxy_receiver) = lapce_rpc::new_stdio();
     let mut dispatcher = NewDispatcher::new(core_sender);
-    dispatcher.mainloop(core_receiver);
+    dispatcher.mainloop(proxy_receiver);
 }

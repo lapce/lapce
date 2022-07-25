@@ -10,7 +10,8 @@ use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_core::language::LapceLanguage;
 use lapce_core::mode::Mode;
 use lapce_core::movement::Movement;
-use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
+use lapce_rpc::core::CoreResponse;
+use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -803,8 +804,8 @@ impl PaletteViewData {
         let workspace = self.workspace.clone();
         let event_sink = ctx.get_external_handle();
         self.palette.proxy.get_files(move |result| {
-            if let Ok(resp) = result {
-                let items: Vec<PaletteItem> = resp
+            if let Ok(CoreResponse::GetFilesResponse { items }) = result {
+                let items: Vec<PaletteItem> = items
                     .iter()
                     .enumerate()
                     .map(|(_index, path)| {

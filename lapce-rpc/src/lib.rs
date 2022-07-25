@@ -35,7 +35,7 @@ pub use stdio::stdio_transport;
 pub enum RpcMessage<Req, Notif, Resp> {
     Request(RequestId, Req),
     Response(RequestId, Resp),
-    Notificiation(Notif),
+    Notification(Notif),
     Error(RequestId, RpcError),
 }
 
@@ -46,13 +46,13 @@ pub struct RpcError {
 }
 
 #[derive(Clone)]
-pub struct NewRpcHandler<Req, Notif, Resp> {
+pub struct NewRpcHandler<Req, Notif, Resp, Resp2> {
     sender: Sender<RpcMessage<Req, Notif, Resp>>,
     id: Arc<AtomicU64>,
-    pending: Arc<Mutex<HashMap<u64, ResponseHandler>>>,
+    pending: Arc<Mutex<HashMap<u64, NewResponseHandler<Resp2>>>>,
 }
 
-impl<Req, Notif, Resp> NewRpcHandler<Req, Notif, Resp> {
+impl<Req, Notif, Resp, Resp2> NewRpcHandler<Req, Notif, Resp, Resp2> {
     pub fn new(sender: Sender<RpcMessage<Req, Notif, Resp>>) -> Self {
         Self {
             sender,
@@ -61,36 +61,79 @@ impl<Req, Notif, Resp> NewRpcHandler<Req, Notif, Resp> {
         }
     }
 
-    pub fn mainloop<H>(
+    pub fn mainloop<H, Req2, Notif2>(
         &mut self,
-        receiver: Receiver<RpcMessage<Req, Notif, Resp>>,
+        receiver: Receiver<RpcMessage<Req2, Notif2, Resp2>>,
         handler: &mut H,
     ) where
-        H: NewHandler<Req, Notif, Resp>,
+        H: NewHandler<Req2, Notif2, Resp2>,
     {
         for msg in receiver {
             match msg {
                 RpcMessage::Request(id, request) => {
                     handler.handle_request(request);
                 }
-                RpcMessage::Notificiation(notification) => {
+                RpcMessage::Notification(notification) => {
                     handler.handle_notification(notification);
                 }
-                RpcMessage::Response(id, resp) => {}
-                RpcMessage::Error(id, err) => {}
+                RpcMessage::Response(id, resp) => {
+                    self.handle_response(id, Ok(resp));
+                }
+                RpcMessage::Error(id, err) => {
+                    self.handle_response(id, Err(err));
+                }
             }
         }
     }
+
+    fn handle_response(&self, id: u64, resp: Result<Resp2, RpcError>) {
+        println!("rpc handler hanlde respone");
+        let handler = {
+            let mut pending = self.pending.lock();
+            pending.remove(&id)
+        };
+        if let Some(responsehandler) = handler {
+            responsehandler.invoke(resp)
+        }
+    }
+
+    pub fn send_rpc_request_async(&self, req: Req, f: Box<dyn NewCallback<Resp2>>) {
+        self.send_rpc_request_common(req, NewResponseHandler::Callback(f));
+    }
+
+    fn send_rpc_request_common(&self, req: Req, rh: NewResponseHandler<Resp2>) {
+        let id = self.id.fetch_add(1, Ordering::Relaxed);
+        {
+            let mut pending = self.pending.lock();
+            pending.insert(id, rh);
+        }
+        if let Err(_e) = self.sender.send(RpcMessage::Request(id, req)) {
+            let mut pending = self.pending.lock();
+            if let Some(rh) = pending.remove(&id) {
+                rh.invoke(Err(RpcError {
+                    code: 0,
+                    message: "io error".to_string(),
+                }));
+            }
+        }
+    }
+
+    pub fn send_rpc_notification(&self, notification: Notif) {
+        if let Err(_e) = self.sender.send(RpcMessage::Notification(notification)) {}
+    }
 }
 
-pub fn new_stdio<Req, Notif, Resp>() -> (
-    Sender<RpcMessage<Req, Notif, Resp>>,
-    Receiver<RpcMessage<Req, Notif, Resp>>,
+pub fn new_stdio<Req1, Notif1, Resp1, Req2, Notif2, Resp2>() -> (
+    Sender<RpcMessage<Req1, Notif1, Resp1>>,
+    Receiver<RpcMessage<Req2, Notif2, Resp2>>,
 )
 where
-    Req: 'static + Serialize + DeserializeOwned + Send + Sync,
-    Notif: 'static + Serialize + DeserializeOwned + Send + Sync,
-    Resp: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Req1: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Notif1: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Resp1: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Req2: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Notif2: 'static + Serialize + DeserializeOwned + Send + Sync,
+    Resp2: 'static + Serialize + DeserializeOwned + Send + Sync,
 {
     let stdout = stdout();
     let stdin = BufReader::new(stdin());
@@ -120,6 +163,28 @@ pub trait Callback: Send {
 impl<F: Send + FnOnce(Result<Value, Value>)> Callback for F {
     fn call(self: Box<F>, result: Result<Value, Value>) {
         (*self)(result)
+    }
+}
+
+pub trait NewCallback<Resp>: Send {
+    fn call(self: Box<Self>, result: Result<Resp, RpcError>);
+}
+
+impl<Resp, F: Send + FnOnce(Result<Resp, RpcError>)> NewCallback<Resp> for F {
+    fn call(self: Box<F>, result: Result<Resp, RpcError>) {
+        (*self)(result)
+    }
+}
+
+enum NewResponseHandler<Resp> {
+    Callback(Box<dyn NewCallback<Resp>>),
+}
+
+impl<Resp> NewResponseHandler<Resp> {
+    fn invoke(self, result: Result<Resp, RpcError>) {
+        match self {
+            NewResponseHandler::Callback(f) => f.call(result),
+        }
     }
 }
 

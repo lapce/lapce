@@ -17,9 +17,11 @@ use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
-use lapce_rpc::core::{CoreNotification, CoreResponse, CoreRpc};
+use lapce_rpc::core::{CoreNotification, CoreResponse, CoreRpc, CoreRpcMessage};
 use lapce_rpc::file::FileNodeItem;
-use lapce_rpc::proxy::{ProxyNotification, ProxyRequest, ProxyRpc, ReadDirResponse};
+use lapce_rpc::proxy::{
+    ProxyNotification, ProxyRequest, ProxyRpc, ProxyRpcMessage, ReadDirResponse,
+};
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::{self, Call, RequestId, RpcError, RpcObject};
@@ -39,48 +41,42 @@ const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(1);
 const WORKSPACE_EVENT_TOKEN: WatchToken = WatchToken(2);
 
 pub struct NewDispatcher {
+    workspace: Option<PathBuf>,
     /// channel sender from proxy to core
-    core_sender: Sender<CoreRpc>,
+    core_sender: Sender<CoreRpcMessage>,
     buffers: HashMap<PathBuf, Buffer>,
 }
 
 impl NewDispatcher {
-    pub fn new(core_sender: Sender<CoreRpc>) -> Self {
+    pub fn new(core_sender: Sender<CoreRpcMessage>) -> Self {
         Self {
+            workspace: None,
             core_sender,
             buffers: HashMap::new(),
         }
     }
 
     /// handles the channel receiver from core to proxy
-    pub fn mainloop(&mut self, core_receiver: Receiver<ProxyRpc>) {
-        for msg in core_receiver {
+    pub fn mainloop(&mut self, proxy_receiver: Receiver<ProxyRpcMessage>) {
+        for msg in proxy_receiver {
             match msg {
-                ProxyRpc::Request(id, request) => {
+                ProxyRpcMessage::Request(id, request) => {
                     self.handle_request(id, request);
                 }
-                ProxyRpc::Notification(notification) => {
+                ProxyRpcMessage::Notification(notification) => {
                     if let ProxyNotification::Shutdown {} = &notification {
                         return;
                     }
                     self.handle_notification(notification);
                 }
+                ProxyRpcMessage::Response(id, resp) => {}
+                ProxyRpcMessage::Error(id, err) => {}
             }
         }
     }
 
-    fn respond_rpc(&self, id: RequestId, result: Result<CoreResponse>) {
-        let msg = match result {
-            Ok(r) => CoreRpc::Response(id, r),
-            Err(e) => CoreRpc::Error(
-                id,
-                RpcError {
-                    code: 0,
-                    message: e.to_string(),
-                },
-            ),
-        };
-        let _ = self.core_sender.send(msg);
+    fn respond_rpc(&self, id: RequestId, result: Result<CoreResponse, RpcError>) {
+        respond_rpc(&self.core_sender, id, result);
     }
 
     fn handle_request(&mut self, id: RequestId, rpc: ProxyRequest) {
@@ -90,12 +86,34 @@ impl NewDispatcher {
                 let buffer = Buffer::new(buffer_id, path.clone());
                 let content = buffer.rope.to_string();
                 self.buffers.insert(path, buffer);
+                eprintln!("respond new buffer");
                 self.respond_rpc(
                     id,
                     Ok(CoreResponse::NewBufferResponse { content }),
                 );
             }
-            BufferHead { buffer_id, path } => todo!(),
+            BufferHead { buffer_id, path } => {
+                let result = if let Some(workspace) = self.workspace.as_ref() {
+                    let result = file_get_head(&workspace, &path);
+                    if let Ok((_blob_id, content)) = result {
+                        Ok(CoreResponse::BufferHeadResponse {
+                            version: "head".to_string(),
+                            content,
+                        })
+                    } else {
+                        Err(RpcError {
+                            code: 0,
+                            message: "can't get file head".to_string(),
+                        })
+                    }
+                } else {
+                    Err(RpcError {
+                        code: 0,
+                        message: "no workspace set".to_string(),
+                    })
+                };
+                self.respond_rpc(id, result);
+            }
             GetCompletion {
                 request_id,
                 buffer_id,
@@ -138,8 +156,64 @@ impl NewDispatcher {
             GetDocumentSymbols { buffer_id } => todo!(),
             GetWorkspaceSymbols { query, buffer_id } => todo!(),
             GetDocumentFormatting { buffer_id } => todo!(),
-            GetFiles { path } => todo!(),
-            ReadDir { path } => todo!(),
+            GetFiles { path } => {
+                let core_sender = self.core_sender.clone();
+                let workspace = self.workspace.clone();
+                thread::spawn(move || {
+                    let result = if let Some(workspace) = workspace {
+                        let mut items = Vec::new();
+                        for path in ignore::Walk::new(workspace).flatten() {
+                            if let Some(file_type) = path.file_type() {
+                                if file_type.is_file() {
+                                    items.push(path.into_path());
+                                }
+                            }
+                        }
+                        Ok(CoreResponse::GetFilesResponse { items })
+                    } else {
+                        Err(RpcError {
+                            code: 0,
+                            message: "no workspace set".to_string(),
+                        })
+                    };
+                    respond_rpc(&core_sender, id, result);
+                });
+            }
+            ReadDir { path } => {
+                let core_sender = self.core_sender.clone();
+                thread::spawn(move || {
+                    let result = fs::read_dir(path)
+                        .map(|entries| {
+                            let items = entries
+                                .into_iter()
+                                .filter_map(|entry| {
+                                    entry
+                                        .map(|e| {
+                                            (
+                                                e.path(),
+                                                FileNodeItem {
+                                                    path_buf: e.path(),
+                                                    is_dir: e.path().is_dir(),
+                                                    open: false,
+                                                    read: false,
+                                                    children: HashMap::new(),
+                                                    children_open_count: 0,
+                                                },
+                                            )
+                                        })
+                                        .ok()
+                                })
+                                .collect::<HashMap<PathBuf, FileNodeItem>>();
+
+                            CoreResponse::ReadDirResponse { items }
+                        })
+                        .map_err(|e| RpcError {
+                            code: 0,
+                            message: e.to_string(),
+                        });
+                    respond_rpc(&core_sender, id, result);
+                });
+            }
             Save { rev, buffer_id } => todo!(),
             SaveBufferAs {
                 buffer_id,
@@ -154,10 +228,12 @@ impl NewDispatcher {
         }
     }
 
-    fn handle_notification(&self, rpc: ProxyNotification) {
+    fn handle_notification(&mut self, rpc: ProxyNotification) {
         use ProxyNotification::*;
         match rpc {
-            Initialize { workspace } => todo!(),
+            Initialize { workspace } => {
+                self.workspace = Some(workspace);
+            }
             Shutdown {} => todo!(),
             Update {
                 buffer_id,
@@ -988,6 +1064,18 @@ impl Dispatcher {
             }
         }
     }
+}
+
+fn respond_rpc(
+    core_sender: &Sender<CoreRpcMessage>,
+    id: RequestId,
+    result: Result<CoreResponse, RpcError>,
+) {
+    let msg = match result {
+        Ok(r) => CoreRpcMessage::Response(id, r),
+        Err(e) => CoreRpcMessage::Error(id, e),
+    };
+    let _ = core_sender.send(msg);
 }
 
 #[derive(Clone, Debug)]
