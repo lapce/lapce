@@ -567,6 +567,30 @@ impl Document {
                     };
                 })
             });
+            // std::thread::spawn(move || {
+            //     proxy.new_buffer(
+            //         id,
+            //         path.clone(),
+            //         Box::new(move |result| {
+            //             if let Ok(res) = result {
+            //                 if let Ok(resp) =
+            //                     serde_json::from_value::<NewBufferResponse>(res)
+            //                 {
+            //                     let _ = event_sink.submit_command(
+            //                         LAPCE_UI_COMMAND,
+            //                         LapceUICommand::InitBufferContent {
+            //                             path,
+            //                             content: Rope::from(resp.content),
+            //                             locations,
+            //                             edits: unsaved_buffer,
+            //                         },
+            //                         Target::Widget(tab_id),
+            //                     );
+            //                 }
+            //             };
+            //         }),
+            //     )
+            // });
         }
 
         self.retrieve_history("head");
