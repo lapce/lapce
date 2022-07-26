@@ -1,6 +1,9 @@
 use crate::buffer::{get_mod_time, load_file, Buffer};
 use crate::lsp::{LspCatalog, NewLspCatalog};
-use crate::plugin::{NewPluginCatalog, PluginCatalog, PluginRpcMessage};
+use crate::plugin::{
+    NewPluginCatalog, NewPluginNotification, PluginCatalog, PluginNotification,
+    PluginRpcMessage,
+};
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
 use crate::{
@@ -24,8 +27,8 @@ use lapce_rpc::core::{
 use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::lsp::LspRpcMessage;
 use lapce_rpc::proxy::{
-    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse, ProxyRpcMessage,
-    ReadDirResponse,
+    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse,
+    PluginProxyNotification, ProxyRpcMessage, ReadDirResponse,
 };
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
@@ -93,7 +96,14 @@ impl NewDispatcher {
                     RpcMessage::Response(_, _) => todo!(),
                     RpcMessage::Error(_, _) => todo!(),
                 },
-                ProxyRpcMessage::Plugin(_) => todo!(),
+                ProxyRpcMessage::Plugin(msg) => match msg {
+                    RpcMessage::Request(_, _) => todo!(),
+                    RpcMessage::Response(_, _) => todo!(),
+                    RpcMessage::Notification(notification) => {
+                        self.handle_plugin_notification(notification);
+                    }
+                    RpcMessage::Error(_, _) => todo!(),
+                },
             }
         }
     }
@@ -104,6 +114,11 @@ impl NewDispatcher {
         result: Result<CoreProxyResponse, RpcError>,
     ) {
         respond_rpc(&self.core_sender, id, result);
+    }
+
+    fn send_plugin_notification(&self, notification: NewPluginNotification) {
+        self.plugin_sender
+            .send(RpcMessage::Notification(notification));
     }
 
     fn handle_request(&mut self, id: RequestId, rpc: CoreProxyRequest) {
@@ -286,6 +301,30 @@ impl NewDispatcher {
                 height,
             } => todo!(),
             TerminalClose { term_id } => todo!(),
+        }
+    }
+
+    fn handle_plugin_notification(&mut self, rpc: PluginProxyNotification) {
+        use PluginProxyNotification::*;
+        match rpc {
+            StartLspServer {
+                exec_path,
+                language_id,
+                options,
+                system_lsp,
+            } => {
+                self.send_plugin_notification(
+                    NewPluginNotification::StartLspServer {
+                        exec_path,
+                        language_id,
+                        options,
+                        system_lsp,
+                    },
+                );
+            }
+            DownloadFile { url, path } => todo!(),
+            LockFile { path } => todo!(),
+            MakeFileExecutable { path } => todo!(),
         }
     }
 }

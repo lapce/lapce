@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
     process::{self, Child, ChildStderr, ChildStdout, Command, Stdio},
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc::channel,
         Arc,
     },
@@ -34,6 +34,34 @@ use crate::{buffer::Buffer, dispatch::Dispatcher};
 pub type Callback = Box<dyn Callable>;
 const HEADER_CONTENT_LENGTH: &str = "content-length";
 const HEADER_CONTENT_TYPE: &str = "content-type";
+
+pub struct NewLspClient {
+    id: Arc<AtomicU64>,
+    pending: Arc<Mutex<HashMap<u64, Sender<Result<Value, Value>>>>>,
+}
+
+impl NewLspClient {
+    pub fn new() -> Self {
+        Self {
+            id: Arc::new(AtomicU64::new(0)),
+            pending: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    pub fn send_request(
+        &self,
+        method: &str,
+        params: Params,
+    ) -> Result<Value, Value> {
+        let id = self.id.fetch_add(1, Ordering::Relaxed);
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        {
+            let mut pending = self.pending.lock();
+            pending.insert(id, tx);
+        }
+        rx.recv().unwrap_or_else(|_| Err(json!("io error")))
+    }
+}
 
 pub trait Callable: Send {
     fn call(self: Box<Self>, client: &LspClient, result: Result<Value>);
