@@ -26,6 +26,7 @@ use lapce_rpc::core::{
 };
 use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::lsp::LspRpcMessage;
+use lapce_rpc::plugin::{PluginDescription, PluginId};
 use lapce_rpc::proxy::{
     CoreProxyNotification, CoreProxyRequest, CoreProxyResponse,
     PluginProxyNotification, ProxyRpcMessage, ReadDirResponse,
@@ -57,6 +58,8 @@ pub struct NewDispatcher {
     core_sender: Sender<CoreRpcMessage>,
     // channel sender from proxy to plugin
     plugin_sender: Sender<PluginRpcMessage>,
+    plugin_receiver: Receiver<PluginRpcMessage>,
+    proxy_sender: Sender<ProxyRpcMessage>,
     buffers: HashMap<PathBuf, Buffer>,
 }
 
@@ -66,18 +69,12 @@ impl NewDispatcher {
         proxy_sender: Sender<ProxyRpcMessage>,
     ) -> Self {
         let (plugin_sender, plugin_receiver) = crossbeam_channel::unbounded();
-        let local_plugin_sender = plugin_sender.clone();
-        thread::spawn(move || {
-            NewPluginCatalog::mainloop(
-                proxy_sender,
-                local_plugin_sender,
-                plugin_receiver,
-            );
-        });
         Self {
             workspace: None,
             core_sender,
             plugin_sender,
+            plugin_receiver,
+            proxy_sender,
             buffers: HashMap::new(),
         }
     }
@@ -96,11 +93,11 @@ impl NewDispatcher {
                     RpcMessage::Response(_, _) => todo!(),
                     RpcMessage::Error(_, _) => todo!(),
                 },
-                ProxyRpcMessage::Plugin(msg) => match msg {
+                ProxyRpcMessage::Plugin(plugin_id, msg) => match msg {
                     RpcMessage::Request(_, _) => todo!(),
                     RpcMessage::Response(_, _) => todo!(),
                     RpcMessage::Notification(notification) => {
-                        self.handle_plugin_notification(notification);
+                        self.handle_plugin_notification(plugin_id, notification);
                     }
                     RpcMessage::Error(_, _) => todo!(),
                 },
@@ -274,7 +271,18 @@ impl NewDispatcher {
         use CoreProxyNotification::*;
         match rpc {
             Initialize { workspace } => {
-                self.workspace = Some(workspace);
+                self.workspace = workspace;
+
+                let proxy_sender = self.proxy_sender.clone();
+                let plugin_sender = self.plugin_sender.clone();
+                let plugin_receiver = self.plugin_receiver.clone();
+                thread::spawn(move || {
+                    NewPluginCatalog::mainloop(
+                        proxy_sender,
+                        plugin_sender,
+                        plugin_receiver,
+                    );
+                });
             }
             Shutdown {} => todo!(),
             Update {
@@ -304,7 +312,11 @@ impl NewDispatcher {
         }
     }
 
-    fn handle_plugin_notification(&mut self, rpc: PluginProxyNotification) {
+    fn handle_plugin_notification(
+        &mut self,
+        plugin_id: PluginId,
+        rpc: PluginProxyNotification,
+    ) {
         use PluginProxyNotification::*;
         match rpc {
             StartLspServer {
@@ -315,6 +327,8 @@ impl NewDispatcher {
             } => {
                 self.send_plugin_notification(
                     NewPluginNotification::StartLspServer {
+                        workspace: self.workspace.clone(),
+                        plugin_id,
                         exec_path,
                         language_id,
                         options,
@@ -322,9 +336,9 @@ impl NewDispatcher {
                     },
                 );
             }
-            DownloadFile { url, path } => todo!(),
-            LockFile { path } => todo!(),
-            MakeFileExecutable { path } => todo!(),
+            DownloadFile { url, path } => {}
+            LockFile { path } => {}
+            MakeFileExecutable { path } => {}
         }
     }
 }
@@ -619,20 +633,22 @@ impl Dispatcher {
         use CoreProxyNotification::*;
         match rpc {
             Initialize { workspace } => {
-                *self.workspace.lock() = Some(workspace.clone());
-                self.file_watcher.lock().as_mut().unwrap().watch(
-                    &workspace,
-                    true,
-                    WORKSPACE_EVENT_TOKEN,
-                );
-                if let Some(diff) = git_diff_new(&workspace) {
-                    self.send_notification(
-                        "diff_info",
-                        json!({
-                            "diff": diff,
-                        }),
+                *self.workspace.lock() = workspace.clone();
+                if let Some(workspace) = workspace {
+                    self.file_watcher.lock().as_mut().unwrap().watch(
+                        &workspace,
+                        true,
+                        WORKSPACE_EVENT_TOKEN,
                     );
-                    *self.last_diff.lock() = diff;
+                    if let Some(diff) = git_diff_new(&workspace) {
+                        self.send_notification(
+                            "diff_info",
+                            json!({
+                                "diff": diff,
+                            }),
+                        );
+                        *self.last_diff.lock() = diff;
+                    }
                 }
             }
             Shutdown {} => {}

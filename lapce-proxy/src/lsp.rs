@@ -4,7 +4,7 @@ use std::{
     collections::HashMap,
     io::{BufRead, BufReader, BufWriter, Write},
     path::{Path, PathBuf},
-    process::{self, Child, ChildStderr, ChildStdout, Command, Stdio},
+    process::{self, Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio},
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc::channel,
@@ -21,7 +21,10 @@ use lapce_core::encoding::offset_utf16_to_utf8;
 use lapce_rpc::{
     buffer::BufferId,
     lsp::{LspNotification, LspRequest, LspResponse, LspRpcMessage},
-    proxy::{CoreProxyNotification, CoreProxyRequest, ProxyRpcMessage},
+    proxy::{
+        CoreProxyNotification, CoreProxyRequest, PluginProxyNotification,
+        ProxyRpcMessage,
+    },
     style::{LineStyle, SemanticStyles, Style},
     NewHandler, NewRpcHandler, RequestId,
 };
@@ -29,37 +32,301 @@ use lsp_types::{request::GotoTypeDefinitionParams, *};
 use parking_lot::Mutex;
 use serde_json::{json, to_value, Value};
 
-use crate::{buffer::Buffer, dispatch::Dispatcher};
+use crate::{
+    buffer::Buffer,
+    dispatch::Dispatcher,
+    plugin::{send_plugin_notification, NewPluginNotification, PluginRpcMessage},
+};
 
 pub type Callback = Box<dyn Callable>;
 const HEADER_CONTENT_LENGTH: &str = "content-length";
 const HEADER_CONTENT_TYPE: &str = "content-type";
 
-pub struct NewLspClient {
+pub enum LspRpc {}
+
+#[derive(Clone)]
+pub struct LspRpcHandler {
+    host_tx: Sender<LspRpc>,
+    host_rx: Receiver<LspRpc>,
+    client_tx: Sender<String>,
+    client_rx: Receiver<String>,
     id: Arc<AtomicU64>,
     pending: Arc<Mutex<HashMap<u64, Sender<Result<Value, Value>>>>>,
 }
 
-impl NewLspClient {
+impl LspRpcHandler {
     pub fn new() -> Self {
+        let (host_tx, host_rx) = crossbeam_channel::unbounded();
+        let (client_tx, client_rx) = crossbeam_channel::unbounded();
         Self {
+            host_tx,
+            host_rx,
+            client_tx,
+            client_rx,
             id: Arc::new(AtomicU64::new(0)),
             pending: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    pub fn send_request(
-        &self,
-        method: &str,
-        params: Params,
-    ) -> Result<Value, Value> {
+    fn send_request(&self, method: &str, params: Params) -> Result<Value, Value> {
         let id = self.id.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = crossbeam_channel::bounded(1);
         {
             let mut pending = self.pending.lock();
             pending.insert(id, tx);
         }
+        let request =
+            JsonRpc::request_with_params(Id::Num(id as i64), method, params);
+        self.send_rpc(&serde_json::to_value(request).unwrap());
         rx.recv().unwrap_or_else(|_| Err(json!("io error")))
+    }
+
+    fn send_notification(&self, method: &str, params: Params) {
+        let notification = JsonRpc::notification_with_params(method, params);
+        self.send_rpc(&serde_json::to_value(notification).unwrap());
+    }
+
+    fn send_rpc(&self, value: &Value) {
+        let rpc = match prepare_lsp_json(value) {
+            Ok(r) => r,
+            Err(err) => panic!("Encoding Error {:?}", err),
+        };
+
+        let _ = self.client_tx.send(rpc);
+    }
+
+    fn handle_stdio(&self, stdin: ChildStdin, stdout: ChildStdout) {
+        let rx = self.client_rx.clone();
+        thread::spawn(move || {
+            let mut writer = Box::new(BufWriter::new(stdin));
+            for msg in rx {
+                writer.write(msg.as_bytes());
+                writer.flush();
+            }
+        });
+        thread::spawn(move || {
+            let mut reader = Box::new(BufReader::new(stdout));
+            loop {
+                match read_message(&mut reader) {
+                    Ok(message_str) => {}
+                    Err(_err) => {
+                        return;
+                    }
+                };
+            }
+        });
+    }
+
+    fn mainloop(&self, lsp: &mut NewLspClient) {
+        loop {
+            for msg in &self.host_rx {}
+        }
+    }
+}
+
+pub struct NewLspClient {
+    plugin_sender: Sender<PluginRpcMessage>,
+    pub rpc: LspRpcHandler,
+    process: Child,
+    workspace: Option<PathBuf>,
+    exec_path: String,
+    args: Vec<String>,
+    server_capabilities: ServerCapabilities,
+}
+
+impl NewLspClient {
+    pub fn new(
+        plugin_sender: Sender<PluginRpcMessage>,
+        workspace: Option<PathBuf>,
+        exec_path: String,
+        args: Vec<String>,
+    ) -> Self {
+        let rpc = LspRpcHandler::new();
+
+        let mut process =
+            Self::process(workspace.as_ref(), exec_path.as_str(), &args);
+        let stdin = process.stdin.take().unwrap();
+        let stdout = process.stdout.take().unwrap();
+
+        rpc.handle_stdio(stdin, stdout);
+
+        Self {
+            plugin_sender,
+            rpc,
+            process,
+            workspace,
+            exec_path,
+            args,
+            server_capabilities: ServerCapabilities::default(),
+        }
+    }
+
+    pub fn start(
+        plugin_sender: Sender<PluginRpcMessage>,
+        workspace: Option<PathBuf>,
+        exec_path: String,
+        args: Vec<String>,
+    ) {
+        let mut lsp = Self::new(plugin_sender, workspace, exec_path, args);
+        lsp.initialize();
+        let rpc = lsp.rpc.clone();
+        rpc.mainloop(&mut lsp);
+    }
+
+    fn initialize(&mut self) {
+        let root_uri = self
+            .workspace
+            .clone()
+            .map(|p| Url::from_directory_path(p).unwrap());
+        let client_capabilities = ClientCapabilities {
+            text_document: Some(TextDocumentClientCapabilities {
+                synchronization: Some(TextDocumentSyncClientCapabilities {
+                    did_save: Some(true),
+                    dynamic_registration: Some(true),
+                    ..Default::default()
+                }),
+                completion: Some(CompletionClientCapabilities {
+                    completion_item: Some(CompletionItemCapability {
+                        snippet_support: Some(true),
+                        resolve_support: Some(
+                            CompletionItemCapabilityResolveSupport {
+                                properties: vec!["additionalTextEdits".to_string()],
+                            },
+                        ),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+                hover: Some(HoverClientCapabilities {
+                    content_format: Some(vec![
+                        MarkupKind::Markdown,
+                        MarkupKind::PlainText,
+                    ]),
+                    ..Default::default()
+                }),
+                inlay_hint: Some(InlayHintClientCapabilities {
+                    ..Default::default()
+                }),
+                code_action: Some(CodeActionClientCapabilities {
+                    code_action_literal_support: Some(CodeActionLiteralSupport {
+                        code_action_kind: CodeActionKindLiteralSupport {
+                            value_set: vec![
+                                CodeActionKind::EMPTY.as_str().to_string(),
+                                CodeActionKind::QUICKFIX.as_str().to_string(),
+                                CodeActionKind::REFACTOR.as_str().to_string(),
+                                CodeActionKind::REFACTOR_EXTRACT
+                                    .as_str()
+                                    .to_string(),
+                                CodeActionKind::REFACTOR_INLINE.as_str().to_string(),
+                                CodeActionKind::REFACTOR_REWRITE
+                                    .as_str()
+                                    .to_string(),
+                                CodeActionKind::SOURCE.as_str().to_string(),
+                                CodeActionKind::SOURCE_ORGANIZE_IMPORTS
+                                    .as_str()
+                                    .to_string(),
+                            ],
+                        },
+                    }),
+                    ..Default::default()
+                }),
+                semantic_tokens: Some(SemanticTokensClientCapabilities {
+                    ..Default::default()
+                }),
+                type_definition: Some(GotoCapability {
+                    // Note: This is explicitly specified rather than left to the Default because
+                    // of a bug in lsp-types https://github.com/gluon-lang/lsp-types/pull/244
+                    link_support: Some(false),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            window: Some(WindowClientCapabilities {
+                work_done_progress: Some(true),
+                show_message: Some(ShowMessageRequestClientCapabilities {
+                    message_action_item: Some(MessageActionItemCapabilities {
+                        additional_properties_support: Some(true),
+                    }),
+                }),
+                ..Default::default()
+            }),
+            workspace: Some(WorkspaceClientCapabilities {
+                symbol: Some(WorkspaceSymbolClientCapabilities {
+                    ..Default::default()
+                }),
+                configuration: Some(true),
+                ..Default::default()
+            }),
+
+            // TODO: GeneralClientCapabilities is getting a position encoding option
+            // as the standardized version of this, but it is not yet in lsp-types
+            // (and probably not as supported due to how new it is?)
+
+            // Inform the LSP that we would prefer utf8 encoding if possible
+            // Though, of course, we have to support utf16
+            // We could also inform that we support utf32 (there's technically some perf on the table there if
+            //   we do utf32 -> utf8 rather than utf32 -> utf16 -> utf8) but that is uncommon and is not even
+            // an option in the upcoming standardized version of this field.
+            offset_encoding: Some(vec!["utf-8".to_string(), "utf-16".to_string()]),
+            experimental: Some(json!({
+                "serverStatusNotification": true,
+            })),
+            ..Default::default()
+        };
+
+        #[allow(deprecated)]
+        let params = InitializeParams {
+            process_id: Some(process::id()),
+            root_uri: root_uri.clone(),
+            initialization_options: None,
+            capabilities: client_capabilities,
+            trace: Some(TraceValue::Verbose),
+            workspace_folders: root_uri.map(|uri| {
+                vec![WorkspaceFolder {
+                    name: uri.as_str().to_string(),
+                    uri,
+                }]
+            }),
+            client_info: None,
+            locale: None,
+            root_path: None,
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        if let Ok(value) = self.rpc.send_request("initialize", params) {
+            let init_result: InitializeResult =
+                serde_json::from_value(value).unwrap();
+            self.server_capabilities = init_result.capabilities;
+            self.rpc
+                .send_notification("initialized", Params::from(json!({})));
+
+            send_plugin_notification(
+                &self.plugin_sender,
+                NewPluginNotification::LspLoaded(self.rpc.clone()),
+            );
+        }
+    }
+
+    fn process(
+        workspace: Option<&PathBuf>,
+        exec_path: &str,
+        args: &[String],
+    ) -> Child {
+        let mut process = Command::new(exec_path);
+        if let Some(workspace) = workspace {
+            process.current_dir(&workspace);
+        }
+
+        eprintln!("exec_path {exec_path}");
+        process.args(args);
+
+        #[cfg(target_os = "windows")]
+        let process = process.creation_flags(0x08000000);
+        process
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Error Occurred")
     }
 }
 

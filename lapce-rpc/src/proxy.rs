@@ -18,7 +18,7 @@ use crate::{
     buffer::BufferId,
     core::{CoreRequest, CoreResponse},
     file::FileNodeItem,
-    plugin::{PluginDescription, PluginResponse},
+    plugin::{PluginDescription, PluginId, PluginResponse},
     source_control::FileDiff,
     terminal::TermId,
     RequestId, RpcError, RpcMessage,
@@ -192,7 +192,7 @@ pub enum CoreProxyRequest {
 #[serde(tag = "method", content = "params")]
 pub enum CoreProxyNotification {
     Initialize {
-        workspace: PathBuf,
+        workspace: Option<PathBuf>,
     },
     Shutdown {},
     Update {

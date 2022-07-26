@@ -4,8 +4,17 @@ use anyhow::{format_err, Error};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
+use crate::counter::Counter;
+
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct PluginId(pub u64);
+
+impl PluginId {
+    pub fn next() -> Self {
+        static PLUGIN_ID_COUNTER: Counter = Counter::new();
+        Self(PLUGIN_ID_COUNTER.next())
+    }
+}
 
 pub enum PluginResponse {}
 

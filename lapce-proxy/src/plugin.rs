@@ -34,7 +34,7 @@ use wasmer_wasi::WasiState;
 use wasmtime_wasi::WasiCtxBuilder;
 
 use crate::dispatch::Dispatcher;
-use crate::lsp::NewLspClient;
+use crate::lsp::{LspRpcHandler, NewLspClient};
 use crate::{dispatch::Dispatcher, APPLICATION_NAME};
 
 pub type PluginName = String;
@@ -46,7 +46,10 @@ pub enum PluginRequest {}
 
 pub enum NewPluginNotification {
     PluginLoaded(NewPlugin),
+    LspLoaded(LspRpcHandler),
     StartLspServer {
+        workspace: Option<PathBuf>,
+        plugin_id: PluginId,
         exec_path: String,
         language_id: String,
         options: Option<Value>,
@@ -56,6 +59,7 @@ pub enum NewPluginNotification {
 
 #[derive(WasmerEnv, Clone)]
 pub struct NewPluginEnv {
+    id: PluginId,
     proxy_sender: Sender<ProxyRpcMessage>,
     wasi_env: WasiEnv,
     desc: PluginDescription,
@@ -63,6 +67,7 @@ pub struct NewPluginEnv {
 
 #[derive(Clone)]
 pub struct NewPlugin {
+    id: PluginId,
     instance: wasmer::Instance,
     env: NewPluginEnv,
 }
@@ -90,8 +95,8 @@ pub struct NewPluginCatalog {
     plugin_sender: Sender<PluginRpcMessage>,
     proxy_sender: Sender<ProxyRpcMessage>,
     rpc: ProxyRpcHandler<PluginProxyResponse>,
-    plugins: Vec<NewPlugin>,
-    lsps: Vec<NewLspClient>,
+    plugins: HashMap<PluginId, NewPlugin>,
+    lsps: Vec<LspRpcHandler>,
 }
 
 impl NewHandler<PluginRequest, NewPluginNotification, PluginProxyResponse>
@@ -100,14 +105,51 @@ impl NewHandler<PluginRequest, NewPluginNotification, PluginProxyResponse>
     fn handle_notification(&mut self, rpc: NewPluginNotification) {
         match rpc {
             NewPluginNotification::PluginLoaded(plugin) => {
-                self.plugins.push(plugin);
+                eprintln!("plugin loaded");
+                self.plugins.insert(plugin.id, plugin);
+            }
+            NewPluginNotification::LspLoaded(lsp) => {
+                self.lsps.push(lsp);
             }
             NewPluginNotification::StartLspServer {
+                workspace,
+                plugin_id,
                 exec_path,
                 language_id,
                 options,
                 system_lsp,
-            } => todo!(),
+            } => {
+                let plugin_sender = self.plugin_sender.clone();
+                let exec_path = if system_lsp.unwrap_or(false) {
+                    // System LSP should be handled by PATH during
+                    // process creation, so we forbid anything that
+                    // is not just an executable name
+                    match PathBuf::from(&exec_path).file_name() {
+                        Some(v) => v.to_str().unwrap().to_string(),
+                        None => return,
+                    }
+                } else {
+                    let plugin = self.plugins.get(&plugin_id).unwrap();
+                    plugin
+                        .env
+                        .desc
+                        .dir
+                        .as_ref()
+                        .unwrap()
+                        .join(&exec_path)
+                        .to_str()
+                        .unwrap()
+                        .to_string()
+                };
+                thread::spawn(move || {
+                    NewLspClient::start(
+                        plugin_sender,
+                        workspace,
+                        exec_path,
+                        Vec::new(),
+                    );
+                });
+            }
         }
     }
 
@@ -124,12 +166,16 @@ impl NewPluginCatalog {
     ) {
         let mut rpc = ProxyRpcHandler::new(proxy_sender.clone());
         let mut plugin = Self {
-            proxy_sender,
-            plugin_sender,
+            proxy_sender: proxy_sender.clone(),
+            plugin_sender: plugin_sender.clone(),
             rpc: rpc.clone(),
-            plugins: Vec::new(),
+            plugins: HashMap::new(),
             lsps: Vec::new(),
         };
+
+        thread::spawn(move || {
+            Self::load(plugin_sender, proxy_sender);
+        });
 
         rpc.mainloop(plugin_receiver, &mut plugin);
     }
@@ -138,16 +184,19 @@ impl NewPluginCatalog {
         plugin_sender: Sender<PluginRpcMessage>,
         proxy_sender: Sender<ProxyRpcMessage>,
     ) {
+        eprintln!("start to load plugins");
         let all_plugins = find_all_plugins();
         for plugin_path in &all_plugins {
             match load_plugin(plugin_path) {
                 Err(_e) => (),
                 Ok(plugin_desc) => {
-                    Self::start_plugin(
+                    if let Err(e) = Self::start_plugin(
                         plugin_sender.clone(),
                         proxy_sender.clone(),
                         plugin_desc,
-                    );
+                    ) {
+                        eprintln!("start plugin error {}", e);
+                    }
                 }
             }
         }
@@ -158,6 +207,7 @@ impl NewPluginCatalog {
         proxy_sender: Sender<ProxyRpcMessage>,
         plugin_desc: PluginDescription,
     ) -> Result<()> {
+        eprintln!("start a certain plugin");
         let store = Store::default();
         let module = wasmer::Module::from_file(
             &store,
@@ -178,21 +228,38 @@ impl NewPluginCatalog {
             .finalize()?;
         let wasi = wasi_env.import_object(&module)?;
 
+        let id = PluginId::next();
         let plugin_env = NewPluginEnv {
+            id,
             wasi_env,
             proxy_sender,
             desc: plugin_desc.clone(),
         };
-        let lapce = new_lapce_exports(&store, &plugin_env);
+        let lapce = lapce_exports(&store, &plugin_env);
         let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
         let plugin = NewPlugin {
+            id,
             instance,
             env: plugin_env.clone(),
         };
 
         plugin_sender.send(PluginRpcMessage::Notification(
-            NewPluginNotification::PluginLoaded(plugin),
+            NewPluginNotification::PluginLoaded(plugin.clone()),
         ));
+
+        thread::spawn(move || {
+            let initialize =
+                plugin.instance.exports.get_function("initialize").unwrap();
+            wasi_write_object(
+                &plugin.env.wasi_env,
+                &PluginInfo {
+                    os: std::env::consts::OS.to_string(),
+                    arch: std::env::consts::ARCH.to_string(),
+                    configuration: plugin_desc.configuration,
+                },
+            );
+            initialize.call(&[]).unwrap();
+        });
 
         // let (plugin_sender, plugin_receiver) =
         //     crossbeam_channel::unbounded::<PluginRpcMessage>();
@@ -398,17 +465,17 @@ impl PluginCatalog {
             .finalize()?;
         let wasi = wasi_env.import_object(&module)?;
 
-        let plugin_env = PluginEnv {
-            wasi_env,
-            desc: plugin_desc.clone(),
-            dispatcher,
-        };
-        let lapce = lapce_exports(&self.store, &plugin_env);
-        let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
-        let plugin = Plugin {
-            instance,
-            env: plugin_env,
-        };
+        // let plugin_env = PluginEnv {
+        //     wasi_env,
+        //     desc: plugin_desc.clone(),
+        //     dispatcher,
+        // };
+        // let lapce = lapce_exports(&self.store, &plugin_env);
+        // let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
+        // let plugin = Plugin {
+        //     instance,
+        //     env: plugin_env,
+        // };
 
         let local_plugin = plugin.clone();
         let (tx, rx) = mpsc::channel();
@@ -543,7 +610,7 @@ impl Default for PluginCatalog {
     }
 }
 
-pub(crate) fn new_lapce_exports(
+pub(crate) fn lapce_exports(
     store: &Store,
     plugin_env: &NewPluginEnv,
 ) -> ImportObject {
@@ -559,26 +626,26 @@ pub(crate) fn new_lapce_exports(
     }
 
     lapce_export! {
-        new_host_handle_notification,
-    }
-}
-
-pub(crate) fn lapce_exports(store: &Store, plugin_env: &PluginEnv) -> ImportObject {
-    macro_rules! lapce_export {
-        ($($host_function:ident),+ $(,)?) => {
-            wasmer::imports! {
-                "lapce" => {
-                    $(stringify!($host_function) =>
-                        wasmer::Function::new_native_with_env(store, plugin_env.clone(), $host_function),)+
-                }
-            }
-        }
-    }
-
-    lapce_export! {
         host_handle_notification,
     }
 }
+
+// pub(crate) fn lapce_exports(store: &Store, plugin_env: &PluginEnv) -> ImportObject {
+//     macro_rules! lapce_export {
+//         ($($host_function:ident),+ $(,)?) => {
+//             wasmer::imports! {
+//                 "lapce" => {
+//                     $(stringify!($host_function) =>
+//                         wasmer::Function::new_native_with_env(store, plugin_env.clone(), $host_function),)+
+//                 }
+//             }
+//         }
+//     }
+
+//     lapce_export! {
+//         host_handle_notification,
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -602,94 +669,95 @@ pub enum PluginNotification {
     },
 }
 
-fn new_host_handle_notification(plugin_env: &NewPluginEnv) {
+fn host_handle_notification(plugin_env: &NewPluginEnv) {
     let notification: Result<PluginProxyNotification> =
         wasi_read_object(&plugin_env.wasi_env);
     if let Ok(notification) = notification {
         let _ = plugin_env.proxy_sender.send(ProxyRpcMessage::Plugin(
+            plugin_env.id,
             RpcMessage::Notification(notification),
         ));
     }
 }
 
-fn host_handle_notification(plugin_env: &PluginEnv) {
-    let notification: Result<PluginNotification> =
-        wasi_read_object(&plugin_env.wasi_env);
-    if let Ok(notification) = notification {
-        match notification {
-            PluginNotification::StartLspServer {
-                exec_path,
-                language_id,
-                options,
-                system_lsp,
-            } => {
-                let exec_path = if system_lsp.unwrap_or(false) {
-                    // System LSP should be handled by PATH during
-                    // process creation, so we forbid anything that
-                    // is not just an executable name
-                    match PathBuf::from(&exec_path).file_name() {
-                        Some(v) => v.to_str().unwrap().to_string(),
-                        None => return,
-                    }
-                } else {
-                    plugin_env
-                        .desc
-                        .dir
-                        .clone()
-                        .unwrap()
-                        .join(&exec_path)
-                        .to_str()
-                        .unwrap()
-                        .to_string()
-                };
-                plugin_env.dispatcher.lsp.lock().start_server(
-                    &exec_path,
-                    &language_id,
-                    options,
-                );
-            }
-            PluginNotification::DownloadFile { url, path } => {
-                let mut resp = reqwest::blocking::get(url).expect("request failed");
-                let mut out = fs::File::create(
-                    plugin_env.desc.dir.clone().unwrap().join(path),
-                )
-                .expect("failed to create file");
-                std::io::copy(&mut resp, &mut out).expect("failed to copy content");
-            }
-            PluginNotification::LockFile { path } => {
-                let path = plugin_env.desc.dir.clone().unwrap().join(path);
-                let mut n = 0;
-                loop {
-                    if let Ok(_file) = fs::OpenOptions::new()
-                        .write(true)
-                        .create_new(true)
-                        .open(&path)
-                    {
-                        return;
-                    }
-                    if n > 10 {
-                        return;
-                    }
-                    n += 1;
-                    let mut hotwatch =
-                        Hotwatch::new().expect("hotwatch failed to initialize!");
-                    let (tx, rx) = crossbeam_channel::bounded(1);
-                    let _ = hotwatch.watch(&path, move |_event| {
-                        #[allow(deprecated)]
-                        let _ = tx.send(0);
-                    });
-                    let _ = rx.recv_timeout(Duration::from_secs(10));
-                }
-            }
-            PluginNotification::MakeFileExecutable { path } => {
-                let _ = Command::new("chmod")
-                    .arg("+x")
-                    .arg(&plugin_env.desc.dir.clone().unwrap().join(path))
-                    .output();
-            }
-        }
-    }
-}
+// fn host_handle_notification(plugin_env: &PluginEnv) {
+//     let notification: Result<PluginNotification> =
+//         wasi_read_object(&plugin_env.wasi_env);
+//     if let Ok(notification) = notification {
+//         match notification {
+//             PluginNotification::StartLspServer {
+//                 exec_path,
+//                 language_id,
+//                 options,
+//                 system_lsp,
+//             } => {
+//                 let exec_path = if system_lsp.unwrap_or(false) {
+//                     // System LSP should be handled by PATH during
+//                     // process creation, so we forbid anything that
+//                     // is not just an executable name
+//                     match PathBuf::from(&exec_path).file_name() {
+//                         Some(v) => v.to_str().unwrap().to_string(),
+//                         None => return,
+//                     }
+//                 } else {
+//                     plugin_env
+//                         .desc
+//                         .dir
+//                         .clone()
+//                         .unwrap()
+//                         .join(&exec_path)
+//                         .to_str()
+//                         .unwrap()
+//                         .to_string()
+//                 };
+//                 plugin_env.dispatcher.lsp.lock().start_server(
+//                     &exec_path,
+//                     &language_id,
+//                     options,
+//                 );
+//             }
+//             PluginNotification::DownloadFile { url, path } => {
+//                 let mut resp = reqwest::blocking::get(url).expect("request failed");
+//                 let mut out = fs::File::create(
+//                     plugin_env.desc.dir.clone().unwrap().join(path),
+//                 )
+//                 .expect("failed to create file");
+//                 std::io::copy(&mut resp, &mut out).expect("failed to copy content");
+//             }
+//             PluginNotification::LockFile { path } => {
+//                 let path = plugin_env.desc.dir.clone().unwrap().join(path);
+//                 let mut n = 0;
+//                 loop {
+//                     if let Ok(_file) = fs::OpenOptions::new()
+//                         .write(true)
+//                         .create_new(true)
+//                         .open(&path)
+//                     {
+//                         return;
+//                     }
+//                     if n > 10 {
+//                         return;
+//                     }
+//                     n += 1;
+//                     let mut hotwatch =
+//                         Hotwatch::new().expect("hotwatch failed to initialize!");
+//                     let (tx, rx) = crossbeam_channel::bounded(1);
+//                     let _ = hotwatch.watch(&path, move |_event| {
+//                         #[allow(deprecated)]
+//                         let _ = tx.send(0);
+//                     });
+//                     let _ = rx.recv_timeout(Duration::from_secs(10));
+//                 }
+//             }
+//             PluginNotification::MakeFileExecutable { path } => {
+//                 let _ = Command::new("chmod")
+//                     .arg("+x")
+//                     .arg(&plugin_env.desc.dir.clone().unwrap().join(path))
+//                     .output();
+//             }
+//         }
+//     }
+// }
 
 pub fn wasi_read_string(wasi_env: &WasiEnv) -> Result<String> {
     let mut state = wasi_env.state();
@@ -798,4 +866,11 @@ pub fn config_directory() -> Option<PathBuf> {
         }
         None => None,
     }
+}
+
+pub fn send_plugin_notification(
+    plugin_sender: &Sender<PluginRpcMessage>,
+    notification: NewPluginNotification,
+) {
+    let _ = plugin_sender.send(RpcMessage::Notification(notification));
 }
