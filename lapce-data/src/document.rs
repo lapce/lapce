@@ -49,7 +49,7 @@ use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     data::{EditorDiagnostic, EditorView},
-    editor::EditorLocation,
+    editor::{EditorLocation, EditorPosition},
     find::{Find, FindProgress},
     history::DocumentHistory,
     proxy::LapceProxy,
@@ -535,7 +535,10 @@ impl Document {
         }
     }
 
-    pub fn retrieve_file(&mut self, locations: Vec<(WidgetId, EditorLocation)>) {
+    pub fn retrieve_file<P: EditorPosition + Send + 'static>(
+        &mut self,
+        locations: Vec<(WidgetId, EditorLocation<P>)>,
+    ) {
         if self.loaded || *self.load_started.borrow() {
             return;
         }
@@ -552,11 +555,11 @@ impl Document {
                     if let Ok(resp) = result {
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::InitBufferContent {
+                            P::init_buffer_content_cmd(
                                 path,
-                                content: Rope::from(resp.content),
+                                Rope::from(resp.content),
                                 locations,
-                            },
+                            ),
                             Target::Widget(tab_id),
                         );
                     };

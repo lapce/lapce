@@ -36,6 +36,7 @@ use druid::{
 };
 use druid::{ExtEventSink, MouseEvent};
 use indexmap::IndexMap;
+use lapce_core::buffer::Buffer;
 use lapce_core::buffer::{DiffLines, InvalLines};
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
@@ -64,6 +65,7 @@ use std::thread;
 use std::{collections::HashMap, sync::Arc};
 use std::{iter::Iterator, path::PathBuf};
 use std::{str::FromStr, time::Duration};
+use xi_rope::Rope;
 use xi_rope::{RopeDelta, Transformer};
 
 pub struct LapceUI {}
@@ -77,20 +79,69 @@ pub enum EditorOperator {
     Yank(EditorCount),
 }
 
-#[derive(Clone, Debug)]
-pub struct EditorLocation {
-    pub path: PathBuf,
-    pub position: Option<usize>,
-    pub scroll_offset: Option<Vec2>,
-    pub history: Option<String>,
+pub trait EditorPosition: Sized {
+    /// Convert the position to a utf8 offset
+    fn to_utf8_offset(&self, buffer: &Buffer) -> usize;
+
+    fn init_buffer_content_cmd(
+        path: PathBuf,
+        content: Rope,
+        locations: Vec<(WidgetId, EditorLocation<Self>)>,
+    ) -> LapceUICommand;
+}
+
+// Usize is always a utf8 offset
+impl EditorPosition for usize {
+    fn to_utf8_offset(&self, _buffer: &Buffer) -> usize {
+        *self
+    }
+
+    fn init_buffer_content_cmd(
+        path: PathBuf,
+        content: Rope,
+        locations: Vec<(WidgetId, EditorLocation<Self>)>,
+    ) -> LapceUICommand {
+        LapceUICommand::InitBufferContent {
+            path,
+            content,
+            locations,
+        }
+    }
+}
+impl EditorPosition for Position {
+    fn to_utf8_offset(&self, buffer: &Buffer) -> usize {
+        buffer.offset_of_position(self)
+    }
+
+    fn init_buffer_content_cmd(
+        path: PathBuf,
+        content: Rope,
+        locations: Vec<(WidgetId, EditorLocation<Self>)>,
+    ) -> LapceUICommand {
+        LapceUICommand::InitBufferContentLsp {
+            path,
+            content,
+            locations,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
-pub struct EditorLspLocation {
+pub struct EditorLocation<P: EditorPosition = usize> {
     pub path: PathBuf,
-    pub position: Option<Position>,
+    pub position: Option<P>,
     pub scroll_offset: Option<Vec2>,
     pub history: Option<String>,
+}
+impl<P: EditorPosition> EditorLocation<P> {
+    pub fn into_utf8_location(self, buffer: &Buffer) -> EditorLocation<usize> {
+        EditorLocation {
+            path: self.path,
+            position: self.position.map(|p| p.to_utf8_offset(buffer)),
+            scroll_offset: self.scroll_offset,
+            history: self.history,
+        }
+    }
 }
 
 pub struct LapceEditorBufferData {
@@ -721,7 +772,7 @@ impl LapceEditorBufferData {
             let position = self.doc.buffer().offset_to_position(offset);
             let (path, position) =
                 next_in_file_errors_offset(position, buffer_path, &file_diagnostics);
-            let location = EditorLspLocation {
+            let location = EditorLocation {
                 path,
                 position: Some(position),
                 scroll_offset: None,
@@ -1628,7 +1679,7 @@ impl LapceEditorBufferData {
                                         LapceUICommand::GotoDefinition {
                                             editor_view_id,
                                             offset,
-                                            location: EditorLspLocation {
+                                            location: EditorLocation {
                                                 path: path_from_url(&location.uri),
                                                 position: Some(location.range.start),
                                                 scroll_offset: None,
@@ -1662,7 +1713,7 @@ impl LapceEditorBufferData {
                                         LapceUICommand::GotoDefinition {
                                             editor_view_id,
                                             offset,
-                                            location: EditorLspLocation {
+                                            location: EditorLocation {
                                                 path: path_from_url(&location.uri),
                                                 position: Some(location.range.start),
                                                 scroll_offset: None,
@@ -1681,7 +1732,7 @@ impl LapceEditorBufferData {
                                                 LapceUICommand::GotoDefinition {
                                                     editor_view_id,
                                                     offset,
-                                                    location: EditorLspLocation {
+                                                    location: EditorLocation {
                                                         path: path_from_url(
                                                             &locations[0].uri,
                                                         ),
@@ -2053,7 +2104,7 @@ fn process_get_references(
             LAPCE_UI_COMMAND,
             LapceUICommand::JumpToLspLocation(
                 None,
-                EditorLspLocation {
+                EditorLocation {
                     path: path_from_url(&location.uri),
                     position: Some(location.range.start),
                     scroll_offset: None,

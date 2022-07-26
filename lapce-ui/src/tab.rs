@@ -27,7 +27,7 @@ use lapce_data::{
         LapceWorkspace, LapceWorkspaceType, WorkProgress,
     },
     document::{BufferContent, LocalBufferKind},
-    editor::{EditorLocation, EditorLspLocation},
+    editor::EditorLocation,
     hover::HoverStatus,
     keypress::{DefaultKeyPressHandler, KeyPressData},
     menu::MenuKind,
@@ -751,6 +751,30 @@ impl LapceTab {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::InitBufferContentLsp {
+                        path,
+                        content,
+                        locations,
+                    } => {
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        let doc = Arc::make_mut(doc);
+                        doc.init_content(content.to_owned());
+                        if let BufferContent::File(path) = doc.content() {
+                            if let Some(d) = data.main_split.diagnostics.get(path) {
+                                doc.set_diagnostics(d);
+                            }
+                        }
+
+                        for (view_id, location) in locations {
+                            data.main_split.go_to_location(
+                                ctx,
+                                Some(*view_id),
+                                location.clone(),
+                                &data.config,
+                            );
+                        }
+                        ctx.set_handled();
+                    }
                     LapceUICommand::InitPaletteInput(pattern) => {
                         let doc = data
                             .main_split
@@ -1139,7 +1163,7 @@ impl LapceTab {
                             *editor_view_id,
                             EditorLocation {
                                 path: path.clone(),
-                                position: None,
+                                position: None::<usize>,
                                 scroll_offset: None,
                                 history: Some(history.to_string()),
                             },
@@ -1180,7 +1204,7 @@ impl LapceTab {
                             None,
                             EditorLocation {
                                 path: path.clone(),
-                                position: None,
+                                position: None::<usize>,
                                 scroll_offset: None,
                                 history: None,
                             },
@@ -1216,7 +1240,7 @@ impl LapceTab {
                         ctx.set_handled();
                     }
                     LapceUICommand::JumpToLspLocation(editor_view_id, location) => {
-                        data.main_split.jump_to_lsp_location(
+                        data.main_split.jump_to_location(
                             ctx,
                             *editor_view_id,
                             location.clone(),
@@ -1278,7 +1302,7 @@ impl LapceTab {
                             if *editor_view_id == editor.view_id
                                 && *offset == editor.cursor.offset()
                             {
-                                data.main_split.jump_to_lsp_location(
+                                data.main_split.jump_to_location(
                                     ctx,
                                     None,
                                     location.clone(),
@@ -1309,7 +1333,7 @@ impl LapceTab {
                             if *offset == editor.cursor.offset() {
                                 let locations = locations
                                     .iter()
-                                    .map(|l| EditorLspLocation {
+                                    .map(|l| EditorLocation {
                                         path: path_from_url(&l.uri),
                                         position: Some(l.range.start),
                                         scroll_offset: None,

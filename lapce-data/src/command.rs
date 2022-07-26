@@ -25,7 +25,6 @@ use xi_rope::{spans::Spans, Rope};
 use crate::alert::AlertContentData;
 use crate::data::LapceWorkspace;
 use crate::document::BufferContent;
-use crate::editor::EditorLspLocation;
 use crate::menu::MenuKind;
 use crate::rich_text::RichText;
 use crate::{
@@ -421,6 +420,12 @@ pub enum LapceUICommand {
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation)>,
     },
+    /// Init buffer content but using lsp positions instead
+    InitBufferContentLsp {
+        path: PathBuf,
+        content: Rope,
+        locations: Vec<(WidgetId, EditorLocation<Position>)>,
+    },
     OpenFileChanged {
         path: PathBuf,
         content: Rope,
@@ -475,7 +480,7 @@ pub enum LapceUICommand {
     ShowKeybindings,
     FocusEditor,
     RunPalette(Option<PaletteType>),
-    RunPaletteReferences(Vec<EditorLspLocation>),
+    RunPaletteReferences(Vec<EditorLocation<Position>>),
     InitPaletteInput(String),
     UpdatePaletteInput(String),
     UpdatePaletteItems(String, Vec<PaletteItem>),
@@ -575,7 +580,7 @@ pub enum LapceUICommand {
     JumpToPosition(Option<WidgetId>, Position),
     JumpToLine(Option<WidgetId>, usize),
     JumpToLocation(Option<WidgetId>, EditorLocation),
-    JumpToLspLocation(Option<WidgetId>, EditorLspLocation),
+    JumpToLspLocation(Option<WidgetId>, EditorLocation<Position>),
     JumpToLineColumnPath {
         editor_view_id: Option<WidgetId>,
         path: PathBuf,
@@ -587,7 +592,7 @@ pub enum LapceUICommand {
     GotoDefinition {
         editor_view_id: WidgetId,
         offset: usize,
-        location: EditorLspLocation,
+        location: EditorLocation<Position>,
     },
     PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),

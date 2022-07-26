@@ -10,7 +10,7 @@ use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_core::language::LapceLanguage;
 use lapce_core::mode::Mode;
 use lapce_core::movement::Movement;
-use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
+use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::command::CommandKind;
 use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::document::BufferContent;
-use crate::editor::EditorLspLocation;
+use crate::editor::EditorLocation;
 use crate::panel::PanelKind;
 use crate::proxy::path_from_url;
 use crate::{
@@ -134,9 +134,9 @@ pub enum PaletteItemContent {
         kind: SymbolKind,
         name: String,
         container_name: Option<String>,
-        location: EditorLspLocation,
+        location: EditorLocation<Position>,
     },
-    ReferenceLocation(PathBuf, EditorLspLocation),
+    ReferenceLocation(PathBuf, EditorLocation<Position>),
     Workspace(LapceWorkspace),
     SshHost(String, String),
     Command(LapceCommand),
@@ -529,7 +529,7 @@ impl PaletteViewData {
     pub fn run_references(
         &mut self,
         ctx: &mut EventCtx,
-        locations: &[EditorLspLocation],
+        locations: &[EditorLocation<Position>],
     ) {
         self.run(ctx, Some(PaletteType::Reference), None);
         let items: Vec<PaletteItem> = locations
@@ -1104,7 +1104,7 @@ impl PaletteViewData {
                                             PaletteItemContent::WorkspaceSymbol {
                                                 kind: s.kind,
                                                 name: s.name.clone(),
-                                                location: EditorLspLocation {
+                                                location: EditorLocation {
                                                     path: path_from_url(
                                                         &s.location.uri,
                                                     ),
