@@ -436,37 +436,29 @@ impl LapceDb {
     pub fn get_unsaved_buffers(&self) -> Result<im::HashMap<String, String>> {
         let sled_db = self.get_db()?;
         let mut buffers = im::HashMap::new();
-        let mut unsaved_paths = Vec::new();
 
-        for val in sled_db.iter().keys() {
-            let val = val.unwrap();
-            let s = String::from_utf8((&val).to_vec())
-                .expect("invalid utf-8 sequence retrieving unsaved buffer");
-
-            if s.starts_with("unsaved_buffer:") {
-                unsaved_paths.push(s.clone())
-            }
-        }
-
-        for path in &unsaved_paths {
-            let res = sled_db.get(path)?;
-
-            let res = match res {
-                Some(val) => val,
+        let res = match sled_db.get("unsaved_buffers") {
+            Ok(val) => match val {
+                Some(buffers) => buffers,
                 None => return Ok(buffers),
-            };
+            },
+            Err(err) => return Err(anyhow!(err)),
+        };
 
-            let s1 = String::from_utf8(res.to_vec())?;
-            let path_stripped =
-                String::from(path.strip_prefix("unsaved_buffer:").unwrap());
+        let res = String::from_utf8((&res).to_vec())
+            .expect("invalid utf-8 sequence retrieving unsaved buffer");
 
-            buffers.insert(path_stripped, s1);
-            let res = sled_db.remove(path);
-            if res.is_err() {
-                log::warn!("Could not properly delete unsaved buffer of path {} from the database: {:?}", path, res);
-            }
+        let res: Vec<String> = serde_json::from_str(&res)?;
+        if res.len() % 2 != 0 {
+            return Err(anyhow!("Deserialized Unsaved buffer size is not even: this should never happen"));
         }
 
+        for i in (0..res.len()).step_by(2) {
+            let key = res.get(i).unwrap().clone();
+            let value = res.get(i + 1).unwrap().clone();
+            buffers.insert(key, value);
+        }
+        sled_db.remove("unsaved_buffers")?;
         Ok(buffers)
     }
 
@@ -571,18 +563,22 @@ impl LapceDb {
 
     fn insert_unsaved_buffer(&self, main_split: &LapceMainSplitData) -> Result<()> {
         let sled_db = self.get_db()?;
+        // Vec of all unsaved buffers of format path_buff, file_content
+        let mut unsaved_buffers = Vec::new();
 
         for (path, doc) in &main_split.open_docs {
             if !doc.buffer().is_pristine() && doc.content().is_file() {
                 let path_str = path.to_str().unwrap();
                 let buf_text = doc.buffer().text().to_string();
-                sled_db.insert(
-                    format!("unsaved_buffer:{}", path_str),
-                    buf_text.as_str(),
-                )?;
+                unsaved_buffers.push(path_str.to_string());
+                unsaved_buffers.push(buf_text);
             }
         }
-        sled_db.flush()?;
+        if !unsaved_buffers.is_empty() {
+            let tmp = serde_json::to_string(&unsaved_buffers).unwrap();
+            sled_db.insert("unsaved_buffers", tmp.as_str())?;
+            sled_db.flush()?;
+        }
 
         Ok(())
     }
