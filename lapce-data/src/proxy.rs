@@ -19,12 +19,13 @@ use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
 use lapce_rpc::core::{CoreNotification, CoreRequest, CoreResponse, CoreRpcMessage};
 use lapce_rpc::plugin::PluginDescription;
 use lapce_rpc::proxy::{
-    ProxyNotification, ProxyRequest, ProxyResponse, ProxyRpcMessage, ReadDirResponse,
+    NewHandler, ProxyNotification, ProxyRequest, ProxyResponse, ProxyRpcHandler,
+    ProxyRpcMessage, ReadDirResponse,
 };
 use lapce_rpc::source_control::FileDiff;
 use lapce_rpc::style::SemanticStyles;
 use lapce_rpc::terminal::TermId;
-use lapce_rpc::{stdio_transport, Callback, NewHandler, RpcError};
+use lapce_rpc::{stdio_transport, Callback, RpcError};
 use lapce_rpc::{ControlFlow, Handler};
 use lapce_rpc::{NewRpcHandler, RpcHandler};
 use lsp_types::request::GotoTypeDefinitionResponse;
@@ -105,8 +106,7 @@ enum HostArchitecture {
 pub struct LapceProxy {
     pub tab_id: WidgetId,
     rpc: RpcHandler,
-    new_rpc:
-        NewRpcHandler<ProxyRequest, ProxyNotification, ProxyResponse, CoreResponse>,
+    new_rpc: ProxyRpcHandler<CoreResponse>,
     proxy_receiver: Arc<Receiver<Value>>,
     new_proxy_sender: Arc<Sender<ProxyRpcMessage>>,
     new_proxy_receiver: Arc<Receiver<ProxyRpcMessage>>,
@@ -247,7 +247,7 @@ impl LapceProxy {
         let rpc = RpcHandler::new(proxy_sender);
 
         let (new_proxy_sender, new_proxy_receiver) = crossbeam_channel::unbounded();
-        let new_rpc = NewRpcHandler::new(new_proxy_sender.clone());
+        let new_rpc = ProxyRpcHandler::new(new_proxy_sender.clone());
 
         let proxy = Self {
             tab_id,
@@ -488,7 +488,7 @@ impl LapceProxy {
 
     pub fn initialize(&self, workspace: PathBuf) {
         self.new_rpc
-            .send_rpc_notification(ProxyNotification::Initialize { workspace });
+            .send_core_notification(ProxyNotification::Initialize { workspace });
     }
 
     pub fn terminal_close(&self, term_id: TermId) {
@@ -611,7 +611,7 @@ impl LapceProxy {
         path: PathBuf,
         f: impl FnOnce(Result<CoreResponse, RpcError>) + Send + 'static,
     ) {
-        self.new_rpc.send_rpc_request_async(
+        self.new_rpc.send_core_request_async(
             ProxyRequest::BufferHead { buffer_id, path },
             Box::new(f),
         );
@@ -642,7 +642,7 @@ impl LapceProxy {
         path: PathBuf,
         f: impl FnOnce(Result<CoreResponse, RpcError>) + Send + 'static,
     ) {
-        self.new_rpc.send_rpc_request_async(
+        self.new_rpc.send_core_request_async(
             ProxyRequest::NewBuffer { buffer_id, path },
             Box::new(f),
         );
@@ -821,7 +821,7 @@ impl LapceProxy {
         &self,
         f: impl FnOnce(Result<CoreResponse, RpcError>) + Send + 'static,
     ) {
-        self.new_rpc.send_rpc_request_async(
+        self.new_rpc.send_core_request_async(
             ProxyRequest::GetFiles {
                 path: "path".into(),
             },
@@ -834,7 +834,7 @@ impl LapceProxy {
         path: &Path,
         f: impl FnOnce(Result<CoreResponse, RpcError>) + Send + 'static,
     ) {
-        self.new_rpc.send_rpc_request_async(
+        self.new_rpc.send_core_request_async(
             ProxyRequest::ReadDir { path: path.into() },
             Box::new(f),
         );

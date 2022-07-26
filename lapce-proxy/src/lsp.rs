@@ -57,17 +57,6 @@ impl NewHandler<LspRequest, LspNotification, LspResponse> for NewLspCatalog {
     }
 }
 
-impl NewLspCatalog {
-    pub fn mainloop(
-        proxy_sender: Sender<ProxyRpcMessage>,
-        lsp_receiver: Receiver<LspRpcMessage>,
-    ) {
-        let mut lsp = Self {};
-        let mut handler = NewRpcHandler::new(proxy_sender);
-        handler.mainloop(lsp_receiver, &mut lsp);
-    }
-}
-
 pub struct LspCatalog {
     pub dispatcher: Option<Dispatcher>,
     clients: HashMap<String, Arc<LspClient>>,

@@ -1,21 +1,27 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
 
+use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{CompletionItem, Position};
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use xi_rope::RopeDelta;
 
 use crate::{
-    buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
-    source_control::FileDiff, terminal::TermId, RequestId, RpcMessage,
+    buffer::BufferId, core::CoreRequest, file::FileNodeItem,
+    plugin::PluginDescription, source_control::FileDiff, terminal::TermId,
+    RequestId, RpcError, RpcMessage,
 };
 
-pub type ProxyRpcMessage =
-    RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse>;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ProxyRpc {
-    Request(RequestId, ProxyRequest),
-    Notification(ProxyNotification),
+pub enum ProxyRpcMessage {
+    Core(RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse>),
+    Plugin(RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -185,4 +191,118 @@ pub enum ProxyResponse {}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadDirResponse {
     pub items: HashMap<PathBuf, FileNodeItem>,
+}
+
+pub trait NewCallback<Resp>: Send {
+    fn call(self: Box<Self>, result: Result<Resp, RpcError>);
+}
+
+impl<Resp, F: Send + FnOnce(Result<Resp, RpcError>)> NewCallback<Resp> for F {
+    fn call(self: Box<F>, result: Result<Resp, RpcError>) {
+        (*self)(result)
+    }
+}
+
+pub trait NewHandler<Req, Notif, Resp> {
+    fn handle_notification(&mut self, rpc: Notif);
+    fn handle_request(&mut self, rpc: Req);
+}
+
+enum NewResponseHandler<Resp> {
+    Callback(Box<dyn NewCallback<Resp>>),
+}
+
+impl<Resp> NewResponseHandler<Resp> {
+    fn invoke(self, result: Result<Resp, RpcError>) {
+        match self {
+            NewResponseHandler::Callback(f) => f.call(result),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct ProxyRpcHandler<Resp> {
+    sender: Sender<ProxyRpcMessage>,
+    id: Arc<AtomicU64>,
+    pending: Arc<Mutex<HashMap<u64, NewResponseHandler<Resp>>>>,
+}
+
+impl<Resp> ProxyRpcHandler<Resp> {
+    pub fn new(sender: Sender<ProxyRpcMessage>) -> Self {
+        Self {
+            sender,
+            id: Arc::new(AtomicU64::new(0)),
+            pending: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    pub fn mainloop<H, Req, Notif>(
+        &mut self,
+        receiver: Receiver<RpcMessage<Req, Notif, Resp>>,
+        handler: &mut H,
+    ) where
+        H: NewHandler<Req, Notif, Resp>,
+    {
+        for msg in receiver {
+            match msg {
+                RpcMessage::Request(id, request) => {
+                    handler.handle_request(request);
+                }
+                RpcMessage::Notification(notification) => {
+                    handler.handle_notification(notification);
+                }
+                RpcMessage::Response(id, resp) => {
+                    self.handle_response(id, Ok(resp));
+                }
+                RpcMessage::Error(id, err) => {
+                    self.handle_response(id, Err(err));
+                }
+            }
+        }
+    }
+
+    fn handle_response(&self, id: u64, resp: Result<Resp, RpcError>) {
+        let handler = {
+            let mut pending = self.pending.lock();
+            pending.remove(&id)
+        };
+        if let Some(responsehandler) = handler {
+            responsehandler.invoke(resp)
+        }
+    }
+
+    pub fn send_core_request_async(
+        &self,
+        req: ProxyRequest,
+        f: Box<dyn NewCallback<Resp>>,
+    ) {
+        self.send_core_request_common(req, NewResponseHandler::Callback(f));
+    }
+
+    fn send_core_request_common(
+        &self,
+        req: ProxyRequest,
+        rh: NewResponseHandler<Resp>,
+    ) {
+        let id = self.id.fetch_add(1, Ordering::Relaxed);
+        {
+            let mut pending = self.pending.lock();
+            pending.insert(id, rh);
+        }
+        let msg = ProxyRpcMessage::Core(RpcMessage::Request(id, req));
+        if let Err(_e) = self.sender.send(msg) {
+            let mut pending = self.pending.lock();
+            if let Some(rh) = pending.remove(&id) {
+                rh.invoke(Err(RpcError {
+                    code: 0,
+                    message: "io error".to_string(),
+                }));
+            }
+        }
+    }
+
+    pub fn send_core_notification(&self, notification: ProxyNotification) {
+        let msg = ProxyRpcMessage::Core(RpcMessage::Notification(notification));
+        if let Err(_e) = self.sender.send(msg) {}
+    }
 }

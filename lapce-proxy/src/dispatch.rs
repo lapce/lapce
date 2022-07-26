@@ -25,13 +25,13 @@ use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::lsp::LspRpcMessage;
 use lapce_rpc::plugin::PluginRpcMessage;
 use lapce_rpc::proxy::{
-    ProxyNotification, ProxyRequest, ProxyResponse, ProxyRpc, ProxyRpcMessage,
-    ReadDirResponse,
+    ProxyNotification, ProxyRequest, ProxyResponse, ProxyRpcMessage, ReadDirResponse,
 };
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::{
-    self, Call, NewHandler, NewRpcHandler, RequestId, RpcError, RpcObject,
+    self, Call, NewHandler, NewRpcHandler, RequestId, RpcError, RpcMessage,
+    RpcObject,
 };
 use parking_lot::Mutex;
 use serde_json::json;
@@ -78,17 +78,17 @@ impl NewDispatcher {
     pub fn mainloop(&mut self, proxy_receiver: Receiver<ProxyRpcMessage>) {
         for msg in proxy_receiver {
             match msg {
-                ProxyRpcMessage::Request(id, request) => {
-                    self.handle_request(id, request);
-                }
-                ProxyRpcMessage::Notification(notification) => {
-                    if let ProxyNotification::Shutdown {} = &notification {
-                        return;
+                ProxyRpcMessage::Core(msg) => match msg {
+                    RpcMessage::Request(id, request) => {
+                        self.handle_request(id, request);
                     }
-                    self.handle_notification(notification);
-                }
-                ProxyRpcMessage::Response(id, resp) => {}
-                ProxyRpcMessage::Error(id, err) => {}
+                    RpcMessage::Notification(notification) => {
+                        self.handle_notification(notification);
+                    }
+                    RpcMessage::Response(_, _) => todo!(),
+                    RpcMessage::Error(_, _) => todo!(),
+                },
+                ProxyRpcMessage::Plugin(_) => todo!(),
             }
         }
     }
