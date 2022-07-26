@@ -1,6 +1,6 @@
 use crate::buffer::{get_mod_time, load_file, Buffer};
 use crate::lsp::{LspCatalog, NewLspCatalog};
-use crate::plugin::{NewPluginCatalog, PluginCatalog};
+use crate::plugin::{NewPluginCatalog, PluginCatalog, PluginRpcMessage};
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
 use crate::{
@@ -23,7 +23,6 @@ use lapce_rpc::core::{
 };
 use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::lsp::LspRpcMessage;
-use lapce_rpc::plugin::PluginRpcMessage;
 use lapce_rpc::proxy::{
     CoreProxyNotification, CoreProxyRequest, CoreProxyResponse, ProxyRpcMessage,
     ReadDirResponse,
@@ -64,8 +63,13 @@ impl NewDispatcher {
         proxy_sender: Sender<ProxyRpcMessage>,
     ) -> Self {
         let (plugin_sender, plugin_receiver) = crossbeam_channel::unbounded();
+        let local_plugin_sender = plugin_sender.clone();
         thread::spawn(move || {
-            NewPluginCatalog::mainloop(proxy_sender, plugin_receiver);
+            NewPluginCatalog::mainloop(
+                proxy_sender,
+                local_plugin_sender,
+                plugin_receiver,
+            );
         });
         Self {
             workspace: None,

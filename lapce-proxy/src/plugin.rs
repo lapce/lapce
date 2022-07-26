@@ -2,11 +2,13 @@ use anyhow::{anyhow, Result};
 use directories::ProjectDirs;
 use hotwatch::Hotwatch;
 use lapce_rpc::counter::Counter;
-use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo, PluginRpcMessage};
+use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo, PluginResponse};
 use lapce_rpc::proxy::{
-    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse, ProxyRpcMessage,
+    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse, NewHandler,
+    PluginProxyNotification, PluginProxyRequest, PluginProxyResponse,
+    ProxyRpcHandler, ProxyRpcMessage,
 };
-use lapce_rpc::{NewHandler, NewRpcHandler, RequestId, RpcMessage};
+use lapce_rpc::{NewRpcHandler, RequestId, RpcMessage};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -35,26 +37,36 @@ use crate::{dispatch::Dispatcher, APPLICATION_NAME};
 
 pub type PluginName = String;
 
+pub type PluginRpcMessage =
+    RpcMessage<PluginRequest, NewPluginNotification, PluginProxyResponse>;
+
+pub enum PluginRequest {}
+
+pub enum NewPluginNotification {
+    PluginLoaded(NewPlugin),
+}
+
 #[derive(WasmerEnv, Clone)]
-pub(crate) struct NewPluginEnv {
+pub struct NewPluginEnv {
+    proxy_sender: Sender<ProxyRpcMessage>,
     wasi_env: WasiEnv,
     desc: PluginDescription,
 }
 
 #[derive(Clone)]
-pub(crate) struct NewPlugin {
+pub struct NewPlugin {
     instance: wasmer::Instance,
     env: NewPluginEnv,
 }
 
-impl NewHandler<CoreProxyRequest, CoreProxyNotification, CoreProxyResponse>
+impl NewHandler<PluginProxyRequest, PluginProxyNotification, PluginResponse>
     for NewPlugin
 {
-    fn handle_notification(&mut self, rpc: CoreProxyNotification) {
+    fn handle_notification(&mut self, rpc: PluginProxyNotification) {
         todo!()
     }
 
-    fn handle_request(&mut self, rpc: CoreProxyRequest) {
+    fn handle_request(&mut self, rpc: PluginProxyRequest) {
         todo!()
     }
 }
@@ -79,43 +91,69 @@ struct PluginConfig {
 }
 
 pub struct NewPluginCatalog {
+    plugin_sender: Sender<PluginRpcMessage>,
     proxy_sender: Sender<ProxyRpcMessage>,
+    rpc: ProxyRpcHandler<PluginProxyResponse>,
+    plugins: Vec<NewPlugin>,
+}
+
+impl NewHandler<PluginRequest, NewPluginNotification, PluginProxyResponse>
+    for NewPluginCatalog
+{
+    fn handle_notification(&mut self, rpc: NewPluginNotification) {
+        match rpc {
+            NewPluginNotification::PluginLoaded(plugin) => {
+                self.plugins.push(plugin);
+            }
+        }
+    }
+
+    fn handle_request(&mut self, rpc: PluginRequest) {
+        todo!()
+    }
 }
 
 impl NewPluginCatalog {
     pub fn mainloop(
         proxy_sender: Sender<ProxyRpcMessage>,
+        plugin_sender: Sender<PluginRpcMessage>,
         plugin_receiver: Receiver<PluginRpcMessage>,
     ) {
-        let mut plugin = Self { proxy_sender };
-        for msg in plugin_receiver {
-            match msg {
-                RpcMessage::Request(_, _) => todo!(),
-                RpcMessage::Response(_, _) => todo!(),
-                RpcMessage::Notification(_) => todo!(),
-                RpcMessage::Error(_, _) => todo!(),
-            }
-        }
+        let mut rpc = ProxyRpcHandler::new(proxy_sender.clone());
+        let mut plugin = Self {
+            proxy_sender,
+            plugin_sender,
+            rpc: rpc.clone(),
+            plugins: Vec::new(),
+        };
+
+        rpc.mainloop(plugin_receiver, &mut plugin);
     }
 
-    fn handle_request(&mut self, id: RequestId, rpc: PluginRequest) {
-        use PluginRequest::*;
-        match rpc {}
-    }
-
-    pub fn load(&mut self) {
+    pub fn load(
+        plugin_sender: Sender<PluginRpcMessage>,
+        proxy_sender: Sender<ProxyRpcMessage>,
+    ) {
         let all_plugins = find_all_plugins();
         for plugin_path in &all_plugins {
             match load_plugin(plugin_path) {
                 Err(_e) => (),
                 Ok(plugin_desc) => {
-                    self.start_plugin(plugin_desc);
+                    Self::start_plugin(
+                        plugin_sender.clone(),
+                        proxy_sender.clone(),
+                        plugin_desc,
+                    );
                 }
             }
         }
     }
 
-    fn start_plugin(&mut self, plugin_desc: PluginDescription) -> Result<()> {
+    fn start_plugin(
+        plugin_sender: Sender<PluginRpcMessage>,
+        proxy_sender: Sender<ProxyRpcMessage>,
+        plugin_desc: PluginDescription,
+    ) -> Result<()> {
         let store = Store::default();
         let module = wasmer::Module::from_file(
             &store,
@@ -138,24 +176,29 @@ impl NewPluginCatalog {
 
         let plugin_env = NewPluginEnv {
             wasi_env,
+            proxy_sender,
             desc: plugin_desc.clone(),
         };
         let lapce = new_lapce_exports(&store, &plugin_env);
         let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
-        let mut plugin = NewPlugin {
+        let plugin = NewPlugin {
             instance,
             env: plugin_env.clone(),
         };
 
-        let (plugin_sender, plugin_receiver) =
-            crossbeam_channel::unbounded::<PluginRpcMessage>();
-        let (proxy_sender, proxy_receiver) = crossbeam_channel::unbounded();
-        let mut rpc_handler = NewRpcHandler::new(plugin_sender);
-        rpc_handler.mainloop(proxy_receiver, &mut plugin);
+        plugin_sender.send(PluginRpcMessage::Notification(
+            NewPluginNotification::PluginLoaded(plugin),
+        ));
 
-        for msg in plugin_receiver {
-            wasi_write_object(&plugin_env.wasi_env, &msg.to_value().unwrap());
-        }
+        // let (plugin_sender, plugin_receiver) =
+        //     crossbeam_channel::unbounded::<PluginRpcMessage>();
+        // let (proxy_sender, proxy_receiver) = crossbeam_channel::unbounded();
+        // let mut rpc_handler = ProxyRpcHandler::new(plugin_sender);
+        // rpc_handler.mainloop(proxy_receiver, &mut plugin);
+
+        // for msg in plugin_receiver {
+        //     wasi_write_object(&plugin_env.wasi_env, &msg.to_value().unwrap());
+        // }
 
         Ok(())
     }
@@ -553,7 +596,15 @@ pub enum PluginNotification {
     },
 }
 
-fn new_host_handle_notification(plugin_env: &NewPluginEnv) {}
+fn new_host_handle_notification(plugin_env: &NewPluginEnv) {
+    let notification: Result<PluginProxyNotification> =
+        wasi_read_object(&plugin_env.wasi_env);
+    if let Ok(notification) = notification {
+        let _ = plugin_env.proxy_sender.send(ProxyRpcMessage::Plugin(
+            RpcMessage::Notification(notification),
+        ));
+    }
+}
 
 fn host_handle_notification(plugin_env: &PluginEnv) {
     let notification: Result<PluginNotification> =
@@ -660,9 +711,6 @@ pub fn wasi_write_string(wasi_env: &WasiEnv, buf: &str) {
 pub fn wasi_write_object(wasi_env: &WasiEnv, object: &(impl Serialize + ?Sized)) {
     wasi_write_string(wasi_env, &serde_json::to_string(&object).unwrap());
 }
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum PluginRequest {}
 
 pub struct PluginHandler {}
 

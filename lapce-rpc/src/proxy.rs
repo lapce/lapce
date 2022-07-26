@@ -11,13 +11,14 @@ use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{CompletionItem, Position};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use xi_rope::RopeDelta;
 
 use crate::{
     buffer::BufferId,
     core::{CoreRequest, CoreResponse},
     file::FileNodeItem,
-    plugin::PluginDescription,
+    plugin::{PluginDescription, PluginResponse},
     source_control::FileDiff,
     terminal::TermId,
     RequestId, RpcError, RpcMessage,
@@ -263,7 +264,24 @@ pub enum PluginProxyRequest {}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
-pub enum PluginProxyNotification {}
+pub enum PluginProxyNotification {
+    StartLspServer {
+        exec_path: String,
+        language_id: String,
+        options: Option<Value>,
+        system_lsp: Option<bool>,
+    },
+    DownloadFile {
+        url: String,
+        path: PathBuf,
+    },
+    LockFile {
+        path: PathBuf,
+    },
+    MakeFileExecutable {
+        path: PathBuf,
+    },
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
