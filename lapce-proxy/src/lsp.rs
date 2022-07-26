@@ -28,8 +28,14 @@ use lapce_rpc::{
     style::{LineStyle, SemanticStyles, Style},
     NewHandler, NewRpcHandler, RequestId,
 };
-use lsp_types::{request::GotoTypeDefinitionParams, *};
+use log::error;
+use lsp_types::{
+    notification::{Initialized, Notification},
+    request::{GotoTypeDefinitionParams, Initialize, Request},
+    *,
+};
 use parking_lot::Mutex;
+use serde::Serialize;
 use serde_json::{json, to_value, Value};
 
 use crate::{
@@ -68,21 +74,31 @@ impl LspRpcHandler {
         }
     }
 
-    fn send_request(&self, method: &str, params: Params) -> Result<Value, Value> {
+    fn send_request<P: Serialize>(
+        &self,
+        method: &str,
+        params: P,
+    ) -> Result<Value, Value> {
+        let value = serde_json::to_value(params).unwrap();
         let id = self.id.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = crossbeam_channel::bounded(1);
         {
             let mut pending = self.pending.lock();
             pending.insert(id, tx);
         }
-        let request =
-            JsonRpc::request_with_params(Id::Num(id as i64), method, params);
+        let request = JsonRpc::request_with_params(
+            Id::Num(id as i64),
+            method,
+            Params::from(value),
+        );
         self.send_rpc(&serde_json::to_value(request).unwrap());
         rx.recv().unwrap_or_else(|_| Err(json!("io error")))
     }
 
-    fn send_notification(&self, method: &str, params: Params) {
-        let notification = JsonRpc::notification_with_params(method, params);
+    pub fn send_notification<N: Serialize>(&self, method: &str, params: N) {
+        let value = serde_json::to_value(params).unwrap();
+        let notification =
+            JsonRpc::notification_with_params(method, Params::from(value));
         self.send_rpc(&serde_json::to_value(notification).unwrap());
     }
 
@@ -291,13 +307,12 @@ impl NewLspClient {
             locale: None,
             root_path: None,
         };
-        let params = Params::from(serde_json::to_value(params).unwrap());
-        if let Ok(value) = self.rpc.send_request("initialize", params) {
+        if let Ok(value) = self.rpc.send_request(Initialize::METHOD, params) {
             let init_result: InitializeResult =
                 serde_json::from_value(value).unwrap();
             self.server_capabilities = init_result.capabilities;
             self.rpc
-                .send_notification("initialized", Params::from(json!({})));
+                .send_notification(Initialized::METHOD, InitializedParams {});
 
             send_plugin_notification(
                 &self.plugin_sender,

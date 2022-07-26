@@ -9,6 +9,8 @@ use lapce_rpc::proxy::{
     ProxyRpcHandler, ProxyRpcMessage,
 };
 use lapce_rpc::{NewRpcHandler, RequestId, RpcMessage};
+use lsp_types::notification::{DidOpenTextDocument, Notification};
+use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -47,6 +49,7 @@ pub enum PluginRequest {}
 pub enum NewPluginNotification {
     PluginLoaded(NewPlugin),
     LspLoaded(LspRpcHandler),
+    DocumentDidOpen(TextDocumentItem),
     StartLspServer {
         workspace: Option<PathBuf>,
         plugin_id: PluginId,
@@ -149,6 +152,16 @@ impl NewHandler<PluginRequest, NewPluginNotification, PluginProxyResponse>
                         Vec::new(),
                     );
                 });
+            }
+            NewPluginNotification::DocumentDidOpen(document) => {
+                for lsp in self.lsps.iter() {
+                    lsp.send_notification(
+                        DidOpenTextDocument::METHOD,
+                        DidOpenTextDocumentParams {
+                            text_document: document.clone(),
+                        },
+                    );
+                }
             }
         }
     }
