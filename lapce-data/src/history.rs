@@ -16,6 +16,7 @@ use lapce_core::{
 };
 use lapce_rpc::{
     core::CoreResponse,
+    proxy::CoreProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
 use xi_rope::{spans::Spans, Rope};
@@ -177,7 +178,7 @@ impl DocumentHistory {
             std::thread::spawn(move || {
                 proxy.get_buffer_head(id, path.clone(), move |result| {
                     if let Ok(resp) = result {
-                        if let CoreResponse::BufferHeadResponse {
+                        if let CoreProxyResponse::BufferHeadResponse {
                             version,
                             content,
                         } = resp

@@ -33,6 +33,7 @@ use lapce_core::{
 use lapce_rpc::{
     buffer::BufferId,
     core::CoreResponse,
+    proxy::CoreProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
 use lsp_types::{
@@ -579,7 +580,9 @@ impl Document {
             let proxy = self.proxy.clone();
             std::thread::spawn(move || {
                 proxy.new_buffer(id, path.clone(), move |result| {
-                    if let Ok(CoreResponse::NewBufferResponse { content }) = result {
+                    if let Ok(CoreProxyResponse::NewBufferResponse { content }) =
+                        result
+                    {
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
                             P::init_buffer_content_cmd(

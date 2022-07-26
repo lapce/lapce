@@ -11,6 +11,7 @@ use lapce_core::language::LapceLanguage;
 use lapce_core::mode::Mode;
 use lapce_core::movement::Movement;
 use lapce_rpc::core::CoreResponse;
+use lapce_rpc::proxy::CoreProxyResponse;
 use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -804,7 +805,7 @@ impl PaletteViewData {
         let workspace = self.workspace.clone();
         let event_sink = ctx.get_external_handle();
         self.palette.proxy.get_files(move |result| {
-            if let Ok(CoreResponse::GetFilesResponse { items }) = result {
+            if let Ok(CoreProxyResponse::GetFilesResponse { items }) = result {
                 let items: Vec<PaletteItem> = items
                     .iter()
                     .enumerate()

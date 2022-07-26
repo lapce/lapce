@@ -14,8 +14,12 @@ use serde::{Deserialize, Serialize};
 use xi_rope::RopeDelta;
 
 use crate::{
-    buffer::BufferId, core::CoreRequest, file::FileNodeItem,
-    plugin::PluginDescription, source_control::FileDiff, terminal::TermId,
+    buffer::BufferId,
+    core::{CoreRequest, CoreResponse},
+    file::FileNodeItem,
+    plugin::PluginDescription,
+    source_control::FileDiff,
+    terminal::TermId,
     RequestId, RpcError, RpcMessage,
 };
 
@@ -182,11 +186,89 @@ pub enum CoreProxyRequest {
         to: PathBuf,
     },
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum CoreProxyNotification {
+    Initialize {
+        workspace: PathBuf,
+    },
+    Shutdown {},
+    Update {
+        buffer_id: BufferId,
+        delta: RopeDelta,
+        rev: u64,
+    },
+    NewTerminal {
+        term_id: TermId,
+        cwd: Option<PathBuf>,
+        shell: String,
+    },
+    InstallPlugin {
+        plugin: PluginDescription,
+    },
+    GitCommit {
+        message: String,
+        diffs: Vec<FileDiff>,
+    },
+    GitCheckout {
+        branch: String,
+    },
+    GitDiscardFileChanges {
+        file: PathBuf,
+    },
+    GitDiscardFilesChanges {
+        files: Vec<PathBuf>,
+    },
+    GitDiscardWorkspaceChanges {},
+    GitInit {},
+    TerminalWrite {
+        term_id: TermId,
+        content: String,
+    },
+    TerminalResize {
+        term_id: TermId,
+        width: usize,
+        height: usize,
+    },
+    TerminalClose {
+        term_id: TermId,
+    },
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
-pub enum ProxyResponse {}
+pub enum CoreProxyResponse {
+    NewBufferResponse {
+        content: String,
+    },
+    BufferHeadResponse {
+        version: String,
+        content: String,
+    },
+    ReadDirResponse {
+        items: HashMap<PathBuf, FileNodeItem>,
+    },
+    GetFilesResponse {
+        items: Vec<PathBuf>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum PluginProxyRequest {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum PluginProxyNotification {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum PluginProxyResponse {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadDirResponse {
