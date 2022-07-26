@@ -20,14 +20,14 @@ use crate::{
 };
 
 pub enum ProxyRpcMessage {
-    Core(RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse>),
-    Plugin(RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse>),
+    Core(RpcMessage<CoreProxyRequest, CoreProxyNotification, ProxyResponse>),
+    Plugin(RpcMessage<CoreProxyRequest, CoreProxyNotification, ProxyResponse>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
-pub enum ProxyNotification {
+pub enum CoreProxyNotification {
     Initialize {
         workspace: PathBuf,
     },
@@ -86,7 +86,7 @@ pub enum ProxyNotification {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
-pub enum ProxyRequest {
+pub enum CoreProxyRequest {
     NewBuffer {
         buffer_id: BufferId,
         path: PathBuf,
@@ -273,7 +273,7 @@ impl<Resp> ProxyRpcHandler<Resp> {
 
     pub fn send_core_request_async(
         &self,
-        req: ProxyRequest,
+        req: CoreProxyRequest,
         f: Box<dyn NewCallback<Resp>>,
     ) {
         self.send_core_request_common(req, NewResponseHandler::Callback(f));
@@ -281,7 +281,7 @@ impl<Resp> ProxyRpcHandler<Resp> {
 
     fn send_core_request_common(
         &self,
-        req: ProxyRequest,
+        req: CoreProxyRequest,
         rh: NewResponseHandler<Resp>,
     ) {
         let id = self.id.fetch_add(1, Ordering::Relaxed);
@@ -301,7 +301,7 @@ impl<Resp> ProxyRpcHandler<Resp> {
         }
     }
 
-    pub fn send_core_notification(&self, notification: ProxyNotification) {
+    pub fn send_core_notification(&self, notification: CoreProxyNotification) {
         let msg = ProxyRpcMessage::Core(RpcMessage::Notification(notification));
         if let Err(_e) = self.sender.send(msg) {}
     }

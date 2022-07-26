@@ -15,7 +15,7 @@ use crossbeam_channel::{Receiver, Sender};
 use dispatch::{Dispatcher, NewDispatcher};
 use lapce_rpc::{
     core::CoreRpcMessage,
-    proxy::{ProxyNotification, ProxyRequest, ProxyRpcMessage},
+    proxy::{CoreProxyNotification, CoreProxyRequest, ProxyRpcMessage},
     RpcMessage, RpcObject,
 };
 use serde_json::Value;
@@ -111,11 +111,11 @@ fn read_msg(reader: &mut BufReader<Stdin>) -> Result<ProxyRpcMessage> {
     } else {
         match object.get_id() {
             Some(id) => {
-                let req: ProxyRequest = serde_json::from_value(object.0)?;
+                let req: CoreProxyRequest = serde_json::from_value(object.0)?;
                 ProxyRpcMessage::Core(RpcMessage::Request(id, req))
             }
             None => {
-                let notif: ProxyNotification = serde_json::from_value(object.0)?;
+                let notif: CoreProxyNotification = serde_json::from_value(object.0)?;
                 ProxyRpcMessage::Core(RpcMessage::Notification(notif))
             }
         }

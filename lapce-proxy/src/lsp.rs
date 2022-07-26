@@ -21,7 +21,7 @@ use lapce_core::encoding::offset_utf16_to_utf8;
 use lapce_rpc::{
     buffer::BufferId,
     lsp::{LspNotification, LspRequest, LspResponse, LspRpcMessage},
-    proxy::{ProxyNotification, ProxyRequest, ProxyRpcMessage},
+    proxy::{CoreProxyNotification, CoreProxyRequest, ProxyRpcMessage},
     style::{LineStyle, SemanticStyles, Style},
     NewHandler, NewRpcHandler, RequestId,
 };

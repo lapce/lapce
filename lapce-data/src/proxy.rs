@@ -19,8 +19,8 @@ use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
 use lapce_rpc::core::{CoreNotification, CoreRequest, CoreResponse, CoreRpcMessage};
 use lapce_rpc::plugin::PluginDescription;
 use lapce_rpc::proxy::{
-    NewHandler, ProxyNotification, ProxyRequest, ProxyResponse, ProxyRpcHandler,
-    ProxyRpcMessage, ReadDirResponse,
+    CoreProxyNotification, CoreProxyRequest, NewHandler, ProxyResponse,
+    ProxyRpcHandler, ProxyRpcMessage, ReadDirResponse,
 };
 use lapce_rpc::source_control::FileDiff;
 use lapce_rpc::style::SemanticStyles;
@@ -488,7 +488,7 @@ impl LapceProxy {
 
     pub fn initialize(&self, workspace: PathBuf) {
         self.new_rpc
-            .send_core_notification(ProxyNotification::Initialize { workspace });
+            .send_core_notification(CoreProxyNotification::Initialize { workspace });
     }
 
     pub fn terminal_close(&self, term_id: TermId) {
@@ -612,7 +612,7 @@ impl LapceProxy {
         f: impl FnOnce(Result<CoreResponse, RpcError>) + Send + 'static,
     ) {
         self.new_rpc.send_core_request_async(
-            ProxyRequest::BufferHead { buffer_id, path },
+            CoreProxyRequest::BufferHead { buffer_id, path },
             Box::new(f),
         );
     }
@@ -643,7 +643,7 @@ impl LapceProxy {
         f: impl FnOnce(Result<CoreResponse, RpcError>) + Send + 'static,
     ) {
         self.new_rpc.send_core_request_async(
-            ProxyRequest::NewBuffer { buffer_id, path },
+            CoreProxyRequest::NewBuffer { buffer_id, path },
             Box::new(f),
         );
     }
@@ -656,7 +656,7 @@ impl LapceProxy {
         content: String,
         f: Box<dyn Callback>,
     ) {
-        let request = ProxyRequest::SaveBufferAs {
+        let request = CoreProxyRequest::SaveBufferAs {
             buffer_id,
             path,
             rev,
@@ -822,7 +822,7 @@ impl LapceProxy {
         f: impl FnOnce(Result<CoreResponse, RpcError>) + Send + 'static,
     ) {
         self.new_rpc.send_core_request_async(
-            ProxyRequest::GetFiles {
+            CoreProxyRequest::GetFiles {
                 path: "path".into(),
             },
             Box::new(f),
@@ -835,7 +835,7 @@ impl LapceProxy {
         f: impl FnOnce(Result<CoreResponse, RpcError>) + Send + 'static,
     ) {
         self.new_rpc.send_core_request_async(
-            ProxyRequest::ReadDir { path: path.into() },
+            CoreProxyRequest::ReadDir { path: path.into() },
             Box::new(f),
         );
     }
