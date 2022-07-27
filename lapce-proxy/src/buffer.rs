@@ -4,7 +4,7 @@ use lsp_types::*;
 use std::ffi::OsString;
 use std::fs;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::{borrow::Cow, path::Path, time::SystemTime};
 use xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
@@ -127,11 +127,28 @@ impl Buffer {
 }
 
 pub fn load_file(path: &Path) -> Result<String> {
-    Ok(fs::read_to_string(path)?)
+    Ok(read_path_to_string_lossy(path)?)
 }
 
 fn load_rope(path: &Path) -> Result<Rope> {
-    Ok(Rope::from(fs::read_to_string(path)?))
+    Ok(Rope::from(read_path_to_string_lossy(path)?))
+}
+
+pub fn read_path_to_string_lossy<P: AsRef<Path>>(
+    path: P,
+) -> Result<String, std::io::Error> {
+    let path = path.as_ref();
+
+    let mut file = File::open(path)?;
+    // Read the file in as bytes
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+
+    // Parse the file contents as utf8, replacing non-utf8 data with the
+    // replacement character
+    let contents = String::from_utf8_lossy(&buffer);
+
+    Ok(contents.to_string())
 }
 
 fn language_id_from_path(path: &Path) -> Option<&str> {
