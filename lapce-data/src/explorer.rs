@@ -253,7 +253,7 @@ impl FileExplorerData {
     ) {
         let path = PathBuf::from(path);
         let local_path = path.clone();
-        proxy.read_dir(&local_path, move |result| {
+        proxy.proxy_rpc.read_dir(local_path, move |result| {
             if let Ok(CoreProxyResponse::ReadDirResponse { items }) = result {
                 let path = path.clone();
                 let _ = event_sink.submit_command(

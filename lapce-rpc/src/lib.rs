@@ -62,7 +62,7 @@ impl<Req: Serialize, Notif: Serialize, Resp: Serialize>
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RpcError {
-    pub code: usize,
+    pub code: i64,
     pub message: String,
 }
 

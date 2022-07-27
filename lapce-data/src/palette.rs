@@ -804,7 +804,7 @@ impl PaletteViewData {
         let widget_id = self.palette.widget_id;
         let workspace = self.workspace.clone();
         let event_sink = ctx.get_external_handle();
-        self.palette.proxy.get_files(move |result| {
+        self.palette.proxy.proxy_rpc.get_files(move |result| {
             if let Ok(CoreProxyResponse::GetFilesResponse { items }) = result {
                 let items: Vec<PaletteItem> = items
                     .iter()

@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -23,6 +23,9 @@ use crate::{
     terminal::TermId,
     RequestId, RpcError, RpcMessage,
 };
+
+pub type CoreProxyRpcMessage =
+    RpcMessage<CoreProxyRequest, CoreProxyNotification, CoreProxyResponse>;
 
 pub enum ProxyRpcMessage {
     Core(RpcMessage<CoreProxyRequest, CoreProxyNotification, ProxyResponse>),
@@ -303,9 +306,14 @@ impl<Resp, F: Send + FnOnce(Result<Resp, RpcError>)> NewCallback<Resp> for F {
     }
 }
 
-pub trait NewHandler<Req, Notif, Resp> {
-    fn handle_notification(&mut self, rpc: Notif);
-    fn handle_request(&mut self, rpc: Req);
+pub trait ProxyCallback: Send {
+    fn call(self: Box<Self>, result: Result<CoreProxyResponse, RpcError>);
+}
+
+impl<F: Send + FnOnce(Result<CoreProxyResponse, RpcError>)> ProxyCallback for F {
+    fn call(self: Box<F>, result: Result<CoreProxyResponse, RpcError>) {
+        (*self)(result)
+    }
 }
 
 enum NewResponseHandler<Resp> {
@@ -320,89 +328,88 @@ impl<Resp> NewResponseHandler<Resp> {
     }
 }
 
-#[derive(Clone)]
-pub struct ProxyRpcHandler<Resp> {
-    sender: Sender<ProxyRpcMessage>,
-    id: Arc<AtomicU64>,
-    pending: Arc<Mutex<HashMap<u64, NewResponseHandler<Resp>>>>,
+pub trait ProxyHandler {
+    fn handle_notification(&mut self, rpc: CoreProxyNotification);
+    fn handle_request(&mut self, id: RequestId, rpc: CoreProxyRequest);
 }
 
-impl<Resp> ProxyRpcHandler<Resp> {
-    pub fn new(sender: Sender<ProxyRpcMessage>) -> Self {
+#[derive(Clone)]
+pub struct ProxyRpcHandler {
+    tx: Sender<CoreProxyRpcMessage>,
+    rx: Receiver<CoreProxyRpcMessage>,
+    id: Arc<AtomicU64>,
+    pending: Arc<Mutex<HashMap<u64, u64>>>,
+}
+
+impl ProxyRpcHandler {
+    pub fn new() -> Self {
+        let (tx, rx) = crossbeam_channel::unbounded();
         Self {
-            sender,
+            tx,
+            rx,
             id: Arc::new(AtomicU64::new(0)),
             pending: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    pub fn mainloop<H, Req, Notif>(
-        &mut self,
-        receiver: Receiver<RpcMessage<Req, Notif, Resp>>,
-        handler: &mut H,
-    ) where
-        H: NewHandler<Req, Notif, Resp>,
+    pub fn mainloop<H>(&self, handler: &mut H)
+    where
+        H: ProxyHandler,
     {
-        for msg in receiver {
+        for msg in &self.rx {
             match msg {
-                RpcMessage::Request(id, request) => {
-                    handler.handle_request(request);
-                }
-                RpcMessage::Notification(notification) => {
-                    handler.handle_notification(notification);
-                }
-                RpcMessage::Response(id, resp) => {
-                    self.handle_response(id, Ok(resp));
-                }
-                RpcMessage::Error(id, err) => {
-                    self.handle_response(id, Err(err));
-                }
+                RpcMessage::Request(_, _) => todo!(),
+                RpcMessage::Response(_, _) => todo!(),
+                RpcMessage::Notification(_) => todo!(),
+                RpcMessage::Error(_, _) => todo!(),
             }
         }
     }
 
-    fn handle_response(&self, id: u64, resp: Result<Resp, RpcError>) {
-        let handler = {
-            let mut pending = self.pending.lock();
-            pending.remove(&id)
-        };
-        if let Some(responsehandler) = handler {
-            responsehandler.invoke(resp)
-        }
+    fn send_request_async(&self, request: CoreProxyRequest, f: impl ProxyCallback) {}
+
+    pub fn handle_response(&self, response: Result<CoreProxyResponse, RpcError>) {}
+
+    pub fn send_notification(&self, notification: CoreProxyNotification) {
+        let _ = self.tx.send(RpcMessage::Notification(notification));
     }
 
-    pub fn send_core_request_async(
+    pub fn shutdown(&self) {
+        self.send_notification(CoreProxyNotification::Shutdown {});
+    }
+
+    pub fn initialize(&self, workspace: Option<PathBuf>) {
+        self.send_notification(CoreProxyNotification::Initialize { workspace });
+    }
+
+    pub fn new_buffer(
         &self,
-        req: CoreProxyRequest,
-        f: Box<dyn NewCallback<Resp>>,
+        buffer_id: BufferId,
+        path: PathBuf,
+        f: impl ProxyCallback + 'static,
     ) {
-        self.send_core_request_common(req, NewResponseHandler::Callback(f));
+        self.send_request_async(CoreProxyRequest::NewBuffer { buffer_id, path }, f);
     }
 
-    fn send_core_request_common(
+    pub fn get_buffer_head(
         &self,
-        req: CoreProxyRequest,
-        rh: NewResponseHandler<Resp>,
+        buffer_id: BufferId,
+        path: PathBuf,
+        f: impl ProxyCallback + 'static,
     ) {
-        let id = self.id.fetch_add(1, Ordering::Relaxed);
-        {
-            let mut pending = self.pending.lock();
-            pending.insert(id, rh);
-        }
-        let msg = ProxyRpcMessage::Core(RpcMessage::Request(id, req));
-        if let Err(_e) = self.sender.send(msg) {
-            let mut pending = self.pending.lock();
-            if let Some(rh) = pending.remove(&id) {
-                rh.invoke(Err(RpcError {
-                    code: 0,
-                    message: "io error".to_string(),
-                }));
-            }
-        }
+        self.send_request_async(CoreProxyRequest::BufferHead { buffer_id, path }, f);
     }
 
-    pub fn send_core_notification(&self, notification: CoreProxyNotification) {
-        let msg = ProxyRpcMessage::Core(RpcMessage::Notification(notification));
-        if let Err(_e) = self.sender.send(msg) {}
+    pub fn get_files(&self, f: impl ProxyCallback + 'static) {
+        self.send_request_async(
+            CoreProxyRequest::GetFiles {
+                path: "path".into(),
+            },
+            f,
+        );
+    }
+
+    pub fn read_dir(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+        self.send_request_async(CoreProxyRequest::ReadDir { path }, f);
     }
 }

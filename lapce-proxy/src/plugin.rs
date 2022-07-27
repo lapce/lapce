@@ -4,13 +4,19 @@ use hotwatch::Hotwatch;
 use lapce_rpc::counter::Counter;
 use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo, PluginResponse};
 use lapce_rpc::proxy::{
-    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse, NewHandler,
+    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse,
     PluginProxyNotification, PluginProxyRequest, PluginProxyResponse,
     ProxyRpcHandler, ProxyRpcMessage,
 };
-use lapce_rpc::{NewRpcHandler, RequestId, RpcMessage};
+use lapce_rpc::{NewRpcHandler, RequestId, RpcError, RpcMessage};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
-use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem};
+use lsp_types::request::{Completion, Request};
+use lsp_types::{
+    CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
+    PartialResultParams, Position, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentPositionParams, Url, WorkDoneProgressParams,
+};
+use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -19,8 +25,10 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use toml_edit::easy as toml;
@@ -44,12 +52,18 @@ pub type PluginName = String;
 pub type PluginRpcMessage =
     RpcMessage<PluginRequest, NewPluginNotification, PluginProxyResponse>;
 
-pub enum PluginRequest {}
+pub enum PluginRequest {
+    PluginServerRequest { method: &'static str, params: Value },
+}
 
 pub enum NewPluginNotification {
     PluginLoaded(NewPlugin),
     LspLoaded(LspRpcHandler),
     DocumentDidOpen(TextDocumentItem),
+    PluginServerNotification {
+        method: &'static str,
+        params: Value,
+    },
     StartLspServer {
         workspace: Option<PathBuf>,
         plugin_id: PluginId,
@@ -63,7 +77,7 @@ pub enum NewPluginNotification {
 #[derive(WasmerEnv, Clone)]
 pub struct NewPluginEnv {
     id: PluginId,
-    proxy_sender: Sender<ProxyRpcMessage>,
+    plugin_rpc: PluginRpcHandler,
     wasi_env: WasiEnv,
     desc: PluginDescription,
 }
@@ -96,118 +110,172 @@ struct PluginConfig {
 
 pub struct NewPluginCatalog {
     plugin_sender: Sender<PluginRpcMessage>,
-    proxy_sender: Sender<ProxyRpcMessage>,
-    rpc: ProxyRpcHandler<PluginProxyResponse>,
-    plugins: HashMap<PluginId, NewPlugin>,
-    lsps: Vec<LspRpcHandler>,
 }
 
-impl NewHandler<PluginRequest, NewPluginNotification, PluginProxyResponse>
-    for NewPluginCatalog
-{
-    fn handle_notification(&mut self, rpc: NewPluginNotification) {
-        match rpc {
-            NewPluginNotification::PluginLoaded(plugin) => {
-                eprintln!("plugin loaded");
-                self.plugins.insert(plugin.id, plugin);
-            }
-            NewPluginNotification::LspLoaded(lsp) => {
-                self.lsps.push(lsp);
-            }
-            NewPluginNotification::StartLspServer {
-                workspace,
-                plugin_id,
-                exec_path,
-                language_id,
-                options,
-                system_lsp,
-            } => {
-                let plugin_sender = self.plugin_sender.clone();
-                let exec_path = if system_lsp.unwrap_or(false) {
-                    // System LSP should be handled by PATH during
-                    // process creation, so we forbid anything that
-                    // is not just an executable name
-                    match PathBuf::from(&exec_path).file_name() {
-                        Some(v) => v.to_str().unwrap().to_string(),
-                        None => return,
-                    }
-                } else {
-                    let plugin = self.plugins.get(&plugin_id).unwrap();
-                    plugin
-                        .env
-                        .desc
-                        .dir
-                        .as_ref()
-                        .unwrap()
-                        .join(&exec_path)
-                        .to_str()
-                        .unwrap()
-                        .to_string()
-                };
-                thread::spawn(move || {
-                    NewLspClient::start(
-                        plugin_sender,
-                        workspace,
-                        exec_path,
-                        Vec::new(),
-                    );
-                });
-            }
-            NewPluginNotification::DocumentDidOpen(document) => {
-                for lsp in self.lsps.iter() {
-                    lsp.send_notification(
-                        DidOpenTextDocument::METHOD,
-                        DidOpenTextDocumentParams {
-                            text_document: document.clone(),
-                        },
-                    );
+#[derive(Clone)]
+pub struct PluginRpcHandler {
+    plugin_tx: Sender<PluginRpcMessage>,
+    plugin_rx: Receiver<PluginRpcMessage>,
+    id: Arc<AtomicU64>,
+    pending: Arc<Mutex<HashMap<u64, Sender<Result<Value, RpcError>>>>>,
+}
+
+impl PluginRpcHandler {
+    pub fn new() -> Self {
+        let (plugin_tx, plugin_rx) = crossbeam_channel::unbounded();
+        Self {
+            plugin_tx,
+            plugin_rx,
+            id: Arc::new(AtomicU64::new(0)),
+            pending: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    fn handle_response(&self, id: RequestId, result: Result<Value, RpcError>) {
+        if let Some(chan) = { self.pending.lock().remove(&id) } {
+            chan.send(result);
+        }
+    }
+
+    pub fn mainloop(&self, plugin: &mut NewPluginCatalog) {
+        for msg in &self.plugin_rx {
+            match msg {
+                RpcMessage::Request(id, request) => {
+                    plugin.handle_request(request);
+                }
+                RpcMessage::Response(id, response) => {
+                    todo!()
+                }
+                RpcMessage::Notification(notification) => {
+                    plugin.handle_notification(notification);
+                }
+                RpcMessage::Error(id, err) => {
+                    self.handle_response(id, Err(err));
                 }
             }
         }
     }
 
-    fn handle_request(&mut self, rpc: PluginRequest) {
-        todo!()
+    fn send_notification(&self, notification: NewPluginNotification) {
+        let _ = self.plugin_tx.send(RpcMessage::Notification(notification));
+    }
+
+    fn send_plugin_server_notification<P: Serialize>(
+        &self,
+        method: &'static str,
+        params: P,
+    ) {
+        let params = serde_json::to_value(params).unwrap();
+        let notification =
+            NewPluginNotification::PluginServerNotification { method, params };
+        let _ = self.plugin_tx.send(RpcMessage::Notification(notification));
+    }
+
+    fn send_request<P: Serialize, D: DeserializeOwned>(
+        &self,
+        method: &'static str,
+        params: P,
+    ) -> Result<D, RpcError> {
+        let id = self.id.fetch_add(1, Ordering::Relaxed);
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        {
+            let mut pending = self.pending.lock();
+            pending.insert(id, tx);
+        }
+
+        let params = serde_json::to_value(params).unwrap();
+        let request = PluginRequest::PluginServerRequest { method, params };
+        let _ = self.plugin_tx.send(RpcMessage::Request(id, request));
+
+        rx.recv()
+            .unwrap_or_else(|_| {
+                Err(RpcError {
+                    code: 0,
+                    message: "io error".to_string(),
+                })
+            })
+            .and_then(|v| {
+                serde_json::from_value(v).map_err(|_| RpcError {
+                    code: 0,
+                    message: "deserilize error".to_string(),
+                })
+            })
+    }
+
+    pub fn completion(
+        &self,
+        path: &Path,
+        position: Position,
+    ) -> Result<CompletionResponse, RpcError> {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = Completion::METHOD;
+        let params = CompletionParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: None,
+        };
+        self.send_request(method, params)
+    }
+
+    pub fn document_did_open(
+        &self,
+        path: &Path,
+        language_id: String,
+        version: i32,
+        text: String,
+    ) {
+        let method = DidOpenTextDocument::METHOD;
+        let params = DidOpenTextDocumentParams {
+            text_document: TextDocumentItem::new(
+                Url::from_file_path(path).unwrap(),
+                language_id,
+                version,
+                text,
+            ),
+        };
+        self.send_plugin_server_notification(method, params);
+    }
+
+    fn plugin_loaded(&self, plugin: NewPlugin) {
+        self.send_notification(NewPluginNotification::PluginLoaded(plugin));
     }
 }
 
+pub struct NewPluginCatalog {
+    plugin_rpc: PluginRpcHandler,
+    plugins: HashMap<PluginId, NewPlugin>,
+    lsps: Vec<LspRpcHandler>,
+}
+
 impl NewPluginCatalog {
-    pub fn mainloop(
-        proxy_sender: Sender<ProxyRpcMessage>,
-        plugin_sender: Sender<PluginRpcMessage>,
-        plugin_receiver: Receiver<PluginRpcMessage>,
-    ) {
-        let mut rpc = ProxyRpcHandler::new(proxy_sender.clone());
-        let mut plugin = Self {
-            proxy_sender: proxy_sender.clone(),
-            plugin_sender: plugin_sender.clone(),
-            rpc: rpc.clone(),
+    pub fn new(plugin_rpc: PluginRpcHandler) -> Self {
+        let plugin = Self {
+            plugin_rpc: plugin_rpc.clone(),
             plugins: HashMap::new(),
             lsps: Vec::new(),
         };
 
         thread::spawn(move || {
-            Self::load(plugin_sender, proxy_sender);
+            Self::load(plugin_rpc);
         });
 
-        rpc.mainloop(plugin_receiver, &mut plugin);
+        plugin
     }
 
-    pub fn load(
-        plugin_sender: Sender<PluginRpcMessage>,
-        proxy_sender: Sender<ProxyRpcMessage>,
-    ) {
+    pub fn load(plugin_rpc: PluginRpcHandler) {
         eprintln!("start to load plugins");
         let all_plugins = find_all_plugins();
         for plugin_path in &all_plugins {
             match load_plugin(plugin_path) {
                 Err(_e) => (),
                 Ok(plugin_desc) => {
-                    if let Err(e) = Self::start_plugin(
-                        plugin_sender.clone(),
-                        proxy_sender.clone(),
-                        plugin_desc,
-                    ) {
+                    if let Err(e) =
+                        Self::start_plugin(plugin_rpc.clone(), plugin_desc)
+                    {
                         eprintln!("start plugin error {}", e);
                     }
                 }
@@ -216,8 +284,7 @@ impl NewPluginCatalog {
     }
 
     fn start_plugin(
-        plugin_sender: Sender<PluginRpcMessage>,
-        proxy_sender: Sender<ProxyRpcMessage>,
+        plugin_rpc: PluginRpcHandler,
         plugin_desc: PluginDescription,
     ) -> Result<()> {
         eprintln!("start a certain plugin");
@@ -245,7 +312,7 @@ impl NewPluginCatalog {
         let plugin_env = NewPluginEnv {
             id,
             wasi_env,
-            proxy_sender,
+            plugin_rpc,
             desc: plugin_desc.clone(),
         };
         let lapce = lapce_exports(&store, &plugin_env);
@@ -256,9 +323,7 @@ impl NewPluginCatalog {
             env: plugin_env.clone(),
         };
 
-        plugin_sender.send(PluginRpcMessage::Notification(
-            NewPluginNotification::PluginLoaded(plugin.clone()),
-        ));
+        plugin_rpc.plugin_loaded(plugin.clone());
 
         thread::spawn(move || {
             let initialize =
@@ -287,7 +352,122 @@ impl NewPluginCatalog {
         Ok(())
     }
 
-    fn start_lsp() {}
+    fn handle_notification(&mut self, rpc: NewPluginNotification) {
+        match rpc {
+            NewPluginNotification::PluginLoaded(plugin) => {
+                eprintln!("plugin loaded");
+                self.plugins.insert(plugin.id, plugin);
+            }
+            NewPluginNotification::LspLoaded(lsp) => {
+                self.lsps.push(lsp);
+            }
+            NewPluginNotification::StartLspServer {
+                workspace,
+                plugin_id,
+                exec_path,
+                language_id,
+                options,
+                system_lsp,
+            } => {
+                let exec_path = if system_lsp.unwrap_or(false) {
+                    // System LSP should be handled by PATH during
+                    // process creation, so we forbid anything that
+                    // is not just an executable name
+                    match PathBuf::from(&exec_path).file_name() {
+                        Some(v) => v.to_str().unwrap().to_string(),
+                        None => return,
+                    }
+                } else {
+                    let plugin = self.plugins.get(&plugin_id).unwrap();
+                    plugin
+                        .env
+                        .desc
+                        .dir
+                        .as_ref()
+                        .unwrap()
+                        .join(&exec_path)
+                        .to_str()
+                        .unwrap()
+                        .to_string()
+                };
+                let plugin_rpc = self.plugin_rpc.clone();
+                thread::spawn(move || {
+                    NewLspClient::start(
+                        plugin_rpc,
+                        workspace,
+                        exec_path,
+                        Vec::new(),
+                    );
+                });
+            }
+            NewPluginNotification::DocumentDidOpen(document) => {
+                for lsp in self.lsps.iter() {
+                    lsp.send_notification(
+                        DidOpenTextDocument::METHOD,
+                        DidOpenTextDocumentParams {
+                            text_document: document.clone(),
+                        },
+                    );
+                }
+            }
+            NewPluginNotification::PluginServerNotification { method, params } => {
+                for lsp in self.lsps.iter() {
+                    lsp.send_notification(method, params.clone());
+                }
+            }
+        }
+    }
+
+    fn handle_request(&mut self, rpc: PluginRequest) {
+        todo!()
+    }
+}
+
+impl PluginServerRpc {
+    pub fn new(plugin_sender: Sender<PluginRpcMessage>) -> Self {
+        Self { plugin_sender }
+    }
+
+    pub fn get_completion(&self, path: &Path, position: Position) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = Completion::METHOD;
+        let params = CompletionParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: None,
+        };
+    }
+
+    pub fn document_did_open(
+        &self,
+        path: &Path,
+        language_id: String,
+        version: i32,
+        text: String,
+    ) {
+        let method = DidOpenTextDocument::METHOD;
+        let params = DidOpenTextDocumentParams {
+            text_document: TextDocumentItem::new(
+                Url::from_file_path(path).unwrap(),
+                language_id,
+                version,
+                text,
+            ),
+        };
+        self.send_notification(method, params);
+    }
+
+    pub fn send_notification<N: Serialize>(&self, method: &'static str, params: N) {
+        let params = serde_json::to_value(params).unwrap();
+        let notification =
+            NewPluginNotification::PluginServerNotification { method, params };
+        self.plugin_sender
+            .send(RpcMessage::Notification(notification));
+    }
 }
 
 pub struct PluginCatalog {
@@ -686,10 +866,12 @@ fn host_handle_notification(plugin_env: &NewPluginEnv) {
     let notification: Result<PluginProxyNotification> =
         wasi_read_object(&plugin_env.wasi_env);
     if let Ok(notification) = notification {
-        let _ = plugin_env.proxy_sender.send(ProxyRpcMessage::Plugin(
-            plugin_env.id,
-            RpcMessage::Notification(notification),
-        ));
+        // let _ = plugin_env
+        //     .plugin_rpc
+        //     .send_notification(ProxyRpcMessage::Plugin(
+        //         plugin_env.id,
+        //         RpcMessage::Notification(notification),
+        //     ));
     }
 }
 

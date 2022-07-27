@@ -176,25 +176,27 @@ impl DocumentHistory {
             let proxy = doc.proxy.clone();
             let event_sink = doc.event_sink.clone();
             std::thread::spawn(move || {
-                proxy.get_buffer_head(id, path.clone(), move |result| {
-                    if let Ok(resp) = result {
-                        if let CoreProxyResponse::BufferHeadResponse {
-                            version,
-                            content,
-                        } = resp
-                        {
-                            let _ = event_sink.submit_command(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::LoadBufferHead {
-                                    path,
-                                    content: Rope::from(content),
-                                    version,
-                                },
-                                Target::Widget(tab_id),
-                            );
+                proxy
+                    .proxy_rpc
+                    .get_buffer_head(id, path.clone(), move |result| {
+                        if let Ok(resp) = result {
+                            if let CoreProxyResponse::BufferHeadResponse {
+                                version,
+                                content,
+                            } = resp
+                            {
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::LoadBufferHead {
+                                        path,
+                                        content: Rope::from(content),
+                                        version,
+                                    },
+                                    Target::Widget(tab_id),
+                                );
+                            }
                         }
-                    }
-                })
+                    })
             });
         }
     }

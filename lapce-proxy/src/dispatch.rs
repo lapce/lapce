@@ -2,7 +2,7 @@ use crate::buffer::{get_mod_time, load_file, Buffer};
 use crate::lsp::{LspCatalog, NewLspCatalog};
 use crate::plugin::{
     NewPluginCatalog, NewPluginNotification, PluginCatalog, PluginNotification,
-    PluginRpcMessage,
+    PluginRpcHandler, PluginRpcMessage, PluginServerRpc,
 };
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
@@ -22,14 +22,16 @@ use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
 use lapce_rpc::core::{
-    CoreNotification, CoreRequest, CoreResponse, CoreRpc, CoreRpcMessage,
+    CoreNotification, CoreRequest, CoreResponse, CoreRpc, CoreRpcHandler,
+    CoreRpcMessage,
 };
 use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::lsp::LspRpcMessage;
 use lapce_rpc::plugin::{PluginDescription, PluginId};
 use lapce_rpc::proxy::{
     CoreProxyNotification, CoreProxyRequest, CoreProxyResponse,
-    PluginProxyNotification, ProxyRpcMessage, ReadDirResponse,
+    PluginProxyNotification, ProxyHandler, ProxyRpcHandler, ProxyRpcMessage,
+    ReadDirResponse,
 };
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
@@ -54,68 +56,51 @@ const WORKSPACE_EVENT_TOKEN: WatchToken = WatchToken(2);
 
 pub struct NewDispatcher {
     workspace: Option<PathBuf>,
-    // channel sender from proxy to core
-    core_sender: Sender<CoreRpcMessage>,
-    // channel sender from proxy to plugin
-    plugin_sender: Sender<PluginRpcMessage>,
-    plugin_receiver: Receiver<PluginRpcMessage>,
-    proxy_sender: Sender<ProxyRpcMessage>,
+    pub proxy_rpc: ProxyRpcHandler,
+    core_rpc: CoreRpcHandler,
+    plugin_rpc: PluginRpcHandler,
     buffers: HashMap<PathBuf, Buffer>,
 }
 
-impl NewDispatcher {
-    pub fn new(
-        core_sender: Sender<CoreRpcMessage>,
-        proxy_sender: Sender<ProxyRpcMessage>,
-    ) -> Self {
-        let (plugin_sender, plugin_receiver) = crossbeam_channel::unbounded();
-        Self {
-            workspace: None,
-            core_sender,
-            plugin_sender,
-            plugin_receiver,
-            proxy_sender,
-            buffers: HashMap::new(),
-        }
-    }
+impl ProxyHandler for NewDispatcher {
+    fn handle_notification(&mut self, rpc: CoreProxyNotification) {
+        use CoreProxyNotification::*;
+        match rpc {
+            Initialize { workspace } => {
+                self.workspace = workspace;
 
-    /// handles the channel receiver from core to proxy
-    pub fn mainloop(&mut self, proxy_receiver: Receiver<ProxyRpcMessage>) {
-        for msg in proxy_receiver {
-            match msg {
-                ProxyRpcMessage::Core(msg) => match msg {
-                    RpcMessage::Request(id, request) => {
-                        self.handle_request(id, request);
-                    }
-                    RpcMessage::Notification(notification) => {
-                        self.handle_notification(notification);
-                    }
-                    RpcMessage::Response(_, _) => todo!(),
-                    RpcMessage::Error(_, _) => todo!(),
-                },
-                ProxyRpcMessage::Plugin(plugin_id, msg) => match msg {
-                    RpcMessage::Request(_, _) => todo!(),
-                    RpcMessage::Response(_, _) => todo!(),
-                    RpcMessage::Notification(notification) => {
-                        self.handle_plugin_notification(plugin_id, notification);
-                    }
-                    RpcMessage::Error(_, _) => todo!(),
-                },
+                let plugin_rpc = self.plugin_rpc.clone();
+                thread::spawn(move || {
+                    let mut plugin = NewPluginCatalog::new(plugin_rpc.clone());
+                    plugin_rpc.mainloop(&mut plugin);
+                });
             }
+            Shutdown {} => todo!(),
+            Update {
+                buffer_id,
+                delta,
+                rev,
+            } => todo!(),
+            NewTerminal {
+                term_id,
+                cwd,
+                shell,
+            } => todo!(),
+            InstallPlugin { plugin } => todo!(),
+            GitCommit { message, diffs } => todo!(),
+            GitCheckout { branch } => todo!(),
+            GitDiscardFileChanges { file } => todo!(),
+            GitDiscardFilesChanges { files } => todo!(),
+            GitDiscardWorkspaceChanges {} => todo!(),
+            GitInit {} => todo!(),
+            TerminalWrite { term_id, content } => todo!(),
+            TerminalResize {
+                term_id,
+                width,
+                height,
+            } => todo!(),
+            TerminalClose { term_id } => todo!(),
         }
-    }
-
-    fn respond_rpc(
-        &self,
-        id: RequestId,
-        result: Result<CoreProxyResponse, RpcError>,
-    ) {
-        respond_rpc(&self.core_sender, id, result);
-    }
-
-    fn send_plugin_notification(&self, notification: NewPluginNotification) {
-        self.plugin_sender
-            .send(RpcMessage::Notification(notification));
     }
 
     fn handle_request(&mut self, id: RequestId, rpc: CoreProxyRequest) {
@@ -124,8 +109,13 @@ impl NewDispatcher {
             NewBuffer { buffer_id, path } => {
                 let buffer = Buffer::new(buffer_id, path.clone());
                 let content = buffer.rope.to_string();
+                self.plugin_rpc.document_did_open(
+                    &path,
+                    buffer.language_id.clone(),
+                    buffer.rev as i32,
+                    content.clone(),
+                );
                 self.buffers.insert(path, buffer);
-                eprintln!("respond new buffer");
                 self.respond_rpc(
                     id,
                     Ok(CoreProxyResponse::NewBufferResponse { content }),
@@ -196,8 +186,8 @@ impl NewDispatcher {
             GetWorkspaceSymbols { query, buffer_id } => todo!(),
             GetDocumentFormatting { buffer_id } => todo!(),
             GetFiles { path } => {
-                let core_sender = self.core_sender.clone();
                 let workspace = self.workspace.clone();
+                let proxy_rpc = self.proxy_rpc.clone();
                 thread::spawn(move || {
                     let result = if let Some(workspace) = workspace {
                         let mut items = Vec::new();
@@ -215,11 +205,11 @@ impl NewDispatcher {
                             message: "no workspace set".to_string(),
                         })
                     };
-                    respond_rpc(&core_sender, id, result);
+                    proxy_rpc.handle_response(result);
                 });
             }
             ReadDir { path } => {
-                let core_sender = self.core_sender.clone();
+                let proxy_rpc = self.proxy_rpc.clone();
                 thread::spawn(move || {
                     let result = fs::read_dir(path)
                         .map(|entries| {
@@ -250,7 +240,7 @@ impl NewDispatcher {
                             code: 0,
                             message: e.to_string(),
                         });
-                    respond_rpc(&core_sender, id, result);
+                    proxy_rpc.handle_response(result);
                 });
             }
             Save { rev, buffer_id } => todo!(),
@@ -266,51 +256,65 @@ impl NewDispatcher {
             RenamePath { from, to } => todo!(),
         }
     }
+}
 
-    fn handle_notification(&mut self, rpc: CoreProxyNotification) {
-        use CoreProxyNotification::*;
-        match rpc {
-            Initialize { workspace } => {
-                self.workspace = workspace;
+impl NewDispatcher {
+    pub fn new(core_rpc: CoreRpcHandler, proxy_rpc: ProxyRpcHandler) -> Self {
+        let (plugin_sender, plugin_receiver) = crossbeam_channel::unbounded();
+        let plugin_server_rpc = PluginServerRpc::new(plugin_sender.clone());
+        let plugin_rpc = PluginRpcHandler::new();
 
-                let proxy_sender = self.proxy_sender.clone();
-                let plugin_sender = self.plugin_sender.clone();
-                let plugin_receiver = self.plugin_receiver.clone();
-                thread::spawn(move || {
-                    NewPluginCatalog::mainloop(
-                        proxy_sender,
-                        plugin_sender,
-                        plugin_receiver,
-                    );
-                });
-            }
-            Shutdown {} => todo!(),
-            Update {
-                buffer_id,
-                delta,
-                rev,
-            } => todo!(),
-            NewTerminal {
-                term_id,
-                cwd,
-                shell,
-            } => todo!(),
-            InstallPlugin { plugin } => todo!(),
-            GitCommit { message, diffs } => todo!(),
-            GitCheckout { branch } => todo!(),
-            GitDiscardFileChanges { file } => todo!(),
-            GitDiscardFilesChanges { files } => todo!(),
-            GitDiscardWorkspaceChanges {} => todo!(),
-            GitInit {} => todo!(),
-            TerminalWrite { term_id, content } => todo!(),
-            TerminalResize {
-                term_id,
-                width,
-                height,
-            } => todo!(),
-            TerminalClose { term_id } => todo!(),
+        Self {
+            workspace: None,
+            proxy_rpc,
+            core_rpc,
+            buffers: HashMap::new(),
+            plugin_rpc,
         }
     }
+
+    /// handles the channel receiver from core to proxy
+    pub fn mainloop(&mut self, proxy_receiver: Receiver<ProxyRpcMessage>) {
+        for msg in proxy_receiver {
+            match msg {
+                ProxyRpcMessage::Core(msg) => match msg {
+                    RpcMessage::Request(id, request) => {
+                        self.handle_request(id, request);
+                    }
+                    RpcMessage::Notification(notification) => {
+                        self.handle_notification(notification);
+                    }
+                    RpcMessage::Response(_, _) => todo!(),
+                    RpcMessage::Error(_, _) => todo!(),
+                },
+                ProxyRpcMessage::Plugin(plugin_id, msg) => match msg {
+                    RpcMessage::Request(_, _) => todo!(),
+                    RpcMessage::Response(_, _) => todo!(),
+                    RpcMessage::Notification(notification) => {
+                        self.handle_plugin_notification(plugin_id, notification);
+                    }
+                    RpcMessage::Error(_, _) => todo!(),
+                },
+            }
+        }
+    }
+
+    fn respond_rpc(
+        &self,
+        id: RequestId,
+        result: Result<CoreProxyResponse, RpcError>,
+    ) {
+        self.proxy_rpc.handle_response(result);
+    }
+
+    fn send_plugin_notification(&self, notification: NewPluginNotification) {
+        self.plugin_sender
+            .send(RpcMessage::Notification(notification));
+    }
+
+    fn handle_request(&mut self, id: RequestId, rpc: CoreProxyRequest) {}
+
+    fn handle_notification(&mut self, rpc: CoreProxyNotification) {}
 
     fn handle_plugin_notification(
         &mut self,

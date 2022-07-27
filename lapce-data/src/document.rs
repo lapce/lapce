@@ -579,7 +579,7 @@ impl Document {
             let event_sink = self.event_sink.clone();
             let proxy = self.proxy.clone();
             std::thread::spawn(move || {
-                proxy.new_buffer(id, path.clone(), move |result| {
+                proxy.proxy_rpc.new_buffer(id, path.clone(), move |result| {
                     if let Ok(CoreProxyResponse::NewBufferResponse { content }) =
                         result
                     {

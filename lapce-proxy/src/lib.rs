@@ -14,8 +14,13 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dispatch::{Dispatcher, NewDispatcher};
 use lapce_rpc::{
-    core::CoreRpcMessage,
-    proxy::{CoreProxyNotification, CoreProxyRequest, ProxyRpcMessage},
+    core::{
+        CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler, CoreRpcMessage,
+    },
+    proxy::{
+        CoreProxyNotification, CoreProxyRequest, CoreProxyRpcMessage, ProxyHandler,
+        ProxyRpcHandler, ProxyRpcMessage,
+    },
     RpcMessage, RpcObject,
 };
 use serde_json::Value;
@@ -38,10 +43,86 @@ pub fn mainloop() {
     let _ = dispatcher.mainloop(receiver);
 }
 
+struct CoreStdout {
+    stdout: Stdout,
+}
+
+impl CoreStdout {
+    fn new(stdout: Stdout) -> Self {
+        Self { stdout }
+    }
+}
+
+impl CoreHandler for CoreStdout {
+    fn handle_notification(&mut self, rpc: CoreNotification) {
+        todo!()
+    }
+
+    fn handle_request(&mut self, rpc: CoreRequest) {
+        todo!()
+    }
+}
+
 pub fn new_mainloop() {
-    let (core_sender, proxy_sender, proxy_receiver) = stdio();
-    let mut dispatcher = NewDispatcher::new(core_sender, proxy_sender);
-    dispatcher.mainloop(proxy_receiver);
+    let core_rpc = CoreRpcHandler::new();
+    let proxy_rpc = ProxyRpcHandler::new();
+    let mut dispatcher = NewDispatcher::new(core_rpc.clone(), proxy_rpc.clone());
+
+    let mut core_stdout = CoreStdout::new(stdout());
+    thread::spawn(move || {
+        core_rpc.mainloop(&mut core_stdout);
+    });
+
+    let local_proxy_rpc = proxy_rpc.clone();
+    thread::spawn(move || -> Result<()> {
+        let mut reader = BufReader::new(stdin());
+        loop {
+            let msg = new_read_msg(&mut reader)?;
+            match msg {
+                RpcMessage::Request(_, _) => todo!(),
+                RpcMessage::Notification(n) => {
+                    local_proxy_rpc.send_notification(n);
+                }
+                RpcMessage::Response(_, _) => todo!(),
+                RpcMessage::Error(_, _) => todo!(),
+            }
+        }
+        // proxy_rpc.mainloop(&mut proxy_stdin);
+    });
+
+    proxy_rpc.mainloop(&mut dispatcher);
+}
+
+fn new_read_msg(reader: &mut BufReader<Stdin>) -> Result<CoreProxyRpcMessage> {
+    let mut buf = String::new();
+    let _s = reader.read_line(&mut buf)?;
+    let value: Value = serde_json::from_str(&buf)?;
+    let object = RpcObject(value);
+    let is_response = object.is_response();
+    let msg = if is_response {
+        let id = object.get_id().ok_or_else(|| anyhow!("no id"))?;
+        let resp = object.into_response().map_err(|e| anyhow!(e))?;
+        match resp {
+            Ok(value) => {
+                todo!()
+            }
+            Err(value) => {
+                todo!()
+            }
+        }
+    } else {
+        match object.get_id() {
+            Some(id) => {
+                let req: CoreProxyRequest = serde_json::from_value(object.0)?;
+                RpcMessage::Request(id, req)
+            }
+            None => {
+                let notif: CoreProxyNotification = serde_json::from_value(object.0)?;
+                RpcMessage::Notification(notif)
+            }
+        }
+    };
+    Ok(msg)
 }
 
 fn stdio() -> (
