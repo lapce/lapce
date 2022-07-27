@@ -57,7 +57,7 @@ use crate::{
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
     },
     document::{BufferContent, Document, LocalBufferKind},
-    editor::{EditorLocation, EditorLspLocation, LapceEditorBufferData, TabRect},
+    editor::{EditorLocation, EditorPosition, LapceEditorBufferData, TabRect},
     explorer::FileExplorerData,
     find::Find,
     hover::HoverData,
@@ -1078,7 +1078,7 @@ impl LapceTabData {
                         None,
                         EditorLocation {
                             path,
-                            position: None,
+                            position: None::<usize>,
                             scroll_offset: None,
                             history: None,
                         },
@@ -1096,7 +1096,7 @@ impl LapceTabData {
                         None,
                         EditorLocation {
                             path,
-                            position: None,
+                            position: None::<usize>,
                             scroll_offset: None,
                             history: None,
                         },
@@ -1114,7 +1114,7 @@ impl LapceTabData {
                         None,
                         EditorLocation {
                             path,
-                            position: None,
+                            position: None::<usize>,
                             scroll_offset: None,
                             history: None,
                         },
@@ -2233,42 +2233,6 @@ impl LapceMainSplitData {
         }
     }
 
-    pub fn jump_to_lsp_location(
-        &mut self,
-        ctx: &mut EventCtx,
-        editor_view_id: Option<WidgetId>,
-        location: EditorLspLocation,
-        config: &Config,
-    ) -> WidgetId {
-        let editor_view_id = self
-            .get_editor_or_new(
-                ctx,
-                editor_view_id,
-                Some(location.path.clone()),
-                false,
-                config,
-            )
-            .view_id;
-        let doc = self.editor_doc(editor_view_id);
-
-        // Decompoase the lsp location, so that we can map the position to an offset
-        let EditorLspLocation {
-            path,
-            position,
-            scroll_offset,
-            history,
-        } = location;
-        let position = position.map(|pos| doc.buffer().offset_of_position(&pos));
-
-        let location = EditorLocation {
-            path,
-            position,
-            scroll_offset,
-            history,
-        };
-        self.jump_to_location(ctx, Some(editor_view_id), location, config)
-    }
-
     pub fn open_settings(&mut self, ctx: &mut EventCtx, show_key_bindings: bool) {
         let widget_id = match *self.active_tab {
             Some(active) => {
@@ -2330,11 +2294,11 @@ impl LapceMainSplitData {
         }
     }
 
-    pub fn jump_to_location(
+    pub fn jump_to_location<P: EditorPosition + Send + 'static>(
         &mut self,
         ctx: &mut EventCtx,
         editor_view_id: Option<WidgetId>,
-        location: EditorLocation,
+        location: EditorLocation<P>,
         config: &Config,
     ) -> WidgetId {
         let editor_view_id = self
@@ -2431,11 +2395,11 @@ impl LapceMainSplitData {
         buffer_id
     }
 
-    pub fn go_to_location(
+    pub fn go_to_location<P: EditorPosition + Send + 'static>(
         &mut self,
         ctx: &mut EventCtx,
         editor_view_id: Option<WidgetId>,
-        location: EditorLocation,
+        location: EditorLocation<P>,
         config: &Config,
     ) {
         let editor_view_id = self
@@ -2485,12 +2449,16 @@ impl LapceMainSplitData {
                 Some(offset) => {
                     let doc = self.open_docs.get_mut(&path).unwrap();
                     let doc = Arc::make_mut(doc);
-                    doc.cursor_offset = *offset;
+
+                    // Convert the offset into a utf8 form for us to use
+                    let offset = offset.to_utf8_offset(doc.buffer());
+
+                    doc.cursor_offset = offset;
                     if let Some(scroll_offset) = location.scroll_offset.as_ref() {
                         doc.scroll_offset = *scroll_offset;
                     }
 
-                    (*offset, location.scroll_offset.as_ref())
+                    (offset, location.scroll_offset.as_ref())
                 }
                 None => (doc.cursor_offset, Some(&doc.scroll_offset)),
             };
