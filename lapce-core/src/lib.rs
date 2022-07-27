@@ -3,6 +3,7 @@ pub mod chars;
 pub mod command;
 pub mod cursor;
 pub mod editor;
+pub mod encoding;
 pub mod indent;
 pub mod language;
 pub mod lens;

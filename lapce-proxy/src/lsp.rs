@@ -16,6 +16,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, JsonRpc, Params};
+use lapce_core::encoding::offset_utf16_to_utf8;
 use lapce_rpc::{
     buffer::BufferId,
     style::{LineStyle, SemanticStyles, Style},
@@ -1304,16 +1305,11 @@ impl LspClient {
                 ..Default::default()
             }),
 
-            // TODO: GeneralClientCapabilities is getting a position encoding option
-            // as the standardized version of this, but it is not yet in lsp-types
-            // (and probably not as supported due to how new it is?)
-
-            // Inform the LSP that we would prefer utf8 encoding if possible
-            // Though, of course, we have to support utf16
-            // We could also inform that we support utf32 (there's technically some perf on the table there if
-            //   we do utf32 -> utf8 rather than utf32 -> utf16 -> utf8) but that is uncommon and is not even
-            // an option in the upcoming standardized version of this field.
-            offset_encoding: Some(vec!["utf-8".to_string(), "utf-16".to_string()]),
+            // TODO: We could support the extension for utf8 and the upcoming stable support for requesting utf8
+            // so then we can just directly deal with (without translation) utf8 positions from the lsp.
+            // However implementing that has complexities in terms of knowing what lsp is getting our data
+            // before we send it, since we typically let the proxy decide.
+            // So, currently, we only send/receive UTF16 positions/offsets from the LSP clients
             experimental: Some(json!({
                 "serverStatusNotification": true,
             })),
@@ -1713,8 +1709,26 @@ fn format_semantic_styles(
             line += semantic_token.delta_line as usize;
             start = buffer.offset_of_line(line);
         }
-        start += semantic_token.delta_start as usize;
-        let end = start + semantic_token.length as usize;
+
+        let sub_text = buffer.char_indices_iter(start..);
+        if let Some(utf8_delta_start) =
+            offset_utf16_to_utf8(sub_text, semantic_token.delta_start as usize)
+        {
+            start += utf8_delta_start;
+        } else {
+            // Bad semantic token offsets
+            break;
+        };
+
+        let sub_text = buffer.char_indices_iter(start..);
+        let end = if let Some(utf8_length) =
+            offset_utf16_to_utf8(sub_text, semantic_token.length as usize)
+        {
+            start + utf8_length
+        } else {
+            break;
+        };
+
         let kind = semantic_legends.token_types[semantic_token.token_type as usize]
             .as_str()
             .to_string();

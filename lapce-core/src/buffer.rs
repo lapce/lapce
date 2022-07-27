@@ -12,6 +12,7 @@ use std::{
 use lsp_types::Position;
 use xi_rope::{
     diff::{Diff, LineHashDiff},
+    interval::IntervalBounds,
     multiset::Subset,
     Cursor, Delta, DeltaBuilder, Interval, Rope, RopeDelta,
 };
@@ -19,6 +20,7 @@ use xi_rope::{
 use crate::{
     cursor::CursorMode,
     editor::EditType,
+    encoding::{offset_utf16_to_utf8, offset_utf8_to_utf16},
     indent::{auto_detect_indent_style, IndentStyle},
     mode::Mode,
     selection::Selection,
@@ -696,16 +698,40 @@ impl Buffer {
         self.text.line_of_offset(offset)
     }
 
+    /// Converts a UTF8 offset to a UTF16 LSP position  
+    /// Panics if it is not a valid UTF16 offset
     pub fn offset_to_position(&self, offset: usize) -> Position {
         let (line, col) = self.offset_to_line_col(offset);
+        let line_offset = self.offset_of_line(line);
+
+        let utf16_col =
+            offset_utf8_to_utf16(self.char_indices_iter(line_offset..), col)
+                .expect("Failed to convert utf8 offset -> utf16");
+
         Position {
             line: line as u32,
-            character: col as u32,
+            character: utf16_col as u32,
         }
     }
 
+    /// Panics if the UTF16 Position can't be converted to a UTF8 offset
     pub fn offset_of_position(&self, pos: &Position) -> usize {
-        self.offset_of_line_col(pos.line as usize, pos.character as usize)
+        let (line, column) = self.position_to_line_col(pos);
+        self.offset_of_line_col(line, column)
+    }
+
+    /// Panics if the UTF16 Position can't be converted to a UTF8 offset
+    pub fn position_to_line_col(&self, pos: &Position) -> (usize, usize) {
+        let line = pos.line as usize;
+        let line_offset = self.offset_of_line(line);
+
+        let column = offset_utf16_to_utf8(
+            self.char_indices_iter(line_offset..),
+            pos.character as usize,
+        )
+        .expect("Failed to convert utf16 Position to utf8 column offset");
+
+        (line, column)
     }
 
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
@@ -906,6 +932,15 @@ impl Buffer {
     pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<str> {
         self.text
             .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
+    }
+
+    /// Iterate over (utf8_offset, char) values in the given range  
+    /// This uses `iter_chunks` and so does not allocate, compared to `slice_to_cow` which can
+    pub fn char_indices_iter<T: IntervalBounds>(
+        &self,
+        range: T,
+    ) -> impl Iterator<Item = (usize, char)> + '_ {
+        self.text.iter_chunks(range).flat_map(str::char_indices)
     }
 
     pub fn len(&self) -> usize {
