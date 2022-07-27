@@ -426,6 +426,7 @@ pub enum LapceUICommand {
         path: PathBuf,
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation<Position>)>,
+        edits: Option<Rope>,
     },
     OpenFileChanged {
         path: PathBuf,
