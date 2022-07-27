@@ -47,8 +47,8 @@ use crate::{
     alert::{AlertContentData, AlertData},
     command::{
         CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
-        LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_OPEN_FILE, LAPCE_OPEN_FOLDER,
-        LAPCE_UI_COMMAND,
+        LapceWorkbenchCommand, PluginLoadingStatus, LAPCE_COMMAND, LAPCE_OPEN_FILE,
+        LAPCE_OPEN_FOLDER, LAPCE_UI_COMMAND,
     },
     completion::CompletionData,
     config::{Config, ConfigWatcher, GetConfig, LapceTheme},
@@ -188,38 +188,47 @@ impl LapceData {
                 .collect::<Vec<PluginDescription>>();
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateInstalledPluginDescriptions(Some(
-                    plugins.clone(),
-                )),
+                LapceUICommand::UpdateInstalledPluginDescriptions(
+                    PluginLoadingStatus::Ok(plugins.clone()),
+                ),
+                Target::Auto,
+            );
+            let _ = event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdateDisabledPlugins(catalog.disabled.clone()),
                 Target::Auto,
             );
             if let Ok(fetched_plugins) = LapceData::load_plugin_descriptions() {
-                let (installed, uninstalled) =
-                    fetched_plugins.into_iter().partition(|p| {
-                        plugins
-                            .iter()
-                            .find(|ip| ip.name == p.name)
-                            .ok_or(())
-                            .is_ok()
-                    });
+                let (installed, uninstalled): (
+                    Vec<PluginDescription>,
+                    Vec<PluginDescription>,
+                ) = fetched_plugins.into_iter().partition(|p| {
+                    plugins
+                        .iter()
+                        .find(|ip| ip.name == p.name)
+                        .ok_or(())
+                        .is_ok()
+                });
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateInstalledPluginDescriptions(Some(
-                        installed,
-                    )),
+                    LapceUICommand::UpdateInstalledPluginDescriptions(
+                        PluginLoadingStatus::Ok(installed),
+                    ),
                     Target::Auto,
                 );
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateUninstalledPluginDescriptions(Some(
-                        uninstalled,
-                    )),
+                    LapceUICommand::UpdateUninstalledPluginDescriptions(
+                        PluginLoadingStatus::Ok(uninstalled),
+                    ),
                     Target::Auto,
                 );
             } else {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateUninstalledPluginDescriptions(None),
+                    LapceUICommand::UpdateUninstalledPluginDescriptions(
+                        PluginLoadingStatus::Failed,
+                    ),
                     Target::Auto,
                 );
             }
@@ -262,7 +271,7 @@ impl LapceData {
         env.set(LapceTheme::INPUT_FONT_SIZE, 13u64);
     }
 
-    fn load_plugin_descriptions() -> Result<Vec<PluginDescription>> {
+    pub fn load_plugin_descriptions() -> Result<Vec<PluginDescription>> {
         let plugins: Vec<String> =
             reqwest::blocking::get("https://lapce.github.io/plugins.json")?
                 .json()?;
@@ -509,9 +518,10 @@ pub struct LapceTabData {
     pub plugin: Arc<PluginData>,
     pub picker: Arc<FilePickerData>,
     pub plugins: Arc<Vec<PluginDescription>>,
-    pub installed_plugins_desc: Arc<Option<Vec<PluginDescription>>>,
-    pub uninstalled_plugins_desc: Arc<Option<Vec<PluginDescription>>>,
+    pub installed_plugins_desc: Arc<PluginLoadingStatus>,
+    pub uninstalled_plugins_desc: Arc<PluginLoadingStatus>,
     pub installed_plugins: Arc<HashMap<String, PluginDescription>>,
+    pub disabled_plugins: Arc<HashMap<String, PluginDescription>>,
     pub file_explorer: Arc<FileExplorerData>,
     pub proxy: Arc<LapceProxy>,
     pub proxy_status: Arc<ProxyStatus>,
@@ -557,6 +567,7 @@ impl Data for LapceTabData {
             && self
                 .uninstalled_plugins_desc
                 .same(&other.uninstalled_plugins_desc)
+            && self.disabled_plugins.same(&other.disabled_plugins)
             && self.installed_plugins.same(&other.installed_plugins)
             && self.picker.same(&other.picker)
             && self.drag.same(&other.drag)
@@ -690,8 +701,9 @@ impl LapceTabData {
             problem,
             search,
             plugins: Arc::new(Vec::new()),
-            installed_plugins_desc: Arc::new(Some(Vec::new())),
-            uninstalled_plugins_desc: Arc::new(Some(Vec::new())),
+            disabled_plugins: Arc::new(HashMap::new()),
+            installed_plugins_desc: Arc::new(PluginLoadingStatus::Ok(Vec::new())),
+            uninstalled_plugins_desc: Arc::new(PluginLoadingStatus::Ok(Vec::new())),
             installed_plugins: Arc::new(HashMap::new()),
             find: Arc::new(Find::new(0)),
             picker: file_picker,

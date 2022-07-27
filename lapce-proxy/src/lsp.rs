@@ -114,6 +114,12 @@ impl LspCatalog {
         self.dispatcher.take();
     }
 
+    pub fn stop_language_lsp(&mut self, lang: &String) {
+        if let Some(lsp) = self.clients.get(lang) {
+            lsp.stop();
+        }
+    }
+
     pub fn start_server(
         &mut self,
         exec_path: &str,

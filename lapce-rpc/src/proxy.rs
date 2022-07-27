@@ -30,6 +30,15 @@ pub enum ProxyNotification {
     InstallPlugin {
         plugin: PluginDescription,
     },
+    DisablePlugin {
+        plugin: PluginDescription,
+    },
+    EnablePlugin {
+        plugin: PluginDescription,
+    },
+    RemovePlugin {
+        plugin: PluginDescription,
+    },
     GitCommit {
         message: String,
         diffs: Vec<FileDiff>,

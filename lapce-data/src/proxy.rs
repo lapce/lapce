@@ -125,23 +125,17 @@ impl Handler for LapceProxy {
                     LapceUICommand::UpdateInstalledPlugins(plugins.clone()),
                     Target::Widget(self.tab_id),
                 );
-                let plugins_desc = plugins
-                    .iter()
-                    .map(|(_, desc)| desc.to_owned())
-                    .collect::<Vec<PluginDescription>>();
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateInstalledPluginDescriptions(Some(
-                        plugins_desc.clone(),
-                    )),
+                    LapceUICommand::UpdatePluginInstallationChange(plugins),
                     Target::Widget(self.tab_id),
                 );
+            }
+            DisabledPlugins { plugins } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::DeleteUninstalledPluginDescriptions(
-                        plugins_desc,
-                    ),
-                    Target::Widget(self.tab_id),
+                    LapceUICommand::UpdateDisabledPlugins(plugins),
+                    Target::Auto,
                 );
             }
             DiffInfo { diff } => {
@@ -435,6 +429,21 @@ impl LapceProxy {
     pub fn install_plugin(&self, plugin: &PluginDescription) {
         self.rpc
             .send_rpc_notification("install_plugin", &json!({ "plugin": plugin }));
+    }
+
+    pub fn disable_plugin(&self, plugin: &PluginDescription) {
+        self.rpc
+            .send_rpc_notification("disable_plugin", &json!({ "plugin": plugin }))
+    }
+
+    pub fn enable_plugin(&self, plugin: &PluginDescription) {
+        self.rpc
+            .send_rpc_notification("enable_plugin", &json!({ "plugin": plugin }))
+    }
+
+    pub fn remove_plugin(&self, plugin: &PluginDescription) {
+        self.rpc
+            .send_rpc_notification("remove_plugin", &json!({ "plugin": plugin }));
     }
 
     pub fn get_buffer_head(
