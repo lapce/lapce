@@ -302,7 +302,6 @@ impl LapceProxy {
     fn start(&self, workspace: LapceWorkspace) -> Result<()> {
         self.proxy_rpc.initialize(workspace.path.clone());
         let (core_sender, core_receiver) = crossbeam_channel::unbounded();
-        let (new_core_sender, new_core_receiver) = crossbeam_channel::unbounded();
         match workspace.kind {
             LapceWorkspaceType::Local => {
                 let proxy_receiver = (*self.proxy_receiver).clone();
@@ -311,18 +310,11 @@ impl LapceProxy {
                     let _ = dispatcher.mainloop(proxy_receiver);
                 });
 
-                let new_proxy_sender = (*self.new_proxy_sender).clone();
-                let new_proxy_receiver = (*self.new_proxy_receiver).clone();
                 let proxy_rpc = self.proxy_rpc.clone();
                 let core_rpc = self.core_rpc.clone();
 
                 thread::spawn(move || {
-                    let mut dispatcher = NewDispatcher::new(
-                        new_core_sender,
-                        new_proxy_sender,
-                        core_rpc,
-                        proxy_rpc,
-                    );
+                    let mut dispatcher = NewDispatcher::new(core_rpc, proxy_rpc);
                     let proxy_rpc = dispatcher.proxy_rpc.clone();
                     proxy_rpc.mainloop(&mut dispatcher);
                 });

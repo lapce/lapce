@@ -273,77 +273,12 @@ impl NewDispatcher {
         }
     }
 
-    /// handles the channel receiver from core to proxy
-    pub fn mainloop(&mut self, proxy_receiver: Receiver<ProxyRpcMessage>) {
-        for msg in proxy_receiver {
-            match msg {
-                ProxyRpcMessage::Core(msg) => match msg {
-                    RpcMessage::Request(id, request) => {
-                        self.handle_request(id, request);
-                    }
-                    RpcMessage::Notification(notification) => {
-                        self.handle_notification(notification);
-                    }
-                    RpcMessage::Response(_, _) => todo!(),
-                    RpcMessage::Error(_, _) => todo!(),
-                },
-                ProxyRpcMessage::Plugin(plugin_id, msg) => match msg {
-                    RpcMessage::Request(_, _) => todo!(),
-                    RpcMessage::Response(_, _) => todo!(),
-                    RpcMessage::Notification(notification) => {
-                        self.handle_plugin_notification(plugin_id, notification);
-                    }
-                    RpcMessage::Error(_, _) => todo!(),
-                },
-            }
-        }
-    }
-
     fn respond_rpc(
         &self,
         id: RequestId,
         result: Result<CoreProxyResponse, RpcError>,
     ) {
         self.proxy_rpc.handle_response(result);
-    }
-
-    fn send_plugin_notification(&self, notification: NewPluginNotification) {
-        self.plugin_sender
-            .send(RpcMessage::Notification(notification));
-    }
-
-    fn handle_request(&mut self, id: RequestId, rpc: CoreProxyRequest) {}
-
-    fn handle_notification(&mut self, rpc: CoreProxyNotification) {}
-
-    fn handle_plugin_notification(
-        &mut self,
-        plugin_id: PluginId,
-        rpc: PluginProxyNotification,
-    ) {
-        use PluginProxyNotification::*;
-        match rpc {
-            StartLspServer {
-                exec_path,
-                language_id,
-                options,
-                system_lsp,
-            } => {
-                self.send_plugin_notification(
-                    NewPluginNotification::StartLspServer {
-                        workspace: self.workspace.clone(),
-                        plugin_id,
-                        exec_path,
-                        language_id,
-                        options,
-                        system_lsp,
-                    },
-                );
-            }
-            DownloadFile { url, path } => {}
-            LockFile { path } => {}
-            MakeFileExecutable { path } => {}
-        }
     }
 }
 

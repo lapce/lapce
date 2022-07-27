@@ -156,7 +156,7 @@ impl PluginRpcHandler {
         }
     }
 
-    fn send_notification(&self, notification: NewPluginNotification) {
+    pub fn send_notification(&self, notification: NewPluginNotification) {
         let _ = self.plugin_tx.send(RpcMessage::Notification(notification));
     }
 
@@ -312,7 +312,7 @@ impl NewPluginCatalog {
         let plugin_env = NewPluginEnv {
             id,
             wasi_env,
-            plugin_rpc,
+            plugin_rpc: plugin_rpc.clone(),
             desc: plugin_desc.clone(),
         };
         let lapce = lapce_exports(&store, &plugin_env);

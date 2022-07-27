@@ -71,6 +71,37 @@ pub enum LspRpc {
     },
 }
 
+pub enum PluginServerRpc {
+    ServerNotification { method: &'static str, msg: String },
+}
+
+pub trait PluginServerHandler {
+    fn method_registered(&mut self, method: &'static str) -> bool;
+}
+
+pub struct PluginServerRpcHandler {
+    rpc_rx: Receiver<PluginServerRpc>,
+}
+
+impl PluginServerRpcHandler {
+    fn send_server_rpc(&self, msg: String) {}
+
+    pub fn mainloop<H>(&self, handler: &mut H)
+    where
+        H: PluginServerHandler,
+    {
+        for msg in &self.rpc_rx {
+            match msg {
+                PluginServerRpc::ServerNotification { method, msg } => {
+                    if handler.method_registered(method) {
+                        self.send_server_rpc(msg);
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct LspRpcHandler {
     host_tx: Sender<LspRpc>,
@@ -392,10 +423,10 @@ impl NewLspClient {
             self.rpc
                 .send_notification(Initialized::METHOD, InitializedParams {});
 
-            send_plugin_notification(
-                &self.plugin_sender,
-                NewPluginNotification::LspLoaded(self.rpc.clone()),
-            );
+            self.plugin_rpc
+                .send_notification(NewPluginNotification::LspLoaded(
+                    self.rpc.clone(),
+                ));
         }
     }
 
