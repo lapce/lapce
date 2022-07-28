@@ -180,6 +180,7 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
     })
 }
 
+/// The delegate handler for Top-Level Druid events (terminate, new window, etc.)
 struct LapceAppDelegate {}
 
 impl LapceAppDelegate {
@@ -203,6 +204,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         data: &mut LapceData,
         _env: &Env,
     ) -> Option<Event> {
+        //FIXME: no event::aplicationWillTerminate is sent.
         if let Event::ApplicationWillTerminate = event {
             let _ = data.db.save_app(data);
             return None;

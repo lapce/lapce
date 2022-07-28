@@ -419,12 +419,14 @@ pub enum LapceUICommand {
         path: PathBuf,
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation)>,
+        edits: Option<Rope>,
     },
     /// Init buffer content but using lsp positions instead
     InitBufferContentLsp {
         path: PathBuf,
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation<Position>)>,
+        edits: Option<Rope>,
     },
     OpenFileChanged {
         path: PathBuf,

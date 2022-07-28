@@ -731,10 +731,15 @@ impl LapceTab {
                         path,
                         content,
                         locations,
+                        edits,
                     } => {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
                         let doc = Arc::make_mut(doc);
                         doc.init_content(content.to_owned());
+
+                        if let Some(rope) = edits {
+                            doc.reload(rope.clone(), false);
+                        }
                         if let BufferContent::File(path) = doc.content() {
                             if let Some(d) = data.main_split.diagnostics.get(path) {
                                 doc.set_diagnostics(d);
@@ -755,10 +760,15 @@ impl LapceTab {
                         path,
                         content,
                         locations,
+                        edits,
                     } => {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
                         let doc = Arc::make_mut(doc);
                         doc.init_content(content.to_owned());
+
+                        if let Some(rope) = edits {
+                            doc.reload(rope.clone(), false);
+                        }
                         if let BufferContent::File(path) = doc.content() {
                             if let Some(d) = data.main_split.diagnostics.get(path) {
                                 doc.set_diagnostics(d);

@@ -87,6 +87,7 @@ pub trait EditorPosition: Sized {
         path: PathBuf,
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation<Self>)>,
+        edits: Option<Rope>,
     ) -> LapceUICommand;
 }
 
@@ -100,11 +101,13 @@ impl EditorPosition for usize {
         path: PathBuf,
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation<Self>)>,
+        unsaved_buffers: Option<Rope>,
     ) -> LapceUICommand {
         LapceUICommand::InitBufferContent {
             path,
             content,
             locations,
+            edits: unsaved_buffers,
         }
     }
 }
@@ -117,11 +120,13 @@ impl EditorPosition for Position {
         path: PathBuf,
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation<Self>)>,
+        edits: Option<Rope>,
     ) -> LapceUICommand {
         LapceUICommand::InitBufferContentLsp {
             path,
             content,
             locations,
+            edits,
         }
     }
 }

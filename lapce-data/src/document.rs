@@ -538,6 +538,7 @@ impl Document {
     pub fn retrieve_file<P: EditorPosition + Send + 'static>(
         &mut self,
         locations: Vec<(WidgetId, EditorLocation<P>)>,
+        unsaved_buffer: Option<Rope>,
     ) {
         if self.loaded || *self.load_started.borrow() {
             return;
@@ -559,6 +560,7 @@ impl Document {
                                 path,
                                 Rope::from(resp.content),
                                 locations,
+                                unsaved_buffer,
                             ),
                             Target::Widget(tab_id),
                         );

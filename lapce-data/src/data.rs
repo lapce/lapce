@@ -612,6 +612,14 @@ impl LapceTabData {
         let search = Arc::new(SearchData::new());
         let file_picker = Arc::new(FilePickerData::new());
 
+        let unsaved_buffers = match db.get_unsaved_buffers() {
+            Ok(val) => val,
+            Err(err) => {
+                log::warn!("Error during unsaved buffer fetching : {:}", err);
+                im::HashMap::new()
+            }
+        };
+
         let mut main_split = LapceMainSplitData::new(
             tab_id,
             workspace_info.as_ref(),
@@ -621,7 +629,9 @@ impl LapceTabData {
             event_sink.clone(),
             Arc::new(workspace.clone()),
             db.clone(),
+            unsaved_buffers,
         );
+
         main_split.add_editor(
             source_control.editor_view_id,
             None,
@@ -676,6 +686,7 @@ impl LapceTabData {
             .unwrap_or_else(|| PanelData::new(panel_orders));
 
         let focus = (*main_split.active).unwrap_or(*main_split.split_id);
+
         let mut tab = Self {
             id: tab_id,
             multiple_tab: false,
@@ -2440,7 +2451,7 @@ impl LapceMainSplitData {
                     Vec2::new(info.scroll_offset.0, info.scroll_offset.1);
                 doc.cursor_offset = info.cursor_offset;
             }
-            doc.retrieve_file(vec![(editor_view_id, location)]);
+            doc.retrieve_file(vec![(editor_view_id, location)], None);
             self.open_docs.insert(path.clone(), Arc::new(doc));
         } else {
             let doc = self.open_docs.get_mut(&path).unwrap().clone();
@@ -2575,6 +2586,7 @@ impl LapceMainSplitData {
         event_sink: ExtEventSink,
         workspace: Arc<LapceWorkspace>,
         db: Arc<LapceDb>,
+        unsaved_buffers: im::HashMap<String, String>,
     ) -> Self {
         let split_id = Arc::new(WidgetId::next());
 
@@ -2649,8 +2661,11 @@ impl LapceMainSplitData {
             );
             main_split_data.split_id = Arc::new(split_data.widget_id);
             for (path, locations) in positions.into_iter() {
+                let unsaved_buffer = unsaved_buffers
+                    .get(&path.to_str().unwrap().to_string())
+                    .map(Rope::from);
                 Arc::make_mut(main_split_data.open_docs.get_mut(&path).unwrap())
-                    .retrieve_file(locations.clone());
+                    .retrieve_file(locations.clone(), unsaved_buffer);
             }
         } else {
             main_split_data.splits.insert(
@@ -3245,6 +3260,7 @@ impl EditorTabChild {
     }
 }
 
+/// The actual Editor tab structure, holding the windows.
 #[derive(Clone, Debug)]
 pub struct LapceEditorTabData {
     pub widget_id: WidgetId,
