@@ -17,8 +17,8 @@ use lapce_core::{
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
-        LAPCE_COMMAND, LAPCE_OPEN_FILE, LAPCE_OPEN_FOLDER, LAPCE_SAVE_FILE_AS,
-        LAPCE_UI_COMMAND,
+        PluginLoadingStatus, LAPCE_COMMAND, LAPCE_OPEN_FILE, LAPCE_OPEN_FOLDER,
+        LAPCE_SAVE_FILE_AS, LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
     config::{Config, LapceTheme},
@@ -275,15 +275,15 @@ impl LapceTab {
                             .is_container_shown(&PanelContainerPosition::Bottom)
                         {
                             ctx.submit_command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Workbench(
-                                    LapceWorkbenchCommand::TogglePanelBottomVisual,
-                                ),
-                                data: None,
-                            },
-                            Target::Widget(data.id),
-                        ));
+                                LAPCE_COMMAND,
+                                LapceCommand {
+                                    kind: CommandKind::Workbench(
+                                        LapceWorkbenchCommand::TogglePanelBottomVisual,
+                                    ),
+                                    data: None,
+                                },
+                                Target::Widget(data.id),
+                            ));
                         }
                     } else if !data
                         .panel
@@ -933,39 +933,45 @@ impl LapceTab {
                     LapceUICommand::UpdateUninstalledPluginDescriptions(plugins) => {
                         data.uninstalled_plugins_desc = Arc::new(plugins.to_owned());
                     }
-                    LapceUICommand::DeleteUninstalledPluginDescriptions(plugins) => {
-                        let new_installed_plugin = plugins
-                            .iter()
-                            .filter(|p| {
-                                if let Some(ref plugins) =
-                                    *data.uninstalled_plugins_desc
-                                {
-                                    plugins
+                    LapceUICommand::UpdateDisabledPlugins(plugins) => {
+                        data.disabled_plugins = Arc::new(plugins.to_owned());
+                    }
+                    LapceUICommand::UpdatePluginInstallationChange(plugins) => {
+                        let local_plugins = plugins.clone();
+                        let handle = std::thread::spawn(move || {
+                            if let Ok(fetched_plugins) =
+                                LapceData::load_plugin_descriptions()
+                            {
+                                let (installed, uninstalled): (
+                                    Vec<PluginDescription>,
+                                    Vec<PluginDescription>,
+                                ) = fetched_plugins.into_iter().partition(|p| {
+                                    local_plugins
                                         .iter()
-                                        .find(|up| up.name == p.name)
+                                        .find(|(_, ip)| ip.name == p.name)
                                         .ok_or(())
                                         .is_ok()
-                                } else {
-                                    false
-                                }
-                            })
-                            .collect::<Vec<&PluginDescription>>();
-                        if !new_installed_plugin.is_empty() {
-                            let plugin_desc =
-                                (*data.uninstalled_plugins_desc).clone().map(|pd| {
-                                    pd.iter()
-                                        .filter_map(|p| {
-                                            if p.name != new_installed_plugin[0].name
-                                            {
-                                                Some(p.to_owned())
-                                            } else {
-                                                None
-                                            }
-                                        })
-                                        .collect::<Vec<PluginDescription>>()
                                 });
-                            data.uninstalled_plugins_desc = Arc::new(plugin_desc);
+                                return Ok((installed, uninstalled));
+                            }
+                            Err(())
+                        });
+                        let fetch_result = handle.join().unwrap_or(Err(()));
+                        if let Ok((installed, uninstalled)) = fetch_result {
+                            data.installed_plugins_desc =
+                                Arc::new(PluginLoadingStatus::Ok(installed));
+                            data.uninstalled_plugins_desc =
+                                Arc::new(PluginLoadingStatus::Ok(uninstalled));
                         }
+                    }
+                    LapceUICommand::DisablePlugin(plugin) => {
+                        data.proxy.disable_plugin(plugin);
+                    }
+                    LapceUICommand::EnablePlugin(plugin) => {
+                        data.proxy.enable_plugin(plugin);
+                    }
+                    LapceUICommand::RemovePlugin(plugin) => {
+                        data.proxy.remove_plugin(plugin);
                     }
                     LapceUICommand::UpdateDiffInfo(diff) => {
                         let source_control = Arc::make_mut(&mut data.source_control);

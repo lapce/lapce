@@ -11,6 +11,8 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::mpsc;
+use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::Duration;
 use toml;
@@ -39,11 +41,24 @@ pub(crate) struct Plugin {
     env: PluginEnv,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "kebab-case")]
+struct PluginConfig {
+    disabled: Vec<String>,
+}
+
 pub struct PluginCatalog {
     id_counter: Counter,
     pub items: HashMap<PluginName, PluginDescription>,
     plugins: HashMap<PluginName, Plugin>,
+    pub disabled: HashMap<PluginName, PluginDescription>,
     store: Store,
+    senders: HashMap<PluginName, Sender<PluginTransmissionMessage>>,
+}
+
+enum PluginTransmissionMessage {
+    Initialize,
+    Stop,
 }
 
 impl PluginCatalog {
@@ -52,7 +67,9 @@ impl PluginCatalog {
             id_counter: Counter::new(),
             items: HashMap::new(),
             plugins: HashMap::new(),
+            disabled: HashMap::new(),
             store: Store::default(),
+            senders: HashMap::new(),
         }
     }
 
@@ -64,19 +81,34 @@ impl PluginCatalog {
     pub fn reload(&mut self) {
         self.items.clear();
         self.plugins.clear();
-        self.load();
+        self.disabled.clear();
+        let _ = self.load();
     }
 
-    pub fn load(&mut self) {
+    pub fn load(&mut self) -> Result<()> {
         let all_plugins = find_all_plugins();
         for plugin_path in &all_plugins {
             match load_plugin(plugin_path) {
                 Err(_e) => (),
                 Ok(plugin) => {
-                    self.items.insert(plugin.name.clone(), plugin);
+                    self.items.insert(plugin.name.clone(), plugin.clone());
                 }
             }
         }
+        let home = home_dir().unwrap();
+        let path = home.join(".lapce").join("config").join("plugins.toml");
+        let mut file = fs::File::open(path)?;
+        let mut content = String::new();
+        file.read_to_string(&mut content)?;
+        let plugin_config: PluginConfig = toml::from_str(&content)?;
+        let mut disabled = HashMap::new();
+        for plugin_name in plugin_config.disabled.iter() {
+            if let Some(plugin) = self.items.get(plugin_name) {
+                disabled.insert(plugin_name.clone(), plugin.clone());
+            }
+        }
+        self.disabled = disabled;
+        Ok(())
     }
 
     pub fn install_plugin(
@@ -123,8 +155,9 @@ impl PluginCatalog {
                     .to_string(),
             );
 
-            if let Ok(p) = self.start_plugin(dispatcher, plugin.clone()) {
+            if let Ok((p, tx)) = self.start_plugin(dispatcher, plugin.clone()) {
                 self.plugins.insert(plugin.name.clone(), p);
+                self.senders.insert(plugin.name.clone(), tx);
             }
         }
         if let Some(themes) = plugin.themes.as_ref() {
@@ -148,10 +181,30 @@ impl PluginCatalog {
         Ok(())
     }
 
+    pub fn remove_plugin(
+        &mut self,
+        dispatcher: Dispatcher,
+        plugin: PluginDescription,
+    ) -> Result<()> {
+        self.disable_plugin(dispatcher, plugin.clone())?;
+        let home = home_dir().unwrap();
+        let path = home.join(".lapce").join("plugins").join(&plugin.name);
+        fs::remove_dir_all(&path)?;
+
+        let _ = self.items.remove(&plugin.name);
+        let _ = self.plugins.remove(&plugin.name);
+        let _ = self.disabled.remove(&plugin.name);
+        Ok(())
+    }
+
     pub fn start_all(&mut self, dispatcher: Dispatcher) {
         for (_, plugin) in self.items.clone().iter() {
-            if let Ok(p) = self.start_plugin(dispatcher.clone(), plugin.clone()) {
-                self.plugins.insert(plugin.name.clone(), p);
+            if !self.disabled.contains_key(&plugin.name) {
+                if let Ok((p, _tx)) =
+                    self.start_plugin(dispatcher.clone(), plugin.clone())
+                {
+                    self.plugins.insert(plugin.name.clone(), p);
+                }
             }
         }
     }
@@ -160,7 +213,7 @@ impl PluginCatalog {
         &mut self,
         dispatcher: Dispatcher,
         plugin_desc: PluginDescription,
-    ) -> Result<Plugin> {
+    ) -> Result<(Plugin, Sender<PluginTransmissionMessage>)> {
         let module = wasmer::Module::from_file(
             &self.store,
             plugin_desc
@@ -168,7 +221,6 @@ impl PluginCatalog {
                 .as_ref()
                 .ok_or_else(|| anyhow!("no wasm in plugin"))?,
         )?;
-
         let output = Pipe::new();
         let input = Pipe::new();
         let env = plugin_desc.get_plugin_env()?;
@@ -193,24 +245,122 @@ impl PluginCatalog {
         };
 
         let local_plugin = plugin.clone();
-        thread::spawn(move || {
-            let initialize = local_plugin
-                .instance
-                .exports
-                .get_function("initialize")
-                .unwrap();
-            wasi_write_object(
-                &local_plugin.env.wasi_env,
-                &PluginInfo {
-                    os: std::env::consts::OS.to_string(),
-                    arch: std::env::consts::ARCH.to_string(),
-                    configuration: plugin_desc.configuration,
-                },
-            );
-            initialize.call(&[]).unwrap();
-        });
+        let (tx, rx) = mpsc::channel();
 
-        Ok(plugin)
+        thread::spawn(move || loop {
+            match rx.try_recv() {
+                Ok(PluginTransmissionMessage::Initialize) => {
+                    let initialize = local_plugin
+                        .instance
+                        .exports
+                        .get_function("initialize")
+                        .unwrap();
+                    wasi_write_object(
+                        &local_plugin.env.wasi_env,
+                        &PluginInfo {
+                            os: std::env::consts::OS.to_string(),
+                            arch: std::env::consts::ARCH.to_string(),
+                            configuration: plugin_desc.clone().configuration,
+                        },
+                    );
+                    initialize.call(&[]).unwrap();
+                }
+                Ok(PluginTransmissionMessage::Stop) => {
+                    let stop = local_plugin.instance.exports.get_function("stop");
+                    if let Ok(stop_func) = stop {
+                        stop_func.call(&[]).unwrap();
+                    } else if let Some(Value::Object(conf)) =
+                        &plugin_desc.configuration
+                    {
+                        if let Some(Value::String(lang)) = conf.get("language_id") {
+                            local_plugin
+                                .env
+                                .dispatcher
+                                .lsp
+                                .lock()
+                                .stop_language_lsp(lang);
+                        }
+                    }
+                    break;
+                }
+                _ => {}
+            }
+        });
+        tx.send(PluginTransmissionMessage::Initialize)?;
+        Ok((plugin, tx))
+    }
+
+    pub fn disable_plugin(
+        &mut self,
+        _dispatcher: Dispatcher,
+        plugin_desc: PluginDescription,
+    ) -> Result<()> {
+        let plugin_tx = self.senders.get(&plugin_desc.name);
+        if let Some(tx) = plugin_tx {
+            let local_tx = tx.clone();
+            thread::spawn(move || {
+                let _ = local_tx.send(PluginTransmissionMessage::Stop);
+            });
+        }
+        self.senders.remove(&plugin_desc.name);
+        let plugin = plugin_desc.clone();
+        self.disabled.insert(plugin_desc.name.clone(), plugin);
+        let disabled_plugin_list =
+            self.disabled.clone().into_keys().collect::<Vec<String>>();
+        let plugin_config = PluginConfig {
+            disabled: disabled_plugin_list,
+        };
+        let home = home_dir().unwrap();
+        let path = home.join(".lapce").join("config");
+        fs::create_dir_all(&path)?;
+        {
+            let mut file = fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(path.join("plugins.toml"))?;
+            file.write_all(&toml::to_vec(&plugin_config)?)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn enable_plugin(
+        &mut self,
+        dispatcher: Dispatcher,
+        plugin_desc: PluginDescription,
+    ) -> Result<()> {
+        let mut plugin = plugin_desc.clone();
+        let home = home_dir().unwrap();
+        let path = home.join(".lapce").join("plugins").join(&plugin.name);
+        plugin.dir = Some(path.clone());
+        if let Some(wasm) = plugin.wasm {
+            plugin.wasm = Some(
+                path.join(&wasm)
+                    .to_str()
+                    .ok_or_else(|| anyhow!("path can't to string"))?
+                    .to_string(),
+            );
+            self.start_plugin(dispatcher, plugin.clone())?;
+            self.disabled.remove(&plugin_desc.name);
+            let config_path = home.join(".lapce").join("config");
+            let disabled_plugin_list =
+                self.disabled.clone().into_keys().collect::<Vec<String>>();
+            let plugin_config = PluginConfig {
+                disabled: disabled_plugin_list,
+            };
+            {
+                let mut file = fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open(config_path.join("plugins.toml"))?;
+                file.write_all(&toml::to_vec(&plugin_config)?)?;
+            }
+            Ok(())
+        } else {
+            Err(anyhow!("no wasm in plugin"))
+        }
     }
 
     pub fn next_plugin_id(&mut self) -> PluginId {
