@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -16,7 +16,7 @@ use xi_rope::RopeDelta;
 
 use crate::{
     buffer::BufferId,
-    core::{CoreRequest, CoreResponse},
+    core::CoreResponse,
     file::FileNodeItem,
     plugin::{PluginDescription, PluginId, PluginResponse},
     source_control::FileDiff,
@@ -24,71 +24,9 @@ use crate::{
     RequestId, RpcError, RpcMessage,
 };
 
-pub type CoreProxyRpcMessage =
-    RpcMessage<CoreProxyRequest, CoreProxyNotification, CoreProxyResponse>;
-
-pub enum ProxyRpcMessage {
-    Core(RpcMessage<CoreProxyRequest, CoreProxyNotification, ProxyResponse>),
-    Plugin(RpcMessage<CoreProxyRequest, CoreProxyNotification, ProxyResponse>),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "method", content = "params")]
-pub enum CoreProxyNotification {
-    Initialize {
-        workspace: PathBuf,
-    },
-    Shutdown {},
-    Update {
-        buffer_id: BufferId,
-        delta: RopeDelta,
-        rev: u64,
-    },
-    NewTerminal {
-        term_id: TermId,
-        cwd: Option<PathBuf>,
-        shell: String,
-    },
-    InstallPlugin {
-        plugin: PluginDescription,
-    },
-    DisablePlugin {
-        plugin: PluginDescription,
-    },
-    EnablePlugin {
-        plugin: PluginDescription,
-    },
-    RemovePlugin {
-        plugin: PluginDescription,
-    },
-    GitCommit {
-        message: String,
-        diffs: Vec<FileDiff>,
-    },
-    GitCheckout {
-        branch: String,
-    },
-    GitDiscardFileChanges {
-        file: PathBuf,
-    },
-    GitDiscardFilesChanges {
-        files: Vec<PathBuf>,
-    },
-    GitDiscardWorkspaceChanges {},
-    GitInit {},
-    TerminalWrite {
-        term_id: TermId,
-        content: String,
-    },
-    TerminalResize {
-        term_id: TermId,
-        width: usize,
-        height: usize,
-    },
-    TerminalClose {
-        term_id: TermId,
-    },
+enum ProxyRpcMessage {
+    Request(RequestId, CoreProxyRequest),
+    Notification(CoreProxyNotification),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -265,50 +203,8 @@ pub enum CoreProxyResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "method", content = "params")]
-pub enum PluginProxyRequest {}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "method", content = "params")]
-pub enum PluginProxyNotification {
-    StartLspServer {
-        exec_path: String,
-        language_id: String,
-        options: Option<Value>,
-        system_lsp: Option<bool>,
-    },
-    DownloadFile {
-        url: String,
-        path: PathBuf,
-    },
-    LockFile {
-        path: PathBuf,
-    },
-    MakeFileExecutable {
-        path: PathBuf,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "method", content = "params")]
-pub enum PluginProxyResponse {}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadDirResponse {
     pub items: HashMap<PathBuf, FileNodeItem>,
-}
-
-pub trait NewCallback<Resp>: Send {
-    fn call(self: Box<Self>, result: Result<Resp, RpcError>);
-}
-
-impl<Resp, F: Send + FnOnce(Result<Resp, RpcError>)> NewCallback<Resp> for F {
-    fn call(self: Box<F>, result: Result<Resp, RpcError>) {
-        (*self)(result)
-    }
 }
 
 pub trait ProxyCallback: Send {
@@ -340,8 +236,8 @@ pub trait ProxyHandler {
 
 #[derive(Clone)]
 pub struct ProxyRpcHandler {
-    tx: Sender<CoreProxyRpcMessage>,
-    rx: Receiver<CoreProxyRpcMessage>,
+    tx: Sender<ProxyRpcMessage>,
+    rx: Receiver<ProxyRpcMessage>,
     id: Arc<AtomicU64>,
     pending: Arc<Mutex<HashMap<u64, ResponseHandler>>>,
 }
@@ -361,21 +257,20 @@ impl ProxyRpcHandler {
     where
         H: ProxyHandler,
     {
+        use ProxyRpcMessage::*;
         for msg in &self.rx {
             match msg {
-                RpcMessage::Request(id, request) => {
+                Request(id, request) => {
                     handler.handle_request(id, request);
                 }
-                RpcMessage::Notification(notification) => {
+                Notification(notification) => {
                     handler.handle_notification(notification);
                 }
-                RpcMessage::Response(_, _) => todo!(),
-                RpcMessage::Error(_, _) => todo!(),
             }
         }
     }
 
-    fn send_request_async(
+    fn request_async(
         &self,
         request: CoreProxyRequest,
         f: impl ProxyCallback + 'static,
@@ -385,7 +280,7 @@ impl ProxyRpcHandler {
             let mut pending = self.pending.lock();
             pending.insert(id, ResponseHandler::Callback(Box::new(f)));
         }
-        let _ = self.tx.send(RpcMessage::Request(id, request));
+        let _ = self.tx.send(ProxyRpcMessage::Request(id, request));
     }
 
     pub fn handle_response(
@@ -398,16 +293,16 @@ impl ProxyRpcHandler {
         }
     }
 
-    pub fn send_notification(&self, notification: CoreProxyNotification) {
-        let _ = self.tx.send(RpcMessage::Notification(notification));
+    pub fn notification(&self, notification: CoreProxyNotification) {
+        let _ = self.tx.send(ProxyRpcMessage::Notification(notification));
     }
 
     pub fn shutdown(&self) {
-        self.send_notification(CoreProxyNotification::Shutdown {});
+        self.notification(CoreProxyNotification::Shutdown {});
     }
 
     pub fn initialize(&self, workspace: Option<PathBuf>) {
-        self.send_notification(CoreProxyNotification::Initialize { workspace });
+        self.notification(CoreProxyNotification::Initialize { workspace });
     }
 
     pub fn new_buffer(
@@ -416,7 +311,7 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.send_request_async(CoreProxyRequest::NewBuffer { buffer_id, path }, f);
+        self.request_async(CoreProxyRequest::NewBuffer { buffer_id, path }, f);
     }
 
     pub fn get_buffer_head(
@@ -425,11 +320,11 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.send_request_async(CoreProxyRequest::BufferHead { buffer_id, path }, f);
+        self.request_async(CoreProxyRequest::BufferHead { buffer_id, path }, f);
     }
 
     pub fn get_files(&self, f: impl ProxyCallback + 'static) {
-        self.send_request_async(
+        self.request_async(
             CoreProxyRequest::GetFiles {
                 path: "path".into(),
             },
@@ -438,6 +333,6 @@ impl ProxyRpcHandler {
     }
 
     pub fn read_dir(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.send_request_async(CoreProxyRequest::ReadDir { path }, f);
+        self.request_async(CoreProxyRequest::ReadDir { path }, f);
     }
 }

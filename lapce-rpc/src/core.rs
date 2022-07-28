@@ -13,14 +13,9 @@ use crate::{
     source_control::DiffInfo, terminal::TermId, RequestId, RpcError, RpcMessage,
 };
 
-pub type CoreRpcMessage =
-    RpcMessage<CoreRequest, CoreNotification, CoreProxyResponse>;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum CoreRpc {
-    Notificiation(CoreNotification),
-    Response(RequestId, CoreResponse),
-    Error(RequestId, RpcError),
+enum CoreRpc {
+    Request(RequestId, CoreRequest),
+    Notification(CoreNotification),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,8 +85,8 @@ pub trait CoreHandler {
 
 #[derive(Clone)]
 pub struct CoreRpcHandler {
-    tx: Sender<CoreRpcMessage>,
-    pub rx: Receiver<CoreRpcMessage>,
+    tx: Sender<CoreRpc>,
+    rx: Receiver<CoreRpc>,
     id: Arc<AtomicU64>,
     pending: Arc<Mutex<HashMap<u64, u64>>>,
 }
@@ -113,28 +108,23 @@ impl CoreRpcHandler {
     {
         for msg in &self.rx {
             match msg {
-                RpcMessage::Request(_, _) => todo!(),
-                RpcMessage::Response(_, _) => todo!(),
-                RpcMessage::Notification(_) => todo!(),
-                RpcMessage::Error(_, _) => todo!(),
+                CoreRpc::Request(_, _) => todo!(),
+                CoreRpc::Notification(_) => todo!(),
             }
         }
     }
 
     pub fn handle_response(&self, response: Result<CoreResponse, RpcError>) {}
 
-    pub fn send_notification(&self, notification: CoreNotification) {
-        let _ = self.tx.send(RpcMessage::Notification(notification));
+    pub fn notification(&self, notification: CoreNotification) {
+        let _ = self.tx.send(CoreRpc::Notification(notification));
     }
 
     pub fn proxy_connected(&self) {
-        self.send_notification(CoreNotification::ProxyConnected {});
+        self.notification(CoreNotification::ProxyConnected {});
     }
 
     pub fn completion_response(&self, request_id: usize, resp: CompletionResponse) {
-        self.send_notification(CoreNotification::CompletionResponse {
-            request_id,
-            resp,
-        });
+        self.notification(CoreNotification::CompletionResponse { request_id, resp });
     }
 }

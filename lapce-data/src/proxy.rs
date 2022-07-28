@@ -16,14 +16,11 @@ use flate2::read::GzDecoder;
 pub use lapce_proxy::VERSION;
 use lapce_proxy::{dispatch::Dispatcher, APPLICATION_NAME};
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
-use lapce_rpc::core::{
-    CoreHandler, CoreNotification, CoreRequest, CoreResponse, CoreRpcHandler,
-    CoreRpcMessage,
-};
+use lapce_rpc::core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler};
 use lapce_rpc::plugin::PluginDescription;
 use lapce_rpc::proxy::{
-    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse, CoreProxyRpcMessage,
-    ProxyRpcHandler, ProxyRpcMessage, ReadDirResponse,
+    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse, ProxyRpcHandler,
+    ReadDirResponse,
 };
 use lapce_rpc::source_control::FileDiff;
 use lapce_rpc::style::SemanticStyles;
@@ -112,8 +109,6 @@ pub struct LapceProxy {
     pub proxy_rpc: ProxyRpcHandler,
     core_rpc: CoreRpcHandler,
     proxy_receiver: Arc<Receiver<Value>>,
-    new_proxy_sender: Arc<Sender<ProxyRpcMessage>>,
-    new_proxy_receiver: Arc<Receiver<ProxyRpcMessage>>,
     term_tx: Sender<(TermId, TermEvent)>,
     event_sink: ExtEventSink,
 }
@@ -267,7 +262,6 @@ impl LapceProxy {
         let (proxy_sender, proxy_receiver) = crossbeam_channel::unbounded();
         let rpc = RpcHandler::new(proxy_sender);
 
-        let (new_proxy_sender, new_proxy_receiver) = crossbeam_channel::unbounded();
         let proxy_rpc = ProxyRpcHandler::new();
         let core_rpc = CoreRpcHandler::new();
 
@@ -277,8 +271,6 @@ impl LapceProxy {
             proxy_rpc,
             core_rpc,
             proxy_receiver: Arc::new(proxy_receiver),
-            new_proxy_receiver: Arc::new(new_proxy_receiver),
-            new_proxy_sender: Arc::new(new_proxy_sender),
             term_tx,
             event_sink: event_sink.clone(),
         };
@@ -454,7 +446,7 @@ impl LapceProxy {
                 match msg {
                     RpcMessage::Request(_, _) => todo!(),
                     RpcMessage::Notification(n) => {
-                        core_rpc.send_notification(n);
+                        core_rpc.notification(n);
                     }
                     RpcMessage::Response(_, _) => todo!(),
                     RpcMessage::Error(_, _) => todo!(),
@@ -1206,7 +1198,9 @@ fn parse_os(os: &str) -> HostPlatform {
     }
 }
 
-fn read_msg<R: BufRead>(reader: &mut R) -> Result<CoreRpcMessage> {
+fn read_msg<R: BufRead>(
+    reader: &mut R,
+) -> Result<RpcMessage<CoreRequest, CoreNotification, CoreProxyResponse>> {
     let mut buf = String::new();
     let _s = reader.read_line(&mut buf)?;
     let value: Value = serde_json::from_str(&buf)?;

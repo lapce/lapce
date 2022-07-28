@@ -19,11 +19,11 @@ use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
-use lapce_rpc::core::{CoreNotification, CoreRpcHandler, CoreRpcMessage};
+use lapce_rpc::core::{CoreNotification, CoreRpcHandler};
 use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::proxy::{
     CoreProxyNotification, CoreProxyRequest, CoreProxyResponse, ProxyHandler,
-    ProxyRpcHandler, ProxyRpcMessage, ReadDirResponse,
+    ProxyRpcHandler, ReadDirResponse,
 };
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
@@ -1084,18 +1084,6 @@ impl Dispatcher {
             }
         }
     }
-}
-
-fn respond_rpc(
-    core_sender: &Sender<CoreRpcMessage>,
-    id: RequestId,
-    result: Result<CoreProxyResponse, RpcError>,
-) {
-    let msg = match result {
-        Ok(r) => CoreRpcMessage::Response(id, r),
-        Err(e) => CoreRpcMessage::Error(id, e),
-    };
-    let _ = core_sender.send(msg);
 }
 
 #[derive(Clone, Debug)]
