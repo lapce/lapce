@@ -344,7 +344,7 @@ impl Widget<LapceTabData> for PaletteContainer {
         let max_items = 15;
         let height = max_items.min(data.palette.len());
         let height = self.line_height * height as f64;
-        let bc = BoxConstraints::tight(Size::new(width, height));
+        let bc = BoxConstraints::tight(Size::new(f64::max(width, data.config.ui.preview_editor_width() as f64), height));
         let content_size = self.content.layout(ctx, &bc, data, env);
         self.content
             .set_origin(ctx, data, env, Point::new(0.0, input_size.height));
@@ -366,7 +366,7 @@ impl Widget<LapceTabData> for PaletteContainer {
         } else {
             0.0
         };
-        let bc = BoxConstraints::tight(Size::new(width, max_preview_height));
+        let bc = BoxConstraints::tight(Size::new(f64::max(width, data.config.ui.preview_editor_width() as f64), max_preview_height));
         let _preview_size = self.preview.layout(ctx, &bc, data, env);
         self.preview.set_origin(
             ctx,
