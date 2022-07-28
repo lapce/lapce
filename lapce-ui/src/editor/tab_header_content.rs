@@ -153,6 +153,7 @@ impl LapceEditorTabHeaderContent {
                     mouse_event.pos.to_vec2() - tab_rect.rect.origin().to_vec2();
                 *Arc::make_mut(&mut data.drag) = Some((
                     offset,
+                    mouse_event.window_pos.to_vec2(),
                     DragContent::EditorTab(
                         editor_tab.widget_id,
                         target,
@@ -189,7 +190,7 @@ impl LapceEditorTabHeaderContent {
         ctx: &mut EventCtx,
         data: &mut LapceTabData,
     ) {
-        if let Some((_, DragContent::EditorTab(from_id, from_index, child, _))) =
+        if let Some((_, _, DragContent::EditorTab(from_id, from_index, child, _))) =
             Arc::make_mut(&mut data.drag).take()
         {
             let editor_tab = data
