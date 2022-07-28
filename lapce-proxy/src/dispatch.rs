@@ -1,8 +1,8 @@
 use crate::buffer::{get_mod_time, load_file, Buffer};
-use crate::lsp::{LspCatalog, NewLspCatalog};
+use crate::plugin::lsp::LspCatalog;
 use crate::plugin::{
-    NewPluginCatalog, NewPluginNotification, PluginCatalog, PluginNotification,
-    PluginRpcHandler, PluginRpcMessage,
+    catalog::NewPluginCatalog, NewPluginNotification, PluginCatalog,
+    PluginNotification, PluginRpcHandler, PluginRpcMessage,
 };
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};

@@ -1,3 +1,8 @@
+pub mod catalog;
+pub mod lsp;
+pub mod psp;
+pub mod wasi;
+
 use anyhow::{anyhow, Result};
 use directories::ProjectDirs;
 use hotwatch::Hotwatch;
@@ -25,7 +30,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
@@ -39,10 +43,7 @@ use wasmer::ChainableNamedResolver;
 use wasmer::ImportObject;
 use wasmer::Store;
 use wasmer::WasmerEnv;
-use wasmer_wasi::Pipe;
 use wasmer_wasi::WasiEnv;
-use wasmer_wasi::WasiState;
-use wasmtime_wasi::WasiCtxBuilder;
 
 use crate::dispatch::Dispatcher;
 use crate::lsp::{LspRpcHandler, NewLspClient};
@@ -62,10 +63,7 @@ pub enum PluginRequest {
 }
 
 pub enum NewPluginNotification {
-    PluginLoaded(NewPlugin),
     PluginServerLoaded(PluginServerRpcHandler),
-    LspLoaded(LspRpcHandler),
-    DocumentDidOpen(TextDocumentItem),
     PluginServerNotification {
         method: &'static str,
         params: Value,
@@ -78,22 +76,6 @@ pub enum NewPluginNotification {
         options: Option<Value>,
         system_lsp: Option<bool>,
     },
-}
-
-#[derive(WasmerEnv, Clone)]
-pub struct NewPluginEnv {
-    id: PluginId,
-    plugin_rpc: PluginRpcHandler,
-    rpc: PluginServerRpcHandler,
-    wasi_env: WasiEnv,
-    desc: PluginDescription,
-}
-
-#[derive(Clone)]
-pub struct NewPlugin {
-    id: PluginId,
-    instance: wasmer::Instance,
-    env: NewPluginEnv,
 }
 
 #[derive(WasmerEnv, Clone)]
@@ -125,23 +107,6 @@ pub struct PluginRpcHandler {
     plugin_rx: Receiver<PluginRpcMessage>,
     id: Arc<AtomicU64>,
     pending: Arc<Mutex<HashMap<u64, Sender<Result<Value, RpcError>>>>>,
-}
-
-impl PluginServerHandler for NewPlugin {
-    fn method_registered(&mut self, method: &'static str) -> bool {
-        todo!()
-    }
-
-    fn handle_host_notification(&mut self) {
-        todo!()
-    }
-
-    fn handle_handler_notification(
-        &mut self,
-        notification: PluginHandlerNotification,
-    ) {
-        todo!()
-    }
 }
 
 impl PluginRpcHandler {
@@ -266,216 +231,6 @@ impl PluginRpcHandler {
 
     fn plugin_server_loaded(&self, plugin: PluginServerRpcHandler) {
         self.send_notification(NewPluginNotification::PluginServerLoaded(plugin));
-    }
-
-    fn plugin_loaded(&self, plugin: NewPlugin) {
-        self.send_notification(NewPluginNotification::PluginLoaded(plugin));
-    }
-}
-
-pub struct NewPluginCatalog {
-    plugin_rpc: PluginRpcHandler,
-    plugins: HashMap<PluginId, NewPlugin>,
-    lsps: Vec<LspRpcHandler>,
-    new_plugins: Vec<PluginServerRpcHandler>,
-}
-
-impl NewPluginCatalog {
-    pub fn new(plugin_rpc: PluginRpcHandler) -> Self {
-        let plugin = Self {
-            plugin_rpc: plugin_rpc.clone(),
-            plugins: HashMap::new(),
-            lsps: Vec::new(),
-            new_plugins: Vec::new(),
-        };
-
-        thread::spawn(move || {
-            Self::load(plugin_rpc);
-        });
-
-        plugin
-    }
-
-    pub fn load(plugin_rpc: PluginRpcHandler) {
-        eprintln!("start to load plugins");
-        let all_plugins = find_all_plugins();
-        for plugin_path in &all_plugins {
-            match load_plugin(plugin_path) {
-                Err(_e) => (),
-                Ok(plugin_desc) => {
-                    if let Err(e) =
-                        Self::start_plugin(plugin_rpc.clone(), plugin_desc)
-                    {
-                        eprintln!("start plugin error {}", e);
-                    }
-                }
-            }
-        }
-    }
-
-    fn start_plugin(
-        plugin_rpc: PluginRpcHandler,
-        plugin_desc: PluginDescription,
-    ) -> Result<()> {
-        eprintln!("start a certain plugin");
-        let store = Store::default();
-        let module = wasmer::Module::from_file(
-            &store,
-            plugin_desc
-                .wasm
-                .as_ref()
-                .ok_or_else(|| anyhow!("no wasm in plugin"))?,
-        )?;
-
-        let output = Pipe::new();
-        let input = Pipe::new();
-        let env = plugin_desc.get_plugin_env()?;
-        let mut wasi_env = WasiState::new("Lapce")
-            .map_dir("/", plugin_desc.dir.clone().unwrap())?
-            .stdin(Box::new(input))
-            .stdout(Box::new(output))
-            .envs(env)
-            .finalize()?;
-        let wasi = wasi_env.import_object(&module)?;
-
-        let (io_tx, io_rx) = crossbeam_channel::unbounded();
-        let rpc = PluginServerRpcHandler::new(io_tx);
-
-        let id = PluginId::next();
-        let plugin_env = NewPluginEnv {
-            id,
-            rpc: rpc.clone(),
-            wasi_env,
-            plugin_rpc: plugin_rpc.clone(),
-            desc: plugin_desc.clone(),
-        };
-        let lapce = lapce_exports(&store, &plugin_env);
-        let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
-        let mut plugin = NewPlugin {
-            id,
-            instance,
-            env: plugin_env.clone(),
-        };
-
-        let handle_rpc = plugin
-            .instance
-            .exports
-            .get_function("handle_rpc")
-            .unwrap()
-            .clone();
-        let wasi_env = plugin_env.wasi_env.clone();
-        thread::spawn(move || {
-            for msg in io_rx {
-                wasi_write_string(&wasi_env, &msg);
-                let _ = handle_rpc.call(&[]);
-            }
-        });
-
-        let local_rpc = rpc.clone();
-        thread::spawn(move || {
-            local_rpc.mainloop(&mut plugin);
-        });
-
-        plugin_rpc.plugin_server_loaded(rpc.clone());
-
-        // thread::spawn(move || {
-        //     let initialize =
-        //         plugin.instance.exports.get_function("initialize").unwrap();
-        //     wasi_write_object(
-        //         &plugin.env.wasi_env,
-        //         &PluginInfo {
-        //             os: std::env::consts::OS.to_string(),
-        //             arch: std::env::consts::ARCH.to_string(),
-        //             configuration: plugin_desc.configuration,
-        //         },
-        //     );
-        //     initialize.call(&[]).unwrap();
-        // });
-
-        // let (plugin_sender, plugin_receiver) =
-        //     crossbeam_channel::unbounded::<PluginRpcMessage>();
-        // let (proxy_sender, proxy_receiver) = crossbeam_channel::unbounded();
-        // let mut rpc_handler = ProxyRpcHandler::new(plugin_sender);
-        // rpc_handler.mainloop(proxy_receiver, &mut plugin);
-
-        // for msg in plugin_receiver {
-        //     wasi_write_object(&plugin_env.wasi_env, &msg.to_value().unwrap());
-        // }
-
-        Ok(())
-    }
-
-    fn handle_notification(&mut self, rpc: NewPluginNotification) {
-        match rpc {
-            NewPluginNotification::PluginLoaded(plugin) => {
-                eprintln!("plugin loaded");
-                self.plugins.insert(plugin.id, plugin);
-            }
-            NewPluginNotification::PluginServerLoaded(plugin) => {
-                self.new_plugins.push(plugin);
-            }
-            NewPluginNotification::LspLoaded(lsp) => {
-                self.lsps.push(lsp);
-            }
-            NewPluginNotification::StartLspServer {
-                workspace,
-                plugin_id,
-                exec_path,
-                language_id,
-                options,
-                system_lsp,
-            } => {
-                let exec_path = if system_lsp.unwrap_or(false) {
-                    // System LSP should be handled by PATH during
-                    // process creation, so we forbid anything that
-                    // is not just an executable name
-                    match PathBuf::from(&exec_path).file_name() {
-                        Some(v) => v.to_str().unwrap().to_string(),
-                        None => return,
-                    }
-                } else {
-                    let plugin = self.plugins.get(&plugin_id).unwrap();
-                    plugin
-                        .env
-                        .desc
-                        .dir
-                        .as_ref()
-                        .unwrap()
-                        .join(&exec_path)
-                        .to_str()
-                        .unwrap()
-                        .to_string()
-                };
-                let plugin_rpc = self.plugin_rpc.clone();
-                thread::spawn(move || {
-                    NewLspClient::start(
-                        plugin_rpc,
-                        workspace,
-                        exec_path,
-                        Vec::new(),
-                    );
-                });
-            }
-            NewPluginNotification::DocumentDidOpen(document) => {
-                for lsp in self.lsps.iter() {
-                    lsp.send_notification(
-                        DidOpenTextDocument::METHOD,
-                        DidOpenTextDocumentParams {
-                            text_document: document.clone(),
-                        },
-                    );
-                }
-            }
-            NewPluginNotification::PluginServerNotification { method, params } => {
-                for plugin in self.new_plugins.iter() {
-                    plugin.server_notification(method, params.clone());
-                }
-            }
-        }
-    }
-
-    fn handle_request(&mut self, rpc: PluginRequest) {
-        todo!()
     }
 }
 
@@ -812,26 +567,6 @@ impl Default for PluginCatalog {
     }
 }
 
-pub(crate) fn lapce_exports(
-    store: &Store,
-    plugin_env: &NewPluginEnv,
-) -> ImportObject {
-    macro_rules! lapce_export {
-        ($($host_function:ident),+ $(,)?) => {
-            wasmer::imports! {
-                "lapce" => {
-                    $(stringify!($host_function) =>
-                        wasmer::Function::new_native_with_env(store, plugin_env.clone(), $host_function),)+
-                }
-            }
-        }
-    }
-
-    lapce_export! {
-        host_handle_notification,
-    }
-}
-
 // pub(crate) fn lapce_exports(store: &Store, plugin_env: &PluginEnv) -> ImportObject {
 //     macro_rules! lapce_export {
 //         ($($host_function:ident),+ $(,)?) => {
@@ -878,48 +613,6 @@ fn number_from_id(id: &Id) -> u64 {
             .parse::<u64>()
             .expect("failed to convert string id to u64"),
         _ => panic!("unexpected value for id: None"),
-    }
-}
-
-pub fn handle_plugin_server_message(message: &str) -> Result<PluginServerRpc> {
-    let rpc = match JsonRpc::parse(message) {
-        Ok(value @ JsonRpc::Request(_)) => {
-            let id = number_from_id(&value.get_id().unwrap());
-            PluginServerRpc::HostRequest {
-                id,
-                method: value.get_method().unwrap().to_string(),
-                params: value.get_params().unwrap(),
-            }
-        }
-        Ok(value @ JsonRpc::Notification(_)) => PluginServerRpc::HostNotification {
-            method: value.get_method().unwrap().to_string(),
-            params: value.get_params().unwrap(),
-        },
-        Ok(value @ JsonRpc::Success(_)) => {
-            let id = number_from_id(&value.get_id().unwrap());
-            let result = value.get_result().unwrap().clone();
-            PluginServerRpc::ServerResponse { id, result }
-        }
-        Ok(value @ JsonRpc::Error(_)) => {
-            let id = number_from_id(&value.get_id().unwrap());
-            let error = value.get_error().unwrap();
-            PluginServerRpc::ServerError {
-                id,
-                error: RpcError {
-                    code: error.code,
-                    message: error.message.clone(),
-                },
-            }
-        }
-        Err(_err) => return Err(anyhow!("parsing error")),
-    };
-    Ok(rpc)
-}
-
-fn host_handle_notification(plugin_env: &NewPluginEnv) {
-    let msg = wasi_read_string(&plugin_env.wasi_env).unwrap();
-    if let Ok(rpc) = handle_plugin_server_message(&msg) {
-        plugin_env.rpc.handle_rpc(rpc);
     }
 }
 
