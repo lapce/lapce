@@ -1,20 +1,24 @@
 use std::{
     collections::HashMap,
+    path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
     },
+    thread,
 };
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
+use dyn_clone::DynClone;
 use jsonrpc_lite::{JsonRpc, Params};
 use lapce_rpc::RpcError;
+use lsp_types::notification::Notification;
 use parking_lot::Mutex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::number_from_id;
+use super::{lsp::NewLspClient, number_from_id, PluginCatalogRpcHandler};
 
 enum ResponseHandler<Resp, Error> {
     Chan(Sender<Result<Resp, Error>>),
@@ -31,6 +35,13 @@ impl<Resp, Error> ResponseHandler<Resp, Error> {
         }
     }
 }
+
+pub trait ClonableCallback:
+    FnOnce(Result<Value, RpcError>) + Send + DynClone
+{
+}
+
+impl<F: Send + FnOnce(Result<Value, RpcError>) + DynClone> ClonableCallback for F {}
 
 pub trait RpcCallback<Resp, Error>: Send {
     fn call(self: Box<Self>, result: Result<Resp, Error>);
@@ -89,7 +100,7 @@ pub struct PluginServerRpcHandler {
 
 pub trait PluginServerHandler {
     fn method_registered(&mut self, method: &'static str) -> bool;
-    fn handle_host_notification(&mut self);
+    fn handle_host_notification(&mut self, method: String, params: Params);
     fn handle_handler_notification(
         &mut self,
         notification: PluginHandlerNotification,
@@ -126,8 +137,6 @@ impl PluginServerRpcHandler {
         let _ = self.rpc_tx.send(rpc);
     }
 
-    pub fn handle_host_notification(&self) {}
-
     pub fn server_notification<P: Serialize>(
         &self,
         method: &'static str,
@@ -157,7 +166,7 @@ impl PluginServerRpcHandler {
     pub fn server_request_async(
         &self,
         method: &'static str,
-        params: Params,
+        params: Value,
         f: impl RpcCallback<Value, RpcError> + 'static,
     ) {
         self.server_request_common(
@@ -227,7 +236,7 @@ impl PluginServerRpcHandler {
                 }
                 PluginServerRpc::HostRequest { id, method, params } => todo!(),
                 PluginServerRpc::HostNotification { method, params } => {
-                    handler.handle_host_notification();
+                    handler.handle_host_notification(method, params);
                 }
                 PluginServerRpc::Handler(notification) => {
                     handler.handle_handler_notification(notification)
@@ -270,4 +279,61 @@ pub fn handle_plugin_server_message(message: &str) -> Result<PluginServerRpc> {
         Err(_err) => return Err(anyhow!("parsing error")),
     };
     Ok(rpc)
+}
+
+pub enum StartLspServer {}
+
+impl Notification for StartLspServer {
+    type Params = StartLspServerParams;
+    const METHOD: &'static str = "start_lsp_server";
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StartLspServerParams {
+    pub exec_path: String,
+    pub language_id: String,
+    pub options: Option<Value>,
+    pub system_lsp: Option<bool>,
+}
+
+pub struct PluginHostHandler {
+    workspace: Option<PathBuf>,
+    catalog_rpc: PluginCatalogRpcHandler,
+}
+
+impl PluginHostHandler {
+    pub fn new(
+        workspace: Option<PathBuf>,
+        catalog_rpc: PluginCatalogRpcHandler,
+    ) -> Self {
+        Self {
+            workspace,
+            catalog_rpc,
+        }
+    }
+
+    pub fn handle_notification(
+        &mut self,
+        method: String,
+        params: Params,
+    ) -> Result<()> {
+        match method.as_str() {
+            StartLspServer::METHOD => {
+                let params: StartLspServerParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                let workspace = self.workspace.clone();
+                let catalog_rpc = self.catalog_rpc.clone();
+                thread::spawn(move || {
+                    NewLspClient::start(
+                        catalog_rpc,
+                        workspace,
+                        params.exec_path,
+                        Vec::new(),
+                    );
+                });
+            }
+            _ => {}
+        }
+        Ok(())
+    }
 }

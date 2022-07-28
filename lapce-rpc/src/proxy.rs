@@ -198,6 +198,11 @@ pub enum CoreProxyNotification {
         workspace: Option<PathBuf>,
     },
     Shutdown {},
+    Completion {
+        request_id: usize,
+        path: PathBuf,
+        position: Position,
+    },
     Update {
         buffer_id: BufferId,
         delta: RopeDelta,
@@ -316,14 +321,14 @@ impl<F: Send + FnOnce(Result<CoreProxyResponse, RpcError>)> ProxyCallback for F 
     }
 }
 
-enum NewResponseHandler<Resp> {
-    Callback(Box<dyn NewCallback<Resp>>),
+enum ResponseHandler {
+    Callback(Box<dyn ProxyCallback>),
 }
 
-impl<Resp> NewResponseHandler<Resp> {
-    fn invoke(self, result: Result<Resp, RpcError>) {
+impl ResponseHandler {
+    fn invoke(self, result: Result<CoreProxyResponse, RpcError>) {
         match self {
-            NewResponseHandler::Callback(f) => f.call(result),
+            ResponseHandler::Callback(f) => f.call(result),
         }
     }
 }
@@ -338,7 +343,7 @@ pub struct ProxyRpcHandler {
     tx: Sender<CoreProxyRpcMessage>,
     rx: Receiver<CoreProxyRpcMessage>,
     id: Arc<AtomicU64>,
-    pending: Arc<Mutex<HashMap<u64, u64>>>,
+    pending: Arc<Mutex<HashMap<u64, ResponseHandler>>>,
 }
 
 impl ProxyRpcHandler {
@@ -358,17 +363,40 @@ impl ProxyRpcHandler {
     {
         for msg in &self.rx {
             match msg {
-                RpcMessage::Request(_, _) => todo!(),
+                RpcMessage::Request(id, request) => {
+                    handler.handle_request(id, request);
+                }
+                RpcMessage::Notification(notification) => {
+                    handler.handle_notification(notification);
+                }
                 RpcMessage::Response(_, _) => todo!(),
-                RpcMessage::Notification(_) => todo!(),
                 RpcMessage::Error(_, _) => todo!(),
             }
         }
     }
 
-    fn send_request_async(&self, request: CoreProxyRequest, f: impl ProxyCallback) {}
+    fn send_request_async(
+        &self,
+        request: CoreProxyRequest,
+        f: impl ProxyCallback + 'static,
+    ) {
+        let id = self.id.fetch_add(1, Ordering::Relaxed);
+        {
+            let mut pending = self.pending.lock();
+            pending.insert(id, ResponseHandler::Callback(Box::new(f)));
+        }
+        let _ = self.tx.send(RpcMessage::Request(id, request));
+    }
 
-    pub fn handle_response(&self, response: Result<CoreProxyResponse, RpcError>) {}
+    pub fn handle_response(
+        &self,
+        id: RequestId,
+        result: Result<CoreProxyResponse, RpcError>,
+    ) {
+        if let Some(handler) = { self.pending.lock().remove(&id) } {
+            handler.invoke(result);
+        }
+    }
 
     pub fn send_notification(&self, notification: CoreProxyNotification) {
         let _ = self.tx.send(RpcMessage::Notification(notification));

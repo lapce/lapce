@@ -4,9 +4,9 @@ use std::{
     collections::HashMap,
     io::{BufRead, BufReader, BufWriter, Write},
     path::{Path, PathBuf},
-    process::{self, Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio},
+    process::{self, Child, ChildStderr, ChildStdout, Command, Stdio},
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicBool, Ordering},
         mpsc::channel,
         Arc,
     },
@@ -15,18 +15,13 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::{Receiver, Sender};
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::encoding::offset_utf16_to_utf8;
 use lapce_rpc::{
     buffer::BufferId,
-    lsp::{LspNotification, LspRequest, LspResponse, LspRpcMessage},
-    proxy::{
-        CoreProxyNotification, CoreProxyRequest, PluginProxyNotification,
-        ProxyRpcMessage,
-    },
+    lsp::{LspNotification, LspRequest, LspResponse},
     style::{LineStyle, SemanticStyles, Style},
-    NewHandler, NewRpcHandler, RequestId, RpcError, RpcMessage,
+    NewHandler, RequestId, RpcError,
 };
 use log::error;
 use lsp_types::{
@@ -35,18 +30,16 @@ use lsp_types::{
     *,
 };
 use parking_lot::Mutex;
-use serde::Serialize;
 use serde_json::{json, to_value, Value};
 
-use crate::{
-    buffer::Buffer,
-    dispatch::Dispatcher,
-    plugin::{NewPluginNotification, PluginRpcHandler, PluginRpcMessage},
-};
+use crate::{buffer::Buffer, dispatch::Dispatcher, plugin::PluginCatalogRpcHandler};
 
-use super::psp::{
-    handle_plugin_server_message, PluginHandlerNotification, PluginServerHandler,
-    PluginServerRpcHandler,
+use super::{
+    psp::{
+        handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
+        PluginServerHandler, PluginServerRpcHandler,
+    },
+    PluginCatalogNotification,
 };
 
 pub type Callback = Box<dyn Callable>;
@@ -73,169 +66,19 @@ pub enum LspRpc {
     },
 }
 
-#[derive(Clone)]
-pub struct LspRpcHandler {
-    host_tx: Sender<LspRpc>,
-    host_rx: Receiver<LspRpc>,
-    client_tx: Sender<String>,
-    client_rx: Receiver<String>,
-    id: Arc<AtomicU64>,
-    pending: Arc<Mutex<HashMap<u64, Sender<Result<Value, RpcError>>>>>,
-}
-
-impl LspRpcHandler {
-    pub fn new() -> Self {
-        let (host_tx, host_rx) = crossbeam_channel::unbounded();
-        let (client_tx, client_rx) = crossbeam_channel::unbounded();
-        Self {
-            host_tx,
-            host_rx,
-            client_tx,
-            client_rx,
-            id: Arc::new(AtomicU64::new(0)),
-            pending: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    fn send_request<P: Serialize>(
-        &self,
-        method: &str,
-        params: P,
-    ) -> Result<Value, RpcError> {
-        let value = serde_json::to_value(params).unwrap();
-        let id = self.id.fetch_add(1, Ordering::Relaxed);
-        let (tx, rx) = crossbeam_channel::bounded(1);
-        {
-            let mut pending = self.pending.lock();
-            pending.insert(id, tx);
-        }
-        let request = JsonRpc::request_with_params(
-            Id::Num(id as i64),
-            method,
-            Params::from(value),
-        );
-        self.send_rpc(&serde_json::to_value(request).unwrap());
-        rx.recv().unwrap_or_else(|_| {
-            Err(RpcError {
-                code: 0,
-                message: "io error".to_string(),
-            })
-        })
-    }
-
-    pub fn send_notification<N: Serialize>(&self, method: &str, params: N) {
-        let value = serde_json::to_value(params).unwrap();
-        let notification =
-            JsonRpc::notification_with_params(method, Params::from(value));
-        self.send_rpc(&serde_json::to_value(notification).unwrap());
-    }
-
-    fn send_rpc(&self, value: &Value) {
-        let rpc = match prepare_lsp_json(value) {
-            Ok(r) => r,
-            Err(err) => panic!("Encoding Error {:?}", err),
-        };
-
-        let _ = self.client_tx.send(rpc);
-    }
-
-    fn handle_message(host_sender: &Sender<LspRpc>, message: &str) {
-        let rpc = match JsonRpc::parse(message) {
-            Ok(value @ JsonRpc::Request(_)) => {
-                let id = number_from_id(&value.get_id().unwrap());
-                LspRpc::Request {
-                    id,
-                    method: value.get_method().unwrap().to_string(),
-                    params: value.get_params().unwrap(),
-                }
-            }
-            Ok(value @ JsonRpc::Notification(_)) => LspRpc::Notification {
-                method: value.get_method().unwrap().to_string(),
-                params: value.get_params().unwrap(),
-            },
-            Ok(value @ JsonRpc::Success(_)) => {
-                let id = number_from_id(&value.get_id().unwrap());
-                let result = value.get_result().unwrap().clone();
-                LspRpc::Response { id, result }
-            }
-            Ok(value @ JsonRpc::Error(_)) => {
-                let id = number_from_id(&value.get_id().unwrap());
-                let error = value.get_error().unwrap();
-                LspRpc::Error {
-                    id,
-                    error: RpcError {
-                        code: error.code,
-                        message: error.message.clone(),
-                    },
-                }
-            }
-            Err(_err) => return,
-        };
-        let _ = host_sender.send(rpc);
-    }
-
-    fn handle_stdio(&self, stdin: ChildStdin, stdout: ChildStdout) {
-        let rx = self.client_rx.clone();
-        thread::spawn(move || {
-            let mut writer = Box::new(BufWriter::new(stdin));
-            for msg in rx {
-                writer.write(msg.as_bytes());
-                writer.flush();
-            }
-        });
-
-        let host_tx = self.host_tx.clone();
-        thread::spawn(move || {
-            let mut reader = Box::new(BufReader::new(stdout));
-            loop {
-                match read_message(&mut reader) {
-                    Ok(message_str) => {
-                        Self::handle_message(&host_tx, &message_str);
-                    }
-                    Err(_err) => {
-                        return;
-                    }
-                };
-            }
-        });
-    }
-
-    fn mainloop(&self, lsp: &mut NewLspClient) {
-        for msg in &self.host_rx {
-            match msg {
-                LspRpc::Request { id, method, params } => todo!(),
-                LspRpc::Notification { method, params } => todo!(),
-                LspRpc::Response { id, result } => {
-                    if let Some(chan) = { self.pending.lock().remove(&id) } {
-                        chan.send(Ok(result));
-                    }
-                }
-                LspRpc::Error { id, error } => {
-                    if let Some(chan) = { self.pending.lock().remove(&id) } {
-                        chan.send(Err(error));
-                    }
-                }
-            }
-        }
-    }
-}
-
 pub struct NewLspClient {
-    plugin_rpc: PluginRpcHandler,
+    plugin_rpc: PluginCatalogRpcHandler,
     server_rpc: PluginServerRpcHandler,
     process: Child,
     workspace: Option<PathBuf>,
     exec_path: String,
     args: Vec<String>,
     server_capabilities: ServerCapabilities,
+    host: PluginHostHandler,
 }
 
 impl PluginServerHandler for NewLspClient {
     fn method_registered(&mut self, method: &'static str) -> bool {
-        todo!()
-    }
-
-    fn handle_host_notification(&mut self) {
         todo!()
     }
 
@@ -250,17 +93,19 @@ impl PluginServerHandler for NewLspClient {
             }
         }
     }
+
+    fn handle_host_notification(&mut self, method: String, params: Params) {
+        self.host.handle_notification(method, params);
+    }
 }
 
 impl NewLspClient {
     fn new(
-        plugin_rpc: PluginRpcHandler,
+        plugin_rpc: PluginCatalogRpcHandler,
         workspace: Option<PathBuf>,
         exec_path: String,
         args: Vec<String>,
     ) -> Self {
-        let rpc = LspRpcHandler::new();
-
         let mut process =
             Self::process(workspace.as_ref(), exec_path.as_str(), &args);
         let stdin = process.stdin.take().unwrap();
@@ -294,6 +139,8 @@ impl NewLspClient {
             }
         });
 
+        let host = PluginHostHandler::new(workspace.clone(), plugin_rpc.clone());
+
         Self {
             plugin_rpc,
             server_rpc,
@@ -301,12 +148,13 @@ impl NewLspClient {
             workspace,
             exec_path,
             args,
+            host,
             server_capabilities: ServerCapabilities::default(),
         }
     }
 
     pub fn start(
-        plugin_rpc: PluginRpcHandler,
+        plugin_rpc: PluginCatalogRpcHandler,
         workspace: Option<PathBuf>,
         exec_path: String,
         args: Vec<String>,
@@ -444,8 +292,10 @@ impl NewLspClient {
             self.server_rpc
                 .server_notification(Initialized::METHOD, InitializedParams {});
 
-            self.plugin_rpc.send_notification(
-                NewPluginNotification::PluginServerLoaded(self.server_rpc.clone()),
+            self.plugin_rpc.catalog_notification(
+                PluginCatalogNotification::PluginServerLoaded(
+                    self.server_rpc.clone(),
+                ),
             );
         }
     }

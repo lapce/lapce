@@ -1,5 +1,5 @@
 use crossbeam_channel::{Receiver, Sender};
-use lsp_types::{ProgressParams, PublishDiagnosticsParams};
+use lsp_types::{CompletionResponse, ProgressParams, PublishDiagnosticsParams};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -31,6 +31,10 @@ pub enum CoreNotification {
     OpenFileChanged {
         path: PathBuf,
         content: String,
+    },
+    CompletionResponse {
+        request_id: usize,
+        resp: CompletionResponse,
     },
     ReloadBuffer {
         path: PathBuf,
@@ -125,5 +129,12 @@ impl CoreRpcHandler {
 
     pub fn proxy_connected(&self) {
         self.send_notification(CoreNotification::ProxyConnected {});
+    }
+
+    pub fn completion_response(&self, request_id: usize, resp: CompletionResponse) {
+        self.send_notification(CoreNotification::CompletionResponse {
+            request_id,
+            resp,
+        });
     }
 }

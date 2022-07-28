@@ -1,9 +1,7 @@
 use crate::buffer::{get_mod_time, load_file, Buffer};
 use crate::plugin::lsp::LspCatalog;
-use crate::plugin::{
-    catalog::NewPluginCatalog, NewPluginNotification, PluginCatalog,
-    PluginNotification, PluginRpcHandler, PluginRpcMessage,
-};
+use crate::plugin::PluginCatalogRpcHandler;
+use crate::plugin::{catalog::NewPluginCatalog, PluginCatalog};
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
 use crate::{
@@ -21,17 +19,11 @@ use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
-use lapce_rpc::core::{
-    CoreNotification, CoreRequest, CoreResponse, CoreRpc, CoreRpcHandler,
-    CoreRpcMessage,
-};
+use lapce_rpc::core::{CoreNotification, CoreRpcHandler, CoreRpcMessage};
 use lapce_rpc::file::FileNodeItem;
-use lapce_rpc::lsp::LspRpcMessage;
-use lapce_rpc::plugin::{PluginDescription, PluginId};
 use lapce_rpc::proxy::{
-    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse,
-    PluginProxyNotification, ProxyHandler, ProxyRpcHandler, ProxyRpcMessage,
-    ReadDirResponse,
+    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse, ProxyHandler,
+    ProxyRpcHandler, ProxyRpcMessage, ReadDirResponse,
 };
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
@@ -58,7 +50,7 @@ pub struct NewDispatcher {
     workspace: Option<PathBuf>,
     pub proxy_rpc: ProxyRpcHandler,
     core_rpc: CoreRpcHandler,
-    plugin_rpc: PluginRpcHandler,
+    plugin_rpc: PluginCatalogRpcHandler,
     buffers: HashMap<PathBuf, Buffer>,
 }
 
@@ -70,11 +62,18 @@ impl ProxyHandler for NewDispatcher {
                 self.workspace = workspace;
 
                 let plugin_rpc = self.plugin_rpc.clone();
+                let workspace = self.workspace.clone();
                 thread::spawn(move || {
-                    let mut plugin = NewPluginCatalog::new(plugin_rpc.clone());
+                    let mut plugin =
+                        NewPluginCatalog::new(workspace, plugin_rpc.clone());
                     plugin_rpc.mainloop(&mut plugin);
                 });
             }
+            Completion {
+                request_id,
+                path,
+                position,
+            } => {}
             Shutdown {} => todo!(),
             Update {
                 buffer_id,
@@ -205,7 +204,7 @@ impl ProxyHandler for NewDispatcher {
                             message: "no workspace set".to_string(),
                         })
                     };
-                    proxy_rpc.handle_response(result);
+                    proxy_rpc.handle_response(id, result);
                 });
             }
             ReadDir { path } => {
@@ -240,7 +239,7 @@ impl ProxyHandler for NewDispatcher {
                             code: 0,
                             message: e.to_string(),
                         });
-                    proxy_rpc.handle_response(result);
+                    proxy_rpc.handle_response(id, result);
                 });
             }
             Save { rev, buffer_id } => todo!(),
@@ -260,7 +259,8 @@ impl ProxyHandler for NewDispatcher {
 
 impl NewDispatcher {
     pub fn new(core_rpc: CoreRpcHandler, proxy_rpc: ProxyRpcHandler) -> Self {
-        let plugin_rpc = PluginRpcHandler::new();
+        let plugin_rpc =
+            PluginCatalogRpcHandler::new(core_rpc.clone(), proxy_rpc.clone());
 
         Self {
             workspace: None,
@@ -276,7 +276,7 @@ impl NewDispatcher {
         id: RequestId,
         result: Result<CoreProxyResponse, RpcError>,
     ) {
-        self.proxy_rpc.handle_response(result);
+        self.proxy_rpc.handle_response(id, result);
     }
 }
 
@@ -569,6 +569,7 @@ impl Dispatcher {
     fn handle_notification(&self, rpc: CoreProxyNotification) {
         use CoreProxyNotification::*;
         match rpc {
+            Completion { .. } => {}
             Initialize { workspace } => {
                 *self.workspace.lock() = workspace.clone();
                 if let Some(workspace) = workspace {

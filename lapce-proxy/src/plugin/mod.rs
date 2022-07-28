@@ -9,7 +9,7 @@ use hotwatch::Hotwatch;
 use jsonrpc_lite::{Id, JsonRpc};
 use lapce_rpc::counter::Counter;
 use lapce_rpc::plugin::{PluginDescription, PluginId};
-use lapce_rpc::proxy::PluginProxyResponse;
+use lapce_rpc::proxy::ProxyRpcHandler;
 use lapce_rpc::{RequestId, RpcError, RpcMessage};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{Completion, Request};
@@ -51,27 +51,21 @@ use crate::{dispatch::Dispatcher, APPLICATION_NAME};
 
 pub type PluginName = String;
 
-pub type PluginRpcMessage =
-    RpcMessage<PluginRequest, NewPluginNotification, PluginProxyResponse>;
-
-pub enum PluginRequest {
-    PluginServerRequest { method: &'static str, params: Value },
-}
-
-pub enum NewPluginNotification {
-    PluginServerLoaded(PluginServerRpcHandler),
-    PluginServerNotification {
+pub enum PluginCatalogRpc {
+    ServerRequest {
+        method: &'static str,
+        params: Value,
+        f: Box<dyn ClonableCallback>,
+    },
+    ServerNotification {
         method: &'static str,
         params: Value,
     },
-    StartLspServer {
-        workspace: Option<PathBuf>,
-        plugin_id: PluginId,
-        exec_path: String,
-        language_id: String,
-        options: Option<Value>,
-        system_lsp: Option<bool>,
-    },
+    Handler(PluginCatalogNotification),
+}
+
+pub enum PluginCatalogNotification {
+    PluginServerLoaded(PluginServerRpcHandler),
 }
 
 #[derive(WasmerEnv, Clone)]
@@ -98,17 +92,21 @@ pub struct NewPluginCatalog {
 }
 
 #[derive(Clone)]
-pub struct PluginRpcHandler {
-    plugin_tx: Sender<PluginRpcMessage>,
-    plugin_rx: Receiver<PluginRpcMessage>,
+pub struct PluginCatalogRpcHandler {
+    core_rpc: CoreRpcHandler,
+    proxy_rpc: ProxyRpcHandler,
+    plugin_tx: Sender<PluginCatalogRpc>,
+    plugin_rx: Receiver<PluginCatalogRpc>,
     id: Arc<AtomicU64>,
     pending: Arc<Mutex<HashMap<u64, Sender<Result<Value, RpcError>>>>>,
 }
 
-impl PluginRpcHandler {
-    pub fn new() -> Self {
+impl PluginCatalogRpcHandler {
+    pub fn new(core_rpc: CoreRpcHandler, proxy_rpc: ProxyRpcHandler) -> Self {
         let (plugin_tx, plugin_rx) = crossbeam_channel::unbounded();
         Self {
+            core_rpc,
+            proxy_rpc,
             plugin_tx,
             plugin_rx,
             id: Arc::new(AtomicU64::new(0)),
@@ -125,73 +123,45 @@ impl PluginRpcHandler {
     pub fn mainloop(&self, plugin: &mut NewPluginCatalog) {
         for msg in &self.plugin_rx {
             match msg {
-                RpcMessage::Request(id, request) => {
-                    plugin.handle_request(request);
+                PluginCatalogRpc::ServerRequest { method, params, f } => {
+                    plugin.handle_server_request(method, params, f);
                 }
-                RpcMessage::Response(id, response) => {
-                    todo!()
+                PluginCatalogRpc::ServerNotification { method, params } => {
+                    plugin.handle_server_notification(method, params);
                 }
-                RpcMessage::Notification(notification) => {
+                PluginCatalogRpc::Handler(notification) => {
                     plugin.handle_notification(notification);
-                }
-                RpcMessage::Error(id, err) => {
-                    self.handle_response(id, Err(err));
                 }
             }
         }
     }
 
-    pub fn send_notification(&self, notification: NewPluginNotification) {
-        let _ = self.plugin_tx.send(RpcMessage::Notification(notification));
+    fn catalog_notification(&self, notification: PluginCatalogNotification) {
+        let _ = self.plugin_tx.send(PluginCatalogRpc::Handler(notification));
     }
 
-    fn send_plugin_server_notification<P: Serialize>(
+    fn server_notification<P: Serialize>(&self, method: &'static str, params: P) {
+        let params = serde_json::to_value(params).unwrap();
+        let rpc = PluginCatalogRpc::ServerNotification { method, params };
+        let _ = self.plugin_tx.send(rpc);
+    }
+
+    fn send_request<P: Serialize>(
         &self,
         method: &'static str,
         params: P,
+        f: impl FnOnce(Result<Value, RpcError>) + Send + DynClone + 'static,
     ) {
         let params = serde_json::to_value(params).unwrap();
-        let notification =
-            NewPluginNotification::PluginServerNotification { method, params };
-        let _ = self.plugin_tx.send(RpcMessage::Notification(notification));
+        let rpc = PluginCatalogRpc::ServerRequest {
+            method,
+            params,
+            f: Box::new(f),
+        };
+        let _ = self.plugin_tx.send(rpc);
     }
 
-    fn send_request<P: Serialize, D: DeserializeOwned>(
-        &self,
-        method: &'static str,
-        params: P,
-    ) -> Result<D, RpcError> {
-        let id = self.id.fetch_add(1, Ordering::Relaxed);
-        let (tx, rx) = crossbeam_channel::bounded(1);
-        {
-            let mut pending = self.pending.lock();
-            pending.insert(id, tx);
-        }
-
-        let params = serde_json::to_value(params).unwrap();
-        let request = PluginRequest::PluginServerRequest { method, params };
-        let _ = self.plugin_tx.send(RpcMessage::Request(id, request));
-
-        rx.recv()
-            .unwrap_or_else(|_| {
-                Err(RpcError {
-                    code: 0,
-                    message: "io error".to_string(),
-                })
-            })
-            .and_then(|v| {
-                serde_json::from_value(v).map_err(|_| RpcError {
-                    code: 0,
-                    message: "deserilize error".to_string(),
-                })
-            })
-    }
-
-    pub fn completion(
-        &self,
-        path: &Path,
-        position: Position,
-    ) -> Result<CompletionResponse, RpcError> {
+    pub fn completion(&self, request_id: usize, path: &Path, position: Position) {
         let uri = Url::from_file_path(path).unwrap();
         let method = Completion::METHOD;
         let params = CompletionParams {
@@ -203,7 +173,16 @@ impl PluginRpcHandler {
             partial_result_params: PartialResultParams::default(),
             context: None,
         };
-        self.send_request(method, params)
+
+        let core_rpc = self.core_rpc.clone();
+        self.send_request(method, params, move |result| {
+            if let Ok(value) = result {
+                if let Ok(resp) = serde_json::from_value::<CompletionResponse>(value)
+                {
+                    core_rpc.completion_response(request_id, resp);
+                }
+            }
+        });
     }
 
     pub fn document_did_open(
@@ -222,11 +201,13 @@ impl PluginRpcHandler {
                 text,
             ),
         };
-        self.send_plugin_server_notification(method, params);
+        self.server_notification(method, params);
     }
 
-    fn plugin_server_loaded(&self, plugin: PluginServerRpcHandler) {
-        self.send_notification(NewPluginNotification::PluginServerLoaded(plugin));
+    pub fn plugin_server_loaded(&self, plugin: PluginServerRpcHandler) {
+        self.catalog_notification(PluginCatalogNotification::PluginServerLoaded(
+            plugin,
+        ));
     }
 }
 

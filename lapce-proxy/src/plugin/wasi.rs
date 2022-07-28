@@ -15,33 +15,30 @@ use crate::plugin::psp::PluginServerRpcHandler;
 
 use super::{
     psp::{
-        handle_plugin_server_message, PluginHandlerNotification, PluginServerHandler,
+        handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
+        PluginServerHandler,
     },
-    PluginRpcHandler,
+    PluginCatalogRpcHandler,
 };
 
 #[derive(WasmerEnv, Clone)]
 pub struct NewPluginEnv {
     id: PluginId,
-    plugin_rpc: PluginRpcHandler,
+    plugin_rpc: PluginCatalogRpcHandler,
     rpc: PluginServerRpcHandler,
     wasi_env: WasiEnv,
     desc: PluginDescription,
 }
 
-#[derive(Clone)]
 pub struct NewPlugin {
     id: PluginId,
     instance: wasmer::Instance,
     env: NewPluginEnv,
+    host: PluginHostHandler,
 }
 
 impl PluginServerHandler for NewPlugin {
     fn method_registered(&mut self, method: &'static str) -> bool {
-        todo!()
-    }
-
-    fn handle_host_notification(&mut self) {
         todo!()
     }
 
@@ -51,16 +48,29 @@ impl PluginServerHandler for NewPlugin {
     ) {
         todo!()
     }
+
+    fn handle_host_notification(
+        &mut self,
+        method: String,
+        params: jsonrpc_lite::Params,
+    ) {
+        let _ = self.host.handle_notification(method, params);
+    }
 }
 
-pub fn load_all_plugins(plugin_rpc: PluginRpcHandler) {
+pub fn load_all_plugins(
+    workspace: Option<PathBuf>,
+    plugin_rpc: PluginCatalogRpcHandler,
+) {
     eprintln!("start to load plugins");
     let all_plugins = find_all_plugins();
     for plugin_path in &all_plugins {
         match load_plugin(plugin_path) {
             Err(_e) => (),
             Ok(plugin_desc) => {
-                if let Err(e) = start_plugin(plugin_rpc.clone(), plugin_desc) {
+                if let Err(e) =
+                    start_plugin(workspace.clone(), plugin_rpc.clone(), plugin_desc)
+                {
                     eprintln!("start plugin error {}", e);
                 }
             }
@@ -103,7 +113,8 @@ fn load_plugin(path: &Path) -> Result<PluginDescription> {
 }
 
 fn start_plugin(
-    plugin_rpc: PluginRpcHandler,
+    workspace: Option<PathBuf>,
+    plugin_rpc: PluginCatalogRpcHandler,
     plugin_desc: PluginDescription,
 ) -> Result<()> {
     eprintln!("start a certain plugin");
@@ -144,6 +155,7 @@ fn start_plugin(
         id,
         instance,
         env: plugin_env.clone(),
+        host: PluginHostHandler::new(workspace, plugin_rpc.clone()),
     };
 
     let handle_rpc = plugin
