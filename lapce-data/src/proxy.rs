@@ -22,9 +22,9 @@ use lapce_rpc::proxy::{CoreProxyRequest, CoreProxyResponse, ProxyRpcHandler};
 use lapce_rpc::source_control::FileDiff;
 use lapce_rpc::style::SemanticStyles;
 use lapce_rpc::terminal::TermId;
-use lapce_rpc::RpcHandler;
 use lapce_rpc::{Callback, RpcMessage, RpcObject};
 use lapce_rpc::{ControlFlow, Handler};
+use lapce_rpc::{RpcError, RpcHandler};
 use lsp_types::request::GotoTypeDefinitionResponse;
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionResponse, DocumentSymbolResponse,
@@ -174,20 +174,20 @@ impl CoreHandler for LapceProxy {
                     .iter()
                     .map(|(_, desc)| desc.to_owned())
                     .collect::<Vec<PluginDescription>>();
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateInstalledPluginDescriptions(Some(
-                        plugins_desc.clone(),
-                    )),
-                    Target::Widget(self.tab_id),
-                );
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::DeleteUninstalledPluginDescriptions(
-                        plugins_desc,
-                    ),
-                    Target::Widget(self.tab_id),
-                );
+                // let _ = self.event_sink.submit_command(
+                //     LAPCE_UI_COMMAND,
+                //     LapceUICommand::UpdateInstalledPluginDescriptions(Some(
+                //         plugins_desc.clone(),
+                //     )),
+                //     Target::Widget(self.tab_id),
+                // );
+                // let _ = self.event_sink.submit_command(
+                //     LAPCE_UI_COMMAND,
+                //     LapceUICommand::DeleteUninstalledPluginDescriptions(
+                //         plugins_desc,
+                //     ),
+                //     Target::Widget(self.tab_id),
+                // );
             }
             ListDir { .. } | DiffFiles { .. } => {}
             DiffInfo { diff } => {
@@ -211,6 +211,7 @@ impl CoreHandler for LapceProxy {
                 );
             }
             CompletionResponse { .. } => todo!(),
+            DisabledPlugins { plugins } => todo!(),
         }
     }
 
@@ -703,18 +704,6 @@ impl LapceProxy {
     pub fn remove_plugin(&self, plugin: &PluginDescription) {
         self.rpc
             .send_rpc_notification("remove_plugin", &json!({ "plugin": plugin }));
-    }
-
-    pub fn get_buffer_head(
-        &self,
-        buffer_id: BufferId,
-        path: PathBuf,
-        f: impl FnOnce(Result<CoreProxyResponse, RpcError>) + Send + 'static,
-    ) {
-        self.new_rpc.send_core_request_async(
-            CoreProxyRequest::BufferHead { buffer_id, path },
-            Box::new(f),
-        );
     }
 
     // TODO: Make this type more explicit

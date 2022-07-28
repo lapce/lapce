@@ -378,10 +378,10 @@ impl Dispatcher {
                     "plugins": plugins,
                 }),
             );
-            local_dispatcher
-                .plugins
-                .lock()
-                .start_all(local_dispatcher.clone());
+            // local_dispatcher
+            //     .plugins
+            //     .lock()
+            //     .start_all(local_dispatcher.clone());
         });
         let local_dispatcher = dispatcher.clone();
         thread::spawn(move || {
@@ -641,85 +641,85 @@ impl Dispatcher {
                 let catalog = self.plugins.clone();
                 let dispatcher = self.clone();
                 std::thread::spawn(move || {
-                    if let Err(e) =
-                        catalog.lock().install_plugin(dispatcher.clone(), plugin)
-                    {
-                        eprintln!("install plugin error {e}");
-                    }
-                    let plugins = { dispatcher.plugins.lock().items.clone() };
-                    dispatcher.send_notification(
-                        "installed_plugins",
-                        json!({
-                            "plugins": plugins,
-                        }),
-                    );
+                    // if let Err(e) =
+                    //     catalog.lock().install_plugin(dispatcher.clone(), plugin)
+                    // {
+                    //     eprintln!("install plugin error {e}");
+                    // }
+                    // let plugins = { dispatcher.plugins.lock().items.clone() };
+                    // dispatcher.send_notification(
+                    //     "installed_plugins",
+                    //     json!({
+                    //         "plugins": plugins,
+                    //     }),
+                    // );
                 });
             }
-            DisablePlugin { plugin } => {
-                let catalog = self.plugins.clone();
-                let dispatcher = self.clone();
-                std::thread::spawn(move || {
-                    if let Err(e) = catalog
-                        .lock()
-                        .disable_plugin(dispatcher.clone(), plugin.clone())
-                    {
-                        eprintln!("disable plugin error {e}");
-                    }
-                    let plugins = { dispatcher.plugins.lock().disabled.clone() };
-                    dispatcher.send_notification(
-                        "disabled_plugins",
-                        json!({
-                            "plugins": plugins,
-                        }),
-                    )
-                });
-            }
-            EnablePlugin { plugin } => {
-                let catalog = self.plugins.clone();
-                let dispatcher = self.clone();
-                std::thread::spawn(move || {
-                    if let Err(e) = catalog
-                        .lock()
-                        .enable_plugin(dispatcher.clone(), plugin.clone())
-                    {
-                        eprintln!("enable plugin error {e}");
-                    }
-                    let plugins = { dispatcher.plugins.lock().disabled.clone() };
-                    dispatcher.send_notification(
-                        "disabled_plugins",
-                        json!({
-                            "plugins": plugins,
-                        }),
-                    )
-                });
-            }
-            RemovePlugin { plugin } => {
-                let catalog = self.plugins.clone();
-                let dispatcher = self.clone();
-                std::thread::spawn(move || {
-                    if let Err(e) = catalog
-                        .lock()
-                        .remove_plugin(dispatcher.clone(), plugin.clone())
-                    {
-                        eprintln!("remove plugin error {e}");
-                    }
-                    let plugins = { dispatcher.plugins.lock().items.clone() };
-                    dispatcher.send_notification(
-                        "installed_plugins",
-                        json!({
-                            "plugins": plugins,
-                        }),
-                    );
-                    let disabled_plugins =
-                        { dispatcher.plugins.lock().disabled.clone() };
-                    dispatcher.send_notification(
-                        "disabled_plugins",
-                        json!({
-                            "plugins": disabled_plugins,
-                        }),
-                    );
-                });
-            }
+            // DisablePlugin { plugin } => {
+            //     let catalog = self.plugins.clone();
+            //     let dispatcher = self.clone();
+            //     std::thread::spawn(move || {
+            //         if let Err(e) = catalog
+            //             .lock()
+            //             .disable_plugin(dispatcher.clone(), plugin.clone())
+            //         {
+            //             eprintln!("disable plugin error {e}");
+            //         }
+            //         let plugins = { dispatcher.plugins.lock().disabled.clone() };
+            //         dispatcher.send_notification(
+            //             "disabled_plugins",
+            //             json!({
+            //                 "plugins": plugins,
+            //             }),
+            //         )
+            //     });
+            // }
+            // EnablePlugin { plugin } => {
+            //     let catalog = self.plugins.clone();
+            //     let dispatcher = self.clone();
+            //     std::thread::spawn(move || {
+            //         if let Err(e) = catalog
+            //             .lock()
+            //             .enable_plugin(dispatcher.clone(), plugin.clone())
+            //         {
+            //             eprintln!("enable plugin error {e}");
+            //         }
+            //         let plugins = { dispatcher.plugins.lock().disabled.clone() };
+            //         dispatcher.send_notification(
+            //             "disabled_plugins",
+            //             json!({
+            //                 "plugins": plugins,
+            //             }),
+            //         )
+            //     });
+            // }
+            // RemovePlugin { plugin } => {
+            //     let catalog = self.plugins.clone();
+            //     let dispatcher = self.clone();
+            //     std::thread::spawn(move || {
+            //         if let Err(e) = catalog
+            //             .lock()
+            //             .remove_plugin(dispatcher.clone(), plugin.clone())
+            //         {
+            //             eprintln!("remove plugin error {e}");
+            //         }
+            //         let plugins = { dispatcher.plugins.lock().items.clone() };
+            //         dispatcher.send_notification(
+            //             "installed_plugins",
+            //             json!({
+            //                 "plugins": plugins,
+            //             }),
+            //         );
+            //         let disabled_plugins =
+            //             { dispatcher.plugins.lock().disabled.clone() };
+            //         dispatcher.send_notification(
+            //             "disabled_plugins",
+            //             json!({
+            //                 "plugins": disabled_plugins,
+            //             }),
+            //         );
+            //     });
+            // }
             NewTerminal {
                 term_id,
                 cwd,

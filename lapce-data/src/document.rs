@@ -587,7 +587,7 @@ impl Document {
                             LAPCE_UI_COMMAND,
                             P::init_buffer_content_cmd(
                                 path,
-                                Rope::from(resp.content),
+                                Rope::from(content),
                                 locations,
                                 unsaved_buffer,
                                 cb,

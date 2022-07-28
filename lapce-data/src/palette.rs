@@ -12,7 +12,7 @@ use lapce_core::mode::Mode;
 use lapce_core::movement::Movement;
 use lapce_rpc::core::CoreResponse;
 use lapce_rpc::proxy::CoreProxyResponse;
-use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
+use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::path::PathBuf;
