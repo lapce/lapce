@@ -425,7 +425,7 @@ impl LapceTab {
     }
 
     fn handle_panel_drop(&mut self, _ctx: &mut EventCtx, data: &mut LapceTabData) {
-        if let Some((_, DragContent::Panel(kind, _))) = data.drag.as_ref() {
+        if let Some((_, _, DragContent::Panel(kind, _))) = data.drag.as_ref() {
             let rects = self.panel_rects();
             for (p, rect) in rects.iter() {
                 if rect.contains(self.mouse_pos) {
@@ -465,7 +465,7 @@ impl LapceTab {
     }
 
     fn paint_drag_on_panel(&self, ctx: &mut PaintCtx, data: &LapceTabData) {
-        if let Some((_, DragContent::Panel(_, _))) = data.drag.as_ref() {
+        if let Some((_, _, DragContent::Panel(_, _))) = data.drag.as_ref() {
             let rects = self.panel_rects();
             for (_, rect) in rects.iter() {
                 if rect.contains(self.mouse_pos) {
@@ -484,7 +484,13 @@ impl LapceTab {
     }
 
     fn paint_drag(&self, ctx: &mut PaintCtx, data: &LapceTabData) {
-        if let Some((offset, drag_content)) = data.drag.as_ref() {
+        if let Some((offset, start, drag_content)) = data.drag.as_ref() {
+            if (self.mouse_pos.x - start.x).abs() < 5.
+                && (self.mouse_pos.y - start.y).abs() < 5.
+            {
+                // debounce accidental drags
+                return;
+            }
             match drag_content {
                 DragContent::EditorTab(_, _, _, tab_rect) => {
                     let rect = tab_rect.rect.with_origin(self.mouse_pos - *offset);

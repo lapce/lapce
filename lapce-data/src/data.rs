@@ -537,7 +537,7 @@ pub struct LapceTabData {
     pub focus_area: FocusArea,
     pub db: Arc<LapceDb>,
     pub progresses: im::Vector<WorkProgress>,
-    pub drag: Arc<Option<(Vec2, DragContent)>>,
+    pub drag: Arc<Option<(Vec2, Vec2, DragContent)>>,
 }
 
 impl Data for LapceTabData {
@@ -838,7 +838,7 @@ impl LapceTabData {
     }
 
     pub fn is_drag_editor(&self) -> bool {
-        matches!(&*self.drag, Some((_, DragContent::EditorTab(..))))
+        matches!(&*self.drag, Some((_, _, DragContent::EditorTab(..))))
     }
 
     pub fn update_from_editor_buffer_data(

@@ -139,7 +139,7 @@ impl LapceEditorTab {
         data: &mut LapceTabData,
         mouse_event: &MouseEvent,
     ) {
-        if let Some((_, drag_content)) = data.drag.clone().as_ref() {
+        if let Some((_, _, drag_content)) = data.drag.clone().as_ref() {
             match drag_content {
                 DragContent::EditorTab(from_id, from_index, child, _) => {
                     let size = ctx.size();
