@@ -2311,6 +2311,7 @@ dependencies = [
  "hotwatch",
  "ignore",
  "jsonrpc-lite",
+ "lapce-core",
  "lapce-rpc",
  "locale_config",
  "log",
