@@ -699,37 +699,36 @@ impl Buffer {
     }
 
     /// Converts a UTF8 offset to a UTF16 LSP position  
-    /// Panics if it is not a valid UTF16 offset
-    pub fn offset_to_position(&self, offset: usize) -> Position {
+    /// Returns None if it is not a valid UTF16 offset
+    pub fn offset_to_position(&self, offset: usize) -> Option<Position> {
         let (line, col) = self.offset_to_line_col(offset);
         let line_offset = self.offset_of_line(line);
 
         let utf16_col =
-            offset_utf8_to_utf16(self.char_indices_iter(line_offset..), col)
-                .expect("Failed to convert utf8 offset -> utf16");
+            offset_utf8_to_utf16(self.char_indices_iter(line_offset..), col)?;
 
-        Position {
+        Some(Position {
             line: line as u32,
             character: utf16_col as u32,
-        }
+        })
     }
 
-    /// Panics if the UTF16 Position can't be converted to a UTF8 offset
-    pub fn offset_of_position(&self, pos: &Position) -> usize {
+    /// Returns None if the UTF16 Position can't be converted to a UTF8 offset
+    pub fn offset_of_position(&self, pos: &Position) -> Option<usize> {
         let (line, column) = self.position_to_line_col(pos);
-        self.offset_of_line_col(line, column)
+        let column = column?;
+        Some(self.offset_of_line_col(line, column))
     }
 
-    /// Panics if the UTF16 Position can't be converted to a UTF8 offset
-    pub fn position_to_line_col(&self, pos: &Position) -> (usize, usize) {
+    /// Returns None if the UTF16 Position can't be converted to a UTF8 offset
+    pub fn position_to_line_col(&self, pos: &Position) -> (usize, Option<usize>) {
         let line = pos.line as usize;
         let line_offset = self.offset_of_line(line);
 
         let column = offset_utf16_to_utf8(
             self.char_indices_iter(line_offset..),
             pos.character as usize,
-        )
-        .expect("Failed to convert utf16 Position to utf8 column offset");
+        );
 
         (line, column)
     }
@@ -940,7 +939,7 @@ impl Buffer {
         &self,
         range: T,
     ) -> impl Iterator<Item = (usize, char)> + '_ {
-        self.text.iter_chunks(range).flat_map(str::char_indices)
+        CharIndicesJoin::new(self.text.iter_chunks(range).map(str::char_indices))
     }
 
     pub fn len(&self) -> usize {
@@ -1240,6 +1239,71 @@ pub fn rope_diff(
         }
     }
     Some(changes)
+}
+
+/// Joins an iterator of iterators over char indices `(usize, char)` into one
+/// as if they were from a single long string
+/// Assumes the iterators end after the first `None` value
+#[derive(Clone)]
+pub struct CharIndicesJoin<I: Iterator<Item = (usize, char)>, O: Iterator<Item = I>>
+{
+    /// Our iterator of iterators
+    main_iter: O,
+    /// Our current working iterator of indices
+    current_indices: Option<I>,
+    /// The amount we should shift future offsets
+    current_base: usize,
+    /// The latest base, since we don't know when the `current_indices` iterator will end
+    latest_base: usize,
+}
+impl<I: Iterator<Item = (usize, char)>, O: Iterator<Item = I>>
+    CharIndicesJoin<I, O>
+{
+    pub fn new(main_iter: O) -> CharIndicesJoin<I, O> {
+        CharIndicesJoin {
+            main_iter,
+            current_indices: None,
+            current_base: 0,
+            latest_base: 0,
+        }
+    }
+}
+impl<I: Iterator<Item = (usize, char)>, O: Iterator<Item = I>> Iterator
+    for CharIndicesJoin<I, O>
+{
+    type Item = (usize, char);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(current) = &mut self.current_indices {
+            if let Some((next_offset, next_ch)) = current.next() {
+                // Shift by the current base offset, which is the accumulated offset from previous
+                // iterators, which makes so the offset produced looks like it is from one long str
+                let next_offset = self.current_base + next_offset;
+                // Store the latest base offset, because we don't know when the current iterator
+                // will end (though technically the str iterator impl does)
+                self.latest_base = next_offset + next_ch.len_utf8();
+                return Some((next_offset, next_ch));
+            }
+        }
+
+        // Otherwise, if we didn't return something above, then we get a next iterator
+        if let Some(next_current) = self.main_iter.next() {
+            // Update our current working iterator
+            self.current_indices = Some(next_current);
+            // Update the current base offset with the previous iterators latest offset base
+            // This is what we are shifting by
+            self.current_base = self.latest_base;
+
+            // Get the next item without new current iterator
+            // As long as main_iter and the iterators it produces aren't infinite then this
+            // recursion won't be infinite either
+            // and even the non-recursion version would be infinite if those were infinite
+            self.next()
+        } else {
+            // We didn't get anything from the main iter, so we're completely done.
+            None
+        }
+    }
 }
 
 #[cfg(test)]

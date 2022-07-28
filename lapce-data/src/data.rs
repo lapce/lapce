@@ -1863,18 +1863,23 @@ impl LapceMainSplitData {
             if !edits.is_empty() {
                 let doc = self.open_docs.get_mut(path).unwrap();
 
-                let edits: Vec<(Selection, &str)> = edits
+                let edits = edits
                     .iter()
                     .map(|edit| {
-                        let selection = Selection::region(
-                            doc.buffer().offset_of_position(&edit.range.start),
-                            doc.buffer().offset_of_position(&edit.range.end),
-                        );
-                        (selection, edit.new_text.as_str())
+                        let start =
+                            doc.buffer().offset_of_position(&edit.range.start)?;
+                        let end =
+                            doc.buffer().offset_of_position(&edit.range.end)?;
+                        let selection = Selection::region(start, end);
+                        Some((selection, edit.new_text.as_str()))
                     })
-                    .collect();
+                    .collect::<Option<Vec<(Selection, &str)>>>();
 
-                self.edit(path, &edits, EditType::Other);
+                if let Some(edits) = edits {
+                    self.edit(path, &edits, EditType::Other);
+                } else {
+                    log::error!("Failed to convert LSP Position (UTF16) to a valid offset (UTF8) for document formatting");
+                }
             }
         }
     }
@@ -2218,14 +2223,11 @@ impl LapceMainSplitData {
         } else {
             None
         };
-        let view_id = editor.view_id;
 
         if let Some(path) = path {
-            let doc = self.editor_doc(view_id);
-            let offset = doc.buffer().offset_of_position(&position);
             let location = EditorLocation {
                 path,
-                position: Some(offset),
+                position: Some(position),
                 scroll_offset: None,
                 history: None,
             };
@@ -2451,9 +2453,16 @@ impl LapceMainSplitData {
                     let doc = Arc::make_mut(doc);
 
                     // Convert the offset into a utf8 form for us to use
-                    let offset = offset.to_utf8_offset(doc.buffer());
+                    let offset = if let Some(offset) =
+                        offset.to_utf8_offset(doc.buffer())
+                    {
+                        doc.cursor_offset = offset;
+                        offset
+                    } else {
+                        log::error!("Failed to convert position to utf8 offset for jumping to location");
+                        doc.cursor_offset
+                    };
 
-                    doc.cursor_offset = offset;
                     if let Some(scroll_offset) = location.scroll_offset.as_ref() {
                         doc.scroll_offset = *scroll_offset;
                     }
@@ -2514,6 +2523,8 @@ impl LapceMainSplitData {
         }
     }
 
+    // TODO: This function assumes the buffer is already loaded, which is typically the case
+    // but is not always and we may want it to be able to properly jump to a specific line in a doc
     pub fn jump_to_line(
         &mut self,
         ctx: &mut EventCtx,
@@ -2521,17 +2532,31 @@ impl LapceMainSplitData {
         line: usize,
         config: &Config,
     ) {
-        let editor_view_id = self
-            .get_editor_or_new(ctx, editor_view_id, None, false, config)
-            .view_id;
-        let doc = self.editor_doc(editor_view_id);
+        let editor =
+            self.get_editor_or_new(ctx, editor_view_id, None, false, config);
+        let path = if let BufferContent::File(path) = &editor.content {
+            Some(path.clone())
+        } else {
+            None
+        };
+        let view_id = editor.view_id;
+
+        let doc = self.editor_doc(view_id);
         let offset = doc.buffer().first_non_blank_character_on_line(if line > 0 {
             line - 1
         } else {
             0
         });
-        let position = doc.buffer().offset_to_position(offset);
-        self.jump_to_position(ctx, Some(editor_view_id), position, config);
+
+        if let Some(path) = path {
+            let location = EditorLocation {
+                path,
+                position: Some(offset),
+                scroll_offset: None,
+                history: None,
+            };
+            self.jump_to_location(ctx, editor_view_id, location, config);
+        }
     }
 
     pub fn jump_to_line_column_path(

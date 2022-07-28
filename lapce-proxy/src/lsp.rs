@@ -613,7 +613,7 @@ impl LspCatalog {
             // Range over the entire buffer
             let range = Range {
                 start: Position::new(0, 0),
-                end: buffer.offset_to_position(buffer.len()),
+                end: buffer.offset_to_position(buffer.len()).unwrap(),
             };
             client.request_inlay_hints(uri, range, move |lsp_client, result| {
                 let mut resp = json!({ "id": id });
@@ -1717,6 +1717,7 @@ fn format_semantic_styles(
             start += utf8_delta_start;
         } else {
             // Bad semantic token offsets
+            log::error!("Bad semantic token starty {semantic_token:?}");
             break;
         };
 
@@ -1726,6 +1727,7 @@ fn format_semantic_styles(
         {
             start + utf8_length
         } else {
+            log::error!("Bad semantic token end {semantic_token:?}");
             break;
         };
 
