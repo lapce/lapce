@@ -475,7 +475,7 @@ impl LapceTab {
                             .config
                             .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
                             .clone()
-                            .with_alpha(0.0), // 3
+                            .with_alpha(0.8),
                     );
                     break;
                 }
