@@ -168,7 +168,7 @@ pub struct EditorConfig {
     #[field_names(desc = "If the editor can scroll beyond the last line")]
     pub scroll_beyond_last_line: bool,
     #[field_names(
-        desc = "If the editor should show the documentation of the current completion itemw"
+        desc = "If the editor should show the documentation of the current completion item"
     )]
     pub completion_show_documentation: bool,
     #[field_names(
