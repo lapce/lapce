@@ -38,7 +38,6 @@ pub enum CoreProxyRequest {
         path: PathBuf,
     },
     BufferHead {
-        buffer_id: BufferId,
         path: PathBuf,
     },
     GetCompletion {
@@ -305,6 +304,38 @@ impl ProxyRpcHandler {
         self.notification(CoreProxyNotification::Initialize { workspace });
     }
 
+    pub fn new_terminal(
+        &self,
+        term_id: TermId,
+        cwd: Option<PathBuf>,
+        shell: String,
+    ) {
+        self.notification(CoreProxyNotification::NewTerminal {
+            term_id,
+            cwd,
+            shell,
+        })
+    }
+
+    pub fn terminal_close(&self, term_id: TermId) {
+        self.notification(CoreProxyNotification::TerminalClose { term_id });
+    }
+
+    pub fn terminal_resize(&self, term_id: TermId, width: usize, height: usize) {
+        self.notification(CoreProxyNotification::TerminalResize {
+            term_id,
+            width,
+            height,
+        });
+    }
+
+    pub fn terminal_write(&self, term_id: TermId, content: &str) {
+        self.notification(CoreProxyNotification::TerminalWrite {
+            term_id,
+            content: content.to_string(),
+        });
+    }
+
     pub fn new_buffer(
         &self,
         buffer_id: BufferId,
@@ -320,7 +351,7 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(CoreProxyRequest::BufferHead { buffer_id, path }, f);
+        self.request_async(CoreProxyRequest::BufferHead { path }, f);
     }
 
     pub fn get_files(&self, f: impl ProxyCallback + 'static) {

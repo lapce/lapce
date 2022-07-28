@@ -18,16 +18,13 @@ use lapce_proxy::{dispatch::Dispatcher, APPLICATION_NAME};
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
 use lapce_rpc::core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler};
 use lapce_rpc::plugin::PluginDescription;
-use lapce_rpc::proxy::{
-    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse, ProxyRpcHandler,
-    ReadDirResponse,
-};
+use lapce_rpc::proxy::{CoreProxyRequest, CoreProxyResponse, ProxyRpcHandler};
 use lapce_rpc::source_control::FileDiff;
 use lapce_rpc::style::SemanticStyles;
 use lapce_rpc::terminal::TermId;
-use lapce_rpc::{stdio_transport, Callback, RpcError, RpcMessage, RpcObject};
+use lapce_rpc::RpcHandler;
+use lapce_rpc::{Callback, RpcMessage, RpcObject};
 use lapce_rpc::{ControlFlow, Handler};
-use lapce_rpc::{NewRpcHandler, RpcHandler};
 use lsp_types::request::GotoTypeDefinitionResponse;
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionResponse, DocumentSymbolResponse,
@@ -117,7 +114,13 @@ impl CoreHandler for LapceProxy {
     fn handle_notification(&mut self, rpc: CoreNotification) {
         use CoreNotification::*;
         match rpc {
-            ProxyConnected {} => todo!(),
+            ProxyConnected {} => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ProxyUpdateStatus(ProxyStatus::Connected),
+                    Target::Widget(self.tab_id),
+                );
+            }
             OpenFileChanged { path, content } => todo!(),
             ReloadBuffer { path, content, rev } => todo!(),
             WorkspaceFileChange {} => todo!(),
@@ -128,8 +131,19 @@ impl CoreHandler for LapceProxy {
             ListDir { items } => todo!(),
             DiffFiles { files } => todo!(),
             DiffInfo { diff } => todo!(),
-            UpdateTerminal { term_id, content } => todo!(),
-            CloseTerminal { term_id } => todo!(),
+            UpdateTerminal { term_id, content } => {
+                let _ = self
+                    .term_tx
+                    .send((term_id, TermEvent::UpdateContent(content)));
+            }
+            CloseTerminal { term_id } => {
+                let _ = self.term_tx.send((term_id, TermEvent::CloseTerminal));
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::CloseTerminal(term_id),
+                    Target::Widget(self.tab_id),
+                );
+            }
             CompletionResponse { .. } => todo!(),
         }
     }
@@ -556,14 +570,7 @@ impl LapceProxy {
         raw: Arc<Mutex<RawTerminal>>,
     ) {
         let _ = self.term_tx.send((term_id, TermEvent::NewTerminal(raw)));
-        self.rpc.send_rpc_notification(
-            "new_terminal",
-            &json!({
-                "term_id": term_id,
-                "cwd": cwd,
-                "shell": shell,
-            }),
-        )
+        self.proxy_rpc.new_terminal(term_id, cwd, shell);
     }
 
     pub fn git_init(&self) {

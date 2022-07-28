@@ -9,8 +9,8 @@ use std::{
 };
 
 use crate::{
-    file::FileNodeItem, plugin::PluginDescription, proxy::CoreProxyResponse,
-    source_control::DiffInfo, terminal::TermId, RequestId, RpcError, RpcMessage,
+    file::FileNodeItem, plugin::PluginDescription, source_control::DiffInfo,
+    terminal::TermId, RequestId, RpcError,
 };
 
 enum CoreRpc {
@@ -108,8 +108,12 @@ impl CoreRpcHandler {
     {
         for msg in &self.rx {
             match msg {
-                CoreRpc::Request(_, _) => todo!(),
-                CoreRpc::Notification(_) => todo!(),
+                CoreRpc::Request(id, rpc) => {
+                    handler.handle_request(rpc);
+                }
+                CoreRpc::Notification(rpc) => {
+                    handler.handle_notification(rpc);
+                }
             }
         }
     }
@@ -126,5 +130,13 @@ impl CoreRpcHandler {
 
     pub fn completion_response(&self, request_id: usize, resp: CompletionResponse) {
         self.notification(CoreNotification::CompletionResponse { request_id, resp });
+    }
+
+    pub fn close_terminal(&self, term_id: TermId) {
+        self.notification(CoreNotification::CloseTerminal { term_id });
+    }
+
+    pub fn update_terminal(&self, term_id: TermId, content: String) {
+        self.notification(CoreNotification::UpdateTerminal { term_id, content });
     }
 }

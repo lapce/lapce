@@ -13,7 +13,7 @@ use alacritty_terminal::{
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
 use directories::BaseDirs;
-use lapce_rpc::terminal::TermId;
+use lapce_rpc::{core::CoreRpcHandler, proxy::ProxyRpcHandler, terminal::TermId};
 #[cfg(not(windows))]
 use mio::unix::UnixReady;
 #[allow(deprecated)]
@@ -90,7 +90,7 @@ impl Terminal {
         }
     }
 
-    pub fn run(&mut self, dispatcher: Dispatcher) {
+    pub fn run(&mut self, core_rpc: CoreRpcHandler) {
         let mut tokens = (0..).map(Into::into);
         let poll_opts = PollOpt::edge() | PollOpt::oneshot();
 
@@ -121,12 +121,7 @@ impl Terminal {
                         if let Some(tty::ChildEvent::Exited) =
                             self.pty.next_child_event()
                         {
-                            dispatcher.send_notification(
-                                "close_terminal",
-                                json!({
-                                    "term_id": self.term_id,
-                                }),
-                            );
+                            core_rpc.close_terminal(self.term_id);
                             break 'event_loop;
                         }
                     }
@@ -143,12 +138,9 @@ impl Terminal {
                         if event.readiness().is_readable() {
                             match self.pty.reader().read(&mut buf) {
                                 Ok(n) => {
-                                    dispatcher.send_notification(
-                                        "update_terminal",
-                                        json!({
-                                            "term_id": self.term_id,
-                                            "content": base64::encode(&buf[..n]),
-                                        }),
+                                    core_rpc.update_terminal(
+                                        self.term_id,
+                                        base64::encode(&buf[..n]),
                                     );
                                 }
                                 Err(_e) => (),
