@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use directories::ProjectDirs;
 use hotwatch::Hotwatch;
+use jsonrpc_lite::{Id, JsonRpc};
 use lapce_rpc::counter::Counter;
 use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo, PluginResponse};
 use lapce_rpc::proxy::{
@@ -45,6 +46,10 @@ use wasmtime_wasi::WasiCtxBuilder;
 
 use crate::dispatch::Dispatcher;
 use crate::lsp::{LspRpcHandler, NewLspClient};
+use crate::lsp::{
+    LspRpcHandler, NewLspClient, PluginHandlerNotification, PluginServerHandler,
+    PluginServerRpc, PluginServerRpcHandler,
+};
 use crate::{dispatch::Dispatcher, APPLICATION_NAME};
 
 pub type PluginName = String;
@@ -58,6 +63,7 @@ pub enum PluginRequest {
 
 pub enum NewPluginNotification {
     PluginLoaded(NewPlugin),
+    PluginServerLoaded(PluginServerRpcHandler),
     LspLoaded(LspRpcHandler),
     DocumentDidOpen(TextDocumentItem),
     PluginServerNotification {
@@ -78,6 +84,7 @@ pub enum NewPluginNotification {
 pub struct NewPluginEnv {
     id: PluginId,
     plugin_rpc: PluginRpcHandler,
+    rpc: PluginServerRpcHandler,
     wasi_env: WasiEnv,
     desc: PluginDescription,
 }
@@ -118,6 +125,23 @@ pub struct PluginRpcHandler {
     plugin_rx: Receiver<PluginRpcMessage>,
     id: Arc<AtomicU64>,
     pending: Arc<Mutex<HashMap<u64, Sender<Result<Value, RpcError>>>>>,
+}
+
+impl PluginServerHandler for NewPlugin {
+    fn method_registered(&mut self, method: &'static str) -> bool {
+        todo!()
+    }
+
+    fn handle_host_notification(&mut self) {
+        todo!()
+    }
+
+    fn handle_handler_notification(
+        &mut self,
+        notification: PluginHandlerNotification,
+    ) {
+        todo!()
+    }
 }
 
 impl PluginRpcHandler {
@@ -240,6 +264,10 @@ impl PluginRpcHandler {
         self.send_plugin_server_notification(method, params);
     }
 
+    fn plugin_server_loaded(&self, plugin: PluginServerRpcHandler) {
+        self.send_notification(NewPluginNotification::PluginServerLoaded(plugin));
+    }
+
     fn plugin_loaded(&self, plugin: NewPlugin) {
         self.send_notification(NewPluginNotification::PluginLoaded(plugin));
     }
@@ -249,6 +277,7 @@ pub struct NewPluginCatalog {
     plugin_rpc: PluginRpcHandler,
     plugins: HashMap<PluginId, NewPlugin>,
     lsps: Vec<LspRpcHandler>,
+    new_plugins: Vec<PluginServerRpcHandler>,
 }
 
 impl NewPluginCatalog {
@@ -257,6 +286,7 @@ impl NewPluginCatalog {
             plugin_rpc: plugin_rpc.clone(),
             plugins: HashMap::new(),
             lsps: Vec::new(),
+            new_plugins: Vec::new(),
         };
 
         thread::spawn(move || {
@@ -308,36 +338,59 @@ impl NewPluginCatalog {
             .finalize()?;
         let wasi = wasi_env.import_object(&module)?;
 
+        let (io_tx, io_rx) = crossbeam_channel::unbounded();
+        let rpc = PluginServerRpcHandler::new(io_tx);
+
         let id = PluginId::next();
         let plugin_env = NewPluginEnv {
             id,
+            rpc: rpc.clone(),
             wasi_env,
             plugin_rpc: plugin_rpc.clone(),
             desc: plugin_desc.clone(),
         };
         let lapce = lapce_exports(&store, &plugin_env);
         let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
-        let plugin = NewPlugin {
+        let mut plugin = NewPlugin {
             id,
             instance,
             env: plugin_env.clone(),
         };
 
-        plugin_rpc.plugin_loaded(plugin.clone());
-
+        let handle_rpc = plugin
+            .instance
+            .exports
+            .get_function("handle_rpc")
+            .unwrap()
+            .clone();
+        let wasi_env = plugin_env.wasi_env.clone();
         thread::spawn(move || {
-            let initialize =
-                plugin.instance.exports.get_function("initialize").unwrap();
-            wasi_write_object(
-                &plugin.env.wasi_env,
-                &PluginInfo {
-                    os: std::env::consts::OS.to_string(),
-                    arch: std::env::consts::ARCH.to_string(),
-                    configuration: plugin_desc.configuration,
-                },
-            );
-            initialize.call(&[]).unwrap();
+            for msg in io_rx {
+                wasi_write_string(&wasi_env, &msg);
+                let _ = handle_rpc.call(&[]);
+            }
         });
+
+        let local_rpc = rpc.clone();
+        thread::spawn(move || {
+            local_rpc.mainloop(&mut plugin);
+        });
+
+        plugin_rpc.plugin_server_loaded(rpc.clone());
+
+        // thread::spawn(move || {
+        //     let initialize =
+        //         plugin.instance.exports.get_function("initialize").unwrap();
+        //     wasi_write_object(
+        //         &plugin.env.wasi_env,
+        //         &PluginInfo {
+        //             os: std::env::consts::OS.to_string(),
+        //             arch: std::env::consts::ARCH.to_string(),
+        //             configuration: plugin_desc.configuration,
+        //         },
+        //     );
+        //     initialize.call(&[]).unwrap();
+        // });
 
         // let (plugin_sender, plugin_receiver) =
         //     crossbeam_channel::unbounded::<PluginRpcMessage>();
@@ -357,6 +410,9 @@ impl NewPluginCatalog {
             NewPluginNotification::PluginLoaded(plugin) => {
                 eprintln!("plugin loaded");
                 self.plugins.insert(plugin.id, plugin);
+            }
+            NewPluginNotification::PluginServerLoaded(plugin) => {
+                self.new_plugins.push(plugin);
             }
             NewPluginNotification::LspLoaded(lsp) => {
                 self.lsps.push(lsp);
@@ -411,8 +467,8 @@ impl NewPluginCatalog {
                 }
             }
             NewPluginNotification::PluginServerNotification { method, params } => {
-                for lsp in self.lsps.iter() {
-                    lsp.send_notification(method, params.clone());
+                for plugin in self.new_plugins.iter() {
+                    plugin.server_notification(method, params.clone());
                 }
             }
         }
@@ -420,53 +476,6 @@ impl NewPluginCatalog {
 
     fn handle_request(&mut self, rpc: PluginRequest) {
         todo!()
-    }
-}
-
-impl PluginServerRpc {
-    pub fn new(plugin_sender: Sender<PluginRpcMessage>) -> Self {
-        Self { plugin_sender }
-    }
-
-    pub fn get_completion(&self, path: &Path, position: Position) {
-        let uri = Url::from_file_path(path).unwrap();
-        let method = Completion::METHOD;
-        let params = CompletionParams {
-            text_document_position: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier { uri },
-                position,
-            },
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-            context: None,
-        };
-    }
-
-    pub fn document_did_open(
-        &self,
-        path: &Path,
-        language_id: String,
-        version: i32,
-        text: String,
-    ) {
-        let method = DidOpenTextDocument::METHOD;
-        let params = DidOpenTextDocumentParams {
-            text_document: TextDocumentItem::new(
-                Url::from_file_path(path).unwrap(),
-                language_id,
-                version,
-                text,
-            ),
-        };
-        self.send_notification(method, params);
-    }
-
-    pub fn send_notification<N: Serialize>(&self, method: &'static str, params: N) {
-        let params = serde_json::to_value(params).unwrap();
-        let notification =
-            NewPluginNotification::PluginServerNotification { method, params };
-        self.plugin_sender
-            .send(RpcMessage::Notification(notification));
     }
 }
 
@@ -862,16 +871,55 @@ pub enum PluginNotification {
     },
 }
 
+fn number_from_id(id: &Id) -> u64 {
+    match *id {
+        Id::Num(n) => n as u64,
+        Id::Str(ref s) => s
+            .parse::<u64>()
+            .expect("failed to convert string id to u64"),
+        _ => panic!("unexpected value for id: None"),
+    }
+}
+
+pub fn handle_plugin_server_message(message: &str) -> Result<PluginServerRpc> {
+    let rpc = match JsonRpc::parse(message) {
+        Ok(value @ JsonRpc::Request(_)) => {
+            let id = number_from_id(&value.get_id().unwrap());
+            PluginServerRpc::HostRequest {
+                id,
+                method: value.get_method().unwrap().to_string(),
+                params: value.get_params().unwrap(),
+            }
+        }
+        Ok(value @ JsonRpc::Notification(_)) => PluginServerRpc::HostNotification {
+            method: value.get_method().unwrap().to_string(),
+            params: value.get_params().unwrap(),
+        },
+        Ok(value @ JsonRpc::Success(_)) => {
+            let id = number_from_id(&value.get_id().unwrap());
+            let result = value.get_result().unwrap().clone();
+            PluginServerRpc::ServerResponse { id, result }
+        }
+        Ok(value @ JsonRpc::Error(_)) => {
+            let id = number_from_id(&value.get_id().unwrap());
+            let error = value.get_error().unwrap();
+            PluginServerRpc::ServerError {
+                id,
+                error: RpcError {
+                    code: error.code,
+                    message: error.message.clone(),
+                },
+            }
+        }
+        Err(_err) => return Err(anyhow!("parsing error")),
+    };
+    Ok(rpc)
+}
+
 fn host_handle_notification(plugin_env: &NewPluginEnv) {
-    let notification: Result<PluginProxyNotification> =
-        wasi_read_object(&plugin_env.wasi_env);
-    if let Ok(notification) = notification {
-        // let _ = plugin_env
-        //     .plugin_rpc
-        //     .send_notification(ProxyRpcMessage::Plugin(
-        //         plugin_env.id,
-        //         RpcMessage::Notification(notification),
-        //     ));
+    let msg = wasi_read_string(&plugin_env.wasi_env).unwrap();
+    if let Ok(rpc) = handle_plugin_server_message(&msg) {
+        plugin_env.rpc.handle_rpc(rpc);
     }
 }
 

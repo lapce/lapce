@@ -2,7 +2,7 @@ use crate::buffer::{get_mod_time, load_file, Buffer};
 use crate::lsp::{LspCatalog, NewLspCatalog};
 use crate::plugin::{
     NewPluginCatalog, NewPluginNotification, PluginCatalog, PluginNotification,
-    PluginRpcHandler, PluginRpcMessage, PluginServerRpc,
+    PluginRpcHandler, PluginRpcMessage,
 };
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
@@ -260,8 +260,6 @@ impl ProxyHandler for NewDispatcher {
 
 impl NewDispatcher {
     pub fn new(core_rpc: CoreRpcHandler, proxy_rpc: ProxyRpcHandler) -> Self {
-        let (plugin_sender, plugin_receiver) = crossbeam_channel::unbounded();
-        let plugin_server_rpc = PluginServerRpc::new(plugin_sender.clone());
         let plugin_rpc = PluginRpcHandler::new();
 
         Self {
