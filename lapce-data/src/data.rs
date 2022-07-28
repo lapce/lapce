@@ -57,7 +57,7 @@ use crate::{
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
     },
     document::{BufferContent, Document, LocalBufferKind},
-    editor::{EditorLocation, EditorPosition, LapceEditorBufferData, TabRect},
+    editor::{EditorLocation, EditorPosition, LapceEditorBufferData, Line, TabRect},
     explorer::FileExplorerData,
     find::Find,
     hover::HoverData,
@@ -2546,8 +2546,6 @@ impl LapceMainSplitData {
         }
     }
 
-    // TODO: This function assumes the buffer is already loaded, which is typically the case
-    // but is not always and we may want it to be able to properly jump to a specific line in a doc
     pub fn jump_to_line(
         &mut self,
         ctx: &mut EventCtx,
@@ -2562,53 +2560,18 @@ impl LapceMainSplitData {
         } else {
             None
         };
-        let view_id = editor.view_id;
 
-        let doc = self.editor_doc(view_id);
-        let offset = doc.buffer().first_non_blank_character_on_line(if line > 0 {
-            line - 1
-        } else {
-            0
-        });
+        let position = Line(line);
 
         if let Some(path) = path {
             let location = EditorLocation {
                 path,
-                position: Some(offset),
+                position: Some(position),
                 scroll_offset: None,
                 history: None,
             };
             self.jump_to_location(ctx, editor_view_id, location, config);
         }
-    }
-
-    pub fn jump_to_line_column_path(
-        &mut self,
-        ctx: &mut EventCtx,
-        editor_view_id: Option<WidgetId>,
-        path: PathBuf,
-        line: usize,
-        column: usize,
-        config: &Config,
-    ) {
-        let editor_view_id = self
-            .get_editor_or_new(
-                ctx,
-                editor_view_id,
-                Some(path.clone()),
-                false,
-                config,
-            )
-            .view_id;
-        let doc = self.editor_doc(editor_view_id);
-        let offset = doc.buffer().offset_of_line_col(line, column);
-        let location = EditorLocation {
-            path,
-            position: Some(offset),
-            scroll_offset: None,
-            history: None,
-        };
-        self.jump_to_location(ctx, Some(editor_view_id), location, config);
     }
 }
 

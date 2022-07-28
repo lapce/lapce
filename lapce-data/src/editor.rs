@@ -111,6 +111,57 @@ impl EditorPosition for usize {
         }
     }
 }
+
+/// Jump to first non blank character on a line
+/// (If you want to jump to the very first character then use `LineCol` with column set to 0)
+#[derive(Debug, Clone, Copy)]
+pub struct Line(pub usize);
+impl EditorPosition for Line {
+    fn to_utf8_offset(&self, buffer: &Buffer) -> Option<usize> {
+        Some(buffer.first_non_blank_character_on_line(self.0.saturating_sub(1)))
+    }
+
+    fn init_buffer_content_cmd(
+        path: PathBuf,
+        content: Rope,
+        locations: Vec<(WidgetId, EditorLocation<Self>)>,
+        edits: Option<Rope>,
+    ) -> LapceUICommand {
+        LapceUICommand::InitBufferContentLine {
+            path,
+            content,
+            locations,
+            edits,
+        }
+    }
+}
+
+/// UTF8 line and column-offset
+#[derive(Debug, Clone, Copy)]
+pub struct LineCol {
+    pub line: usize,
+    pub column: usize,
+}
+impl EditorPosition for LineCol {
+    fn to_utf8_offset(&self, buffer: &Buffer) -> Option<usize> {
+        Some(buffer.offset_of_line_col(self.line, self.column))
+    }
+
+    fn init_buffer_content_cmd(
+        path: PathBuf,
+        content: Rope,
+        locations: Vec<(WidgetId, EditorLocation<Self>)>,
+        edits: Option<Rope>,
+    ) -> LapceUICommand {
+        LapceUICommand::InitBufferContentLineCol {
+            path,
+            content,
+            locations,
+            edits,
+        }
+    }
+}
+
 impl EditorPosition for Position {
     fn to_utf8_offset(&self, buffer: &Buffer) -> Option<usize> {
         buffer.offset_of_position(self)

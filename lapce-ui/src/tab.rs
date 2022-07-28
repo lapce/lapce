@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use druid::{
     kurbo::Line,
@@ -27,7 +27,7 @@ use lapce_data::{
         LapceWorkspace, LapceWorkspaceType, WorkProgress,
     },
     document::{BufferContent, LocalBufferKind},
-    editor::EditorLocation,
+    editor::{EditorLocation, EditorPosition},
     hover::HoverStatus,
     keypress::{DefaultKeyPressHandler, KeyPressData},
     menu::MenuKind,
@@ -739,28 +739,14 @@ impl LapceTab {
                         locations,
                         edits,
                     } => {
-                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
-                        let doc = Arc::make_mut(doc);
-                        doc.init_content(content.to_owned());
-
-                        if let Some(rope) = edits {
-                            doc.reload(rope.clone(), false);
-                        }
-                        if let BufferContent::File(path) = doc.content() {
-                            if let Some(d) = data.main_split.diagnostics.get(path) {
-                                doc.set_diagnostics(d);
-                            }
-                        }
-
-                        for (view_id, location) in locations {
-                            data.main_split.go_to_location(
-                                ctx,
-                                Some(*view_id),
-                                location.clone(),
-                                &data.config,
-                            );
-                        }
-                        ctx.set_handled();
+                        init_buffer_content(
+                            ctx,
+                            data,
+                            path,
+                            content,
+                            locations,
+                            edits.as_ref(),
+                        );
                     }
                     LapceUICommand::InitBufferContentLsp {
                         path,
@@ -768,28 +754,29 @@ impl LapceTab {
                         locations,
                         edits,
                     } => {
-                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
-                        let doc = Arc::make_mut(doc);
-                        doc.init_content(content.to_owned());
-
-                        if let Some(rope) = edits {
-                            doc.reload(rope.clone(), false);
-                        }
-                        if let BufferContent::File(path) = doc.content() {
-                            if let Some(d) = data.main_split.diagnostics.get(path) {
-                                doc.set_diagnostics(d);
-                            }
-                        }
-
-                        for (view_id, location) in locations {
-                            data.main_split.go_to_location(
-                                ctx,
-                                Some(*view_id),
-                                location.clone(),
-                                &data.config,
-                            );
-                        }
-                        ctx.set_handled();
+                        init_buffer_content(
+                            ctx,
+                            data,
+                            path,
+                            content,
+                            locations,
+                            edits.as_ref(),
+                        );
+                    }
+                    LapceUICommand::InitBufferContentLineCol {
+                        path,
+                        content,
+                        locations,
+                        edits,
+                    } => {
+                        init_buffer_content(
+                            ctx,
+                            data,
+                            path,
+                            content,
+                            locations,
+                            edits.as_ref(),
+                        );
                     }
                     LapceUICommand::InitPaletteInput(pattern) => {
                         let doc = data
@@ -1270,18 +1257,23 @@ impl LapceTab {
                         );
                         ctx.set_handled();
                     }
-                    LapceUICommand::JumpToLineColumnPath {
-                        editor_view_id,
-                        path,
-                        line,
-                        column,
-                    } => {
-                        data.main_split.jump_to_line_column_path(
+                    LapceUICommand::JumpToLineLocation(editor_view_id, location) => {
+                        data.main_split.jump_to_location(
                             ctx,
                             *editor_view_id,
-                            path.clone(),
-                            *line,
-                            *column,
+                            location.clone(),
+                            &data.config,
+                        );
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::JumpToLineColLocation(
+                        editor_view_id,
+                        location,
+                    ) => {
+                        data.main_split.jump_to_location(
+                            ctx,
+                            *editor_view_id,
+                            location.clone(),
                             &data.config,
                         );
                         ctx.set_handled();
@@ -2315,4 +2307,36 @@ impl Widget<LapceTabData> for LapceTabHeader {
             );
         }
     }
+}
+
+fn init_buffer_content<P: EditorPosition + Clone + Send + 'static>(
+    ctx: &mut EventCtx,
+    data: &mut LapceTabData,
+    path: &Path,
+    content: &Rope,
+    locations: &[(WidgetId, EditorLocation<P>)],
+    edits: Option<&Rope>,
+) {
+    let doc = data.main_split.open_docs.get_mut(path).unwrap();
+    let doc = Arc::make_mut(doc);
+    doc.init_content(content.to_owned());
+
+    if let Some(rope) = edits {
+        doc.reload(rope.clone(), false);
+    }
+    if let BufferContent::File(path) = doc.content() {
+        if let Some(d) = data.main_split.diagnostics.get(path) {
+            doc.set_diagnostics(d);
+        }
+    }
+
+    for (view_id, location) in locations {
+        data.main_split.go_to_location(
+            ctx,
+            Some(*view_id),
+            location.clone(),
+            &data.config,
+        );
+    }
+    ctx.set_handled();
 }

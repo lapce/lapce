@@ -10,6 +10,7 @@ use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
+    editor::{EditorLocation, LineCol},
     panel::PanelKind,
 };
 
@@ -88,12 +89,18 @@ impl SearchContent {
                 if i == n {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::JumpToLineColumnPath {
-                            editor_view_id: None,
-                            path: path.clone(),
-                            line: line_number.saturating_sub(1),
-                            column: *start,
-                        },
+                        LapceUICommand::JumpToLineColLocation(
+                            None,
+                            EditorLocation {
+                                path: path.clone(),
+                                position: Some(LineCol {
+                                    line: line_number.saturating_sub(1),
+                                    column: *start,
+                                }),
+                                scroll_offset: None,
+                                history: None,
+                            },
+                        ),
                         Target::Widget(data.id),
                     ));
                     return;
