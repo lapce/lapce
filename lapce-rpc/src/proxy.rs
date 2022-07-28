@@ -105,7 +105,7 @@ pub enum CoreProxyRequest {
     },
     Save {
         rev: u64,
-        buffer_id: BufferId,
+        path: PathBuf,
     },
     SaveBufferAs {
         buffer_id: BufferId,
@@ -141,7 +141,7 @@ pub enum CoreProxyNotification {
         position: Position,
     },
     Update {
-        buffer_id: BufferId,
+        path: PathBuf,
         delta: RopeDelta,
         rev: u64,
     },
@@ -199,6 +199,7 @@ pub enum CoreProxyResponse {
     GetFilesResponse {
         items: Vec<PathBuf>,
     },
+    SaveResponse {},
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -354,6 +355,10 @@ impl ProxyRpcHandler {
         self.request_async(CoreProxyRequest::BufferHead { path }, f);
     }
 
+    pub fn save(&self, rev: u64, path: PathBuf, f: impl ProxyCallback + 'static) {
+        self.request_async(CoreProxyRequest::Save { rev, path }, f);
+    }
+
     pub fn get_files(&self, f: impl ProxyCallback + 'static) {
         self.request_async(
             CoreProxyRequest::GetFiles {
@@ -365,5 +370,9 @@ impl ProxyRpcHandler {
 
     pub fn read_dir(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
         self.request_async(CoreProxyRequest::ReadDir { path }, f);
+    }
+
+    pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {
+        self.notification(CoreProxyNotification::Update { path, delta, rev });
     }
 }

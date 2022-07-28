@@ -1042,8 +1042,12 @@ impl Document {
             self.update_styles(delta);
             self.update_inlay_hints(delta);
             self.update_diagnostics(delta);
-            if self.content.is_file() {
-                self.proxy.update(self.id, delta, rev + i as u64 + 1);
+            if let BufferContent::File(path) = &self.content {
+                self.proxy.proxy_rpc.update(
+                    path.clone(),
+                    delta.clone(),
+                    rev + i as u64 + 1,
+                );
             }
         }
 

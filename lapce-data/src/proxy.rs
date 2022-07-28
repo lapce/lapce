@@ -121,16 +121,82 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            OpenFileChanged { path, content } => todo!(),
-            ReloadBuffer { path, content, rev } => todo!(),
+            OpenFileChanged { path, content } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::OpenFileChanged {
+                        path,
+                        content: Rope::from(content),
+                    },
+                    Target::Widget(self.tab_id),
+                );
+            }
+            ReloadBuffer { path, content, rev } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ReloadBuffer {
+                        path,
+                        rev,
+                        content: Rope::from(content),
+                    },
+                    Target::Widget(self.tab_id),
+                );
+            }
             WorkspaceFileChange {} => todo!(),
-            PublishDiagnostics { diagnostics } => todo!(),
-            WorkDoneProgress { progress } => todo!(),
-            HomeDir { path } => todo!(),
-            InstalledPlugins { plugins } => todo!(),
-            ListDir { items } => todo!(),
-            DiffFiles { files } => todo!(),
-            DiffInfo { diff } => todo!(),
+            PublishDiagnostics { diagnostics } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::PublishDiagnostics(diagnostics),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            WorkDoneProgress { progress } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::WorkDoneProgress(progress),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            HomeDir { path } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::HomeDir(path),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            InstalledPlugins { plugins } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateInstalledPlugins(plugins.clone()),
+                    Target::Widget(self.tab_id),
+                );
+                let plugins_desc = plugins
+                    .iter()
+                    .map(|(_, desc)| desc.to_owned())
+                    .collect::<Vec<PluginDescription>>();
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateInstalledPluginDescriptions(Some(
+                        plugins_desc.clone(),
+                    )),
+                    Target::Widget(self.tab_id),
+                );
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::DeleteUninstalledPluginDescriptions(
+                        plugins_desc,
+                    ),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            ListDir { .. } | DiffFiles { .. } => {}
+            DiffInfo { diff } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateDiffInfo(diff),
+                    Target::Widget(self.tab_id),
+                );
+            }
             UpdateTerminal { term_id, content } => {
                 let _ = self
                     .term_tx
@@ -685,17 +751,6 @@ impl LapceProxy {
             content,
         };
         self.rpc.send_rpc_request_value_async(request, f);
-    }
-
-    pub fn update(&self, buffer_id: BufferId, delta: &RopeDelta, rev: u64) {
-        self.rpc.send_rpc_notification(
-            "update",
-            &json!({
-                "buffer_id": buffer_id,
-                "delta": delta,
-                "rev": rev,
-            }),
-        )
     }
 
     pub fn save(&self, rev: u64, buffer_id: BufferId, f: Box<dyn Callback>) {
