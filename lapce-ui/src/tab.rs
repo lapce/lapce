@@ -485,15 +485,15 @@ impl LapceTab {
 
     fn paint_drag(&self, ctx: &mut PaintCtx, data: &LapceTabData) {
         if let Some((offset, start, drag_content)) = data.drag.as_ref() {
+            if (self.mouse_pos.x - start.x).abs() < 5.
+                && (self.mouse_pos.y - start.y).abs() < 5.
+            {
+                // debounce accidental drags
+                return;
+            }
             match drag_content {
                 DragContent::EditorTab(_, _, _, tab_rect) => {
                     let rect = tab_rect.rect.with_origin(self.mouse_pos - *offset);
-                    if (self.mouse_pos.x - start.x).abs() < 5.
-                        && (self.mouse_pos.y - start.y).abs() < 5.
-                    {
-                        // debounce accidental drags
-                        return;
-                    }
                     let size = rect.size();
                     let shadow_width = data.config.ui.drop_shadow_width() as f64;
                     if shadow_width > 0.0 {
