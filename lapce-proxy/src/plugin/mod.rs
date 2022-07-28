@@ -8,13 +8,9 @@ use directories::ProjectDirs;
 use hotwatch::Hotwatch;
 use jsonrpc_lite::{Id, JsonRpc};
 use lapce_rpc::counter::Counter;
-use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo, PluginResponse};
-use lapce_rpc::proxy::{
-    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse,
-    PluginProxyNotification, PluginProxyRequest, PluginProxyResponse,
-    ProxyRpcHandler, ProxyRpcMessage,
-};
-use lapce_rpc::{NewRpcHandler, RequestId, RpcError, RpcMessage};
+use lapce_rpc::plugin::{PluginDescription, PluginId};
+use lapce_rpc::proxy::PluginProxyResponse;
+use lapce_rpc::{RequestId, RpcError, RpcMessage};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{Completion, Request};
 use lsp_types::{

@@ -1,7 +1,4 @@
-use std::{collections::HashMap, path::PathBuf, thread};
-
-use lapce_rpc::plugin::PluginId;
-use lsp_types::{notification::DidOpenTextDocument, DidOpenTextDocumentParams};
+use std::thread;
 
 use super::{
     lsp::NewLspClient, psp::PluginServerRpcHandler, wasi::load_all_plugins,

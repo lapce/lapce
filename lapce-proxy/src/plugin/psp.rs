@@ -179,8 +179,9 @@ impl PluginServerRpcHandler {
             pending.insert(id, rh);
         }
         let params = Params::from(serde_json::to_value(params).unwrap());
-        self.rpc_tx
-            .send(PluginServerRpc::ServerRequest { id, method, params });
+        let _ =
+            self.rpc_tx
+                .send(PluginServerRpc::ServerRequest { id, method, params });
     }
 
     pub fn handle_server_response(&self, id: u64, result: Result<Value, RpcError>) {
