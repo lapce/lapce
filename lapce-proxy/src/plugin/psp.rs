@@ -12,11 +12,18 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
 use jsonrpc_lite::{JsonRpc, Params};
+use lapce_core::buffer::RopeText;
 use lapce_rpc::RpcError;
-use lsp_types::notification::Notification;
+use lsp_types::{
+    notification::{DidChangeTextDocument, Notification},
+    DidChangeTextDocumentParams, Range, ServerCapabilities,
+    TextDocumentContentChangeEvent, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextDocumentSyncOptions, VersionedTextDocumentIdentifier,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use xi_rope::{Rope, RopeDelta};
 
 use super::{lsp::NewLspClient, number_from_id, PluginCatalogRpcHandler};
 
@@ -87,6 +94,17 @@ pub enum PluginServerRpc {
         method: String,
         params: Params,
     },
+    DidChangeTextDocument {
+        document: VersionedTextDocumentIdentifier,
+        delta: RopeDelta,
+        text: Rope,
+        change: Arc<
+            Mutex<(
+                Option<TextDocumentContentChangeEvent>,
+                Option<TextDocumentContentChangeEvent>,
+            )>,
+        >,
+    },
 }
 
 #[derive(Clone)]
@@ -104,6 +122,19 @@ pub trait PluginServerHandler {
     fn handle_handler_notification(
         &mut self,
         notification: PluginHandlerNotification,
+    );
+    fn handle_did_change_text_document(
+        &mut self,
+        document: VersionedTextDocumentIdentifier,
+        rev: u64,
+        delta: RopeDelta,
+        text: Rope,
+        change: Arc<
+            Mutex<(
+                Option<TextDocumentContentChangeEvent>,
+                Option<TextDocumentContentChangeEvent>,
+            )>,
+        >,
     );
 }
 
@@ -238,6 +269,12 @@ impl PluginServerRpcHandler {
                 PluginServerRpc::HostNotification { method, params } => {
                     handler.handle_host_notification(method, params);
                 }
+                PluginServerRpc::DidChangeTextDocument {
+                    document,
+                    delta,
+                    text,
+                    change,
+                } => {}
                 PluginServerRpc::Handler(notification) => {
                     handler.handle_handler_notification(notification)
                 }
@@ -299,16 +336,21 @@ pub struct StartLspServerParams {
 pub struct PluginHostHandler {
     workspace: Option<PathBuf>,
     catalog_rpc: PluginCatalogRpcHandler,
+    server_rpc: PluginServerRpcHandler,
+    server_capabilities: ServerCapabilities,
 }
 
 impl PluginHostHandler {
     pub fn new(
         workspace: Option<PathBuf>,
+        server_rpc: PluginServerRpcHandler,
         catalog_rpc: PluginCatalogRpcHandler,
     ) -> Self {
         Self {
             workspace,
             catalog_rpc,
+            server_rpc,
+            server_capabilities: ServerCapabilities::default(),
         }
     }
 
@@ -336,4 +378,134 @@ impl PluginHostHandler {
         }
         Ok(())
     }
+
+    pub fn handle_did_change_text_document(
+        &mut self,
+        document: VersionedTextDocumentIdentifier,
+        rev: u64,
+        delta: RopeDelta,
+        text: Rope,
+        change: Arc<
+            Mutex<(
+                Option<TextDocumentContentChangeEvent>,
+                Option<TextDocumentContentChangeEvent>,
+            )>,
+        >,
+    ) {
+        let kind = match &self.server_capabilities.text_document_sync {
+            Some(TextDocumentSyncCapability::Kind(kind)) => *kind,
+            Some(TextDocumentSyncCapability::Options(options)) => {
+                options.change.unwrap_or(TextDocumentSyncKind::NONE)
+            }
+            None => TextDocumentSyncKind::NONE,
+        };
+
+        let mut existing = change.lock();
+        let change = match kind {
+            TextDocumentSyncKind::FULL => {
+                if let Some(c) = existing.0.as_ref() {
+                    c.clone()
+                } else {
+                    let text = text.to_string();
+                    let change = TextDocumentContentChangeEvent {
+                        range: None,
+                        range_length: None,
+                        text,
+                    };
+                    existing.0 = Some(change.clone());
+                    change
+                }
+            }
+            TextDocumentSyncKind::INCREMENTAL => {
+                if let Some(c) = existing.1.as_ref() {
+                    c.clone()
+                } else {
+                    let change = get_document_content_change(&text, &delta)
+                        .unwrap_or_else(|| TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: text.to_string(),
+                        });
+                    existing.1 = Some(change.clone());
+                    change
+                }
+            }
+            TextDocumentSyncKind::NONE => return,
+            _ => return,
+        };
+
+        let params = DidChangeTextDocumentParams {
+            text_document: document,
+            content_changes: vec![change],
+        };
+
+        self.server_rpc
+            .server_notification(DidChangeTextDocument::METHOD, params);
+    }
+}
+
+fn get_document_content_change(
+    text: &Rope,
+    delta: &RopeDelta,
+) -> Option<TextDocumentContentChangeEvent> {
+    let (interval, _) = delta.summary();
+    let (start, end) = interval.start_end();
+
+    let text = RopeText::new(text);
+
+    // TODO: Handle more trivial cases like typing when there's a selection or transpose
+    if let Some(node) = delta.as_simple_insert() {
+        let (start, end) = interval.start_end();
+        let start = if let Some(start) = text.offset_to_position(start) {
+            start
+        } else {
+            log::error!("Failed to convert start offset to Position in document content change insert");
+            return None;
+        };
+
+        let end = if let Some(end) = text.offset_to_position(end) {
+            end
+        } else {
+            log::error!("Failed to convert end offset to Position in document content change insert");
+            return None;
+        };
+
+        let text = String::from(node);
+        let text_document_content_change_event = TextDocumentContentChangeEvent {
+            range: Some(Range { start, end }),
+            range_length: None,
+            text,
+        };
+
+        return Some(text_document_content_change_event);
+    }
+    // Or a simple delete
+    else if delta.is_simple_delete() {
+        let end_position = if let Some(end) = text.offset_to_position(end) {
+            end
+        } else {
+            log::error!("Failed to convert end offset to Position in document content change delete");
+            return None;
+        };
+
+        let start = if let Some(start) = text.offset_to_position(start) {
+            start
+        } else {
+            log::error!("Failed to convert start offset to Position in document content change delete");
+            return None;
+        };
+
+        let text_document_content_change_event = TextDocumentContentChangeEvent {
+            range: Some(Range {
+                start,
+                end: end_position,
+            }),
+            range_length: None,
+            text: String::new(),
+        };
+
+        return Some(text_document_content_change_event);
+    }
+
+    None
 }

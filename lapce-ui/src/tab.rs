@@ -867,6 +867,20 @@ impl LapceTab {
                         data.handle_workspace_file_change(ctx);
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateCompletion(request_id, input, resp) => {
+                        let completion = Arc::make_mut(&mut data.completion);
+                        completion.receive(
+                            *request_id,
+                            input.to_owned(),
+                            resp.to_owned(),
+                        );
+                    }
+                    LapceUICommand::CancelCompletion(request_id) => {
+                        if data.completion.request_id == *request_id {
+                            let completion = Arc::make_mut(&mut data.completion);
+                            completion.cancel();
+                        }
+                    }
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
                         if let Some(terminal) = terminal_panel.terminals.get_mut(id)

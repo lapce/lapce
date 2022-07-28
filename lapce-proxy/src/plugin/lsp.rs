@@ -97,6 +97,23 @@ impl PluginServerHandler for NewLspClient {
     fn handle_host_notification(&mut self, method: String, params: Params) {
         self.host.handle_notification(method, params);
     }
+
+    fn handle_did_change_text_document(
+        &mut self,
+        document: lsp_types::VersionedTextDocumentIdentifier,
+        rev: u64,
+        delta: xi_rope::RopeDelta,
+        text: xi_rope::Rope,
+        change: Arc<
+            Mutex<(
+                Option<TextDocumentContentChangeEvent>,
+                Option<TextDocumentContentChangeEvent>,
+            )>,
+        >,
+    ) {
+        self.host
+            .handle_did_change_text_document(document, rev, delta, text, change);
+    }
 }
 
 impl NewLspClient {
@@ -139,7 +156,11 @@ impl NewLspClient {
             }
         });
 
-        let host = PluginHostHandler::new(workspace.clone(), plugin_rpc.clone());
+        let host = PluginHostHandler::new(
+            workspace.clone(),
+            server_rpc.clone(),
+            plugin_rpc.clone(),
+        );
 
         Self {
             plugin_rpc,

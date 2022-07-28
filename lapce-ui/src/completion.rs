@@ -304,29 +304,6 @@ impl Widget<LapceTabData> for CompletionContainer {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        match event {
-            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
-                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::UpdateCompletion(request_id, input, resp) => {
-                        let completion = Arc::make_mut(&mut data.completion);
-                        completion.receive(
-                            *request_id,
-                            input.to_owned(),
-                            resp.to_owned(),
-                        );
-                    }
-                    LapceUICommand::CancelCompletion(request_id) => {
-                        if data.completion.request_id == *request_id {
-                            let completion = Arc::make_mut(&mut data.completion);
-                            completion.cancel();
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            _ => {}
-        }
         self.completion.event(ctx, event, data, env);
         self.documentation.event(ctx, event, data, env);
     }

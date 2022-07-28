@@ -210,7 +210,17 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            CompletionResponse { .. } => todo!(),
+            CompletionResponse {
+                request_id,
+                input,
+                resp,
+            } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateCompletion(request_id, input, resp),
+                    Target::Widget(self.tab_id),
+                );
+            }
             DisabledPlugins { plugins } => todo!(),
         }
     }

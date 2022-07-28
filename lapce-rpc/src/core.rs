@@ -29,6 +29,7 @@ pub enum CoreNotification {
     },
     CompletionResponse {
         request_id: usize,
+        input: String,
         resp: CompletionResponse,
     },
     ReloadBuffer {
@@ -128,8 +129,17 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::ProxyConnected {});
     }
 
-    pub fn completion_response(&self, request_id: usize, resp: CompletionResponse) {
-        self.notification(CoreNotification::CompletionResponse { request_id, resp });
+    pub fn completion_response(
+        &self,
+        request_id: usize,
+        input: String,
+        resp: CompletionResponse,
+    ) {
+        self.notification(CoreNotification::CompletionResponse {
+            request_id,
+            input,
+            resp,
+        });
     }
 
     pub fn close_terminal(&self, term_id: TermId) {

@@ -138,6 +138,7 @@ pub enum CoreProxyNotification {
     Completion {
         request_id: usize,
         path: PathBuf,
+        input: String,
         position: Position,
     },
     Update {

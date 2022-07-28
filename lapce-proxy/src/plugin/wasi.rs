@@ -2,14 +2,18 @@ use std::{
     fs,
     io::Read,
     path::{Path, PathBuf},
+    sync::Arc,
     thread,
 };
 
 use anyhow::{anyhow, Result};
 use home::home_dir;
 use lapce_rpc::plugin::{PluginDescription, PluginId};
+use lsp_types::{TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier};
+use parking_lot::Mutex;
 use wasmer::{ChainableNamedResolver, ImportObject, Store, WasmerEnv};
 use wasmer_wasi::{Pipe, WasiEnv, WasiState};
+use xi_rope::{Rope, RopeDelta};
 
 use crate::plugin::psp::PluginServerRpcHandler;
 
@@ -55,6 +59,23 @@ impl PluginServerHandler for NewPlugin {
         params: jsonrpc_lite::Params,
     ) {
         let _ = self.host.handle_notification(method, params);
+    }
+
+    fn handle_did_change_text_document(
+        &mut self,
+        document: VersionedTextDocumentIdentifier,
+        rev: u64,
+        delta: RopeDelta,
+        text: Rope,
+        change: Arc<
+            Mutex<(
+                Option<TextDocumentContentChangeEvent>,
+                Option<TextDocumentContentChangeEvent>,
+            )>,
+        >,
+    ) {
+        self.host
+            .handle_did_change_text_document(document, rev, delta, text, change);
     }
 }
 
@@ -155,7 +176,7 @@ fn start_plugin(
         id,
         instance,
         env: plugin_env.clone(),
-        host: PluginHostHandler::new(workspace, plugin_rpc.clone()),
+        host: PluginHostHandler::new(workspace, rpc.clone(), plugin_rpc.clone()),
     };
 
     let handle_rpc = plugin

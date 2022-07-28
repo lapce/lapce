@@ -38,6 +38,7 @@ use wasmer::ImportObject;
 use wasmer::Store;
 use wasmer::WasmerEnv;
 use wasmer_wasi::WasiEnv;
+use xi_rope::{Rope, RopeDelta};
 
 use crate::dispatch::Dispatcher;
 use crate::lsp::{LspRpcHandler, NewLspClient};
@@ -58,6 +59,11 @@ pub enum PluginCatalogRpc {
     ServerNotification {
         method: &'static str,
         params: Value,
+    },
+    DidChangeTextDocument {
+        rev: u64,
+        delta: RopeDelta,
+        text: Rope,
     },
     Handler(PluginCatalogNotification),
 }
@@ -126,6 +132,9 @@ impl PluginCatalogRpcHandler {
                 PluginCatalogRpc::Handler(notification) => {
                     plugin.handle_notification(notification);
                 }
+                PluginCatalogRpc::DidChangeTextDocument { rev, delta, text } => {
+                    plugin.handle_did_change_text_document(rev, delta, text);
+                }
             }
         }
     }
@@ -155,7 +164,19 @@ impl PluginCatalogRpcHandler {
         let _ = self.plugin_tx.send(rpc);
     }
 
-    pub fn completion(&self, request_id: usize, path: &Path, position: Position) {
+    pub fn did_change_text_document(&self, rev: u64, delta: RopeDelta, text: Rope) {
+        let _ = self
+            .plugin_tx
+            .send(PluginCatalogRpc::DidChangeTextDocument { rev, delta, text });
+    }
+
+    pub fn completion(
+        &self,
+        request_id: usize,
+        path: &Path,
+        input: String,
+        position: Position,
+    ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = Completion::METHOD;
         let params = CompletionParams {
@@ -173,7 +194,7 @@ impl PluginCatalogRpcHandler {
             if let Ok(value) = result {
                 if let Ok(resp) = serde_json::from_value::<CompletionResponse>(value)
                 {
-                    core_rpc.completion_response(request_id, resp);
+                    core_rpc.completion_response(request_id, input, resp);
                 }
             }
         });

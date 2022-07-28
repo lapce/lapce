@@ -4,6 +4,7 @@ use crossbeam_channel::Sender;
 use dyn_clone::DynClone;
 use lapce_rpc::RpcError;
 use serde_json::Value;
+use xi_rope::{Rope, RopeDelta};
 
 use super::{
     lsp::NewLspClient,
@@ -56,6 +57,14 @@ impl NewPluginCatalog {
         for plugin in self.new_plugins.iter() {
             plugin.server_notification(method, params.clone());
         }
+    }
+
+    pub fn handle_did_change_text_document(
+        &mut self,
+        rev: u64,
+        delta: RopeDelta,
+        text: Rope,
+    ) {
     }
 
     pub fn handle_notification(&mut self, notification: PluginCatalogNotification) {

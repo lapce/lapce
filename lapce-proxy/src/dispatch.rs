@@ -28,6 +28,7 @@ use lapce_rpc::proxy::{
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::{self, Call, RequestId, RpcError, RpcObject};
+use lsp_types::notification::DidChangeTextDocument;
 use parking_lot::Mutex;
 use serde_json::json;
 use serde_json::Value;
@@ -70,17 +71,18 @@ impl ProxyHandler for NewDispatcher {
             Completion {
                 request_id,
                 path,
+                input,
                 position,
             } => {
-                self.catalog_rpc.completion(request_id, &path, position);
+                self.catalog_rpc
+                    .completion(request_id, &path, input, position);
             }
             Shutdown {} => todo!(),
             Update { path, delta, rev } => {
                 let buffer = self.buffers.get_mut(&path).unwrap();
-                if let Some(content_change) = buffer.update(&delta, rev) {
-                    todo!()
-                    // self.lsp.lock().update(buffer, &content_change, buffer.rev);
-                }
+                let text = buffer.rope.clone();
+                buffer.update(&delta, rev);
+                self.catalog_rpc.did_change_text_document(rev, delta, text);
             }
             NewTerminal {
                 term_id,
@@ -1342,4 +1344,5 @@ fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)>
         .with_context(|| "content bytes to string")?
         .to_string();
     Ok((id, content))
+
 }
