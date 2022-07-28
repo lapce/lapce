@@ -196,6 +196,8 @@ pub enum LapceLanguage {
     Kotlin,
     #[cfg(feature = "lang-d")]
     D,
+    #[cfg(feature = "lang-lua")]
+    Lua,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -742,6 +744,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         extensions: &["d", "di", "dlang"],
     },
+    #[cfg(feature = "lang-lua")]
+    SyntaxProperties {
+        id: LapceLanguage::Lua,
+        language: tree_sitter_lua::language,
+        highlight: include_str!("../queries/lua/highlights.scm"),
+        injection: None,
+        comment: "--",
+        indent: "  ",
+        sticky_headers: &[],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["lua"],
+    },
 ];
 
 impl LapceLanguage {
@@ -803,13 +817,9 @@ impl LapceLanguage {
     }
 
     pub(crate) fn new_highlight_config(&self) -> HighlightConfiguration {
-        let props = self.properties();
-        let language = (props.language)();
-        let query = props.highlight;
-        let injection = props.injection;
-
-        HighlightConfiguration::new(language, query, injection.unwrap_or(""), "")
-            .unwrap()
+        let language = (self.properties().language)();
+        let query = self.properties().highlight;
+        HighlightConfiguration::new(language, query, "", "").unwrap()
     }
 
     pub(crate) fn walk_tree(
@@ -1078,5 +1088,9 @@ mod test {
     #[cfg(feature = "lang-d")]
     fn test_d_lang() {
         assert_language(LapceLanguage::D, &["d", "di", "dlang"]);
+    }
+    #[cfg(feature = "lang-lua")]
+    fn test_lua_lang() {
+        assert_language(LapceLanguage::Lua, &["lua"]);
     }
 }

@@ -96,6 +96,7 @@ declare_language_highlights!(
     Latex: "lang-latex",
     Kotlin: "lang-kotlin",
     D: "lang-d",
+    Lua: "lang-lua",
 );
 
 /// Indicates which highlight should be applied to a region of source code.
