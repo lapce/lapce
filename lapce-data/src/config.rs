@@ -327,7 +327,9 @@ impl UIConfig {
         self.drop_shadow_width
     }
 
-    pub fn preview_editor_width(&self) -> usize { self.preview_editor_width }
+    pub fn preview_editor_width(&self) -> usize {
+        self.preview_editor_width
+    }
 
     pub fn hover_font_family(&self) -> FontFamily {
         if self.hover_font_family.is_empty() {
