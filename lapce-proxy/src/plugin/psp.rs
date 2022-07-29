@@ -15,7 +15,7 @@ use jsonrpc_lite::{JsonRpc, Params};
 use lapce_core::buffer::RopeText;
 use lapce_rpc::RpcError;
 use lsp_types::{
-    notification::{DidChangeTextDocument, Notification},
+    notification::{DidChangeTextDocument, DidOpenTextDocument, Notification},
     DidChangeTextDocumentParams, Range, ServerCapabilities,
     TextDocumentContentChangeEvent, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncOptions, VersionedTextDocumentIdentifier,
@@ -351,6 +351,28 @@ impl PluginHostHandler {
             catalog_rpc,
             server_rpc,
             server_capabilities: ServerCapabilities::default(),
+        }
+    }
+
+    pub fn method_registered(&mut self, method: &'static str) -> bool {
+        match method {
+            DidOpenTextDocument::METHOD => {
+                match &self.server_capabilities.text_document_sync {
+                    Some(TextDocumentSyncCapability::Kind(kind)) => {
+                        kind != &TextDocumentSyncKind::NONE
+                    }
+                    Some(TextDocumentSyncCapability::Options(options)) => options
+                        .open_close
+                        .or_else(|| {
+                            options
+                                .change
+                                .map(|kind| kind != TextDocumentSyncKind::NONE)
+                        })
+                        .unwrap_or(false),
+                    None => false,
+                }
+            }
+            _ => false,
         }
     }
 

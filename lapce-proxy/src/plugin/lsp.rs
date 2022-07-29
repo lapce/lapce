@@ -79,7 +79,7 @@ pub struct NewLspClient {
 
 impl PluginServerHandler for NewLspClient {
     fn method_registered(&mut self, method: &'static str) -> bool {
-        todo!()
+        self.host.method_registered(method)
     }
 
     fn handle_handler_notification(

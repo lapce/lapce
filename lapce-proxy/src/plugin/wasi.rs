@@ -43,14 +43,19 @@ pub struct NewPlugin {
 
 impl PluginServerHandler for NewPlugin {
     fn method_registered(&mut self, method: &'static str) -> bool {
-        todo!()
+        self.host.method_registered(method)
     }
 
     fn handle_handler_notification(
         &mut self,
         notification: PluginHandlerNotification,
     ) {
-        todo!()
+        use PluginHandlerNotification::*;
+        match notification {
+            Initilize => {
+                self.initialize();
+            }
+        }
     }
 
     fn handle_host_notification(
@@ -77,6 +82,10 @@ impl PluginServerHandler for NewPlugin {
         self.host
             .handle_did_change_text_document(document, rev, delta, text, change);
     }
+}
+
+impl NewPlugin {
+    fn initialize(&mut self) {}
 }
 
 pub fn load_all_plugins(
