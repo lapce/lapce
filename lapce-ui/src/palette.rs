@@ -337,17 +337,28 @@ impl Widget<LapceTabData> for PaletteContainer {
         let width = bc.max().width;
         let max_height = bc.max().height;
 
-        let bc = BoxConstraints::tight(Size::new(width, bc.max().height));
+        let bc = BoxConstraints::tight(Size::new(
+            f64::max(width,data.config.ui.preview_editor_width() as f64),
+            bc.max().height)
+        );
+
         let input_size = self.input.layout(ctx, &bc, data, env);
-        self.input.set_origin(ctx, data, env, Point::ZERO);
+        let input_width = if input_size.width > width {
+            width - input_size.width as f64
+        } else {
+            0.00
+        };
+        self.input.set_origin(ctx, data, env, Point::new(input_width / 2.0, 0.0));
 
         let max_items = 15;
         let height = max_items.min(data.palette.len());
         let height = self.line_height * height as f64;
-        let bc = BoxConstraints::tight(Size::new(f64::max(width, data.config.ui.preview_editor_width() as f64), height));
+        let bc = BoxConstraints::tight(Size::new(
+            f64::max(width,data.config.ui.preview_editor_width() as f64), height)
+        );
         let content_size = self.content.layout(ctx, &bc, data, env);
         self.content
-            .set_origin(ctx, data, env, Point::new(0.0, input_size.height));
+            .set_origin(ctx, data, env, Point::new(input_width / 2.0, input_size.height));
         let mut content_height = content_size.height;
         if content_height > 0.0 {
             content_height += 5.0;
@@ -366,20 +377,23 @@ impl Widget<LapceTabData> for PaletteContainer {
         } else {
             0.0
         };
-        let bc = BoxConstraints::tight(Size::new(f64::max(width, data.config.ui.preview_editor_width() as f64), max_preview_height));
+        let bc = BoxConstraints::tight(Size::new(
+            f64::max(width,data.config.ui.preview_editor_width() as f64),
+            max_preview_height)
+        );
         let _preview_size = self.preview.layout(ctx, &bc, data, env);
         self.preview.set_origin(
             ctx,
             data,
             env,
-            Point::new(0.0, input_size.height + content_height),
+            Point::new(input_width / 2.0, input_size.height + content_height),
         );
 
         let self_size =
             Size::new(width, input_size.height + content_height + preview_height);
-        self.content_rect = Size::new(width, self_size.height)
+        self.content_rect = Size::new(f64::max(width, _preview_size.width), self_size.height)
             .to_rect()
-            .with_origin(Point::new(0.0, 0.0));
+            .with_origin(Point::new(input_width / 2.0, 0.0));
         self_size
     }
 
