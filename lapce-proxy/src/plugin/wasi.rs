@@ -9,8 +9,12 @@ use std::{
 use anyhow::{anyhow, Result};
 use home::home_dir;
 use lapce_rpc::plugin::{PluginDescription, PluginId};
-use lsp_types::{TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier};
+use lsp_types::{
+    request::Initialize, TextDocumentContentChangeEvent,
+    VersionedTextDocumentIdentifier,
+};
 use parking_lot::Mutex;
+use psp_types::Request;
 use wasmer::{ChainableNamedResolver, ImportObject, Store, WasmerEnv};
 use wasmer_wasi::{Pipe, WasiEnv, WasiState};
 use xi_rope::{Rope, RopeDelta};
@@ -69,9 +73,9 @@ impl PluginServerHandler for NewPlugin {
     fn handle_did_change_text_document(
         &mut self,
         document: VersionedTextDocumentIdentifier,
-        rev: u64,
         delta: RopeDelta,
         text: Rope,
+        new_text: Rope,
         change: Arc<
             Mutex<(
                 Option<TextDocumentContentChangeEvent>,
@@ -79,13 +83,24 @@ impl PluginServerHandler for NewPlugin {
             )>,
         >,
     ) {
-        self.host
-            .handle_did_change_text_document(document, rev, delta, text, change);
+        self.host.handle_did_change_text_document(
+            document, delta, text, new_text, change,
+        );
     }
 }
 
 impl NewPlugin {
-    fn initialize(&mut self) {}
+    fn initialize(&mut self) {
+        eprintln!("plugin Start to initilize");
+        let server_rpc = self.host.server_rpc.clone();
+        thread::spawn(move || {
+            server_rpc.server_request(
+                Initialize::METHOD,
+                serde_json::json!({}),
+                false,
+            );
+        });
+    }
 }
 
 pub fn load_all_plugins(
@@ -185,18 +200,35 @@ fn start_plugin(
         id,
         instance,
         env: plugin_env.clone(),
-        host: PluginHostHandler::new(workspace, rpc.clone(), plugin_rpc.clone()),
+        host: PluginHostHandler::new(
+            workspace,
+            plugin_desc.dir.clone(),
+            rpc.clone(),
+            plugin_rpc.clone(),
+        ),
     };
 
+    // let start_function = plugin
+    //     .instance
+    //     .exports
+    //     .get_function("start")
+    //     .unwrap()
+    //     .clone();
+
+    thread::spawn(move || {
+        // let _ = start_function.call(&[]);
+    });
+
+    let wasi_env = plugin_env.wasi_env.clone();
     let handle_rpc = plugin
         .instance
         .exports
         .get_function("handle_rpc")
         .unwrap()
         .clone();
-    let wasi_env = plugin_env.wasi_env.clone();
     thread::spawn(move || {
         for msg in io_rx {
+            eprintln!("send to plugin server {msg}");
             wasi_write_string(&wasi_env, &msg);
             let _ = handle_rpc.call(&[]);
         }
@@ -265,15 +297,14 @@ pub(crate) fn lapce_exports(
     }
 
     lapce_export! {
-        host_handle_notification,
+        host_handle_rpc,
     }
 }
 
-fn host_handle_notification(plugin_env: &NewPluginEnv) {
+fn host_handle_rpc(plugin_env: &NewPluginEnv) {
     let msg = wasi_read_string(&plugin_env.wasi_env).unwrap();
-    if let Ok(rpc) = handle_plugin_server_message(&msg) {
-        plugin_env.rpc.handle_rpc(rpc);
-    }
+    eprintln!("receive host handle rpc {msg}");
+    handle_plugin_server_message(&plugin_env.rpc, &msg);
 }
 
 fn wasi_write_string(wasi_env: &WasiEnv, buf: &str) {

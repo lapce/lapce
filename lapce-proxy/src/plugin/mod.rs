@@ -16,7 +16,8 @@ use lsp_types::request::{Completion, Request};
 use lsp_types::{
     CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
     PartialResultParams, Position, TextDocumentIdentifier, TextDocumentItem,
-    TextDocumentPositionParams, Url, WorkDoneProgressParams,
+    TextDocumentPositionParams, Url, VersionedTextDocumentIdentifier,
+    WorkDoneProgressParams,
 };
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
@@ -61,9 +62,10 @@ pub enum PluginCatalogRpc {
         params: Value,
     },
     DidChangeTextDocument {
-        rev: u64,
+        document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
+        new_text: Rope,
     },
     Handler(PluginCatalogNotification),
 }
@@ -132,8 +134,15 @@ impl PluginCatalogRpcHandler {
                 PluginCatalogRpc::Handler(notification) => {
                     plugin.handle_notification(notification);
                 }
-                PluginCatalogRpc::DidChangeTextDocument { rev, delta, text } => {
-                    plugin.handle_did_change_text_document(rev, delta, text);
+                PluginCatalogRpc::DidChangeTextDocument {
+                    document,
+                    delta,
+                    text,
+                    new_text,
+                } => {
+                    plugin.handle_did_change_text_document(
+                        document, delta, text, new_text,
+                    );
                 }
             }
         }
@@ -164,10 +173,26 @@ impl PluginCatalogRpcHandler {
         let _ = self.plugin_tx.send(rpc);
     }
 
-    pub fn did_change_text_document(&self, rev: u64, delta: RopeDelta, text: Rope) {
+    pub fn did_change_text_document(
+        &self,
+        path: &Path,
+        rev: u64,
+        delta: RopeDelta,
+        text: Rope,
+        new_text: Rope,
+    ) {
+        let document = VersionedTextDocumentIdentifier::new(
+            Url::from_file_path(path).unwrap(),
+            rev as i32,
+        );
         let _ = self
             .plugin_tx
-            .send(PluginCatalogRpc::DidChangeTextDocument { rev, delta, text });
+            .send(PluginCatalogRpc::DidChangeTextDocument {
+                document,
+                delta,
+                text,
+                new_text,
+            });
     }
 
     pub fn completion(
@@ -177,6 +202,7 @@ impl PluginCatalogRpcHandler {
         input: String,
         position: Position,
     ) {
+        eprintln!("send completion {input} {position:?}");
         let uri = Url::from_file_path(path).unwrap();
         let method = Completion::METHOD;
         let params = CompletionParams {

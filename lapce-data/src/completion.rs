@@ -1,4 +1,4 @@
-use std::{fmt::Display, sync::Arc};
+use std::{fmt::Display, path::PathBuf, sync::Arc};
 
 use anyhow::Error;
 use druid::{ExtEventSink, Size, Target, WidgetId};
@@ -339,25 +339,29 @@ impl CompletionData {
         proxy: Arc<LapceProxy>,
         request_id: usize,
         buffer_id: BufferId,
+        path: PathBuf,
         input: String,
         position: Position,
         completion_widget_id: WidgetId,
         event_sink: ExtEventSink,
     ) {
-        proxy.get_completion(
-            request_id,
-            buffer_id,
-            position,
-            Box::new(move |result| {
-                if let Ok(resp) = result {
-                    let _ = event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateCompletion(request_id, input, resp),
-                        Target::Widget(completion_widget_id),
-                    );
-                }
-            }),
-        );
+        proxy
+            .proxy_rpc
+            .completion(request_id, path, input, position);
+        // proxy.proxy_rpc.completion(
+        //     request_id,
+        //     buffer_id,
+        //     position,
+        //     Box::new(move |result| {
+        //         if let Ok(resp) = result {
+        //             let _ = event_sink.submit_command(
+        //                 LAPCE_UI_COMMAND,
+        //                 LapceUICommand::UpdateCompletion(request_id, input, resp),
+        //                 Target::Widget(completion_widget_id),
+        //             );
+        //         }
+        //     }),
+        // );
     }
 
     pub fn cancel(&mut self) {

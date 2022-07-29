@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     cell::RefCell,
     collections::{HashMap, HashSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     rc::Rc,
     sync::{
         atomic::{self},
@@ -131,6 +131,14 @@ pub enum BufferContent {
 }
 
 impl BufferContent {
+    pub fn path(&self) -> Option<&Path> {
+        if let BufferContent::File(p) = &self {
+            Some(p)
+        } else {
+            None
+        }
+    }
+
     pub fn is_file(&self) -> bool {
         matches!(self, BufferContent::File(_))
     }

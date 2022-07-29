@@ -26,6 +26,7 @@ notify = "5.0.0-pre.13"
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 lsp-types = { version = "0.93", features = ["proposed"] }
+psp-types = { path = "../../psp-types" }
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
 crossbeam-channel = "0.5.0"
 jsonrpc-lite = "0.5.0"

@@ -1,14 +1,16 @@
-use std::{path::PathBuf, thread};
+use std::{path::PathBuf, sync::Arc, thread};
 
 use crossbeam_channel::Sender;
 use dyn_clone::DynClone;
 use lapce_rpc::RpcError;
+use lsp_types::VersionedTextDocumentIdentifier;
+use parking_lot::Mutex;
 use serde_json::Value;
 use xi_rope::{Rope, RopeDelta};
 
 use super::{
     lsp::NewLspClient,
-    psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback},
+    psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
     wasi::load_all_plugins,
     PluginCatalogNotification, PluginCatalogRpcHandler,
 };
@@ -43,9 +45,14 @@ impl NewPluginCatalog {
     ) {
         for plugin in self.new_plugins.iter() {
             let f = dyn_clone::clone_box(&*f);
-            plugin.server_request_async(method, params.clone(), move |result| {
-                f(result);
-            });
+            plugin.server_request_async(
+                method,
+                params.clone(),
+                true,
+                move |result| {
+                    f(result);
+                },
+            );
         }
     }
 
@@ -55,22 +62,34 @@ impl NewPluginCatalog {
         params: Value,
     ) {
         for plugin in self.new_plugins.iter() {
-            plugin.server_notification(method, params.clone());
+            plugin.server_notification(method, params.clone(), true);
         }
     }
 
     pub fn handle_did_change_text_document(
         &mut self,
-        rev: u64,
+        document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
+        new_text: Rope,
     ) {
+        let change = Arc::new(Mutex::new((None, None)));
+        for plugin in self.new_plugins.iter() {
+            plugin.handle_rpc(PluginServerRpc::DidChangeTextDocument {
+                document: document.clone(),
+                delta: delta.clone(),
+                text: text.clone(),
+                new_text: new_text.clone(),
+                change: change.clone(),
+            });
+        }
     }
 
     pub fn handle_notification(&mut self, notification: PluginCatalogNotification) {
         use PluginCatalogNotification::*;
         match notification {
             PluginServerLoaded(plugin) => {
+                eprintln!("plugin server loaded");
                 self.new_plugins.push(plugin);
             } // NewPluginNotification::StartLspServer {
               //     workspace,

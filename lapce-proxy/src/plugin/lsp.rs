@@ -32,7 +32,11 @@ use lsp_types::{
 use parking_lot::Mutex;
 use serde_json::{json, to_value, Value};
 
-use crate::{buffer::Buffer, dispatch::Dispatcher, plugin::PluginCatalogRpcHandler};
+use crate::{
+    buffer::Buffer,
+    dispatch::Dispatcher,
+    plugin::{psp::PluginServerRpc, PluginCatalogRpcHandler},
+};
 
 use super::{
     psp::{
@@ -71,9 +75,8 @@ pub struct NewLspClient {
     server_rpc: PluginServerRpcHandler,
     process: Child,
     workspace: Option<PathBuf>,
-    exec_path: String,
+    exec_path: PathBuf,
     args: Vec<String>,
-    server_capabilities: ServerCapabilities,
     host: PluginHostHandler,
 }
 
@@ -101,9 +104,9 @@ impl PluginServerHandler for NewLspClient {
     fn handle_did_change_text_document(
         &mut self,
         document: lsp_types::VersionedTextDocumentIdentifier,
-        rev: u64,
         delta: xi_rope::RopeDelta,
         text: xi_rope::Rope,
+        new_text: xi_rope::Rope,
         change: Arc<
             Mutex<(
                 Option<TextDocumentContentChangeEvent>,
@@ -111,8 +114,9 @@ impl PluginServerHandler for NewLspClient {
             )>,
         >,
     ) {
-        self.host
-            .handle_did_change_text_document(document, rev, delta, text, change);
+        self.host.handle_did_change_text_document(
+            document, delta, text, new_text, change,
+        );
     }
 }
 
@@ -120,11 +124,16 @@ impl NewLspClient {
     fn new(
         plugin_rpc: PluginCatalogRpcHandler,
         workspace: Option<PathBuf>,
-        exec_path: String,
+        pwd: Option<PathBuf>,
+        exec_path: PathBuf,
         args: Vec<String>,
-    ) -> Self {
-        let mut process =
-            Self::process(workspace.as_ref(), exec_path.as_str(), &args);
+    ) -> Result<Self> {
+        let exec_path = pwd
+            .as_ref()
+            .map(|p| p.join(&exec_path))
+            .unwrap_or(exec_path);
+
+        let mut process = Self::process(workspace.as_ref(), &exec_path, &args)?;
         let stdin = process.stdin.take().unwrap();
         let stdout = process.stdout.take().unwrap();
 
@@ -134,6 +143,7 @@ impl NewLspClient {
         thread::spawn(move || {
             for msg in io_rx {
                 let msg = format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
+                eprintln!("send {msg} to lsp");
                 writer.write(msg.as_bytes());
                 writer.flush();
             }
@@ -145,9 +155,10 @@ impl NewLspClient {
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
-                        if let Ok(rpc) = handle_plugin_server_message(&message_str) {
-                            local_server_rpc.handle_rpc(rpc);
-                        }
+                        handle_plugin_server_message(
+                            &local_server_rpc,
+                            &message_str,
+                        );
                     }
                     Err(_err) => {
                         return;
@@ -158,11 +169,12 @@ impl NewLspClient {
 
         let host = PluginHostHandler::new(
             workspace.clone(),
+            pwd,
             server_rpc.clone(),
             plugin_rpc.clone(),
         );
 
-        Self {
+        Ok(Self {
             plugin_rpc,
             server_rpc,
             process,
@@ -170,21 +182,22 @@ impl NewLspClient {
             exec_path,
             args,
             host,
-            server_capabilities: ServerCapabilities::default(),
-        }
+        })
     }
 
     pub fn start(
         plugin_rpc: PluginCatalogRpcHandler,
         workspace: Option<PathBuf>,
-        exec_path: String,
+        pwd: Option<PathBuf>,
+        exec_path: PathBuf,
         args: Vec<String>,
-    ) {
-        let mut lsp = Self::new(plugin_rpc, workspace, exec_path, args);
+    ) -> Result<()> {
+        let mut lsp = Self::new(plugin_rpc, workspace, pwd, exec_path, args)?;
         let rpc = lsp.server_rpc.clone();
         thread::spawn(move || {
             rpc.mainloop(&mut lsp);
         });
+        Ok(())
     }
 
     fn initialize(&mut self) {
@@ -305,43 +318,57 @@ impl NewLspClient {
             locale: None,
             root_path: None,
         };
-        if let Ok(value) = self.server_rpc.server_request(Initialize::METHOD, params)
-        {
-            let init_result: InitializeResult =
-                serde_json::from_value(value).unwrap();
-            self.server_capabilities = init_result.capabilities;
+        eprintln!("lsp initilize");
+        let server_rpc = self.server_rpc.clone();
+        if let Ok(value) =
             self.server_rpc
-                .server_notification(Initialized::METHOD, InitializedParams {});
-
+                .server_request(Initialize::METHOD, params, false)
+        {
+            let result: InitializeResult = serde_json::from_value(value).unwrap();
+            self.host.server_capabilities = result.capabilities;
+            self.server_rpc.server_notification(
+                Initialized::METHOD,
+                InitializedParams {},
+                false,
+            );
             self.plugin_rpc.catalog_notification(
                 PluginCatalogNotification::PluginServerLoaded(
                     self.server_rpc.clone(),
                 ),
             );
         }
+        //     move |result| {
+        //         if let Ok(value) = result {
+        //             let result: InitializeResult =
+        //                 serde_json::from_value(value).unwrap();
+        //             server_rpc.handle_rpc(PluginServerRpc::Handler(
+        //                 PluginHandlerNotification::InitilizeDone(result),
+        //             ));
+        //         }
+        //     },
+        // );
     }
 
     fn process(
         workspace: Option<&PathBuf>,
-        exec_path: &str,
+        exec_path: &Path,
         args: &[String],
-    ) -> Child {
+    ) -> Result<Child> {
         let mut process = Command::new(exec_path);
         if let Some(workspace) = workspace {
             process.current_dir(&workspace);
         }
 
-        eprintln!("exec_path {exec_path}");
         process.args(args);
 
         #[cfg(target_os = "windows")]
         let process = process.creation_flags(0x08000000);
-        process
+        let child = process
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()
-            .expect("Error Occurred")
+            .spawn()?;
+        Ok(child)
     }
 }
 

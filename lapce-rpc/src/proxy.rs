@@ -306,6 +306,21 @@ impl ProxyRpcHandler {
         self.notification(CoreProxyNotification::Initialize { workspace });
     }
 
+    pub fn completion(
+        &self,
+        request_id: usize,
+        path: PathBuf,
+        input: String,
+        position: Position,
+    ) {
+        self.notification(CoreProxyNotification::Completion {
+            request_id,
+            path,
+            input,
+            position,
+        });
+    }
+
     pub fn new_terminal(
         &self,
         term_id: TermId,

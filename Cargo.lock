@@ -2337,6 +2337,7 @@ dependencies = [
  "mio 0.6.23",
  "notify 5.0.0-pre.15",
  "parking_lot",
+ "psp-types",
  "regex",
  "reqwest",
  "serde 1.0.140",
@@ -3313,6 +3314,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c278e965f1d8cf32d6e0e96de3d3e79712178ae67986d9cf9151f51e95aac89b"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "psp-types"
+version = "0.1.0"
+dependencies = [
+ "lsp-types",
+ "serde 1.0.140",
+ "serde_json",
 ]
 
 [[package]]

@@ -392,7 +392,7 @@ impl LapceProxy {
                 let proxy_receiver = (*self.proxy_receiver).clone();
                 thread::spawn(move || {
                     let dispatcher = Dispatcher::new(core_sender);
-                    let _ = dispatcher.mainloop(proxy_receiver);
+                    // let _ = dispatcher.mainloop(proxy_receiver);
                 });
 
                 let proxy_rpc = self.proxy_rpc.clone();
