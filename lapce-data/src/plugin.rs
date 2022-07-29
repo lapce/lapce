@@ -28,4 +28,5 @@ pub enum PluginStatus {
     Installed,
     Install,
     Upgrade,
+    Disabled,
 }

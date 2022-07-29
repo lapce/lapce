@@ -1,4 +1,6 @@
 use anyhow::{anyhow, Result};
+use lapce_core::buffer::CharIndicesJoin;
+use lapce_core::encoding::offset_utf8_to_utf16;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::*;
 use std::ffi::OsString;
@@ -105,16 +107,33 @@ impl Buffer {
         (line, offset - self.offset_of_line(line))
     }
 
-    pub fn offset_to_position(&self, offset: usize) -> Position {
+    /// Converts a UTF8 offset to a UTF16 LSP position  
+    /// Returns `None` if it is not a valid UTF16 offset
+    pub fn offset_to_position(&self, offset: usize) -> Option<Position> {
         let (line, col) = self.offset_to_line_col(offset);
-        Position {
+        // Get the offset of line to make the conversion cheaper, rather than working
+        // from the very start of the document to `offset`
+        let line_offset = self.offset_of_line(line);
+        let utf16_col =
+            offset_utf8_to_utf16(self.char_indices_iter(line_offset..), col)?;
+
+        Some(Position {
             line: line as u32,
-            character: col as u32,
-        }
+            character: utf16_col as u32,
+        })
     }
 
     pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
         self.rope.slice_to_cow(range)
+    }
+
+    /// Iterate over (utf8_offset, char) values in the given range  
+    /// This uses `iter_chunks` and so does not allocate, compared to `slice_to_cow` which can
+    pub fn char_indices_iter<T: IntervalBounds>(
+        &self,
+        range: T,
+    ) -> impl Iterator<Item = (usize, char)> + '_ {
+        CharIndicesJoin::new(self.rope.iter_chunks(range).map(str::char_indices))
     }
 
     pub fn len(&self) -> usize {
@@ -179,12 +198,23 @@ fn get_document_content_changes(
         let text = String::from(node);
 
         let (start, end) = interval.start_end();
+        let start = if let Some(start) = buffer.offset_to_position(start) {
+            start
+        } else {
+            log::error!("Failed to convert start offset to Position in document content change insert");
+            return None;
+        };
+
+        let end = if let Some(end) = buffer.offset_to_position(end) {
+            end
+        } else {
+            log::error!("Failed to convert end offset to Position in document content change insert");
+            return None;
+        };
+
         let text_document_content_change_event = TextDocumentContentChangeEvent {
-            range: Some(Range {
-                start: buffer.offset_to_position(start),
-                end: buffer.offset_to_position(end),
-            }),
-            range_length: Some((end - start) as u32),
+            range: Some(Range { start, end }),
+            range_length: None,
             text,
         };
 
@@ -192,14 +222,26 @@ fn get_document_content_changes(
     }
     // Or a simple delete
     else if delta.is_simple_delete() {
-        let end_position = buffer.offset_to_position(end);
+        let end_position = if let Some(end) = buffer.offset_to_position(end) {
+            end
+        } else {
+            log::error!("Failed to convert end offset to Position in document content change delete");
+            return None;
+        };
+
+        let start = if let Some(start) = buffer.offset_to_position(start) {
+            start
+        } else {
+            log::error!("Failed to convert start offset to Position in document content change delete");
+            return None;
+        };
 
         let text_document_content_change_event = TextDocumentContentChangeEvent {
             range: Some(Range {
-                start: buffer.offset_to_position(start),
+                start,
                 end: end_position,
             }),
-            range_length: Some((end - start) as u32),
+            range_length: None,
             text: String::new(),
         };
 

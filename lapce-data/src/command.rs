@@ -398,6 +398,13 @@ pub enum LapceWorkbenchCommand {
     PreviousEditorTab,
 }
 
+#[derive(Debug, Clone)]
+pub enum PluginLoadingStatus {
+    Loading,
+    Failed,
+    Ok(Vec<PluginDescription>),
+}
+
 #[derive(Debug)]
 pub enum EnsureVisiblePosition {
     // Move the view so the cursor line will be at the center of the window.  If
@@ -419,12 +426,14 @@ pub enum LapceUICommand {
         path: PathBuf,
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation)>,
+        edits: Option<Rope>,
     },
     /// Init buffer content but using lsp positions instead
     InitBufferContentLsp {
         path: PathBuf,
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation<Position>)>,
+        edits: Option<Rope>,
     },
     OpenFileChanged {
         path: PathBuf,
@@ -495,9 +504,13 @@ pub enum LapceUICommand {
     UpdateExplorerItems(PathBuf, HashMap<PathBuf, FileNodeItem>, bool),
     UpdateInstalledPlugins(HashMap<String, PluginDescription>),
     UpdatePluginDescriptions(Vec<PluginDescription>),
-    UpdateInstalledPluginDescriptions(Option<Vec<PluginDescription>>),
-    UpdateUninstalledPluginDescriptions(Option<Vec<PluginDescription>>),
-    DeleteUninstalledPluginDescriptions(Vec<PluginDescription>),
+    UpdateInstalledPluginDescriptions(PluginLoadingStatus),
+    UpdateUninstalledPluginDescriptions(PluginLoadingStatus),
+    UpdatePluginInstallationChange(HashMap<String, PluginDescription>),
+    UpdateDisabledPlugins(HashMap<String, PluginDescription>),
+    DisablePlugin(PluginDescription),
+    EnablePlugin(PluginDescription),
+    RemovePlugin(PluginDescription),
     RequestLayout,
     RequestPaint,
     ResetFade,

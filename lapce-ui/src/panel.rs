@@ -955,8 +955,11 @@ impl Widget<LapceTabData> for PanelSwitcher {
                         let (kind, icon) = &self.icons[i];
                         let offset =
                             mouse_event.pos.to_vec2() - icon.rect.origin().to_vec2();
-                        *Arc::make_mut(&mut data.drag) =
-                            Some((offset, DragContent::Panel(*kind, icon.rect)));
+                        *Arc::make_mut(&mut data.drag) = Some((
+                            offset,
+                            mouse_event.window_pos.to_vec2(),
+                            DragContent::Panel(*kind, icon.rect),
+                        ));
                     }
                 }
                 self.mouse_pos = mouse_event.pos;

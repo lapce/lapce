@@ -47,8 +47,8 @@ use crate::{
     alert::{AlertContentData, AlertData},
     command::{
         CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
-        LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_OPEN_FILE, LAPCE_OPEN_FOLDER,
-        LAPCE_UI_COMMAND,
+        LapceWorkbenchCommand, PluginLoadingStatus, LAPCE_COMMAND, LAPCE_OPEN_FILE,
+        LAPCE_OPEN_FOLDER, LAPCE_UI_COMMAND,
     },
     completion::CompletionData,
     config::{Config, ConfigWatcher, GetConfig, LapceTheme},
@@ -188,38 +188,47 @@ impl LapceData {
                 .collect::<Vec<PluginDescription>>();
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateInstalledPluginDescriptions(Some(
-                    plugins.clone(),
-                )),
+                LapceUICommand::UpdateInstalledPluginDescriptions(
+                    PluginLoadingStatus::Ok(plugins.clone()),
+                ),
+                Target::Auto,
+            );
+            let _ = event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdateDisabledPlugins(catalog.disabled.clone()),
                 Target::Auto,
             );
             if let Ok(fetched_plugins) = LapceData::load_plugin_descriptions() {
-                let (installed, uninstalled) =
-                    fetched_plugins.into_iter().partition(|p| {
-                        plugins
-                            .iter()
-                            .find(|ip| ip.name == p.name)
-                            .ok_or(())
-                            .is_ok()
-                    });
+                let (installed, uninstalled): (
+                    Vec<PluginDescription>,
+                    Vec<PluginDescription>,
+                ) = fetched_plugins.into_iter().partition(|p| {
+                    plugins
+                        .iter()
+                        .find(|ip| ip.name == p.name)
+                        .ok_or(())
+                        .is_ok()
+                });
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateInstalledPluginDescriptions(Some(
-                        installed,
-                    )),
+                    LapceUICommand::UpdateInstalledPluginDescriptions(
+                        PluginLoadingStatus::Ok(installed),
+                    ),
                     Target::Auto,
                 );
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateUninstalledPluginDescriptions(Some(
-                        uninstalled,
-                    )),
+                    LapceUICommand::UpdateUninstalledPluginDescriptions(
+                        PluginLoadingStatus::Ok(uninstalled),
+                    ),
                     Target::Auto,
                 );
             } else {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateUninstalledPluginDescriptions(None),
+                    LapceUICommand::UpdateUninstalledPluginDescriptions(
+                        PluginLoadingStatus::Failed,
+                    ),
                     Target::Auto,
                 );
             }
@@ -262,7 +271,7 @@ impl LapceData {
         env.set(LapceTheme::INPUT_FONT_SIZE, 13u64);
     }
 
-    fn load_plugin_descriptions() -> Result<Vec<PluginDescription>> {
+    pub fn load_plugin_descriptions() -> Result<Vec<PluginDescription>> {
         let plugins: Vec<String> =
             reqwest::blocking::get("https://lapce.github.io/plugins.json")?
                 .json()?;
@@ -509,9 +518,10 @@ pub struct LapceTabData {
     pub plugin: Arc<PluginData>,
     pub picker: Arc<FilePickerData>,
     pub plugins: Arc<Vec<PluginDescription>>,
-    pub installed_plugins_desc: Arc<Option<Vec<PluginDescription>>>,
-    pub uninstalled_plugins_desc: Arc<Option<Vec<PluginDescription>>>,
+    pub installed_plugins_desc: Arc<PluginLoadingStatus>,
+    pub uninstalled_plugins_desc: Arc<PluginLoadingStatus>,
     pub installed_plugins: Arc<HashMap<String, PluginDescription>>,
+    pub disabled_plugins: Arc<HashMap<String, PluginDescription>>,
     pub file_explorer: Arc<FileExplorerData>,
     pub proxy: Arc<LapceProxy>,
     pub proxy_status: Arc<ProxyStatus>,
@@ -527,7 +537,7 @@ pub struct LapceTabData {
     pub focus_area: FocusArea,
     pub db: Arc<LapceDb>,
     pub progresses: im::Vector<WorkProgress>,
-    pub drag: Arc<Option<(Vec2, DragContent)>>,
+    pub drag: Arc<Option<(Vec2, Vec2, DragContent)>>,
 }
 
 impl Data for LapceTabData {
@@ -557,6 +567,7 @@ impl Data for LapceTabData {
             && self
                 .uninstalled_plugins_desc
                 .same(&other.uninstalled_plugins_desc)
+            && self.disabled_plugins.same(&other.disabled_plugins)
             && self.installed_plugins.same(&other.installed_plugins)
             && self.picker.same(&other.picker)
             && self.drag.same(&other.drag)
@@ -612,6 +623,14 @@ impl LapceTabData {
         let search = Arc::new(SearchData::new());
         let file_picker = Arc::new(FilePickerData::new());
 
+        let unsaved_buffers = match db.get_unsaved_buffers() {
+            Ok(val) => val,
+            Err(err) => {
+                log::warn!("Error during unsaved buffer fetching : {:}", err);
+                im::HashMap::new()
+            }
+        };
+
         let mut main_split = LapceMainSplitData::new(
             tab_id,
             workspace_info.as_ref(),
@@ -621,7 +640,9 @@ impl LapceTabData {
             event_sink.clone(),
             Arc::new(workspace.clone()),
             db.clone(),
+            unsaved_buffers,
         );
+
         main_split.add_editor(
             source_control.editor_view_id,
             None,
@@ -676,6 +697,7 @@ impl LapceTabData {
             .unwrap_or_else(|| PanelData::new(panel_orders));
 
         let focus = (*main_split.active).unwrap_or(*main_split.split_id);
+
         let mut tab = Self {
             id: tab_id,
             multiple_tab: false,
@@ -690,8 +712,9 @@ impl LapceTabData {
             problem,
             search,
             plugins: Arc::new(Vec::new()),
-            installed_plugins_desc: Arc::new(Some(Vec::new())),
-            uninstalled_plugins_desc: Arc::new(Some(Vec::new())),
+            disabled_plugins: Arc::new(HashMap::new()),
+            installed_plugins_desc: Arc::new(PluginLoadingStatus::Ok(Vec::new())),
+            uninstalled_plugins_desc: Arc::new(PluginLoadingStatus::Ok(Vec::new())),
             installed_plugins: Arc::new(HashMap::new()),
             find: Arc::new(Find::new(0)),
             picker: file_picker,
@@ -815,7 +838,7 @@ impl LapceTabData {
     }
 
     pub fn is_drag_editor(&self) -> bool {
-        matches!(&*self.drag, Some((_, DragContent::EditorTab(..))))
+        matches!(&*self.drag, Some((_, _, DragContent::EditorTab(..))))
     }
 
     pub fn update_from_editor_buffer_data(
@@ -1863,18 +1886,23 @@ impl LapceMainSplitData {
             if !edits.is_empty() {
                 let doc = self.open_docs.get_mut(path).unwrap();
 
-                let edits: Vec<(Selection, &str)> = edits
+                let edits = edits
                     .iter()
                     .map(|edit| {
-                        let selection = Selection::region(
-                            doc.buffer().offset_of_position(&edit.range.start),
-                            doc.buffer().offset_of_position(&edit.range.end),
-                        );
-                        (selection, edit.new_text.as_str())
+                        let start =
+                            doc.buffer().offset_of_position(&edit.range.start)?;
+                        let end =
+                            doc.buffer().offset_of_position(&edit.range.end)?;
+                        let selection = Selection::region(start, end);
+                        Some((selection, edit.new_text.as_str()))
                     })
-                    .collect();
+                    .collect::<Option<Vec<(Selection, &str)>>>();
 
-                self.edit(path, &edits, EditType::Other);
+                if let Some(edits) = edits {
+                    self.edit(path, &edits, EditType::Other);
+                } else {
+                    log::error!("Failed to convert LSP Position (UTF16) to a valid offset (UTF8) for document formatting");
+                }
             }
         }
     }
@@ -2218,14 +2246,11 @@ impl LapceMainSplitData {
         } else {
             None
         };
-        let view_id = editor.view_id;
 
         if let Some(path) = path {
-            let doc = self.editor_doc(view_id);
-            let offset = doc.buffer().offset_of_position(&position);
             let location = EditorLocation {
                 path,
-                position: Some(offset),
+                position: Some(position),
                 scroll_offset: None,
                 history: None,
             };
@@ -2440,7 +2465,7 @@ impl LapceMainSplitData {
                     Vec2::new(info.scroll_offset.0, info.scroll_offset.1);
                 doc.cursor_offset = info.cursor_offset;
             }
-            doc.retrieve_file(vec![(editor_view_id, location)]);
+            doc.retrieve_file(vec![(editor_view_id, location)], None);
             self.open_docs.insert(path.clone(), Arc::new(doc));
         } else {
             let doc = self.open_docs.get_mut(&path).unwrap().clone();
@@ -2451,9 +2476,16 @@ impl LapceMainSplitData {
                     let doc = Arc::make_mut(doc);
 
                     // Convert the offset into a utf8 form for us to use
-                    let offset = offset.to_utf8_offset(doc.buffer());
+                    let offset = if let Some(offset) =
+                        offset.to_utf8_offset(doc.buffer())
+                    {
+                        doc.cursor_offset = offset;
+                        offset
+                    } else {
+                        log::error!("Failed to convert position to utf8 offset for jumping to location");
+                        doc.cursor_offset
+                    };
 
-                    doc.cursor_offset = offset;
                     if let Some(scroll_offset) = location.scroll_offset.as_ref() {
                         doc.scroll_offset = *scroll_offset;
                     }
@@ -2514,6 +2546,8 @@ impl LapceMainSplitData {
         }
     }
 
+    // TODO: This function assumes the buffer is already loaded, which is typically the case
+    // but is not always and we may want it to be able to properly jump to a specific line in a doc
     pub fn jump_to_line(
         &mut self,
         ctx: &mut EventCtx,
@@ -2521,17 +2555,31 @@ impl LapceMainSplitData {
         line: usize,
         config: &Config,
     ) {
-        let editor_view_id = self
-            .get_editor_or_new(ctx, editor_view_id, None, false, config)
-            .view_id;
-        let doc = self.editor_doc(editor_view_id);
+        let editor =
+            self.get_editor_or_new(ctx, editor_view_id, None, false, config);
+        let path = if let BufferContent::File(path) = &editor.content {
+            Some(path.clone())
+        } else {
+            None
+        };
+        let view_id = editor.view_id;
+
+        let doc = self.editor_doc(view_id);
         let offset = doc.buffer().first_non_blank_character_on_line(if line > 0 {
             line - 1
         } else {
             0
         });
-        let position = doc.buffer().offset_to_position(offset);
-        self.jump_to_position(ctx, Some(editor_view_id), position, config);
+
+        if let Some(path) = path {
+            let location = EditorLocation {
+                path,
+                position: Some(offset),
+                scroll_offset: None,
+                history: None,
+            };
+            self.jump_to_location(ctx, editor_view_id, location, config);
+        }
     }
 
     pub fn jump_to_line_column_path(
@@ -2575,6 +2623,7 @@ impl LapceMainSplitData {
         event_sink: ExtEventSink,
         workspace: Arc<LapceWorkspace>,
         db: Arc<LapceDb>,
+        unsaved_buffers: im::HashMap<String, String>,
     ) -> Self {
         let split_id = Arc::new(WidgetId::next());
 
@@ -2649,8 +2698,11 @@ impl LapceMainSplitData {
             );
             main_split_data.split_id = Arc::new(split_data.widget_id);
             for (path, locations) in positions.into_iter() {
+                let unsaved_buffer = unsaved_buffers
+                    .get(&path.to_str().unwrap().to_string())
+                    .map(Rope::from);
                 Arc::make_mut(main_split_data.open_docs.get_mut(&path).unwrap())
-                    .retrieve_file(locations.clone());
+                    .retrieve_file(locations.clone(), unsaved_buffer);
             }
         } else {
             main_split_data.splits.insert(
@@ -3245,6 +3297,7 @@ impl EditorTabChild {
     }
 }
 
+/// The actual Editor tab structure, holding the windows.
 #[derive(Clone, Debug)]
 pub struct LapceEditorTabData {
     pub widget_id: WidgetId,

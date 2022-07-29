@@ -16,6 +16,7 @@ pub struct PluginDescription {
     pub author: String,
     pub description: String,
     pub repository: String,
+    pub enabled: Option<bool>,
     pub wasm: Option<String>,
     pub themes: Option<Vec<String>>,
     pub dir: Option<PathBuf>,

@@ -291,13 +291,15 @@ impl EditorInfo {
             ));
 
             if !data.open_docs.contains_key(path) {
-                let doc = Arc::new(Document::new(
-                    BufferContent::File(path.clone()),
-                    tab_id,
-                    event_sink,
-                    data.proxy.clone(),
-                ));
-                data.open_docs.insert(path.clone(), doc);
+                data.open_docs.insert(
+                    path.clone(),
+                    Arc::new(Document::new(
+                        BufferContent::File(path.clone()),
+                        tab_id,
+                        event_sink,
+                        data.proxy.clone(),
+                    )),
+                );
             }
         } else if let BufferContent::Scratch(id, _) = &self.content {
             if !data.scratch_docs.contains_key(id) {
@@ -428,6 +430,38 @@ impl LapceDb {
         Ok(info)
     }
 
+    /// fetches all the files stored in the database that are tagged as `unsaved_buffer`.<br>
+    /// Returns a hashmap of the form HashMap<path, file_content><br>
+    /// *Note: The file is deleted from the database right after as to prevent "ghost" buffers*
+    pub fn get_unsaved_buffers(&self) -> Result<im::HashMap<String, String>> {
+        let sled_db = self.get_db()?;
+        let mut buffers = im::HashMap::new();
+
+        let res = match sled_db.get("unsaved_buffers") {
+            Ok(val) => match val {
+                Some(buffers) => buffers,
+                None => return Ok(buffers),
+            },
+            Err(err) => return Err(anyhow!(err)),
+        };
+
+        let res = String::from_utf8((&res).to_vec())
+            .expect("invalid utf-8 sequence retrieving unsaved buffer");
+
+        let res: Vec<String> = serde_json::from_str(&res)?;
+        if res.len() % 2 != 0 {
+            return Err(anyhow!("Deserialized Unsaved buffer size is not even: this should never happen"));
+        }
+
+        for i in (0..res.len()).step_by(2) {
+            let key = res.get(i).unwrap().clone();
+            let value = res.get(i + 1).unwrap().clone();
+            buffers.insert(key, value);
+        }
+        sled_db.remove("unsaved_buffers")?;
+        Ok(buffers)
+    }
+
     pub fn get_buffer_info(
         &self,
         workspace: &LapceWorkspace,
@@ -518,7 +552,34 @@ impl LapceDb {
         let workspace = (*data.workspace).clone();
         let workspace_info = data.workspace_info();
 
+        // Buffer for auto save on quit
+        let main_split = &data.main_split;
+
         self.insert_workspace(&workspace, &workspace_info)?;
+        self.insert_unsaved_buffer(main_split)?;
+
+        Ok(())
+    }
+
+    fn insert_unsaved_buffer(&self, main_split: &LapceMainSplitData) -> Result<()> {
+        let sled_db = self.get_db()?;
+        // Vec of all unsaved buffers of format path_buff, file_content
+        let mut unsaved_buffers = Vec::new();
+
+        for (path, doc) in &main_split.open_docs {
+            if !doc.buffer().is_pristine() && doc.content().is_file() {
+                let path_str = path.to_str().unwrap();
+                let buf_text = doc.buffer().text().to_string();
+                unsaved_buffers.push(path_str.to_string());
+                unsaved_buffers.push(buf_text);
+            }
+        }
+        if !unsaved_buffers.is_empty() {
+            let tmp = serde_json::to_string(&unsaved_buffers).unwrap();
+            sled_db.insert("unsaved_buffers", tmp.as_str())?;
+            sled_db.flush()?;
+        }
+
         Ok(())
     }
 

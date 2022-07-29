@@ -491,13 +491,18 @@ impl Document {
         self.diagnostics = Some(Arc::new(
             diagnostics
                 .iter()
-                .map(|d| EditorDiagnostic {
-                    range: (
-                        self.buffer.offset_of_position(&d.diagnostic.range.start),
-                        self.buffer.offset_of_position(&d.diagnostic.range.end),
-                    ),
-                    lines: d.lines,
-                    diagnostic: d.diagnostic.clone(),
+                // We discard diagnostics that have bad positions
+                .filter_map(|d| {
+                    Some(EditorDiagnostic {
+                        range: (
+                            self.buffer
+                                .offset_of_position(&d.diagnostic.range.start)?,
+                            self.buffer
+                                .offset_of_position(&d.diagnostic.range.end)?,
+                        ),
+                        lines: d.lines,
+                        diagnostic: d.diagnostic.clone(),
+                    })
                 })
                 .collect(),
         ));
@@ -512,11 +517,30 @@ impl Document {
                     transformer.transform(start, false),
                     transformer.transform(end, true),
                 );
+
+                let new_start_pos = if let Some(pos) =
+                    self.buffer().offset_to_position(new_start)
+                {
+                    pos
+                } else {
+                    // If we failed to transform the offset then we leave the diagnostic in the old position
+                    log::error!("Failed to transform diagnostic start offset {new_start} to Position");
+                    continue;
+                };
+
+                let new_end_pos = if let Some(pos) =
+                    self.buffer().offset_to_position(new_end)
+                {
+                    pos
+                } else {
+                    log::error!("Failed to transform diagnostic end offset {new_end} to Position");
+                    continue;
+                };
+
                 diagnostic.range = (new_start, new_end);
-                diagnostic.diagnostic.range.start =
-                    self.buffer().offset_to_position(new_start);
-                diagnostic.diagnostic.range.end =
-                    self.buffer().offset_to_position(new_end);
+
+                diagnostic.diagnostic.range.start = new_start_pos;
+                diagnostic.diagnostic.range.end = new_end_pos;
             }
             self.diagnostics = Some(diagnostics);
         }
@@ -538,6 +562,7 @@ impl Document {
     pub fn retrieve_file<P: EditorPosition + Send + 'static>(
         &mut self,
         locations: Vec<(WidgetId, EditorLocation<P>)>,
+        unsaved_buffer: Option<Rope>,
     ) {
         if self.loaded || *self.load_started.borrow() {
             return;
@@ -559,6 +584,7 @@ impl Document {
                                 path,
                                 Rope::from(resp.content),
                                 locations,
+                                unsaved_buffer,
                             ),
                             Target::Widget(tab_id),
                         );
@@ -782,12 +808,15 @@ impl Document {
 
                     let mut hints_span = SpansBuilder::new(len);
                     for hint in resp {
-                        let offset =
-                            buffer.offset_of_position(&hint.position).min(len);
-                        hints_span.add_span(
-                            Interval::new(offset, (offset + 1).min(len)),
-                            hint.clone(),
-                        );
+                        if let Some(offset) =
+                            buffer.offset_of_position(&hint.position)
+                        {
+                            let offset = offset.min(len);
+                            hints_span.add_span(
+                                Interval::new(offset, (offset + 1).min(len)),
+                                hint.clone(),
+                            );
+                        }
                     }
                     let hints = hints_span.build();
                     let _ = event_sink.submit_command(

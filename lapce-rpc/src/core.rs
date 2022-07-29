@@ -34,6 +34,9 @@ pub enum CoreNotification {
     InstalledPlugins {
         plugins: HashMap<String, PluginDescription>,
     },
+    DisabledPlugins {
+        plugins: HashMap<String, PluginDescription>,
+    },
     ListDir {
         items: Vec<FileNodeItem>,
     },
