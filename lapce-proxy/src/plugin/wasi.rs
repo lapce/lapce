@@ -10,7 +10,7 @@ use anyhow::{anyhow, Result};
 use home::home_dir;
 use lapce_rpc::plugin::{PluginDescription, PluginId};
 use lsp_types::{
-    request::Initialize, TextDocumentContentChangeEvent,
+    request::Initialize, DidOpenTextDocumentParams, TextDocumentContentChangeEvent,
     VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;

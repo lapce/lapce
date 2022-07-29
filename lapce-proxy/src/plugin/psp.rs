@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -19,8 +19,8 @@ use lsp_types::{
         DidChangeTextDocument, DidOpenTextDocument, Initialized, Notification,
     },
     request::{Completion, Initialize},
-    DidChangeTextDocumentParams, InitializeResult, Range, ServerCapabilities,
-    TextDocumentContentChangeEvent, TextDocumentSyncCapability,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeResult, Range,
+    ServerCapabilities, TextDocumentContentChangeEvent, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncOptions, VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;

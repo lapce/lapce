@@ -29,6 +29,7 @@ use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::{self, Call, RequestId, RpcError, RpcObject};
 use lsp_types::notification::DidChangeTextDocument;
+use lsp_types::{TextDocumentItem, Url};
 use parking_lot::Mutex;
 use serde_json::json;
 use serde_json::Value;
@@ -249,6 +250,20 @@ impl ProxyHandler for NewDispatcher {
                     };
                     proxy_rpc.handle_response(id, result);
                 });
+            }
+            GetOpenFilesContent {} => {
+                let items = self
+                    .buffers
+                    .iter()
+                    .map(|(path, buffer)| TextDocumentItem {
+                        uri: Url::from_file_path(path).unwrap(),
+                        language_id: buffer.language_id.clone(),
+                        version: buffer.rev as i32,
+                        text: buffer.get_document(),
+                    })
+                    .collect();
+                let resp = CoreProxyResponse::GetOpenFilesContentResponse { items };
+                self.proxy_rpc.handle_response(id, Ok(resp));
             }
             ReadDir { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
@@ -828,6 +843,7 @@ impl Dispatcher {
     fn handle_request(&self, id: RequestId, rpc: CoreProxyRequest) {
         use CoreProxyRequest::*;
         match rpc {
+            GetOpenFilesContent {} => {}
             NewBuffer { buffer_id, path } => {
                 self.file_watcher.lock().as_mut().unwrap().watch(
                     &path,

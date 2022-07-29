@@ -2,9 +2,13 @@ use std::{path::PathBuf, sync::Arc, thread};
 
 use crossbeam_channel::Sender;
 use dyn_clone::DynClone;
-use lapce_rpc::RpcError;
-use lsp_types::VersionedTextDocumentIdentifier;
+use lapce_rpc::{proxy::CoreProxyResponse, RpcError};
+use lsp_types::{
+    notification::DidOpenTextDocument, DidOpenTextDocumentParams, TextDocumentItem,
+    VersionedTextDocumentIdentifier,
+};
 use parking_lot::Mutex;
+use psp_types::Notification;
 use serde_json::Value;
 use xi_rope::{Rope, RopeDelta};
 
@@ -90,6 +94,20 @@ impl NewPluginCatalog {
         match notification {
             PluginServerLoaded(plugin) => {
                 eprintln!("plugin server loaded");
+                // TODO: check if the server has did open registered
+                if let Ok(CoreProxyResponse::GetOpenFilesContentResponse { items }) =
+                    self.plugin_rpc.proxy_rpc.get_open_files_content()
+                {
+                    for item in items {
+                        plugin.server_notification(
+                            DidOpenTextDocument::METHOD,
+                            DidOpenTextDocumentParams {
+                                text_document: item,
+                            },
+                            true,
+                        );
+                    }
+                }
                 self.new_plugins.push(plugin);
             } // NewPluginNotification::StartLspServer {
               //     workspace,

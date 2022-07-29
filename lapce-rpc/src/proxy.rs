@@ -8,7 +8,7 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender};
-use lsp_types::{CompletionItem, Position};
+use lsp_types::{CompletionItem, Position, TextDocumentItem};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -97,6 +97,7 @@ pub enum CoreProxyRequest {
     GetDocumentFormatting {
         buffer_id: BufferId,
     },
+    GetOpenFilesContent {},
     GetFiles {
         path: String,
     },
@@ -200,6 +201,9 @@ pub enum CoreProxyResponse {
     GetFilesResponse {
         items: Vec<PathBuf>,
     },
+    GetOpenFilesContentResponse {
+        items: Vec<TextDocumentItem>,
+    },
     SaveResponse {},
 }
 
@@ -220,12 +224,16 @@ impl<F: Send + FnOnce(Result<CoreProxyResponse, RpcError>)> ProxyCallback for F 
 
 enum ResponseHandler {
     Callback(Box<dyn ProxyCallback>),
+    Chan(Sender<Result<CoreProxyResponse, RpcError>>),
 }
 
 impl ResponseHandler {
     fn invoke(self, result: Result<CoreProxyResponse, RpcError>) {
         match self {
             ResponseHandler::Callback(f) => f.call(result),
+            ResponseHandler::Chan(tx) => {
+                let _ = tx.send(result);
+            }
         }
     }
 }
@@ -271,17 +279,35 @@ impl ProxyRpcHandler {
         }
     }
 
+    fn request_common(&self, request: CoreProxyRequest, rh: ResponseHandler) {
+        let id = self.id.fetch_add(1, Ordering::Relaxed);
+        {
+            let mut pending = self.pending.lock();
+            pending.insert(id, rh);
+        }
+        let _ = self.tx.send(ProxyRpcMessage::Request(id, request));
+    }
+
+    fn request(
+        &self,
+        request: CoreProxyRequest,
+    ) -> Result<CoreProxyResponse, RpcError> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.request_common(request, ResponseHandler::Chan(tx));
+        rx.recv().unwrap_or_else(|_| {
+            Err(RpcError {
+                code: 0,
+                message: "io error".to_string(),
+            })
+        })
+    }
+
     fn request_async(
         &self,
         request: CoreProxyRequest,
         f: impl ProxyCallback + 'static,
     ) {
-        let id = self.id.fetch_add(1, Ordering::Relaxed);
-        {
-            let mut pending = self.pending.lock();
-            pending.insert(id, ResponseHandler::Callback(Box::new(f)));
-        }
-        let _ = self.tx.send(ProxyRpcMessage::Request(id, request));
+        self.request_common(request, ResponseHandler::Callback(Box::new(f)))
     }
 
     pub fn handle_response(
@@ -382,6 +408,10 @@ impl ProxyRpcHandler {
             },
             f,
         );
+    }
+
+    pub fn get_open_files_content(&self) -> Result<CoreProxyResponse, RpcError> {
+        self.request(CoreProxyRequest::GetOpenFilesContent {})
     }
 
     pub fn read_dir(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
