@@ -369,7 +369,7 @@ impl Widget<LapceTabData> for PaletteContainer {
             - max_items as f64 * self.line_height
             - 5.0;
         let preview_height = if data.palette.palette_type.has_preview() {
-            if content_t height > 0.0 {
+            if content_height > 0.0 {
                 max_preview_height
             } else {
                 0.0
