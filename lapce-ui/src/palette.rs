@@ -384,12 +384,13 @@ impl Widget<LapceTabData> for PaletteContainer {
             Point::new(preview_width / 2.0, input_size.height + content_height),
         );
 
+        ctx.set_paint_insets(4000.0);
+
         let self_size =
             Size::new(width, input_size.height + content_height + preview_height);
-        self.content_rect =
-            Size::new(f64::max(width, _preview_size.width), self_size.height)
-                .to_rect()
-                .with_origin(Point::new(preview_width / 2.0, 0.0));
+        self.content_rect = Size::new(width, self_size.height)
+            .to_rect()
+            .with_origin(Point::new(0.0, 0.0));
         self_size
     }
 
