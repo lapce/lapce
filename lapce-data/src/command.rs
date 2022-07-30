@@ -396,6 +396,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "previous_editor_tab")]
     #[strum(message = "Previous editor tab")]
     PreviousEditorTab,
+
+    #[strum(serialize = "toggle_inline_hints")]
+    #[strum(message = "Toggle Inline Hints")]
+    ToggleInlineHints,
 }
 
 #[derive(Debug, Clone)]
