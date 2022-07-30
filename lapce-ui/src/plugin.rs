@@ -211,7 +211,6 @@ impl Widget<LapceTabData> for Plugin {
                     if let Some((plugin, status)) =
                         self.hit_test(ctx, data, mouse_event)
                     {
-                        println!("{:?}", status.to_string());
                         if status == PluginStatus::Install
                             || status == PluginStatus::Upgrade
                         {

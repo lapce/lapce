@@ -195,7 +195,14 @@ impl LapceData {
             );
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateDisabledPlugins(catalog.disabled.clone()),
+                LapceUICommand::UpdateUninstalledPluginDescriptions(
+                    PluginLoadingStatus::Loading,
+                ),
+                Target::Auto,
+            );
+            let _ = event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdateInstalledPlugins(catalog.items.clone()),
                 Target::Auto,
             );
             if let Ok(fetched_plugins) = LapceData::load_plugin_descriptions() {
