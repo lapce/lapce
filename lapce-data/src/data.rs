@@ -1456,6 +1456,15 @@ impl LapceTabData {
                     ));
                 }
             }
+            LapceWorkbenchCommand::ToggleInlayHints => {
+                let config = Arc::make_mut(&mut self.config);
+                config.editor.enable_inlay_hints = !config.editor.enable_inlay_hints;
+                Config::update_file(
+                    "editor",
+                    "enable-inlay-hints",
+                    toml::Value::Boolean(config.editor.enable_inlay_hints),
+                );
+            }
         }
     }
 
