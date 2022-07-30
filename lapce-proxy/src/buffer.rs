@@ -182,6 +182,10 @@ fn language_id_from_path(path: &Path) -> Option<&str> {
             "cpp"
         }
         "c" | "h" => "c",
+        "js" => "javascript",
+        "jsx" => "javascriptreact",
+        "ts" => "typescript",
+        "tsx" => "typescriptreact",
         _ => return None,
     })
 }
