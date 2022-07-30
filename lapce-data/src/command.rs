@@ -25,6 +25,7 @@ use xi_rope::{spans::Spans, Rope};
 use crate::alert::AlertContentData;
 use crate::data::LapceWorkspace;
 use crate::document::BufferContent;
+use crate::editor::{Line, LineCol};
 use crate::menu::MenuKind;
 use crate::rich_text::RichText;
 use crate::{
@@ -428,6 +429,18 @@ pub enum LapceUICommand {
         locations: Vec<(WidgetId, EditorLocation)>,
         edits: Option<Rope>,
     },
+    InitBufferContentLine {
+        path: PathBuf,
+        content: Rope,
+        locations: Vec<(WidgetId, EditorLocation<Line>)>,
+        edits: Option<Rope>,
+    },
+    InitBufferContentLineCol {
+        path: PathBuf,
+        content: Rope,
+        locations: Vec<(WidgetId, EditorLocation<LineCol>)>,
+        edits: Option<Rope>,
+    },
     /// Init buffer content but using lsp positions instead
     InitBufferContentLsp {
         path: PathBuf,
@@ -594,12 +607,8 @@ pub enum LapceUICommand {
     JumpToLine(Option<WidgetId>, usize),
     JumpToLocation(Option<WidgetId>, EditorLocation),
     JumpToLspLocation(Option<WidgetId>, EditorLocation<Position>),
-    JumpToLineColumnPath {
-        editor_view_id: Option<WidgetId>,
-        path: PathBuf,
-        line: usize,
-        column: usize,
-    },
+    JumpToLineLocation(Option<WidgetId>, EditorLocation<Line>),
+    JumpToLineColLocation(Option<WidgetId>, EditorLocation<LineCol>),
     TerminalJumpToLine(i32),
     GoToLocationNew(WidgetId, EditorLocation),
     GotoDefinition {
