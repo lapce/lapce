@@ -930,31 +930,42 @@ impl LapceTab {
                         data.disabled_plugins = Arc::new(plugins.to_owned());
                     }
                     LapceUICommand::UpdatePluginInstallationChange(plugins) => {
-                        let local_plugins = plugins.clone();
-                        let handle = std::thread::spawn(move || {
-                            if let Ok(fetched_plugins) =
-                                LapceData::load_plugin_descriptions()
-                            {
-                                let (installed, uninstalled): (
-                                    Vec<PluginDescription>,
-                                    Vec<PluginDescription>,
-                                ) = fetched_plugins.into_iter().partition(|p| {
-                                    local_plugins
-                                        .iter()
-                                        .find(|(_, ip)| ip.name == p.name)
-                                        .ok_or(())
-                                        .is_ok()
+                        if let PluginLoadingStatus::Ok(ref installed_plugins_desc) =
+                            *data.installed_plugins_desc
+                        {
+                            if installed_plugins_desc.len() != plugins.len() {
+                                let local_plugins = plugins.clone();
+                                let handle = std::thread::spawn(move || {
+                                    if let Ok(fetched_plugins) =
+                                        LapceData::load_plugin_descriptions()
+                                    {
+                                        let (installed, uninstalled): (
+                                            Vec<PluginDescription>,
+                                            Vec<PluginDescription>,
+                                        ) = fetched_plugins.into_iter().partition(
+                                            |p| {
+                                                local_plugins
+                                                    .iter()
+                                                    .find(|(_, ip)| {
+                                                        ip.name == p.name
+                                                    })
+                                                    .ok_or(())
+                                                    .is_ok()
+                                            },
+                                        );
+                                        return Ok((installed, uninstalled));
+                                    }
+                                    Err(())
                                 });
-                                return Ok((installed, uninstalled));
+                                let fetch_result = handle.join().unwrap_or(Err(()));
+                                if let Ok((installed, uninstalled)) = fetch_result {
+                                    data.installed_plugins_desc =
+                                        Arc::new(PluginLoadingStatus::Ok(installed));
+                                    data.uninstalled_plugins_desc = Arc::new(
+                                        PluginLoadingStatus::Ok(uninstalled),
+                                    );
+                                }
                             }
-                            Err(())
-                        });
-                        let fetch_result = handle.join().unwrap_or(Err(()));
-                        if let Ok((installed, uninstalled)) = fetch_result {
-                            data.installed_plugins_desc =
-                                Arc::new(PluginLoadingStatus::Ok(installed));
-                            data.uninstalled_plugins_desc =
-                                Arc::new(PluginLoadingStatus::Ok(uninstalled));
                         }
                     }
                     LapceUICommand::DisablePlugin(plugin) => {

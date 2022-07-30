@@ -76,11 +76,12 @@ impl Dispatcher {
         };
         *dispatcher.file_watcher.lock() = Some(FileWatcher::new(dispatcher.clone()));
         dispatcher.lsp.lock().dispatcher = Some(dispatcher.clone());
-
         let local_dispatcher = dispatcher.clone();
         thread::spawn(move || {
             local_dispatcher.plugins.lock().reload();
             let plugins = { local_dispatcher.plugins.lock().items.clone() };
+            let delay = std::time::Duration::from_millis(50);
+            std::thread::sleep(delay);
             local_dispatcher.send_notification(
                 "installed_plugins",
                 json!({
@@ -92,7 +93,6 @@ impl Dispatcher {
                 .lock()
                 .start_all(local_dispatcher.clone());
         });
-
         let local_dispatcher = dispatcher.clone();
         thread::spawn(move || {
             if let Some(path) = BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
