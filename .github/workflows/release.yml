@@ -61,19 +61,98 @@ jobs:
       - name: Update rust
         run: rustup update
       - name: Build
-        run: cargo build --profile release-lto
+        run: cargo build --profile release-lto --bin lapce
       - name: Gzip
         run: |
           mkdir Lapce
           cp ./target/release-lto/lapce Lapce/
           tar -zcvf ./Lapce-linux.tar.gz Lapce
-          gzip -c "./target/release-lto/lapce-proxy" > ./lapce-proxy-linux.gz
       - uses: actions/upload-artifact@v3
         with:
           name: lapce-linux
           path: |
             ./Lapce-linux.tar.gz
-            ./lapce-proxy-linux.gz
+          retention-days: 1
+
+  linux-musl:
+    name: Build lapce-proxy for ${{ matrix.platform }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+#         https://github.com/rust-lang/libc/pull/2788
+#           - triple: i586-alpine-linux-musl
+#             platform: x86
+          - triple: x86_64-alpine-linux-musl
+            platform: x86_64
+#         currently broken on GitHub but not locally,
+#         need to figure out why
+#           - triple: aarch64-alpine-linux-musl
+#             platform: aarch64
+#         unsupported for now
+#           - triple: armv6-alpine-linux-musleabihf
+#             platform: armhf
+#           - triple: armv7-alpine-linux-musleabihf
+#             platform: armv7
+#         unsupported for now
+#           - triple: s390x-alpine-linux-musl
+#             platform: s390x
+#         unsupported for now
+#           - triple: powerpc64le-alpine-linux-musl
+#             platform: ppc64le
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set-up Alpine environment
+        uses: jirutka/setup-alpine@v1
+        with:
+          branch: edge
+          arch: ${{ matrix.platform }}
+          extra-repositories: |
+            http://dl-cdn.alpinelinux.org/alpine/edge/testing
+          packages: >
+            zlib-static freetype-static fontconfig-static
+            libgit2-static libssh2-static openssl-libs-static
+            libssl1.1 gtk+3.0-dev http-parser-dev cargo
+            build-base openssl-dev git mold clang
+
+      - name: Build ${{ matrix.triple }}
+        shell: alpine.sh {0}
+        env:
+          LIBZ_SYS_STATIC: 1
+          LIBSSH2_STATIC: 1
+          LIBGIT2_STATIC: 1
+          OPENSSL_STATIC: 1
+          OPENSSL_NO_VENDOR: 1 # don't even try to build without it on musl
+          PKG_CONFIG_ALL_STATIC: 1
+          OPENSSL_DIR: /usr # static/dynamic lib workaround <3
+          RUSTFLAGS: "-C target-feature=+crt-static" # link runtime static
+          CARGO_BUILD_TARGET: ${{ matrix.triple }}
+          CARGO_PROFILE_RELEASE_LTO: 'true'
+          CARGO_PROFILE_RELEASE_STRIP: symbols # remove unneeded debug stuff
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: 's' # optimise for size
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '1' # optimise each crate
+          CARGO_NET_GIT_FETCH_WITH_CLI: 'true' # libgit2 workaround for some architectures
+          CARGO_TARGET_x86_64-alpine-linux-musl_LINKER: clang
+          CARGO_TARGET_x86_64-alpine-linux-musl_RUSTFLAGS: "-C link-arg=-fuse-ld=mold" # speed
+          CARGO_TARGET_aarch64-alpine-linux-musl_LINKER: clang
+          CARGO_TARGET_aarch64-alpine-linux-musl_RUSTFLAGS: "-C link-arg=-fuse-ld=mold" # speed
+        run: |
+          cargo build \
+            --locked \
+            --verbose \
+            --release \
+            --bin lapce-proxy \
+            --manifest-path lapce-proxy/Cargo.toml
+      - name: Gzip
+        run: |
+          gzip -c ./target/${{ matrix.triple }}/release/lapce-proxy > ./lapce-proxy-linux-${{ matrix.platform }}.gz
+      - uses: actions/upload-artifact@v3
+        with:
+          name: lapce-proxy-linux-${{ matrix.platform }}
+          path: |
+            ./lapce-proxy-linux-*.gz
           retention-days: 1
 
   macos:
@@ -112,7 +191,7 @@ jobs:
           retention-days: 1
           
   publish:
-    needs: [linux, windows, macos]
+    needs: [linux, linux-musl, windows, macos]
     runs-on: ubuntu-20.04
     env:
       GH_REPO: ${{ github.repository }}
@@ -148,4 +227,4 @@ jobs:
         env:
           DEBUG: api
         run: |
-          gh release create $TAG_NAME $PRERELEASE --title "$TAG_NAME" --target $GITHUB_SHA lapce-macos/* lapce-linux/* lapce-windows/*
+          gh release create $TAG_NAME $PRERELEASE --title "$TAG_NAME" --target $GITHUB_SHA lapce-macos/* lapce-linux/* lapce-proxy-linux-*/* lapce-windows/*
