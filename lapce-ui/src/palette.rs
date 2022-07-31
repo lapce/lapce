@@ -371,9 +371,9 @@ impl Widget<LapceTabData> for PaletteContainer {
             f64::max(width, data.config.ui.preview_editor_width() as f64),
             max_preview_height,
         ));
-        let _preview_size = self.preview.layout(ctx, &bc, data, env);
-        let preview_width = if _preview_size.width > width {
-            width - _preview_size.width as f64
+        let preview_size = self.preview.layout(ctx, &bc, data, env);
+        let preview_width = if preview_size.width > width {
+            width - preview_size.width as f64
         } else {
             0.00
         };
