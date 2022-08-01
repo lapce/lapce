@@ -41,6 +41,7 @@ use lapce_data::{
 use lapce_rpc::plugin::PluginDescription;
 use lsp_types::DiagnosticSeverity;
 use serde::Deserialize;
+use toml_edit::easy as toml;
 use xi_rope::Rope;
 
 use crate::{

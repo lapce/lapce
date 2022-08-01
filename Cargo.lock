@@ -423,6 +423,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 
 [[package]]
+name = "combine"
+version = "4.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a604e93b79d1808327a6fca85a6f2d69de66461e7620f5a4cbf5fb4d1d7c948"
+dependencies = [
+ "bytes",
+ "memchr",
+]
+
+[[package]]
 name = "config"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2285,7 +2295,7 @@ dependencies = [
  "strum 0.24.1",
  "strum_macros 0.24.2",
  "thiserror",
- "toml",
+ "toml_edit",
  "unicode-segmentation",
  "unicode-width",
  "uuid",
@@ -2323,7 +2333,7 @@ dependencies = [
  "reqwest",
  "serde 1.0.140",
  "serde_json",
- "toml",
+ "toml_edit",
  "trash",
  "wasmer",
  "wasmer-wasi",
@@ -2389,7 +2399,7 @@ dependencies = [
  "structdesc",
  "strum 0.24.1",
  "strum_macros 0.24.2",
- "toml",
+ "toml_edit",
  "unicode-segmentation",
  "unicode-width",
  "winres",
@@ -4454,7 +4464,18 @@ version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d82e1a7758622a465f8cee077614c73484dac5b836c02ff6a40d5d1010324d7"
 dependencies = [
+ "serde 1.0.140",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.14.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5376256e44f2443f8896ac012507c19a012df0fe8758b55246ae51a2279db51f"
+dependencies = [
+ "combine",
  "indexmap",
+ "itertools",
  "serde 1.0.140",
 ]
 

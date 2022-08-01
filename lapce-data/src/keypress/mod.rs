@@ -15,7 +15,7 @@ use fuzzy_matcher::FuzzyMatcher;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::mode::{Mode, Modes};
-use toml;
+use toml_edit::easy as toml;
 
 mod keypress;
 mod loader;

@@ -48,7 +48,7 @@ uuid = { version = "0.8.2", features = ["v4"] }
 lsp-types = { version = "0.93", features = ["proposed"] }
 druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = [ "svg", "im", "serde", ] }
 # druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
-toml = { version = "0.5.8", features = ["preserve_order"] }
+toml_edit = { version = "0.14.4", features = ["easy"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
 #structdesc = { path = "../../structdesc" }
 lapce-core = { path = "../lapce-core" }

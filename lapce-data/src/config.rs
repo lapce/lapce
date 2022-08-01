@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use structdesc::FieldNames;
 use thiserror::Error;
+use toml_edit::easy as toml;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
