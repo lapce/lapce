@@ -1269,7 +1269,13 @@ impl LapceEditorBufferData {
             }
         }
 
-        self.update_completion(ctx, false);
+        match cmd {
+            EditCommand::InsertNewLine
+            | EditCommand::InsertTab
+            | EditCommand::NewLineAbove
+            | EditCommand::NewLineBelow => {}
+            _ => self.update_completion(ctx, false),
+        }
         self.apply_deltas(&deltas);
 
         CommandExecuted::Yes
@@ -2071,7 +2077,12 @@ impl KeyPressFocus for LapceEditorBufferData {
             let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
             let deltas = doc.do_insert(cursor, c);
 
-            self.update_completion(ctx, false);
+            if !c
+                .chars()
+                .all(|c| c.is_whitespace() || c.is_ascii_whitespace())
+            {
+                self.update_completion(ctx, false);
+            }
             self.cancel_hover();
             self.apply_deltas(&deltas);
         } else if let Some(direction) = self.editor.inline_find.clone() {
