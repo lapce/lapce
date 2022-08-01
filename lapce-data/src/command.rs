@@ -10,6 +10,7 @@ use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
 use lapce_core::syntax::Syntax;
+use lapce_rpc::plugin::PluginId;
 use lapce_rpc::{
     buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
     source_control::DiffInfo, style::Style, terminal::TermId,
@@ -471,7 +472,7 @@ pub enum LapceUICommand {
     OpenFileDiff(PathBuf, String),
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
-    UpdateCompletion(usize, String, CompletionResponse),
+    UpdateCompletion(usize, String, CompletionResponse, PluginId),
     UpdateHover(usize, Arc<Vec<RichText>>),
     UpdateInlayHints {
         path: PathBuf,

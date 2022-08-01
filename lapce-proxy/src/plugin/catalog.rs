@@ -1,8 +1,8 @@
-use std::{path::PathBuf, sync::Arc, thread};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, thread};
 
 use crossbeam_channel::Sender;
 use dyn_clone::DynClone;
-use lapce_rpc::{proxy::CoreProxyResponse, RpcError};
+use lapce_rpc::{plugin::PluginId, proxy::CoreProxyResponse, RpcError};
 use lsp_types::{
     notification::DidOpenTextDocument, DidOpenTextDocumentParams, TextDocumentItem,
     VersionedTextDocumentIdentifier,
@@ -21,7 +21,7 @@ use super::{
 
 pub struct NewPluginCatalog {
     plugin_rpc: PluginCatalogRpcHandler,
-    new_plugins: Vec<PluginServerRpcHandler>,
+    new_plugins: HashMap<PluginId, PluginServerRpcHandler>,
 }
 
 impl NewPluginCatalog {
@@ -31,7 +31,7 @@ impl NewPluginCatalog {
     ) -> Self {
         let plugin = Self {
             plugin_rpc: plugin_rpc.clone(),
-            new_plugins: Vec::new(),
+            new_plugins: HashMap::new(),
         };
 
         thread::spawn(move || {
@@ -47,14 +47,15 @@ impl NewPluginCatalog {
         params: Value,
         f: Box<dyn ClonableCallback>,
     ) {
-        for plugin in self.new_plugins.iter() {
+        for (plugin_id, plugin) in self.new_plugins.iter() {
             let f = dyn_clone::clone_box(&*f);
+            let plugin_id = *plugin_id;
             plugin.server_request_async(
                 method,
                 params.clone(),
                 true,
                 move |result| {
-                    f(result);
+                    f(plugin_id, result);
                 },
             );
         }
@@ -65,7 +66,7 @@ impl NewPluginCatalog {
         method: &'static str,
         params: Value,
     ) {
-        for plugin in self.new_plugins.iter() {
+        for (_, plugin) in self.new_plugins.iter() {
             plugin.server_notification(method, params.clone(), true);
         }
     }
@@ -78,7 +79,7 @@ impl NewPluginCatalog {
         new_text: Rope,
     ) {
         let change = Arc::new(Mutex::new((None, None)));
-        for plugin in self.new_plugins.iter() {
+        for (_, plugin) in self.new_plugins.iter() {
             plugin.handle_rpc(PluginServerRpc::DidChangeTextDocument {
                 document: document.clone(),
                 delta: delta.clone(),
@@ -108,7 +109,7 @@ impl NewPluginCatalog {
                         );
                     }
                 }
-                self.new_plugins.push(plugin);
+                self.new_plugins.insert(plugin.plugin_id, plugin);
             } // NewPluginNotification::StartLspServer {
               //     workspace,
               //     plugin_id,

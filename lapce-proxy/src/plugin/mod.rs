@@ -162,7 +162,7 @@ impl PluginCatalogRpcHandler {
         &self,
         method: &'static str,
         params: P,
-        f: impl FnOnce(Result<Value, RpcError>) + Send + DynClone + 'static,
+        f: impl FnOnce(PluginId, Result<Value, RpcError>) + Send + DynClone + 'static,
     ) {
         let params = serde_json::to_value(params).unwrap();
         let rpc = PluginCatalogRpc::ServerRequest {
@@ -216,11 +216,11 @@ impl PluginCatalogRpcHandler {
         };
 
         let core_rpc = self.core_rpc.clone();
-        self.send_request(method, params, move |result| {
+        self.send_request(method, params, move |plugin_id, result| {
             if let Ok(value) = result {
                 if let Ok(resp) = serde_json::from_value::<CompletionResponse>(value)
                 {
-                    core_rpc.completion_response(request_id, input, resp);
+                    core_rpc.completion_response(request_id, input, resp, plugin_id);
                 }
             }
         });

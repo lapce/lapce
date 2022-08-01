@@ -777,22 +777,6 @@ impl CompletionState {
             Target::Widget(self.widget_id),
         ));
     }
-
-    pub fn update(&mut self, input: String, completion_items: Vec<CompletionItem>) {
-        self.items = completion_items
-            .iter()
-            .enumerate()
-            .map(|(index, item)| ScoredCompletionItem {
-                item: item.to_owned(),
-                score: -1 - index as i64,
-                label_score: -1 - index as i64,
-                indices: Vec::new(),
-            })
-            .collect();
-        self.items
-            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
-        self.input = input;
-    }
 }
 
 impl Default for CompletionState {

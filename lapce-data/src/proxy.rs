@@ -214,10 +214,13 @@ impl CoreHandler for LapceProxy {
                 request_id,
                 input,
                 resp,
+                plugin_id,
             } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateCompletion(request_id, input, resp),
+                    LapceUICommand::UpdateCompletion(
+                        request_id, input, resp, plugin_id,
+                    ),
                     Target::Widget(self.tab_id),
                 );
             }

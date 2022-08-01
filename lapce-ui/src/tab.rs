@@ -867,12 +867,18 @@ impl LapceTab {
                         data.handle_workspace_file_change(ctx);
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateCompletion(request_id, input, resp) => {
+                    LapceUICommand::UpdateCompletion(
+                        request_id,
+                        input,
+                        resp,
+                        plugin_id,
+                    ) => {
                         let completion = Arc::make_mut(&mut data.completion);
                         completion.receive(
                             *request_id,
                             input.to_owned(),
                             resp.to_owned(),
+                            *plugin_id,
                         );
                     }
                     LapceUICommand::CancelCompletion(request_id) => {

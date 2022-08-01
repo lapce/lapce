@@ -13,7 +13,7 @@ use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
 use jsonrpc_lite::{JsonRpc, Params};
 use lapce_core::buffer::RopeText;
-use lapce_rpc::RpcError;
+use lapce_rpc::{plugin::PluginId, RpcError};
 use lsp_types::{
     notification::{
         DidChangeTextDocument, DidOpenTextDocument, Initialized, Notification,
@@ -48,11 +48,14 @@ impl<Resp, Error> ResponseHandler<Resp, Error> {
 }
 
 pub trait ClonableCallback:
-    FnOnce(Result<Value, RpcError>) + Send + DynClone
+    FnOnce(PluginId, Result<Value, RpcError>) + Send + DynClone
 {
 }
 
-impl<F: Send + FnOnce(Result<Value, RpcError>) + DynClone> ClonableCallback for F {}
+impl<F: Send + FnOnce(PluginId, Result<Value, RpcError>) + DynClone> ClonableCallback
+    for F
+{
+}
 
 pub trait RpcCallback<Resp, Error>: Send {
     fn call(self: Box<Self>, result: Result<Resp, Error>);
@@ -107,6 +110,7 @@ pub enum PluginServerRpc {
 
 #[derive(Clone)]
 pub struct PluginServerRpcHandler {
+    pub plugin_id: PluginId,
     rpc_tx: Sender<PluginServerRpc>,
     rpc_rx: Receiver<PluginServerRpc>,
     io_tx: Sender<String>,
@@ -141,6 +145,7 @@ impl PluginServerRpcHandler {
         let (rpc_tx, rpc_rx) = crossbeam_channel::unbounded();
 
         let rpc = Self {
+            plugin_id: PluginId::next(),
             rpc_tx,
             rpc_rx,
             io_tx,

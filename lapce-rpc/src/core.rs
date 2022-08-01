@@ -9,8 +9,11 @@ use std::{
 };
 
 use crate::{
-    file::FileNodeItem, plugin::PluginDescription, source_control::DiffInfo,
-    terminal::TermId, RequestId, RpcError,
+    file::FileNodeItem,
+    plugin::{PluginDescription, PluginId},
+    source_control::DiffInfo,
+    terminal::TermId,
+    RequestId, RpcError,
 };
 
 enum CoreRpc {
@@ -31,6 +34,7 @@ pub enum CoreNotification {
         request_id: usize,
         input: String,
         resp: CompletionResponse,
+        plugin_id: PluginId,
     },
     ReloadBuffer {
         path: PathBuf,
@@ -134,11 +138,13 @@ impl CoreRpcHandler {
         request_id: usize,
         input: String,
         resp: CompletionResponse,
+        plugin_id: PluginId,
     ) {
         self.notification(CoreNotification::CompletionResponse {
             request_id,
             input,
             resp,
+            plugin_id,
         });
     }
 

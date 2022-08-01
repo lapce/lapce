@@ -5,7 +5,7 @@ use druid::{ExtEventSink, Size, Target, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lapce_core::movement::Movement;
-use lapce_rpc::buffer::BufferId;
+use lapce_rpc::{buffer::BufferId, plugin::PluginId};
 use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
 use std::str::FromStr;
@@ -388,6 +388,7 @@ impl CompletionData {
         request_id: usize,
         input: String,
         resp: CompletionResponse,
+        plugin_id: PluginId,
     ) {
         if self.status == CompletionStatus::Inactive || self.request_id != request_id
         {
@@ -402,6 +403,7 @@ impl CompletionData {
             .iter()
             .map(|i| ScoredCompletionItem {
                 item: i.to_owned(),
+                plugin_id,
                 score: 0,
                 label_score: 0,
                 indices: Vec::new(),
@@ -480,7 +482,7 @@ impl Default for Completion {
 #[derive(Clone)]
 pub struct ScoredCompletionItem {
     pub item: CompletionItem,
-
+    pub plugin_id: PluginId,
     pub score: i64,
     pub label_score: i64,
     pub indices: Vec<usize>,
