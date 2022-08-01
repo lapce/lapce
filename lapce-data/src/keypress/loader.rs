@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use indexmap::IndexMap;
 use lapce_core::mode::Modes;
+use toml_edit::easy as toml;
 
 use crate::keypress::{get_modes, keypress::KeyPress, KeyMap};
 

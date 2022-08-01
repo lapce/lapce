@@ -41,6 +41,7 @@ use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdi
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use toml_edit::easy as toml;
 use xi_rope::{Rope, RopeDelta};
 
 use crate::{

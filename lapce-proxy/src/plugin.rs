@@ -15,7 +15,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::Duration;
-use toml;
+use toml_edit::easy as toml;
 use wasmer::ChainableNamedResolver;
 use wasmer::ImportObject;
 use wasmer::Store;
