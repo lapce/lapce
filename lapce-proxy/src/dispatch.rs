@@ -193,9 +193,23 @@ impl ProxyHandler for NewDispatcher {
             } => {}
             GlobalSearch { pattern } => todo!(),
             CompletionResolve {
-                buffer_id,
+                plugin_id,
                 completion_item,
-            } => todo!(),
+            } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.completion_resolve(
+                    plugin_id,
+                    *completion_item,
+                    move |result| {
+                        let result = result.map(|item| {
+                            CoreProxyResponse::CompletionResolveResponse {
+                                item: Box::new(item),
+                            }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                )
+            }
             GetHover {
                 request_id,
                 buffer_id,
@@ -889,14 +903,14 @@ impl Dispatcher {
                     .get_completion(id, request_id, buffer, position);
             }
             CompletionResolve {
-                buffer_id,
+                plugin_id,
                 completion_item,
             } => {
-                let buffers = self.buffers.lock();
-                let buffer = buffers.get(&buffer_id).unwrap();
-                self.lsp
-                    .lock()
-                    .completion_resolve(id, buffer, &completion_item);
+                // let buffers = self.buffers.lock();
+                // let buffer = buffers.get(&buffer_id).unwrap();
+                // self.lsp
+                //     .lock()
+                //     .completion_resolve(id, buffer, &completion_item);
             }
             GetHover {
                 buffer_id,

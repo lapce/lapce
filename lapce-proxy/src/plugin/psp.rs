@@ -18,7 +18,7 @@ use lsp_types::{
     notification::{
         DidChangeTextDocument, DidOpenTextDocument, Initialized, Notification,
     },
-    request::{Completion, Initialize},
+    request::{Completion, Initialize, ResolveCompletionItem},
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeResult, Range,
     ServerCapabilities, TextDocumentContentChangeEvent, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncOptions, VersionedTextDocumentIdentifier,
@@ -398,6 +398,12 @@ impl PluginHostHandler {
                 eprintln!("check completion registered");
                 self.server_capabilities.completion_provider.is_some()
             }
+            ResolveCompletionItem::METHOD => self
+                .server_capabilities
+                .completion_provider
+                .as_ref()
+                .and_then(|c| c.resolve_provider)
+                .unwrap_or(false),
             DidOpenTextDocument::METHOD => {
                 match &self.server_capabilities.text_document_sync {
                     Some(TextDocumentSyncCapability::Kind(kind)) => {

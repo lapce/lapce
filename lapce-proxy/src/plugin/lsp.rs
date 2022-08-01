@@ -143,9 +143,8 @@ impl NewLspClient {
         thread::spawn(move || {
             for msg in io_rx {
                 let msg = format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
-                eprintln!("send {msg} to lsp");
-                writer.write(msg.as_bytes());
-                writer.flush();
+                let _ = writer.write(msg.as_bytes());
+                let _ = writer.flush();
             }
         });
 

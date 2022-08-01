@@ -49,6 +49,7 @@ use lapce_core::mode::{Mode, MotionMode};
 use lapce_core::selection::InsertDrift;
 use lapce_core::selection::Selection;
 pub use lapce_core::syntax::Syntax;
+use lapce_rpc::proxy::CoreProxyResponse;
 use lsp_types::request::GotoTypeDefinitionResponse;
 use lsp_types::CodeActionOrCommand;
 use lsp_types::CompletionTextEdit;
@@ -1621,17 +1622,27 @@ impl LapceEditorBufferData {
                 } else {
                     let item = self.completion.current_item().to_owned();
                     self.cancel_completion();
-                    if item.data.is_some() {
+                    if item.item.data.is_some() {
                         let view_id = self.editor.view_id;
                         let buffer_id = self.doc.id();
                         let rev = self.doc.rev();
                         let offset = self.editor.cursor.offset();
                         let event_sink = ctx.get_external_handle();
-                        self.proxy.completion_resolve(
-                            buffer_id,
-                            item.clone(),
+                        self.proxy.proxy_rpc.completion_resolve(
+                            item.plugin_id,
+                            item.item.clone(),
                             move |result| {
-                                let item = result.unwrap_or_else(|_| item.clone());
+                                // let item = result.unwrap_or_else(|_| item.clone());
+                                let item = if let Ok(
+                                    CoreProxyResponse::CompletionResolveResponse {
+                                        item,
+                                    },
+                                ) = result
+                                {
+                                    *item
+                                } else {
+                                    item.item.clone()
+                                };
                                 let _ = event_sink.submit_command(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::ResolveCompletion(
@@ -1645,7 +1656,7 @@ impl LapceEditorBufferData {
                             },
                         );
                     } else {
-                        let _ = self.apply_completion_item(&item);
+                        let _ = self.apply_completion_item(&item.item);
                     }
                 }
             }

@@ -264,7 +264,7 @@ impl CompletionContainer {
             let current_item = (!data.completion.is_empty())
                 .then(|| data.completion.current_item());
 
-            current_item.and_then(|item| item.documentation.as_ref())
+            current_item.and_then(|item| item.item.documentation.as_ref())
         } else {
             None
         };

@@ -43,10 +43,28 @@ impl NewPluginCatalog {
 
     pub fn handle_server_request(
         &mut self,
+        plugin_id: Option<PluginId>,
         method: &'static str,
         params: Value,
         f: Box<dyn ClonableCallback>,
     ) {
+        if let Some(plugin_id) = plugin_id {
+            if let Some(plugin) = self.new_plugins.get(&plugin_id) {
+                plugin.server_request_async(method, params, true, move |result| {
+                    f(plugin_id, result);
+                });
+            } else {
+                f(
+                    plugin_id,
+                    Err(RpcError {
+                        code: 0,
+                        message: "plugin doesn't exist".to_string(),
+                    }),
+                );
+            }
+            return;
+        }
+
         for (plugin_id, plugin) in self.new_plugins.iter() {
             let f = dyn_clone::clone_box(&*f);
             let plugin_id = *plugin_id;

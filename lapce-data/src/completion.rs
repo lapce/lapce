@@ -325,8 +325,8 @@ impl CompletionData {
             .unwrap_or_else(move || self.input_items.get("").unwrap_or(&self.empty))
     }
 
-    pub fn current_item(&self) -> &CompletionItem {
-        &self.current_items()[self.index].item
+    pub fn current_item(&self) -> &ScoredCompletionItem {
+        &self.current_items()[self.index]
     }
 
     pub fn current(&self) -> &str {

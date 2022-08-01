@@ -12,9 +12,9 @@ use lapce_rpc::plugin::{PluginDescription, PluginId};
 use lapce_rpc::proxy::ProxyRpcHandler;
 use lapce_rpc::{RequestId, RpcError, RpcMessage};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
-use lsp_types::request::{Completion, Request};
+use lsp_types::request::{Completion, Request, ResolveCompletionItem};
 use lsp_types::{
-    CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
+    CompletionItem, CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
     PartialResultParams, Position, TextDocumentIdentifier, TextDocumentItem,
     TextDocumentPositionParams, Url, VersionedTextDocumentIdentifier,
     WorkDoneProgressParams,
@@ -53,6 +53,7 @@ pub type PluginName = String;
 
 pub enum PluginCatalogRpc {
     ServerRequest {
+        plugin_id: Option<PluginId>,
         method: &'static str,
         params: Value,
         f: Box<dyn ClonableCallback>,
@@ -125,8 +126,13 @@ impl PluginCatalogRpcHandler {
     pub fn mainloop(&self, plugin: &mut NewPluginCatalog) {
         for msg in &self.plugin_rx {
             match msg {
-                PluginCatalogRpc::ServerRequest { method, params, f } => {
-                    plugin.handle_server_request(method, params, f);
+                PluginCatalogRpc::ServerRequest {
+                    plugin_id,
+                    method,
+                    params,
+                    f,
+                } => {
+                    plugin.handle_server_request(plugin_id, method, params, f);
                 }
                 PluginCatalogRpc::ServerNotification { method, params } => {
                     plugin.handle_server_notification(method, params);
@@ -160,12 +166,14 @@ impl PluginCatalogRpcHandler {
 
     fn send_request<P: Serialize>(
         &self,
+        plugin_id: Option<PluginId>,
         method: &'static str,
         params: P,
         f: impl FnOnce(PluginId, Result<Value, RpcError>) + Send + DynClone + 'static,
     ) {
         let params = serde_json::to_value(params).unwrap();
         let rpc = PluginCatalogRpc::ServerRequest {
+            plugin_id,
             method,
             params,
             f: Box::new(f),
@@ -216,13 +224,39 @@ impl PluginCatalogRpcHandler {
         };
 
         let core_rpc = self.core_rpc.clone();
-        self.send_request(method, params, move |plugin_id, result| {
+        self.send_request(None, method, params, move |plugin_id, result| {
             if let Ok(value) = result {
                 if let Ok(resp) = serde_json::from_value::<CompletionResponse>(value)
                 {
                     core_rpc.completion_response(request_id, input, resp, plugin_id);
                 }
             }
+        });
+    }
+
+    pub fn completion_resolve(
+        &self,
+        plugin_id: PluginId,
+        item: CompletionItem,
+        cb: impl FnOnce(Result<CompletionItem, RpcError>) + Send + Clone + 'static,
+    ) {
+        let method = ResolveCompletionItem::METHOD;
+        self.send_request(Some(plugin_id), method, item, move |_, result| {
+            let result = match result {
+                Ok(value) => {
+                    if let Ok(item) = serde_json::from_value::<CompletionItem>(value)
+                    {
+                        Ok(item)
+                    } else {
+                        Err(RpcError {
+                            code: 0,
+                            message: "completion item deserialize error".to_string(),
+                        })
+                    }
+                }
+                Err(e) => Err(e),
+            };
+            cb(result)
         });
     }
 

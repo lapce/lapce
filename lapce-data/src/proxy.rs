@@ -830,22 +830,6 @@ impl LapceProxy {
         );
     }
 
-    pub fn completion_resolve(
-        &self,
-        buffer_id: BufferId,
-        completion_item: CompletionItem,
-        f: impl FnOnce(Result<CompletionItem, RequestError>) + Send + 'static,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "completion_resolve",
-            &json!({
-                "buffer_id": buffer_id,
-                "completion_item": completion_item,
-            }),
-            box_json_cb(f),
-        );
-    }
-
     pub fn get_hover(
         &self,
         request_id: usize,

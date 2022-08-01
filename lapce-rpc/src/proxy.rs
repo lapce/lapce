@@ -49,7 +49,7 @@ pub enum CoreProxyRequest {
         pattern: String,
     },
     CompletionResolve {
-        buffer_id: BufferId,
+        plugin_id: PluginId,
         completion_item: Box<CompletionItem>,
     },
     GetHover {
@@ -197,6 +197,9 @@ pub enum CoreProxyResponse {
     },
     ReadDirResponse {
         items: HashMap<PathBuf, FileNodeItem>,
+    },
+    CompletionResolveResponse {
+        item: Box<CompletionItem>,
     },
     GetFilesResponse {
         items: Vec<PathBuf>,
@@ -416,6 +419,21 @@ impl ProxyRpcHandler {
 
     pub fn read_dir(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
         self.request_async(CoreProxyRequest::ReadDir { path }, f);
+    }
+
+    pub fn completion_resolve(
+        &self,
+        plugin_id: PluginId,
+        completion_item: CompletionItem,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            CoreProxyRequest::CompletionResolve {
+                plugin_id,
+                completion_item: Box::new(completion_item),
+            },
+            f,
+        );
     }
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {
