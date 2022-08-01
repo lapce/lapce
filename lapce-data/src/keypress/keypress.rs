@@ -46,6 +46,17 @@ impl KeyPress {
         false
     }
 
+    pub fn to_lowercase(&self) -> Self {
+        let key = match &self.key {
+            druid::KbKey::Character(c) => druid::KbKey::Character(c.to_lowercase()),
+            _ => self.key.clone(),
+        };
+        Self {
+            key,
+            mods: self.mods,
+        }
+    }
+
     pub fn paint(
         &self,
         ctx: &mut PaintCtx,

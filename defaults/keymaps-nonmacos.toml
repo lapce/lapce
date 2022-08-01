@@ -5,7 +5,7 @@ key = "ctrl+p"
 command = "palette"
 
 [[keymaps]]
-key = "Ctrl+P"
+key = "ctrl+shift+p"
 command = "palette.command"
 
 [[keymaps]]
@@ -29,7 +29,7 @@ command = "undo"
 mode = "i"
 
 [[keymaps]]
-key = "ctrl+Z"
+key = "ctrl+shift+z"
 command = "redo"
 mode = "i"
 
@@ -192,19 +192,19 @@ command = "show_code_actions"
 # --------------------------------- Display -------------------------------------------
 
 [[keymaps]]
-key = "ctrl+E"
+key = "ctrl+shift+e"
 command = "toggle_file_explorer_focus"
 
 [[keymaps]]
-key = "ctrl+F"
+key = "ctrl+shift+f"
 command = "toggle_search_focus"
 
 [[keymaps]]
-key = "ctrl+X"
+key = "ctrl+shift+x"
 command = "toggle_plugin_focus"
 
 [[keymaps]]
-key = "ctrl+M"
+key = "ctrl+shift+m"
 command = "toggle_problem_focus"
 
 # ------------------------------------ Navigation -------------------------------------
@@ -218,7 +218,7 @@ key = "Ctrl+End"
 command = "document_end"
 
 [[keymaps]]
-key = "ctrl+O"
+key = "ctrl+shift+o"
 command = "palette.symbol"
 
 [[keymaps]]
