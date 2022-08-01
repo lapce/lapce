@@ -248,7 +248,7 @@ impl PluginCatalog {
         let (tx, rx) = mpsc::channel();
 
         thread::spawn(move || loop {
-            match rx.try_recv() {
+            match rx.recv() {
                 Ok(PluginTransmissionMessage::Initialize) => {
                     let initialize = local_plugin
                         .instance
@@ -283,7 +283,9 @@ impl PluginCatalog {
                     }
                     break;
                 }
-                _ => {}
+                // There was an error when receiving, which means that the other end was closed.
+                // So we simply shutdown this thread by breaking out of the loop
+                Err(_) => break,
             }
         });
         tx.send(PluginTransmissionMessage::Initialize)?;
