@@ -208,13 +208,21 @@ impl ProxyHandler for NewDispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
-                )
+                );
             }
             GetHover {
                 request_id,
-                buffer_id,
+                path,
                 position,
-            } => todo!(),
+            } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.hover(&path, position, move |result| {
+                    let result = result.map(|hover| {
+                        CoreProxyResponse::HoverResponse { request_id, hover }
+                    });
+                    proxy_rpc.handle_response(id, result);
+                });
+            }
             GetSignature {
                 buffer_id,
                 position,
@@ -913,13 +921,13 @@ impl Dispatcher {
                 //     .completion_resolve(id, buffer, &completion_item);
             }
             GetHover {
-                buffer_id,
+                path,
                 position,
                 request_id,
             } => {
-                let buffers = self.buffers.lock();
-                let buffer = buffers.get(&buffer_id).unwrap();
-                self.lsp.lock().get_hover(id, request_id, buffer, position);
+                // let buffers = self.buffers.lock();
+                // let buffer = buffers.get(&buffer_id).unwrap();
+                // self.lsp.lock().get_hover(id, request_id, buffer, position);
             }
             GetSignature {
                 buffer_id,

@@ -12,12 +12,12 @@ use lapce_rpc::plugin::{PluginDescription, PluginId};
 use lapce_rpc::proxy::ProxyRpcHandler;
 use lapce_rpc::{RequestId, RpcError, RpcMessage};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
-use lsp_types::request::{Completion, Request, ResolveCompletionItem};
+use lsp_types::request::{Completion, HoverRequest, Request, ResolveCompletionItem};
 use lsp_types::{
     CompletionItem, CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
-    PartialResultParams, Position, TextDocumentIdentifier, TextDocumentItem,
-    TextDocumentPositionParams, Url, VersionedTextDocumentIdentifier,
-    WorkDoneProgressParams,
+    Hover, HoverParams, PartialResultParams, Position, TextDocumentIdentifier,
+    TextDocumentItem, TextDocumentPositionParams, Url,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
@@ -27,7 +27,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -201,6 +201,47 @@ impl PluginCatalogRpcHandler {
                 text,
                 new_text,
             });
+    }
+
+    pub fn hover(
+        &self,
+        path: &Path,
+        position: Position,
+        cb: impl FnOnce(Result<Hover, RpcError>) + Clone + Send + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = HoverRequest::METHOD;
+        let params = HoverParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+
+        let got_success = Arc::new(AtomicBool::new(false));
+        self.send_request(None, method, params, move |_, result| {
+            if got_success.load(Ordering::Acquire) {
+                return;
+            }
+            let result = match result {
+                Ok(value) => {
+                    if let Ok(item) = serde_json::from_value::<Hover>(value) {
+                        got_success.store(true, Ordering::Release);
+                        Ok(item)
+                    } else {
+                        Err(RpcError {
+                            code: 0,
+                            message: "hover deserialize error".to_string(),
+                        })
+                    }
+                }
+                Err(e) => Err(e),
+            };
+            if result.is_ok() {
+                cb(result)
+            }
+        });
     }
 
     pub fn completion(

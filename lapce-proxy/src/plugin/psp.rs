@@ -18,10 +18,11 @@ use lsp_types::{
     notification::{
         DidChangeTextDocument, DidOpenTextDocument, Initialized, Notification,
     },
-    request::{Completion, Initialize, ResolveCompletionItem},
-    DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeResult, Range,
-    ServerCapabilities, TextDocumentContentChangeEvent, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncOptions, VersionedTextDocumentIdentifier,
+    request::{Completion, HoverRequest, Initialize, ResolveCompletionItem},
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, HoverProviderCapability,
+    InitializeResult, Range, ServerCapabilities, TextDocumentContentChangeEvent,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::{Request, StartLspServer, StartLspServerParams};
@@ -432,6 +433,15 @@ impl PluginHostHandler {
                     None => false,
                 }
             }
+            HoverRequest::METHOD => self
+                .server_capabilities
+                .hover_provider
+                .as_ref()
+                .map(|c| match c {
+                    HoverProviderCapability::Simple(is_capable) => *is_capable,
+                    HoverProviderCapability::Options(_) => true,
+                })
+                .unwrap_or(false),
             _ => false,
         }
     }

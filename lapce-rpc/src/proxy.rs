@@ -8,7 +8,7 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender};
-use lsp_types::{CompletionItem, Position, TextDocumentItem};
+use lsp_types::{CompletionItem, Hover, Position, TextDocumentItem};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -54,7 +54,7 @@ pub enum CoreProxyRequest {
     },
     GetHover {
         request_id: usize,
-        buffer_id: BufferId,
+        path: PathBuf,
         position: Position,
     },
     GetSignature {
@@ -200,6 +200,10 @@ pub enum CoreProxyResponse {
     },
     CompletionResolveResponse {
         item: Box<CompletionItem>,
+    },
+    HoverResponse {
+        request_id: usize,
+        hover: Hover,
     },
     GetFilesResponse {
         items: Vec<PathBuf>,
@@ -431,6 +435,23 @@ impl ProxyRpcHandler {
             CoreProxyRequest::CompletionResolve {
                 plugin_id,
                 completion_item: Box::new(completion_item),
+            },
+            f,
+        );
+    }
+
+    pub fn get_hover(
+        &self,
+        request_id: usize,
+        path: PathBuf,
+        position: Position,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            CoreProxyRequest::GetHover {
+                request_id,
+                path,
+                position,
             },
             f,
         );

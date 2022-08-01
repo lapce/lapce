@@ -1,14 +1,14 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use druid::{ExtEventSink, Size, Target, WidgetId};
-use lapce_rpc::buffer::BufferId;
+use lapce_rpc::{buffer::BufferId, proxy::CoreProxyResponse};
 use lsp_types::{HoverContents, MarkedString, MarkupKind, Position};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     data::EditorDiagnostic,
-    document::Document,
+    document::{BufferContent, Document},
     markdown::{from_marked_string, parse_markdown},
     proxy::LapceProxy,
     rich_text::{RichText, RichTextBuilder},
@@ -122,29 +122,32 @@ impl HoverData {
         event_sink: ExtEventSink,
         config: Arc<Config>,
     ) {
-        let buffer_id = doc.id();
+        if let BufferContent::File(path) = doc.content() {
+            // Clone config for use inside the proxy callback
+            let p_config = config.clone();
+            // Get the information/documentation that should be shown on hover
+            proxy.proxy_rpc.get_hover(
+                request_id,
+                path.clone(),
+                position,
+                Box::new(move |result| {
+                    if let Ok(CoreProxyResponse::HoverResponse {
+                        request_id,
+                        hover,
+                    }) = result
+                    {
+                        let items = parse_hover_resp(hover, &p_config);
 
-        // Clone config for use inside the proxy callback
-        let p_config = config.clone();
-        // Get the information/documentation that should be shown on hover
-        proxy.get_hover(
-            request_id,
-            buffer_id,
-            position,
-            Box::new(move |result| {
-                if let Ok(resp) = result {
-                    let items = parse_hover_resp(resp, &p_config);
-
-                    let _ = event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateHover(request_id, Arc::new(items)),
-                        Target::Widget(hover_widget_id),
-                    );
-                }
-            }),
-        );
-
-        self.collect_diagnostics(position, diagnostics, config);
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateHover(request_id, Arc::new(items)),
+                            Target::Widget(hover_widget_id),
+                        );
+                    }
+                }),
+            );
+            self.collect_diagnostics(position, diagnostics, config);
+        }
     }
 
     /// Receive the result of a hover request
