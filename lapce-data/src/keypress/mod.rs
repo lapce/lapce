@@ -318,7 +318,7 @@ impl KeyPressData {
         focus: &mut T,
         env: &Env,
     ) -> bool {
-        println!("Keypress: {key_event:?}");
+        log::info!("Keypress: {key_event:?}");
 
         // We are removing Shift modifier since the character is already upper case.
         let mods = Self::get_key_modifiers(key_event);
@@ -393,12 +393,22 @@ impl KeyPressData {
 
         self.count = None;
 
-        if keypress.mods.is_empty() || keypress.mods == Modifiers::SHIFT {
+        #[cfg(not(target_os = "macos"))]
+        if (keypress.mods - Modifiers::SHIFT).is_empty() {
             if let druid::KbKey::Character(c) = &key_event.key {
                 focus.receive_char(ctx, c);
                 return true;
             }
         }
+
+        #[cfg(target_os = "macos")]
+        if (keypress.mods - (Modifiers::SHIFT | Modifiers::ALT)).is_empty() {
+            if let druid::KbKey::Character(c) = &key_event.key {
+                focus.receive_char(ctx, c);
+                return true;
+            }
+        }
+
         false
     }
 
