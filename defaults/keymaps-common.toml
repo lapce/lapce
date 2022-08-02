@@ -65,7 +65,7 @@ command = "scroll_down"
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]
-key = "alt+I"
+key = "alt+shift+i"
 command = "insert_cursor_end_of_line"
 mode = "i"
 
@@ -263,7 +263,7 @@ mode = "niv"
 when = "!search_focus && !modal_focus"
 
 [[keymaps]]
-key="Ctrl+c"
+key="ctrl+c"
 command = "normal_mode"
 mode = "niv"
 when = "!search_focus && !modal_focus"

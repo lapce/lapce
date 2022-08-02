@@ -5,7 +5,7 @@ key = "meta+p"
 command = "palette"
 
 [[keymaps]]
-key = "meta+P"
+key = "meta+shift+p"
 command = "palette.command"
 
 [[keymaps]]
@@ -28,7 +28,7 @@ key = "meta+z"
 command = "undo"
 
 [[keymaps]]
-key = "meta+Z"
+key = "meta+shift+z"
 command = "redo"
 
 [[keymaps]]
@@ -131,7 +131,7 @@ command = "select_current_line"
 mode = "i"
 
 [[keymaps]]
-key = "meta+L"
+key = "meta+shift+l"
 command = "select_all_current"
 mode = "i"
 
@@ -197,19 +197,19 @@ command = "show_code_actions"
 # --------------------------------- Display -------------------------------------------
 
 [[keymaps]]
-key = "meta+E"
+key = "meta+shift+e"
 command = "toggle_file_explorer_focus"
 
 [[keymaps]]
-key = "meta+F"
+key = "meta+shift+f"
 command = "toggle_search_focus"
 
 [[keymaps]]
-key = "meta+X"
+key = "meta+shift+x"
 command = "toggle_plugin_focus"
 
 [[keymaps]]
-key = "meta+M"
+key = "meta+shift+m"
 command = "toggle_problem_focus"
 
 # ------------------------------------ Navigation -------------------------------------
@@ -223,7 +223,7 @@ key = "meta+down"
 command = "document_end"
 
 [[keymaps]]
-key = "meta+O"
+key = "meta+shift+o"
 command = "palette.symbol"
 
 [[keymaps]]

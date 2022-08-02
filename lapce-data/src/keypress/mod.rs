@@ -279,17 +279,8 @@ impl KeyPressData {
 
     fn get_key_modifiers(key_event: &KeyEvent) -> Modifiers {
         // We only care about some modifiers
-        let mut mods = (Modifiers::ALT
-            | Modifiers::CONTROL
-            | Modifiers::SHIFT
-            | Modifiers::META)
-            & key_event.mods;
-
-        if matches!(key_event.key, KbKey::Shift | KbKey::Character(_)) {
-            mods.set(Modifiers::SHIFT, false);
-        }
-
-        mods
+        (Modifiers::ALT | Modifiers::CONTROL | Modifiers::SHIFT | Modifiers::META)
+            & key_event.mods
     }
 
     pub fn keypress(key_event: &KeyEvent) -> Option<KeyPress> {
@@ -402,9 +393,11 @@ impl KeyPressData {
         keypresses: &[KeyPress],
         check: &T,
     ) -> KeymapMatch {
+        let keypresses: Vec<KeyPress> =
+            keypresses.iter().map(KeyPress::to_lowercase).collect();
         let matches = self
             .keymaps
-            .get(keypresses)
+            .get(&keypresses)
             .map(|keymaps| {
                 keymaps
                     .iter()
