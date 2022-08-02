@@ -527,53 +527,53 @@ impl PluginCatalog {
     //     Ok(())
     // }
 
-        let local_plugin = plugin.clone();
-        let (tx, rx) = mpsc::channel();
+    //     let local_plugin = plugin.clone();
+    //     let (tx, rx) = mpsc::channel();
 
-        thread::spawn(move || loop {
-            match rx.recv() {
-                Ok(PluginTransmissionMessage::Initialize) => {
-                    let initialize = local_plugin
-                        .instance
-                        .exports
-                        .get_function("initialize")
-                        .unwrap();
-                    wasi_write_object(
-                        &local_plugin.env.wasi_env,
-                        &PluginInfo {
-                            os: std::env::consts::OS.to_string(),
-                            arch: std::env::consts::ARCH.to_string(),
-                            configuration: plugin_desc.clone().configuration,
-                        },
-                    );
-                    initialize.call(&[]).unwrap();
-                }
-                Ok(PluginTransmissionMessage::Stop) => {
-                    let stop = local_plugin.instance.exports.get_function("stop");
-                    if let Ok(stop_func) = stop {
-                        stop_func.call(&[]).unwrap();
-                    } else if let Some(Value::Object(conf)) =
-                        &plugin_desc.configuration
-                    {
-                        if let Some(Value::String(lang)) = conf.get("language_id") {
-                            local_plugin
-                                .env
-                                .dispatcher
-                                .lsp
-                                .lock()
-                                .stop_language_lsp(lang);
-                        }
-                    }
-                    break;
-                }
-                // There was an error when receiving, which means that the other end was closed.
-                // So we simply shutdown this thread by breaking out of the loop
-                Err(_) => break,
-            }
-        });
-        tx.send(PluginTransmissionMessage::Initialize)?;
-        Ok((plugin, tx))
-    }
+    //     thread::spawn(move || loop {
+    //         match rx.recv() {
+    //             Ok(PluginTransmissionMessage::Initialize) => {
+    //                 let initialize = local_plugin
+    //                     .instance
+    //                     .exports
+    //                     .get_function("initialize")
+    //                     .unwrap();
+    //                 wasi_write_object(
+    //                     &local_plugin.env.wasi_env,
+    //                     &PluginInfo {
+    //                         os: std::env::consts::OS.to_string(),
+    //                         arch: std::env::consts::ARCH.to_string(),
+    //                         configuration: plugin_desc.clone().configuration,
+    //                     },
+    //                 );
+    //                 initialize.call(&[]).unwrap();
+    //             }
+    //             Ok(PluginTransmissionMessage::Stop) => {
+    //                 let stop = local_plugin.instance.exports.get_function("stop");
+    //                 if let Ok(stop_func) = stop {
+    //                     stop_func.call(&[]).unwrap();
+    //                 } else if let Some(Value::Object(conf)) =
+    //                     &plugin_desc.configuration
+    //                 {
+    //                     if let Some(Value::String(lang)) = conf.get("language_id") {
+    //                         local_plugin
+    //                             .env
+    //                             .dispatcher
+    //                             .lsp
+    //                             .lock()
+    //                             .stop_language_lsp(lang);
+    //                     }
+    //                 }
+    //                 break;
+    //             }
+    //             // There was an error when receiving, which means that the other end was closed.
+    //             // So we simply shutdown this thread by breaking out of the loop
+    //             Err(_) => break,
+    //         }
+    //     });
+    //     tx.send(PluginTransmissionMessage::Initialize)?;
+    //     Ok((plugin, tx))
+    // }
 
     pub fn disable_plugin(
         &mut self,
