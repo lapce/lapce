@@ -279,8 +279,23 @@ impl KeyPressData {
 
     fn get_key_modifiers(key_event: &KeyEvent) -> Modifiers {
         // We only care about some modifiers
-        (Modifiers::ALT | Modifiers::CONTROL | Modifiers::SHIFT | Modifiers::META)
-            & key_event.mods
+        let mods = (Modifiers::ALT
+            | Modifiers::CONTROL
+            | Modifiers::SHIFT
+            | Modifiers::META)
+            & key_event.mods;
+
+        if mods == Modifiers::SHIFT {
+            if let druid::KbKey::Character(c) = &key_event.key {
+                if !c.chars().all(|c| c.is_alphabetic()) {
+                    // We remove the shift if there's only shift pressed,
+                    // and the character isn't a letter
+                    return Modifiers::empty();
+                }
+            }
+        }
+
+        mods
     }
 
     pub fn keypress(key_event: &KeyEvent) -> Option<KeyPress> {
