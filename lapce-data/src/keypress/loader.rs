@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 use indexmap::IndexMap;
 use lapce_core::mode::Modes;
-use toml_edit::easy as toml;
 
 use crate::keypress::{get_modes, keypress::KeyPress, KeyMap};
 
@@ -23,10 +22,10 @@ impl KeyMapLoader {
         s: &str,
         modal: bool,
     ) -> Result<&'a mut Self> {
-        let toml_keymaps: toml::Value = toml::from_str(s)?;
+        let toml_keymaps: toml_edit::Document = s.parse()?;
         let toml_keymaps = toml_keymaps
             .get("keymaps")
-            .and_then(|v| v.as_array())
+            .and_then(|v| v.as_array_of_tables())
             .ok_or_else(|| anyhow!("no keymaps"))?;
 
         for toml_keymap in toml_keymaps {
@@ -91,7 +90,10 @@ impl KeyMapLoader {
         (map, command_map)
     }
 
-    fn get_keymap(toml_keymap: &toml::Value, modal: bool) -> Result<Option<KeyMap>> {
+    fn get_keymap(
+        toml_keymap: &toml_edit::Table,
+        modal: bool,
+    ) -> Result<Option<KeyMap>> {
         let key = toml_keymap
             .get("key")
             .and_then(|v| v.as_str())

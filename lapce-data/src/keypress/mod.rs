@@ -15,7 +15,6 @@ use fuzzy_matcher::FuzzyMatcher;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::mode::{Mode, Modes};
-use toml_edit::easy as toml;
 
 mod keypress;
 mod loader;
@@ -484,12 +483,15 @@ impl KeyPressData {
         }
     }
 
-    fn get_file_array() -> Option<toml::value::Array> {
+    fn get_file_array() -> Option<toml_edit::ArrayOfTables> {
         let path = Self::file()?;
-        let content = std::fs::read(&path).ok()?;
-        let toml_value: toml::Value = toml::from_slice(&content).ok()?;
-        let table = toml_value.as_table()?;
-        table.get("keymaps")?.as_array().cloned()
+        let content = std::fs::read_to_string(path).ok()?;
+        let document: toml_edit::Document = content.parse().ok()?;
+        document
+            .as_table()
+            .get("keymaps")?
+            .as_array_of_tables()
+            .cloned()
     }
 
     pub fn filter_commands(&mut self, pattern: &str) {
@@ -541,7 +543,7 @@ impl KeyPressData {
 
     pub fn update_file(keymap: &KeyMap, keys: &[KeyPress]) -> Option<()> {
         let mut array = Self::get_file_array().unwrap_or_default();
-        if let Some(index) = array.iter().position(|value| {
+        let index = array.iter().position(|value| {
             Some(keymap.command.as_str())
                 == value.get("command").and_then(|c| c.as_str())
                 && keymap.when.as_deref()
@@ -552,67 +554,72 @@ impl KeyPressData {
                         .get("key")
                         .and_then(|v| v.as_str())
                         .map(KeyPress::parse)
-        }) {
+        });
+
+        if let Some(index) = index {
             if !keys.is_empty() {
-                array[index].as_table_mut()?.insert(
-                    "key".to_string(),
-                    toml::Value::String(
+                array.get_mut(index)?.insert(
+                    "key",
+                    toml_edit::value(toml_edit::Value::from(
                         keys.iter().map(|k| k.to_string()).join(" "),
-                    ),
+                    )),
                 );
             } else {
                 array.remove(index);
             };
         } else {
-            let mut table = toml::value::Table::new();
+            let mut table = toml_edit::Table::new();
             table.insert(
-                "command".to_string(),
-                toml::Value::String(keymap.command.clone()),
+                "command",
+                toml_edit::value(toml_edit::Value::from(keymap.command.clone())),
             );
             if !keymap.modes.is_empty() {
                 table.insert(
-                    "mode".to_string(),
-                    toml::Value::String(keymap.modes.to_string()),
+                    "mode",
+                    toml_edit::value(toml_edit::Value::from(
+                        keymap.modes.to_string(),
+                    )),
                 );
             }
             if let Some(when) = keymap.when.as_ref() {
                 table.insert(
-                    "when".to_string(),
-                    toml::Value::String(when.to_string()),
+                    "when",
+                    toml_edit::value(toml_edit::Value::from(when.to_string())),
                 );
             }
 
             if !keys.is_empty() {
                 table.insert(
-                    "key".to_string(),
-                    toml::Value::String(
+                    "key",
+                    toml_edit::value(toml_edit::Value::from(
                         keys.iter().map(|k| k.to_string()).join(" "),
-                    ),
+                    )),
                 );
-                array.push(toml::Value::Table(table.clone()));
+                array.push(table.clone());
             }
 
             if !keymap.key.is_empty() {
                 table.insert(
-                    "key".to_string(),
-                    toml::Value::String(
+                    "key",
+                    toml_edit::value(toml_edit::Value::from(
                         keymap.key.iter().map(|k| k.to_string()).join(" "),
-                    ),
+                    )),
                 );
                 table.insert(
-                    "command".to_string(),
-                    toml::Value::String(format!("-{}", keymap.command)),
+                    "command",
+                    toml_edit::value(toml_edit::Value::from(format!(
+                        "-{}",
+                        keymap.command
+                    ))),
                 );
-                array.push(toml::Value::Table(table.clone()));
+                array.push(table.clone());
             }
         }
 
-        let mut table = toml::value::Table::new();
-        table.insert("keymaps".to_string(), toml::Value::Array(array));
-        let value = toml::Value::Table(table);
-
+        let mut table = toml_edit::Document::new();
+        table.insert("keymaps", toml_edit::Item::ArrayOfTables(array));
         let path = Self::file()?;
-        std::fs::write(&path, toml::to_string(&value).ok()?.as_bytes()).ok()?;
+        std::fs::write(&path, table.to_string().as_bytes()).ok()?;
         None
     }
 
@@ -703,7 +710,7 @@ impl KeyPressFocus for DefaultKeyPressHandler {
     fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
-fn get_modes(toml_keymap: &toml::Value) -> Modes {
+fn get_modes(toml_keymap: &toml_edit::Table) -> Modes {
     toml_keymap
         .get("mode")
         .and_then(|v| v.as_str())
