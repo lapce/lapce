@@ -1085,12 +1085,12 @@ impl LapceTabData {
             LapceWorkbenchCommand::EnableModal => {
                 let config = Arc::make_mut(&mut self.config);
                 config.lapce.modal = true;
-                Config::update_file("lapce", "modal", toml::Value::Boolean(true));
+                Config::update_file("lapce", "modal", toml_edit::Value::from(true));
             }
             LapceWorkbenchCommand::DisableModal => {
                 let config = Arc::make_mut(&mut self.config);
                 config.lapce.modal = false;
-                Config::update_file("lapce", "modal", toml::Value::Boolean(false));
+                Config::update_file("lapce", "modal", toml_edit::Value::from(false));
             }
             LapceWorkbenchCommand::ChangeTheme => {
                 ctx.submit_command(Command::new(
@@ -1463,7 +1463,7 @@ impl LapceTabData {
                 Config::update_file(
                     "editor",
                     "enable-inlay-hints",
-                    toml::Value::Boolean(config.editor.enable_inlay_hints),
+                    toml_edit::Value::from(config.editor.enable_inlay_hints),
                 );
             }
         }

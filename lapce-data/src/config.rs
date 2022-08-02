@@ -872,23 +872,24 @@ impl Config {
         Some(path)
     }
 
-    fn get_file_table() -> Option<toml::value::Table> {
+    fn get_file_table() -> Option<toml_edit::Document> {
         let path = Self::settings_file()?;
-        let content = std::fs::read(&path).ok()?;
-        let toml_value: toml::Value = toml::from_slice(&content).ok()?;
-        let table = toml_value.as_table()?.clone();
-        Some(table)
+        let content = std::fs::read_to_string(path).ok()?;
+        let document: toml_edit::Document = content.parse().ok()?;
+        Some(document)
     }
 
     pub fn reset_setting(parent: &str, key: &str) -> Option<()> {
         let mut main_table = Self::get_file_table().unwrap_or_default();
 
         // Find the container table
-        let mut table = &mut main_table;
+        let mut table = main_table.as_table_mut();
         for key in parent.split('.') {
             if !table.contains_key(key) {
-                table
-                    .insert(key.to_string(), toml::Value::Table(Default::default()));
+                table.insert(
+                    key,
+                    toml_edit::Item::Table(toml_edit::Table::default()),
+                );
             }
             table = table.get_mut(key)?.as_table_mut()?;
         }
@@ -897,30 +898,36 @@ impl Config {
 
         // Store
         let path = Self::settings_file()?;
-        std::fs::write(&path, toml::to_string(&main_table).ok()?.as_bytes()).ok()?;
+        std::fs::write(&path, main_table.to_string().as_bytes()).ok()?;
 
         Some(())
     }
 
-    pub fn update_file(parent: &str, key: &str, value: toml::Value) -> Option<()> {
+    pub fn update_file(
+        parent: &str,
+        key: &str,
+        value: toml_edit::Value,
+    ) -> Option<()> {
         let mut main_table = Self::get_file_table().unwrap_or_default();
 
         // Find the container table
-        let mut table = &mut main_table;
+        let mut table = main_table.as_table_mut();
         for key in parent.split('.') {
             if !table.contains_key(key) {
-                table
-                    .insert(key.to_string(), toml::Value::Table(Default::default()));
+                table.insert(
+                    key,
+                    toml_edit::Item::Table(toml_edit::Table::default()),
+                );
             }
             table = table.get_mut(key)?.as_table_mut()?;
         }
 
         // Update key
-        table.insert(key.to_string(), value);
+        table.insert(key, toml_edit::Item::Value(value));
 
         // Store
         let path = Self::settings_file()?;
-        std::fs::write(&path, toml::to_string(&main_table).ok()?.as_bytes()).ok()?;
+        std::fs::write(&path, main_table.to_string().as_bytes()).ok()?;
 
         Some(())
     }
@@ -941,7 +948,7 @@ impl Config {
             && Config::update_file(
                 "lapce",
                 "color-theme",
-                toml::Value::String(theme.to_string()),
+                toml_edit::Value::from(theme),
             )
             .is_none()
         {

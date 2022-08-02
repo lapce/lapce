@@ -40,8 +40,6 @@ use lapce_data::{
 };
 use lapce_rpc::plugin::PluginDescription;
 use lsp_types::DiagnosticSeverity;
-use serde::Deserialize;
-use toml_edit::easy as toml;
 use xi_rope::Rope;
 
 use crate::{
@@ -1168,7 +1166,10 @@ impl LapceTab {
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateSettingsFile(parent, key, value) => {
-                        if let Ok(value) = toml::Value::deserialize(value) {
+                        if let Some(value) = toml_edit::ser::to_item(value)
+                            .ok()
+                            .and_then(|i| i.into_value().ok())
+                        {
                             let update_result =
                                 Config::update_file(parent, key, value);
                             debug_assert!(update_result.is_some());
