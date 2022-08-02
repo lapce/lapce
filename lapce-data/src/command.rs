@@ -1,7 +1,9 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-use druid::{FileInfo, Point, Rect, Selector, SingleUse, Size, WidgetId, WindowId};
+use druid::{
+    EventCtx, FileInfo, Point, Rect, Selector, SingleUse, Size, WidgetId, WindowId,
+};
 use indexmap::IndexMap;
 use lapce_core::buffer::DiffLines;
 use lapce_core::command::{
@@ -23,9 +25,9 @@ use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use xi_rope::{spans::Spans, Rope};
 
 use crate::alert::AlertContentData;
-use crate::data::LapceWorkspace;
+use crate::data::{LapceTabData, LapceWorkspace};
 use crate::document::BufferContent;
-use crate::editor::{Line, LineCol};
+use crate::editor::{EditorPosition, Line, LineCol};
 use crate::menu::MenuKind;
 use crate::rich_text::RichText;
 use crate::{
@@ -427,31 +429,14 @@ pub enum LapceUICommand {
     InitChildren,
     InitTerminalPanel(bool),
     ReloadConfig,
-    InitBufferContent {
-        path: PathBuf,
-        content: Rope,
-        locations: Vec<(WidgetId, EditorLocation)>,
-        edits: Option<Rope>,
-    },
-    InitBufferContentLine {
-        path: PathBuf,
-        content: Rope,
-        locations: Vec<(WidgetId, EditorLocation<Line>)>,
-        edits: Option<Rope>,
-    },
-    InitBufferContentLineCol {
-        path: PathBuf,
-        content: Rope,
-        locations: Vec<(WidgetId, EditorLocation<LineCol>)>,
-        edits: Option<Rope>,
-    },
-    /// Init buffer content but using lsp positions instead
-    InitBufferContentLsp {
-        path: PathBuf,
-        content: Rope,
-        locations: Vec<(WidgetId, EditorLocation<Position>)>,
-        edits: Option<Rope>,
-    },
+    /// UTF8 offsets into the file
+    InitBufferContent(InitBufferContent<usize>),
+    /// Start of line position
+    InitBufferContentLine(InitBufferContent<Line>),
+    /// Line and UTF8 Column Positions
+    InitBufferContentLineCol(InitBufferContent<LineCol>),
+    /// UTF16 LSP positions
+    InitBufferContentLsp(InitBufferContent<Position>),
     OpenFileChanged {
         path: PathBuf,
         content: Rope,
@@ -665,4 +650,37 @@ pub enum LapceUICommand {
         apply_naming: bool,
     },
     SetLanguage(String),
+}
+
+pub struct InitBufferContent<P: EditorPosition> {
+    pub path: PathBuf,
+    pub content: Rope,
+    pub locations: Vec<(WidgetId, EditorLocation<P>)>,
+    pub edits: Option<Rope>,
+}
+impl<P: EditorPosition + Clone + Send + 'static> InitBufferContent<P> {
+    pub fn execute(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        let doc = data.main_split.open_docs.get_mut(&self.path).unwrap();
+        let doc = Arc::make_mut(doc);
+        doc.init_content(self.content.to_owned());
+
+        if let Some(rope) = &self.edits {
+            doc.reload(rope.clone(), false);
+        }
+        if let BufferContent::File(path) = doc.content() {
+            if let Some(d) = data.main_split.diagnostics.get(path) {
+                doc.set_diagnostics(d);
+            }
+        }
+
+        for (view_id, location) in &self.locations {
+            data.main_split.go_to_location(
+                ctx,
+                Some(*view_id),
+                location.clone(),
+                &data.config,
+            );
+        }
+        ctx.set_handled();
+    }
 }

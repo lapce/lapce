@@ -20,7 +20,9 @@ use crate::palette::PaletteData;
 use crate::proxy::path_from_url;
 use crate::proxy::RequestError;
 use crate::{
-    command::{EnsureVisiblePosition, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        EnsureVisiblePosition, InitBufferContent, LapceUICommand, LAPCE_UI_COMMAND,
+    },
     split::SplitMoveDirection,
 };
 use crate::{find::Find, split::SplitDirection};
@@ -103,12 +105,12 @@ impl EditorPosition for usize {
         locations: Vec<(WidgetId, EditorLocation<Self>)>,
         unsaved_buffers: Option<Rope>,
     ) -> LapceUICommand {
-        LapceUICommand::InitBufferContent {
+        LapceUICommand::InitBufferContent(InitBufferContent {
             path,
             content,
             locations,
             edits: unsaved_buffers,
-        }
+        })
     }
 }
 
@@ -127,12 +129,12 @@ impl EditorPosition for Line {
         locations: Vec<(WidgetId, EditorLocation<Self>)>,
         edits: Option<Rope>,
     ) -> LapceUICommand {
-        LapceUICommand::InitBufferContentLine {
+        LapceUICommand::InitBufferContentLine(InitBufferContent {
             path,
             content,
             locations,
             edits,
-        }
+        })
     }
 }
 
@@ -153,12 +155,12 @@ impl EditorPosition for LineCol {
         locations: Vec<(WidgetId, EditorLocation<Self>)>,
         edits: Option<Rope>,
     ) -> LapceUICommand {
-        LapceUICommand::InitBufferContentLineCol {
+        LapceUICommand::InitBufferContentLineCol(InitBufferContent {
             path,
             content,
             locations,
             edits,
-        }
+        })
     }
 }
 
@@ -173,12 +175,12 @@ impl EditorPosition for Position {
         locations: Vec<(WidgetId, EditorLocation<Self>)>,
         edits: Option<Rope>,
     ) -> LapceUICommand {
-        LapceUICommand::InitBufferContentLsp {
+        LapceUICommand::InitBufferContentLsp(InitBufferContent {
             path,
             content,
             locations,
             edits,
-        }
+        })
     }
 }
 
