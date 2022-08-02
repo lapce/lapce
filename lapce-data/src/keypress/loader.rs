@@ -129,14 +129,35 @@ mod tests {
     #[test]
     fn test_keymap() {
         let keymaps = r###"
-keymaps = [
-    { key = "ctrl+w l l", command = "right", when = "n" },
-    { key = "ctrl+w l", command = "right", when = "n" },
-    { key = "ctrl+w h", command = "left", when = "n" },
-    { key = "ctrl+w",   command = "left", when = "n" },
-    { key = "End", command = "line_end", when = "n" },
-    { key = "I", command = "insert_first_non_blank", when = "n" },
-]
+[[keymaps]]
+key = "ctrl+w l l"
+command = "right"
+when = "n"
+
+[[keymaps]]
+key = "ctrl+w l"
+command = "right"
+when = "n"
+
+[[keymaps]]
+key = "ctrl+w h"
+command = "left"
+when = "n"
+
+[[keymaps]]
+key = "ctrl+w"
+command = "left"
+when = "n"
+
+[[keymaps]]
+key = "End"
+command = "line_end"
+when = "n"
+
+[[keymaps]]
+key = "shift+i"
+command = "insert_first_non_blank"
+when = "n"
         "###;
         let mut loader = KeyMapLoader::new();
         loader.load_from_str(keymaps, true).unwrap();
@@ -176,7 +197,7 @@ keymaps = [
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
         // No modifier
-        let keypress = KeyPress::parse("I");
+        let keypress = KeyPress::parse("shift+i");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
     }
 }
