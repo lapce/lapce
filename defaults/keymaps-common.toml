@@ -280,7 +280,7 @@ command = "palette.command"
 mode = "n"
 
 [[keymaps]]
-key = "G"
+key = "shift+g"
 command = "go_to_line_default_last"
 mode = "nv"
 
@@ -315,7 +315,7 @@ command = "append"
 mode = "n"
 
 [[keymaps]]
-key = "A"
+key = "shift+a"
 command = "append_end_of_line"
 mode = "n"
 
@@ -360,7 +360,7 @@ command = "paste"
 mode = "nv"
 
 [[keymaps]]
-key = "J"
+key = "shift+j"
 command = "join_lines"
 mode = "n"
 
@@ -385,7 +385,7 @@ command = "delete_forward_and_insert"
 mode = "nv"
 
 [[keymaps]]
-key = "I"
+key = "shift+i"
 command = "insert_first_non_blank"
 mode = "nv"
 
@@ -425,7 +425,7 @@ command = "word_backward"
 mode = "nv"
 
 [[keymaps]]
-key = "O"
+key = "shift+o"
 command = "new_line_above"
 mode = "nv"
 
@@ -475,7 +475,7 @@ command = "inline_find_right"
 mode = "nv"
 
 [[keymaps]]
-key = "F"
+key = "shift+f"
 command = "inline_find_left"
 mode = "nv"
 
@@ -515,7 +515,7 @@ command = "search_forward"
 mode = "nv"
 
 [[keymaps]]
-key = "N"
+key = "shift+n"
 command = "search_backward"
 mode = "nv"
 
@@ -550,7 +550,7 @@ command = "toggle_visual_mode"
 mode = "nv"
 
 [[keymaps]]
-key = "V"
+key = "shift+v"
 command = "toggle_linewise_visual_mode"
 mode = "nv"
 
