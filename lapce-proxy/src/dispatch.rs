@@ -222,19 +222,34 @@ impl ProxyHandler for NewDispatcher {
                     proxy_rpc.handle_response(id, result);
                 });
             }
-            GetSignature {
-                buffer_id,
-                position,
-            } => todo!(),
-            GetReferences {
-                buffer_id,
-                position,
-            } => todo!(),
+            GetSignature { .. } => todo!(),
+            GetReferences { path, position } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc
+                    .get_references(&path, position, move |result| {
+                        let result = result.map(|references| {
+                            CoreProxyResponse::GetReferencesResponse { references }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    });
+            }
             GetDefinition {
                 request_id,
-                buffer_id,
+                path,
                 position,
-            } => todo!(),
+            } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc
+                    .get_definition(&path, position, move |result| {
+                        let result = result.map(|definition| {
+                            CoreProxyResponse::GetDefinitionResponse {
+                                request_id,
+                                definition,
+                            }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    });
+            }
             GetTypeDefinition {
                 request_id,
                 buffer_id,
@@ -936,25 +951,8 @@ impl Dispatcher {
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_signature(id, buffer, position);
             }
-            GetReferences {
-                buffer_id,
-                position,
-            } => {
-                let buffers = self.buffers.lock();
-                let buffer = buffers.get(&buffer_id).unwrap();
-                self.lsp.lock().get_references(id, buffer, position);
-            }
-            GetDefinition {
-                buffer_id,
-                position,
-                request_id,
-            } => {
-                let buffers = self.buffers.lock();
-                let buffer = buffers.get(&buffer_id).unwrap();
-                self.lsp
-                    .lock()
-                    .get_definition(id, request_id, buffer, position);
-            }
+            GetReferences { .. } => {}
+            GetDefinition { .. } => {}
             GetTypeDefinition {
                 request_id,
                 buffer_id,

@@ -12,11 +12,15 @@ use lapce_rpc::plugin::{PluginDescription, PluginId};
 use lapce_rpc::proxy::ProxyRpcHandler;
 use lapce_rpc::{RequestId, RpcError, RpcMessage};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
-use lsp_types::request::{Completion, HoverRequest, Request, ResolveCompletionItem};
+use lsp_types::request::{
+    Completion, GotoDefinition, HoverRequest, References, Request,
+    ResolveCompletionItem,
+};
 use lsp_types::{
     CompletionItem, CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
-    Hover, HoverParams, PartialResultParams, Position, TextDocumentIdentifier,
-    TextDocumentItem, TextDocumentPositionParams, Url,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, Location,
+    PartialResultParams, Position, ReferenceContext, ReferenceParams,
+    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, Url,
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use parking_lot::Mutex;
@@ -253,6 +257,53 @@ impl PluginCatalogRpcHandler {
                 text,
                 new_text,
             });
+    }
+
+    pub fn get_definition(
+        &self,
+        path: &Path,
+        position: Position,
+        cb: impl FnOnce(Result<GotoDefinitionResponse, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = GotoDefinition::METHOD;
+        let params = GotoDefinitionParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+
+        self.send_request_to_all_plugins(method, params, cb);
+    }
+
+    pub fn get_references(
+        &self,
+        path: &Path,
+        position: Position,
+        cb: impl FnOnce(Result<Vec<Location>, RpcError>) + Clone + Send + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = References::METHOD;
+        let params = ReferenceParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: ReferenceContext {
+                include_declaration: false,
+            },
+        };
+
+        eprintln!("send get refenreces to plugins");
+        self.send_request_to_all_plugins(method, params, cb);
     }
 
     pub fn hover(

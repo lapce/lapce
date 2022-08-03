@@ -18,11 +18,14 @@ use lsp_types::{
     notification::{
         DidChangeTextDocument, DidOpenTextDocument, Initialized, Notification,
     },
-    request::{Completion, HoverRequest, Initialize, ResolveCompletionItem},
+    request::{
+        Completion, GotoDefinition, HoverRequest, Initialize, References,
+        ResolveCompletionItem,
+    },
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, HoverProviderCapability,
-    InitializeResult, Range, ServerCapabilities, TextDocumentContentChangeEvent,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    VersionedTextDocumentIdentifier,
+    InitializeResult, OneOf, Range, ServerCapabilities,
+    TextDocumentContentChangeEvent, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextDocumentSyncOptions, VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::{Request, StartLspServer, StartLspServerParams};
@@ -440,6 +443,24 @@ impl PluginHostHandler {
                 .map(|c| match c {
                     HoverProviderCapability::Simple(is_capable) => *is_capable,
                     HoverProviderCapability::Options(_) => true,
+                })
+                .unwrap_or(false),
+            GotoDefinition::METHOD => self
+                .server_capabilities
+                .definition_provider
+                .as_ref()
+                .map(|d| match d {
+                    OneOf::Left(is_capable) => *is_capable,
+                    OneOf::Right(_) => true,
+                })
+                .unwrap_or(false),
+            References::METHOD => self
+                .server_capabilities
+                .references_provider
+                .as_ref()
+                .map(|r| match r {
+                    OneOf::Left(is_capable) => *is_capable,
+                    OneOf::Right(_) => true,
                 })
                 .unwrap_or(false),
             _ => false,

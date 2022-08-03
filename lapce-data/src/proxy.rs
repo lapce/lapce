@@ -812,24 +812,6 @@ impl LapceProxy {
         );
     }
 
-    pub fn get_completion(
-        &self,
-        request_id: usize,
-        buffer_id: BufferId,
-        position: Position,
-        f: impl FnOnce(Result<CompletionResponse, RequestError>) + Send + 'static,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "get_completion",
-            &json!({
-                "request_id": request_id,
-                "buffer_id": buffer_id,
-                "position": position,
-            }),
-            box_json_cb(f),
-        );
-    }
-
     pub fn get_signature(
         &self,
         buffer_id: BufferId,
@@ -843,40 +825,6 @@ impl LapceProxy {
                 "position": position,
             }),
             f,
-        );
-    }
-
-    pub fn get_references(
-        &self,
-        buffer_id: BufferId,
-        position: Position,
-        f: impl FnOnce(Result<Vec<Location>, RequestError>) + Send + 'static,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "get_references",
-            &json!({
-                "buffer_id": buffer_id,
-                "position": position,
-            }),
-            box_json_cb(f),
-        );
-    }
-
-    pub fn get_definition(
-        &self,
-        request_id: usize,
-        buffer_id: BufferId,
-        position: Position,
-        f: impl FnOnce(Result<GotoDefinitionResponse, RequestError>) + Send + 'static,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "get_definition",
-            &json!({
-                "request_id": request_id,
-                "buffer_id": buffer_id,
-                "position": position,
-            }),
-            box_json_cb(f),
         );
     }
 

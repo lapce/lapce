@@ -8,7 +8,10 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender};
-use lsp_types::{CompletionItem, Hover, Position, TextDocumentItem};
+use lsp_types::{
+    CompletionItem, GotoDefinitionResponse, Hover, Location, Position,
+    TextDocumentItem,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -62,12 +65,12 @@ pub enum CoreProxyRequest {
         position: Position,
     },
     GetReferences {
-        buffer_id: BufferId,
+        path: PathBuf,
         position: Position,
     },
     GetDefinition {
         request_id: usize,
-        buffer_id: BufferId,
+        path: PathBuf,
         position: Position,
     },
     GetTypeDefinition {
@@ -205,6 +208,13 @@ pub enum CoreProxyResponse {
         request_id: usize,
         hover: Hover,
     },
+    GetDefinitionResponse {
+        request_id: usize,
+        definition: GotoDefinitionResponse,
+    },
+    GetReferencesResponse {
+        references: Vec<Location>,
+    },
     GetFilesResponse {
         items: Vec<PathBuf>,
     },
@@ -322,7 +332,8 @@ impl ProxyRpcHandler {
         id: RequestId,
         result: Result<CoreProxyResponse, RpcError>,
     ) {
-        if let Some(handler) = { self.pending.lock().remove(&id) } {
+        let handler = { self.pending.lock().remove(&id) };
+        if let Some(handler) = handler {
             handler.invoke(result);
         }
     }
@@ -455,6 +466,34 @@ impl ProxyRpcHandler {
             },
             f,
         );
+    }
+
+    pub fn get_definition(
+        &self,
+        request_id: usize,
+        path: PathBuf,
+        position: Position,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            CoreProxyRequest::GetDefinition {
+                request_id,
+                path,
+                position,
+            },
+            f,
+        );
+    }
+
+    pub fn get_references(
+        &self,
+        path: PathBuf,
+        position: Position,
+        f: impl ProxyCallback + 'static,
+    ) {
+        println!("send get references to proxy");
+        self.request_async(CoreProxyRequest::GetReferences { path, position }, f);
+        println!("send get references to proxy done");
     }
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {
