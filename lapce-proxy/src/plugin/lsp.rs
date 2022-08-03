@@ -381,18 +381,6 @@ impl<F: Send + FnOnce(&LspClient, Result<Value>)> Callable for F {
     }
 }
 
-pub struct NewLspCatalog {}
-
-impl NewHandler<LspRequest, LspNotification, LspResponse> for NewLspCatalog {
-    fn handle_notification(&mut self, rpc: LspNotification) {
-        todo!()
-    }
-
-    fn handle_request(&mut self, rpc: LspRequest) {
-        todo!()
-    }
-}
-
 pub struct LspCatalog {
     pub dispatcher: Option<Dispatcher>,
     clients: HashMap<String, Arc<LspClient>>,

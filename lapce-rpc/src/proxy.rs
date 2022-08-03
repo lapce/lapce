@@ -14,17 +14,15 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use xi_rope::RopeDelta;
 
 use crate::{
     buffer::BufferId,
-    core::CoreResponse,
     file::FileNodeItem,
-    plugin::{PluginDescription, PluginId, PluginResponse},
+    plugin::{PluginDescription, PluginId},
     source_control::FileDiff,
     terminal::TermId,
-    RequestId, RpcError, RpcMessage,
+    RequestId, RpcError,
 };
 
 enum ProxyRpcMessage {
@@ -414,7 +412,7 @@ impl ProxyRpcHandler {
 
     pub fn get_buffer_head(
         &self,
-        buffer_id: BufferId,
+        _buffer_id: BufferId,
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {

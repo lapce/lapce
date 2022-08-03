@@ -19,7 +19,6 @@ use crate::keypress::KeyMap;
 use crate::keypress::KeyPressFocus;
 use crate::palette::PaletteData;
 use crate::proxy::path_from_url;
-use crate::proxy::RequestError;
 use crate::{
     command::{
         EnsureVisiblePosition, InitBufferContent, LapceUICommand, LAPCE_UI_COMMAND,
@@ -1232,7 +1231,6 @@ impl LapceEditorBufferData {
             let format_on_save = self.config.editor.format_on_save;
             let path = path.clone();
             let proxy = self.proxy.clone();
-            let buffer_id = self.doc.id();
             let rev = self.doc.rev();
             let event_sink = ctx.get_external_handle();
             let view_id = self.editor.view_id;

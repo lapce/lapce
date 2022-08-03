@@ -27,11 +27,8 @@ use lapce_rpc::{Callback, RpcMessage, RpcObject};
 use lapce_rpc::{ControlFlow, Handler};
 use lsp_types::request::GotoTypeDefinitionResponse;
 use lsp_types::Position;
-use lsp_types::{
-    CodeActionResponse, CompletionResponse, DocumentSymbolResponse,
-    GotoDefinitionResponse, InlayHint, SymbolInformation, TextEdit,
-};
-use lsp_types::{Location, Url};
+use lsp_types::Url;
+use lsp_types::{DocumentSymbolResponse, InlayHint, SymbolInformation};
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 use serde_json::json;
@@ -170,10 +167,10 @@ impl CoreHandler for LapceProxy {
                     LapceUICommand::UpdateInstalledPlugins(plugins.clone()),
                     Target::Widget(self.tab_id),
                 );
-                let plugins_desc = plugins
-                    .iter()
-                    .map(|(_, desc)| desc.to_owned())
-                    .collect::<Vec<PluginDescription>>();
+                // let plugins_desc = plugins
+                //     .iter()
+                //     .map(|(_, desc)| desc.to_owned())
+                //     .collect::<Vec<PluginDescription>>();
                 // let _ = self.event_sink.submit_command(
                 //     LAPCE_UI_COMMAND,
                 //     LapceUICommand::UpdateInstalledPluginDescriptions(Some(

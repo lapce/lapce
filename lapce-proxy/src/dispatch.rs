@@ -50,6 +50,7 @@ pub struct NewDispatcher {
     core_rpc: CoreRpcHandler,
     catalog_rpc: PluginCatalogRpcHandler,
     buffers: HashMap<PathBuf, Buffer>,
+    #[allow(deprecated)]
     terminals: HashMap<TermId, mio::channel::Sender<Msg>>,
 }
 

@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fmt::Display, sync::Arc};
+use std::fmt::Display;
 
 use anyhow::Error;
 use druid::{
@@ -17,7 +17,7 @@ use lapce_data::{
     markdown::parse_markdown,
     rich_text::{RichText, RichTextBuilder},
 };
-use lsp_types::{CompletionItem, Documentation, MarkupKind};
+use lsp_types::{Documentation, MarkupKind};
 use regex::Regex;
 use std::str::FromStr;
 

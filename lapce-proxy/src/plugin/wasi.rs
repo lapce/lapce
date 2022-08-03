@@ -203,7 +203,7 @@ fn start_plugin(
         env: plugin_env.clone(),
         host: PluginHostHandler::new(
             workspace,
-            plugin_desc.dir.clone(),
+            plugin_desc.dir,
             rpc.clone(),
             plugin_rpc.clone(),
         ),
@@ -220,7 +220,7 @@ fn start_plugin(
         // let _ = start_function.call(&[]);
     });
 
-    let wasi_env = plugin_env.wasi_env.clone();
+    let wasi_env = plugin_env.wasi_env;
     let handle_rpc = plugin
         .instance
         .exports

@@ -48,7 +48,7 @@ impl<Req: Serialize, Notif: Serialize, Resp: Serialize>
             RpcMessage::Request(id, req) => {
                 let mut msg = serde_json::to_value(req)?;
                 msg.as_object_mut()
-                    .ok_or(anyhow::anyhow!(""))?
+                    .ok_or_else(|| anyhow::anyhow!(""))?
                     .insert("id".into(), (*id).into());
                 msg
             }
