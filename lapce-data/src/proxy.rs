@@ -906,20 +906,6 @@ impl LapceProxy {
         );
     }
 
-    pub fn get_document_formatting(
-        &self,
-        buffer_id: BufferId,
-        f: impl FnOnce(Result<Vec<TextEdit>, RequestError>) + Send + 'static,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "get_document_formatting",
-            &json!({
-                "buffer_id": buffer_id,
-            }),
-            box_json_cb(f),
-        );
-    }
-
     pub fn stop(&self) {
         self.rpc.send_rpc_notification("shutdown", &json!({}));
         // self.core_sender.send(json!({
