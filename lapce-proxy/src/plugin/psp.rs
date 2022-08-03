@@ -328,7 +328,7 @@ pub fn handle_plugin_server_message(
     server_rpc: &PluginServerRpcHandler,
     message: &str,
 ) {
-    let rpc = match JsonRpc::parse(message) {
+    match JsonRpc::parse(message) {
         Ok(value @ JsonRpc::Request(_)) => {
             let id = number_from_id(&value.get_id().unwrap());
             let rpc = PluginServerRpc::HostRequest {
@@ -364,7 +364,7 @@ pub fn handle_plugin_server_message(
         Err(err) => {
             eprintln!("parse error {err}");
         }
-    };
+    }
 }
 
 pub struct PluginHostHandler {

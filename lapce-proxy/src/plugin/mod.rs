@@ -27,7 +27,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
 use toml_edit::easy as toml;
@@ -49,6 +49,7 @@ pub type PluginName = String;
 pub enum PluginCatalogRpc {
     ServerRequest {
         plugin_id: Option<PluginId>,
+        request_sent: Option<Arc<AtomicUsize>>,
         method: &'static str,
         params: Value,
         f: Box<dyn ClonableCallback>,
@@ -123,11 +124,18 @@ impl PluginCatalogRpcHandler {
             match msg {
                 PluginCatalogRpc::ServerRequest {
                     plugin_id,
+                    request_sent,
                     method,
                     params,
                     f,
                 } => {
-                    plugin.handle_server_request(plugin_id, method, params, f);
+                    plugin.handle_server_request(
+                        plugin_id,
+                        request_sent,
+                        method,
+                        params,
+                        f,
+                    );
                 }
                 PluginCatalogRpc::ServerNotification { method, params } => {
                     plugin.handle_server_notification(method, params);
@@ -159,9 +167,57 @@ impl PluginCatalogRpcHandler {
         let _ = self.plugin_tx.send(rpc);
     }
 
+    fn send_request_to_all_plugins<P, Resp>(
+        &self,
+        method: &'static str,
+        params: P,
+        cb: impl FnOnce(Result<Resp, RpcError>) + Clone + Send + 'static,
+    ) where
+        P: Serialize,
+        Resp: DeserializeOwned,
+    {
+        let got_success = Arc::new(AtomicBool::new(false));
+        let request_sent = Arc::new(AtomicUsize::new(0));
+        let err_received = Arc::new(AtomicUsize::new(0));
+        self.send_request(
+            None,
+            Some(request_sent.clone()),
+            method,
+            params,
+            move |_, result| {
+                if got_success.load(Ordering::Acquire) {
+                    return;
+                }
+                let result = match result {
+                    Ok(value) => {
+                        if let Ok(item) = serde_json::from_value::<Resp>(value) {
+                            got_success.store(true, Ordering::Release);
+                            Ok(item)
+                        } else {
+                            Err(RpcError {
+                                code: 0,
+                                message: "deserialize error".to_string(),
+                            })
+                        }
+                    }
+                    Err(e) => Err(e),
+                };
+                if result.is_ok() {
+                    cb(result)
+                } else {
+                    let rx = err_received.fetch_add(1, Ordering::Relaxed);
+                    if request_sent.load(Ordering::Acquire) == rx {
+                        cb(result)
+                    }
+                }
+            },
+        );
+    }
+
     fn send_request<P: Serialize>(
         &self,
         plugin_id: Option<PluginId>,
+        request_sent: Option<Arc<AtomicUsize>>,
         method: &'static str,
         params: P,
         f: impl FnOnce(PluginId, Result<Value, RpcError>) + Send + DynClone + 'static,
@@ -169,6 +225,7 @@ impl PluginCatalogRpcHandler {
         let params = serde_json::to_value(params).unwrap();
         let rpc = PluginCatalogRpc::ServerRequest {
             plugin_id,
+            request_sent,
             method,
             params,
             f: Box::new(f),
@@ -214,29 +271,7 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
 
-        let got_success = Arc::new(AtomicBool::new(false));
-        self.send_request(None, method, params, move |_, result| {
-            if got_success.load(Ordering::Acquire) {
-                return;
-            }
-            let result = match result {
-                Ok(value) => {
-                    if let Ok(item) = serde_json::from_value::<Hover>(value) {
-                        got_success.store(true, Ordering::Release);
-                        Ok(item)
-                    } else {
-                        Err(RpcError {
-                            code: 0,
-                            message: "hover deserialize error".to_string(),
-                        })
-                    }
-                }
-                Err(e) => Err(e),
-            };
-            if result.is_ok() {
-                cb(result)
-            }
-        });
+        self.send_request_to_all_plugins(method, params, cb);
     }
 
     pub fn completion(
@@ -260,7 +295,7 @@ impl PluginCatalogRpcHandler {
         };
 
         let core_rpc = self.core_rpc.clone();
-        self.send_request(None, method, params, move |plugin_id, result| {
+        self.send_request(None, None, method, params, move |plugin_id, result| {
             if let Ok(value) = result {
                 if let Ok(resp) = serde_json::from_value::<CompletionResponse>(value)
                 {
@@ -277,7 +312,7 @@ impl PluginCatalogRpcHandler {
         cb: impl FnOnce(Result<CompletionItem, RpcError>) + Send + Clone + 'static,
     ) {
         let method = ResolveCompletionItem::METHOD;
-        self.send_request(Some(plugin_id), method, item, move |_, result| {
+        self.send_request(Some(plugin_id), None, method, item, move |_, result| {
             let result = match result {
                 Ok(value) => {
                     if let Ok(item) = serde_json::from_value::<CompletionItem>(value)

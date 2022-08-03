@@ -1,4 +1,12 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc, thread};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    thread,
+};
 
 use crossbeam_channel::Sender;
 use dyn_clone::DynClone;
@@ -44,6 +52,7 @@ impl NewPluginCatalog {
     pub fn handle_server_request(
         &mut self,
         plugin_id: Option<PluginId>,
+        request_sent: Option<Arc<AtomicUsize>>,
         method: &'static str,
         params: Value,
         f: Box<dyn ClonableCallback>,
@@ -65,6 +74,9 @@ impl NewPluginCatalog {
             return;
         }
 
+        if let Some(request_sent) = request_sent {
+            request_sent.fetch_add(self.new_plugins.len(), Ordering::Relaxed);
+        }
         for (plugin_id, plugin) in self.new_plugins.iter() {
             let f = dyn_clone::clone_box(&*f);
             let plugin_id = *plugin_id;
