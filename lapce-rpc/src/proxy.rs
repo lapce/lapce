@@ -225,6 +225,9 @@ pub enum CoreProxyResponse {
     GetOpenFilesContentResponse {
         items: Vec<TextDocumentItem>,
     },
+    GlobalSearchResponse {
+        matches: HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
+    },
     SaveResponse {},
 }
 
@@ -419,6 +422,10 @@ impl ProxyRpcHandler {
         self.request_async(CoreProxyRequest::BufferHead { path }, f);
     }
 
+    pub fn global_search(&self, pattern: String, f: impl ProxyCallback + 'static) {
+        self.request_async(CoreProxyRequest::GlobalSearch { pattern }, f);
+    }
+
     pub fn save(&self, rev: u64, path: PathBuf, f: impl ProxyCallback + 'static) {
         self.request_async(CoreProxyRequest::Save { rev, path }, f);
     }
@@ -517,5 +524,13 @@ impl ProxyRpcHandler {
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {
         self.notification(CoreProxyNotification::Update { path, delta, rev });
+    }
+
+    pub fn git_discard_files_changes(&self, files: Vec<PathBuf>) {
+        self.notification(CoreProxyNotification::GitDiscardFilesChanges { files });
+    }
+
+    pub fn git_discard_workspace_changes(&self) {
+        self.notification(CoreProxyNotification::GitDiscardWorkspaceChanges {});
     }
 }

@@ -191,7 +191,56 @@ impl ProxyHandler for NewDispatcher {
                 buffer_id,
                 position,
             } => {}
-            GlobalSearch { pattern } => todo!(),
+            GlobalSearch { pattern } => {
+                let workspace = self.workspace.clone();
+                let proxy_rpc = self.proxy_rpc.clone();
+                thread::spawn(move || {
+                    let result = if let Some(workspace) = workspace.as_ref() {
+                        let mut matches = HashMap::new();
+                        let pattern = regex::escape(&pattern);
+                        if let Ok(matcher) = RegexMatcherBuilder::new()
+                            .case_insensitive(true)
+                            .build_literals(&[&pattern])
+                        {
+                            let mut searcher = SearcherBuilder::new().build();
+                            for path in ignore::Walk::new(workspace).flatten() {
+                                if let Some(file_type) = path.file_type() {
+                                    if file_type.is_file() {
+                                        let path = path.into_path();
+                                        let mut line_matches = Vec::new();
+                                        let _ = searcher.search_path(
+                                            &matcher,
+                                            path.clone(),
+                                            UTF8(|lnum, line| {
+                                                let mymatch = matcher
+                                                    .find(line.as_bytes())?
+                                                    .unwrap();
+                                                line_matches.push((
+                                                    lnum as usize,
+                                                    (mymatch.start(), mymatch.end()),
+                                                    line.to_string(),
+                                                ));
+                                                Ok(true)
+                                            }),
+                                        );
+                                        if !line_matches.is_empty() {
+                                            matches
+                                                .insert(path.clone(), line_matches);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Ok(CoreProxyResponse::GlobalSearchResponse { matches })
+                    } else {
+                        Err(RpcError {
+                            code: 0,
+                            message: "no workspace set".to_string(),
+                        })
+                    };
+                    proxy_rpc.handle_response(id, result);
+                });
+            }
             CompletionResolve {
                 plugin_id,
                 completion_item,

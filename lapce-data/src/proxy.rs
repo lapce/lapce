@@ -673,29 +673,6 @@ impl LapceProxy {
         )
     }
 
-    pub fn git_discard_file_changes(&self, file: &Path) {
-        self.rpc.send_rpc_notification(
-            "git_discard_file_changes",
-            &json!({
-                "file": file,
-            }),
-        );
-    }
-
-    pub fn git_discard_files_changes(&self, files: Vec<PathBuf>) {
-        self.rpc.send_rpc_notification(
-            "git_discard_files_changes",
-            &json!({
-                "files": files,
-            }),
-        );
-    }
-
-    pub fn git_discard_workspace_changes(&self) {
-        self.rpc
-            .send_rpc_notification("git_discard_workspace_changes", &json!({}));
-    }
-
     pub fn install_plugin(&self, plugin: &PluginDescription) {
         self.rpc
             .send_rpc_notification("install_plugin", &json!({ "plugin": plugin }));
@@ -716,25 +693,6 @@ impl LapceProxy {
             .send_rpc_notification("remove_plugin", &json!({ "plugin": plugin }));
     }
 
-    // TODO: Make this type more explicit
-    pub fn global_search(
-        &self,
-        pattern: String,
-        f: impl FnOnce(
-                Result<
-                    HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
-                    RequestError,
-                >,
-            ) + Send
-            + 'static,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "global_search",
-            &json!({ "pattern": pattern }),
-            box_json_cb(f),
-        );
-    }
-
     pub fn save_buffer_as(
         &self,
         buffer_id: BufferId,
@@ -750,17 +708,6 @@ impl LapceProxy {
             content,
         };
         self.rpc.send_rpc_request_value_async(request, f);
-    }
-
-    pub fn save(&self, rev: u64, buffer_id: BufferId, f: Box<dyn Callback>) {
-        self.rpc.send_rpc_request_async(
-            "save",
-            &json!({
-                "rev": rev,
-                "buffer_id": buffer_id,
-            }),
-            f,
-        );
     }
 
     pub fn create_file(&self, path: &Path, f: Box<dyn Callback>) {

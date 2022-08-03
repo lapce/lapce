@@ -30,8 +30,8 @@ use lapce_core::{
     selection::Selection,
 };
 use lapce_rpc::{
-    buffer::BufferId, plugin::PluginDescription, source_control::FileDiff,
-    terminal::TermId,
+    buffer::BufferId, plugin::PluginDescription, proxy::CoreProxyResponse,
+    source_control::FileDiff, terminal::TermId,
 };
 
 use lapce_proxy::plugin::PluginCatalog;
@@ -1385,12 +1385,14 @@ impl LapceTabData {
             LapceWorkbenchCommand::SourceControlDiscardActiveFileChanges => {
                 if let Some(editor) = self.main_split.active_editor() {
                     if let BufferContent::File(path) = &editor.content {
-                        self.proxy.git_discard_file_changes(path);
+                        self.proxy
+                            .proxy_rpc
+                            .git_discard_files_changes(vec![path.clone()]);
                     }
                 }
             }
             LapceWorkbenchCommand::SourceControlDiscardWorkspaceChanges => {
-                self.proxy.git_discard_workspace_changes();
+                self.proxy.proxy_rpc.git_discard_workspace_changes();
             }
             LapceWorkbenchCommand::CheckoutBranch => match data {
                 Some(Value::String(branch)) => self.proxy.git_checkout(&branch),
@@ -1949,15 +1951,14 @@ impl LapceMainSplitData {
     ) {
         let doc = self.open_docs.get(path).unwrap();
         let rev = doc.rev();
-        let buffer_id = doc.id();
         let event_sink = ctx.get_external_handle();
         let path = PathBuf::from(path);
         let tab_id = *self.tab_id;
-        self.proxy.save(
+        self.proxy.proxy_rpc.save(
             rev,
-            buffer_id,
+            path.clone(),
             Box::new(move |result| {
-                if let Ok(_r) = result {
+                if let Ok(CoreProxyResponse::SaveResponse {}) = result {
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::BufferSave(path, rev, exit_widget_id),

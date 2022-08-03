@@ -38,7 +38,7 @@ use lapce_data::{
     },
     proxy::path_from_url,
 };
-use lapce_rpc::plugin::PluginDescription;
+use lapce_rpc::{plugin::PluginDescription, proxy::CoreProxyResponse};
 use lsp_types::DiagnosticSeverity;
 use xi_rope::Rope;
 
@@ -804,10 +804,15 @@ impl LapceTab {
                             let pattern = pattern.to_string();
                             let event_sink = ctx.get_external_handle();
                             let tab_id = data.id;
-                            data.proxy.global_search(
+                            data.proxy.proxy_rpc.global_search(
                                 pattern.clone(),
                                 Box::new(move |result| {
-                                    if let Ok(matches) = result {
+                                    if let Ok(
+                                        CoreProxyResponse::GlobalSearchResponse {
+                                            matches,
+                                        },
+                                    ) = result
+                                    {
                                         let _ = event_sink.submit_command(
                                             LAPCE_UI_COMMAND,
                                             LapceUICommand::GlobalSearchResult(
