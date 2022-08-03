@@ -51,6 +51,10 @@ impl PluginServerHandler for NewPlugin {
         self.host.method_registered(method)
     }
 
+    fn language_supported(&mut self, language_id: Option<&str>) -> bool {
+        self.host.language_supported(language_id)
+    }
+
     fn handle_handler_notification(
         &mut self,
         notification: PluginHandlerNotification,
@@ -73,6 +77,7 @@ impl PluginServerHandler for NewPlugin {
 
     fn handle_did_change_text_document(
         &mut self,
+        language_id: String,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -85,7 +90,12 @@ impl PluginServerHandler for NewPlugin {
         >,
     ) {
         self.host.handle_did_change_text_document(
-            document, delta, text, new_text, change,
+            language_id,
+            document,
+            delta,
+            text,
+            new_text,
+            change,
         );
     }
 }
@@ -98,6 +108,7 @@ impl NewPlugin {
             server_rpc.server_request(
                 Initialize::METHOD,
                 serde_json::json!({}),
+                None,
                 false,
             );
         });
@@ -204,6 +215,7 @@ fn start_plugin(
         host: PluginHostHandler::new(
             workspace,
             plugin_desc.dir,
+            None,
             rpc.clone(),
             plugin_rpc.clone(),
         ),

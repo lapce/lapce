@@ -154,7 +154,7 @@ impl ProxyHandler for NewDispatcher {
                 let content = buffer.rope.to_string();
                 self.catalog_rpc.document_did_open(
                     &path,
-                    buffer.language_id.clone(),
+                    buffer.language_id.to_string(),
                     buffer.rev as i32,
                     content.clone(),
                 );
@@ -358,7 +358,7 @@ impl ProxyHandler for NewDispatcher {
                     .iter()
                     .map(|(path, buffer)| TextDocumentItem {
                         uri: Url::from_file_path(path).unwrap(),
-                        language_id: buffer.language_id.clone(),
+                        language_id: buffer.language_id.to_string(),
                         version: buffer.rev as i32,
                         text: buffer.get_document(),
                     })

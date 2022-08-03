@@ -84,11 +84,13 @@ pub enum PluginServerRpc {
         id: u64,
         method: &'static str,
         params: Params,
+        language_id: Option<String>,
         rh: ResponseHandler<Value, RpcError>,
     },
     ServerNotification {
         method: &'static str,
         params: Params,
+        language_id: Option<String>,
     },
     HostRequest {
         id: u64,
@@ -100,6 +102,7 @@ pub enum PluginServerRpc {
         params: Params,
     },
     DidChangeTextDocument {
+        language_id: String,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -124,6 +127,7 @@ pub struct PluginServerRpcHandler {
 }
 
 pub trait PluginServerHandler {
+    fn language_supported(&mut self, language_id: Option<&str>) -> bool;
     fn method_registered(&mut self, method: &'static str) -> bool;
     fn handle_host_notification(&mut self, method: String, params: Params);
     fn handle_handler_notification(
@@ -132,6 +136,7 @@ pub trait PluginServerHandler {
     );
     fn handle_did_change_text_document(
         &mut self,
+        language_id: String,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -202,14 +207,17 @@ impl PluginServerRpcHandler {
         &self,
         method: &'static str,
         params: P,
+        language_id: Option<String>,
         check: bool,
     ) {
         let params = Params::from(serde_json::to_value(params).unwrap());
 
         if check {
-            let _ = self
-                .rpc_tx
-                .send(PluginServerRpc::ServerNotification { method, params });
+            let _ = self.rpc_tx.send(PluginServerRpc::ServerNotification {
+                method,
+                params,
+                language_id,
+            });
         } else {
             self.send_server_notification(method, params);
         }
@@ -223,10 +231,17 @@ impl PluginServerRpcHandler {
         &self,
         method: &'static str,
         params: P,
+        language_id: Option<String>,
         check: bool,
     ) -> Result<Value, RpcError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
-        self.server_request_common(method, params, check, ResponseHandler::Chan(tx));
+        self.server_request_common(
+            method,
+            params,
+            language_id,
+            check,
+            ResponseHandler::Chan(tx),
+        );
         rx.recv().unwrap_or_else(|_| {
             Err(RpcError {
                 code: 0,
@@ -239,12 +254,14 @@ impl PluginServerRpcHandler {
         &self,
         method: &'static str,
         params: P,
+        language_id: Option<String>,
         check: bool,
         f: impl RpcCallback<Value, RpcError> + 'static,
     ) {
         self.server_request_common(
             method,
             params,
+            language_id,
             check,
             ResponseHandler::Callback(Box::new(f)),
         );
@@ -254,6 +271,7 @@ impl PluginServerRpcHandler {
         &self,
         method: &'static str,
         params: P,
+        language_id: Option<String>,
         check: bool,
         rh: ResponseHandler<Value, RpcError>,
     ) {
@@ -264,6 +282,7 @@ impl PluginServerRpcHandler {
                 id,
                 method,
                 params,
+                language_id,
                 rh,
             });
         } else {
@@ -287,21 +306,30 @@ impl PluginServerRpcHandler {
                     id,
                     method,
                     params,
+                    language_id,
                     rh,
                 } => {
-                    if handler.method_registered(method) {
-                        eprintln!("send method {method}");
+                    if handler
+                        .language_supported(language_id.as_ref().map(|l| l.as_str()))
+                        && handler.method_registered(method)
+                    {
                         self.send_server_request(id, method, params, rh);
                     } else {
-                        eprintln!("method not registered {method}");
                         rh.invoke(Err(RpcError {
                             code: 0,
                             message: "server not capable".to_string(),
                         }));
                     }
                 }
-                PluginServerRpc::ServerNotification { method, params } => {
-                    if handler.method_registered(method) {
+                PluginServerRpc::ServerNotification {
+                    method,
+                    params,
+                    language_id,
+                } => {
+                    if handler
+                        .language_supported(language_id.as_ref().map(|l| l.as_str()))
+                        && handler.method_registered(method)
+                    {
                         self.send_server_notification(method, params);
                     }
                 }
@@ -310,6 +338,7 @@ impl PluginServerRpcHandler {
                     handler.handle_host_notification(method, params);
                 }
                 PluginServerRpc::DidChangeTextDocument {
+                    language_id,
                     document,
                     delta,
                     text,
@@ -317,7 +346,12 @@ impl PluginServerRpcHandler {
                     change,
                 } => {
                     handler.handle_did_change_text_document(
-                        document, delta, text, new_text, change,
+                        language_id,
+                        document,
+                        delta,
+                        text,
+                        new_text,
+                        change,
                     );
                 }
                 PluginServerRpc::Handler(notification) => {
@@ -374,6 +408,7 @@ pub fn handle_plugin_server_message(
 pub struct PluginHostHandler {
     pwd: Option<PathBuf>,
     workspace: Option<PathBuf>,
+    lanaguage_id: Option<String>,
     catalog_rpc: PluginCatalogRpcHandler,
     pub server_rpc: PluginServerRpcHandler,
     pub server_capabilities: ServerCapabilities,
@@ -383,15 +418,27 @@ impl PluginHostHandler {
     pub fn new(
         workspace: Option<PathBuf>,
         pwd: Option<PathBuf>,
+        lanaguage_id: Option<String>,
         server_rpc: PluginServerRpcHandler,
         catalog_rpc: PluginCatalogRpcHandler,
     ) -> Self {
         Self {
             pwd,
             workspace,
+            lanaguage_id,
             catalog_rpc,
             server_rpc,
             server_capabilities: ServerCapabilities::default(),
+        }
+    }
+
+    pub fn language_supported(&mut self, language_id: Option<&str>) -> bool {
+        match language_id {
+            Some(language_id) => match self.lanaguage_id.as_ref() {
+                Some(l) => l.as_str() == language_id,
+                None => true,
+            },
+            None => true,
         }
     }
 
@@ -502,6 +549,7 @@ impl PluginHostHandler {
                 thread::spawn(move || {
                     match NewLspClient::start(
                         catalog_rpc,
+                        params.language_id,
                         workspace,
                         pwd,
                         params.exec_path,
@@ -519,6 +567,7 @@ impl PluginHostHandler {
 
     pub fn handle_did_change_text_document(
         &mut self,
+        lanaguage_id: String,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -579,6 +628,7 @@ impl PluginHostHandler {
         self.server_rpc.server_notification(
             DidChangeTextDocument::METHOD,
             params,
+            Some(lanaguage_id),
             true,
         );
     }

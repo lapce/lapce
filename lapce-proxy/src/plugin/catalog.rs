@@ -55,13 +55,20 @@ impl NewPluginCatalog {
         request_sent: Option<Arc<AtomicUsize>>,
         method: &'static str,
         params: Value,
+        language_id: Option<String>,
         f: Box<dyn ClonableCallback>,
     ) {
         if let Some(plugin_id) = plugin_id {
             if let Some(plugin) = self.new_plugins.get(&plugin_id) {
-                plugin.server_request_async(method, params, true, move |result| {
-                    f(plugin_id, result);
-                });
+                plugin.server_request_async(
+                    method,
+                    params,
+                    language_id,
+                    true,
+                    move |result| {
+                        f(plugin_id, result);
+                    },
+                );
             } else {
                 f(
                     plugin_id,
@@ -83,6 +90,7 @@ impl NewPluginCatalog {
             plugin.server_request_async(
                 method,
                 params.clone(),
+                language_id.clone(),
                 true,
                 move |result| {
                     f(plugin_id, result);
@@ -95,14 +103,21 @@ impl NewPluginCatalog {
         &mut self,
         method: &'static str,
         params: Value,
+        language_id: Option<String>,
     ) {
         for (_, plugin) in self.new_plugins.iter() {
-            plugin.server_notification(method, params.clone(), true);
+            plugin.server_notification(
+                method,
+                params.clone(),
+                language_id.clone(),
+                true,
+            );
         }
     }
 
     pub fn handle_did_change_text_document(
         &mut self,
+        language_id: String,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -111,6 +126,7 @@ impl NewPluginCatalog {
         let change = Arc::new(Mutex::new((None, None)));
         for (_, plugin) in self.new_plugins.iter() {
             plugin.handle_rpc(PluginServerRpc::DidChangeTextDocument {
+                language_id: language_id.clone(),
                 document: document.clone(),
                 delta: delta.clone(),
                 text: text.clone(),
@@ -130,11 +146,13 @@ impl NewPluginCatalog {
                     self.plugin_rpc.proxy_rpc.get_open_files_content()
                 {
                     for item in items {
+                        let language_id = Some(item.language_id.clone());
                         plugin.server_notification(
                             DidOpenTextDocument::METHOD,
                             DidOpenTextDocumentParams {
                                 text_document: item,
                             },
+                            language_id,
                             true,
                         );
                     }

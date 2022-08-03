@@ -42,6 +42,7 @@ use wasmer::WasmerEnv;
 use wasmer_wasi::WasiEnv;
 use xi_rope::{Rope, RopeDelta};
 
+use crate::buffer::language_id_from_path;
 use crate::dispatch::Dispatcher;
 use crate::lsp::{LspRpcHandler, NewLspClient};
 use crate::lsp::{
@@ -58,13 +59,16 @@ pub enum PluginCatalogRpc {
         request_sent: Option<Arc<AtomicUsize>>,
         method: &'static str,
         params: Value,
+        language_id: Option<String>,
         f: Box<dyn ClonableCallback>,
     },
     ServerNotification {
         method: &'static str,
         params: Value,
+        language_id: Option<String>,
     },
     DidChangeTextDocument {
+        language_id: String,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -133,6 +137,7 @@ impl PluginCatalogRpcHandler {
                     request_sent,
                     method,
                     params,
+                    language_id,
                     f,
                 } => {
                     plugin.handle_server_request(
@@ -140,23 +145,33 @@ impl PluginCatalogRpcHandler {
                         request_sent,
                         method,
                         params,
+                        language_id,
                         f,
                     );
                 }
-                PluginCatalogRpc::ServerNotification { method, params } => {
-                    plugin.handle_server_notification(method, params);
+                PluginCatalogRpc::ServerNotification {
+                    method,
+                    params,
+                    language_id,
+                } => {
+                    plugin.handle_server_notification(method, params, language_id);
                 }
                 PluginCatalogRpc::Handler(notification) => {
                     plugin.handle_notification(notification);
                 }
                 PluginCatalogRpc::DidChangeTextDocument {
+                    language_id,
                     document,
                     delta,
                     text,
                     new_text,
                 } => {
                     plugin.handle_did_change_text_document(
-                        document, delta, text, new_text,
+                        language_id,
+                        document,
+                        delta,
+                        text,
+                        new_text,
                     );
                 }
             }
@@ -167,9 +182,18 @@ impl PluginCatalogRpcHandler {
         let _ = self.plugin_tx.send(PluginCatalogRpc::Handler(notification));
     }
 
-    fn server_notification<P: Serialize>(&self, method: &'static str, params: P) {
+    fn server_notification<P: Serialize>(
+        &self,
+        method: &'static str,
+        params: P,
+        language_id: Option<String>,
+    ) {
         let params = serde_json::to_value(params).unwrap();
-        let rpc = PluginCatalogRpc::ServerNotification { method, params };
+        let rpc = PluginCatalogRpc::ServerNotification {
+            method,
+            params,
+            language_id,
+        };
         let _ = self.plugin_tx.send(rpc);
     }
 
@@ -177,6 +201,7 @@ impl PluginCatalogRpcHandler {
         &self,
         method: &'static str,
         params: P,
+        language_id: Option<String>,
         cb: impl FnOnce(Result<Resp, RpcError>) + Clone + Send + 'static,
     ) where
         P: Serialize,
@@ -190,6 +215,7 @@ impl PluginCatalogRpcHandler {
             Some(request_sent.clone()),
             method,
             params,
+            language_id,
             move |_, result| {
                 if got_success.load(Ordering::Acquire) {
                     return;
@@ -226,6 +252,7 @@ impl PluginCatalogRpcHandler {
         request_sent: Option<Arc<AtomicUsize>>,
         method: &'static str,
         params: P,
+        language_id: Option<String>,
         f: impl FnOnce(PluginId, Result<Value, RpcError>) + Send + DynClone + 'static,
     ) {
         let params = serde_json::to_value(params).unwrap();
@@ -234,6 +261,7 @@ impl PluginCatalogRpcHandler {
             request_sent,
             method,
             params,
+            language_id,
             f: Box::new(f),
         };
         let _ = self.plugin_tx.send(rpc);
@@ -251,9 +279,11 @@ impl PluginCatalogRpcHandler {
             Url::from_file_path(path).unwrap(),
             rev as i32,
         );
+        let language_id = language_id_from_path(path).unwrap_or("").to_string();
         let _ = self
             .plugin_tx
             .send(PluginCatalogRpc::DidChangeTextDocument {
+                language_id,
                 document,
                 delta,
                 text,
@@ -281,7 +311,9 @@ impl PluginCatalogRpcHandler {
             partial_result_params: PartialResultParams::default(),
         };
 
-        self.send_request_to_all_plugins(method, params, cb);
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(method, params, language_id, cb);
     }
 
     pub fn get_references(
@@ -304,7 +336,9 @@ impl PluginCatalogRpcHandler {
             },
         };
 
-        self.send_request_to_all_plugins(method, params, cb);
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(method, params, language_id, cb);
     }
 
     pub fn get_code_actions(
@@ -325,7 +359,9 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         };
-        self.send_request_to_all_plugins(method, params, cb);
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(method, params, language_id, cb);
     }
 
     pub fn get_document_formatting(
@@ -344,7 +380,9 @@ impl PluginCatalogRpcHandler {
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
-        self.send_request_to_all_plugins(method, params, cb);
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(method, params, language_id, cb);
     }
 
     pub fn hover(
@@ -362,8 +400,9 @@ impl PluginCatalogRpcHandler {
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
-
-        self.send_request_to_all_plugins(method, params, cb);
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(method, params, language_id, cb);
     }
 
     pub fn completion(
@@ -387,14 +426,25 @@ impl PluginCatalogRpcHandler {
         };
 
         let core_rpc = self.core_rpc.clone();
-        self.send_request(None, None, method, params, move |plugin_id, result| {
-            if let Ok(value) = result {
-                if let Ok(resp) = serde_json::from_value::<CompletionResponse>(value)
-                {
-                    core_rpc.completion_response(request_id, input, resp, plugin_id);
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request(
+            None,
+            None,
+            method,
+            params,
+            language_id,
+            move |plugin_id, result| {
+                if let Ok(value) = result {
+                    if let Ok(resp) =
+                        serde_json::from_value::<CompletionResponse>(value)
+                    {
+                        core_rpc
+                            .completion_response(request_id, input, resp, plugin_id);
+                    }
                 }
-            }
-        });
+            },
+        );
     }
 
     pub fn completion_resolve(
@@ -404,23 +454,32 @@ impl PluginCatalogRpcHandler {
         cb: impl FnOnce(Result<CompletionItem, RpcError>) + Send + Clone + 'static,
     ) {
         let method = ResolveCompletionItem::METHOD;
-        self.send_request(Some(plugin_id), None, method, item, move |_, result| {
-            let result = match result {
-                Ok(value) => {
-                    if let Ok(item) = serde_json::from_value::<CompletionItem>(value)
-                    {
-                        Ok(item)
-                    } else {
-                        Err(RpcError {
-                            code: 0,
-                            message: "completion item deserialize error".to_string(),
-                        })
+        self.send_request(
+            Some(plugin_id),
+            None,
+            method,
+            item,
+            None,
+            move |_, result| {
+                let result = match result {
+                    Ok(value) => {
+                        if let Ok(item) =
+                            serde_json::from_value::<CompletionItem>(value)
+                        {
+                            Ok(item)
+                        } else {
+                            Err(RpcError {
+                                code: 0,
+                                message: "completion item deserialize error"
+                                    .to_string(),
+                            })
+                        }
                     }
-                }
-                Err(e) => Err(e),
-            };
-            cb(result)
-        });
+                    Err(e) => Err(e),
+                };
+                cb(result)
+            },
+        );
     }
 
     pub fn document_did_open(
@@ -434,12 +493,12 @@ impl PluginCatalogRpcHandler {
         let params = DidOpenTextDocumentParams {
             text_document: TextDocumentItem::new(
                 Url::from_file_path(path).unwrap(),
-                language_id,
+                language_id.clone(),
                 version,
                 text,
             ),
         };
-        self.server_notification(method, params);
+        self.server_notification(method, params, Some(language_id));
     }
 
     pub fn plugin_server_loaded(&self, plugin: PluginServerRpcHandler) {

@@ -13,7 +13,7 @@ use xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 
 #[derive(Clone)]
 pub struct Buffer {
-    pub language_id: String,
+    pub language_id: &'static str,
     pub id: BufferId,
     pub rope: Rope,
     pub path: PathBuf,
@@ -29,7 +29,7 @@ impl Buffer {
             Rope::from("")
         };
         let rev = if rope.is_empty() { 0 } else { 1 };
-        let language_id = language_id_from_path(&path).unwrap_or("").to_string();
+        let language_id = language_id_from_path(&path).unwrap_or("");
         let mod_time = get_mod_time(&path);
         Buffer {
             id,
@@ -170,7 +170,7 @@ pub fn read_path_to_string_lossy<P: AsRef<Path>>(
     Ok(contents.to_string())
 }
 
-fn language_id_from_path(path: &Path) -> Option<&str> {
+pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
     // recommended language_id values
     // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem
     Some(match path.extension()?.to_str()? {

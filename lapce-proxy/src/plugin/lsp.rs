@@ -85,6 +85,10 @@ impl PluginServerHandler for NewLspClient {
         self.host.method_registered(method)
     }
 
+    fn language_supported(&mut self, lanaguage_id: Option<&str>) -> bool {
+        self.host.language_supported(lanaguage_id)
+    }
+
     fn handle_handler_notification(
         &mut self,
         notification: PluginHandlerNotification,
@@ -103,6 +107,7 @@ impl PluginServerHandler for NewLspClient {
 
     fn handle_did_change_text_document(
         &mut self,
+        language_id: String,
         document: lsp_types::VersionedTextDocumentIdentifier,
         delta: xi_rope::RopeDelta,
         text: xi_rope::Rope,
@@ -115,7 +120,12 @@ impl PluginServerHandler for NewLspClient {
         >,
     ) {
         self.host.handle_did_change_text_document(
-            document, delta, text, new_text, change,
+            language_id,
+            document,
+            delta,
+            text,
+            new_text,
+            change,
         );
     }
 }
@@ -123,6 +133,7 @@ impl PluginServerHandler for NewLspClient {
 impl NewLspClient {
     fn new(
         plugin_rpc: PluginCatalogRpcHandler,
+        laguage_id: String,
         workspace: Option<PathBuf>,
         pwd: Option<PathBuf>,
         exec_path: PathBuf,
@@ -169,6 +180,7 @@ impl NewLspClient {
         let host = PluginHostHandler::new(
             workspace.clone(),
             pwd,
+            Some(laguage_id),
             server_rpc.clone(),
             plugin_rpc.clone(),
         );
@@ -186,12 +198,14 @@ impl NewLspClient {
 
     pub fn start(
         plugin_rpc: PluginCatalogRpcHandler,
+        laguage_id: String,
         workspace: Option<PathBuf>,
         pwd: Option<PathBuf>,
         exec_path: PathBuf,
         args: Vec<String>,
     ) -> Result<()> {
-        let mut lsp = Self::new(plugin_rpc, workspace, pwd, exec_path, args)?;
+        let mut lsp =
+            Self::new(plugin_rpc, laguage_id, workspace, pwd, exec_path, args)?;
         let rpc = lsp.server_rpc.clone();
         thread::spawn(move || {
             rpc.mainloop(&mut lsp);
@@ -321,13 +335,14 @@ impl NewLspClient {
         let server_rpc = self.server_rpc.clone();
         if let Ok(value) =
             self.server_rpc
-                .server_request(Initialize::METHOD, params, false)
+                .server_request(Initialize::METHOD, params, None, false)
         {
             let result: InitializeResult = serde_json::from_value(value).unwrap();
             self.host.server_capabilities = result.capabilities;
             self.server_rpc.server_notification(
                 Initialized::METHOD,
                 InitializedParams {},
+                None,
                 false,
             );
             self.plugin_rpc.catalog_notification(
@@ -581,7 +596,7 @@ impl LspCatalog {
 
     pub fn get_semantic_tokens(&self, id: RequestId, buffer: &Buffer) {
         let buffer = buffer.clone();
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             {
                 let state = client.state.lock();
 
@@ -647,7 +662,7 @@ impl LspCatalog {
     }
 
     pub fn get_document_symbols(&self, id: RequestId, buffer: &Buffer) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             {
                 let state = client.state.lock();
 
@@ -681,7 +696,7 @@ impl LspCatalog {
         query: String,
     ) {
         // TODO: We could collate workspace symbols from all the lsps?
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             {
                 let state = client.state.lock();
 
@@ -708,7 +723,7 @@ impl LspCatalog {
     }
 
     pub fn get_document_formatting(&self, id: RequestId, buffer: &Buffer) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             {
                 let state = client.state.lock();
 
@@ -747,7 +762,7 @@ impl LspCatalog {
         buffer: &Buffer,
         position: Position,
     ) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             {
                 let state = client.state.lock();
 
@@ -790,7 +805,7 @@ impl LspCatalog {
         buffer: &Buffer,
         completion_item: &CompletionItem,
     ) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             client.completion_resolve(completion_item, move |lsp_client, result| {
                 let mut resp = json!({ "id": id });
                 match result {
@@ -814,7 +829,7 @@ impl LspCatalog {
         buffer: &Buffer,
         position: Position,
     ) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             {
                 let state = client.state.lock();
 
@@ -852,7 +867,7 @@ impl LspCatalog {
     }
 
     pub fn get_signature(&self, id: RequestId, buffer: &Buffer, position: Position) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             {
                 let state = client.state.lock();
 
@@ -895,7 +910,7 @@ impl LspCatalog {
         buffer: &Buffer,
         position: Position,
     ) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             {
                 let state = client.state.lock();
 
@@ -933,7 +948,7 @@ impl LspCatalog {
     }
 
     pub fn get_inlay_hints(&self, id: RequestId, buffer: &Buffer) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             {
                 let state = client.state.lock();
 
@@ -982,7 +997,7 @@ impl LspCatalog {
         buffer: &Buffer,
         position: Position,
     ) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             {
                 let state = client.state.lock();
 
@@ -1030,7 +1045,7 @@ impl LspCatalog {
         buffer: &Buffer,
         position: Position,
     ) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             {
                 let state = client.state.lock();
 
@@ -1074,7 +1089,7 @@ impl LspCatalog {
         buffer: &Buffer,
         position: Position,
     ) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             {
                 let state = client.state.lock();
 
@@ -1124,7 +1139,7 @@ impl LspCatalog {
         content_change: &TextDocumentContentChangeEvent,
         rev: u64,
     ) {
-        if let Some(client) = self.clients.get(&buffer.language_id) {
+        if let Some(client) = self.clients.get(&buffer.language_id.to_string()) {
             client.update(buffer, content_change, rev);
         }
     }
