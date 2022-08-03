@@ -257,10 +257,16 @@ impl ProxyHandler for NewDispatcher {
             } => todo!(),
             GetInlayHints { buffer_id } => todo!(),
             GetSemanticTokens { buffer_id } => todo!(),
-            GetCodeActions {
-                buffer_id,
-                position,
-            } => todo!(),
+            GetCodeActions { path, position } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc
+                    .get_code_actions(&path, position, move |result| {
+                        let result = result.map(|resp| {
+                            CoreProxyResponse::GetCodeActionsResponse { resp }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    });
+            }
             GetDocumentSymbols { buffer_id } => todo!(),
             GetWorkspaceSymbols { query, buffer_id } => todo!(),
             GetDocumentFormatting { buffer_id } => todo!(),
@@ -974,14 +980,7 @@ impl Dispatcher {
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_semantic_tokens(id, buffer);
             }
-            GetCodeActions {
-                buffer_id,
-                position,
-            } => {
-                let buffers = self.buffers.lock();
-                let buffer = buffers.get(&buffer_id).unwrap();
-                self.lsp.lock().get_code_actions(id, buffer, position);
-            }
+            GetCodeActions { .. } => {}
             GetDocumentSymbols { buffer_id } => {
                 let buffers = self.buffers.lock();
                 let buffer = buffers.get(&buffer_id).unwrap();

@@ -9,8 +9,8 @@ use std::{
 
 use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
-    CompletionItem, GotoDefinitionResponse, Hover, Location, Position,
-    TextDocumentItem,
+    CodeActionResponse, CompletionItem, GotoDefinitionResponse, Hover, Location,
+    Position, TextDocumentItem,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -85,7 +85,7 @@ pub enum CoreProxyRequest {
         buffer_id: BufferId,
     },
     GetCodeActions {
-        buffer_id: BufferId,
+        path: PathBuf,
         position: Position,
     },
     GetDocumentSymbols {
@@ -214,6 +214,9 @@ pub enum CoreProxyResponse {
     },
     GetReferencesResponse {
         references: Vec<Location>,
+    },
+    GetCodeActionsResponse {
+        resp: CodeActionResponse,
     },
     GetFilesResponse {
         items: Vec<PathBuf>,
@@ -491,9 +494,16 @@ impl ProxyRpcHandler {
         position: Position,
         f: impl ProxyCallback + 'static,
     ) {
-        println!("send get references to proxy");
         self.request_async(CoreProxyRequest::GetReferences { path, position }, f);
-        println!("send get references to proxy done");
+    }
+
+    pub fn get_code_actions(
+        &self,
+        path: PathBuf,
+        position: Position,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(CoreProxyRequest::GetCodeActions { path, position }, f);
     }
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {

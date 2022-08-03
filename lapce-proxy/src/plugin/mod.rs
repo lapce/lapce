@@ -13,13 +13,14 @@ use lapce_rpc::proxy::ProxyRpcHandler;
 use lapce_rpc::{RequestId, RpcError, RpcMessage};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{
-    Completion, GotoDefinition, HoverRequest, References, Request,
-    ResolveCompletionItem,
+    CodeActionRequest, Completion, GotoDefinition, HoverRequest, References,
+    Request, ResolveCompletionItem,
 };
 use lsp_types::{
-    CompletionItem, CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
+    CodeActionContext, CodeActionParams, CodeActionResponse, CompletionItem,
+    CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, Location,
-    PartialResultParams, Position, ReferenceContext, ReferenceParams,
+    PartialResultParams, Position, Range, ReferenceContext, ReferenceParams,
     TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, Url,
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
@@ -302,7 +303,27 @@ impl PluginCatalogRpcHandler {
             },
         };
 
-        eprintln!("send get refenreces to plugins");
+        self.send_request_to_all_plugins(method, params, cb);
+    }
+
+    pub fn get_code_actions(
+        &self,
+        path: &Path,
+        position: Position,
+        cb: impl FnOnce(Result<CodeActionResponse, RpcError>) + Clone + Send + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = CodeActionRequest::METHOD;
+        let params = CodeActionParams {
+            text_document: TextDocumentIdentifier { uri },
+            range: Range {
+                start: position,
+                end: position,
+            },
+            context: CodeActionContext::default(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
         self.send_request_to_all_plugins(method, params, cb);
     }
 

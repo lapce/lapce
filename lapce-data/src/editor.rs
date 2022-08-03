@@ -295,7 +295,6 @@ impl LapceEditorBufferData {
             let offset = self.editor.cursor.offset();
             let prev_offset = self.doc.buffer().prev_code_boundary(offset);
             if self.doc.code_actions.get(&prev_offset).is_none() {
-                let buffer_id = self.doc.id();
                 let position = if let Some(position) =
                     self.doc.buffer().offset_to_position(prev_offset)
                 {
@@ -306,9 +305,14 @@ impl LapceEditorBufferData {
                 };
                 let rev = self.doc.rev();
                 let event_sink = ctx.get_external_handle();
-                self.proxy
-                    .get_code_actions(buffer_id, position, move |result| {
-                        if let Ok(resp) = result {
+                self.proxy.proxy_rpc.get_code_actions(
+                    path.clone(),
+                    position,
+                    move |result| {
+                        if let Ok(CoreProxyResponse::GetCodeActionsResponse {
+                            resp,
+                        }) = result
+                        {
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::UpdateCodeActions(
@@ -320,7 +324,8 @@ impl LapceEditorBufferData {
                                 Target::Auto,
                             );
                         }
-                    });
+                    },
+                );
             }
         }
     }
