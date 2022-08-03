@@ -19,8 +19,8 @@ use lsp_types::{
         DidChangeTextDocument, DidOpenTextDocument, Initialized, Notification,
     },
     request::{
-        CodeActionRequest, Completion, GotoDefinition, HoverRequest, Initialize,
-        References, ResolveCompletionItem,
+        CodeActionRequest, Completion, Formatting, GotoDefinition, HoverRequest,
+        Initialize, References, ResolveCompletionItem,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidOpenTextDocumentParams, HoverProviderCapability, InitializeResult, OneOf,
@@ -471,6 +471,15 @@ impl PluginHostHandler {
                 .map(|a| match a {
                     CodeActionProviderCapability::Simple(is_capable) => *is_capable,
                     CodeActionProviderCapability::Options(_) => true,
+                })
+                .unwrap_or(false),
+            Formatting::METHOD => self
+                .server_capabilities
+                .document_formatting_provider
+                .as_ref()
+                .map(|f| match f {
+                    OneOf::Left(is_capable) => *is_capable,
+                    OneOf::Right(_) => true,
                 })
                 .unwrap_or(false),
             _ => false,

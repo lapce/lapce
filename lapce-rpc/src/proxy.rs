@@ -10,7 +10,7 @@ use std::{
 use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
     CodeActionResponse, CompletionItem, GotoDefinitionResponse, Hover, Location,
-    Position, TextDocumentItem,
+    Position, TextDocumentItem, TextEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -98,7 +98,7 @@ pub enum CoreProxyRequest {
         buffer_id: BufferId,
     },
     GetDocumentFormatting {
-        buffer_id: BufferId,
+        path: PathBuf,
     },
     GetOpenFilesContent {},
     GetFiles {
@@ -220,6 +220,9 @@ pub enum CoreProxyResponse {
     },
     GetFilesResponse {
         items: Vec<PathBuf>,
+    },
+    GetDocumentFormatting {
+        edits: Vec<TextEdit>,
     },
     GetOpenFilesContentResponse {
         items: Vec<TextDocumentItem>,
@@ -504,6 +507,14 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(CoreProxyRequest::GetCodeActions { path, position }, f);
+    }
+
+    pub fn get_document_formatting(
+        &self,
+        path: PathBuf,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(CoreProxyRequest::GetDocumentFormatting { path }, f);
     }
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {

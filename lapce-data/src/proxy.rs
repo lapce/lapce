@@ -906,22 +906,6 @@ impl LapceProxy {
         );
     }
 
-    pub fn get_code_actions(
-        &self,
-        buffer_id: BufferId,
-        position: Position,
-        f: impl FnOnce(Result<CodeActionResponse, RequestError>) + Send + 'static,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "get_code_actions",
-            &json!({
-                "buffer_id": buffer_id,
-                "position": position,
-            }),
-            box_json_cb(f),
-        );
-    }
-
     pub fn get_document_formatting(
         &self,
         buffer_id: BufferId,

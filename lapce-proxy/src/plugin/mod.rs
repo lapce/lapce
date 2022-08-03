@@ -13,15 +13,16 @@ use lapce_rpc::proxy::ProxyRpcHandler;
 use lapce_rpc::{RequestId, RpcError, RpcMessage};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{
-    CodeActionRequest, Completion, GotoDefinition, HoverRequest, References,
-    Request, ResolveCompletionItem,
+    CodeActionRequest, Completion, Formatting, GotoDefinition, HoverRequest,
+    References, Request, ResolveCompletionItem,
 };
 use lsp_types::{
     CodeActionContext, CodeActionParams, CodeActionResponse, CompletionItem,
     CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, Location,
-    PartialResultParams, Position, Range, ReferenceContext, ReferenceParams,
-    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, Url,
+    DocumentFormattingParams, FormattingOptions, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverParams, Location, PartialResultParams,
+    Position, Range, ReferenceContext, ReferenceParams, TextDocumentIdentifier,
+    TextDocumentItem, TextDocumentPositionParams, TextEdit, Url,
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use parking_lot::Mutex;
@@ -323,6 +324,25 @@ impl PluginCatalogRpcHandler {
             context: CodeActionContext::default(),
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
+        };
+        self.send_request_to_all_plugins(method, params, cb);
+    }
+
+    pub fn get_document_formatting(
+        &self,
+        path: &Path,
+        cb: impl FnOnce(Result<Vec<TextEdit>, RpcError>) + Clone + Send + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = Formatting::METHOD;
+        let params = DocumentFormattingParams {
+            text_document: TextDocumentIdentifier { uri },
+            options: FormattingOptions {
+                tab_size: 4,
+                insert_spaces: true,
+                ..Default::default()
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
         };
         self.send_request_to_all_plugins(method, params, cb);
     }

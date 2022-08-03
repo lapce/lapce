@@ -1484,18 +1484,25 @@ impl LapceTabData {
                     env,
                 );
             }
-            CommandKind::Focus(_cmd) => {
+            CommandKind::Focus(_) | CommandKind::Edit(_) | CommandKind::Move(_) => {
+                let widget_id = if self.focus != self.palette.input_editor {
+                    self.focus
+                } else if let Some(active_tab) = self.main_split.active_tab.as_ref()
+                {
+                    self.main_split
+                        .editor_tabs
+                        .get(active_tab)
+                        .unwrap()
+                        .active_child()
+                        .widget_id()
+                } else {
+                    self.focus
+                };
+
                 ctx.submit_command(Command::new(
                     LAPCE_COMMAND,
                     command.clone(),
-                    Target::Widget(self.focus),
-                ));
-            }
-            CommandKind::Edit(_) => {
-                ctx.submit_command(Command::new(
-                    LAPCE_COMMAND,
-                    command.clone(),
-                    Target::Widget(self.focus),
+                    Target::Widget(widget_id),
                 ));
             }
             _ => {}

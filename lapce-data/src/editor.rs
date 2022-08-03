@@ -1239,8 +1239,8 @@ impl LapceEditorBufferData {
             let tab_id = self.main_split.tab_id.clone();
             let (sender, receiver) = bounded(1);
             thread::spawn(move || {
-                proxy.get_document_formatting(
-                    buffer_id,
+                proxy.proxy_rpc.get_document_formatting(
+                    path.clone(),
                     Box::new(move |result| {
                         let _ = sender.send(result);
                     }),
@@ -1249,7 +1249,18 @@ impl LapceEditorBufferData {
                 let result =
                     receiver.recv_timeout(Duration::from_secs(1)).map_or_else(
                         |e| Err(anyhow!("{}", e)),
-                        |v| v.map_err(|e| anyhow!("{:?}", e)),
+                        |v| {
+                            v.map_err(|e| anyhow!("{:?}", e)).and_then(|r| {
+                                if let CoreProxyResponse::GetDocumentFormatting {
+                                    edits,
+                                } = r
+                                {
+                                    Ok(edits)
+                                } else {
+                                    Err(anyhow!("wrong response"))
+                                }
+                            })
+                        },
                     );
 
                 let exit = if exit { Some(view_id) } else { None };
@@ -2005,14 +2016,13 @@ impl LapceEditorBufferData {
                 if let BufferContent::File(path) = self.doc.content() {
                     let path = path.clone();
                     let proxy = self.proxy.clone();
-                    let buffer_id = self.doc.id();
                     let rev = self.doc.rev();
                     let event_sink = ctx.get_external_handle();
                     let (sender, receiver) = bounded(1);
                     let tab_id = self.main_split.tab_id.clone();
                     thread::spawn(move || {
-                        proxy.get_document_formatting(
-                            buffer_id,
+                        proxy.proxy_rpc.get_document_formatting(
+                            path.clone(),
                             Box::new(move |result| {
                                 let _ = sender.send(result);
                             }),
@@ -2022,7 +2032,18 @@ impl LapceEditorBufferData {
                             .recv_timeout(Duration::from_secs(1))
                             .map_or_else(
                                 |e| Err(anyhow!("{}", e)),
-                                |v| v.map_err(|e| anyhow!("{:?}", e)),
+                                |v| {
+                                    v.map_err(|e| anyhow!("{:?}", e)).and_then(|r| {
+                                if let CoreProxyResponse::GetDocumentFormatting {
+                                    edits,
+                                } = r
+                                {
+                                    Ok(edits)
+                                } else {
+                                    Err(anyhow!("wrong response"))
+                                }
+                            })
+                                },
                             );
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,

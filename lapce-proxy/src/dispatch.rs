@@ -269,7 +269,16 @@ impl ProxyHandler for NewDispatcher {
             }
             GetDocumentSymbols { buffer_id } => todo!(),
             GetWorkspaceSymbols { query, buffer_id } => todo!(),
-            GetDocumentFormatting { buffer_id } => todo!(),
+            GetDocumentFormatting { path } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc
+                    .get_document_formatting(&path, move |result| {
+                        let result = result.map(|edits| {
+                            CoreProxyResponse::GetDocumentFormatting { edits }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    });
+            }
             GetFiles { .. } => {
                 let workspace = self.workspace.clone();
                 let proxy_rpc = self.proxy_rpc.clone();
@@ -991,11 +1000,7 @@ impl Dispatcher {
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_workspace_symbols(id, buffer, query);
             }
-            GetDocumentFormatting { buffer_id } => {
-                let buffers = self.buffers.lock();
-                let buffer = buffers.get(&buffer_id).unwrap();
-                self.lsp.lock().get_document_formatting(id, buffer);
-            }
+            GetDocumentFormatting { .. } => {}
             ReadDir { path } => {
                 let local_dispatcher = self.clone();
                 thread::spawn(move || {
