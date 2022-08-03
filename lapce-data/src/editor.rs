@@ -598,7 +598,7 @@ impl LapceEditorBufferData {
     /// Sends a request to the LSP for completion information
     fn update_completion(
         &mut self,
-        ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
         display_if_empty_input: bool,
     ) {
         if self.get_mode() != Mode::Insert {
@@ -644,16 +644,12 @@ impl LapceEditorBufferData {
                 if let Some(start_pos) =
                     self.doc.buffer().offset_to_position(start_offset)
                 {
-                    let event_sink = ctx.get_external_handle();
                     completion.request(
                         self.proxy.clone(),
                         completion.request_id,
-                        self.doc.id(),
                         self.doc.content().path().unwrap().into(),
                         "".to_string(),
                         start_pos,
-                        completion.id,
-                        event_sink,
                     );
                 } else {
                     log::error!("Failed to convert start offset: {start_offset} to Position when making completion request");
@@ -661,18 +657,14 @@ impl LapceEditorBufferData {
             }
 
             if !completion.input_items.contains_key(&input) {
-                let event_sink = ctx.get_external_handle();
                 if let Some(position) = self.doc.buffer().offset_to_position(offset)
                 {
                     completion.request(
                         self.proxy.clone(),
                         completion.request_id,
-                        self.doc.id(),
                         self.doc.content().path().unwrap().into(),
                         input,
                         position,
-                        completion.id,
-                        event_sink,
                     );
                 } else {
                     log::error!("Failed to convert offset: {offset} to Position when making completion request");
@@ -688,17 +680,13 @@ impl LapceEditorBufferData {
         completion.status = CompletionStatus::Started;
         completion.input_items.clear();
         completion.request_id += 1;
-        let event_sink = ctx.get_external_handle();
         if let Some(start_pos) = self.doc.buffer().offset_to_position(start_offset) {
             completion.request(
                 self.proxy.clone(),
                 completion.request_id,
-                self.doc.id(),
                 self.doc.content().path().unwrap().into(),
                 "".to_string(),
                 start_pos,
-                completion.id,
-                event_sink.clone(),
             );
         }
         if !input.is_empty() {
@@ -706,12 +694,9 @@ impl LapceEditorBufferData {
                 completion.request(
                     self.proxy.clone(),
                     completion.request_id,
-                    self.doc.id(),
                     self.doc.content().path().unwrap().into(),
                     input,
                     position,
-                    completion.id,
-                    event_sink,
                 );
             }
         }

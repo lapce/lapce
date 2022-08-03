@@ -30,12 +30,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
 use toml_edit::easy as toml;
-use wasi_common::pipe::ReadPipe;
-use wasi_common::WasiCtx;
-use wasmer::ChainableNamedResolver;
-use wasmer::ImportObject;
 use wasmer::Store;
 use wasmer::WasmerEnv;
 use wasmer_wasi::WasiEnv;
@@ -609,45 +604,43 @@ impl PluginCatalog {
         Ok(())
     }
 
-    pub fn enable_plugin(
-        &mut self,
-        dispatcher: Dispatcher,
-        plugin_desc: PluginDescription,
-    ) -> Result<()> {
-        let mut plugin = plugin_desc.clone();
-        let path = plugins_directory()
-            .expect("Couldn't obtain plugins dir")
-            .join(&plugin.name);
-        plugin.dir = Some(path.clone());
-        if let Some(wasm) = plugin.wasm {
-            plugin.wasm = Some(
-                path.join(&wasm)
-                    .to_str()
-                    .ok_or_else(|| anyhow!("path can't to string"))?
-                    .to_string(),
-            );
-            self.start_plugin(dispatcher, plugin.clone())?;
-            self.disabled.remove(&plugin_desc.name);
-            let config_path =
-                config_directory().expect("couldn't obtain config dir");
-            let disabled_plugin_list =
-                self.disabled.clone().into_keys().collect::<Vec<String>>();
-            let plugin_config = PluginConfig {
-                disabled: disabled_plugin_list,
-            };
-            {
-                let mut file = fs::OpenOptions::new()
-                    .create(true)
-                    .truncate(true)
-                    .write(true)
-                    .open(config_path.join("plugins.toml"))?;
-                file.write_all(&toml::to_vec(&plugin_config)?)?;
-            }
-            Ok(())
-        } else {
-            Err(anyhow!("no wasm in plugin"))
-        }
-    }
+    // pub fn enable_plugin(
+    //     &mut self,
+    //     dispatcher: Dispatcher,
+    //     plugin_desc: PluginDescription,
+    // ) -> Result<()> {
+    //     let mut plugin = plugin_desc.clone();
+    //     let home = home_dir().unwrap();
+    //     let path = home.join(".lapce").join("plugins").join(&plugin.name);
+    //     plugin.dir = Some(path.clone());
+    //     if let Some(wasm) = plugin.wasm {
+    //         plugin.wasm = Some(
+    //             path.join(&wasm)
+    //                 .to_str()
+    //                 .ok_or_else(|| anyhow!("path can't to string"))?
+    //                 .to_string(),
+    //         );
+    //         self.start_plugin(dispatcher, plugin.clone())?;
+    //         self.disabled.remove(&plugin_desc.name);
+    //         let config_path = home.join(".lapce").join("config");
+    //         let disabled_plugin_list =
+    //             self.disabled.clone().into_keys().collect::<Vec<String>>();
+    //         let plugin_config = PluginConfig {
+    //             disabled: disabled_plugin_list,
+    //         };
+    //         {
+    //             let mut file = fs::OpenOptions::new()
+    //                 .create(true)
+    //                 .truncate(true)
+    //                 .write(true)
+    //                 .open(config_path.join("plugins.toml"))?;
+    //             file.write_all(&toml::to_vec(&plugin_config)?)?;
+    //         }
+    //         Ok(())
+    //     } else {
+    //         Err(anyhow!("no wasm in plugin"))
+    //     }
+    // }
 
     pub fn next_plugin_id(&mut self) -> PluginId {
         PluginId(self.id_counter.next())

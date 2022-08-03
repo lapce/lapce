@@ -15,7 +15,6 @@ use lapce_core::{
     syntax::Syntax,
 };
 use lapce_rpc::{
-    core::CoreResponse,
     proxy::CoreProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
@@ -179,22 +178,20 @@ impl DocumentHistory {
                 proxy
                     .proxy_rpc
                     .get_buffer_head(id, path.clone(), move |result| {
-                        if let Ok(resp) = result {
-                            if let CoreProxyResponse::BufferHeadResponse {
-                                version,
-                                content,
-                            } = resp
-                            {
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::LoadBufferHead {
-                                        path,
-                                        content: Rope::from(content),
-                                        version,
-                                    },
-                                    Target::Widget(tab_id),
-                                );
-                            }
+                        if let Ok(CoreProxyResponse::BufferHeadResponse {
+                            version,
+                            content,
+                        }) = result
+                        {
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::LoadBufferHead {
+                                    path,
+                                    content: Rope::from(content),
+                                    version,
+                                },
+                                Target::Widget(tab_id),
+                            );
                         }
                     })
             });

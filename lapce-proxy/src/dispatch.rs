@@ -28,7 +28,6 @@ use lapce_rpc::proxy::{
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::{self, Call, RequestId, RpcError, RpcObject};
-use lsp_types::notification::DidChangeTextDocument;
 use lsp_types::{TextDocumentItem, Url};
 use parking_lot::Mutex;
 use serde_json::json;

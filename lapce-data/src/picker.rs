@@ -4,7 +4,7 @@ use std::{
 };
 
 use druid::{ExtEventSink, Target, WidgetId};
-use lapce_rpc::{core::CoreResponse, file::FileNodeItem, proxy::CoreProxyResponse};
+use lapce_rpc::{file::FileNodeItem, proxy::CoreProxyResponse};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},

@@ -10,7 +10,6 @@ use druid::{Target, WidgetId};
 
 use lapce_core::cursor::CursorMode;
 use lapce_core::selection::Selection;
-use lapce_rpc::core::CoreResponse;
 use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::proxy::CoreProxyResponse;
 use xi_rope::Rope;

@@ -22,22 +22,22 @@ use lapce_rpc::proxy::{CoreProxyRequest, CoreProxyResponse, ProxyRpcHandler};
 use lapce_rpc::source_control::FileDiff;
 use lapce_rpc::style::SemanticStyles;
 use lapce_rpc::terminal::TermId;
+use lapce_rpc::RpcHandler;
 use lapce_rpc::{Callback, RpcMessage, RpcObject};
 use lapce_rpc::{ControlFlow, Handler};
-use lapce_rpc::{RpcError, RpcHandler};
 use lsp_types::request::GotoTypeDefinitionResponse;
+use lsp_types::Position;
 use lsp_types::{
-    CodeActionResponse, CompletionItem, CompletionResponse, DocumentSymbolResponse,
+    CodeActionResponse, CompletionResponse, DocumentSymbolResponse,
     GotoDefinitionResponse, InlayHint, SymbolInformation, TextEdit,
 };
-use lsp_types::{Hover, Position};
 use lsp_types::{Location, Url};
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use serde_json::Value;
 use thiserror::Error;
-use xi_rope::{Rope, RopeDelta};
+use xi_rope::Rope;
 
 use crate::command::LapceUICommand;
 use crate::command::LAPCE_UI_COMMAND;

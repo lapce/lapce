@@ -1,7 +1,7 @@
 use std::{fmt::Display, path::PathBuf, sync::Arc};
 
 use anyhow::Error;
-use druid::{ExtEventSink, Size, Target, WidgetId};
+use druid::{Size, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lapce_core::movement::Movement;
@@ -10,10 +10,7 @@ use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
 use std::str::FromStr;
 
-use crate::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
-    proxy::LapceProxy,
-};
+use crate::proxy::LapceProxy;
 
 #[derive(Debug)]
 pub struct Snippet {
@@ -338,30 +335,13 @@ impl CompletionData {
         &self,
         proxy: Arc<LapceProxy>,
         request_id: usize,
-        buffer_id: BufferId,
         path: PathBuf,
         input: String,
         position: Position,
-        completion_widget_id: WidgetId,
-        event_sink: ExtEventSink,
     ) {
         proxy
             .proxy_rpc
             .completion(request_id, path, input, position);
-        // proxy.proxy_rpc.completion(
-        //     request_id,
-        //     buffer_id,
-        //     position,
-        //     Box::new(move |result| {
-        //         if let Ok(resp) = result {
-        //             let _ = event_sink.submit_command(
-        //                 LAPCE_UI_COMMAND,
-        //                 LapceUICommand::UpdateCompletion(request_id, input, resp),
-        //                 Target::Widget(completion_widget_id),
-        //             );
-        //         }
-        //     }),
-        // );
     }
 
     pub fn cancel(&mut self) {

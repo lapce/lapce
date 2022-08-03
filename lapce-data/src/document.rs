@@ -32,7 +32,6 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::BufferId,
-    core::CoreResponse,
     proxy::CoreProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };

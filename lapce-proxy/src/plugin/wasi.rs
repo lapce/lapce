@@ -10,11 +10,12 @@ use anyhow::{anyhow, Result};
 use home::home_dir;
 use lapce_rpc::plugin::{PluginDescription, PluginId};
 use lsp_types::{
-    request::Initialize, DidOpenTextDocumentParams, TextDocumentContentChangeEvent,
+    request::Initialize, TextDocumentContentChangeEvent,
     VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::Request;
+use toml_edit::easy as toml;
 use wasmer::{ChainableNamedResolver, ImportObject, Store, WasmerEnv};
 use wasmer_wasi::{Pipe, WasiEnv, WasiState};
 use xi_rope::{Rope, RopeDelta};
