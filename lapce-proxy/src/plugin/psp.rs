@@ -309,8 +309,7 @@ impl PluginServerRpcHandler {
                     language_id,
                     rh,
                 } => {
-                    if handler
-                        .language_supported(language_id.as_ref().map(|l| l.as_str()))
+                    if handler.language_supported(language_id.as_deref())
                         && handler.method_registered(method)
                     {
                         self.send_server_request(id, method, params, rh);
@@ -326,8 +325,7 @@ impl PluginServerRpcHandler {
                     params,
                     language_id,
                 } => {
-                    if handler
-                        .language_supported(language_id.as_ref().map(|l| l.as_str()))
+                    if handler.language_supported(language_id.as_deref())
                         && handler.method_registered(method)
                     {
                         self.send_server_notification(method, params);

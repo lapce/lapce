@@ -237,7 +237,7 @@ impl PluginCatalogRpcHandler {
                 if result.is_ok() {
                     cb(result)
                 } else {
-                    let rx = err_received.fetch_add(1, Ordering::Relaxed);
+                    let rx = err_received.fetch_add(1, Ordering::Relaxed) + 1;
                     if request_sent.load(Ordering::Acquire) == rx {
                         cb(result)
                     }
