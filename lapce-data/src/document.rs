@@ -46,7 +46,7 @@ use xi_rope::{
 };
 
 use crate::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    command::{InitBufferContentCb, LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     data::{EditorDiagnostic, EditorView},
     editor::{EditorLocation, EditorPosition},
@@ -563,6 +563,7 @@ impl Document {
         &mut self,
         locations: Vec<(WidgetId, EditorLocation<P>)>,
         unsaved_buffer: Option<Rope>,
+        cb: Option<InitBufferContentCb>,
     ) {
         if self.loaded || *self.load_started.borrow() {
             return;
@@ -585,6 +586,7 @@ impl Document {
                                 Rope::from(resp.content),
                                 locations,
                                 unsaved_buffer,
+                                cb,
                             ),
                             Target::Widget(tab_id),
                         );

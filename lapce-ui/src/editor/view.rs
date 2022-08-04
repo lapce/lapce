@@ -189,7 +189,7 @@ impl LapceEditorView {
     ) {
         match cmd {
             LapceUICommand::RunCodeAction(action) => {
-                data.run_code_action(action);
+                data.run_code_action(ctx, action);
             }
             LapceUICommand::EnsureCursorVisible(position) => {
                 self.ensure_cursor_visible(ctx, data, panel, position.as_ref(), env);

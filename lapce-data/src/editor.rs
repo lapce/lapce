@@ -1,3 +1,4 @@
+use crate::command::InitBufferContentCb;
 use crate::command::LapceCommand;
 use crate::command::LAPCE_COMMAND;
 use crate::command::LAPCE_SAVE_FILE_AS;
@@ -20,7 +21,9 @@ use crate::palette::PaletteData;
 use crate::proxy::path_from_url;
 use crate::proxy::RequestError;
 use crate::{
-    command::{EnsureVisiblePosition, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        EnsureVisiblePosition, InitBufferContent, LapceUICommand, LAPCE_UI_COMMAND,
+    },
     split::SplitMoveDirection,
 };
 use crate::{find::Find, split::SplitDirection};
@@ -88,6 +91,7 @@ pub trait EditorPosition: Sized {
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation<Self>)>,
         edits: Option<Rope>,
+        cb: Option<InitBufferContentCb>,
     ) -> LapceUICommand;
 }
 
@@ -102,13 +106,15 @@ impl EditorPosition for usize {
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation<Self>)>,
         unsaved_buffers: Option<Rope>,
+        cb: Option<InitBufferContentCb>,
     ) -> LapceUICommand {
-        LapceUICommand::InitBufferContent {
+        LapceUICommand::InitBufferContent(InitBufferContent {
             path,
             content,
             locations,
             edits: unsaved_buffers,
-        }
+            cb,
+        })
     }
 }
 
@@ -126,13 +132,15 @@ impl EditorPosition for Line {
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation<Self>)>,
         edits: Option<Rope>,
+        cb: Option<InitBufferContentCb>,
     ) -> LapceUICommand {
-        LapceUICommand::InitBufferContentLine {
+        LapceUICommand::InitBufferContentLine(InitBufferContent {
             path,
             content,
             locations,
             edits,
-        }
+            cb,
+        })
     }
 }
 
@@ -152,13 +160,15 @@ impl EditorPosition for LineCol {
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation<Self>)>,
         edits: Option<Rope>,
+        cb: Option<InitBufferContentCb>,
     ) -> LapceUICommand {
-        LapceUICommand::InitBufferContentLineCol {
+        LapceUICommand::InitBufferContentLineCol(InitBufferContent {
             path,
             content,
             locations,
             edits,
-        }
+            cb,
+        })
     }
 }
 
@@ -172,13 +182,15 @@ impl EditorPosition for Position {
         content: Rope,
         locations: Vec<(WidgetId, EditorLocation<Self>)>,
         edits: Option<Rope>,
+        cb: Option<InitBufferContentCb>,
     ) -> LapceUICommand {
-        LapceUICommand::InitBufferContentLsp {
+        LapceUICommand::InitBufferContentLsp(InitBufferContent {
             path,
             content,
             locations,
             edits,
-        }
+            cb,
+        })
     }
 }
 
@@ -336,7 +348,11 @@ impl LapceEditorBufferData {
         self.hover.status != HoverStatus::Inactive && !self.hover.is_empty()
     }
 
-    pub fn run_code_action(&mut self, action: &CodeActionOrCommand) {
+    pub fn run_code_action(
+        &mut self,
+        ctx: &mut EventCtx,
+        action: &CodeActionOrCommand,
+    ) {
         if let BufferContent::File(path) = &self.editor.content {
             match action {
                 CodeActionOrCommand::Command(_cmd) => {}
@@ -344,49 +360,57 @@ impl LapceEditorBufferData {
                     if let Some(edit) = action.edit.as_ref() {
                         if let Some(edits) = workspace_edits(edit) {
                             for (url, edits) in edits {
-                                // TODO: Neither of these methods work for paths
-                                // on different filesystems (i.e. windows and linux),
-                                // as pathbuf is meant to represent a path on the host
-                                let mut matches = false;
-                                // This handles windows drive letters, which rust-url doesn't do.
-                                if let Ok(url_path) = url.to_file_path() {
-                                    matches |= &url_path == path;
-                                }
-                                // This is the previous check, to ensure this isn't a regression
-                                if let Ok(path_url) = Url::from_file_path(path) {
-                                    matches |= path_url == url;
-                                }
-                                if matches {
+                                if url_matches_path(path, &url) {
                                     let path = path.clone();
                                     let doc = self
                                         .main_split
                                         .open_docs
-                                        .get_mut(&path)
-                                        .unwrap();
-                                    let edits = edits
-                                        .iter()
-                                        .map(|edit| {
-                                            let selection =
-                                            lapce_core::selection::Selection::region(
-                                                doc.buffer().offset_of_position(
-                                                    &edit.range.start,
-                                                )?,
-                                                doc.buffer().offset_of_position(
-                                                    &edit.range.end,
-                                                )?,
-                                            );
-                                            Some((selection, edit.new_text.as_str()))
-                                        })
-                                        .collect::<Option<Vec<_>>>();
-                                    if let Some(edits) = edits {
-                                        self.main_split.edit(
-                                            &path,
-                                            &edits,
-                                            lapce_core::editor::EditType::Other,
-                                        );
-                                    } else {
-                                        log::error!("Failed to convert code action edit Position to offset");
-                                    }
+                                        .get(&path)
+                                        .unwrap()
+                                        .clone();
+                                    apply_code_action(
+                                        &doc,
+                                        &mut self.main_split,
+                                        &path,
+                                        &edits,
+                                    );
+                                } else if let Ok(url_path) = url.to_file_path() {
+                                    // If it is not for the file we have open then we assume that
+                                    // we may have to load it
+                                    // So we jump to the location that the edits were at.
+                                    // TODO: url_matches_path checks if the url path 'goes back' to the original url
+                                    // Should we do that here?
+
+                                    // We choose to just jump to the start of the first edit. The edit function will jump
+                                    // appropriately when we actually apply the edits.
+                                    let position =
+                                        edits.get(0).map(|edit| edit.range.start);
+                                    self.main_split.jump_to_location_cb(
+                                        ctx,
+                                        None,
+                                        EditorLocation {
+                                            path: url_path.clone(),
+                                            position,
+                                            scroll_offset: None,
+                                            history: None,
+                                        },
+                                        &self.config,
+                                        // Note: For some reason Rust is unsure about what type the arguments are if we don't specify them
+                                        // Perhaps this could be fixed by being very explicit about the lifetimes in the jump_to_location_cb fn?
+                                        Some(move |_: &mut EventCtx, main_split: &mut LapceMainSplitData| {
+                                            // The file has been loaded, so we want to apply the edits now.
+                                            let doc = if let Some(doc) = main_split.open_docs.get(&url_path) {
+                                                doc.clone()
+                                            } else {
+                                                log::warn!("Failed to load URL-path {url_path:?} properly. It was loaded but was not able to be found, which might indicate cross platform path confusion issues.");
+                                                return;
+                                            };
+
+                                            apply_code_action(&doc, main_split, &url_path, &edits);
+                                        }),
+                                    );
+                                } else {
+                                    log::warn!("Text edits failed to apply to URL {url:?} because it was not found");
                                 }
                             }
                         }
@@ -2311,4 +2335,46 @@ fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> 
             .collect::<HashMap<Url, Vec<TextEdit>>>(),
     };
     Some(edits)
+}
+
+/// Check if a [`Url`] matches the path
+fn url_matches_path(path: &Path, url: &Url) -> bool {
+    // TODO: Neither of these methods work for paths
+    // on different filesystems (i.e. windows and linux),
+    // as pathbuf is meant to represent a path on the host
+    let mut matches = false;
+    // This handles windows drive letters, which rust-url doesn't do.
+    if let Ok(url_path) = url.to_file_path() {
+        matches |= url_path == path;
+    }
+    // This is the previous check, to ensure this isn't a regression
+    if let Ok(path_url) = Url::from_file_path(path) {
+        matches |= &path_url == url;
+    }
+
+    matches
+}
+
+fn apply_code_action(
+    doc: &Document,
+    main_split: &mut LapceMainSplitData,
+    path: &Path,
+    edits: &[TextEdit],
+) {
+    let edits = edits
+        .iter()
+        .map(|edit| {
+            let selection = lapce_core::selection::Selection::region(
+                doc.buffer().offset_of_position(&edit.range.start)?,
+                doc.buffer().offset_of_position(&edit.range.end)?,
+            );
+            Some((selection, edit.new_text.as_str()))
+        })
+        .collect::<Option<Vec<_>>>();
+
+    if let Some(edits) = edits {
+        main_split.edit(path, &edits, lapce_core::editor::EditType::Other);
+    } else {
+        log::error!("Failed to convert code action edit Position to offset");
+    }
 }

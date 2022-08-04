@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use druid::{
     kurbo::Line,
@@ -27,7 +27,7 @@ use lapce_data::{
         LapceWorkspace, LapceWorkspaceType, WorkProgress,
     },
     document::{BufferContent, LocalBufferKind},
-    editor::{EditorLocation, EditorPosition},
+    editor::EditorLocation,
     hover::HoverStatus,
     keypress::{DefaultKeyPressHandler, KeyPressData},
     menu::MenuKind,
@@ -732,50 +732,17 @@ impl LapceTab {
                         }
                         ctx.show_context_menu::<LapceData>(menu, *point);
                     }
-                    LapceUICommand::InitBufferContent {
-                        path,
-                        content,
-                        locations,
-                        edits,
-                    } => {
-                        init_buffer_content(
-                            ctx,
-                            data,
-                            path,
-                            content,
-                            locations,
-                            edits.as_ref(),
-                        );
+                    LapceUICommand::InitBufferContent(init) => {
+                        init.execute(ctx, data)
                     }
-                    LapceUICommand::InitBufferContentLsp {
-                        path,
-                        content,
-                        locations,
-                        edits,
-                    } => {
-                        init_buffer_content(
-                            ctx,
-                            data,
-                            path,
-                            content,
-                            locations,
-                            edits.as_ref(),
-                        );
+                    LapceUICommand::InitBufferContentLine(init) => {
+                        init.execute(ctx, data)
                     }
-                    LapceUICommand::InitBufferContentLineCol {
-                        path,
-                        content,
-                        locations,
-                        edits,
-                    } => {
-                        init_buffer_content(
-                            ctx,
-                            data,
-                            path,
-                            content,
-                            locations,
-                            edits.as_ref(),
-                        );
+                    LapceUICommand::InitBufferContentLineCol(init) => {
+                        init.execute(ctx, data)
+                    }
+                    LapceUICommand::InitBufferContentLsp(init) => {
+                        init.execute(ctx, data)
                     }
                     LapceUICommand::InitPaletteInput(pattern) => {
                         let doc = data
@@ -2320,36 +2287,4 @@ impl Widget<LapceTabData> for LapceTabHeader {
             );
         }
     }
-}
-
-fn init_buffer_content<P: EditorPosition + Clone + Send + 'static>(
-    ctx: &mut EventCtx,
-    data: &mut LapceTabData,
-    path: &Path,
-    content: &Rope,
-    locations: &[(WidgetId, EditorLocation<P>)],
-    edits: Option<&Rope>,
-) {
-    let doc = data.main_split.open_docs.get_mut(path).unwrap();
-    let doc = Arc::make_mut(doc);
-    doc.init_content(content.to_owned());
-
-    if let Some(rope) = edits {
-        doc.reload(rope.clone(), false);
-    }
-    if let BufferContent::File(path) = doc.content() {
-        if let Some(d) = data.main_split.diagnostics.get(path) {
-            doc.set_diagnostics(d);
-        }
-    }
-
-    for (view_id, location) in locations {
-        data.main_split.go_to_location(
-            ctx,
-            Some(*view_id),
-            location.clone(),
-            &data.config,
-        );
-    }
-    ctx.set_handled();
 }
