@@ -58,14 +58,20 @@ impl ProxyHandler for NewDispatcher {
     fn handle_notification(&mut self, rpc: CoreProxyNotification) {
         use CoreProxyNotification::*;
         match rpc {
-            Initialize { workspace } => {
+            Initialize {
+                workspace,
+                plugin_configurations,
+            } => {
                 self.workspace = workspace;
 
                 let plugin_rpc = self.catalog_rpc.clone();
                 let workspace = self.workspace.clone();
                 thread::spawn(move || {
-                    let mut plugin =
-                        NewPluginCatalog::new(workspace, plugin_rpc.clone());
+                    let mut plugin = NewPluginCatalog::new(
+                        workspace,
+                        plugin_configurations,
+                        plugin_rpc.clone(),
+                    );
                     plugin_rpc.mainloop(&mut plugin);
                 });
             }
@@ -744,7 +750,7 @@ impl Dispatcher {
         use CoreProxyNotification::*;
         match rpc {
             Completion { .. } => {}
-            Initialize { workspace } => {
+            Initialize { workspace, .. } => {
                 *self.workspace.lock() = workspace.clone();
                 if let Some(workspace) = workspace {
                     self.file_watcher.lock().as_mut().unwrap().watch(

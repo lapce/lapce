@@ -1,7 +1,9 @@
 use std::{
-    fs,
+    collections::HashMap,
+    default, fs,
     io::Read,
     path::{Path, PathBuf},
+    process,
     sync::Arc,
     thread,
 };
@@ -9,9 +11,10 @@ use std::{
 use anyhow::{anyhow, Result};
 use home::home_dir;
 use jsonrpc_lite::Params;
-use lapce_rpc::plugin::{PluginDescription, PluginId};
+use lapce_rpc::plugin::{PluginConfiguration, PluginDescription, PluginId};
 use lsp_types::{
-    request::Initialize, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    request::Initialize, ClientCapabilities, InitializeParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
     VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
@@ -45,6 +48,7 @@ pub struct NewPlugin {
     instance: wasmer::Instance,
     env: NewPluginEnv,
     host: PluginHostHandler,
+    configurations: Option<serde_json::Value>,
 }
 
 impl PluginServerHandler for NewPlugin {
@@ -120,10 +124,24 @@ impl NewPlugin {
     fn initialize(&mut self) {
         eprintln!("plugin Start to initilize");
         let server_rpc = self.host.server_rpc.clone();
+        let workspace = self.host.workspace.clone();
+        let configurations = self.configurations.clone();
         thread::spawn(move || {
+            let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
             server_rpc.server_request(
                 Initialize::METHOD,
-                serde_json::json!({}),
+                #[allow(deprecated)]
+                InitializeParams {
+                    process_id: Some(process::id()),
+                    root_path: None,
+                    root_uri,
+                    capabilities: ClientCapabilities::default(),
+                    trace: None,
+                    client_info: None,
+                    locale: None,
+                    initialization_options: configurations,
+                    workspace_folders: None,
+                },
                 None,
                 false,
             );
@@ -134,6 +152,7 @@ impl NewPlugin {
 pub fn load_all_plugins(
     workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
+    plugin_configurations: HashMap<String, serde_json::Value>,
 ) {
     eprintln!("start to load plugins");
     let all_plugins = find_all_plugins();
@@ -141,9 +160,12 @@ pub fn load_all_plugins(
         match load_plugin(plugin_path) {
             Err(_e) => (),
             Ok(plugin_desc) => {
-                if let Err(e) =
-                    start_plugin(workspace.clone(), plugin_rpc.clone(), plugin_desc)
-                {
+                if let Err(e) = start_plugin(
+                    workspace.clone(),
+                    plugin_configurations.get(&plugin_desc.name).cloned(),
+                    plugin_rpc.clone(),
+                    plugin_desc,
+                ) {
                     eprintln!("start plugin error {}", e);
                 }
             }
@@ -185,8 +207,22 @@ fn load_plugin(path: &Path) -> Result<PluginDescription> {
     Ok(plugin)
 }
 
+fn format_plugin_configurations(
+    desc_configurations: &HashMap<String, PluginConfiguration>,
+    configurations: &HashMap<String, serde_json::Value>,
+) -> serde_json::Value {
+    let mut configs = HashMap::new();
+    for name in desc_configurations.keys() {
+        if let Some(value) = configurations.get(name) {
+            configs.insert(name.to_string(), value.clone());
+        }
+    }
+    serde_json::to_value(configs).unwrap()
+}
+
 fn start_plugin(
     workspace: Option<PathBuf>,
+    configurations: Option<serde_json::Value>,
     plugin_rpc: PluginCatalogRpcHandler,
     plugin_desc: PluginDescription,
 ) -> Result<()> {
@@ -224,6 +260,7 @@ fn start_plugin(
     };
     let lapce = lapce_exports(&store, &plugin_env);
     let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
+
     let mut plugin = NewPlugin {
         id,
         instance,
@@ -235,6 +272,7 @@ fn start_plugin(
             rpc.clone(),
             plugin_rpc.clone(),
         ),
+        configurations,
     };
 
     // let start_function = plugin

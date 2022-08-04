@@ -480,7 +480,7 @@ struct ServerRegistrations {
 
 pub struct PluginHostHandler {
     pwd: Option<PathBuf>,
-    workspace: Option<PathBuf>,
+    pub(crate) workspace: Option<PathBuf>,
     lanaguage_id: Option<String>,
     catalog_rpc: PluginCatalogRpcHandler,
     pub server_rpc: PluginServerRpcHandler,
@@ -608,39 +608,11 @@ impl PluginHostHandler {
         }
     }
 
-    fn save_include_text(&self) -> bool {
-        let include_text = self
-            .server_registrations
-            .save
-            .as_ref()
-            .map(|save| save.include_text)
-            .or_else(|| {
-                self.server_capabilities
-                    .text_document_sync
-                    .as_ref()
-                    .and_then(|s| match s {
-                        TextDocumentSyncCapability::Kind(_) => None,
-                        TextDocumentSyncCapability::Options(options) => {
-                            Some(options)
-                        }
-                    })
-                    .and_then(|o| o.save.as_ref())
-                    .map(|o| match o {
-                        TextDocumentSyncSaveOptions::Supported(_) => false,
-                        TextDocumentSyncSaveOptions::SaveOptions(options) => {
-                            options.include_text.unwrap_or(false)
-                        }
-                    })
-            })
-            .unwrap_or(false);
-        include_text
-    }
-
-    fn check_save_capability(&self, language_id: &str, path: &Path) -> bool {
+    fn check_save_capability(&self, language_id: &str, path: &Path) -> (bool, bool) {
         if self.lanaguage_id.is_none()
             || self.lanaguage_id.as_deref() == Some(language_id)
         {
-            let should_send = self
+            let (should_send, include_text) = self
                 .server_capabilities
                 .text_document_sync
                 .as_ref()
@@ -651,12 +623,14 @@ impl PluginHostHandler {
                 .and_then(|o| o.save.as_ref())
                 .map(|o| match o {
                     TextDocumentSyncSaveOptions::Supported(is_supported) => {
-                        *is_supported
+                        (*is_supported, true)
                     }
-                    TextDocumentSyncSaveOptions::SaveOptions(_) => true,
+                    TextDocumentSyncSaveOptions::SaveOptions(options) => {
+                        (true, options.include_text.unwrap_or(false))
+                    }
                 })
-                .unwrap_or(false);
-            return should_send;
+                .unwrap_or((false, false));
+            return (should_send, include_text);
         }
 
         if let Some(options) = self.server_registrations.save.as_ref() {
@@ -666,12 +640,12 @@ impl PluginHostHandler {
                     && (filter.pattern.is_none()
                         || filter.pattern.as_ref().unwrap().is_match(path))
                 {
-                    return true;
+                    return (true, options.include_text);
                 }
             }
         }
 
-        false
+        (false, false)
     }
 
     fn register_capabilities(&mut self, registrations: Vec<Registration>) {
@@ -760,6 +734,7 @@ impl PluginHostHandler {
                         pwd,
                         params.exec_path,
                         Vec::new(),
+                        params.options,
                     ) {
                         Ok(_) => eprintln!("lsp started"),
                         Err(e) => eprintln!("lsp start error {e}"),
@@ -790,13 +765,15 @@ impl PluginHostHandler {
         text_document: TextDocumentIdentifier,
         text: Rope,
     ) {
-        if !self.check_save_capability(language_id.as_str(), &path) {
+        let (should_send, include_text) =
+            self.check_save_capability(language_id.as_str(), &path);
+        if !should_send {
             eprintln!("did save not sent for {path:?} {language_id}");
             return;
         }
-        eprintln!("did save sent for {path:?} {language_id}");
-
-        let include_text = self.save_include_text();
+        eprintln!(
+            "did save sent for {path:?} {language_id} inclue_text: {include_text}"
+        );
         let params = DidSaveTextDocumentParams {
             text_document,
             text: if include_text {
@@ -809,7 +786,7 @@ impl PluginHostHandler {
             DidSaveTextDocument::METHOD,
             params,
             Some(language_id),
-            true,
+            false,
         );
     }
 
@@ -877,7 +854,7 @@ impl PluginHostHandler {
             DidChangeTextDocument::METHOD,
             params,
             Some(lanaguage_id),
-            true,
+            false,
         );
     }
 }

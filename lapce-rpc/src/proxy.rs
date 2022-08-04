@@ -135,6 +135,7 @@ pub enum CoreProxyRequest {
 pub enum CoreProxyNotification {
     Initialize {
         workspace: Option<PathBuf>,
+        plugin_configurations: HashMap<String, serde_json::Value>,
     },
     Shutdown {},
     Completion {
@@ -353,8 +354,15 @@ impl ProxyRpcHandler {
         self.notification(CoreProxyNotification::Shutdown {});
     }
 
-    pub fn initialize(&self, workspace: Option<PathBuf>) {
-        self.notification(CoreProxyNotification::Initialize { workspace });
+    pub fn initialize(
+        &self,
+        workspace: Option<PathBuf>,
+        plugin_configurations: HashMap<String, serde_json::Value>,
+    ) {
+        self.notification(CoreProxyNotification::Initialize {
+            workspace,
+            plugin_configurations,
+        });
     }
 
     pub fn completion(

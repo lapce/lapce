@@ -17,7 +17,7 @@ use lapce_rpc::{
         CoreHandler, CoreNotification, CoreRequest, CoreResponse, CoreRpcHandler,
     },
     proxy::{CoreProxyNotification, CoreProxyRequest, ProxyRpcHandler},
-    RpcMessage, RpcObject,
+    RequestId, RpcMessage, RpcObject,
 };
 use serde_json::Value;
 
@@ -54,7 +54,7 @@ impl CoreHandler for CoreStdout {
         todo!()
     }
 
-    fn handle_request(&mut self, rpc: CoreRequest) {
+    fn handle_request(&mut self, id: RequestId, rpc: CoreRequest) {
         todo!()
     }
 }

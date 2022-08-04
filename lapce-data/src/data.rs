@@ -610,6 +610,7 @@ impl LapceTabData {
         let proxy = Arc::new(LapceProxy::new(
             tab_id,
             workspace.clone(),
+            config.plugins.clone(),
             term_sender.clone(),
             event_sink.clone(),
         ));

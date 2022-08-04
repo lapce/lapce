@@ -78,6 +78,7 @@ pub struct NewLspClient {
     exec_path: PathBuf,
     args: Vec<String>,
     host: PluginHostHandler,
+    options: Option<Value>,
 }
 
 impl PluginServerHandler for NewLspClient {
@@ -157,6 +158,7 @@ impl NewLspClient {
         pwd: Option<PathBuf>,
         exec_path: PathBuf,
         args: Vec<String>,
+        options: Option<Value>,
     ) -> Result<Self> {
         let exec_path = pwd
             .as_ref()
@@ -212,6 +214,7 @@ impl NewLspClient {
             exec_path,
             args,
             host,
+            options,
         })
     }
 
@@ -222,9 +225,11 @@ impl NewLspClient {
         pwd: Option<PathBuf>,
         exec_path: PathBuf,
         args: Vec<String>,
+        options: Option<Value>,
     ) -> Result<()> {
-        let mut lsp =
-            Self::new(plugin_rpc, laguage_id, workspace, pwd, exec_path, args)?;
+        let mut lsp = Self::new(
+            plugin_rpc, laguage_id, workspace, pwd, exec_path, args, options,
+        )?;
         let rpc = lsp.server_rpc.clone();
         thread::spawn(move || {
             rpc.mainloop(&mut lsp);
@@ -337,7 +342,7 @@ impl NewLspClient {
         let params = InitializeParams {
             process_id: Some(process::id()),
             root_uri: root_uri.clone(),
-            initialization_options: None,
+            initialization_options: self.options.clone(),
             capabilities: client_capabilities,
             trace: Some(TraceValue::Verbose),
             workspace_folders: root_uri.map(|uri| {
@@ -350,7 +355,6 @@ impl NewLspClient {
             locale: None,
             root_path: None,
         };
-        eprintln!("lsp initilize");
         let server_rpc = self.server_rpc.clone();
         if let Ok(value) =
             self.server_rpc

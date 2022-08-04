@@ -30,20 +30,23 @@ use super::{
 pub struct NewPluginCatalog {
     plugin_rpc: PluginCatalogRpcHandler,
     new_plugins: HashMap<PluginId, PluginServerRpcHandler>,
+    plugin_configurations: HashMap<String, serde_json::Value>,
 }
 
 impl NewPluginCatalog {
     pub fn new(
         workspace: Option<PathBuf>,
+        plugin_configurations: HashMap<String, serde_json::Value>,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
         let plugin = Self {
             plugin_rpc: plugin_rpc.clone(),
+            plugin_configurations: plugin_configurations.clone(),
             new_plugins: HashMap::new(),
         };
 
         thread::spawn(move || {
-            load_all_plugins(workspace, plugin_rpc);
+            load_all_plugins(workspace, plugin_rpc, plugin_configurations);
         });
 
         plugin

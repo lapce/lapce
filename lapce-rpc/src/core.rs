@@ -5,12 +5,15 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     path::PathBuf,
-    sync::{atomic::AtomicU64, Arc},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
 use crate::{
     file::FileNodeItem,
-    plugin::{PluginDescription, PluginId},
+    plugin::{PluginConfiguration, PluginDescription, PluginId},
     source_control::DiffInfo,
     terminal::TermId,
     RequestId, RpcError,
@@ -85,7 +88,7 @@ pub enum CoreResponse {}
 
 pub trait CoreHandler {
     fn handle_notification(&mut self, rpc: CoreNotification);
-    fn handle_request(&mut self, rpc: CoreRequest);
+    fn handle_request(&mut self, id: RequestId, rpc: CoreRequest);
 }
 
 #[derive(Clone)]
@@ -93,7 +96,7 @@ pub struct CoreRpcHandler {
     tx: Sender<CoreRpc>,
     rx: Receiver<CoreRpc>,
     id: Arc<AtomicU64>,
-    pending: Arc<Mutex<HashMap<u64, u64>>>,
+    pending: Arc<Mutex<HashMap<u64, Sender<Result<CoreResponse, RpcError>>>>>,
 }
 
 impl CoreRpcHandler {
@@ -114,7 +117,7 @@ impl CoreRpcHandler {
         for msg in &self.rx {
             match msg {
                 CoreRpc::Request(id, rpc) => {
-                    handler.handle_request(rpc);
+                    handler.handle_request(id, rpc);
                 }
                 CoreRpc::Notification(rpc) => {
                     handler.handle_notification(rpc);
@@ -123,7 +126,32 @@ impl CoreRpcHandler {
         }
     }
 
-    pub fn handle_response(&self, response: Result<CoreResponse, RpcError>) {}
+    pub fn handle_response(
+        &self,
+        id: RequestId,
+        response: Result<CoreResponse, RpcError>,
+    ) {
+        let tx = { self.pending.lock().remove(&id) };
+        if let Some(tx) = tx {
+            let _ = tx.send(response);
+        }
+    }
+
+    pub fn request(&self, request: CoreRequest) -> Result<CoreResponse, RpcError> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        let id = self.id.fetch_add(1, Ordering::Relaxed);
+        {
+            let mut pending = self.pending.lock();
+            pending.insert(id, tx);
+        }
+        let _ = self.tx.send(CoreRpc::Request(id, request));
+        rx.recv().unwrap_or_else(|_| {
+            Err(RpcError {
+                code: 0,
+                message: "io error".to_string(),
+            })
+        })
+    }
 
     pub fn notification(&self, notification: CoreNotification) {
         let _ = self.tx.send(CoreRpc::Notification(notification));

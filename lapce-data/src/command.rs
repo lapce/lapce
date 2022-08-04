@@ -11,6 +11,7 @@ use lapce_core::command::{
 };
 use lapce_core::syntax::Syntax;
 use lapce_rpc::plugin::PluginId;
+use lapce_rpc::RequestId;
 use lapce_rpc::{
     buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
     source_control::DiffInfo, style::Style, terminal::TermId,

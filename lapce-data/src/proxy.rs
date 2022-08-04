@@ -22,9 +22,9 @@ use lapce_rpc::proxy::{CoreProxyRequest, CoreProxyResponse, ProxyRpcHandler};
 use lapce_rpc::source_control::FileDiff;
 use lapce_rpc::style::SemanticStyles;
 use lapce_rpc::terminal::TermId;
-use lapce_rpc::RpcHandler;
 use lapce_rpc::{Callback, RpcMessage, RpcObject};
 use lapce_rpc::{ControlFlow, Handler};
+use lapce_rpc::{RequestId, RpcHandler};
 use lsp_types::request::GotoTypeDefinitionResponse;
 use lsp_types::Position;
 use lsp_types::Url;
@@ -225,8 +225,9 @@ impl CoreHandler for LapceProxy {
         }
     }
 
-    fn handle_request(&mut self, rpc: CoreRequest) {
-        todo!()
+    fn handle_request(&mut self, id: RequestId, rpc: CoreRequest) {
+        use CoreRequest::*;
+        match rpc {}
     }
 }
 
@@ -347,6 +348,7 @@ impl LapceProxy {
     pub fn new(
         tab_id: WidgetId,
         workspace: LapceWorkspace,
+        plugin_configurations: HashMap<String, serde_json::Value>,
         term_tx: Sender<(TermId, TermEvent)>,
         event_sink: ExtEventSink,
     ) -> Self {
@@ -373,7 +375,7 @@ impl LapceProxy {
                 LapceUICommand::ProxyUpdateStatus(ProxyStatus::Connecting),
                 Target::Widget(tab_id),
             );
-            let _ = local_proxy.start(workspace.clone());
+            let _ = local_proxy.start(workspace.clone(), plugin_configurations);
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ProxyUpdateStatus(ProxyStatus::Disconnected),
@@ -384,8 +386,13 @@ impl LapceProxy {
         proxy
     }
 
-    fn start(&self, workspace: LapceWorkspace) -> Result<()> {
-        self.proxy_rpc.initialize(workspace.path.clone());
+    fn start(
+        &self,
+        workspace: LapceWorkspace,
+        plugin_configurations: HashMap<String, serde_json::Value>,
+    ) -> Result<()> {
+        self.proxy_rpc
+            .initialize(workspace.path.clone(), plugin_configurations);
         let (core_sender, core_receiver) = crossbeam_channel::unbounded();
         match workspace.kind {
             LapceWorkspaceType::Local => {

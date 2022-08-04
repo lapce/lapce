@@ -600,6 +600,8 @@ pub struct Config {
     pub editor: EditorConfig,
     pub terminal: TerminalConfig,
     pub theme: ThemeConfig,
+    #[serde(flatten)]
+    pub plugins: HashMap<String, serde_json::Value>,
     #[serde(skip)]
     pub default_theme: ThemeConfig,
     #[serde(skip)]
