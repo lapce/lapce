@@ -1,7 +1,10 @@
-use std::{path::PathBuf, process::Command};
+use std::{collections::HashMap, fmt, path::PathBuf, process::Command};
 
 use anyhow::{format_err, Error};
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::{self, MapAccess, SeqAccess, Visitor},
+    Deserialize, Deserializer, Serialize,
+};
 use serde_json::Value;
 
 use crate::counter::Counter;
@@ -31,7 +34,7 @@ pub struct PluginDescription {
     pub wasm: Option<String>,
     pub themes: Option<Vec<String>>,
     pub dir: Option<PathBuf>,
-    pub configuration: Option<Value>,
+    pub configuration: Option<HashMap<String, PluginConfiguration>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -53,15 +56,15 @@ impl PluginDescription {
             }
         };
 
-        let conf = match conf.as_object() {
-            Some(val) => val,
-            None => {
-                return Err(format_err!(
-                    "Empty configuration for plugin {}",
-                    self.display_name
-                ));
-            }
-        };
+        // let conf = match conf.as_object() {
+        //     Some(val) => val,
+        //     None => {
+        //         return Err(format_err!(
+        //             "Empty configuration for plugin {}",
+        //             self.display_name
+        //         ));
+        //     }
+        // };
 
         let env = match conf.get("env_command") {
             Some(env) => env,
@@ -69,48 +72,61 @@ impl PluginDescription {
             None => return Ok(vec![]),
         };
 
-        let args = match env.as_str() {
-            Some(arg) => arg,
-            None => {
-                return Err(format_err!(
-                    "Plugin {}: env_command is not a string",
-                    self.display_name
-                ));
-            }
-        };
+        // let args = match env.as_str() {
+        //     Some(arg) => arg,
+        //     None => {
+        //         return Err(format_err!(
+        //             "Plugin {}: env_command is not a string",
+        //             self.display_name
+        //         ));
+        //     }
+        // };
 
-        let output = if cfg!(target_os = "windows") {
-            Command::new("cmd").arg("/c").arg(args).output()
-        } else {
-            Command::new("sh").arg("-c").arg(args).output()
-        };
+        // let output = if cfg!(target_os = "windows") {
+        //     Command::new("cmd").arg("/c").arg(args).output()
+        // } else {
+        //     Command::new("sh").arg("-c").arg(args).output()
+        // };
 
-        let output = match output {
-            Ok(val) => val.stdout,
-            Err(err) => {
-                return Err(format_err!(
-                    "Error during env command execution for plugin {}: {}",
-                    self.name,
-                    err
-                ))
-            }
-        };
+        // let output = match output {
+        //     Ok(val) => val.stdout,
+        //     Err(err) => {
+        //         return Err(format_err!(
+        //             "Error during env command execution for plugin {}: {}",
+        //             self.name,
+        //             err
+        //         ))
+        //     }
+        // };
 
-        let data = match String::from_utf8(output) {
-            Ok(val) => val,
-            Err(err) => {
-                return Err(format_err!(
-                    "Error during UTF-8 conversion for plugin {}: {}",
-                    self.display_name,
-                    err
-                ))
-            }
-        };
+        // let data = match String::from_utf8(output) {
+        //     Ok(val) => val,
+        //     Err(err) => {
+        //         return Err(format_err!(
+        //             "Error during UTF-8 conversion for plugin {}: {}",
+        //             self.display_name,
+        //             err
+        //         ))
+        //     }
+        // };
 
-        Ok(data
-            .lines()
-            .filter_map(|l| l.split_once('='))
-            .map(|(k, v)| (k.into(), v.into()))
-            .collect::<Vec<(String, String)>>())
+        // Ok(data
+        //     .lines()
+        //     .filter_map(|l| l.split_once('='))
+        //     .map(|(k, v)| (k.into(), v.into()))
+        //     .collect::<Vec<(String, String)>>())
+
+        Err(format_err!(
+            "Empty configuration for plugin {}",
+            self.display_name
+        ))
     }
+}
+
+#[derive(Deserialize, Clone, Debug, Serialize)]
+pub struct PluginConfiguration {
+    #[serde(rename(deserialize = "type"))]
+    pub kind: String,
+    pub default: Value,
+    pub description: String,
 }
