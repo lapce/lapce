@@ -25,7 +25,7 @@ use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use xi_rope::{spans::Spans, Rope};
 
 use crate::alert::AlertContentData;
-use crate::data::{LapceTabData, LapceWorkspace};
+use crate::data::{LapceMainSplitData, LapceTabData, LapceWorkspace};
 use crate::document::BufferContent;
 use crate::editor::{EditorPosition, Line, LineCol};
 use crate::menu::MenuKind;
@@ -652,11 +652,23 @@ pub enum LapceUICommand {
     SetLanguage(String),
 }
 
+/// This can't be an `FnOnce` because we only ever get a reference to
+/// [`InitBufferContent`]  
+/// However, in reality, it should only ever be called once.  
+/// This could be more powerful if it was given `&mut LapceTabData` but that would
+/// require moving the callers of it into `LapceTabData`.  
+///
+/// Parameters:  
+/// `(ctx: &mut EventCtx, data: &mut LapceMainSplitData)`
+pub type InitBufferContentCb =
+    Box<dyn Fn(&mut EventCtx, &mut LapceMainSplitData) + Send>;
+
 pub struct InitBufferContent<P: EditorPosition> {
     pub path: PathBuf,
     pub content: Rope,
     pub locations: Vec<(WidgetId, EditorLocation<P>)>,
     pub edits: Option<Rope>,
+    pub cb: Option<InitBufferContentCb>,
 }
 impl<P: EditorPosition + Clone + Send + 'static> InitBufferContent<P> {
     pub fn execute(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
@@ -681,6 +693,12 @@ impl<P: EditorPosition + Clone + Send + 'static> InitBufferContent<P> {
                 &data.config,
             );
         }
+
+        // We've loaded the buffer and added it to the view, so inform the caller about it
+        if let Some(cb) = &self.cb {
+            (cb)(ctx, &mut data.main_split);
+        }
+
         ctx.set_handled();
     }
 }

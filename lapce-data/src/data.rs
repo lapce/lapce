@@ -46,9 +46,9 @@ use xi_rope::{Rope, RopeDelta};
 use crate::{
     alert::{AlertContentData, AlertData},
     command::{
-        CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
-        LapceWorkbenchCommand, PluginLoadingStatus, LAPCE_COMMAND, LAPCE_OPEN_FILE,
-        LAPCE_OPEN_FOLDER, LAPCE_UI_COMMAND,
+        CommandKind, EnsureVisiblePosition, InitBufferContentCb, LapceCommand,
+        LapceUICommand, LapceWorkbenchCommand, PluginLoadingStatus, LAPCE_COMMAND,
+        LAPCE_OPEN_FILE, LAPCE_OPEN_FOLDER, LAPCE_UI_COMMAND,
     },
     completion::CompletionData,
     config::{Config, ConfigWatcher, GetConfig, LapceTheme},
@@ -2342,6 +2342,26 @@ impl LapceMainSplitData {
         location: EditorLocation<P>,
         config: &Config,
     ) -> WidgetId {
+        self.jump_to_location_cb::<P, fn(&mut EventCtx, &mut LapceMainSplitData)>(
+            ctx,
+            editor_view_id,
+            location,
+            config,
+            None,
+        )
+    }
+
+    pub fn jump_to_location_cb<
+        P: EditorPosition + Send + 'static,
+        F: Fn(&mut EventCtx, &mut LapceMainSplitData) + Send + 'static,
+    >(
+        &mut self,
+        ctx: &mut EventCtx,
+        editor_view_id: Option<WidgetId>,
+        location: EditorLocation<P>,
+        config: &Config,
+        cb: Option<F>,
+    ) -> WidgetId {
         let editor_view_id = self
             .get_editor_or_new(
                 ctx,
@@ -2360,7 +2380,13 @@ impl LapceMainSplitData {
             config,
         );
         editor.save_jump_location(&doc);
-        self.go_to_location(ctx, Some(editor_view_id), location, config);
+        self.go_to_location_cb::<P, F>(
+            ctx,
+            Some(editor_view_id),
+            location,
+            config,
+            cb,
+        );
         editor_view_id
     }
 
@@ -2443,6 +2469,29 @@ impl LapceMainSplitData {
         location: EditorLocation<P>,
         config: &Config,
     ) {
+        // Unfortunately this is the 'nicest' way I know to pass in no callback to an Option<F>
+        self.go_to_location_cb::<P, fn(&mut EventCtx, &mut LapceMainSplitData)>(
+            ctx,
+            editor_view_id,
+            location,
+            config,
+            None,
+        );
+    }
+
+    /// Go to the location in the editor
+    /// `cb` is called when the buffer is loaded, or immediately if it is already loaded.
+    pub fn go_to_location_cb<
+        P: EditorPosition + Send + 'static,
+        F: Fn(&mut EventCtx, &mut LapceMainSplitData) + Send + 'static,
+    >(
+        &mut self,
+        ctx: &mut EventCtx,
+        editor_view_id: Option<WidgetId>,
+        location: EditorLocation<P>,
+        config: &Config,
+        cb: Option<F>,
+    ) {
         let editor_view_id = self
             .get_editor_or_new(
                 ctx,
@@ -2481,7 +2530,11 @@ impl LapceMainSplitData {
                     Vec2::new(info.scroll_offset.0, info.scroll_offset.1);
                 doc.cursor_offset = info.cursor_offset;
             }
-            doc.retrieve_file(vec![(editor_view_id, location)], None);
+
+            let cb: Option<InitBufferContentCb> = cb.map(|cb| Box::new(cb) as _);
+
+            // We don't already have the document loaded, so go load it.
+            doc.retrieve_file(vec![(editor_view_id, location)], None, cb);
             self.open_docs.insert(path.clone(), Arc::new(doc));
         } else {
             let doc = self.open_docs.get_mut(&path).unwrap().clone();
@@ -2558,6 +2611,10 @@ impl LapceMainSplitData {
                     )),
                     Target::Widget(editor_view_id),
                 ));
+            }
+
+            if let Some(cb) = cb {
+                (cb)(ctx, self);
             }
         }
     }
@@ -2681,7 +2738,7 @@ impl LapceMainSplitData {
                     .get(&path.to_str().unwrap().to_string())
                     .map(Rope::from);
                 Arc::make_mut(main_split_data.open_docs.get_mut(&path).unwrap())
-                    .retrieve_file(locations.clone(), unsaved_buffer);
+                    .retrieve_file(locations.clone(), unsaved_buffer, None);
             }
         } else {
             main_split_data.splits.insert(
