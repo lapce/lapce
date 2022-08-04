@@ -405,7 +405,11 @@ impl ProxyHandler for NewDispatcher {
                 let buffer = self.buffers.get_mut(&path).unwrap();
                 let result = buffer
                     .save(rev)
-                    .map(|_r| CoreProxyResponse::SaveResponse {})
+                    .map(|_r| {
+                        self.catalog_rpc
+                            .did_save_text_document(&path, buffer.rope.clone());
+                        CoreProxyResponse::SaveResponse {}
+                    })
                     .map_err(|e| RpcError {
                         code: 0,
                         message: e.to_string(),

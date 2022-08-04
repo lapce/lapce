@@ -8,9 +8,10 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use home::home_dir;
+use jsonrpc_lite::Params;
 use lapce_rpc::plugin::{PluginDescription, PluginId};
 use lsp_types::{
-    request::Initialize, TextDocumentContentChangeEvent,
+    request::Initialize, TextDocumentContentChangeEvent, TextDocumentIdentifier,
     VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
@@ -67,12 +68,27 @@ impl PluginServerHandler for NewPlugin {
         }
     }
 
-    fn handle_host_notification(
-        &mut self,
-        method: String,
-        params: jsonrpc_lite::Params,
-    ) {
+    fn handle_host_notification(&mut self, method: String, params: Params) {
         let _ = self.host.handle_notification(method, params);
+    }
+
+    fn handle_host_request(&mut self, id: u64, method: String, params: Params) {
+        let _ = self.host.handle_request(id, method, params);
+    }
+
+    fn handle_did_save_text_document(
+        &self,
+        language_id: String,
+        path: PathBuf,
+        text_document: TextDocumentIdentifier,
+        text: Rope,
+    ) {
+        self.host.handle_did_save_text_document(
+            language_id,
+            path,
+            text_document,
+            text,
+        );
     }
 
     fn handle_did_change_text_document(

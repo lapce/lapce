@@ -16,17 +16,22 @@ use lapce_core::buffer::RopeText;
 use lapce_rpc::{plugin::PluginId, RpcError};
 use lsp_types::{
     notification::{
-        DidChangeTextDocument, DidOpenTextDocument, Initialized, Notification,
+        DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument,
+        Initialized, Notification, Progress, PublishDiagnostics,
     },
     request::{
         CodeActionRequest, Completion, Formatting, GotoDefinition, HoverRequest,
-        Initialize, References, ResolveCompletionItem,
+        Initialize, References, RegisterCapability, ResolveCompletionItem,
+        WorkDoneProgressCreate,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
-    DidOpenTextDocumentParams, HoverProviderCapability, InitializeResult, OneOf,
-    Range, ServerCapabilities, TextDocumentContentChangeEvent,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    VersionedTextDocumentIdentifier,
+    DidOpenTextDocumentParams, DidSaveTextDocumentParams, HoverProviderCapability,
+    InitializeResult, OneOf, ProgressParams, PublishDiagnosticsParams, Range,
+    Registration, RegistrationParams, ServerCapabilities,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextDocumentSyncOptions, TextDocumentSyncSaveOptions,
+    VersionedTextDocumentIdentifier, WorkDoneProgress, WorkDoneProgressReport,
 };
 use parking_lot::Mutex;
 use psp_types::{Request, StartLspServer, StartLspServerParams};
@@ -34,7 +39,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use xi_rope::{Rope, RopeDelta};
 
-use super::{lsp::NewLspClient, number_from_id, PluginCatalogRpcHandler};
+use super::{
+    lsp::{DocumentFilter, NewLspClient},
+    number_from_id, PluginCatalogRpcHandler,
+};
 
 pub enum ResponseHandler<Resp, Error> {
     Chan(Sender<Result<Resp, Error>>),
@@ -101,6 +109,12 @@ pub enum PluginServerRpc {
         method: String,
         params: Params,
     },
+    DidSaveTextDocument {
+        language_id: String,
+        path: PathBuf,
+        text_document: TextDocumentIdentifier,
+        text: Rope,
+    },
     DidChangeTextDocument {
         language_id: String,
         document: VersionedTextDocumentIdentifier,
@@ -130,9 +144,17 @@ pub trait PluginServerHandler {
     fn language_supported(&mut self, language_id: Option<&str>) -> bool;
     fn method_registered(&mut self, method: &'static str) -> bool;
     fn handle_host_notification(&mut self, method: String, params: Params);
+    fn handle_host_request(&mut self, id: u64, method: String, params: Params);
     fn handle_handler_notification(
         &mut self,
         notification: PluginHandlerNotification,
+    );
+    fn handle_did_save_text_document(
+        &self,
+        language_id: String,
+        path: PathBuf,
+        text_document: TextDocumentIdentifier,
+        text: Rope,
     );
     fn handle_did_change_text_document(
         &mut self,
@@ -191,6 +213,34 @@ impl PluginServerRpcHandler {
 
     fn send_server_notification(&self, method: &str, params: Params) {
         let msg = JsonRpc::notification_with_params(method, params);
+        let msg = serde_json::to_string(&msg).unwrap();
+        self.send_server_rpc(msg);
+    }
+
+    fn send_host_error(&self, id: u64, err: RpcError) {
+        self.send_host_response::<Value>(id, Err(err));
+    }
+
+    fn send_host_success<V: Serialize>(&self, id: u64, v: V) {
+        self.send_host_response(id, Ok(v));
+    }
+
+    fn send_host_response<V: Serialize>(
+        &self,
+        id: u64,
+        result: Result<V, RpcError>,
+    ) {
+        let msg = match result {
+            Ok(v) => JsonRpc::success(id as i64, &serde_json::to_value(v).unwrap()),
+            Err(e) => JsonRpc::error(
+                id as i64,
+                jsonrpc_lite::Error {
+                    code: e.code,
+                    message: e.message,
+                    data: None,
+                },
+            ),
+        };
         let msg = serde_json::to_string(&msg).unwrap();
         self.send_server_rpc(msg);
     }
@@ -331,9 +381,24 @@ impl PluginServerRpcHandler {
                         self.send_server_notification(method, params);
                     }
                 }
-                PluginServerRpc::HostRequest { id, method, params } => {}
+                PluginServerRpc::HostRequest { id, method, params } => {
+                    handler.handle_host_request(id, method, params);
+                }
                 PluginServerRpc::HostNotification { method, params } => {
                     handler.handle_host_notification(method, params);
+                }
+                PluginServerRpc::DidSaveTextDocument {
+                    language_id,
+                    path,
+                    text_document,
+                    text,
+                } => {
+                    handler.handle_did_save_text_document(
+                        language_id,
+                        path,
+                        text_document,
+                        text,
+                    );
                 }
                 PluginServerRpc::DidChangeTextDocument {
                     language_id,
@@ -403,6 +468,16 @@ pub fn handle_plugin_server_message(
     }
 }
 
+struct SaveRegistration {
+    include_text: bool,
+    filters: Vec<DocumentFilter>,
+}
+
+#[derive(Default)]
+struct ServerRegistrations {
+    save: Option<SaveRegistration>,
+}
+
 pub struct PluginHostHandler {
     pwd: Option<PathBuf>,
     workspace: Option<PathBuf>,
@@ -410,6 +485,7 @@ pub struct PluginHostHandler {
     catalog_rpc: PluginCatalogRpcHandler,
     pub server_rpc: PluginServerRpcHandler,
     pub server_capabilities: ServerCapabilities,
+    server_registrations: ServerRegistrations,
 }
 
 impl PluginHostHandler {
@@ -427,6 +503,7 @@ impl PluginHostHandler {
             catalog_rpc,
             server_rpc,
             server_capabilities: ServerCapabilities::default(),
+            server_registrations: ServerRegistrations::default(),
         }
     }
 
@@ -531,6 +608,137 @@ impl PluginHostHandler {
         }
     }
 
+    fn save_include_text(&self) -> bool {
+        let include_text = self
+            .server_registrations
+            .save
+            .as_ref()
+            .map(|save| save.include_text)
+            .or_else(|| {
+                self.server_capabilities
+                    .text_document_sync
+                    .as_ref()
+                    .and_then(|s| match s {
+                        TextDocumentSyncCapability::Kind(_) => None,
+                        TextDocumentSyncCapability::Options(options) => {
+                            Some(options)
+                        }
+                    })
+                    .and_then(|o| o.save.as_ref())
+                    .map(|o| match o {
+                        TextDocumentSyncSaveOptions::Supported(_) => false,
+                        TextDocumentSyncSaveOptions::SaveOptions(options) => {
+                            options.include_text.unwrap_or(false)
+                        }
+                    })
+            })
+            .unwrap_or(false);
+        include_text
+    }
+
+    fn check_save_capability(&self, language_id: &str, path: &Path) -> bool {
+        if self.lanaguage_id.is_none()
+            || self.lanaguage_id.as_deref() == Some(language_id)
+        {
+            let should_send = self
+                .server_capabilities
+                .text_document_sync
+                .as_ref()
+                .and_then(|sync| match sync {
+                    TextDocumentSyncCapability::Kind(_) => None,
+                    TextDocumentSyncCapability::Options(options) => Some(options),
+                })
+                .and_then(|o| o.save.as_ref())
+                .map(|o| match o {
+                    TextDocumentSyncSaveOptions::Supported(is_supported) => {
+                        *is_supported
+                    }
+                    TextDocumentSyncSaveOptions::SaveOptions(_) => true,
+                })
+                .unwrap_or(false);
+            return should_send;
+        }
+
+        if let Some(options) = self.server_registrations.save.as_ref() {
+            for filter in options.filters.iter() {
+                if (filter.language_id.is_none()
+                    || filter.language_id.as_deref() == Some(language_id))
+                    && (filter.pattern.is_none()
+                        || filter.pattern.as_ref().unwrap().is_match(path))
+                {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
+    fn register_capabilities(&mut self, registrations: Vec<Registration>) {
+        for registration in registrations {
+            let _ = self.register_capability(registration);
+        }
+    }
+
+    fn register_capability(&mut self, registration: Registration) -> Result<()> {
+        match registration.method.as_str() {
+            DidSaveTextDocument::METHOD => {
+                let options = registration
+                    .register_options
+                    .ok_or_else(|| anyhow!("don't have options"))?;
+                let options: TextDocumentSaveRegistrationOptions =
+                    serde_json::from_value(options)?;
+                self.server_registrations.save = Some(SaveRegistration {
+                    include_text: options.include_text.unwrap_or(false),
+                    filters: options
+                        .text_document_registration_options
+                        .document_selector
+                        .map(|s| {
+                            s.iter()
+                                .map(DocumentFilter::from_lsp_filter_loose)
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                });
+            }
+            _ => {
+                eprintln!(
+                    "don't handle register capability for {}",
+                    registration.method
+                );
+            }
+        }
+        Ok(())
+    }
+
+    pub fn handle_request(
+        &mut self,
+        id: u64,
+        method: String,
+        params: Params,
+    ) -> Result<()> {
+        match method.as_str() {
+            WorkDoneProgressCreate::METHOD => {
+                self.server_rpc.send_host_success(id, Value::Null);
+            }
+            RegisterCapability::METHOD => {
+                let params: RegistrationParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                self.register_capabilities(params.registrations);
+            }
+            _ => {
+                self.server_rpc.send_host_error(
+                    id,
+                    RpcError {
+                        code: 0,
+                        message: "request not handled".to_string(),
+                    },
+                );
+            }
+        }
+        Ok(())
+    }
+
     pub fn handle_notification(
         &mut self,
         method: String,
@@ -558,9 +766,51 @@ impl PluginHostHandler {
                     }
                 });
             }
-            _ => {}
+            PublishDiagnostics::METHOD => {
+                let diagnostics: PublishDiagnosticsParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                self.catalog_rpc.core_rpc.publish_diagnostics(diagnostics);
+            }
+            Progress::METHOD => {
+                let progress: ProgressParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                self.catalog_rpc.core_rpc.work_done_progress(progress);
+            }
+            _ => {
+                eprintln!("host notificaton {method} not handled");
+            }
         }
         Ok(())
+    }
+
+    pub fn handle_did_save_text_document(
+        &self,
+        language_id: String,
+        path: PathBuf,
+        text_document: TextDocumentIdentifier,
+        text: Rope,
+    ) {
+        if !self.check_save_capability(language_id.as_str(), &path) {
+            eprintln!("did save not sent for {path:?} {language_id}");
+            return;
+        }
+        eprintln!("did save sent for {path:?} {language_id}");
+
+        let include_text = self.save_include_text();
+        let params = DidSaveTextDocumentParams {
+            text_document,
+            text: if include_text {
+                Some(text.to_string())
+            } else {
+                None
+            },
+        };
+        self.server_rpc.server_notification(
+            DidSaveTextDocument::METHOD,
+            params,
+            Some(language_id),
+            true,
+        );
     }
 
     pub fn handle_did_change_text_document(

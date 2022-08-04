@@ -74,6 +74,12 @@ pub enum PluginCatalogRpc {
         text: Rope,
         new_text: Rope,
     },
+    DidSaveTextDocument {
+        language_id: String,
+        path: PathBuf,
+        text_document: TextDocumentIdentifier,
+        text: Rope,
+    },
     Handler(PluginCatalogNotification),
 }
 
@@ -158,6 +164,19 @@ impl PluginCatalogRpcHandler {
                 }
                 PluginCatalogRpc::Handler(notification) => {
                     plugin.handle_notification(notification);
+                }
+                PluginCatalogRpc::DidSaveTextDocument {
+                    language_id,
+                    path,
+                    text_document,
+                    text,
+                } => {
+                    plugin.handle_did_save_text_document(
+                        language_id,
+                        path,
+                        text_document,
+                        text,
+                    );
                 }
                 PluginCatalogRpc::DidChangeTextDocument {
                     language_id,
@@ -265,6 +284,18 @@ impl PluginCatalogRpcHandler {
             f: Box::new(f),
         };
         let _ = self.plugin_tx.send(rpc);
+    }
+
+    pub fn did_save_text_document(&self, path: &Path, text: Rope) {
+        let text_document =
+            TextDocumentIdentifier::new(Url::from_file_path(path).unwrap());
+        let language_id = language_id_from_path(path).unwrap_or("").to_string();
+        let _ = self.plugin_tx.send(PluginCatalogRpc::DidSaveTextDocument {
+            language_id,
+            text_document,
+            path: path.into(),
+            text,
+        });
     }
 
     pub fn did_change_text_document(

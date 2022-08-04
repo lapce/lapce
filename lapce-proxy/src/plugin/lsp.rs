@@ -101,8 +101,27 @@ impl PluginServerHandler for NewLspClient {
         }
     }
 
+    fn handle_host_request(&mut self, id: u64, method: String, params: Params) {
+        let _ = self.host.handle_request(id, method, params);
+    }
+
     fn handle_host_notification(&mut self, method: String, params: Params) {
-        self.host.handle_notification(method, params);
+        let _ = self.host.handle_notification(method, params);
+    }
+
+    fn handle_did_save_text_document(
+        &self,
+        language_id: String,
+        path: PathBuf,
+        text_document: TextDocumentIdentifier,
+        text: xi_rope::Rope,
+    ) {
+        self.host.handle_did_save_text_document(
+            language_id,
+            path,
+            text_document,
+            text,
+        );
     }
 
     fn handle_did_change_text_document(
@@ -422,9 +441,11 @@ pub struct DocumentFilter {
 impl DocumentFilter {
     /// Constructs a document filter from the LSP version
     /// This ignores any fields that are badly constructed
-    fn from_lsp_filter_loose(filter: lsp_types::DocumentFilter) -> DocumentFilter {
+    pub(crate) fn from_lsp_filter_loose(
+        filter: &lsp_types::DocumentFilter,
+    ) -> DocumentFilter {
         DocumentFilter {
-            language_id: filter.language,
+            language_id: filter.language.clone(),
             // TODO: clean this up
             pattern: filter
                 .pattern
@@ -1368,7 +1389,7 @@ impl LspClient {
 
                                             // Add each selector our did save filtering
                                             for selector in selectors {
-                                                let filter = DocumentFilter::from_lsp_filter_loose(selector);
+                                                let filter = DocumentFilter::from_lsp_filter_loose(&selector);
                                                 let cap = DidSaveCapability {
                                                     filter,
                                                     include_text,

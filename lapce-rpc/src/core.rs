@@ -148,6 +148,14 @@ impl CoreRpcHandler {
         });
     }
 
+    pub fn publish_diagnostics(&self, diagnostics: PublishDiagnosticsParams) {
+        self.notification(CoreNotification::PublishDiagnostics { diagnostics });
+    }
+
+    pub fn work_done_progress(&self, progress: ProgressParams) {
+        self.notification(CoreNotification::WorkDoneProgress { progress });
+    }
+
     pub fn close_terminal(&self, term_id: TermId) {
         self.notification(CoreNotification::CloseTerminal { term_id });
     }

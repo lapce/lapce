@@ -12,8 +12,8 @@ use crossbeam_channel::Sender;
 use dyn_clone::DynClone;
 use lapce_rpc::{plugin::PluginId, proxy::CoreProxyResponse, RpcError};
 use lsp_types::{
-    notification::DidOpenTextDocument, DidOpenTextDocumentParams, TextDocumentItem,
-    VersionedTextDocumentIdentifier,
+    notification::DidOpenTextDocument, DidOpenTextDocumentParams,
+    TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::Notification;
@@ -112,6 +112,23 @@ impl NewPluginCatalog {
                 language_id.clone(),
                 true,
             );
+        }
+    }
+
+    pub fn handle_did_save_text_document(
+        &mut self,
+        language_id: String,
+        path: PathBuf,
+        text_document: TextDocumentIdentifier,
+        text: Rope,
+    ) {
+        for (_, plugin) in self.new_plugins.iter() {
+            plugin.handle_rpc(PluginServerRpc::DidSaveTextDocument {
+                language_id: language_id.clone(),
+                path: path.clone(),
+                text_document: text_document.clone(),
+                text: text.clone(),
+            });
         }
     }
 
