@@ -214,8 +214,12 @@ pub enum FocusCommand {
     ListSelect,
     #[strum(serialize = "list.next")]
     ListNext,
+    #[strum(serialize = "list.next_page")]
+    ListNextPage,
     #[strum(serialize = "list.previous")]
     ListPrevious,
+    #[strum(serialize = "list.previous_page")]
+    ListPreviousPage,
     #[strum(serialize = "list.expand")]
     ListExpand,
     #[strum(serialize = "jump_to_next_snippet_placeholder")]
