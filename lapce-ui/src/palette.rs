@@ -14,7 +14,7 @@ use druid::{FontWeight, Modifiers};
 use lapce_data::command::LAPCE_COMMAND;
 use lapce_data::config::Config;
 use lapce_data::data::LapceWorkspaceType;
-use lapce_data::palette::PaletteItemContent;
+use lapce_data::palette::{PaletteItemContent, MAX_PALETTE_ITEMS};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
@@ -341,8 +341,7 @@ impl Widget<LapceTabData> for PaletteContainer {
         let input_size = self.input.layout(ctx, &bc, data, env);
         self.input.set_origin(ctx, data, env, Point::ZERO);
 
-        let max_items = 15;
-        let height = max_items.min(data.palette.len());
+        let height = MAX_PALETTE_ITEMS.min(data.palette.len());
         let height = self.line_height * height as f64;
         let bc = BoxConstraints::tight(Size::new(width, height));
         let content_size = self.content.layout(ctx, &bc, data, env);
@@ -355,7 +354,7 @@ impl Widget<LapceTabData> for PaletteContainer {
 
         let max_preview_height = max_height
             - input_size.height
-            - max_items as f64 * self.line_height
+            - MAX_PALETTE_ITEMS as f64 * self.line_height
             - 5.0;
         let preview_height = if data.palette.palette_type.has_preview() {
             if content_height > 0.0 {

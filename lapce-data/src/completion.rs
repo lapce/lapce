@@ -284,12 +284,30 @@ impl CompletionData {
         self.len() == 0
     }
 
+    /// We need the line height so that we can get the number displayed as a number, since
+    /// we just render as many fit inside the `size` defined for completion.
+    fn entry_count(&self, editor_line_height: usize) -> usize {
+        ((self.size.height / editor_line_height as f64).ceil() as usize)
+            .saturating_sub(1)
+    }
+
     pub fn next(&mut self) {
         self.index = Movement::Down.update_index(self.index, self.len(), 1, true);
     }
 
+    pub fn next_page(&mut self, editor_line_height: usize) {
+        let count = self.entry_count(editor_line_height);
+        self.index =
+            Movement::Down.update_index(self.index, self.len(), count, false);
+    }
+
     pub fn previous(&mut self) {
         self.index = Movement::Up.update_index(self.index, self.len(), 1, true);
+    }
+
+    pub fn previous_page(&mut self, editor_line_height: usize) {
+        let count = self.entry_count(editor_line_height);
+        self.index = Movement::Up.update_index(self.index, self.len(), count, false);
     }
 
     pub fn current_items(&self) -> &Arc<Vec<ScoredCompletionItem>> {

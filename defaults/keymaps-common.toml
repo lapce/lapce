@@ -156,6 +156,11 @@ command = "list.previous"
 when = "list_focus"
 
 [[keymaps]]
+key = "PageUp"
+command = "list.previous_page"
+when = "list_focus"
+
+[[keymaps]]
 key = "ctrl+n"
 command = "list.next"
 when = "list_focus"
@@ -163,6 +168,11 @@ when = "list_focus"
 [[keymaps]]
 key = "down"
 command = "list.next"
+when = "list_focus"
+
+[[keymaps]]
+key = "PageDown"
+command = "list.next_page"
 when = "list_focus"
 
 [[keymaps]]

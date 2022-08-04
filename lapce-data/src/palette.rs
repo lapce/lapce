@@ -406,8 +406,14 @@ impl KeyPressFocus for PaletteViewData {
                 FocusCommand::ListNext => {
                     self.next(ctx);
                 }
+                FocusCommand::ListNextPage => {
+                    self.next_page(ctx);
+                }
                 FocusCommand::ListPrevious => {
                     self.previous(ctx);
+                }
+                FocusCommand::ListPreviousPage => {
+                    self.previous_page(ctx);
                 }
                 FocusCommand::ListSelect => {
                     self.select(ctx);
@@ -501,6 +507,9 @@ impl PaletteData {
     }
 }
 
+// TODO: Make this configurable
+/// The maximum number of palette items to display per 'page'
+pub const MAX_PALETTE_ITEMS: usize = 15;
 impl PaletteViewData {
     pub fn cancel(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
@@ -675,10 +684,32 @@ impl PaletteViewData {
         palette.preview(ctx);
     }
 
+    pub fn next_page(&mut self, ctx: &mut EventCtx) {
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.index = Movement::Down.update_index(
+            palette.index,
+            palette.len(),
+            MAX_PALETTE_ITEMS - 1,
+            false,
+        );
+        palette.preview(ctx);
+    }
+
     pub fn previous(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.index =
             Movement::Up.update_index(palette.index, palette.len(), 1, true);
+        palette.preview(ctx);
+    }
+
+    pub fn previous_page(&mut self, ctx: &mut EventCtx) {
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.index = Movement::Up.update_index(
+            palette.index,
+            palette.len(),
+            MAX_PALETTE_ITEMS - 1,
+            false,
+        );
         palette.preview(ctx);
     }
 

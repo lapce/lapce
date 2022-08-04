@@ -241,6 +241,24 @@ impl CompletionContainer {
         }
     }
 
+    /// Like [`Self::ensure_item_visible`] but instead making so that it is at the very top of the display
+    /// rather than just scrolling the minimal distance to make it visible.
+    pub fn ensure_item_top_visible(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &LapceTabData,
+    ) {
+        let line_height = data.config.editor.line_height as f64;
+        let point = Point::new(0.0, data.completion.index as f64 * line_height);
+        if self.completion.widget_mut().inner_mut().scroll_to(point) {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.scroll_id),
+            ));
+        }
+    }
+
     fn update_documentation(&mut self, data: &LapceTabData) {
         let documentation = if data.config.editor.completion_show_documentation {
             let current_item = (!data.completion.is_empty())

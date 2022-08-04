@@ -1659,6 +1659,21 @@ impl LapceEditorBufferData {
                     completion.next();
                 }
             }
+            ListNextPage => {
+                if self.is_palette() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::ListNextPage),
+                            data: None,
+                        },
+                        Target::Widget(self.palette.widget_id),
+                    ));
+                } else {
+                    let completion = Arc::make_mut(&mut self.completion);
+                    completion.next_page(self.config.editor.line_height);
+                }
+            }
             ListPrevious => {
                 if self.is_palette() {
                     ctx.submit_command(Command::new(
@@ -1672,6 +1687,21 @@ impl LapceEditorBufferData {
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
                     completion.previous();
+                }
+            }
+            ListPreviousPage => {
+                if self.is_palette() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::ListPreviousPage),
+                            data: None,
+                        },
+                        Target::Widget(self.palette.widget_id),
+                    ));
+                } else {
+                    let completion = Arc::make_mut(&mut self.completion);
+                    completion.previous_page(self.config.editor.line_height);
                 }
             }
             JumpToNextSnippetPlaceholder => {
