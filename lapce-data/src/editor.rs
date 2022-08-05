@@ -1217,6 +1217,7 @@ impl LapceEditorBufferData {
             let rev = self.doc.rev();
             let event_sink = ctx.get_external_handle();
             let view_id = self.editor.view_id;
+            let tab_id = self.main_split.tab_id.clone();
             let (sender, receiver) = bounded(1);
             thread::spawn(move || {
                 proxy.get_document_formatting(
@@ -1239,8 +1240,11 @@ impl LapceEditorBufferData {
                     LapceUICommand::DocumentSave(path, exit)
                 };
 
-                let _ =
-                    event_sink.submit_command(LAPCE_UI_COMMAND, cmd, Target::Auto);
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    cmd,
+                    Target::Widget(*tab_id),
+                );
             });
         } else if let BufferContent::Scratch(..) = self.doc.content() {
             let content = self.doc.content().clone();
@@ -1937,6 +1941,7 @@ impl LapceEditorBufferData {
                     let rev = self.doc.rev();
                     let event_sink = ctx.get_external_handle();
                     let (sender, receiver) = bounded(1);
+                    let tab_id = self.main_split.tab_id.clone();
                     thread::spawn(move || {
                         proxy.get_document_formatting(
                             buffer_id,
@@ -1954,7 +1959,7 @@ impl LapceEditorBufferData {
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::DocumentFormat(path, rev, result),
-                            Target::Auto,
+                            Target::Widget(*tab_id),
                         );
                     });
                 }
