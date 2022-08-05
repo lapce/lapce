@@ -797,20 +797,6 @@ impl LapceProxy {
         );
     }
 
-    pub fn get_document_symbols(
-        &self,
-        buffer_id: BufferId,
-        f: impl FnOnce(Result<DocumentSymbolResponse, RequestError>) + Send + 'static,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "get_document_symbols",
-            &json!({
-                "buffer_id": buffer_id,
-            }),
-            box_json_cb(f),
-        );
-    }
-
     pub fn get_workspace_symbols(
         &self,
         buffer_id: BufferId,

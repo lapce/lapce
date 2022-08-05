@@ -24,16 +24,17 @@ use lsp_types::{
         Initialized, Notification, Progress, PublishDiagnostics,
     },
     request::{
-        CodeActionRequest, Completion, Formatting, GotoDefinition, HoverRequest,
-        Initialize, InlayHintRequest, References, RegisterCapability,
-        ResolveCompletionItem, SemanticTokensFullRequest, WorkDoneProgressCreate,
+        CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
+        GotoDefinition, HoverRequest, Initialize, InlayHintRequest, References,
+        RegisterCapability, ResolveCompletionItem, SemanticTokensFullRequest,
+        WorkDoneProgressCreate,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
-    DidOpenTextDocumentParams, DidSaveTextDocumentParams, HoverProviderCapability,
-    InitializeResult, OneOf, ProgressParams, PublishDiagnosticsParams, Range,
-    Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
-    SemanticTokensServerCapabilities, ServerCapabilities,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentSymbolResponse,
+    HoverProviderCapability, InitializeResult, OneOf, ProgressParams,
+    PublishDiagnosticsParams, Range, Registration, RegistrationParams,
+    SemanticTokens, SemanticTokensLegend, SemanticTokensServerCapabilities,
+    ServerCapabilities, TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncOptions, TextDocumentSyncSaveOptions,
     VersionedTextDocumentIdentifier, WorkDoneProgress, WorkDoneProgressReport,
@@ -628,6 +629,9 @@ impl PluginHostHandler {
             }
             InlayHintRequest::METHOD => {
                 self.server_capabilities.inlay_hint_provider.is_some()
+            }
+            DocumentSymbolRequest::METHOD => {
+                self.server_capabilities.document_symbol_provider.is_some()
             }
             _ => false,
         }

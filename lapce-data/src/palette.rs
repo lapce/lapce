@@ -1039,14 +1039,16 @@ impl PaletteViewData {
 
         if let BufferContent::File(path) = &editor.content {
             let path = path.clone();
-            let buffer_id = self.main_split.open_docs.get(&path).unwrap().id();
             let run_id = self.palette.run_id.clone();
             let event_sink = ctx.get_external_handle();
 
             self.palette
                 .proxy
-                .get_document_symbols(buffer_id, move |result| {
-                    if let Ok(resp) = result {
+                .proxy_rpc
+                .get_document_symbols(path, move |result| {
+                    if let Ok(CoreProxyResponse::GetDocumentSymbols { resp }) =
+                        result
+                    {
                         let items: Vec<PaletteItem> = match resp {
                             DocumentSymbolResponse::Flat(symbols) => symbols
                                 .iter()

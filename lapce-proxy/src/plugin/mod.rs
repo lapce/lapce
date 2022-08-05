@@ -14,20 +14,20 @@ use lapce_rpc::style::{LineStyle, SemanticStyles};
 use lapce_rpc::{RequestId, RpcError, RpcMessage};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{
-    CodeActionRequest, Completion, Formatting, GotoDefinition, HoverRequest,
-    InlayHintRequest, References, Request, ResolveCompletionItem,
-    SemanticTokensFullRequest,
+    CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
+    GotoDefinition, HoverRequest, InlayHintRequest, References, Request,
+    ResolveCompletionItem, SemanticTokensFullRequest,
 };
 use lsp_types::{
     CodeActionContext, CodeActionParams, CodeActionResponse, CompletionItem,
     CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
-    DocumentFormattingParams, FormattingOptions, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverParams, InlayHint, InlayHintParams,
-    Location, PartialResultParams, Position, Range, ReferenceContext,
-    ReferenceParams, SemanticToken, SemanticTokens, SemanticTokensParams,
-    SemanticTokensResult, TextDocumentIdentifier, TextDocumentItem,
-    TextDocumentPositionParams, TextEdit, Url, VersionedTextDocumentIdentifier,
-    WorkDoneProgressParams,
+    DocumentFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
+    FormattingOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverParams, InlayHint, InlayHintParams, Location, PartialResultParams,
+    Position, Range, ReferenceContext, ReferenceParams, SemanticToken,
+    SemanticTokens, SemanticTokensParams, SemanticTokensResult,
+    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit,
+    Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
@@ -449,6 +449,26 @@ impl PluginCatalogRpcHandler {
             text_document: TextDocumentIdentifier { uri },
             work_done_progress_params: WorkDoneProgressParams::default(),
             range,
+        };
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(method, params, language_id, cb);
+    }
+
+    pub fn get_document_symbols(
+        &self,
+        path: &Path,
+        cb: impl FnOnce(PluginId, Result<DocumentSymbolResponse, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = DocumentSymbolRequest::METHOD;
+        let params = DocumentSymbolParams {
+            text_document: TextDocumentIdentifier { uri },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
