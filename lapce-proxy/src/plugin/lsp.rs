@@ -95,6 +95,9 @@ impl PluginServerHandler for NewLspClient {
             Initilize => {
                 self.initialize();
             }
+            Shutdown => {
+                self.shutdown();
+            }
         }
     }
 
@@ -373,11 +376,14 @@ impl NewLspClient {
                 None,
                 false,
             );
-            self.plugin_rpc.catalog_notification(
-                PluginCatalogNotification::PluginServerLoaded(
-                    self.server_rpc.clone(),
-                ),
-            );
+            if self
+                .plugin_rpc
+                .plugin_server_loaded(self.server_rpc.clone())
+                .is_err()
+            {
+                self.server_rpc.shutdown();
+                self.shutdown();
+            }
         }
         //     move |result| {
         //         if let Ok(value) = result {
@@ -389,6 +395,11 @@ impl NewLspClient {
         //         }
         //     },
         // );
+    }
+
+    fn shutdown(&mut self) {
+        let _ = self.process.kill();
+        let _ = self.process.wait();
     }
 
     fn process(

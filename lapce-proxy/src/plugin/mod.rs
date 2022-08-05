@@ -93,10 +93,12 @@ pub enum PluginCatalogRpc {
         text: Rope,
     },
     Handler(PluginCatalogNotification),
+    Shutdown,
 }
 
 pub enum PluginCatalogNotification {
     PluginServerLoaded(PluginServerRpcHandler),
+    Shutdown,
 }
 
 #[derive(WasmerEnv, Clone)]
@@ -123,7 +125,7 @@ pub struct PluginCatalogRpcHandler {
     core_rpc: CoreRpcHandler,
     proxy_rpc: ProxyRpcHandler,
     plugin_tx: Sender<PluginCatalogRpc>,
-    plugin_rx: Receiver<PluginCatalogRpc>,
+    plugin_rx: Arc<Mutex<Option<Receiver<PluginCatalogRpc>>>>,
     id: Arc<AtomicU64>,
     pending: Arc<Mutex<HashMap<u64, Sender<Result<Value, RpcError>>>>>,
 }
@@ -135,7 +137,7 @@ impl PluginCatalogRpcHandler {
             core_rpc,
             proxy_rpc,
             plugin_tx,
-            plugin_rx,
+            plugin_rx: Arc::new(Mutex::new(Some(plugin_rx))),
             id: Arc::new(AtomicU64::new(0)),
             pending: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -148,7 +150,8 @@ impl PluginCatalogRpcHandler {
     }
 
     pub fn mainloop(&self, plugin: &mut NewPluginCatalog) {
-        for msg in &self.plugin_rx {
+        let plugin_rx = self.plugin_rx.lock().take().unwrap();
+        for msg in plugin_rx {
             match msg {
                 PluginCatalogRpc::ServerRequest {
                     plugin_id,
@@ -213,12 +216,26 @@ impl PluginCatalogRpcHandler {
                         new_text,
                     );
                 }
+                PluginCatalogRpc::Shutdown => {
+                    return;
+                }
             }
         }
     }
 
-    fn catalog_notification(&self, notification: PluginCatalogNotification) {
-        let _ = self.plugin_tx.send(PluginCatalogRpc::Handler(notification));
+    pub fn shutdown(&self) {
+        let _ = self.catalog_notification(PluginCatalogNotification::Shutdown);
+        let _ = self.plugin_tx.send(PluginCatalogRpc::Shutdown);
+    }
+
+    fn catalog_notification(
+        &self,
+        notification: PluginCatalogNotification,
+    ) -> Result<()> {
+        self.plugin_tx
+            .send(PluginCatalogRpc::Handler(notification))
+            .map_err(|e| anyhow!(e.to_string()))?;
+        Ok(())
     }
 
     fn server_notification<P: Serialize>(
@@ -679,10 +696,13 @@ impl PluginCatalogRpcHandler {
         self.server_notification(method, params, Some(language_id));
     }
 
-    pub fn plugin_server_loaded(&self, plugin: PluginServerRpcHandler) {
+    pub fn plugin_server_loaded(
+        &self,
+        plugin: PluginServerRpcHandler,
+    ) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::PluginServerLoaded(
             plugin,
-        ));
+        ))
     }
 }
 

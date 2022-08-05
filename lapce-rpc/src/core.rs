@@ -22,6 +22,7 @@ use crate::{
 enum CoreRpc {
     Request(RequestId, CoreRequest),
     Notification(CoreNotification),
+    Shutdown,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,6 +123,9 @@ impl CoreRpcHandler {
                 CoreRpc::Notification(rpc) => {
                     handler.handle_notification(rpc);
                 }
+                CoreRpc::Shutdown => {
+                    return;
+                }
             }
         }
     }
@@ -151,6 +155,10 @@ impl CoreRpcHandler {
                 message: "io error".to_string(),
             })
         })
+    }
+
+    pub fn shutdown(&self) {
+        let _ = self.tx.send(CoreRpc::Shutdown);
     }
 
     pub fn notification(&self, notification: CoreNotification) {

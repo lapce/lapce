@@ -89,9 +89,11 @@ impl<Resp, Error, F: Send + FnOnce(Result<Resp, Error>)> RpcCallback<Resp, Error
 
 pub enum PluginHandlerNotification {
     Initilize,
+    Shutdown,
 }
 
 pub enum PluginServerRpc {
+    Shutdown,
     Handler(PluginHandlerNotification),
     ServerRequest {
         id: u64,
@@ -362,6 +364,13 @@ impl PluginServerRpcHandler {
         }
     }
 
+    pub fn shutdown(&self) {
+        self.handle_rpc(PluginServerRpc::Handler(
+            PluginHandlerNotification::Shutdown,
+        ));
+        self.handle_rpc(PluginServerRpc::Shutdown);
+    }
+
     pub fn mainloop<H>(&self, handler: &mut H)
     where
         H: PluginServerHandler,
@@ -438,6 +447,9 @@ impl PluginServerRpcHandler {
                 }
                 PluginServerRpc::Handler(notification) => {
                     handler.handle_handler_notification(notification)
+                }
+                PluginServerRpc::Shutdown => {
+                    return;
                 }
             }
         }
@@ -541,7 +553,6 @@ impl PluginHostHandler {
             Initialize::METHOD => true,
             Initialized::METHOD => true,
             Completion::METHOD => {
-                eprintln!("check completion registered");
                 self.server_capabilities.completion_provider.is_some()
             }
             ResolveCompletionItem::METHOD => self
@@ -754,14 +765,13 @@ impl PluginHostHandler {
     ) -> Result<()> {
         match method.as_str() {
             StartLspServer::METHOD => {
-                eprintln!("start lsp server");
                 let params: StartLspServerParams =
                     serde_json::from_value(serde_json::to_value(params)?)?;
                 let workspace = self.workspace.clone();
                 let pwd = self.pwd.clone();
                 let catalog_rpc = self.catalog_rpc.clone();
                 thread::spawn(move || {
-                    match NewLspClient::start(
+                    let _ = NewLspClient::start(
                         catalog_rpc,
                         params.language_id,
                         workspace,
@@ -769,10 +779,7 @@ impl PluginHostHandler {
                         params.exec_path,
                         Vec::new(),
                         params.options,
-                    ) {
-                        Ok(_) => eprintln!("lsp started"),
-                        Err(e) => eprintln!("lsp start error {e}"),
-                    }
+                    );
                 });
             }
             PublishDiagnostics::METHOD => {
@@ -802,12 +809,8 @@ impl PluginHostHandler {
         let (should_send, include_text) =
             self.check_save_capability(language_id.as_str(), &path);
         if !should_send {
-            eprintln!("did save not sent for {path:?} {language_id}");
             return;
         }
-        eprintln!(
-            "did save sent for {path:?} {language_id} inclue_text: {include_text}"
-        );
         let params = DidSaveTextDocumentParams {
             text_document,
             text: if include_text {

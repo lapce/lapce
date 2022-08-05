@@ -73,6 +73,9 @@ impl PluginServerHandler for NewPlugin {
             Initilize => {
                 self.initialize();
             }
+            Shutdown => {
+                self.shutdown();
+            }
         }
     }
 
@@ -135,7 +138,6 @@ impl PluginServerHandler for NewPlugin {
 
 impl NewPlugin {
     fn initialize(&mut self) {
-        eprintln!("plugin Start to initilize");
         let server_rpc = self.host.server_rpc.clone();
         let workspace = self.host.workspace.clone();
         let configurations = self.configurations.clone();
@@ -160,6 +162,8 @@ impl NewPlugin {
             );
         });
     }
+
+    fn shutdown(&self) {}
 }
 
 pub fn load_all_plugins(
@@ -167,7 +171,6 @@ pub fn load_all_plugins(
     plugin_rpc: PluginCatalogRpcHandler,
     plugin_configurations: HashMap<String, serde_json::Value>,
 ) {
-    eprintln!("start to load plugins");
     let all_plugins = find_all_plugins();
     for plugin_path in &all_plugins {
         match load_plugin(plugin_path) {
@@ -178,14 +181,12 @@ pub fn load_all_plugins(
                     plugin_configurations.get(&plugin_desc.name).cloned();
                 let plugin_rpc = plugin_rpc.clone();
                 thread::spawn(move || {
-                    if let Err(e) = start_plugin(
+                    let _ = start_plugin(
                         workspace,
                         configurations,
                         plugin_rpc,
                         plugin_desc,
-                    ) {
-                        eprintln!("start plugin error {}", e);
-                    }
+                    );
                 });
             }
         }
@@ -245,7 +246,6 @@ fn start_plugin(
     plugin_rpc: PluginCatalogRpcHandler,
     plugin_desc: PluginDescription,
 ) -> Result<()> {
-    eprintln!("start a certain plugin");
     let store = Store::default();
     let module = wasmer::Module::from_file(
         &store,
@@ -294,17 +294,6 @@ fn start_plugin(
         configurations,
     };
 
-    // let start_function = plugin
-    //     .instance
-    //     .exports
-    //     .get_function("start")
-    //     .unwrap()
-    //     .clone();
-
-    thread::spawn(move || {
-        // let _ = start_function.call(&[]);
-    });
-
     let wasi_env = plugin_env.wasi_env;
     let handle_rpc = plugin
         .instance
@@ -314,7 +303,6 @@ fn start_plugin(
         .clone();
     thread::spawn(move || {
         for msg in io_rx {
-            eprintln!("send to plugin server {msg}");
             wasi_write_string(&wasi_env, &msg);
             let _ = handle_rpc.call(&[]);
         }
@@ -325,7 +313,9 @@ fn start_plugin(
         local_rpc.mainloop(&mut plugin);
     });
 
-    plugin_rpc.plugin_server_loaded(rpc.clone());
+    if plugin_rpc.plugin_server_loaded(rpc.clone()).is_err() {
+        rpc.shutdown();
+    }
 
     // thread::spawn(move || {
     //     let initialize =
@@ -389,7 +379,6 @@ pub(crate) fn lapce_exports(
 
 fn host_handle_rpc(plugin_env: &NewPluginEnv) {
     let msg = wasi_read_string(&plugin_env.wasi_env).unwrap();
-    eprintln!("receive host handle rpc {msg}");
     handle_plugin_server_message(&plugin_env.rpc, &msg);
 }
 

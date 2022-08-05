@@ -30,6 +30,7 @@ use crate::{
 enum ProxyRpcMessage {
     Request(RequestId, CoreProxyRequest),
     Notification(CoreProxyNotification),
+    Shutdown,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -329,6 +330,9 @@ impl ProxyRpcHandler {
                 Notification(notification) => {
                     handler.handle_notification(notification);
                 }
+                Shutdown => {
+                    return;
+                }
             }
         }
     }
@@ -409,6 +413,7 @@ impl ProxyRpcHandler {
 
     pub fn shutdown(&self) {
         self.notification(CoreProxyNotification::Shutdown {});
+        let _ = self.tx.send(ProxyRpcMessage::Shutdown);
     }
 
     pub fn initialize(

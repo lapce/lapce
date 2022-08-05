@@ -105,7 +105,13 @@ impl ProxyHandler for NewDispatcher {
                 self.catalog_rpc
                     .completion(request_id, &path, input, position);
             }
-            Shutdown {} => todo!(),
+            Shutdown {} => {
+                self.catalog_rpc.shutdown();
+                for (_, sender) in self.terminals.iter() {
+                    #[allow(deprecated)]
+                    let _ = sender.send(Msg::Shutdown);
+                }
+            }
             Update { path, delta, rev } => {
                 let buffer = self.buffers.get_mut(&path).unwrap();
                 let old_text = buffer.rope.clone();

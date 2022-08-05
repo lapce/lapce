@@ -96,7 +96,6 @@ enum HostArchitecture {
 #[derive(Clone)]
 pub struct LapceProxy {
     pub tab_id: WidgetId,
-    rpc: RpcHandler,
     pub proxy_rpc: ProxyRpcHandler,
     core_rpc: CoreRpcHandler,
     term_tx: Sender<(TermId, TermEvent)>,
@@ -351,15 +350,11 @@ impl LapceProxy {
         term_tx: Sender<(TermId, TermEvent)>,
         event_sink: ExtEventSink,
     ) -> Self {
-        let (proxy_sender, proxy_receiver) = crossbeam_channel::unbounded();
-        let rpc = RpcHandler::new(proxy_sender);
-
         let proxy_rpc = ProxyRpcHandler::new();
         let core_rpc = CoreRpcHandler::new();
 
         let proxy = Self {
             tab_id,
-            rpc,
             proxy_rpc,
             core_rpc,
             term_tx,
@@ -374,6 +369,7 @@ impl LapceProxy {
                 Target::Widget(tab_id),
             );
             let _ = local_proxy.start(workspace.clone(), plugin_configurations);
+            println!("proxy stopped");
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ProxyUpdateStatus(ProxyStatus::Disconnected),
@@ -401,6 +397,7 @@ impl LapceProxy {
                     let mut dispatcher = NewDispatcher::new(core_rpc, proxy_rpc);
                     let proxy_rpc = dispatcher.proxy_rpc.clone();
                     proxy_rpc.mainloop(&mut dispatcher);
+                    println!("proxy rpc stopped");
                 });
             }
             LapceWorkspaceType::RemoteSSH(user, host) => {
@@ -416,13 +413,8 @@ impl LapceProxy {
             }
         }
 
-        let mut proxy = self.clone();
         let mut handler = self.clone();
-        proxy.core_rpc.mainloop(&mut handler);
-
-        let mut proxy = self.clone();
-        let mut handler = self.clone();
-        proxy.rpc.mainloop(core_receiver, &mut handler);
+        self.core_rpc.mainloop(&mut handler);
 
         Ok(())
     }
@@ -650,11 +642,8 @@ impl LapceProxy {
     }
 
     pub fn stop(&self) {
-        self.rpc.send_rpc_notification("shutdown", &json!({}));
-        // self.core_sender.send(json!({
-        //     "method": "shutdown",
-        //     "params": {},
-        // }));
+        self.proxy_rpc.shutdown();
+        self.core_rpc.shutdown();
     }
 }
 

@@ -186,7 +186,6 @@ impl NewPluginCatalog {
         use PluginCatalogNotification::*;
         match notification {
             PluginServerLoaded(plugin) => {
-                eprintln!("plugin server loaded");
                 // TODO: check if the server has did open registered
                 if let Ok(CoreProxyResponse::GetOpenFilesContentResponse { items }) =
                     self.plugin_rpc.proxy_rpc.get_open_files_content()
@@ -204,6 +203,11 @@ impl NewPluginCatalog {
                     }
                 }
                 self.new_plugins.insert(plugin.plugin_id, plugin);
+            }
+            Shutdown => {
+                for (_, plugin) in self.new_plugins.iter() {
+                    plugin.shutdown();
+                }
             } // NewPluginNotification::StartLspServer {
               //     workspace,
               //     plugin_id,
