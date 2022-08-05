@@ -173,14 +173,20 @@ pub fn load_all_plugins(
         match load_plugin(plugin_path) {
             Err(_e) => (),
             Ok(plugin_desc) => {
-                if let Err(e) = start_plugin(
-                    workspace.clone(),
-                    plugin_configurations.get(&plugin_desc.name).cloned(),
-                    plugin_rpc.clone(),
-                    plugin_desc,
-                ) {
-                    eprintln!("start plugin error {}", e);
-                }
+                let workspace = workspace.clone();
+                let configurations =
+                    plugin_configurations.get(&plugin_desc.name).cloned();
+                let plugin_rpc = plugin_rpc.clone();
+                thread::spawn(move || {
+                    if let Err(e) = start_plugin(
+                        workspace,
+                        configurations,
+                        plugin_rpc,
+                        plugin_desc,
+                    ) {
+                        eprintln!("start plugin error {}", e);
+                    }
+                });
             }
         }
     }
