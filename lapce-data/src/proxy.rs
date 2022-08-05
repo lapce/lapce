@@ -20,15 +20,12 @@ use lapce_rpc::core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler
 use lapce_rpc::plugin::PluginDescription;
 use lapce_rpc::proxy::{CoreProxyRequest, CoreProxyResponse, ProxyRpcHandler};
 use lapce_rpc::source_control::FileDiff;
-use lapce_rpc::style::SemanticStyles;
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::{Callback, RpcMessage, RpcObject};
 use lapce_rpc::{ControlFlow, Handler};
 use lapce_rpc::{RequestId, RpcHandler};
-use lsp_types::request::GotoTypeDefinitionResponse;
 use lsp_types::Position;
 use lsp_types::Url;
-use lsp_types::{DocumentSymbolResponse, InlayHint, SymbolInformation};
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 use serde_json::json;
