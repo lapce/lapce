@@ -11,7 +11,7 @@ use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
     CodeActionResponse, CompletionItem, DocumentSymbolResponse,
     GotoDefinitionResponse, Hover, InlayHint, Location, Position,
-    SemanticTokensResult, TextDocumentItem, TextEdit,
+    SemanticTokensResult, SymbolInformation, TextDocumentItem, TextEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -94,8 +94,6 @@ pub enum CoreProxyRequest {
     GetWorkspaceSymbols {
         /// The search query
         query: String,
-        /// THe id of the buffer it was used in, which tells us what LSP to query
-        buffer_id: BufferId,
     },
     GetDocumentFormatting {
         path: PathBuf,
@@ -227,6 +225,9 @@ pub enum CoreProxyResponse {
     },
     GetDocumentSymbols {
         resp: DocumentSymbolResponse,
+    },
+    GetWorkspaceSymbols {
+        symbols: Vec<SymbolInformation>,
     },
     GetInlayHints {
         hints: Vec<InlayHint>,
@@ -555,6 +556,14 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(CoreProxyRequest::GetDocumentSymbols { path }, f);
+    }
+
+    pub fn get_workspace_symbols(
+        &self,
+        query: String,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(CoreProxyRequest::GetWorkspaceSymbols { query }, f);
     }
 
     pub fn get_inlay_hints(&self, path: PathBuf, f: impl ProxyCallback + 'static) {

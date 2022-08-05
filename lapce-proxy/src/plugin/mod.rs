@@ -16,7 +16,7 @@ use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{
     CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
     GotoDefinition, HoverRequest, InlayHintRequest, References, Request,
-    ResolveCompletionItem, SemanticTokensFullRequest,
+    ResolveCompletionItem, SemanticTokensFullRequest, WorkspaceSymbol,
 };
 use lsp_types::{
     CodeActionContext, CodeActionParams, CodeActionResponse, CompletionItem,
@@ -25,9 +25,10 @@ use lsp_types::{
     FormattingOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverParams, InlayHint, InlayHintParams, Location, PartialResultParams,
     Position, Range, ReferenceContext, ReferenceParams, SemanticToken,
-    SemanticTokens, SemanticTokensParams, SemanticTokensResult,
+    SemanticTokens, SemanticTokensParams, SemanticTokensResult, SymbolInformation,
     TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit,
     Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    WorkspaceSymbolParams,
 };
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
@@ -473,6 +474,23 @@ impl PluginCatalogRpcHandler {
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
         self.send_request_to_all_plugins(method, params, language_id, cb);
+    }
+
+    pub fn get_workspace_symbols(
+        &self,
+        query: String,
+        cb: impl FnOnce(PluginId, Result<Vec<SymbolInformation>, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let method = WorkspaceSymbol::METHOD;
+        let params = WorkspaceSymbolParams {
+            query,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        self.send_request_to_all_plugins(method, params, None, cb);
     }
 
     pub fn get_document_formatting(

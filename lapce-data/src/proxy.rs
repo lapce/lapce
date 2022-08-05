@@ -797,24 +797,6 @@ impl LapceProxy {
         );
     }
 
-    pub fn get_workspace_symbols(
-        &self,
-        buffer_id: BufferId,
-        query: &str,
-        f: impl FnOnce(Result<Option<Vec<SymbolInformation>>, RequestError>)
-            + Send
-            + 'static,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "get_workspace_symbols",
-            &json!({
-                "buffer_id": buffer_id,
-                "query": query,
-            }),
-            box_json_cb(f),
-        );
-    }
-
     pub fn stop(&self) {
         self.rpc.send_rpc_notification("shutdown", &json!({}));
         // self.core_sender.send(json!({

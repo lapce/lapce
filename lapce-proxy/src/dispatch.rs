@@ -402,7 +402,16 @@ impl ProxyHandler for NewDispatcher {
                         proxy_rpc.handle_response(id, result);
                     });
             }
-            GetWorkspaceSymbols { query, buffer_id } => todo!(),
+            GetWorkspaceSymbols { query } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc
+                    .get_workspace_symbols(query, move |_, result| {
+                        let result = result.map(|symbols| {
+                            CoreProxyResponse::GetWorkspaceSymbols { symbols }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    });
+            }
             GetDocumentFormatting { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc
@@ -1121,11 +1130,7 @@ impl Dispatcher {
             GetSemanticTokens { .. } => {}
             GetCodeActions { .. } => {}
             GetDocumentSymbols { .. } => {}
-            GetWorkspaceSymbols { query, buffer_id } => {
-                let buffers = self.buffers.lock();
-                let buffer = buffers.get(&buffer_id).unwrap();
-                self.lsp.lock().get_workspace_symbols(id, buffer, query);
-            }
+            GetWorkspaceSymbols { .. } => {}
             GetDocumentFormatting { .. } => {}
             ReadDir { path } => {
                 let local_dispatcher = self.clone();
