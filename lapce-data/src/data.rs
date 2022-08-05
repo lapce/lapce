@@ -1340,7 +1340,7 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::SourceControlInit => {
-                self.proxy.git_init();
+                self.proxy.proxy_rpc.git_init();
             }
             LapceWorkbenchCommand::SourceControlCommit => {
                 let diffs: Vec<FileDiff> = self
@@ -1370,7 +1370,7 @@ impl LapceTabData {
                 if message.is_empty() {
                     return;
                 }
-                self.proxy.git_commit(message, diffs);
+                self.proxy.proxy_rpc.git_commit(message.to_string(), diffs);
                 Arc::make_mut(doc).reload(Rope::from(""), true);
                 let editor = self
                     .main_split
@@ -1396,7 +1396,9 @@ impl LapceTabData {
                 self.proxy.proxy_rpc.git_discard_workspace_changes();
             }
             LapceWorkbenchCommand::CheckoutBranch => match data {
-                Some(Value::String(branch)) => self.proxy.git_checkout(&branch),
+                Some(Value::String(branch)) => {
+                    self.proxy.proxy_rpc.git_checkout(branch)
+                }
                 _ => log::error!("checkout called without a branch"), // TODO: How do I show a result to the user here?
             },
 
@@ -2912,7 +2914,7 @@ impl LapceMainSplitData {
                 let rev = doc.rev();
                 let path = path.to_path_buf();
                 let content = content.clone();
-                self.proxy.save_buffer_as(
+                self.proxy.proxy_rpc.save_buffer_as(
                     doc.id(),
                     path.to_path_buf(),
                     doc.rev(),

@@ -1915,7 +1915,6 @@ impl LapceEditorBufferData {
                 if let BufferContent::File(path) = self.doc.content() {
                     let offset = self.editor.cursor.offset();
                     let event_sink = ctx.get_external_handle();
-                    let buffer_id = self.doc.id();
                     let position = if let Some(position) =
                         self.doc.buffer().offset_to_position(offset)
                     {

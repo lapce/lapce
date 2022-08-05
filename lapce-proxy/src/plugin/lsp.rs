@@ -19,9 +19,8 @@ use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::encoding::offset_utf16_to_utf8;
 use lapce_rpc::{
     buffer::BufferId,
-    lsp::{LspNotification, LspRequest, LspResponse},
     style::{LineStyle, SemanticStyles, Style},
-    NewHandler, RequestId, RpcError,
+    RequestId, RpcError,
 };
 use log::error;
 use lsp_types::{
@@ -33,11 +32,7 @@ use parking_lot::Mutex;
 use serde_json::{json, to_value, Value};
 use xi_rope::Rope;
 
-use crate::{
-    buffer::Buffer,
-    dispatch::Dispatcher,
-    plugin::{psp::PluginServerRpc, PluginCatalogRpcHandler},
-};
+use crate::{buffer::Buffer, dispatch::Dispatcher, plugin::PluginCatalogRpcHandler};
 
 use super::{
     psp::{

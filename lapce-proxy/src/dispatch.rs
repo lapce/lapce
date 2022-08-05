@@ -164,6 +164,9 @@ impl ProxyHandler for NewDispatcher {
                 }
             }
             InstallPlugin { plugin } => todo!(),
+            DisablePlugin { plugin } => todo!(),
+            EnablePlugin { plugin } => todo!(),
+            RemovePlugin { plugin } => todo!(),
             GitCommit { message, diffs } => todo!(),
             GitCheckout { branch } => todo!(),
             GitDiscardFileChanges { file } => todo!(),
@@ -550,11 +553,67 @@ impl ProxyHandler for NewDispatcher {
                 path,
                 rev,
                 content,
-            } => todo!(),
-            CreateFile { path } => todo!(),
-            CreateDirectory { path } => todo!(),
-            TrashPath { path } => todo!(),
-            RenamePath { from, to } => todo!(),
+            } => {
+                let mut buffer = Buffer::new(buffer_id, path);
+                buffer.rope = Rope::from(content);
+                buffer.rev = rev;
+                let result = buffer
+                    .save(rev)
+                    .map(|_| CoreProxyResponse::Success {})
+                    .map_err(|e| RpcError {
+                        code: 0,
+                        message: e.to_string(),
+                    });
+                self.respond_rpc(id, result);
+            }
+            CreateFile { path } => {
+                let result = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(path)
+                    .map(|_| CoreProxyResponse::Success {})
+                    .map_err(|e| RpcError {
+                        code: 0,
+                        message: e.to_string(),
+                    });
+                self.respond_rpc(id, result);
+            }
+            CreateDirectory { path } => {
+                let result = std::fs::create_dir(path)
+                    .map(|_| CoreProxyResponse::Success {})
+                    .map_err(|e| RpcError {
+                        code: 0,
+                        message: e.to_string(),
+                    });
+                self.respond_rpc(id, result);
+            }
+            TrashPath { path } => {
+                let result = trash::delete(path)
+                    .map(|_| CoreProxyResponse::Success {})
+                    .map_err(|e| RpcError {
+                        code: 0,
+                        message: e.to_string(),
+                    });
+                self.respond_rpc(id, result);
+            }
+            RenamePath { from, to } => {
+                // We first check if the destination already exists, because rename can overwrite it
+                // and that's not the default behavior we want for when a user renames a document.
+                let result = if to.exists() {
+                    Err(RpcError {
+                        code: 0,
+                        message: format!("{:?} already exists", to),
+                    })
+                } else {
+                    std::fs::rename(from, to)
+                        .map(|_| CoreProxyResponse::Success {})
+                        .map_err(|e| RpcError {
+                            code: 0,
+                            message: e.to_string(),
+                        })
+                };
+                self.respond_rpc(id, result);
+            }
         }
     }
 }
@@ -1033,6 +1092,9 @@ impl Dispatcher {
                     // );
                 });
             }
+            DisablePlugin { plugin } => {}
+            EnablePlugin { plugin } => {}
+            RemovePlugin { plugin } => {}
             // DisablePlugin { plugin } => {
             //     let catalog = self.plugins.clone();
             //     let dispatcher = self.clone();
@@ -1337,23 +1399,18 @@ impl Dispatcher {
                 //     self.respond(id, resp);
                 // }
             }
-            SaveBufferAs {
-                buffer_id,
-                path,
-                rev,
-                content,
-            } => {
-                let mut buffer = Buffer::new(buffer_id, path.clone());
-                buffer.rope = Rope::from(content);
-                buffer.rev = rev;
-                let resp = buffer.save(rev).map(|_r| json!({}));
-                if resp.is_ok() {
-                    self.buffers.lock().insert(buffer_id, buffer);
-                    self.open_files
-                        .lock()
-                        .insert(path.to_str().unwrap().to_string(), buffer_id);
-                }
-                self.respond(id, resp);
+            SaveBufferAs { .. } => {
+                // let mut buffer = Buffer::new(buffer_id, path.clone());
+                // buffer.rope = Rope::from(content);
+                // buffer.rev = rev;
+                // let resp = buffer.save(rev).map(|_r| json!({}));
+                // if resp.is_ok() {
+                //     self.buffers.lock().insert(buffer_id, buffer);
+                //     self.open_files
+                //         .lock()
+                //         .insert(path.to_str().unwrap().to_string(), buffer_id);
+                // }
+                // self.respond(id, resp);
             }
             CreateFile { path } => {
                 // Create the file, specifically choosing to error if it already exists

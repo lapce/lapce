@@ -30,18 +30,17 @@ use lsp_types::{
         SemanticTokensFullRequest, WorkDoneProgressCreate, WorkspaceSymbol,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
-    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentSymbolResponse,
-    HoverProviderCapability, InitializeResult, OneOf, ProgressParams,
+    DidSaveTextDocumentParams, HoverProviderCapability, OneOf, ProgressParams,
     PublishDiagnosticsParams, Range, Registration, RegistrationParams,
     SemanticTokens, SemanticTokensLegend, SemanticTokensServerCapabilities,
     ServerCapabilities, TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncOptions, TextDocumentSyncSaveOptions,
-    VersionedTextDocumentIdentifier, WorkDoneProgress, WorkDoneProgressReport,
+    TextDocumentSyncKind, TextDocumentSyncSaveOptions,
+    VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::{Request, StartLspServer, StartLspServerParams};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 use xi_rope::{Rope, RopeDelta};
 

@@ -160,6 +160,15 @@ pub enum CoreProxyNotification {
     InstallPlugin {
         plugin: PluginDescription,
     },
+    DisablePlugin {
+        plugin: PluginDescription,
+    },
+    EnablePlugin {
+        plugin: PluginDescription,
+    },
+    RemovePlugin {
+        plugin: PluginDescription,
+    },
     GitCommit {
         message: String,
         diffs: Vec<FileDiff>,
@@ -248,6 +257,7 @@ pub enum CoreProxyResponse {
     GlobalSearchResponse {
         matches: HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
     },
+    Success {},
     SaveResponse {},
 }
 
@@ -369,6 +379,34 @@ impl ProxyRpcHandler {
         let _ = self.tx.send(ProxyRpcMessage::Notification(notification));
     }
 
+    pub fn git_init(&self) {
+        self.notification(CoreProxyNotification::GitInit {});
+    }
+
+    pub fn git_commit(&self, message: String, diffs: Vec<FileDiff>) {
+        self.notification(CoreProxyNotification::GitCommit { message, diffs });
+    }
+
+    pub fn git_checkout(&self, branch: String) {
+        self.notification(CoreProxyNotification::GitCheckout { branch });
+    }
+
+    pub fn install_plugin(&self, plugin: PluginDescription) {
+        self.notification(CoreProxyNotification::InstallPlugin { plugin });
+    }
+
+    pub fn disable_plugin(&self, plugin: PluginDescription) {
+        self.notification(CoreProxyNotification::DisablePlugin { plugin });
+    }
+
+    pub fn enable_plugin(&self, plugin: PluginDescription) {
+        self.notification(CoreProxyNotification::EnablePlugin { plugin });
+    }
+
+    pub fn remove_plugin(&self, plugin: PluginDescription) {
+        self.notification(CoreProxyNotification::RemovePlugin { plugin });
+    }
+
     pub fn shutdown(&self) {
         self.notification(CoreProxyNotification::Shutdown {});
     }
@@ -447,6 +485,46 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(CoreProxyRequest::BufferHead { path }, f);
+    }
+
+    pub fn create_file(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+        self.request_async(CoreProxyRequest::CreateFile { path }, f);
+    }
+
+    pub fn create_directory(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+        self.request_async(CoreProxyRequest::CreateDirectory { path }, f);
+    }
+
+    pub fn trash_path(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+        self.request_async(CoreProxyRequest::TrashPath { path }, f);
+    }
+
+    pub fn rename_path(
+        &self,
+        from: PathBuf,
+        to: PathBuf,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(CoreProxyRequest::RenamePath { from, to }, f);
+    }
+
+    pub fn save_buffer_as(
+        &self,
+        buffer_id: BufferId,
+        path: PathBuf,
+        rev: u64,
+        content: String,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            CoreProxyRequest::SaveBufferAs {
+                buffer_id,
+                path,
+                rev,
+                content,
+            },
+            f,
+        );
     }
 
     pub fn global_search(&self, pattern: String, f: impl ProxyCallback + 'static) {
@@ -604,5 +682,11 @@ impl ProxyRpcHandler {
 
     pub fn git_discard_workspace_changes(&self) {
         self.notification(CoreProxyNotification::GitDiscardWorkspaceChanges {});
+    }
+}
+
+impl Default for ProxyRpcHandler {
+    fn default() -> Self {
+        Self::new()
     }
 }

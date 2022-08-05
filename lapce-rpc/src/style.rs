@@ -2,8 +2,6 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
-use crate::buffer::BufferId;
-
 pub type LineStyles = HashMap<usize, Arc<Vec<LineStyle>>>;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

@@ -960,13 +960,13 @@ impl LapceTab {
                         }
                     }
                     LapceUICommand::DisablePlugin(plugin) => {
-                        data.proxy.disable_plugin(plugin);
+                        data.proxy.proxy_rpc.disable_plugin(plugin.clone());
                     }
                     LapceUICommand::EnablePlugin(plugin) => {
-                        data.proxy.enable_plugin(plugin);
+                        data.proxy.proxy_rpc.enable_plugin(plugin.clone());
                     }
                     LapceUICommand::RemovePlugin(plugin) => {
-                        data.proxy.remove_plugin(plugin);
+                        data.proxy.proxy_rpc.remove_plugin(plugin.clone());
                     }
                     LapceUICommand::UpdateDiffInfo(diff) => {
                         let source_control = Arc::make_mut(&mut data.source_control);
@@ -1579,8 +1579,8 @@ impl LapceTab {
                         let event_sink = ctx.get_external_handle();
                         let tab_id = data.id;
                         let explorer = data.file_explorer.clone();
-                        data.proxy.create_file(
-                            path,
+                        data.proxy.proxy_rpc.create_file(
+                            path.clone(),
                             Box::new(move |res| {
                                 match res {
                                     Ok(_) => {
@@ -1605,8 +1605,8 @@ impl LapceTab {
                     }
                     LapceUICommand::CreateDirectory { path } => {
                         let explorer = data.file_explorer.clone();
-                        data.proxy.create_directory(
-                            path,
+                        data.proxy.proxy_rpc.create_directory(
+                            path.clone(),
                             Box::new(move |res| {
                                 if let Err(err) = res {
                                     // TODO: Inform the user through a corner-notif
@@ -1622,9 +1622,9 @@ impl LapceTab {
                     }
                     LapceUICommand::RenamePath { from, to } => {
                         let explorer = data.file_explorer.clone();
-                        data.proxy.rename_path(
-                            from,
-                            to,
+                        data.proxy.proxy_rpc.rename_path(
+                            from.clone(),
+                            to.clone(),
                             Box::new(move |res| {
                                 if let Err(err) = res {
                                     // TODO: inform the user through a corner-notif
@@ -1636,8 +1636,8 @@ impl LapceTab {
                     }
                     LapceUICommand::TrashPath { path } => {
                         let explorer = data.file_explorer.clone();
-                        data.proxy.trash_path(
-                            path,
+                        data.proxy.proxy_rpc.trash_path(
+                            path.clone(),
                             Box::new(move |res| {
                                 if let Err(err) = res {
                                     // TODO: inform the user through a corner-notif

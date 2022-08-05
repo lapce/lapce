@@ -214,7 +214,7 @@ impl Widget<LapceTabData> for Plugin {
                         if status == PluginStatus::Install
                             || status == PluginStatus::Upgrade
                         {
-                            data.proxy.install_plugin(plugin);
+                            data.proxy.proxy_rpc.install_plugin(plugin.clone());
                         } else if status == PluginStatus::Installed {
                             self.enable_or_disable_plugin(
                                 mouse_event,

@@ -99,7 +99,6 @@ pub struct LapceProxy {
     rpc: RpcHandler,
     pub proxy_rpc: ProxyRpcHandler,
     core_rpc: CoreRpcHandler,
-    proxy_receiver: Arc<Receiver<Value>>,
     term_tx: Sender<(TermId, TermEvent)>,
     event_sink: ExtEventSink,
 }
@@ -228,10 +227,7 @@ impl CoreHandler for LapceProxy {
         }
     }
 
-    fn handle_request(&mut self, id: RequestId, rpc: CoreRequest) {
-        use CoreRequest::*;
-        match rpc {}
-    }
+    fn handle_request(&mut self, _id: RequestId, _rpc: CoreRequest) {}
 }
 
 impl Handler for LapceProxy {
@@ -366,7 +362,6 @@ impl LapceProxy {
             rpc,
             proxy_rpc,
             core_rpc,
-            proxy_receiver: Arc::new(proxy_receiver),
             term_tx,
             event_sink: event_sink.clone(),
         };
@@ -399,12 +394,6 @@ impl LapceProxy {
         let (core_sender, core_receiver) = crossbeam_channel::unbounded();
         match workspace.kind {
             LapceWorkspaceType::Local => {
-                let proxy_receiver = (*self.proxy_receiver).clone();
-                thread::spawn(move || {
-                    let dispatcher = Dispatcher::new(core_sender);
-                    // let _ = dispatcher.mainloop(proxy_receiver);
-                });
-
                 let proxy_rpc = self.proxy_rpc.clone();
                 let core_rpc = self.core_rpc.clone();
 
@@ -658,128 +647,6 @@ impl LapceProxy {
     ) {
         let _ = self.term_tx.send((term_id, TermEvent::NewTerminal(raw)));
         self.proxy_rpc.new_terminal(term_id, cwd, shell);
-    }
-
-    pub fn git_init(&self) {
-        self.rpc.send_rpc_notification("git_init", &json!({}));
-    }
-
-    pub fn git_commit(&self, message: &str, diffs: Vec<FileDiff>) {
-        self.rpc.send_rpc_notification(
-            "git_commit",
-            &json!({
-                "message": message,
-                "diffs": diffs,
-            }),
-        )
-    }
-
-    pub fn git_checkout(&self, branch: &str) {
-        self.rpc.send_rpc_notification(
-            "git_checkout",
-            &json!({
-                "branch": branch,
-            }),
-        )
-    }
-
-    pub fn install_plugin(&self, plugin: &PluginDescription) {
-        self.rpc
-            .send_rpc_notification("install_plugin", &json!({ "plugin": plugin }));
-    }
-
-    pub fn disable_plugin(&self, plugin: &PluginDescription) {
-        self.rpc
-            .send_rpc_notification("disable_plugin", &json!({ "plugin": plugin }))
-    }
-
-    pub fn enable_plugin(&self, plugin: &PluginDescription) {
-        self.rpc
-            .send_rpc_notification("enable_plugin", &json!({ "plugin": plugin }))
-    }
-
-    pub fn remove_plugin(&self, plugin: &PluginDescription) {
-        self.rpc
-            .send_rpc_notification("remove_plugin", &json!({ "plugin": plugin }));
-    }
-
-    pub fn save_buffer_as(
-        &self,
-        buffer_id: BufferId,
-        path: PathBuf,
-        rev: u64,
-        content: String,
-        f: Box<dyn Callback>,
-    ) {
-        let request = CoreProxyRequest::SaveBufferAs {
-            buffer_id,
-            path,
-            rev,
-            content,
-        };
-        self.rpc.send_rpc_request_value_async(request, f);
-    }
-
-    pub fn create_file(&self, path: &Path, f: Box<dyn Callback>) {
-        self.rpc.send_rpc_request_async(
-            "create_file",
-            &json!({
-                "path": path,
-            }),
-            f,
-        );
-    }
-
-    pub fn create_directory(&self, path: &Path, f: Box<dyn Callback>) {
-        self.rpc.send_rpc_request_async(
-            "create_directory",
-            &json!({
-                "path": path,
-            }),
-            f,
-        );
-    }
-
-    pub fn trash_path(&self, path: &Path, f: Box<dyn Callback>) {
-        self.rpc.send_rpc_request_async(
-            "trash_path",
-            &json!({
-                "path": path,
-            }),
-            f,
-        );
-    }
-
-    pub fn rename_path(
-        &self,
-        from_path: &Path,
-        to_path: &Path,
-        f: Box<dyn Callback>,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "rename_path",
-            &json!({
-                "from": from_path,
-                "to": to_path,
-            }),
-            f,
-        );
-    }
-
-    pub fn get_signature(
-        &self,
-        buffer_id: BufferId,
-        position: Position,
-        f: Box<dyn Callback>,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "get_signature",
-            &json!({
-                "buffer_id": buffer_id,
-                "position": position,
-            }),
-            f,
-        );
     }
 
     pub fn stop(&self) {
