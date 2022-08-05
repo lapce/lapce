@@ -12,8 +12,12 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
 use jsonrpc_lite::{JsonRpc, Params};
-use lapce_core::buffer::RopeText;
-use lapce_rpc::{plugin::PluginId, RpcError};
+use lapce_core::{buffer::RopeText, encoding::offset_utf16_to_utf8};
+use lapce_rpc::{
+    plugin::PluginId,
+    style::{LineStyle, SemanticStyles, Style},
+    RpcError,
+};
 use lsp_types::{
     notification::{
         DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument,
@@ -22,12 +26,13 @@ use lsp_types::{
     request::{
         CodeActionRequest, Completion, Formatting, GotoDefinition, HoverRequest,
         Initialize, References, RegisterCapability, ResolveCompletionItem,
-        WorkDoneProgressCreate,
+        SemanticTokensFullRequest, WorkDoneProgressCreate,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidOpenTextDocumentParams, DidSaveTextDocumentParams, HoverProviderCapability,
     InitializeResult, OneOf, ProgressParams, PublishDiagnosticsParams, Range,
-    Registration, RegistrationParams, ServerCapabilities,
+    Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
+    SemanticTokensServerCapabilities, ServerCapabilities,
     TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncOptions, TextDocumentSyncSaveOptions,
@@ -128,6 +133,11 @@ pub enum PluginServerRpc {
             )>,
         >,
     },
+    FormatSemanticTokens {
+        tokens: SemanticTokens,
+        text: Rope,
+        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+    },
 }
 
 #[derive(Clone)]
@@ -169,6 +179,12 @@ pub trait PluginServerHandler {
                 Option<TextDocumentContentChangeEvent>,
             )>,
         >,
+    );
+    fn format_semantic_tokens(
+        &self,
+        tokens: SemanticTokens,
+        text: Rope,
+        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
     );
 }
 
@@ -417,6 +433,9 @@ impl PluginServerRpcHandler {
                         change,
                     );
                 }
+                PluginServerRpc::FormatSemanticTokens { tokens, text, f } => {
+                    handler.format_semantic_tokens(tokens, text, f);
+                }
                 PluginServerRpc::Handler(notification) => {
                     handler.handle_handler_notification(notification)
                 }
@@ -604,6 +623,9 @@ impl PluginHostHandler {
                     OneOf::Right(_) => true,
                 })
                 .unwrap_or(false),
+            SemanticTokensFullRequest::METHOD => {
+                self.server_capabilities.semantic_tokens_provider.is_some()
+            }
             _ => false,
         }
     }
@@ -857,6 +879,24 @@ impl PluginHostHandler {
             false,
         );
     }
+
+    pub fn format_semantic_tokens(
+        &self,
+        tokens: SemanticTokens,
+        text: Rope,
+        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+    ) {
+        let result = format_semantic_styles(
+            &text,
+            self.server_capabilities.semantic_tokens_provider.as_ref(),
+            &tokens,
+        )
+        .ok_or_else(|| RpcError {
+            code: 0,
+            message: "can't get styles".to_string(),
+        });
+        f.call(result);
+    }
 }
 
 fn get_document_content_change(
@@ -923,4 +963,76 @@ fn get_document_content_change(
     }
 
     None
+}
+
+fn format_semantic_styles(
+    text: &Rope,
+    semantic_tokens_provider: Option<&SemanticTokensServerCapabilities>,
+    tokens: &SemanticTokens,
+) -> Option<Vec<LineStyle>> {
+    let semantic_tokens_provider = semantic_tokens_provider?;
+    let semantic_legends = semantic_tokens_legend(semantic_tokens_provider);
+
+    let text = RopeText::new(text);
+    let mut highlights = Vec::new();
+    let mut line = 0;
+    let mut start = 0;
+    let mut last_start = 0;
+    for semantic_token in &tokens.data {
+        if semantic_token.delta_line > 0 {
+            line += semantic_token.delta_line as usize;
+            start = text.offset_of_line(line);
+        }
+
+        let sub_text = text.char_indices_iter(start..);
+        if let Some(utf8_delta_start) =
+            offset_utf16_to_utf8(sub_text, semantic_token.delta_start as usize)
+        {
+            start += utf8_delta_start;
+        } else {
+            // Bad semantic token offsets
+            log::error!("Bad semantic token starty {semantic_token:?}");
+            break;
+        };
+
+        let sub_text = text.char_indices_iter(start..);
+        let end = if let Some(utf8_length) =
+            offset_utf16_to_utf8(sub_text, semantic_token.length as usize)
+        {
+            start + utf8_length
+        } else {
+            log::error!("Bad semantic token end {semantic_token:?}");
+            break;
+        };
+
+        let kind = semantic_legends.token_types[semantic_token.token_type as usize]
+            .as_str()
+            .to_string();
+        if start < last_start {
+            continue;
+        }
+        last_start = start;
+        highlights.push(LineStyle {
+            start,
+            end,
+            style: Style {
+                fg_color: Some(kind),
+            },
+        });
+    }
+
+    Some(highlights)
+}
+
+fn semantic_tokens_legend(
+    semantic_tokens_provider: &SemanticTokensServerCapabilities,
+) -> &SemanticTokensLegend {
+    match semantic_tokens_provider {
+        SemanticTokensServerCapabilities::SemanticTokensOptions(options) => {
+            &options.legend
+        }
+        SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(
+            options,
+        ) => &options.semantic_tokens_options.legend,
+    }
 }

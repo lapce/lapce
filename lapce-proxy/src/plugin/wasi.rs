@@ -11,7 +11,11 @@ use std::{
 use anyhow::{anyhow, Result};
 use home::home_dir;
 use jsonrpc_lite::Params;
-use lapce_rpc::plugin::{PluginConfiguration, PluginDescription, PluginId};
+use lapce_rpc::{
+    plugin::{PluginConfiguration, PluginDescription, PluginId},
+    style::LineStyle,
+    RpcError,
+};
 use lsp_types::{
     request::Initialize, ClientCapabilities, InitializeParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
@@ -29,7 +33,7 @@ use crate::plugin::psp::PluginServerRpcHandler;
 use super::{
     psp::{
         handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
-        PluginServerHandler,
+        PluginServerHandler, RpcCallback,
     },
     PluginCatalogRpcHandler,
 };
@@ -117,6 +121,15 @@ impl PluginServerHandler for NewPlugin {
             new_text,
             change,
         );
+    }
+
+    fn format_semantic_tokens(
+        &self,
+        tokens: lsp_types::SemanticTokens,
+        text: Rope,
+        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+    ) {
+        self.host.format_semantic_tokens(tokens, text, f);
     }
 }
 

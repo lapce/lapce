@@ -21,7 +21,6 @@ pub struct Style {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SemanticStyles {
     pub rev: u64,
-    pub buffer_id: BufferId,
     pub path: PathBuf,
     pub len: usize,
     pub styles: Vec<LineStyle>,

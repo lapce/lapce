@@ -10,20 +10,22 @@ use jsonrpc_lite::{Id, JsonRpc};
 use lapce_rpc::counter::Counter;
 use lapce_rpc::plugin::{PluginDescription, PluginId};
 use lapce_rpc::proxy::ProxyRpcHandler;
+use lapce_rpc::style::{LineStyle, SemanticStyles};
 use lapce_rpc::{RequestId, RpcError, RpcMessage};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{
     CodeActionRequest, Completion, Formatting, GotoDefinition, HoverRequest,
-    References, Request, ResolveCompletionItem,
+    References, Request, ResolveCompletionItem, SemanticTokensFullRequest,
 };
 use lsp_types::{
     CodeActionContext, CodeActionParams, CodeActionResponse, CompletionItem,
     CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
     DocumentFormattingParams, FormattingOptions, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverParams, Location, PartialResultParams,
-    Position, Range, ReferenceContext, ReferenceParams, TextDocumentIdentifier,
-    TextDocumentItem, TextDocumentPositionParams, TextEdit, Url,
-    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    Position, Range, ReferenceContext, ReferenceParams, SemanticToken,
+    SemanticTokens, SemanticTokensParams, SemanticTokensResult,
+    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit,
+    Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
@@ -66,6 +68,12 @@ pub enum PluginCatalogRpc {
         method: &'static str,
         params: Value,
         language_id: Option<String>,
+    },
+    FormatSemanticTokens {
+        plugin_id: PluginId,
+        tokens: SemanticTokens,
+        text: Rope,
+        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
     },
     DidChangeTextDocument {
         language_id: String,
@@ -165,6 +173,14 @@ impl PluginCatalogRpcHandler {
                 PluginCatalogRpc::Handler(notification) => {
                     plugin.handle_notification(notification);
                 }
+                PluginCatalogRpc::FormatSemanticTokens {
+                    plugin_id,
+                    tokens,
+                    text,
+                    f,
+                } => {
+                    plugin.format_semantic_tokens(plugin_id, tokens, text, f);
+                }
                 PluginCatalogRpc::DidSaveTextDocument {
                     language_id,
                     path,
@@ -221,7 +237,7 @@ impl PluginCatalogRpcHandler {
         method: &'static str,
         params: P,
         language_id: Option<String>,
-        cb: impl FnOnce(Result<Resp, RpcError>) + Clone + Send + 'static,
+        cb: impl FnOnce(PluginId, Result<Resp, RpcError>) + Clone + Send + 'static,
     ) where
         P: Serialize,
         Resp: DeserializeOwned,
@@ -235,7 +251,7 @@ impl PluginCatalogRpcHandler {
             method,
             params,
             language_id,
-            move |_, result| {
+            move |plugin_id, result| {
                 if got_success.load(Ordering::Acquire) {
                     return;
                 }
@@ -254,11 +270,11 @@ impl PluginCatalogRpcHandler {
                     Err(e) => Err(e),
                 };
                 if result.is_ok() {
-                    cb(result)
+                    cb(plugin_id, result)
                 } else {
                     let rx = err_received.fetch_add(1, Ordering::Relaxed) + 1;
                     if request_sent.load(Ordering::Acquire) == rx {
-                        cb(result)
+                        cb(plugin_id, result)
                     }
                 }
             },
@@ -284,6 +300,21 @@ impl PluginCatalogRpcHandler {
             f: Box::new(f),
         };
         let _ = self.plugin_tx.send(rpc);
+    }
+
+    pub fn format_semantic_tokens(
+        &self,
+        plugin_id: PluginId,
+        tokens: SemanticTokens,
+        text: Rope,
+        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+    ) {
+        let _ = self.plugin_tx.send(PluginCatalogRpc::FormatSemanticTokens {
+            plugin_id,
+            tokens,
+            text,
+            f,
+        });
     }
 
     pub fn did_save_text_document(&self, path: &Path, text: Rope) {
@@ -326,7 +357,7 @@ impl PluginCatalogRpcHandler {
         &self,
         path: &Path,
         position: Position,
-        cb: impl FnOnce(Result<GotoDefinitionResponse, RpcError>)
+        cb: impl FnOnce(PluginId, Result<GotoDefinitionResponse, RpcError>)
             + Clone
             + Send
             + 'static,
@@ -351,7 +382,10 @@ impl PluginCatalogRpcHandler {
         &self,
         path: &Path,
         position: Position,
-        cb: impl FnOnce(Result<Vec<Location>, RpcError>) + Clone + Send + 'static,
+        cb: impl FnOnce(PluginId, Result<Vec<Location>, RpcError>)
+            + Clone
+            + Send
+            + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = References::METHOD;
@@ -376,7 +410,10 @@ impl PluginCatalogRpcHandler {
         &self,
         path: &Path,
         position: Position,
-        cb: impl FnOnce(Result<CodeActionResponse, RpcError>) + Clone + Send + 'static,
+        cb: impl FnOnce(PluginId, Result<CodeActionResponse, RpcError>)
+            + Clone
+            + Send
+            + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = CodeActionRequest::METHOD;
@@ -398,7 +435,10 @@ impl PluginCatalogRpcHandler {
     pub fn get_document_formatting(
         &self,
         path: &Path,
-        cb: impl FnOnce(Result<Vec<TextEdit>, RpcError>) + Clone + Send + 'static,
+        cb: impl FnOnce(PluginId, Result<Vec<TextEdit>, RpcError>)
+            + Clone
+            + Send
+            + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = Formatting::METHOD;
@@ -416,11 +456,31 @@ impl PluginCatalogRpcHandler {
         self.send_request_to_all_plugins(method, params, language_id, cb);
     }
 
+    pub fn get_semantic_tokens(
+        &self,
+        path: &Path,
+        cb: impl FnOnce(PluginId, Result<SemanticTokens, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = SemanticTokensFullRequest::METHOD;
+        let params = SemanticTokensParams {
+            text_document: TextDocumentIdentifier { uri },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(method, params, language_id, cb);
+    }
+
     pub fn hover(
         &self,
         path: &Path,
         position: Position,
-        cb: impl FnOnce(Result<Hover, RpcError>) + Clone + Send + 'static,
+        cb: impl FnOnce(PluginId, Result<Hover, RpcError>) + Clone + Send + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = HoverRequest::METHOD;

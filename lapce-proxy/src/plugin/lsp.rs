@@ -31,6 +31,7 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde_json::{json, to_value, Value};
+use xi_rope::Rope;
 
 use crate::{
     buffer::Buffer,
@@ -41,7 +42,7 @@ use crate::{
 use super::{
     psp::{
         handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
-        PluginServerHandler, PluginServerRpcHandler,
+        PluginServerHandler, PluginServerRpcHandler, RpcCallback,
     },
     PluginCatalogNotification,
 };
@@ -147,6 +148,15 @@ impl PluginServerHandler for NewLspClient {
             new_text,
             change,
         );
+    }
+
+    fn format_semantic_tokens(
+        &self,
+        tokens: SemanticTokens,
+        text: Rope,
+        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+    ) {
+        self.host.format_semantic_tokens(tokens, text, f);
     }
 }
 
@@ -671,7 +681,6 @@ impl LspCatalog {
                         .map(|styles| {
                             serde_json::to_value(SemanticStyles {
                                 rev: buffer.rev,
-                                buffer_id: buffer.id,
                                 path: buffer.path.clone(),
                                 styles,
                                 len: buffer.len(),

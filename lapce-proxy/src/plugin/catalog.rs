@@ -10,9 +10,14 @@ use std::{
 
 use crossbeam_channel::Sender;
 use dyn_clone::DynClone;
-use lapce_rpc::{plugin::PluginId, proxy::CoreProxyResponse, RpcError};
+use lapce_rpc::{
+    plugin::PluginId,
+    proxy::CoreProxyResponse,
+    style::{LineStyle, SemanticStyles},
+    RpcError,
+};
 use lsp_types::{
-    notification::DidOpenTextDocument, DidOpenTextDocumentParams,
+    notification::DidOpenTextDocument, DidOpenTextDocumentParams, SemanticTokens,
     TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
@@ -153,6 +158,27 @@ impl NewPluginCatalog {
                 new_text: new_text.clone(),
                 change: change.clone(),
             });
+        }
+    }
+
+    pub fn format_semantic_tokens(
+        &self,
+        plugin_id: PluginId,
+        tokens: SemanticTokens,
+        text: Rope,
+        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+    ) {
+        if let Some(plugin) = self.new_plugins.get(&plugin_id) {
+            plugin.handle_rpc(PluginServerRpc::FormatSemanticTokens {
+                tokens,
+                text,
+                f,
+            });
+        } else {
+            f.call(Err(RpcError {
+                code: 0,
+                message: "plugin doesn't exist".to_string(),
+            }));
         }
     }
 

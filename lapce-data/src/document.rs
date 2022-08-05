@@ -768,30 +768,34 @@ impl Document {
             let rev = self.rev();
             let len = self.buffer().len();
             let event_sink = self.event_sink.clone();
-            self.proxy.get_semantic_tokens(buffer_id, move |result| {
-                if let Ok(resp) = result {
-                    rayon::spawn(move || {
-                        let mut styles_span = SpansBuilder::new(len);
-                        for style in resp.styles {
-                            styles_span.add_span(
-                                Interval::new(style.start, style.end),
-                                style.style,
+            self.proxy
+                .proxy_rpc
+                .get_semantic_tokens(path.clone(), move |result| {
+                    if let Ok(CoreProxyResponse::GetSemanticTokens { styles }) =
+                        result
+                    {
+                        rayon::spawn(move || {
+                            let mut styles_span = SpansBuilder::new(len);
+                            for style in styles.styles {
+                                styles_span.add_span(
+                                    Interval::new(style.start, style.end),
+                                    style.style,
+                                );
+                            }
+                            let styles_span = Arc::new(styles_span.build());
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdateSemanticStyles(
+                                    buffer_id,
+                                    path,
+                                    rev,
+                                    styles_span,
+                                ),
+                                Target::Widget(tab_id),
                             );
-                        }
-                        let styles_span = Arc::new(styles_span.build());
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSemanticStyles(
-                                buffer_id,
-                                path,
-                                rev,
-                                styles_span,
-                            ),
-                            Target::Widget(tab_id),
-                        );
-                    });
-                }
-            });
+                        });
+                    }
+                });
         }
     }
 

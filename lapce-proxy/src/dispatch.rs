@@ -26,6 +26,7 @@ use lapce_rpc::proxy::{
     ProxyRpcHandler, ReadDirResponse,
 };
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
+use lapce_rpc::style::SemanticStyles;
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::{self, Call, RequestId, RpcError, RpcObject};
 use lsp_types::{TextDocumentItem, Url};
@@ -271,7 +272,7 @@ impl ProxyHandler for NewDispatcher {
                 position,
             } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc.hover(&path, position, move |result| {
+                self.catalog_rpc.hover(&path, position, move |_, result| {
                     let result = result.map(|hover| {
                         CoreProxyResponse::HoverResponse { request_id, hover }
                     });
@@ -281,13 +282,16 @@ impl ProxyHandler for NewDispatcher {
             GetSignature { .. } => todo!(),
             GetReferences { path, position } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc
-                    .get_references(&path, position, move |result| {
+                self.catalog_rpc.get_references(
+                    &path,
+                    position,
+                    move |_, result| {
                         let result = result.map(|references| {
                             CoreProxyResponse::GetReferencesResponse { references }
                         });
                         proxy_rpc.handle_response(id, result);
-                    });
+                    },
+                );
             }
             GetDefinition {
                 request_id,
@@ -295,8 +299,10 @@ impl ProxyHandler for NewDispatcher {
                 position,
             } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc
-                    .get_definition(&path, position, move |result| {
+                self.catalog_rpc.get_definition(
+                    &path,
+                    position,
+                    move |_, result| {
                         let result = result.map(|definition| {
                             CoreProxyResponse::GetDefinitionResponse {
                                 request_id,
@@ -304,7 +310,8 @@ impl ProxyHandler for NewDispatcher {
                             }
                         });
                         proxy_rpc.handle_response(id, result);
-                    });
+                    },
+                );
             }
             GetTypeDefinition {
                 request_id,
@@ -312,23 +319,66 @@ impl ProxyHandler for NewDispatcher {
                 position,
             } => todo!(),
             GetInlayHints { buffer_id } => todo!(),
-            GetSemanticTokens { buffer_id } => todo!(),
+            GetSemanticTokens { path } => {
+                let buffer = self.buffers.get(&path).unwrap();
+                let text = buffer.rope.clone();
+                let rev = buffer.rev;
+                let len = buffer.len();
+                let local_path = path.clone();
+                let proxy_rpc = self.proxy_rpc.clone();
+                let catalog_rpc = self.catalog_rpc.clone();
+                self.catalog_rpc.get_semantic_tokens(
+                    &path,
+                    move |plugin_id, result| match result {
+                        Ok(result) => {
+                            catalog_rpc.format_semantic_tokens(
+                                plugin_id,
+                                result,
+                                text,
+                                Box::new(move |result| match result {
+                                    Ok(styles) => {
+                                        proxy_rpc.handle_response(id, Ok(
+                                            CoreProxyResponse::GetSemanticTokens {
+                                                 styles: 
+                                                SemanticStyles{
+                                                    rev,
+                                                    path:local_path,
+                                                    styles,
+                                                    len,
+                                                } }
+                                        ));
+                                    }
+                                    Err(e) => {
+                                        proxy_rpc.handle_response(id, Err(e));
+                                    }
+                                }),
+                            );
+                        }
+                        Err(e) => {
+                            proxy_rpc.handle_response(id, Err(e));
+                        }
+                    },
+                );
+            }
             GetCodeActions { path, position } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc
-                    .get_code_actions(&path, position, move |result| {
+                self.catalog_rpc.get_code_actions(
+                    &path,
+                    position,
+                    move |_, result| {
                         let result = result.map(|resp| {
                             CoreProxyResponse::GetCodeActionsResponse { resp }
                         });
                         proxy_rpc.handle_response(id, result);
-                    });
+                    },
+                );
             }
             GetDocumentSymbols { buffer_id } => todo!(),
             GetWorkspaceSymbols { query, buffer_id } => todo!(),
             GetDocumentFormatting { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc
-                    .get_document_formatting(&path, move |result| {
+                    .get_document_formatting(&path, move |_, result| {
                         let result = result.map(|edits| {
                             CoreProxyResponse::GetDocumentFormatting { edits }
                         });
@@ -1044,11 +1094,7 @@ impl Dispatcher {
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_inlay_hints(id, buffer);
             }
-            GetSemanticTokens { buffer_id } => {
-                let buffers = self.buffers.lock();
-                let buffer = buffers.get(&buffer_id).unwrap();
-                self.lsp.lock().get_semantic_tokens(id, buffer);
-            }
+            GetSemanticTokens { .. } => {}
             GetCodeActions { .. } => {}
             GetDocumentSymbols { buffer_id } => {
                 let buffers = self.buffers.lock();

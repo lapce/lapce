@@ -10,7 +10,7 @@ use std::{
 use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
     CodeActionResponse, CompletionItem, GotoDefinitionResponse, Hover, Location,
-    Position, TextDocumentItem, TextEdit,
+    Position, SemanticTokensResult, TextDocumentItem, TextEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -21,6 +21,7 @@ use crate::{
     file::FileNodeItem,
     plugin::{PluginDescription, PluginId},
     source_control::FileDiff,
+    style::SemanticStyles,
     terminal::TermId,
     RequestId, RpcError,
 };
@@ -80,7 +81,7 @@ pub enum CoreProxyRequest {
         buffer_id: BufferId,
     },
     GetSemanticTokens {
-        buffer_id: BufferId,
+        path: PathBuf,
     },
     GetCodeActions {
         path: PathBuf,
@@ -222,6 +223,9 @@ pub enum CoreProxyResponse {
     },
     GetDocumentFormatting {
         edits: Vec<TextEdit>,
+    },
+    GetSemanticTokens {
+        styles: SemanticStyles,
     },
     GetOpenFilesContentResponse {
         items: Vec<TextDocumentItem>,
@@ -528,6 +532,14 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(CoreProxyRequest::GetDocumentFormatting { path }, f);
+    }
+
+    pub fn get_semantic_tokens(
+        &self,
+        path: PathBuf,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(CoreProxyRequest::GetSemanticTokens { path }, f);
     }
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {
