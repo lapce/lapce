@@ -137,6 +137,9 @@ pub enum CoreProxyNotification {
         workspace: Option<PathBuf>,
         plugin_configurations: HashMap<String, serde_json::Value>,
     },
+    OpenFileChanged {
+        path: PathBuf,
+    },
     Shutdown {},
     Completion {
         request_id: usize,

@@ -161,6 +161,18 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::ProxyConnected {});
     }
 
+    pub fn workspace_file_change(&self) {
+        self.notification(CoreNotification::WorkspaceFileChange {});
+    }
+
+    pub fn diff_info(&self, diff: DiffInfo) {
+        self.notification(CoreNotification::DiffInfo { diff });
+    }
+
+    pub fn open_file_changed(&self, path: PathBuf, content: String) {
+        self.notification(CoreNotification::OpenFileChanged { path, content });
+    }
+
     pub fn completion_response(
         &self,
         request_id: usize,

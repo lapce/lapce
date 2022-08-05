@@ -139,7 +139,13 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            WorkspaceFileChange {} => todo!(),
+            WorkspaceFileChange {} => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::WorkspaceFileChange,
+                    Target::Widget(self.tab_id),
+                );
+            }
             PublishDiagnostics { diagnostics } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -164,7 +170,7 @@ impl CoreHandler for LapceProxy {
             InstalledPlugins { plugins } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateInstalledPlugins(plugins.clone()),
+                    LapceUICommand::UpdateInstalledPlugins(plugins),
                     Target::Widget(self.tab_id),
                 );
                 // let plugins_desc = plugins

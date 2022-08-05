@@ -53,6 +53,7 @@ pub struct NewDispatcher {
     buffers: HashMap<PathBuf, Buffer>,
     #[allow(deprecated)]
     terminals: HashMap<TermId, mio::channel::Sender<Msg>>,
+    file_watcher: FileWatcher,
 }
 
 impl ProxyHandler for NewDispatcher {
@@ -64,6 +65,15 @@ impl ProxyHandler for NewDispatcher {
                 plugin_configurations,
             } => {
                 self.workspace = workspace;
+                self.file_watcher.notify(FileWatchNotifer::new(
+                    self.workspace.clone(),
+                    self.core_rpc.clone(),
+                    self.proxy_rpc.clone(),
+                ));
+                if let Some(workspace) = self.workspace.as_ref() {
+                    self.file_watcher
+                        .watch(workspace, true, WORKSPACE_EVENT_TOKEN);
+                }
 
                 let plugin_rpc = self.catalog_rpc.clone();
                 let workspace = self.workspace.clone();
@@ -75,6 +85,16 @@ impl ProxyHandler for NewDispatcher {
                     );
                     plugin_rpc.mainloop(&mut plugin);
                 });
+            }
+            OpenFileChanged { path } => {
+                if let Some(buffer) = self.buffers.get(&path) {
+                    if get_mod_time(&buffer.path) == buffer.mod_time {
+                        return;
+                    }
+                    if let Ok(content) = load_file(&buffer.path) {
+                        self.core_rpc.open_file_changed(path, content);
+                    }
+                }
             }
             Completion {
                 request_id,
@@ -165,6 +185,7 @@ impl ProxyHandler for NewDispatcher {
                     buffer.rev as i32,
                     content.clone(),
                 );
+                self.file_watcher.watch(&path, false, OPEN_FILE_EVENT_TOKEN);
                 self.buffers.insert(path, buffer);
                 self.respond_rpc(
                     id,
@@ -543,6 +564,8 @@ impl NewDispatcher {
         let plugin_rpc =
             PluginCatalogRpcHandler::new(core_rpc.clone(), proxy_rpc.clone());
 
+        let file_watcher = FileWatcher::new();
+
         Self {
             workspace: None,
             proxy_rpc,
@@ -550,6 +573,7 @@ impl NewDispatcher {
             catalog_rpc: plugin_rpc,
             buffers: HashMap::new(),
             terminals: HashMap::new(),
+            file_watcher,
         }
     }
 
@@ -559,6 +583,123 @@ impl NewDispatcher {
         result: Result<CoreProxyResponse, RpcError>,
     ) {
         self.proxy_rpc.handle_response(id, result);
+    }
+}
+
+struct FileWatchNotifer {
+    core_rpc: CoreRpcHandler,
+    proxy_rpc: ProxyRpcHandler,
+    workspace: Option<PathBuf>,
+    workspace_fs_change_handler: Arc<Mutex<Option<Sender<bool>>>>,
+    last_diff: Arc<Mutex<DiffInfo>>,
+}
+
+impl Notify for FileWatchNotifer {
+    fn notify(&self, events: Vec<(WatchToken, notify::Event)>) {
+        self.handle_fs_events(events);
+    }
+}
+
+impl FileWatchNotifer {
+    fn new(
+        workspace: Option<PathBuf>,
+        core_rpc: CoreRpcHandler,
+        proxy_rpc: ProxyRpcHandler,
+    ) -> Self {
+        let notifier = Self {
+            workspace,
+            core_rpc,
+            proxy_rpc,
+            workspace_fs_change_handler: Arc::new(Mutex::new(None)),
+            last_diff: Arc::new(Mutex::new(DiffInfo::default())),
+        };
+
+        if let Some(workspace) = notifier.workspace.clone() {
+            let core_rpc = notifier.core_rpc.clone();
+            let last_diff = notifier.last_diff.clone();
+            thread::spawn(move || {
+                if let Some(diff) = git_diff_new(&workspace) {
+                    core_rpc.diff_info(diff.clone());
+                    *last_diff.lock() = diff;
+                }
+            });
+        }
+
+        notifier
+    }
+
+    fn handle_fs_events(&self, events: Vec<(WatchToken, notify::Event)>) {
+        for (token, event) in events {
+            match token {
+                OPEN_FILE_EVENT_TOKEN => self.handle_open_file_fs_event(event),
+                WORKSPACE_EVENT_TOKEN => self.handle_workspace_fs_event(event),
+                _ => {}
+            }
+        }
+    }
+
+    fn handle_open_file_fs_event(&self, event: notify::Event) {
+        if event.kind.is_modify() {
+            for path in event.paths {
+                self.proxy_rpc
+                    .notification(CoreProxyNotification::OpenFileChanged { path });
+            }
+        }
+    }
+
+    fn handle_workspace_fs_event(&self, event: notify::Event) {
+        let explorer_change = match &event.kind {
+            notify::EventKind::Create(_)
+            | notify::EventKind::Remove(_)
+            | notify::EventKind::Modify(notify::event::ModifyKind::Name(_)) => true,
+            notify::EventKind::Modify(_) => false,
+            _ => return,
+        };
+
+        let mut handler = self.workspace_fs_change_handler.lock();
+        if let Some(sender) = handler.as_mut() {
+            if explorer_change {
+                // only send the value if we need to update file explorer as well
+                let _ = sender.send(explorer_change);
+            }
+            return;
+        }
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        if explorer_change {
+            // only send the value if we need to update file explorer as well
+            let _ = sender.send(explorer_change);
+        }
+
+        let local_handler = self.workspace_fs_change_handler.clone();
+        let core_rpc = self.core_rpc.clone();
+        let workspace = self.workspace.clone().unwrap();
+        let last_diff = self.last_diff.clone();
+        thread::spawn(move || {
+            thread::sleep(Duration::from_millis(500));
+
+            {
+                local_handler.lock().take();
+            }
+
+            let mut explorer_change = false;
+            for e in receiver {
+                if e {
+                    explorer_change = true;
+                    break;
+                }
+            }
+            if explorer_change {
+                core_rpc.workspace_file_change();
+            }
+            if let Some(diff) = git_diff_new(&workspace) {
+                let mut last_diff = last_diff.lock();
+                if diff != *last_diff {
+                    core_rpc.diff_info(diff.clone());
+                    *last_diff = diff;
+                }
+            }
+        });
+        *handler = Some(sender);
     }
 }
 
@@ -580,7 +721,7 @@ pub struct Dispatcher {
 }
 
 impl Notify for Dispatcher {
-    fn notify(&self) {
+    fn notify(&self, events: Vec<(WatchToken, notify::Event)>) {
         self.handle_fs_events();
     }
 }
@@ -600,7 +741,7 @@ impl Dispatcher {
             last_diff: Arc::new(Mutex::new(DiffInfo::default())),
             workspace_fs_change_handler: Arc::new(Mutex::new(None)),
         };
-        *dispatcher.file_watcher.lock() = Some(FileWatcher::new(dispatcher.clone()));
+        *dispatcher.file_watcher.lock() = Some(FileWatcher::new());
         dispatcher.lsp.lock().dispatcher = Some(dispatcher.clone());
         let local_dispatcher = dispatcher.clone();
         thread::spawn(move || {
@@ -852,6 +993,7 @@ impl Dispatcher {
         use CoreProxyNotification::*;
         match rpc {
             Completion { .. } => {}
+            OpenFileChanged { .. } => {}
             Initialize { workspace, .. } => {
                 *self.workspace.lock() = workspace.clone();
                 if let Some(workspace) = workspace {
