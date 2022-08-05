@@ -829,34 +829,6 @@ impl LapceProxy {
         );
     }
 
-    pub fn get_inlay_hints(
-        &self,
-        buffer_id: BufferId,
-        f: impl FnOnce(Result<Vec<InlayHint>, RequestError>) + Send + 'static,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "get_inlay_hints",
-            &json!({
-                "buffer_id": buffer_id,
-            }),
-            box_json_cb(f),
-        );
-    }
-
-    pub fn get_semantic_tokens(
-        &self,
-        buffer_id: BufferId,
-        f: impl FnOnce(Result<SemanticStyles, RequestError>) + Send + 'static,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "get_semantic_tokens",
-            &json!({
-                "buffer_id": buffer_id,
-            }),
-            box_json_cb(f),
-        );
-    }
-
     pub fn stop(&self) {
         self.rpc.send_rpc_notification("shutdown", &json!({}));
         // self.core_sender.send(json!({

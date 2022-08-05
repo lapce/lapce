@@ -26,10 +26,10 @@ use lapce_rpc::proxy::{
     ProxyRpcHandler, ReadDirResponse,
 };
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
-use lapce_rpc::style::SemanticStyles;
+use lapce_rpc::style::{LineStyle, SemanticStyles};
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::{self, Call, RequestId, RpcError, RpcObject};
-use lsp_types::{TextDocumentItem, Url};
+use lsp_types::{Position, Range, TextDocumentItem, Url};
 use parking_lot::Mutex;
 use serde_json::json;
 use serde_json::Value;
@@ -318,7 +318,20 @@ impl ProxyHandler for NewDispatcher {
                 buffer_id,
                 position,
             } => todo!(),
-            GetInlayHints { buffer_id } => todo!(),
+            GetInlayHints { path } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                let buffer = self.buffers.get(&path).unwrap();
+                let range = Range {
+                    start: Position::new(0, 0),
+                    end: buffer.offset_to_position(buffer.len()).unwrap(),
+                };
+                self.catalog_rpc
+                    .get_inlay_hints(&path, range, move |_, result| {
+                        let result = result
+                            .map(|hints| CoreProxyResponse::GetInlayHints { hints });
+                        proxy_rpc.handle_response(id, result);
+                    });
+            }
             GetSemanticTokens { path } => {
                 let buffer = self.buffers.get(&path).unwrap();
                 let text = buffer.rope.clone();
@@ -327,6 +340,28 @@ impl ProxyHandler for NewDispatcher {
                 let local_path = path.clone();
                 let proxy_rpc = self.proxy_rpc.clone();
                 let catalog_rpc = self.catalog_rpc.clone();
+
+                let handle_tokens =
+                    move |result: Result<Vec<LineStyle>, RpcError>| match result {
+                        Ok(styles) => {
+                            proxy_rpc.handle_response(
+                                id,
+                                Ok(CoreProxyResponse::GetSemanticTokens {
+                                    styles: SemanticStyles {
+                                        rev,
+                                        path: local_path,
+                                        styles,
+                                        len,
+                                    },
+                                }),
+                            );
+                        }
+                        Err(e) => {
+                            proxy_rpc.handle_response(id, Err(e));
+                        }
+                    };
+
+                let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc.get_semantic_tokens(
                     &path,
                     move |plugin_id, result| match result {
@@ -335,23 +370,7 @@ impl ProxyHandler for NewDispatcher {
                                 plugin_id,
                                 result,
                                 text,
-                                Box::new(move |result| match result {
-                                    Ok(styles) => {
-                                        proxy_rpc.handle_response(id, Ok(
-                                            CoreProxyResponse::GetSemanticTokens {
-                                                 styles: 
-                                                SemanticStyles{
-                                                    rev,
-                                                    path:local_path,
-                                                    styles,
-                                                    len,
-                                                } }
-                                        ));
-                                    }
-                                    Err(e) => {
-                                        proxy_rpc.handle_response(id, Err(e));
-                                    }
-                                }),
+                                Box::new(handle_tokens),
                             );
                         }
                         Err(e) => {
@@ -1089,11 +1108,7 @@ impl Dispatcher {
                     .lock()
                     .get_type_definition(id, request_id, buffer, position);
             }
-            GetInlayHints { buffer_id } => {
-                let buffers = self.buffers.lock();
-                let buffer = buffers.get(&buffer_id).unwrap();
-                self.lsp.lock().get_inlay_hints(id, buffer);
-            }
+            GetInlayHints { .. } => {}
             GetSemanticTokens { .. } => {}
             GetCodeActions { .. } => {}
             GetDocumentSymbols { buffer_id } => {

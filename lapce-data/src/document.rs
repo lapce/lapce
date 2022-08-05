@@ -811,38 +811,43 @@ impl Document {
         if let BufferContent::File(path) = self.content() {
             let tab_id = self.tab_id;
             let path = path.clone();
-            let buffer_id = self.id();
             let rev = self.rev();
             let len = self.buffer().len();
             let buffer = self.buffer().clone();
             let event_sink = self.event_sink.clone();
-            self.proxy.get_inlay_hints(buffer_id, move |result| {
-                if let Ok(mut resp) = result {
-                    // Sort the inlay hints by their position, as the LSP does not guarantee that it will
-                    // provide them in the order that they are in within the file
-                    // as well, Spans does not iterate in the order that they appear
-                    resp.sort_by(|left, right| left.position.cmp(&right.position));
+            self.proxy
+                .proxy_rpc
+                .get_inlay_hints(path.clone(), move |result| {
+                    if let Ok(CoreProxyResponse::GetInlayHints { mut hints }) =
+                        result
+                    {
+                        // Sort the inlay hints by their position, as the LSP does not guarantee that it will
+                        // provide them in the order that they are in within the file
+                        // as well, Spans does not iterate in the order that they appear
+                        hints.sort_by(|left, right| {
+                            left.position.cmp(&right.position)
+                        });
 
-                    let mut hints_span = SpansBuilder::new(len);
-                    for hint in resp {
-                        if let Some(offset) =
-                            buffer.offset_of_position(&hint.position)
-                        {
-                            let offset = offset.min(len);
-                            hints_span.add_span(
-                                Interval::new(offset, (offset + 1).min(len)),
-                                hint.clone(),
-                            );
+                        let mut hints_span = SpansBuilder::new(len);
+                        for hint in hints {
+                            if let Some(offset) =
+                                buffer.offset_of_position(&hint.position)
+                            {
+                                let offset = offset.min(len);
+                                hints_span.add_span(
+                                    Interval::new(offset, (offset + 1).min(len)),
+                                    hint.clone(),
+                                );
+                            }
                         }
+                        let hints = hints_span.build();
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateInlayHints { path, rev, hints },
+                            Target::Widget(tab_id),
+                        );
                     }
-                    let hints = hints_span.build();
-                    let _ = event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateInlayHints { path, rev, hints },
-                        Target::Widget(tab_id),
-                    );
-                }
-            });
+                });
         }
     }
 

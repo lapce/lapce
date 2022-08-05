@@ -9,8 +9,8 @@ use std::{
 
 use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
-    CodeActionResponse, CompletionItem, GotoDefinitionResponse, Hover, Location,
-    Position, SemanticTokensResult, TextDocumentItem, TextEdit,
+    CodeActionResponse, CompletionItem, GotoDefinitionResponse, Hover, InlayHint,
+    Location, Position, SemanticTokensResult, TextDocumentItem, TextEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -78,7 +78,7 @@ pub enum CoreProxyRequest {
         position: Position,
     },
     GetInlayHints {
-        buffer_id: BufferId,
+        path: PathBuf,
     },
     GetSemanticTokens {
         path: PathBuf,
@@ -223,6 +223,9 @@ pub enum CoreProxyResponse {
     },
     GetDocumentFormatting {
         edits: Vec<TextEdit>,
+    },
+    GetInlayHints {
+        hints: Vec<InlayHint>,
     },
     GetSemanticTokens {
         styles: SemanticStyles,
@@ -540,6 +543,10 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(CoreProxyRequest::GetSemanticTokens { path }, f);
+    }
+
+    pub fn get_inlay_hints(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+        self.request_async(CoreProxyRequest::GetInlayHints { path }, f);
     }
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {

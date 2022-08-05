@@ -15,17 +15,19 @@ use lapce_rpc::{RequestId, RpcError, RpcMessage};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{
     CodeActionRequest, Completion, Formatting, GotoDefinition, HoverRequest,
-    References, Request, ResolveCompletionItem, SemanticTokensFullRequest,
+    InlayHintRequest, References, Request, ResolveCompletionItem,
+    SemanticTokensFullRequest,
 };
 use lsp_types::{
     CodeActionContext, CodeActionParams, CodeActionResponse, CompletionItem,
     CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
     DocumentFormattingParams, FormattingOptions, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverParams, Location, PartialResultParams,
-    Position, Range, ReferenceContext, ReferenceParams, SemanticToken,
-    SemanticTokens, SemanticTokensParams, SemanticTokensResult,
-    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit,
-    Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    GotoDefinitionResponse, Hover, HoverParams, InlayHint, InlayHintParams,
+    Location, PartialResultParams, Position, Range, ReferenceContext,
+    ReferenceParams, SemanticToken, SemanticTokens, SemanticTokensParams,
+    SemanticTokensResult, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentPositionParams, TextEdit, Url, VersionedTextDocumentIdentifier,
+    WorkDoneProgressParams,
 };
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
@@ -426,6 +428,27 @@ impl PluginCatalogRpcHandler {
             context: CodeActionContext::default(),
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
+        };
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(method, params, language_id, cb);
+    }
+
+    pub fn get_inlay_hints(
+        &self,
+        path: &Path,
+        range: Range,
+        cb: impl FnOnce(PluginId, Result<Vec<InlayHint>, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = InlayHintRequest::METHOD;
+        let params = InlayHintParams {
+            text_document: TextDocumentIdentifier { uri },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            range,
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());

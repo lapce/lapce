@@ -25,8 +25,8 @@ use lsp_types::{
     },
     request::{
         CodeActionRequest, Completion, Formatting, GotoDefinition, HoverRequest,
-        Initialize, References, RegisterCapability, ResolveCompletionItem,
-        SemanticTokensFullRequest, WorkDoneProgressCreate,
+        Initialize, InlayHintRequest, References, RegisterCapability,
+        ResolveCompletionItem, SemanticTokensFullRequest, WorkDoneProgressCreate,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidOpenTextDocumentParams, DidSaveTextDocumentParams, HoverProviderCapability,
@@ -625,6 +625,9 @@ impl PluginHostHandler {
                 .unwrap_or(false),
             SemanticTokensFullRequest::METHOD => {
                 self.server_capabilities.semantic_tokens_provider.is_some()
+            }
+            InlayHintRequest::METHOD => {
+                self.server_capabilities.inlay_hint_provider.is_some()
             }
             _ => false,
         }
