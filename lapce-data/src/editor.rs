@@ -1912,83 +1912,95 @@ impl LapceEditorBufferData {
                 }
             }
             GotoTypeDefinition => {
-                let offset = self.editor.cursor.offset();
-                let event_sink = ctx.get_external_handle();
-                let buffer_id = self.doc.id();
-                let position = if let Some(position) =
-                    self.doc.buffer().offset_to_position(offset)
-                {
-                    position
-                } else {
-                    log::error!("Failed to convert offset {offset} to position in GotoTypeDefinition");
-                    return CommandExecuted::Yes;
-                };
-                let editor_view_id = self.editor.view_id;
-                self.proxy.get_type_definition(
-                    offset,
-                    buffer_id,
-                    position,
-                    move |result| {
-                        if let Ok(resp) = result {
-                            match resp {
-                                GotoTypeDefinitionResponse::Scalar(location) => {
-                                    let _ = event_sink.submit_command(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::GotoDefinition {
-                                            editor_view_id,
-                                            offset,
-                                            location: EditorLocation {
-                                                path: path_from_url(&location.uri),
-                                                position: Some(location.range.start),
-                                                scroll_offset: None,
-                                                history: None,
-                                            },
-                                        },
-                                        Target::Auto,
-                                    );
-                                }
-                                GotoTypeDefinitionResponse::Array(locations) => {
-                                    let len = locations.len();
-                                    match len {
-                                        1 => {
-                                            let _ = event_sink.submit_command(
-                                                LAPCE_UI_COMMAND,
-                                                LapceUICommand::GotoDefinition {
-                                                    editor_view_id,
-                                                    offset,
-                                                    location: EditorLocation {
-                                                        path: path_from_url(
-                                                            &locations[0].uri,
-                                                        ),
-                                                        position: Some(
-                                                            locations[0].range.start,
-                                                        ),
-                                                        scroll_offset: None,
-                                                        history: None,
-                                                    },
+                if let BufferContent::File(path) = self.doc.content() {
+                    let offset = self.editor.cursor.offset();
+                    let event_sink = ctx.get_external_handle();
+                    let buffer_id = self.doc.id();
+                    let position = if let Some(position) =
+                        self.doc.buffer().offset_to_position(offset)
+                    {
+                        position
+                    } else {
+                        log::error!("Failed to convert offset {offset} to position in GotoTypeDefinition");
+                        return CommandExecuted::Yes;
+                    };
+                    let editor_view_id = self.editor.view_id;
+                    self.proxy.proxy_rpc.get_type_definition(
+                        offset,
+                        path.clone(),
+                        position,
+                        move |result| {
+                            if let Ok(CoreProxyResponse::GetTypeDefinition {
+                                definition,
+                                ..
+                            }) = result
+                            {
+                                match definition {
+                                    GotoTypeDefinitionResponse::Scalar(location) => {
+                                        let _ = event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::GotoDefinition {
+                                                editor_view_id,
+                                                offset,
+                                                location: EditorLocation {
+                                                    path: path_from_url(
+                                                        &location.uri,
+                                                    ),
+                                                    position: Some(
+                                                        location.range.start,
+                                                    ),
+                                                    scroll_offset: None,
+                                                    history: None,
                                                 },
-                                                Target::Auto,
-                                            );
-                                        }
-                                        _ if len > 1 => {
-                                            let _ = event_sink.submit_command(
+                                            },
+                                            Target::Auto,
+                                        );
+                                    }
+                                    GotoTypeDefinitionResponse::Array(locations) => {
+                                        let len = locations.len();
+                                        match len {
+                                            1 => {
+                                                let _ = event_sink.submit_command(
+                                                    LAPCE_UI_COMMAND,
+                                                    LapceUICommand::GotoDefinition {
+                                                        editor_view_id,
+                                                        offset,
+                                                        location: EditorLocation {
+                                                            path: path_from_url(
+                                                                &locations[0].uri,
+                                                            ),
+                                                            position: Some(
+                                                                locations[0]
+                                                                    .range
+                                                                    .start,
+                                                            ),
+                                                            scroll_offset: None,
+                                                            history: None,
+                                                        },
+                                                    },
+                                                    Target::Auto,
+                                                );
+                                            }
+                                            _ if len > 1 => {
+                                                let _ = event_sink.submit_command(
                                                 LAPCE_UI_COMMAND,
                                                 LapceUICommand::PaletteReferences(
                                                     offset, locations,
                                                 ),
                                                 Target::Auto,
                                             );
+                                            }
+                                            _ => (),
                                         }
-                                        _ => (),
                                     }
+                                    GotoTypeDefinitionResponse::Link(
+                                        _location_links,
+                                    ) => {}
                                 }
-                                GotoTypeDefinitionResponse::Link(
-                                    _location_links,
-                                ) => {}
                             }
-                        }
-                    },
-                );
+                        },
+                    );
+                }
             }
             JumpLocationBackward => {
                 self.jump_location_backward(ctx);

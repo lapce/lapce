@@ -315,9 +315,24 @@ impl ProxyHandler for NewDispatcher {
             }
             GetTypeDefinition {
                 request_id,
-                buffer_id,
+                path,
                 position,
-            } => todo!(),
+            } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.get_type_definition(
+                    &path,
+                    position,
+                    move |_, result| {
+                        let result = result.map(|definition| {
+                            CoreProxyResponse::GetTypeDefinition {
+                                request_id,
+                                definition,
+                            }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
             GetInlayHints { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 let buffer = self.buffers.get(&path).unwrap();
@@ -1115,17 +1130,7 @@ impl Dispatcher {
             }
             GetReferences { .. } => {}
             GetDefinition { .. } => {}
-            GetTypeDefinition {
-                request_id,
-                buffer_id,
-                position,
-            } => {
-                let buffers = self.buffers.lock();
-                let buffer = buffers.get(&buffer_id).unwrap();
-                self.lsp
-                    .lock()
-                    .get_type_definition(id, request_id, buffer, position);
-            }
+            GetTypeDefinition { .. } => {}
             GetInlayHints { .. } => {}
             GetSemanticTokens { .. } => {}
             GetCodeActions { .. } => {}

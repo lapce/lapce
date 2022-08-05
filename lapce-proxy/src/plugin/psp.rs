@@ -25,9 +25,9 @@ use lsp_types::{
     },
     request::{
         CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
-        GotoDefinition, HoverRequest, Initialize, InlayHintRequest, References,
-        RegisterCapability, ResolveCompletionItem, SemanticTokensFullRequest,
-        WorkDoneProgressCreate, WorkspaceSymbol,
+        GotoDefinition, GotoTypeDefinition, HoverRequest, Initialize,
+        InlayHintRequest, References, RegisterCapability, ResolveCompletionItem,
+        SemanticTokensFullRequest, WorkDoneProgressCreate, WorkspaceSymbol,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentSymbolResponse,
@@ -597,6 +597,9 @@ impl PluginHostHandler {
                     OneOf::Right(_) => true,
                 })
                 .unwrap_or(false),
+            GotoTypeDefinition::METHOD => {
+                self.server_capabilities.type_definition_provider.is_some()
+            }
             References::METHOD => self
                 .server_capabilities
                 .references_provider

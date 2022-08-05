@@ -9,9 +9,9 @@ use std::{
 
 use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
-    CodeActionResponse, CompletionItem, DocumentSymbolResponse,
-    GotoDefinitionResponse, Hover, InlayHint, Location, Position,
-    SemanticTokensResult, SymbolInformation, TextDocumentItem, TextEdit,
+    request::GotoTypeDefinitionResponse, CodeActionResponse, CompletionItem,
+    DocumentSymbolResponse, GotoDefinitionResponse, Hover, InlayHint, Location,
+    Position, SemanticTokensResult, SymbolInformation, TextDocumentItem, TextEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -75,7 +75,7 @@ pub enum CoreProxyRequest {
     },
     GetTypeDefinition {
         request_id: usize,
-        buffer_id: BufferId,
+        path: PathBuf,
         position: Position,
     },
     GetInlayHints {
@@ -210,6 +210,10 @@ pub enum CoreProxyResponse {
     GetDefinitionResponse {
         request_id: usize,
         definition: GotoDefinitionResponse,
+    },
+    GetTypeDefinition {
+        request_id: usize,
+        definition: GotoTypeDefinitionResponse,
     },
     GetReferencesResponse {
         references: Vec<Location>,
@@ -508,6 +512,23 @@ impl ProxyRpcHandler {
     ) {
         self.request_async(
             CoreProxyRequest::GetDefinition {
+                request_id,
+                path,
+                position,
+            },
+            f,
+        );
+    }
+
+    pub fn get_type_definition(
+        &self,
+        request_id: usize,
+        path: PathBuf,
+        position: Position,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            CoreProxyRequest::GetTypeDefinition {
                 request_id,
                 path,
                 position,

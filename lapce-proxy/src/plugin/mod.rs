@@ -15,7 +15,8 @@ use lapce_rpc::{RequestId, RpcError, RpcMessage};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{
     CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
-    GotoDefinition, HoverRequest, InlayHintRequest, References, Request,
+    GotoDefinition, GotoTypeDefinition, GotoTypeDefinitionParams,
+    GotoTypeDefinitionResponse, HoverRequest, InlayHintRequest, References, Request,
     ResolveCompletionItem, SemanticTokensFullRequest, WorkspaceSymbol,
 };
 use lsp_types::{
@@ -368,6 +369,31 @@ impl PluginCatalogRpcHandler {
         let uri = Url::from_file_path(path).unwrap();
         let method = GotoDefinition::METHOD;
         let params = GotoDefinitionParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(method, params, language_id, cb);
+    }
+
+    pub fn get_type_definition(
+        &self,
+        path: &Path,
+        position: Position,
+        cb: impl FnOnce(PluginId, Result<GotoTypeDefinitionResponse, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = GotoTypeDefinition::METHOD;
+        let params = GotoTypeDefinitionParams {
             text_document_position_params: TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier { uri },
                 position,

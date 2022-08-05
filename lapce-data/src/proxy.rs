@@ -779,24 +779,6 @@ impl LapceProxy {
         );
     }
 
-    pub fn get_type_definition(
-        &self,
-        request_id: usize,
-        buffer_id: BufferId,
-        position: Position,
-        f: impl FnOnce(Result<GotoTypeDefinitionResponse, RequestError>) + Send + 'static,
-    ) {
-        self.rpc.send_rpc_request_async(
-            "get_type_definition",
-            &json!({
-                "request_id": request_id,
-                "buffer_id": buffer_id,
-                "position": position,
-            }),
-            box_json_cb(f),
-        );
-    }
-
     pub fn stop(&self) {
         self.rpc.send_rpc_notification("shutdown", &json!({}));
         // self.core_sender.send(json!({
