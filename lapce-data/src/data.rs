@@ -1947,6 +1947,7 @@ impl LapceMainSplitData {
         let buffer_id = doc.id();
         let event_sink = ctx.get_external_handle();
         let path = PathBuf::from(path);
+        let tab_id = *self.tab_id;
         self.proxy.save(
             rev,
             buffer_id,
@@ -1955,7 +1956,7 @@ impl LapceMainSplitData {
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::BufferSave(path, rev, exit_widget_id),
-                        Target::Auto,
+                        Target::Widget(tab_id),
                     );
                 }
             }),
