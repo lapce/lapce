@@ -43,10 +43,20 @@ jobs:
         shell: pwsh
         run: |
           Compress-Archive ./target/release-lto/lapce.exe ./Lapce-windows-portable.zip
+      - name: Create lapce-proxy archive
+        shell: pwsh
+        run: |
+          $file = [System.IO.File]::Open((Join-Path $PWD '.\target\release-lto\lapce-proxy.exe'), [System.IO.FileMode]::Open)
+          $archive = [System.IO.File]::Create((Join-Path $PWD '.\lapce-proxy-windows-x86_64.gz'))
+          $compressor = [System.IO.Compression.GZipStream]::new($archive, [System.IO.Compression.CompressionMode]::Compress)
+          $file.CopyTo($compressor)
+          Start-Sleep -Seconds 10
+          $compressor.close()
       - uses: actions/upload-artifact@v3
         with:
           name: lapce-windows
           path: |
+            ./lapce-proxy-windows-*.gz
             ./Lapce-windows-portable.zip
             ./Lapce-windows.msi
           retention-days: 1
