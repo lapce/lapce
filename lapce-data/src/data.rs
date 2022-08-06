@@ -291,7 +291,7 @@ impl LapceData {
 
     fn load_plugin_description(plugin: &str) -> Result<PluginDescription> {
         let url = format!(
-            "https://raw.githubusercontent.com/{}/master/plugin.toml",
+            "https://raw.githubusercontent.com/{}/HEAD/plugin.toml",
             plugin
         );
         let content = reqwest::blocking::get(url)?.text()?;

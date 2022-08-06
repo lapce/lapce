@@ -166,7 +166,7 @@ impl PluginCatalog {
             for theme in themes {
                 {
                     let url = format!(
-                        "https://raw.githubusercontent.com/{}/master/{}",
+                        "https://raw.githubusercontent.com/{}/HEAD/{}",
                         plugin.repository, theme
                     );
                     let mut resp = reqwest::blocking::get(url)?;
