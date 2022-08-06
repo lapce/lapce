@@ -51,6 +51,7 @@ tree-sitter-zig = { git = "https://github.com/maxxnino/tree-sitter-zig", branch 
 tree-sitter-bash = { git = "https://github.com/syntacti/tree-sitter-bash", branch = "master", optional = true }
 tree-sitter-yaml = { git = "https://github.com/panekj/tree-sitter-yaml", branch = "master", optional = true }
 tree-sitter-julia = { git = "https://github.com/varlad/tree-sitter-julia", branch = "master", optional = true }
+tree-sitter-wgsl = { git = "https://github.com/szebniok/tree-sitter-wgsl", branch = "master", optional = true }
 
 [features]
 default = []
@@ -87,3 +88,4 @@ lang-zig = ["dep:tree-sitter-zig"]
 lang-bash = ["dep:tree-sitter-bash"]
 lang-yaml = ["dep:tree-sitter-yaml"]
 lang-julia = ["dep:tree-sitter-julia"]
+lang-wgsl = ["dep:tree-sitter-wgsl"]
