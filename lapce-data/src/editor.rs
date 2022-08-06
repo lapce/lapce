@@ -1327,6 +1327,7 @@ impl LapceEditorBufferData {
     ) -> CommandExecuted {
         let modal = self.config.lapce.modal && !self.editor.content.is_input();
         let doc = Arc::make_mut(&mut self.doc);
+        let doc_old = doc.buffer().text().to_string();
         let register = Arc::make_mut(&mut self.main_split.register);
         let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
         let yank_data =
@@ -1344,12 +1345,32 @@ impl LapceEditorBufferData {
             }
         }
 
-        match cmd {
+        let show_completion = match cmd {
+            EditCommand::DeleteBackward | EditCommand::DeleteForward => {
+                let start = match &deltas[0].0.els[0] {
+                    xi_rope::DeltaElement::Copy(_, end) => end,
+                    _ => &0,
+                };
+        
+                let end = match &deltas[0].0.els[1] {
+                    xi_rope::DeltaElement::Copy(start, _) => start,
+                    _ => &0,
+                };
+        
+                let slice = &doc_old[*start..*end];
+                !slice.chars().all(|c| c.is_whitespace() || c.is_ascii_whitespace())
+            },
             EditCommand::InsertNewLine
             | EditCommand::InsertTab
             | EditCommand::NewLineAbove
-            | EditCommand::NewLineBelow => {}
-            _ => self.update_completion(ctx, false),
+            | EditCommand::NewLineBelow
+            | EditCommand::Undo
+            | EditCommand::Redo => false,
+            _ => true,
+        };
+        
+        if show_completion {
+            self.update_completion(ctx, false);
         }
         self.apply_deltas(&deltas);
 
