@@ -275,7 +275,7 @@ impl LapceProxy {
                 .ok_or_else(|| anyhow!("can't find config dir"))?
                 .join(&proxy_filename);
             if !local_proxy_file.exists() {
-                let url = format!("https://github.com/lapce/lapce/releases/download/v{VERSION}/lapce-proxy-linux.gz");
+                let url = format!("https://github.com/lapce/lapce/releases/download/{}/lapce-proxy-linux.gz", if VERSION.eq("nightly") { VERSION.to_string() } else { format!("v{VERSION}") });
                 let mut resp = reqwest::blocking::get(url).expect("request failed");
                 let mut out = std::fs::File::create(&local_proxy_file)
                     .expect("failed to create file");
