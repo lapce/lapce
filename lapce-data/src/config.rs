@@ -273,7 +273,7 @@ pub struct UIConfig {
     #[field_names(desc = "Set the height for status line")]
     status_height: usize,
 
-    #[field_names(desc = "Set the minium width for editor tab")]
+    #[field_names(desc = "Set the minimum width for editor tab")]
     tab_min_width: usize,
 
     #[field_names(desc = "Set the width for scroll bar")]
@@ -281,6 +281,9 @@ pub struct UIConfig {
 
     #[field_names(desc = "Controls the width of drop shadow in the UI")]
     drop_shadow_width: usize,
+
+    #[field_names(desc = "Controls the width of the preview editor")]
+    preview_editor_width: usize,
 
     #[field_names(
         desc = "Set the hover font family. If empty, it uses the UI font family"
@@ -323,6 +326,10 @@ impl UIConfig {
 
     pub fn drop_shadow_width(&self) -> usize {
         self.drop_shadow_width
+    }
+
+    pub fn preview_editor_width(&self) -> usize {
+        self.preview_editor_width
     }
 
     pub fn hover_font_family(&self) -> FontFamily {
