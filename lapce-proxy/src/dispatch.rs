@@ -1,7 +1,7 @@
 use crate::buffer::{get_mod_time, load_file, Buffer};
 use crate::plugin::lsp::LspCatalog;
-use crate::plugin::PluginCatalogRpcHandler;
 use crate::plugin::{catalog::NewPluginCatalog, PluginCatalog};
+use crate::plugin::{install_plugin, remove_plugin, PluginCatalogRpcHandler};
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
 use crate::{
@@ -169,16 +169,63 @@ impl ProxyHandler for NewDispatcher {
                     let _ = tx.send(Msg::Shutdown);
                 }
             }
-            InstallPlugin { plugin } => todo!(),
+            InstallPlugin { plugin } => {
+                let catalog_rpc = self.catalog_rpc.clone();
+                thread::spawn(move || {
+                    let _ = install_plugin(catalog_rpc, plugin);
+                });
+            }
             DisablePlugin { plugin } => todo!(),
             EnablePlugin { plugin } => todo!(),
-            RemovePlugin { plugin } => todo!(),
-            GitCommit { message, diffs } => todo!(),
-            GitCheckout { branch } => todo!(),
-            GitDiscardFileChanges { file } => todo!(),
-            GitDiscardFilesChanges { files } => todo!(),
-            GitDiscardWorkspaceChanges {} => todo!(),
-            GitInit {} => todo!(),
+            RemovePlugin { plugin } => {
+                let catalog_rpc = self.catalog_rpc.clone();
+                thread::spawn(move || {
+                    let _ = remove_plugin(catalog_rpc, plugin);
+                });
+            }
+            GitCommit { message, diffs } => {
+                if let Some(workspace) = self.workspace.as_ref() {
+                    match git_commit(workspace, &message, diffs) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
+            }
+            GitCheckout { branch } => {
+                if let Some(workspace) = self.workspace.as_ref() {
+                    match git_checkout(workspace, &branch) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
+            }
+            GitDiscardFilesChanges { files } => {
+                if let Some(workspace) = self.workspace.as_ref() {
+                    match git_discard_files_changes(
+                        workspace,
+                        files.iter().map(AsRef::as_ref),
+                    ) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
+            }
+            GitDiscardWorkspaceChanges {} => {
+                if let Some(workspace) = self.workspace.as_ref() {
+                    match git_discard_workspace_changes(workspace) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
+            }
+            GitInit {} => {
+                if let Some(workspace) = self.workspace.as_ref() {
+                    match git_init(workspace) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
+            }
         }
     }
 
@@ -1225,17 +1272,6 @@ impl Dispatcher {
             GitCheckout { branch } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
                     match git_checkout(&workspace, &branch) {
-                        Ok(()) => (),
-                        Err(e) => eprintln!("{e:?}"),
-                    }
-                }
-            }
-            GitDiscardFileChanges { file } => {
-                if let Some(workspace) = self.workspace.lock().clone() {
-                    match git_discard_files_changes(
-                        &workspace,
-                        [file.as_ref()].into_iter(),
-                    ) {
                         Ok(()) => (),
                         Err(e) => eprintln!("{e:?}"),
                     }

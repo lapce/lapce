@@ -177,9 +177,6 @@ pub enum CoreProxyNotification {
     GitCheckout {
         branch: String,
     },
-    GitDiscardFileChanges {
-        file: PathBuf,
-    },
     GitDiscardFilesChanges {
         files: Vec<PathBuf>,
     },

@@ -163,6 +163,7 @@ impl NewLspClient {
         plugin_rpc: PluginCatalogRpcHandler,
         laguage_id: String,
         workspace: Option<PathBuf>,
+        plugin_name: String,
         pwd: Option<PathBuf>,
         exec_path: PathBuf,
         args: Vec<String>,
@@ -179,7 +180,7 @@ impl NewLspClient {
 
         let mut writer = Box::new(BufWriter::new(stdin));
         let (io_tx, io_rx) = crossbeam_channel::unbounded();
-        let server_rpc = PluginServerRpcHandler::new(io_tx);
+        let server_rpc = PluginServerRpcHandler::new(plugin_name.clone(), io_tx);
         thread::spawn(move || {
             for msg in io_rx {
                 let msg = format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
@@ -209,6 +210,7 @@ impl NewLspClient {
         let host = PluginHostHandler::new(
             workspace.clone(),
             pwd,
+            plugin_name,
             Some(laguage_id),
             server_rpc.clone(),
             plugin_rpc.clone(),
@@ -230,13 +232,21 @@ impl NewLspClient {
         plugin_rpc: PluginCatalogRpcHandler,
         laguage_id: String,
         workspace: Option<PathBuf>,
+        plugin_name: String,
         pwd: Option<PathBuf>,
         exec_path: PathBuf,
         args: Vec<String>,
         options: Option<Value>,
     ) -> Result<()> {
         let mut lsp = Self::new(
-            plugin_rpc, laguage_id, workspace, pwd, exec_path, args, options,
+            plugin_rpc,
+            laguage_id,
+            workspace,
+            plugin_name,
+            pwd,
+            exec_path,
+            args,
+            options,
         )?;
         let rpc = lsp.server_rpc.clone();
         thread::spawn(move || {

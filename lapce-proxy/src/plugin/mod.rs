@@ -98,6 +98,8 @@ pub enum PluginCatalogRpc {
 
 pub enum PluginCatalogNotification {
     PluginServerLoaded(PluginServerRpcHandler),
+    PluginIntalled(PluginDescription),
+    PluginRemoved(PluginDescription),
     Shutdown,
 }
 
@@ -704,6 +706,14 @@ impl PluginCatalogRpcHandler {
             plugin,
         ))
     }
+
+    pub fn plugin_installed(&self, plugin: PluginDescription) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::PluginIntalled(plugin))
+    }
+
+    pub fn plugin_removed(&self, plugin: PluginDescription) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::PluginRemoved(plugin))
+    }
 }
 
 pub struct PluginCatalog {
@@ -1084,6 +1094,81 @@ fn number_from_id(id: &Id) -> u64 {
             .expect("failed to convert string id to u64"),
         _ => panic!("unexpected value for id: None"),
     }
+}
+
+pub fn install_plugin(
+    catalog_rpc: PluginCatalogRpcHandler,
+    plugin: PluginDescription,
+) -> Result<()> {
+    let home = home_dir().unwrap();
+    let path = home.join(".lapce").join("plugins").join(&plugin.name);
+    let _ = fs::remove_dir_all(&path);
+
+    fs::create_dir_all(&path)?;
+
+    {
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(path.join("plugin.toml"))?;
+        file.write_all(&toml::to_vec(&plugin)?)?;
+    }
+
+    let mut plugin = plugin;
+    if let Some(wasm) = plugin.wasm.clone() {
+        {
+            let url = format!(
+                "https://raw.githubusercontent.com/{}/master/{}",
+                plugin.repository, wasm
+            );
+            let mut resp = reqwest::blocking::get(url)?;
+            let mut file = fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(path.join(&wasm))?;
+            std::io::copy(&mut resp, &mut file)?;
+        }
+
+        plugin.dir = Some(path.clone());
+        plugin.wasm = Some(
+            path.join(&wasm)
+                .to_str()
+                .ok_or_else(|| anyhow!("path can't to string"))?
+                .to_string(),
+        );
+    }
+    if let Some(themes) = plugin.themes.as_ref() {
+        for theme in themes {
+            {
+                let url = format!(
+                    "https://raw.githubusercontent.com/{}/master/{}",
+                    plugin.repository, theme
+                );
+                let mut resp = reqwest::blocking::get(url)?;
+                let mut file = fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open(path.join(theme))?;
+                std::io::copy(&mut resp, &mut file)?;
+            }
+        }
+    }
+    let _ = catalog_rpc.plugin_installed(plugin);
+    Ok(())
+}
+
+pub fn remove_plugin(
+    catalog_rpc: PluginCatalogRpcHandler,
+    plugin: PluginDescription,
+) -> Result<()> {
+    let home = home_dir().unwrap();
+    let path = home.join(".lapce").join("plugins").join(&plugin.name);
+    fs::remove_dir_all(&path)?;
+    let _ = catalog_rpc.plugin_removed(plugin);
+    Ok(())
 }
 
 // fn host_handle_notification(plugin_env: &PluginEnv) {

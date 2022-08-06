@@ -240,7 +240,7 @@ fn format_plugin_configurations(
     serde_json::to_value(configs).unwrap()
 }
 
-fn start_plugin(
+pub fn start_plugin(
     workspace: Option<PathBuf>,
     configurations: Option<serde_json::Value>,
     plugin_rpc: PluginCatalogRpcHandler,
@@ -267,7 +267,7 @@ fn start_plugin(
     let wasi = wasi_env.import_object(&module)?;
 
     let (io_tx, io_rx) = crossbeam_channel::unbounded();
-    let rpc = PluginServerRpcHandler::new(io_tx);
+    let rpc = PluginServerRpcHandler::new(plugin_desc.name.clone(), io_tx);
 
     let id = PluginId::next();
     let plugin_env = NewPluginEnv {
@@ -287,6 +287,7 @@ fn start_plugin(
         host: PluginHostHandler::new(
             workspace,
             plugin_desc.dir,
+            plugin_desc.name.clone(),
             None,
             rpc.clone(),
             plugin_rpc.clone(),

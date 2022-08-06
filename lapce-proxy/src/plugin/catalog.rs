@@ -8,31 +8,28 @@ use std::{
     thread,
 };
 
-use crossbeam_channel::Sender;
-use dyn_clone::DynClone;
 use lapce_rpc::{
-    plugin::PluginId,
-    proxy::CoreProxyResponse,
-    style::{LineStyle, SemanticStyles},
-    RpcError,
+    plugin::PluginId, proxy::CoreProxyResponse, style::LineStyle, RpcError,
 };
 use lsp_types::{
     notification::DidOpenTextDocument, DidOpenTextDocumentParams, SemanticTokens,
-    TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier,
+    TextDocumentIdentifier, VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::Notification;
 use serde_json::Value;
 use xi_rope::{Rope, RopeDelta};
 
+use crate::plugin::wasi::start_plugin;
+
 use super::{
-    lsp::NewLspClient,
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
     wasi::load_all_plugins,
     PluginCatalogNotification, PluginCatalogRpcHandler,
 };
 
 pub struct NewPluginCatalog {
+    workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
     new_plugins: HashMap<PluginId, PluginServerRpcHandler>,
     plugin_configurations: HashMap<String, serde_json::Value>,
@@ -45,6 +42,7 @@ impl NewPluginCatalog {
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
         let plugin = Self {
+            workspace: workspace.clone(),
             plugin_rpc: plugin_rpc.clone(),
             plugin_configurations: plugin_configurations.clone(),
             new_plugins: HashMap::new(),
@@ -204,54 +202,32 @@ impl NewPluginCatalog {
                 }
                 self.new_plugins.insert(plugin.plugin_id, plugin);
             }
+            PluginIntalled(plugin) => {
+                let workspace = self.workspace.clone();
+                let configurations =
+                    self.plugin_configurations.get(&plugin.name).cloned();
+                let catalog_rpc = self.plugin_rpc.clone();
+                thread::spawn(move || {
+                    let _ =
+                        start_plugin(workspace, configurations, catalog_rpc, plugin);
+                });
+            }
+            PluginRemoved(removed_plugin) => {
+                let ids: Vec<PluginId> = self.new_plugins.keys().cloned().collect();
+                for id in ids {
+                    if self.new_plugins.get(&id).unwrap().plugin_name
+                        == removed_plugin.name
+                    {
+                        let plugin = self.new_plugins.remove(&id).unwrap();
+                        plugin.shutdown();
+                    }
+                }
+            }
             Shutdown => {
                 for (_, plugin) in self.new_plugins.iter() {
                     plugin.shutdown();
                 }
-            } // NewPluginNotification::StartLspServer {
-              //     workspace,
-              //     plugin_id,
-              //     exec_path,
-              //     language_id,
-              //     options,
-              //     system_lsp,
-              // } => {
-              //     // let exec_path = if system_lsp.unwrap_or(false) {
-              //     //     // System LSP should be handled by PATH during
-              //     //     // process creation, so we forbid anything that
-              //     //     // is not just an executable name
-              //     //     match PathBuf::from(&exec_path).file_name() {
-              //     //         Some(v) => v.to_str().unwrap().to_string(),
-              //     //         None => return,
-              //     //     }
-              //     // } else {
-              //     //     let plugin = self.plugins.get(&plugin_id).unwrap();
-              //     //     plugin
-              //     //         .env
-              //     //         .desc
-              //     //         .dir
-              //     //         .as_ref()
-              //     //         .unwrap()
-              //     //         .join(&exec_path)
-              //     //         .to_str()
-              //     //         .unwrap()
-              //     //         .to_string()
-              //     // };
-              //     let plugin_rpc = self.plugin_rpc.clone();
-              //     thread::spawn(move || {
-              //         NewLspClient::start(
-              //             plugin_rpc,
-              //             workspace,
-              //             exec_path,
-              //             Vec::new(),
-              //         );
-              //     });
-              // }
-              // NewPluginNotification::PluginServerNotification { method, params } => {
-              //     for plugin in self.new_plugins.iter() {
-              //         plugin.server_notification(method, params.clone());
-              //     }
-              // }
+            }
         }
     }
 }
