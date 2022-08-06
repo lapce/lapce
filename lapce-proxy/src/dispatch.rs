@@ -207,6 +207,7 @@ impl Dispatcher {
     }
 
     pub fn send_notification(&self, method: &str, params: Value) {
+        log::debug!(target: "lapce_proxy::dispatch::send_notification", "{method} : {params}");
         let _ = self.sender.send(json!({
             "method": method,
             "params": params,
