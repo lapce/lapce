@@ -1348,17 +1348,21 @@ impl LapceEditorBufferData {
         let show_completion = match cmd {
             EditCommand::DeleteBackward | EditCommand::DeleteForward => {
                 let start = match &deltas[0].0.els[0] {
-                    xi_rope::DeltaElement::Copy(_, end) => end,
-                    _ => &0,
+                    xi_rope::DeltaElement::Copy(_, end) => Some(end),
+                    _ => None,
                 };
         
                 let end = match &deltas[0].0.els[1] {
-                    xi_rope::DeltaElement::Copy(start, _) => start,
-                    _ => &0,
+                    xi_rope::DeltaElement::Copy(start, _) => Some(start),
+                    _ => None,
                 };
-        
-                let slice = &doc_old[*start..*end];
-                !slice.chars().all(|c| c.is_whitespace() || c.is_ascii_whitespace())
+
+                if start.is_some() && end.is_some() {
+                    let slice = &doc_old[*start.unwrap()..*end.unwrap()];
+                    !slice.chars().all(|c| c.is_whitespace() || c.is_ascii_whitespace())
+                } else {
+                    true
+                }
             },
             EditCommand::InsertNewLine
             | EditCommand::InsertTab
