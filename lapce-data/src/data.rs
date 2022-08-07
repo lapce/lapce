@@ -13,7 +13,6 @@ use std::env;
 
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use directories::BaseDirs;
 use druid::{
     piet::PietText, theme, Command, Data, Env, EventCtx, ExtEventSink,
     FileDialogOptions, Lens, Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
@@ -425,14 +424,13 @@ impl LapceWindowData {
         if let Some(path) = Config::settings_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-        if let Some(path) = Config::themes_folder() {
+        if let Some(path) = Config::themes_directory() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-        if let Some(path) = KeyPressData::file() {
+        if let Some(path) = Config::keymaps_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-        if let Some(base) = BaseDirs::new() {
-            let path = base.home_dir().join(".lapce").join("plugins");
+        if let Some(path) = Config::plugins_directory() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
         Self {
@@ -1139,7 +1137,7 @@ impl LapceTabData {
                 self.main_split.open_settings(ctx, true);
             }
             LapceWorkbenchCommand::OpenKeyboardShortcutsFile => {
-                if let Some(path) = KeyPressData::file() {
+                if let Some(path) = Config::keymaps_file() {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
@@ -2425,7 +2423,7 @@ impl LapceMainSplitData {
             EditorTabChild::Editor(view_id, _, _) => {
                 let editor = self.editors.get(&view_id).unwrap();
                 if let BufferContent::File(ref path) = editor.content {
-                    if let Some(folder) = Config::themes_folder() {
+                    if let Some(folder) = Config::themes_directory() {
                         if let Some(file_name) = path.file_name() {
                             let _ = std::fs::copy(path, folder.join(file_name));
                         }

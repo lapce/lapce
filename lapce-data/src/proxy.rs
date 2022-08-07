@@ -271,7 +271,7 @@ impl LapceProxy {
             .arg(&remote_proxy_file)
             .status()?;
         if !cmd.success() {
-            let local_proxy_file = Config::dir()
+            let local_proxy_file = Config::config_directory()
                 .ok_or_else(|| anyhow!("can't find config dir"))?
                 .join(&proxy_filename);
             if !local_proxy_file.exists() {
