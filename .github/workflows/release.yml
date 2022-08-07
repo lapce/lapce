@@ -190,8 +190,8 @@ jobs:
           cp ./target/release-lto/macos/Lapce.dmg ./target/release-lto/macos/Lapce-macos.dmg
       - name: Gzip lapce-proxy
         run: |
-          gzip -c ./target/x86_64-apple-darwin/release-lto/lapce-proxy > ./lapce-proxy-darwin-x86_64.gz
-          gzip -c ./target/aarch64-apple-darwin/release-lto/lapce-proxy > ./lapce-proxy-darwin-aarch64.gz
+          gzip -c ./target/x86_64-apple-darwin/release-lto/lapce-proxy > ./target/release-lto/macos/lapce-proxy-darwin-x86_64.gz
+          gzip -c ./target/aarch64-apple-darwin/release-lto/lapce-proxy > ./target/release-lto/macos/lapce-proxy-darwin-aarch64.gz
       - name: "Notarize Release Build"
         run: |
           npx notarize-cli --file ./target/release-lto/macos/Lapce-macos.dmg --bundle-id io.lapce --asc-provider CYSGAZFR8D
@@ -203,7 +203,7 @@ jobs:
         with:
           name: lapce-macos
           path: |
-            ./lapce-proxy-darwin-*.gz
+            ./target/release-lto/macos/lapce-proxy-darwin-*.gz
             ./target/release-lto/macos/Lapce-macos.dmg
           retention-days: 1
           
