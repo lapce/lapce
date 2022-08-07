@@ -14,6 +14,7 @@ use druid::Target;
 use druid::{ExtEventSink, WidgetId};
 use flate2::read::GzDecoder;
 use lapce_proxy::dispatch::Dispatcher;
+pub use lapce_proxy::VERSION;
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
 use lapce_rpc::core::{CoreNotification, CoreRequest};
 use lapce_rpc::plugin::PluginDescription;
@@ -43,8 +44,6 @@ use crate::command::LAPCE_UI_COMMAND;
 use crate::config::Config;
 use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::terminal::RawTerminal;
-
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub enum TermEvent {
     NewTerminal(Arc<Mutex<RawTerminal>>),
