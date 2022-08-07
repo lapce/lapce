@@ -1345,37 +1345,7 @@ impl LapceEditorBufferData {
             }
         }
 
-        let show_completion = match cmd {
-            EditCommand::DeleteBackward | EditCommand::DeleteForward => {
-                let start = match &deltas[0].0.els[0] {
-                    xi_rope::DeltaElement::Copy(_, start) => start,
-                    _ => &0,
-                };
-
-                let end = match &deltas[0].0.els[1] {
-                    xi_rope::DeltaElement::Copy(end, _) => end,
-                    _ => &0,
-                };
-
-                if start > &0 && end > &0 && end > start {
-                    let slice = &doc_old[*start..*end];
-                    !slice
-                        .chars()
-                        .all(|c| c.is_whitespace() || c.is_ascii_whitespace())
-                } else {
-                    true
-                }
-            }
-            EditCommand::InsertNewLine
-            | EditCommand::InsertTab
-            | EditCommand::NewLineAbove
-            | EditCommand::NewLineBelow
-            | EditCommand::Undo
-            | EditCommand::Redo => false,
-            _ => true,
-        };
-
-        if show_completion {
+        if show_completion(cmd, &doc_old, &deltas) {
             self.update_completion(ctx, false);
         }
         self.apply_deltas(&deltas);
@@ -2434,4 +2404,44 @@ fn apply_code_action(
     } else {
         log::error!("Failed to convert code action edit Position to offset");
     }
+}
+
+/// Checks if completion should be triggered if the received command
+/// is one that inserts whitespace or deletes whitespace
+fn show_completion(
+    cmd: &EditCommand,
+    doc: &str,
+    deltas: &[(RopeDelta, InvalLines)],
+) -> bool {
+    let show_completion = match cmd {
+        EditCommand::DeleteBackward | EditCommand::DeleteForward => {
+            let start = match &deltas[0].0.els[0] {
+                xi_rope::DeltaElement::Copy(_, start) => start,
+                _ => &0,
+            };
+
+            let end = match &deltas[0].0.els[1] {
+                xi_rope::DeltaElement::Copy(end, _) => end,
+                _ => &0,
+            };
+
+            if start > &0 && end > &0 && end > start {
+                let slice = &doc[*start..*end];
+                !slice
+                    .chars()
+                    .all(|c| c.is_whitespace() || c.is_ascii_whitespace())
+            } else {
+                true
+            }
+        }
+        EditCommand::InsertNewLine
+        | EditCommand::InsertTab
+        | EditCommand::NewLineAbove
+        | EditCommand::NewLineBelow
+        | EditCommand::Undo
+        | EditCommand::Redo => false,
+        _ => true,
+    };
+
+    show_completion
 }
