@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use home::home_dir;
+use directories::ProjectDirs;
 use hotwatch::Hotwatch;
 use lapce_rpc::counter::Counter;
 use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo};
@@ -24,7 +24,7 @@ use wasmer_wasi::Pipe;
 use wasmer_wasi::WasiEnv;
 use wasmer_wasi::WasiState;
 
-use crate::dispatch::Dispatcher;
+use crate::{dispatch::Dispatcher, APPLICATION_NAME};
 
 pub type PluginName = String;
 
@@ -95,8 +95,9 @@ impl PluginCatalog {
                 }
             }
         }
-        let home = home_dir().unwrap();
-        let path = home.join(".lapce").join("config").join("plugins.toml");
+        let path = config_directory()
+            .expect("couldn't obtain config dir")
+            .join("plugins.toml");
         let mut file = fs::File::open(path)?;
         let mut content = String::new();
         file.read_to_string(&mut content)?;
@@ -116,8 +117,9 @@ impl PluginCatalog {
         dispatcher: Dispatcher,
         plugin: PluginDescription,
     ) -> Result<()> {
-        let home = home_dir().unwrap();
-        let path = home.join(".lapce").join("plugins").join(&plugin.name);
+        let path = plugins_directory()
+            .expect("Couldn't obtain plugins dir")
+            .join(&plugin.name);
         let _ = fs::remove_dir_all(&path);
 
         fs::create_dir_all(&path)?;
@@ -187,8 +189,9 @@ impl PluginCatalog {
         plugin: PluginDescription,
     ) -> Result<()> {
         self.disable_plugin(dispatcher, plugin.clone())?;
-        let home = home_dir().unwrap();
-        let path = home.join(".lapce").join("plugins").join(&plugin.name);
+        let path = plugins_directory()
+            .expect("Couldn't obtain plugins dir")
+            .join(&plugin.name);
         fs::remove_dir_all(&path)?;
 
         let _ = self.items.remove(&plugin.name);
@@ -312,8 +315,7 @@ impl PluginCatalog {
         let plugin_config = PluginConfig {
             disabled: disabled_plugin_list,
         };
-        let home = home_dir().unwrap();
-        let path = home.join(".lapce").join("config");
+        let path = config_directory().expect("couldn't obtain config dir");
         fs::create_dir_all(&path)?;
         {
             let mut file = fs::OpenOptions::new()
@@ -333,8 +335,9 @@ impl PluginCatalog {
         plugin_desc: PluginDescription,
     ) -> Result<()> {
         let mut plugin = plugin_desc.clone();
-        let home = home_dir().unwrap();
-        let path = home.join(".lapce").join("plugins").join(&plugin.name);
+        let path = plugins_directory()
+            .expect("Couldn't obtain plugins dir")
+            .join(&plugin.name);
         plugin.dir = Some(path.clone());
         if let Some(wasm) = plugin.wasm {
             plugin.wasm = Some(
@@ -345,7 +348,8 @@ impl PluginCatalog {
             );
             self.start_plugin(dispatcher, plugin.clone())?;
             self.disabled.remove(&plugin_desc.name);
-            let config_path = home.join(".lapce").join("config");
+            let config_path =
+                config_directory().expect("couldn't obtain config dir");
             let disabled_plugin_list =
                 self.disabled.clone().into_keys().collect::<Vec<String>>();
             let plugin_config = PluginConfig {
@@ -528,8 +532,7 @@ pub struct PluginHandler {}
 
 fn find_all_plugins() -> Vec<PathBuf> {
     let mut plugin_paths = Vec::new();
-    let home = home_dir().unwrap();
-    let path = home.join(".lapce").join("plugins");
+    let path = plugins_directory().expect("Couldn't obtain plugin dirs");
     let _ = path.read_dir().map(|dir| {
         dir.flat_map(|item| item.map(|p| p.path()).ok())
             .map(|dir| dir.join("plugin.toml"))
@@ -571,4 +574,38 @@ fn load_plugin(path: &Path) -> Result<PluginDescription> {
             .collect()
     });
     Ok(plugin)
+}
+
+pub fn plugins_directory() -> Option<PathBuf> {
+    match ProjectDirs::from("dev", "lapce", APPLICATION_NAME) {
+        Some(dir) => {
+            if !dir.data_local_dir().exists() {
+                match std::fs::create_dir_all(dir.data_local_dir()) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        log::error!(target: "lapce_proxy::plugin::plugins_directory", "{e}")
+                    }
+                };
+            }
+            Some(dir.data_local_dir().join("plugins"))
+        }
+        None => None,
+    }
+}
+
+pub fn config_directory() -> Option<PathBuf> {
+    match ProjectDirs::from("dev", "lapce", APPLICATION_NAME) {
+        Some(dir) => {
+            if !dir.config_dir().exists() {
+                match std::fs::create_dir_all(dir.config_dir()) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        log::error!(target: "lapce_proxy::plugin::config_directory", "{e}")
+                    }
+                };
+            }
+            Some(dir.config_dir().to_path_buf())
+        }
+        None => None,
+    }
 }

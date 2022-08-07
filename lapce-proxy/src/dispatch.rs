@@ -1,13 +1,15 @@
-use crate::buffer::{get_mod_time, load_file, Buffer};
 use crate::lsp::LspCatalog;
 use crate::plugin::PluginCatalog;
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
+use crate::{
+    buffer::{get_mod_time, load_file, Buffer},
+    plugin::plugins_directory,
+};
 use alacritty_terminal::event_loop::Msg;
 use alacritty_terminal::term::SizeInfo;
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{Receiver, Sender};
-use directories::BaseDirs;
 use git2::build::CheckoutBuilder;
 use git2::{DiffOptions, Repository};
 use grep_matcher::Matcher;
@@ -95,8 +97,7 @@ impl Dispatcher {
         });
         let local_dispatcher = dispatcher.clone();
         thread::spawn(move || {
-            if let Some(path) = BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
-            {
+            if let Some(path) = plugins_directory() {
                 local_dispatcher.send_notification(
                     "home_dir",
                     json!({
