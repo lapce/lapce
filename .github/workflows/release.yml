@@ -89,45 +89,44 @@ jobs:
   linux-musl:
     name: Build lapce-proxy for ${{ matrix.platform }}
     runs-on: ubuntu-latest
+    env:
+      CROSS_SYSROOT: /mnt/alpine-${{ matrix.platform }}
+      PACKAGES: >
+        zlib-static freetype-static fontconfig-static
+        libgit2-static libssh2-static openssl-libs-static
+        libssl3 gtk+3.0-dev http-parser-dev rustup
+        build-base openssl-dev git lld clang
     strategy:
       fail-fast: false
       matrix:
         include:
-#         https://github.com/rust-lang/libc/pull/2788
-#           - triple: i586-alpine-linux-musl
-#             platform: x86
-          - triple: x86_64-alpine-linux-musl
+          - triple: x86_64-unknown-linux-musl
             platform: x86_64
-#         currently broken on GitHub but not locally,
-#         need to figure out why
-#           - triple: aarch64-alpine-linux-musl
-#             platform: aarch64
-#         unsupported for now
-#           - triple: armv6-alpine-linux-musleabihf
-#             platform: armhf
-#           - triple: armv7-alpine-linux-musleabihf
-#             platform: armv7
-#         unsupported for now
-#           - triple: s390x-alpine-linux-musl
-#             platform: s390x
-#         unsupported for now
-#           - triple: powerpc64le-alpine-linux-musl
-#             platform: ppc64le
+          - triple: aarch64-unknown-linux-musl
+            platform: aarch64
     steps:
       - uses: actions/checkout@v2
 
-      - name: Set-up Alpine environment
+      - name: Set up Alpine Linux for ${{ matrix.platform }} (target arch)
+        id: alpine-target
         uses: jirutka/setup-alpine@v1
         with:
-          branch: edge
           arch: ${{ matrix.platform }}
-          extra-repositories: |
-            http://dl-cdn.alpinelinux.org/alpine/edge/testing
-          packages: >
-            zlib-static freetype-static fontconfig-static
-            libgit2-static libssh2-static openssl-libs-static
-            libssl1.1 gtk+3.0-dev http-parser-dev cargo
-            build-base openssl-dev git mold clang
+          branch: edge
+          packages: ${{ env.PACKAGES }}
+          shell-name: alpine-target.sh
+
+      - name: Set up Alpine Linux for x86_64 (build arch)
+        uses: jirutka/setup-alpine@v1
+        with:
+          arch: x86_64
+          packages: ${{ env.PACKAGES }}
+          volumes: ${{ steps.alpine-target.outputs.root-path }}:${{ env.CROSS_SYSROOT }}
+          shell-name: alpine.sh
+
+      - name: Install Rust stable toolchain via rustup
+        run: rustup-init --target ${{ matrix.triple }} --default-toolchain stable --profile minimal -y
+        shell: alpine.sh {0}
 
       - name: Build ${{ matrix.triple }}
         shell: alpine.sh {0}
@@ -136,21 +135,23 @@ jobs:
           LIBSSH2_STATIC: 1
           LIBGIT2_STATIC: 1
           OPENSSL_STATIC: 1
+          OPENSSL_DIR: ${{ env.CROSS_SYSROOT }}/usr # static/dynamic lib workaround <3
           OPENSSL_NO_VENDOR: 1 # don't even try to build without it on musl
           PKG_CONFIG_ALL_STATIC: 1
-          OPENSSL_DIR: /usr # static/dynamic lib workaround <3
-          RUSTFLAGS: "-C target-feature=+crt-static" # link runtime static
+          PKG_CONFIG_LIBDIR: ${{ env.CROSS_SYSROOT }}/usr/lib/pkgconfig
+          RUSTFLAGS: -C target-feature=+crt-static -C linker=/usr/bin/ld.lld # link runtime static, use universal linker
           CARGO_BUILD_TARGET: ${{ matrix.triple }}
           CARGO_PROFILE_RELEASE_LTO: 'true'
           CARGO_PROFILE_RELEASE_STRIP: symbols # remove unneeded debug stuff
           CARGO_PROFILE_RELEASE_OPT_LEVEL: 's' # optimise for size
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '1' # optimise each crate
-          CARGO_NET_GIT_FETCH_WITH_CLI: 'true' # libgit2 workaround for some architectures
-          CARGO_TARGET_x86_64-alpine-linux-musl_LINKER: clang
-          CARGO_TARGET_x86_64-alpine-linux-musl_RUSTFLAGS: "-C link-arg=-fuse-ld=mold" # speed
-          CARGO_TARGET_aarch64-alpine-linux-musl_LINKER: clang
-          CARGO_TARGET_aarch64-alpine-linux-musl_RUSTFLAGS: "-C link-arg=-fuse-ld=mold" # speed
+          SYSROOT: /dummy  # workaround for https://github.com/rust-lang/pkg-config-rs/issues/102
+          CC: clang
         run: |
+          # Workaround for https://github.com/rust-lang/pkg-config-rs/issues/102
+          echo -e '#!/bin/sh\nPKG_CONFIG_SYSROOT_DIR=${{ env.CROSS_SYSROOT }} exec pkgconf "$@"' \
+              | install -m755 /dev/stdin pkg-config
+          export PKG_CONFIG="$(pwd)/pkg-config"
           cargo build \
             --locked \
             --verbose \
