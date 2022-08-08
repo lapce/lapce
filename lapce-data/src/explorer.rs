@@ -15,6 +15,7 @@ use xi_rope::Rope;
 
 use crate::data::LapceMainSplitData;
 use crate::data::LapceWorkspace;
+use crate::data::LapceWorkspaceType;
 use crate::document::LocalBufferKind;
 use crate::proxy::LapceProxy;
 
@@ -326,8 +327,17 @@ impl FileExplorerData {
             Naming::Naming {
                 is_dir, base_path, ..
             } => {
-                let mut path = base_path.clone();
-                path.push(target_name);
+                let path = base_path.clone();
+
+                let path = match main_split.workspace.kind {
+                    // When running on a windows host with a WSL project open, std::path::{Path, PathBuf}
+                    // attempt to create a windows-like path when calling `.join` or `.push`.
+                    // This then causes file/folder to not get created properly within the WSL filesystem.
+                    LapceWorkspaceType::RemoteWSL => {
+                        PathBuf::from(format!("{}/{}", path.display(), target_name))
+                    },
+                    _ => path.join(target_name),
+                };
 
                 let cmd = if *is_dir {
                     LapceUICommand::CreateDirectory { path }
