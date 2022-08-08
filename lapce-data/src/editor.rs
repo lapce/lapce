@@ -1327,7 +1327,7 @@ impl LapceEditorBufferData {
     ) -> CommandExecuted {
         let modal = self.config.lapce.modal && !self.editor.content.is_input();
         let doc = Arc::make_mut(&mut self.doc);
-        let doc_old = doc.buffer().text().to_string();
+        let doc_before_edit = doc.buffer().text().clone();
         let register = Arc::make_mut(&mut self.main_split.register);
         let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
         let yank_data =
@@ -1345,7 +1345,7 @@ impl LapceEditorBufferData {
             }
         }
 
-        if show_completion(cmd, &doc_old, &deltas) {
+        if show_completion(cmd, &doc_before_edit, &deltas) {
             self.update_completion(ctx, false);
         }
         self.apply_deltas(&deltas);
@@ -2410,7 +2410,7 @@ fn apply_code_action(
 /// is one that inserts whitespace or deletes whitespace
 fn show_completion(
     cmd: &EditCommand,
-    doc: &str,
+    doc: &Rope,
     deltas: &[(RopeDelta, InvalLines)],
 ) -> bool {
     let show_completion = match cmd {
@@ -2425,9 +2425,8 @@ fn show_completion(
                 _ => &0,
             };
 
-            if start > &0 && end > &0 && end > start {
-                let slice = &doc[*start..*end];
-                !slice
+            if start > &0 && end > start {
+                !doc.slice_to_cow(*start..*end)
                     .chars()
                     .all(|c| c.is_whitespace() || c.is_ascii_whitespace())
             } else {
