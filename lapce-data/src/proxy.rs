@@ -238,7 +238,7 @@ impl LapceProxy {
                 });
             }
             LapceWorkspaceType::RemoteSSH(user, host) => {
-                self.start_remote(SshRemote { user, host }, core_sender)?;
+                self.start_remote(SshRemote { user, host , port:22}, core_sender)?; //TODO
             }
             LapceWorkspaceType::RemoteWSL => {
                 let distro = WslDistro::all()?
@@ -851,6 +851,7 @@ trait Remote: Sized {
 struct SshRemote {
     user: String,
     host: String,
+    port: u16,
 }
 
 impl SshRemote {
@@ -869,9 +870,12 @@ impl SshRemote {
         "ConnectTimeout=15",
     ];
 
-    fn command_builder(user: &str, host: &str) -> Command {
+    fn command_builder(user: &str, host: &str,port: &u16) -> Command {
         let mut cmd = new_command("ssh");
-        cmd.arg(format!("{}@{}", user, host)).args(Self::SSH_ARGS);
+        cmd
+            .arg(format!("{}@{}", user, host))
+            .arg(format!("-p{}", port))
+            .args(Self::SSH_ARGS);
         cmd
     }
 }
@@ -887,7 +891,7 @@ impl Remote for SshRemote {
     }
 
     fn command_builder(&self) -> Command {
-        Self::command_builder(&self.user, &self.host)
+        Self::command_builder(&self.user, &self.host,&self.port)
     }
 }
 
