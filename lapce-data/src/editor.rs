@@ -1331,6 +1331,7 @@ impl LapceEditorBufferData {
     ) -> CommandExecuted {
         let modal = self.config.lapce.modal && !self.editor.content.is_input();
         let doc = Arc::make_mut(&mut self.doc);
+        let doc_before_edit = doc.buffer().text().clone();
         let register = Arc::make_mut(&mut self.main_split.register);
         let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
         let yank_data =
@@ -1348,12 +1349,8 @@ impl LapceEditorBufferData {
             }
         }
 
-        match cmd {
-            EditCommand::InsertNewLine
-            | EditCommand::InsertTab
-            | EditCommand::NewLineAbove
-            | EditCommand::NewLineBelow => {}
-            _ => self.update_completion(ctx, false),
+        if show_completion(cmd, &doc_before_edit, &deltas) {
+            self.update_completion(ctx, false);
         }
         self.apply_deltas(&deltas);
 
@@ -2412,4 +2409,43 @@ fn apply_code_action(
     } else {
         log::error!("Failed to convert code action edit Position to offset");
     }
+}
+
+/// Checks if completion should be triggered if the received command
+/// is one that inserts whitespace or deletes whitespace
+fn show_completion(
+    cmd: &EditCommand,
+    doc: &Rope,
+    deltas: &[(RopeDelta, InvalLines)],
+) -> bool {
+    let show_completion = match cmd {
+        EditCommand::DeleteBackward | EditCommand::DeleteForward => {
+            let start = match &deltas[0].0.els[0] {
+                xi_rope::DeltaElement::Copy(_, start) => start,
+                _ => &0,
+            };
+
+            let end = match &deltas[0].0.els[1] {
+                xi_rope::DeltaElement::Copy(end, _) => end,
+                _ => &0,
+            };
+
+            if start > &0 && end > start {
+                !doc.slice_to_cow(*start..*end)
+                    .chars()
+                    .all(|c| c.is_whitespace() || c.is_ascii_whitespace())
+            } else {
+                true
+            }
+        }
+        EditCommand::InsertNewLine
+        | EditCommand::InsertTab
+        | EditCommand::NewLineAbove
+        | EditCommand::NewLineBelow
+        | EditCommand::Undo
+        | EditCommand::Redo => false,
+        _ => true,
+    };
+
+    show_completion
 }
