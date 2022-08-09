@@ -667,9 +667,9 @@ impl PaletteContent {
                     "".to_string(),
                     vec![],
                 ),
-                PaletteItemContent::SshHost(user, host) => (
+                PaletteItemContent::SshHost(user, host,port) => (
                     None,
-                    format!("{user}@{host}"),
+                    format!("{user}@{host}:{port}"),
                     indices.to_vec(),
                     "".to_string(),
                     vec![],

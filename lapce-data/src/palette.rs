@@ -138,7 +138,7 @@ pub enum PaletteItemContent {
     },
     ReferenceLocation(PathBuf, EditorLocation<Position>),
     Workspace(LapceWorkspace),
-    SshHost(String, String),
+    SshHost(String, String, u16),
     Command(LapceCommand),
     Theme(String),
     Language(String),
@@ -254,7 +254,7 @@ impl PaletteItemContent {
                     ));
                 }
             }
-            PaletteItemContent::SshHost(user, host) => {
+            PaletteItemContent::SshHost(user, host,port) => {
                 if !preview {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
@@ -262,7 +262,7 @@ impl PaletteItemContent {
                             kind: LapceWorkspaceType::RemoteSSH(
                                 user.to_string(),
                                 host.to_string(),
-                                22, // TODO: Fix this
+                                port.to_be(),
                             ),
                             path: None,
                             last_open: 0,
@@ -873,7 +873,7 @@ impl PaletteViewData {
                 content: PaletteItemContent::SshHost(
                     user.to_string(),
                     host.to_string(),
-                    //port.to_be(),
+                    port.to_be(),
                 ),
                 filter_text: format!("{user}@{host}"),
                 score: 0,
