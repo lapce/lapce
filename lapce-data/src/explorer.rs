@@ -335,7 +335,7 @@ impl FileExplorerData {
                     // This then causes file/folder to not get created properly within the WSL filesystem.
                     LapceWorkspaceType::RemoteWSL => {
                         PathBuf::from(format!("{}/{}", path.display(), target_name))
-                    },
+                    }
                     _ => path.join(target_name),
                 };
 
