@@ -237,8 +237,8 @@ impl LapceProxy {
                     let _ = dispatcher.mainloop(proxy_receiver);
                 });
             }
-            LapceWorkspaceType::RemoteSSH(user, host) => {
-                self.start_remote(SshRemote { user, host , port:22}, core_sender)?; //TODO
+            LapceWorkspaceType::RemoteSSH(user, host,port) => {
+                self.start_remote(SshRemote { user, host , port}, core_sender)?; 
             }
             LapceWorkspaceType::RemoteWSL => {
                 let distro = WslDistro::all()?

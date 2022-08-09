@@ -696,7 +696,7 @@ impl Config {
                         .merge(config::File::from(path.as_path()).required(false));
                 }
             }
-            LapceWorkspaceType::RemoteSSH(_, _) => {}
+            LapceWorkspaceType::RemoteSSH(..) => {}
             LapceWorkspaceType::RemoteWSL => {}
         }
 
@@ -1102,8 +1102,8 @@ impl Config {
                     "kind".to_string(),
                     toml::Value::String(match workspace.kind {
                         LapceWorkspaceType::Local => "local".to_string(),
-                        LapceWorkspaceType::RemoteSSH(user, host) => {
-                            format!("ssh://{}@{}", user, host)
+                        LapceWorkspaceType::RemoteSSH(user, host, port) => {
+                            format!("ssh://{}@{}:{}", user, host,port)
                         }
                         LapceWorkspaceType::RemoteWSL => "wsl".to_string(),
                     }),
@@ -1149,7 +1149,14 @@ impl Config {
                             let mut parts = s[6..].split('@');
                             let user = parts.next()?.to_string();
                             let host = parts.next()?.to_string();
-                            LapceWorkspaceType::RemoteSSH(user, host)
+                            if host.contains(':') {
+                                let mut parts = host.split(':');
+                                let host = parts.next()?.to_string();
+                                let port: u16 = parts.next()?.parse().expect("Wanted a number");
+                                LapceWorkspaceType::RemoteSSH(user, host , port)
+                            } else {
+                                LapceWorkspaceType::RemoteSSH(user, host , 22)
+                            }     
                         }
                         "wsl" => LapceWorkspaceType::RemoteWSL,
                         _ => LapceWorkspaceType::Local,

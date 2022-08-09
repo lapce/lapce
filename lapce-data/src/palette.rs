@@ -262,6 +262,7 @@ impl PaletteItemContent {
                             kind: LapceWorkspaceType::RemoteSSH(
                                 user.to_string(),
                                 host.to_string(),
+                                22, // TODO: Fix this
                             ),
                             path: None,
                             last_open: 0,
@@ -740,15 +741,35 @@ impl PaletteViewData {
                     .next()
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| "root".to_string());
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SetWorkspace(LapceWorkspace {
-                        kind: LapceWorkspaceType::RemoteSSH(user, host),
-                        path: None,
-                        last_open: 0,
-                    }),
-                    Target::Auto,
-                ));
+                if host.contains(':') {
+                    let mut parts = host.split(':');
+                    let host = parts.next().unwrap().to_string();
+                    let port: u16 = parts
+                        .next()
+                        .unwrap()
+                        .parse()
+                        .expect("Wanted a number as port");
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SetWorkspace(LapceWorkspace {
+                            kind: LapceWorkspaceType::RemoteSSH(user, host, port),
+                            path: None,
+                            last_open: 0,
+                        }),
+                        Target::Auto,
+                    ));
+                } else {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SetWorkspace(LapceWorkspace {
+                            kind: LapceWorkspaceType::RemoteSSH(user, host, 22),
+                            path: None,
+                            last_open: 0,
+                        }),
+                        Target::Auto,
+                    ));
+                }
+
                 return;
             }
             self.cancel(ctx);
@@ -839,18 +860,20 @@ impl PaletteViewData {
         let workspaces = Config::recent_workspaces().unwrap_or_default();
         let mut hosts = HashSet::new();
         for workspace in workspaces.iter() {
-            if let LapceWorkspaceType::RemoteSSH(user, host) = &workspace.kind {
-                hosts.insert((user.to_string(), host.to_string()));
+            if let LapceWorkspaceType::RemoteSSH(user, host, port) = &workspace.kind
+            {
+                hosts.insert((user.to_string(), host.to_string(), port.to_be()));
             }
         }
 
         let palette = Arc::make_mut(&mut self.palette);
         palette.items = hosts
             .iter()
-            .map(|(user, host)| PaletteItem {
+            .map(|(user, host, port)| PaletteItem {
                 content: PaletteItemContent::SshHost(
                     user.to_string(),
                     host.to_string(),
+                    //port.to_be(),
                 ),
                 filter_text: format!("{user}@{host}"),
                 score: 0,
@@ -874,8 +897,8 @@ impl PaletteViewData {
                     .unwrap();
                 let filter_text = match &w.kind {
                     LapceWorkspaceType::Local => text,
-                    LapceWorkspaceType::RemoteSSH(user, host) => {
-                        format!("[{}@{}] {}", user, host, text)
+                    LapceWorkspaceType::RemoteSSH(user, host, port) => {
+                        format!("[{}@{}:{}] {}", user, host, port, text)
                     }
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")

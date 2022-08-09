@@ -144,7 +144,7 @@ impl Title {
             .with_origin(Point::new(x, 0.0));
         let color = match &data.workspace.kind {
             LapceWorkspaceType::Local => Color::rgb8(64, 120, 242),
-            LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL => {
+            LapceWorkspaceType::RemoteSSH(..) | LapceWorkspaceType::RemoteWSL => {
                 match *data.proxy_status {
                     ProxyStatus::Connecting => Color::rgb8(193, 132, 1),
                     ProxyStatus::Connected => Color::rgb8(80, 161, 79),
@@ -442,8 +442,8 @@ impl Title {
         };
         let remote = match &data.workspace.kind {
             LapceWorkspaceType::Local => "".to_string(),
-            LapceWorkspaceType::RemoteSSH(_, host) => {
-                format!(" [SSH: {host}]")
+            LapceWorkspaceType::RemoteSSH(_, host,port) => {
+                format!(" [SSH: {host}:{port}]")
             }
             LapceWorkspaceType::RemoteWSL => " [WSL]".to_string(),
         };

@@ -3525,7 +3525,7 @@ impl LapceEditorData {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum LapceWorkspaceType {
     Local,
-    RemoteSSH(String, String),
+    RemoteSSH(String, String, u16),
     RemoteWSL,
 }
 
@@ -3533,7 +3533,7 @@ impl LapceWorkspaceType {
     pub fn is_remote(&self) -> bool {
         matches!(
             self,
-            LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL
+            LapceWorkspaceType::RemoteSSH(..) | LapceWorkspaceType::RemoteWSL
         )
     }
 }
@@ -3542,8 +3542,8 @@ impl std::fmt::Display for LapceWorkspaceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LapceWorkspaceType::Local => f.write_str("Local"),
-            LapceWorkspaceType::RemoteSSH(user, host) => {
-                write!(f, "ssh://{}@{}", user, host)
+            LapceWorkspaceType::RemoteSSH(user, host, port) => {
+                write!(f, "ssh://{}@{}:{}", user, host, port)
             }
             LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
         }
