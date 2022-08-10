@@ -2420,18 +2420,18 @@ fn show_completion(
 ) -> bool {
     let show_completion = match cmd {
         EditCommand::DeleteBackward | EditCommand::DeleteForward => {
-            let start = match &deltas[0].0.els[0] {
-                xi_rope::DeltaElement::Copy(_, start) => start,
-                _ => &0,
+            let start = match deltas.get(0).and_then(|delta| delta.0.els.get(0)) {
+                Some(xi_rope::DeltaElement::Copy(_, start)) => *start,
+                _ => 0,
             };
 
-            let end = match &deltas[0].0.els[1] {
-                xi_rope::DeltaElement::Copy(end, _) => end,
-                _ => &0,
+            let end = match deltas.get(0).and_then(|delta| delta.0.els.get(1)) {
+                Some(xi_rope::DeltaElement::Copy(end, _)) => *end,
+                _ => 0,
             };
 
-            if start > &0 && end > start {
-                !doc.slice_to_cow(*start..*end)
+            if start > 0 && end > start {
+                !doc.slice_to_cow(start..end)
                     .chars()
                     .all(|c| c.is_whitespace() || c.is_ascii_whitespace())
             } else {
