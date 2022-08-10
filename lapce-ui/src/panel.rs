@@ -19,6 +19,12 @@ use lapce_data::{
 
 use crate::{scroll::LapceScroll, split::LapceSplit, svg::get_svg, tab::LapceIcon};
 
+pub enum PanelSizing {
+    Size(f64),
+    /// Flex-sized. Bool decides whether it is resizable in the UI or not.
+    Flex(bool),
+}
+
 pub struct LapcePanel {
     split: WidgetPod<LapceTabData, LapceSplit>,
 }
@@ -84,7 +90,7 @@ impl LapcePanel {
             WidgetId,
             PanelHeaderKind,
             Box<dyn Widget<LapceTabData>>,
-            Option<f64>,
+            PanelSizing,
         )>,
     ) -> Self {
         let mut split = LapceSplit::new(split_id).panel(kind);
@@ -99,11 +105,17 @@ impl LapcePanel {
             let section =
                 PanelSection::new(section_widget_id, header, content).boxed();
 
-            if let Some(size) = size {
-                split = split.with_child(section, Some(section_widget_id), size);
-            } else {
-                split = split.with_flex_child(section, Some(section_widget_id), 1.0);
-            }
+            split = match size {
+                PanelSizing::Size(size) => {
+                    split.with_child(section, Some(section_widget_id), size)
+                }
+                PanelSizing::Flex(resizable) => split.with_flex_child(
+                    section,
+                    Some(section_widget_id),
+                    1.0,
+                    resizable,
+                ),
+            };
         }
         Self {
             split: WidgetPod::new(split),

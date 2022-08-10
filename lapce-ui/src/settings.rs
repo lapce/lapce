@@ -371,7 +371,7 @@ impl LapceSettings {
         let split = LapceSplit::new(data.settings.settings_split_id)
             .horizontal()
             //.with_child(input.boxed(), None, 55.0)
-            .with_flex_child(settings.boxed(), None, 1.0);
+            .with_flex_child(settings.boxed(), None, 1.0, false);
 
         split
     }
