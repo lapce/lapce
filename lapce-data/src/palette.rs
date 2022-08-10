@@ -254,7 +254,7 @@ impl PaletteItemContent {
                     ));
                 }
             }
-            PaletteItemContent::SshHost(user, host,port) => {
+            PaletteItemContent::SshHost(user, host, port) => {
                 if !preview {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,

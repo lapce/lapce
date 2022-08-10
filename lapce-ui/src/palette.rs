@@ -626,7 +626,7 @@ impl PaletteContent {
                     let text = w.path.as_ref().unwrap().to_str().unwrap();
                     let text = match &w.kind {
                         LapceWorkspaceType::Local => text.to_string(),
-                        LapceWorkspaceType::RemoteSSH(user, host,port) => {
+                        LapceWorkspaceType::RemoteSSH(user, host, port) => {
                             format!("[{user}@{host}:{port}] {text}")
                         }
                         LapceWorkspaceType::RemoteWSL => {
@@ -667,7 +667,7 @@ impl PaletteContent {
                     "".to_string(),
                     vec![],
                 ),
-                PaletteItemContent::SshHost(user, host,port) => (
+                PaletteItemContent::SshHost(user, host, port) => (
                     None,
                     format!("{user}@{host}:{port}"),
                     indices.to_vec(),

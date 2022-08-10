@@ -237,8 +237,8 @@ impl LapceProxy {
                     let _ = dispatcher.mainloop(proxy_receiver);
                 });
             }
-            LapceWorkspaceType::RemoteSSH(user, host,port) => {
-                self.start_remote(SshRemote { user, host , port}, core_sender)?; 
+            LapceWorkspaceType::RemoteSSH(user, host, port) => {
+                self.start_remote(SshRemote { user, host, port }, core_sender)?;
             }
             LapceWorkspaceType::RemoteWSL => {
                 let distro = WslDistro::all()?
@@ -870,10 +870,9 @@ impl SshRemote {
         "ConnectTimeout=15",
     ];
 
-    fn command_builder(user: &str, host: &str,port: &u16) -> Command {
+    fn command_builder(user: &str, host: &str, port: &u16) -> Command {
         let mut cmd = new_command("ssh");
-        cmd
-            .arg(format!("{}@{}", user, host))
+        cmd.arg(format!("{}@{}", user, host))
             .arg(format!("-p{}", port))
             .args(Self::SSH_ARGS);
         cmd
@@ -891,7 +890,7 @@ impl Remote for SshRemote {
     }
 
     fn command_builder(&self) -> Command {
-        Self::command_builder(&self.user, &self.host,&self.port)
+        Self::command_builder(&self.user, &self.host, &self.port)
     }
 }
 

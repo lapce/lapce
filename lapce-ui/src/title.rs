@@ -442,7 +442,7 @@ impl Title {
         };
         let remote = match &data.workspace.kind {
             LapceWorkspaceType::Local => "".to_string(),
-            LapceWorkspaceType::RemoteSSH(_, host,port) => {
+            LapceWorkspaceType::RemoteSSH(_, host, port) => {
                 format!(" [SSH: {host}:{port}]")
             }
             LapceWorkspaceType::RemoteWSL => " [WSL]".to_string(),
