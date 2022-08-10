@@ -21,7 +21,7 @@ use lapce_rpc::source_control::FileDiff;
 use crate::{
     button::Button,
     editor::view::LapceEditorView,
-    panel::{LapcePanel, PanelHeaderKind},
+    panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     svg::{file_svg, get_svg},
 };
 
@@ -66,19 +66,19 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
                 editor_data.view_id,
                 PanelHeaderKind::None,
                 input.boxed(),
-                Some(300.0),
+                PanelSizing::Size(300.0),
             ),
             (
                 data.source_control.commit_button_id,
                 PanelHeaderKind::None,
                 commit_button.boxed(),
-                None,
+                PanelSizing::Flex(false),
             ),
             (
                 data.source_control.file_list_id,
                 PanelHeaderKind::Simple("Changes".into()),
                 content.boxed(),
-                None,
+                PanelSizing::Flex(false),
             ),
         ],
     )

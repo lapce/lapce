@@ -1,4 +1,4 @@
-use crate::scroll::LapceScroll;
+use crate::{panel::PanelSizing, scroll::LapceScroll};
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Command, Cursor, Env, Event, EventCtx, FontWeight,
@@ -50,13 +50,13 @@ impl Plugin {
                     data.plugin.installed_id,
                     PanelHeaderKind::Simple("Installed".into()),
                     LapceScroll::new(Self::new(true)).boxed(),
-                    None,
+                    PanelSizing::Flex(true),
                 ),
                 (
                     data.plugin.uninstalled_id,
                     PanelHeaderKind::Simple("Uninstalled".into()),
                     LapceScroll::new(Self::new(false)).boxed(),
-                    None,
+                    PanelSizing::Flex(true),
                 ),
             ],
         )

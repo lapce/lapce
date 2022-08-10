@@ -23,7 +23,7 @@ use lapce_rpc::terminal::TermId;
 use unicode_width::UnicodeWidthChar;
 
 use crate::{
-    panel::{LapcePanel, PanelHeaderKind},
+    panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapcePadding,
     split::LapceSplit,
     svg::get_svg,
@@ -58,7 +58,7 @@ impl TerminalPanel {
                 split_id,
                 PanelHeaderKind::None,
                 Self::new(data).boxed(),
-                None,
+                PanelSizing::Flex(true),
             )],
         )
     }

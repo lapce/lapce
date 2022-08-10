@@ -18,7 +18,7 @@ use lapce_data::{
 use lsp_types::DiagnosticSeverity;
 
 use crate::{
-    panel::{LapcePanel, PanelHeaderKind},
+    panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     svg::{file_svg, get_svg},
 };
 
@@ -32,13 +32,13 @@ pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
                 data.error_widget_id,
                 PanelHeaderKind::Simple("Errors".into()),
                 ProblemContent::new(DiagnosticSeverity::ERROR).boxed(),
-                None,
+                PanelSizing::Flex(true),
             ),
             (
                 data.warning_widget_id,
                 PanelHeaderKind::Simple("Warnings".into()),
                 ProblemContent::new(DiagnosticSeverity::WARNING).boxed(),
-                None,
+                PanelSizing::Flex(true),
             ),
         ],
     )

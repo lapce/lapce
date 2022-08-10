@@ -1,4 +1,4 @@
-use druid::Size;
+use druid::{Rect, Size};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -27,6 +27,13 @@ impl SplitDirection {
         match self {
             SplitDirection::Vertical => size.height,
             SplitDirection::Horizontal => size.width,
+        }
+    }
+
+    pub fn start(self, rect: Rect) -> f64 {
+        match self {
+            SplitDirection::Vertical => rect.x0,
+            SplitDirection::Horizontal => rect.y0,
         }
     }
 }

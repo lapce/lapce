@@ -25,7 +25,7 @@ use lapce_rpc::file::FileNodeItem;
 
 use crate::editor::view::LapceEditorView;
 use crate::{
-    panel::{LapcePanel, PanelHeaderKind},
+    panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapceScroll,
     svg::{file_svg, get_svg},
 };
@@ -331,7 +331,7 @@ impl FileExplorer {
                 split_id,
                 PanelHeaderKind::None,
                 Self::new(data).boxed(),
-                None,
+                PanelSizing::Flex(false),
             )],
         )
     }

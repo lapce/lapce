@@ -51,7 +51,7 @@ impl LapceKeymap {
             .horizontal()
             .with_child(input.boxed(), None, 100.0)
             .with_child(header.boxed(), None, 100.0)
-            .with_flex_child(keymap.boxed(), None, 1.0);
+            .with_flex_child(keymap.boxed(), None, 1.0, false);
 
         split
     }
