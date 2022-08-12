@@ -608,6 +608,9 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             ));
                         menu = menu.entry(item);
 
+                        let item = druid::MenuItem::new("Refresh");
+                        menu = menu.entry(item);
+
                         // Separator between non destructive and destructive actions
                         menu = menu.separator();
 
