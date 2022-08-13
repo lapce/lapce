@@ -7,7 +7,7 @@ pub struct RpcObject(pub Value);
 
 pub type RequestId = u64;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// An RPC call, which may be either a notification or a request.
 pub enum Call<N, R> {
     /// An id and an RPC Request

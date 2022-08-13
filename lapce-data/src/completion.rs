@@ -227,7 +227,7 @@ impl Display for SnippetElement {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum CompletionStatus {
     Inactive,
     Started,

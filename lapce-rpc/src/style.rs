@@ -13,7 +13,7 @@ pub struct LineStyle {
     pub style: Style,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Style {
     pub fg_color: Option<String>,
 }

@@ -23,7 +23,7 @@ impl Default for PluginData {
     }
 }
 
-#[derive(Display, PartialEq)]
+#[derive(Display, PartialEq, Eq)]
 pub enum PluginStatus {
     Installed,
     Install,

@@ -1040,7 +1040,7 @@ fn shuffle(
     )
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DiffResult<T> {
     Left(T),
     Both(T, T),

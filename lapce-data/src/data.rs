@@ -494,7 +494,7 @@ pub struct WorkProgress {
     pub percentage: Option<u32>,
 }
 
-#[derive(Clone, PartialEq, Data)]
+#[derive(Clone, PartialEq, Eq, Data)]
 pub enum FocusArea {
     Palette,
     Editor,
@@ -1745,7 +1745,7 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SplitContent {
     EditorTab(WidgetId),
     Split(WidgetId),
@@ -1801,7 +1801,7 @@ impl SplitContent {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorSplitContent {}
 
 #[derive(Clone, Debug)]
@@ -3293,7 +3293,7 @@ pub enum InlineFindDirection {
     Right,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorTabChild {
     Editor(WidgetId, WidgetId, Option<(WidgetId, WidgetId)>),
     Settings(WidgetId, WidgetId),
@@ -3372,7 +3372,7 @@ pub struct SelectionHistory {
     pub selections: im::Vector<Selection>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorView {
     Normal,
     Diff(String),
@@ -3522,7 +3522,7 @@ impl LapceEditorData {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(String, String),
@@ -3550,7 +3550,7 @@ impl std::fmt::Display for LapceWorkspaceType {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LapceWorkspace {
     pub kind: LapceWorkspaceType,
     pub path: Option<PathBuf>,
