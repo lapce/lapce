@@ -111,7 +111,7 @@ impl Snippet {
                     .map(|e| format!("\\{}", e))
                     .any(|x| x == *esc)
                 {
-                    ele = ele + &s[1..2].to_string();
+                    ele = ele + &s[1..2];
                     end += 2;
                     s = &s[2..];
                     continue;
@@ -120,7 +120,7 @@ impl Snippet {
             if escs.contains(&&s[0..1]) {
                 break;
             }
-            ele = ele + &s[0..1].to_string();
+            ele = ele + &s[0..1];
             end += 1;
             s = &s[1..];
         }
