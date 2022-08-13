@@ -35,7 +35,7 @@ use crate::{
     terminal::TerminalSplitData,
 };
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PaletteType {
     File,
     Line,
@@ -104,14 +104,14 @@ impl PaletteType {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PaletteIcon {
     File(String),
     Symbol(SymbolKind),
     None,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum PaletteStatus {
     Inactive,
     Started,

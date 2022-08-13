@@ -111,7 +111,7 @@ impl LapceCommand {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub enum CommandExecuted {
     Yes,
     No,
@@ -177,6 +177,7 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
     EnumIter,
     Clone,
     PartialEq,
+    Eq,
     Debug,
     EnumMessage,
     IntoStaticStr,

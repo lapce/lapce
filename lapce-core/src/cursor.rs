@@ -443,7 +443,7 @@ pub fn get_first_selection_after(
     });
 
     positions
-        .get(0)
+        .first()
         .cloned()
         .map(Selection::caret)
         .map(|selection| {

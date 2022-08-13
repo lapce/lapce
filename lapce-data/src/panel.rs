@@ -236,7 +236,7 @@ impl PanelData {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum PanelResizePosition {
     Left,
     LeftSplit,

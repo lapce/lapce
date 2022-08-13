@@ -65,7 +65,7 @@ impl ResponseHandler {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub enum ControlFlow {
     Continue,
     Exit,

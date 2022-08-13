@@ -9,7 +9,7 @@ pub enum SplitMoveDirection {
     Left,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SplitDirection {
     Vertical,
     Horizontal,
