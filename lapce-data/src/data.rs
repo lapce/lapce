@@ -2415,7 +2415,7 @@ impl LapceMainSplitData {
             .unwrap_or(0)
             + 1;
 
-        return format!("{}{}", PREFIX, new_num);
+        format!("{}{}", PREFIX, new_num)
     }
 
     pub fn install_theme(&mut self, ctx: &mut EventCtx, _config: &Config) {
