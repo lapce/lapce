@@ -1422,7 +1422,7 @@ impl LapceTab {
                                     .file_name()
                                     .unwrap_or(p.as_os_str())
                                     .to_string_lossy();
-                                let dir = match &data.workspace.kind {
+                                match &data.workspace.kind {
                                     LapceWorkspaceType::Local => dir.to_string(),
                                     LapceWorkspaceType::RemoteSSH(user, host) => {
                                         format!("{} [{}@{}]", dir, user, host)
@@ -1430,8 +1430,7 @@ impl LapceTab {
                                     LapceWorkspaceType::RemoteWSL => {
                                         format!("{dir} [wsl]")
                                     }
-                                };
-                                dir
+                                }
                             })
                             .unwrap_or_else(|| "Lapce".to_string());
                         ctx.window().set_title(&dir);
@@ -2242,7 +2241,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
             .as_ref()
             .map(|p| {
                 let dir = p.file_name().unwrap_or(p.as_os_str()).to_string_lossy();
-                let dir = match &data.workspace.kind {
+                match &data.workspace.kind {
                     LapceWorkspaceType::Local => dir.to_string(),
                     LapceWorkspaceType::RemoteSSH(user, host) => {
                         format!("{} [{}@{}]", dir, user, host)
@@ -2250,8 +2249,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
                     LapceWorkspaceType::RemoteWSL => {
                         format!("{dir} [wsl]")
                     }
-                };
-                dir
+                }
             })
             .unwrap_or_else(|| "Lapce".to_string());
         let text_layout = ctx
