@@ -9,7 +9,7 @@ use druid::{
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::LapceTabData,
+    data::{EditorDiagnostic, LapceTabData},
     editor::EditorLocation,
     panel::PanelKind,
     problem::ProblemData,
@@ -67,9 +67,15 @@ impl ProblemContent {
         mouse_event: &MouseEvent,
         data: &LapceTabData,
     ) {
+        // If it isn't hot then we don't bother checking
+        if !ctx.is_hot() {
+            return;
+        }
+
         let n = (mouse_event.pos.y / self.line_height).floor() as usize;
 
         let items = data.main_split.diagnostics_items(self.severity);
+
         let mut i = 0;
         for (path, diagnostics) in items {
             let diagnostics_len = diagnostics.iter().map(|d| d.lines).sum::<usize>();
@@ -83,23 +89,14 @@ impl ProblemContent {
                     return;
                 }
 
-                let msg_lines = d.diagnostic.message.matches('\n').count() + 1;
-                let related_lines = d
-                    .diagnostic
-                    .related_information
-                    .as_ref()
-                    .map(|r| {
-                        r.iter()
-                            .map(|r| r.message.matches('\n').count() + 1 + 1)
-                            .sum()
-                    })
-                    .unwrap_or(0);
+                let msg_lines = message_lines(d);
+                let related_lines = related_line_count(d);
                 if i + 1 + msg_lines + related_lines < n {
                     i += msg_lines + related_lines;
                     continue;
                 }
 
-                if ctx.is_hot() && i < n && n < i + 1 + msg_lines {
+                if i < n && n < i + 1 + msg_lines {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::JumpToLspLocation(
@@ -115,7 +112,7 @@ impl ProblemContent {
                     ));
                     return;
                 }
-                i += msg_lines;
+                i += d.diagnostic.message.split('\n').count();
 
                 for related in d
                     .diagnostic
@@ -123,8 +120,9 @@ impl ProblemContent {
                     .as_ref()
                     .unwrap_or(&Vec::new())
                 {
-                    let lines = related.message.matches('\n').count() + 1 + 1;
-                    if i <= n && n <= i + lines {
+                    i += 1;
+                    let lines = related.message.matches('\n').count();
+                    if i <= n && n < i + lines + 1 + 1 {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::JumpToLspLocation(
@@ -218,8 +216,8 @@ impl Widget<LapceTabData> for ProblemContent {
                 diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1
             })
             .sum::<usize>();
-        let line_height = data.config.editor.line_height as f64;
-        self.content_height = line_height * n as f64;
+        self.line_height = data.config.editor.line_height as f64;
+        self.content_height = self.line_height * n as f64;
 
         Size::new(bc.max().width, self.content_height.max(bc.max().height))
     }
@@ -318,17 +316,8 @@ impl Widget<LapceTabData> for ProblemContent {
                 if i > max {
                     return;
                 }
-                let msg_lines = d.diagnostic.message.matches('\n').count() + 1;
-                let related_lines = d
-                    .diagnostic
-                    .related_information
-                    .as_ref()
-                    .map(|r| {
-                        r.iter()
-                            .map(|r| r.message.matches('\n').count() + 1 + 1)
-                            .sum()
-                    })
-                    .unwrap_or(0);
+                let msg_lines = message_lines(d);
+                let related_lines = related_line_count(d);
                 if i + 1 + msg_lines + related_lines < min {
                     i += msg_lines + related_lines;
                     continue;
@@ -497,4 +486,21 @@ impl Widget<LapceTabData> for ProblemContent {
             i += 1;
         }
     }
+}
+
+fn message_lines(diagnostic: &EditorDiagnostic) -> usize {
+    diagnostic.diagnostic.message.matches('\n').count() + 1
+}
+
+fn related_line_count(diagnostic: &EditorDiagnostic) -> usize {
+    diagnostic
+        .diagnostic
+        .related_information
+        .as_ref()
+        .map(|r| {
+            r.iter()
+                .map(|r| r.message.matches('\n').count() + 1 + 1)
+                .sum()
+        })
+        .unwrap_or(0)
 }
