@@ -158,6 +158,7 @@ pub struct KeyPressData {
     count: Option<usize>,
 
     event_sink: ExtEventSink,
+    pub is_shift_down: bool,
 }
 
 impl KeyPressData {
@@ -176,6 +177,7 @@ impl KeyPressData {
             filtered_commands_without_keymap: Arc::new(Vec::new()),
             count: None,
             event_sink,
+            is_shift_down: false,
         };
         keypress.load_commands();
         keypress
@@ -325,6 +327,10 @@ impl KeyPressData {
 
         if key_event.key == KbKey::Shift && mods.is_empty() {
             return false;
+        }
+
+        if key_event.key == KbKey::Shift {
+            self.is_shift_down = true;
         }
 
         let keypress = KeyPress {
