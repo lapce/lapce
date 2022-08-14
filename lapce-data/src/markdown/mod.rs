@@ -4,6 +4,7 @@ use druid::{FontStyle, FontWeight};
 use lapce_core::{language::LapceLanguage, syntax::Syntax};
 use lsp_types::MarkedString;
 use pulldown_cmark::{CodeBlockKind, Tag};
+use smallvec::SmallVec;
 use xi_rope::Rope;
 
 use crate::{
@@ -20,9 +21,7 @@ pub fn parse_markdown(text: &str, config: &Config) -> RichText {
     // Our position within the text
     let mut pos = 0;
 
-    // TODO: (minor): This could use a smallvec since most tags are probably not that nested
-    // Stores the current tags (like italics/bold/strikethrough) so that they can be nested
-    let mut tag_stack = Vec::new();
+    let mut tag_stack: SmallVec<[(usize, Tag); 4]> = SmallVec::new();
 
     let mut code_block_indices = Vec::new();
 
@@ -37,7 +36,17 @@ pub fn parse_markdown(text: &str, config: &Config) -> RichText {
             | Options::ENABLE_HEADING_ATTRIBUTES,
     );
     let mut last_text = CowStr::from("");
+    // Whether we should add a newline on the next entry
+    // This is used so that we don't emit newlines at the very end of the generation
+    let mut add_newline = false;
     for event in parser {
+        // Add the newline since we're going to be outputting more
+        if add_newline {
+            builder.push("\n");
+            pos += 1;
+            add_newline = false;
+        }
+
         match event {
             Event::Start(tag) => {
                 tag_stack.push((pos, tag));
@@ -92,8 +101,7 @@ pub fn parse_markdown(text: &str, config: &Config) -> RichText {
                     }
 
                     if should_add_newline_after_tag(&tag) {
-                        builder.push("\n");
-                        pos += 1;
+                        add_newline = true;
                     }
                 } else {
                     log::warn!("Unbalanced markdown tag")
@@ -178,8 +186,6 @@ fn add_attribute_for_tag(tag: &Tag, mut attrs: AttributesAdder, config: &Config)
                     .clone(),
             );
         }
-        // TODO: We could use the language paired with treesitter to highlight the code
-        // within code blocks.
         Tag::CodeBlock(_) => {
             attrs.font_family(config.editor.font_family());
         }
