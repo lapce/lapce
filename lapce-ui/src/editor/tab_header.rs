@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use druid::{
-    keyboard_types::KeyState,
     kurbo::Line,
     piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
     BoxConstraints, Code, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
@@ -181,6 +180,24 @@ impl LapceEditorTabHeader {
             ),
         );
     }
+
+    fn determine_split_command(&self, is_shift_down: bool) -> Command {
+        let focus_command = match is_shift_down {
+            true => FocusCommand::SplitHorizontal,
+            false => FocusCommand::SplitVertical,
+        };
+
+        let command = Command::new(
+            LAPCE_COMMAND,
+            LapceCommand {
+                kind: CommandKind::Focus(focus_command),
+                data: None,
+            },
+            Target::Widget(self.widget_id),
+        );
+
+        command
+    }
 }
 
 impl Widget<LapceTabData> for LapceEditorTabHeader {
@@ -291,25 +308,19 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             };
             self.icons.push(icon);
 
-            let split_icon = if data.keypress.is_shift_down {
-                "split-vertical.svg"
-            } else {
-                "split-horizontal.svg"
+            let split_icon = match data.keypress.is_shift_down {
+                true => "split-vertical.svg",
+                false => "split-horizontal.svg",
             };
+            let split_command =
+                self.determine_split_command(data.keypress.is_shift_down);
             let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
             let icon = LapceIcon {
                 icon: split_icon,
                 rect: Size::new(icon_size, icon_size)
                     .to_rect()
                     .with_origin(Point::new(x, gap)),
-                command: Command::new(
-                    LAPCE_COMMAND,
-                    LapceCommand {
-                        kind: CommandKind::Focus(FocusCommand::SplitVertical),
-                        data: None,
-                    },
-                    Target::Widget(self.widget_id),
-                ),
+                command: split_command,
             };
             self.icons.push(icon);
 

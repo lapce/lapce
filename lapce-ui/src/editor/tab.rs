@@ -329,6 +329,21 @@ impl Widget<LapceTabData> for LapceEditorTab {
                         Target::Widget(editor_tab.active_child().widget_id()),
                     ));
                 }
+                if let CommandKind::Focus(FocusCommand::SplitHorizontal) = cmd.kind {
+                    let editor_tab = data
+                        .main_split
+                        .editor_tabs
+                        .get_mut(&self.widget_id)
+                        .unwrap();
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::SplitHorizontal),
+                            data: None,
+                        },
+                        Target::Widget(editor_tab.active_child().widget_id()),
+                    ));
+                }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 ctx.set_handled();
