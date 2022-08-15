@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+url = "2.2.2"
 dyn-clone = "1.0.8"
 which = "4.2.5"
 regex = "1.5.6"

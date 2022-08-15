@@ -2344,6 +2344,7 @@ dependencies = [
  "serde_json",
  "toml_edit",
  "trash",
+ "url",
  "wasmer",
  "wasmer-wasi",
  "which",

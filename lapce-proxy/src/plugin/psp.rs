@@ -145,7 +145,7 @@ pub enum PluginServerRpc {
 #[derive(Clone)]
 pub struct PluginServerRpcHandler {
     pub plugin_id: PluginId,
-    pub plugin_name: String,
+    pub volt_id: String,
     rpc_tx: Sender<PluginServerRpc>,
     rpc_rx: Receiver<PluginServerRpc>,
     io_tx: Sender<String>,
@@ -192,11 +192,11 @@ pub trait PluginServerHandler {
 }
 
 impl PluginServerRpcHandler {
-    pub fn new(plugin_name: String, io_tx: Sender<String>) -> Self {
+    pub fn new(volt_id: String, io_tx: Sender<String>) -> Self {
         let (rpc_tx, rpc_rx) = crossbeam_channel::unbounded();
 
         let rpc = Self {
-            plugin_name,
+            volt_id,
             plugin_id: PluginId::next(),
             rpc_tx,
             rpc_rx,
@@ -512,7 +512,7 @@ struct ServerRegistrations {
 }
 
 pub struct PluginHostHandler {
-    plugin_name: String,
+    volt_id: String,
     pwd: Option<PathBuf>,
     pub(crate) workspace: Option<PathBuf>,
     lanaguage_id: Option<String>,
@@ -526,7 +526,7 @@ impl PluginHostHandler {
     pub fn new(
         workspace: Option<PathBuf>,
         pwd: Option<PathBuf>,
-        plugin_name: String,
+        volt_id: String,
         lanaguage_id: Option<String>,
         server_rpc: PluginServerRpcHandler,
         catalog_rpc: PluginCatalogRpcHandler,
@@ -534,7 +534,7 @@ impl PluginHostHandler {
         Self {
             pwd,
             workspace,
-            plugin_name,
+            volt_id,
             lanaguage_id,
             catalog_rpc,
             server_rpc,
@@ -775,13 +775,13 @@ impl PluginHostHandler {
                 let workspace = self.workspace.clone();
                 let pwd = self.pwd.clone();
                 let catalog_rpc = self.catalog_rpc.clone();
-                let plugin_name = self.plugin_name.clone();
+                let volt_id = self.volt_id.clone();
                 thread::spawn(move || {
                     let _ = NewLspClient::start(
                         catalog_rpc,
                         params.language_id,
                         workspace,
-                        plugin_name,
+                        volt_id,
                         pwd,
                         params.exec_path,
                         Vec::new(),

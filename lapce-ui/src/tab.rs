@@ -36,6 +36,7 @@ use lapce_data::{
         PanelContainerPosition, PanelKind, PanelPosition, PanelResizePosition,
         PanelStyle,
     },
+    plugin::PluginLoadStatus,
     proxy::path_from_url,
 };
 use lapce_rpc::{plugin::PluginDescription, proxy::CoreProxyResponse};
@@ -907,6 +908,14 @@ impl LapceTab {
                             data.proxy.proxy_rpc.terminal_close(terminal.term_id);
                         }
                         ctx.set_handled();
+                    }
+                    LapceUICommand::LoadPlugins(volts) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.volts.update_volts(volts);
+                    }
+                    LapceUICommand::LoadPluginsFailed => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.volts.failed();
                     }
                     LapceUICommand::UpdateInstalledPlugins(plugins) => {
                         data.installed_plugins = Arc::new(plugins.to_owned());

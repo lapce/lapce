@@ -179,6 +179,8 @@ impl LapceData {
         }
 
         thread::spawn(move || {
+            PluginData::load(event_sink.clone());
+
             let mut catalog = PluginCatalog::new();
             catalog.reload();
             let plugins = catalog

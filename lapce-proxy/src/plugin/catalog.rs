@@ -20,11 +20,11 @@ use psp_types::Notification;
 use serde_json::Value;
 use xi_rope::{Rope, RopeDelta};
 
-use crate::plugin::wasi::start_plugin;
+use crate::plugin::{install_volt, wasi::start_plugin};
 
 use super::{
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
-    wasi::load_all_plugins,
+    wasi::{load_all_plugins, load_all_volts},
     PluginCatalogNotification, PluginCatalogRpcHandler,
 };
 
@@ -49,7 +49,7 @@ impl NewPluginCatalog {
         };
 
         thread::spawn(move || {
-            load_all_plugins(workspace, plugin_rpc, plugin_configurations);
+            load_all_volts(workspace, plugin_rpc, plugin_configurations);
         });
 
         plugin
@@ -202,6 +202,27 @@ impl NewPluginCatalog {
                 }
                 self.new_plugins.insert(plugin.plugin_id, plugin);
             }
+            InstallVolt(volt) => {
+                let workspace = self.workspace.clone();
+                let configurations =
+                    self.plugin_configurations.get(&volt.name).cloned();
+                let catalog_rpc = self.plugin_rpc.clone();
+                let _ = catalog_rpc.stop_volt(volt.clone());
+                thread::spawn(move || {
+                    let _ =
+                        install_volt(catalog_rpc, workspace, configurations, volt);
+                });
+            }
+            StopVolt(volt) => {
+                let volt_id = volt.id();
+                let ids: Vec<PluginId> = self.new_plugins.keys().cloned().collect();
+                for id in ids {
+                    if self.new_plugins.get(&id).unwrap().volt_id == volt_id {
+                        let plugin = self.new_plugins.remove(&id).unwrap();
+                        plugin.shutdown();
+                    }
+                }
+            }
             PluginIntalled(plugin) => {
                 let workspace = self.workspace.clone();
                 let configurations =
@@ -215,7 +236,7 @@ impl NewPluginCatalog {
             PluginRemoved(removed_plugin) => {
                 let ids: Vec<PluginId> = self.new_plugins.keys().cloned().collect();
                 for id in ids {
-                    if self.new_plugins.get(&id).unwrap().plugin_name
+                    if self.new_plugins.get(&id).unwrap().volt_id
                         == removed_plugin.name
                     {
                         let plugin = self.new_plugins.remove(&id).unwrap();

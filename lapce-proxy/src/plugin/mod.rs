@@ -8,7 +8,7 @@ use directories::ProjectDirs;
 use hotwatch::Hotwatch;
 use jsonrpc_lite::{Id, JsonRpc};
 use lapce_rpc::counter::Counter;
-use lapce_rpc::plugin::{PluginDescription, PluginId};
+use lapce_rpc::plugin::{PluginDescription, PluginId, VoltInfo, VoltMetadata};
 use lapce_rpc::proxy::ProxyRpcHandler;
 use lapce_rpc::style::{LineStyle, SemanticStyles};
 use lapce_rpc::{RequestId, RpcError, RpcMessage};
@@ -98,6 +98,8 @@ pub enum PluginCatalogRpc {
 
 pub enum PluginCatalogNotification {
     PluginServerLoaded(PluginServerRpcHandler),
+    InstallVolt(VoltInfo),
+    StopVolt(VoltInfo),
     PluginIntalled(PluginDescription),
     PluginRemoved(PluginDescription),
     Shutdown,
@@ -711,6 +713,14 @@ impl PluginCatalogRpcHandler {
         self.catalog_notification(PluginCatalogNotification::PluginIntalled(plugin))
     }
 
+    pub fn install_volt(&self, volt: VoltInfo) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::InstallVolt(volt))
+    }
+
+    pub fn stop_volt(&self, volt: VoltInfo) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::StopVolt(volt))
+    }
+
     pub fn plugin_removed(&self, plugin: PluginDescription) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::PluginRemoved(plugin))
     }
@@ -1094,6 +1104,48 @@ fn number_from_id(id: &Id) -> u64 {
             .expect("failed to convert string id to u64"),
         _ => panic!("unexpected value for id: None"),
     }
+}
+
+pub fn install_volt(
+    catalog_rpc: PluginCatalogRpcHandler,
+    workspace: Option<PathBuf>,
+    configurations: Option<serde_json::Value>,
+    volt: VoltInfo,
+) -> Result<()> {
+    let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
+    let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
+
+    let id = volt.id();
+    let home = home_dir().ok_or_else(|| anyhow!("can't find home"))?;
+    let path = home.join(".lapce").join("plugins").join(&id);
+    let _ = fs::remove_dir_all(&path);
+
+    fs::create_dir_all(&path)?;
+    {
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(path.join("volt.toml"))?;
+        file.write_all(meta_str.as_bytes())?;
+    }
+
+    if let Some(wasm) = meta.wasm.as_ref() {
+        let url = url::Url::parse(&volt.meta)?;
+        let url = url.join(wasm)?;
+        {
+            let mut resp = reqwest::blocking::get(url)?;
+            let mut file = fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(path.join(&wasm))?;
+            std::io::copy(&mut resp, &mut file)?;
+        }
+        start_volt(workspace, configurations, catalog_rpc, meta)?;
+    }
+
+    Ok(())
 }
 
 pub fn install_plugin(

@@ -10,7 +10,7 @@ use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
 use lapce_core::syntax::Syntax;
-use lapce_rpc::plugin::PluginId;
+use lapce_rpc::plugin::{PluginId, VoltInfo};
 use lapce_rpc::{
     buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
     source_control::DiffInfo, style::Style, terminal::TermId,
@@ -515,6 +515,8 @@ pub enum LapceUICommand {
     DisablePlugin(PluginDescription),
     EnablePlugin(PluginDescription),
     RemovePlugin(PluginDescription),
+    LoadPlugins(Vec<VoltInfo>),
+    LoadPluginsFailed,
     RequestLayout,
     RequestPaint,
     ResetFade,

@@ -12,7 +12,7 @@ use anyhow::{anyhow, Result};
 use home::home_dir;
 use jsonrpc_lite::Params;
 use lapce_rpc::{
-    plugin::{PluginConfiguration, PluginDescription, PluginId},
+    plugin::{PluginConfiguration, PluginDescription, PluginId, VoltMetadata},
     style::LineStyle,
     RpcError,
 };
@@ -44,7 +44,7 @@ pub struct NewPluginEnv {
     plugin_rpc: PluginCatalogRpcHandler,
     rpc: PluginServerRpcHandler,
     wasi_env: WasiEnv,
-    desc: PluginDescription,
+    meta: VoltMetadata,
 }
 
 pub struct NewPlugin {
@@ -166,6 +166,138 @@ impl NewPlugin {
     fn shutdown(&self) {}
 }
 
+pub fn load_all_volts(
+    workspace: Option<PathBuf>,
+    plugin_rpc: PluginCatalogRpcHandler,
+    volt_configurations: HashMap<String, serde_json::Value>,
+) {
+    let all_volts = find_all_volts();
+    for volt_path in &all_volts {
+        match load_volt(volt_path) {
+            Err(_e) => (),
+            Ok(meta) => {
+                let workspace = workspace.clone();
+                let configurations = volt_configurations.get(&meta.name).cloned();
+                let plugin_rpc = plugin_rpc.clone();
+                thread::spawn(move || {
+                    let _ = start_volt(workspace, configurations, plugin_rpc, meta);
+                });
+            }
+        }
+    }
+}
+
+pub fn find_all_volts() -> Vec<PathBuf> {
+    let mut plugin_paths = Vec::new();
+    let home = home_dir().unwrap();
+    let path = home.join(".lapce").join("plugins");
+    let _ = path.read_dir().map(|dir| {
+        dir.flat_map(|item| item.map(|p| p.path()).ok())
+            .map(|dir| dir.join("volt.toml"))
+            .filter(|f| f.exists())
+            .for_each(|f| plugin_paths.push(f))
+    });
+    plugin_paths
+}
+
+fn load_volt(path: &Path) -> Result<VoltMetadata> {
+    let mut file = fs::File::open(&path)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    let mut meta: VoltMetadata = toml::from_str(&contents)?;
+    meta.dir = Some(path.parent().unwrap().canonicalize()?);
+    meta.wasm = meta.wasm.as_ref().and_then(|wasm| {
+        Some(
+            path.parent()?
+                .join(wasm)
+                .canonicalize()
+                .ok()?
+                .to_str()?
+                .to_string(),
+        )
+    });
+    Ok(meta)
+}
+
+pub fn start_volt(
+    workspace: Option<PathBuf>,
+    configurations: Option<serde_json::Value>,
+    plugin_rpc: PluginCatalogRpcHandler,
+    meta: VoltMetadata,
+) -> Result<()> {
+    let store = Store::default();
+    let module = wasmer::Module::from_file(
+        &store,
+        meta.wasm
+            .as_ref()
+            .ok_or_else(|| anyhow!("no wasm in plugin"))?,
+    )?;
+
+    let output = Pipe::new();
+    let input = Pipe::new();
+    let mut wasi_env = WasiState::new("Lapce")
+        .map_dir("/", meta.dir.clone().unwrap())?
+        .stdin(Box::new(input))
+        .stdout(Box::new(output))
+        // .envs(env)
+        .finalize()?;
+    let wasi = wasi_env.import_object(&module)?;
+
+    let (io_tx, io_rx) = crossbeam_channel::unbounded();
+    let rpc = PluginServerRpcHandler::new(meta.name.clone(), io_tx);
+
+    let id = PluginId::next();
+    let plugin_env = NewPluginEnv {
+        id,
+        rpc: rpc.clone(),
+        wasi_env,
+        plugin_rpc: plugin_rpc.clone(),
+        meta: meta.clone(),
+    };
+    let lapce = lapce_exports(&store, &plugin_env);
+    let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
+
+    let mut plugin = NewPlugin {
+        id,
+        instance,
+        env: plugin_env.clone(),
+        host: PluginHostHandler::new(
+            workspace,
+            meta.dir.clone(),
+            meta.id(),
+            None,
+            rpc.clone(),
+            plugin_rpc.clone(),
+        ),
+        configurations,
+    };
+
+    let wasi_env = plugin_env.wasi_env;
+    let handle_rpc = plugin
+        .instance
+        .exports
+        .get_function("handle_rpc")
+        .unwrap()
+        .clone();
+    thread::spawn(move || {
+        for msg in io_rx {
+            wasi_write_string(&wasi_env, &msg);
+            let _ = handle_rpc.call(&[]);
+        }
+    });
+
+    let local_rpc = rpc.clone();
+    thread::spawn(move || {
+        local_rpc.mainloop(&mut plugin);
+    });
+
+    if plugin_rpc.plugin_server_loaded(rpc.clone()).is_err() {
+        rpc.shutdown();
+    }
+
+    Ok(())
+}
+
 pub fn load_all_plugins(
     workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
@@ -246,102 +378,6 @@ pub fn start_plugin(
     plugin_rpc: PluginCatalogRpcHandler,
     plugin_desc: PluginDescription,
 ) -> Result<()> {
-    let store = Store::default();
-    let module = wasmer::Module::from_file(
-        &store,
-        plugin_desc
-            .wasm
-            .as_ref()
-            .ok_or_else(|| anyhow!("no wasm in plugin"))?,
-    )?;
-
-    let output = Pipe::new();
-    let input = Pipe::new();
-    let env = plugin_desc.get_plugin_env()?;
-    let mut wasi_env = WasiState::new("Lapce")
-        .map_dir("/", plugin_desc.dir.clone().unwrap())?
-        .stdin(Box::new(input))
-        .stdout(Box::new(output))
-        .envs(env)
-        .finalize()?;
-    let wasi = wasi_env.import_object(&module)?;
-
-    let (io_tx, io_rx) = crossbeam_channel::unbounded();
-    let rpc = PluginServerRpcHandler::new(plugin_desc.name.clone(), io_tx);
-
-    let id = PluginId::next();
-    let plugin_env = NewPluginEnv {
-        id,
-        rpc: rpc.clone(),
-        wasi_env,
-        plugin_rpc: plugin_rpc.clone(),
-        desc: plugin_desc.clone(),
-    };
-    let lapce = lapce_exports(&store, &plugin_env);
-    let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
-
-    let mut plugin = NewPlugin {
-        id,
-        instance,
-        env: plugin_env.clone(),
-        host: PluginHostHandler::new(
-            workspace,
-            plugin_desc.dir,
-            plugin_desc.name.clone(),
-            None,
-            rpc.clone(),
-            plugin_rpc.clone(),
-        ),
-        configurations,
-    };
-
-    let wasi_env = plugin_env.wasi_env;
-    let handle_rpc = plugin
-        .instance
-        .exports
-        .get_function("handle_rpc")
-        .unwrap()
-        .clone();
-    thread::spawn(move || {
-        for msg in io_rx {
-            wasi_write_string(&wasi_env, &msg);
-            let _ = handle_rpc.call(&[]);
-        }
-    });
-
-    let local_rpc = rpc.clone();
-    thread::spawn(move || {
-        local_rpc.mainloop(&mut plugin);
-    });
-
-    if plugin_rpc.plugin_server_loaded(rpc.clone()).is_err() {
-        rpc.shutdown();
-    }
-
-    // thread::spawn(move || {
-    //     let initialize =
-    //         plugin.instance.exports.get_function("initialize").unwrap();
-    //     wasi_write_object(
-    //         &plugin.env.wasi_env,
-    //         &PluginInfo {
-    //             os: std::env::consts::OS.to_string(),
-    //             arch: std::env::consts::ARCH.to_string(),
-    //             configuration: plugin_desc.configuration,
-    //         },
-    //     );
-    //     initialize.call(&[]).unwrap();
-    // });
-
-    // let (plugin_sender, plugin_receiver) =
-    //     crossbeam_channel::unbounded::<PluginRpcMessage>();
-    // let (proxy_sender, proxy_receiver) = crossbeam_channel::unbounded();
-    // let mut rpc_handler = ProxyRpcHandler::new(plugin_sender);
-    // rpc_handler.mainloop(proxy_receiver, &mut plugin);
-
-    // for msg in plugin_receiver {
-    //     wasi_write_object(&plugin_env.wasi_env, &msg.to_value().unwrap());
-    // }
-
     Ok(())
 }
 

@@ -10,19 +10,12 @@ use lapce_data::{
     config::LapceTheme,
     data::{LapceData, LapceTabData},
     panel::PanelKind,
+    plugin::{PluginLoadStatus, PluginStatus},
 };
-use lapce_rpc::plugin::PluginDescription;
+use lapce_rpc::plugin::{PluginDescription, VoltInfo};
 use strum_macros::Display;
 
 use crate::panel::{LapcePanel, PanelHeaderKind};
-
-#[derive(Display, PartialEq)]
-enum PluginStatus {
-    Installed,
-    Install,
-    Upgrade,
-    Disabled,
-}
 
 pub struct Plugin {
     line_height: f64,
@@ -131,26 +124,22 @@ impl Plugin {
         ctx: &mut EventCtx,
         data: &'a LapceTabData,
         mouse_event: &MouseEvent,
-    ) -> Option<(&'a PluginDescription, PluginStatus)> {
+    ) -> Option<(&'a VoltInfo, PluginStatus)> {
         let fetched_plugins = if self.installed {
             &data.installed_plugins_desc
         } else {
             &data.uninstalled_plugins_desc
         };
-        if let PluginLoadingStatus::Ok(ref plugins) = **fetched_plugins {
+        let list = if self.installed {
+            &data.plugin.installed
+        } else {
+            &data.plugin.volts
+        };
+
+        if let PluginLoadStatus::Success = list.status {
             let index = (mouse_event.pos.y / (self.line_height * 3.0)) as usize;
-            let plugin = plugins.get(index)?;
-            let mut status =
-                match data.installed_plugins.get(&plugin.name).map(|installed| {
-                    plugin.version.clone() == installed.version.clone()
-                }) {
-                    Some(true) => PluginStatus::Installed,
-                    Some(false) => PluginStatus::Upgrade,
-                    None => PluginStatus::Install,
-                };
-            if data.disabled_plugins.contains_key(&plugin.name) {
-                status = PluginStatus::Disabled;
-            }
+            let (id, plugin) = list.volts.get_index(index)?;
+            let status = data.plugin.plugin_status(id, &plugin.version);
 
             let padding = 10.0;
             let text_padding = 5.0;
@@ -208,13 +197,13 @@ impl Widget<LapceTabData> for Plugin {
             }
             Event::MouseDown(mouse_event) => {
                 if mouse_event.button.is_left() {
-                    if let Some((plugin, status)) =
+                    if let Some((volt, status)) =
                         self.hit_test(ctx, data, mouse_event)
                     {
                         if status == PluginStatus::Install
                             || status == PluginStatus::Upgrade
                         {
-                            data.proxy.proxy_rpc.install_plugin(plugin.clone());
+                            data.proxy.proxy_rpc.install_volt(volt.clone());
                         } else if status == PluginStatus::Installed {
                             self.enable_or_disable_plugin(
                                 mouse_event,
@@ -281,6 +270,265 @@ impl Widget<LapceTabData> for Plugin {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+        let list = if self.installed {
+            &data.plugin.installed
+        } else {
+            &data.plugin.volts
+        };
+
+        match list.status {
+            PluginLoadStatus::Loading => {
+                let y = self.line_height;
+                let x = self.line_height;
+                let layout = ctx
+                    .text()
+                    .new_text_layout("Loading plugin information...")
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .default_attribute(TextAttribute::Weight(FontWeight::SEMI_BOLD))
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_WARN)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                ctx.draw_text(&layout, Point::new(x, y));
+            }
+            PluginLoadStatus::Failed => {
+                let y = self.line_height;
+                let x = self.line_height;
+                let layout = ctx
+                    .text()
+                    .new_text_layout("Failed to load plugin information.")
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .default_attribute(TextAttribute::Weight(FontWeight::SEMI_BOLD))
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_WARN)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                ctx.draw_text(&layout, Point::new(x, y));
+            }
+            PluginLoadStatus::Success => {
+                for (i, (id, volt)) in list.volts.iter().enumerate() {
+                    let y = 3.0 * self.line_height * i as f64;
+                    let x = 3.0 * self.line_height;
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout(volt.display_name.clone())
+                        .font(
+                            data.config.ui.font_family(),
+                            data.config.ui.font_size() as f64,
+                        )
+                        .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOCUS)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    ctx.draw_text(
+                        &text_layout,
+                        Point::new(
+                            x,
+                            y + (self.line_height - text_layout.size().height) / 2.0,
+                        ),
+                    );
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout(volt.description.clone())
+                        .font(
+                            data.config.ui.font_family(),
+                            data.config.ui.font_size() as f64,
+                        )
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    // check if text is longer than plugin panel. If so, add ellipsis after description.
+                    if text_layout.layout.width() > (self.width - x - 15.0) as f32 {
+                        let hit_point = text_layout
+                            .hit_test_point(Point::new(self.width - x - 15.0, 0.0));
+                        let description = volt.description.clone();
+                        let end = description
+                            .char_indices()
+                            .filter(|(i, _)| hit_point.idx.overflowing_sub(*i).0 < 4)
+                            .collect::<Vec<(usize, char)>>();
+                        let end = if end.is_empty() {
+                            description.len()
+                        } else {
+                            end[0].0
+                        };
+                        let description = format!("{}...", (&description[0..end]));
+                        let text_layout = ctx
+                            .text()
+                            .new_text_layout(description)
+                            .font(
+                                data.config.ui.font_family(),
+                                data.config.ui.font_size() as f64,
+                            )
+                            .text_color(
+                                data.config
+                                    .get_color_unchecked(
+                                        LapceTheme::EDITOR_FOREGROUND,
+                                    )
+                                    .clone(),
+                            )
+                            .build()
+                            .unwrap();
+                        ctx.draw_text(
+                            &text_layout,
+                            Point::new(
+                                x,
+                                y + self.line_height
+                                    + (self.line_height - text_layout.size().height)
+                                        / 2.0,
+                            ),
+                        );
+                    } else {
+                        ctx.draw_text(
+                            &text_layout,
+                            Point::new(
+                                x,
+                                y + self.line_height
+                                    + (self.line_height - text_layout.size().height)
+                                        / 2.0,
+                            ),
+                        );
+                    }
+
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout(volt.publisher.clone())
+                        .font(
+                            data.config.ui.font_family(),
+                            data.config.ui.font_size() as f64,
+                        )
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    ctx.draw_text(
+                        &text_layout,
+                        Point::new(
+                            x,
+                            y + self.line_height * 2.0
+                                + (self.line_height - text_layout.size().height)
+                                    / 2.0,
+                        ),
+                    );
+
+                    let status = data.plugin.plugin_status(id, &volt.version);
+
+                    let size = ctx.size();
+                    let padding = 10.0;
+                    if (status == PluginStatus::Installed)
+                        || (status == PluginStatus::Disabled)
+                    {
+                        let text_layout = ctx
+                            .text()
+                            .new_text_layout(format!("{}▼", status))
+                            .font(
+                                data.config.ui.font_family(),
+                                data.config.ui.font_size() as f64,
+                            )
+                            .text_color(
+                                data.config
+                                    .get_color_unchecked(
+                                        LapceTheme::EDITOR_BACKGROUND,
+                                    )
+                                    .clone(),
+                            )
+                            .build()
+                            .unwrap();
+                        let text_size = text_layout.size();
+                        let text_padding = 5.0;
+                        let x = size.width
+                            - text_size.width
+                            - text_padding * 2.0
+                            - padding;
+                        let y = y + self.line_height * 2.0;
+                        let color = Color::rgb8(80, 161, 79);
+                        ctx.fill(
+                            Size::new(
+                                text_size.width + text_padding * 2.0,
+                                self.line_height,
+                            )
+                            .to_rect()
+                            .with_origin(Point::new(x, y)),
+                            &color,
+                        );
+                        ctx.draw_text(
+                            &text_layout,
+                            Point::new(
+                                x + text_padding,
+                                y + (self.line_height - text_layout.size().height)
+                                    / 2.0,
+                            ),
+                        );
+                    } else {
+                        let text_layout = ctx
+                            .text()
+                            .new_text_layout(status.to_string())
+                            .font(
+                                data.config.ui.font_family(),
+                                data.config.ui.font_size() as f64,
+                            )
+                            .text_color(
+                                data.config
+                                    .get_color_unchecked(
+                                        LapceTheme::EDITOR_BACKGROUND,
+                                    )
+                                    .clone(),
+                            )
+                            .build()
+                            .unwrap();
+                        let text_size = text_layout.size();
+                        let text_padding = 5.0;
+                        let x = size.width
+                            - text_size.width
+                            - text_padding * 2.0
+                            - padding;
+                        let y = y + self.line_height * 2.0;
+                        let color = Color::rgb8(80, 161, 79);
+                        ctx.fill(
+                            Size::new(
+                                text_size.width + text_padding * 2.0,
+                                self.line_height,
+                            )
+                            .to_rect()
+                            .with_origin(Point::new(x, y)),
+                            &color,
+                        );
+                        ctx.draw_text(
+                            &text_layout,
+                            Point::new(
+                                x + text_padding,
+                                y + (self.line_height - text_layout.size().height)
+                                    / 2.0,
+                            ),
+                        );
+                    }
+                }
+            }
+        }
+        return;
+
         let size = ctx.size();
         let padding = 10.0;
         let fetched_plugins = if self.installed {

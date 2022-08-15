@@ -130,3 +130,38 @@ pub struct PluginConfiguration {
     pub default: Value,
     pub description: String,
 }
+
+#[derive(Deserialize, Clone, Debug, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct VoltInfo {
+    pub name: String,
+    pub version: String,
+    pub display_name: String,
+    pub publisher: String,
+    pub description: String,
+    pub meta: String,
+}
+
+impl VoltInfo {
+    pub fn id(&self) -> String {
+        format!("{}.{}", self.publisher, self.name)
+    }
+}
+
+#[derive(Deserialize, Clone, Debug, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct VoltMetadata {
+    pub name: String,
+    pub version: String,
+    pub display_name: String,
+    pub publisher: String,
+    pub description: String,
+    pub wasm: Option<String>,
+    pub dir: Option<PathBuf>,
+}
+
+impl VoltMetadata {
+    pub fn id(&self) -> String {
+        format!("{}.{}", self.publisher, self.name)
+    }
+}

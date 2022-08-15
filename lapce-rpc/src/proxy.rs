@@ -20,7 +20,7 @@ use xi_rope::RopeDelta;
 use crate::{
     buffer::BufferId,
     file::FileNodeItem,
-    plugin::{PluginDescription, PluginId},
+    plugin::{PluginDescription, PluginId, VoltInfo},
     source_control::FileDiff,
     style::SemanticStyles,
     terminal::TermId,
@@ -157,6 +157,9 @@ pub enum CoreProxyNotification {
         term_id: TermId,
         cwd: Option<PathBuf>,
         shell: String,
+    },
+    InstallVolt {
+        volt: VoltInfo,
     },
     InstallPlugin {
         plugin: PluginDescription,
@@ -390,6 +393,10 @@ impl ProxyRpcHandler {
 
     pub fn git_checkout(&self, branch: String) {
         self.notification(CoreProxyNotification::GitCheckout { branch });
+    }
+
+    pub fn install_volt(&self, volt: VoltInfo) {
+        self.notification(CoreProxyNotification::InstallVolt { volt });
     }
 
     pub fn install_plugin(&self, plugin: PluginDescription) {
