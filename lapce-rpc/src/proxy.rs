@@ -161,16 +161,13 @@ pub enum CoreProxyNotification {
     InstallVolt {
         volt: VoltInfo,
     },
-    InstallPlugin {
-        plugin: PluginDescription,
+    RemoveVolt {
+        volt: VoltInfo,
     },
     DisablePlugin {
         plugin: PluginDescription,
     },
     EnablePlugin {
-        plugin: PluginDescription,
-    },
-    RemovePlugin {
         plugin: PluginDescription,
     },
     GitCommit {
@@ -399,8 +396,8 @@ impl ProxyRpcHandler {
         self.notification(CoreProxyNotification::InstallVolt { volt });
     }
 
-    pub fn install_plugin(&self, plugin: PluginDescription) {
-        self.notification(CoreProxyNotification::InstallPlugin { plugin });
+    pub fn remove_volt(&self, volt: VoltInfo) {
+        self.notification(CoreProxyNotification::RemoveVolt { volt });
     }
 
     pub fn disable_plugin(&self, plugin: PluginDescription) {
@@ -409,10 +406,6 @@ impl ProxyRpcHandler {
 
     pub fn enable_plugin(&self, plugin: PluginDescription) {
         self.notification(CoreProxyNotification::EnablePlugin { plugin });
-    }
-
-    pub fn remove_plugin(&self, plugin: PluginDescription) {
-        self.notification(CoreProxyNotification::RemovePlugin { plugin });
     }
 
     pub fn shutdown(&self) {

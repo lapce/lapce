@@ -34,6 +34,21 @@ impl VoltsList {
     pub fn failed(&mut self) {
         self.status = PluginLoadStatus::Failed;
     }
+
+    pub fn update(&mut self, volt: &VoltInfo) {
+        let volt_id = volt.id();
+        if let Some(v) = self.volts.get_mut(&volt_id) {
+            *v = volt.clone();
+        } else {
+            self.volts.insert(volt_id, volt.clone());
+        }
+        self.status = PluginLoadStatus::Success;
+    }
+
+    pub fn remove(&mut self, volt: &VoltInfo) {
+        let volt_id = volt.id();
+        self.volts.remove(&volt_id);
+    }
 }
 
 impl Default for VoltsList {

@@ -162,6 +162,20 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
+            VoltInstalled { volt } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::VoltInstalled(volt),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            VoltRemoved { volt } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::VoltRemoved(volt),
+                    Target::Widget(self.tab_id),
+                );
+            }
             InstalledPlugins { plugins } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -236,6 +250,8 @@ impl Handler for LapceProxy {
     fn handle_notification(&mut self, rpc: Self::Notification) -> ControlFlow {
         use lapce_rpc::core::CoreNotification::*;
         match rpc {
+            VoltInstalled { .. } => {}
+            VoltRemoved { .. } => {}
             OpenFileChanged { path, content } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,

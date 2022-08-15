@@ -125,11 +125,6 @@ impl Plugin {
         data: &'a LapceTabData,
         mouse_event: &MouseEvent,
     ) -> Option<(&'a VoltInfo, PluginStatus)> {
-        let fetched_plugins = if self.installed {
-            &data.installed_plugins_desc
-        } else {
-            &data.uninstalled_plugins_desc
-        };
         let list = if self.installed {
             &data.plugin.installed
         } else {
@@ -204,20 +199,54 @@ impl Widget<LapceTabData> for Plugin {
                             || status == PluginStatus::Upgrade
                         {
                             data.proxy.proxy_rpc.install_volt(volt.clone());
-                        } else if status == PluginStatus::Installed {
-                            self.enable_or_disable_plugin(
-                                mouse_event,
-                                data,
-                                ctx,
-                                false,
-                            );
-                        } else if status == PluginStatus::Disabled {
-                            self.enable_or_disable_plugin(
-                                mouse_event,
-                                data,
-                                ctx,
-                                true,
-                            );
+                        } else {
+                            let mut menu = druid::Menu::<LapceData>::new("Plugin");
+                            let local_volt = volt.clone();
+                            let tab_id = data.id;
+                            let item =
+                                if status == PluginStatus::Disabled {
+                                    druid::MenuItem::new("Enable Plugin")
+                                        .on_activate(move |ctx, _data, _env| {
+                                            ctx.submit_command(Command::new(
+                                                LAPCE_UI_COMMAND,
+                                                LapceUICommand::EnableVolt(
+                                                    local_volt.clone(),
+                                                ),
+                                                Target::Widget(tab_id),
+                                            ));
+                                        })
+                                } else {
+                                    druid::MenuItem::new("Disable Plugin")
+                                        .on_activate(move |ctx, _data, _env| {
+                                            ctx.submit_command(Command::new(
+                                                LAPCE_UI_COMMAND,
+                                                LapceUICommand::DisableVolt(
+                                                    local_volt.clone(),
+                                                ),
+                                                Target::Widget(tab_id),
+                                            ));
+                                        })
+                                };
+                            menu = menu.entry(item);
+                            let local_volt = volt.clone();
+                            let tab_id = data.id;
+                            let item = druid::MenuItem::new("Remove Plugin")
+                                .on_activate(
+                                    move |ctx, _data: &mut LapceData, _env| {
+                                        ctx.submit_command(Command::new(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::RemoveVolt(
+                                                local_volt.clone(),
+                                            ),
+                                            Target::Widget(tab_id),
+                                        ));
+                                    },
+                                );
+                            menu = menu.entry(item);
+                            ctx.show_context_menu::<LapceData>(
+                                menu,
+                                ctx.to_window(mouse_event.pos),
+                            )
                         }
                     }
                 }
@@ -251,22 +280,21 @@ impl Widget<LapceTabData> for Plugin {
         data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        let fetched_plugins = if self.installed {
-            &data.installed_plugins_desc
+        let len = if self.installed {
+            data.plugin.installed.volts.len()
         } else {
-            &data.uninstalled_plugins_desc
+            data.plugin
+                .volts
+                .volts
+                .iter()
+                .filter(|(id, _)| !data.plugin.installed.volts.contains_key(*id))
+                .count()
         };
-        if let PluginLoadingStatus::Ok(ref plugins) = **fetched_plugins {
-            if plugins.is_empty() {
-                return bc.max();
-            }
-            let height = 3.0 * self.line_height * plugins.len() as f64;
-            let height = height.max(bc.max().height);
-            self.width = bc.max().width;
-            Size::new(bc.max().width, height)
-        } else {
-            bc.max()
-        }
+
+        let height = 3.0 * self.line_height * len as f64;
+        let height = height.max(bc.max().height);
+        self.width = bc.max().width;
+        Size::new(bc.max().width, height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
@@ -318,7 +346,13 @@ impl Widget<LapceTabData> for Plugin {
                 ctx.draw_text(&layout, Point::new(x, y));
             }
             PluginLoadStatus::Success => {
-                for (i, (id, volt)) in list.volts.iter().enumerate() {
+                let mut i = 0;
+                for (id, volt) in list.volts.iter() {
+                    if !self.installed
+                        && data.plugin.installed.volts.contains_key(id)
+                    {
+                        continue;
+                    }
                     let y = 3.0 * self.line_height * i as f64;
                     let x = 3.0 * self.line_height;
                     let text_layout = ctx
@@ -524,6 +558,7 @@ impl Widget<LapceTabData> for Plugin {
                             ),
                         );
                     }
+                    i += 1;
                 }
             }
         }

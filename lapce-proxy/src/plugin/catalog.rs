@@ -20,11 +20,11 @@ use psp_types::Notification;
 use serde_json::Value;
 use xi_rope::{Rope, RopeDelta};
 
-use crate::plugin::{install_volt, wasi::start_plugin};
+use crate::plugin::install_volt;
 
 use super::{
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
-    wasi::{load_all_plugins, load_all_volts},
+    wasi::load_all_volts,
     PluginCatalogNotification, PluginCatalogRpcHandler,
 };
 
@@ -218,27 +218,6 @@ impl NewPluginCatalog {
                 let ids: Vec<PluginId> = self.new_plugins.keys().cloned().collect();
                 for id in ids {
                     if self.new_plugins.get(&id).unwrap().volt_id == volt_id {
-                        let plugin = self.new_plugins.remove(&id).unwrap();
-                        plugin.shutdown();
-                    }
-                }
-            }
-            PluginIntalled(plugin) => {
-                let workspace = self.workspace.clone();
-                let configurations =
-                    self.plugin_configurations.get(&plugin.name).cloned();
-                let catalog_rpc = self.plugin_rpc.clone();
-                thread::spawn(move || {
-                    let _ =
-                        start_plugin(workspace, configurations, catalog_rpc, plugin);
-                });
-            }
-            PluginRemoved(removed_plugin) => {
-                let ids: Vec<PluginId> = self.new_plugins.keys().cloned().collect();
-                for id in ids {
-                    if self.new_plugins.get(&id).unwrap().volt_id
-                        == removed_plugin.name
-                    {
                         let plugin = self.new_plugins.remove(&id).unwrap();
                         plugin.shutdown();
                     }

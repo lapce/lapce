@@ -100,8 +100,6 @@ pub enum PluginCatalogNotification {
     PluginServerLoaded(PluginServerRpcHandler),
     InstallVolt(VoltInfo),
     StopVolt(VoltInfo),
-    PluginIntalled(PluginDescription),
-    PluginRemoved(PluginDescription),
     Shutdown,
 }
 
@@ -709,20 +707,12 @@ impl PluginCatalogRpcHandler {
         ))
     }
 
-    pub fn plugin_installed(&self, plugin: PluginDescription) -> Result<()> {
-        self.catalog_notification(PluginCatalogNotification::PluginIntalled(plugin))
-    }
-
     pub fn install_volt(&self, volt: VoltInfo) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::InstallVolt(volt))
     }
 
     pub fn stop_volt(&self, volt: VoltInfo) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::StopVolt(volt))
-    }
-
-    pub fn plugin_removed(&self, plugin: PluginDescription) -> Result<()> {
-        self.catalog_notification(PluginCatalogNotification::PluginRemoved(plugin))
     }
 }
 
@@ -1142,84 +1132,26 @@ pub fn install_volt(
                 .open(path.join(&wasm))?;
             std::io::copy(&mut resp, &mut file)?;
         }
-        start_volt(workspace, configurations, catalog_rpc, meta)?;
+        let catalog_rpc = catalog_rpc.clone();
+        thread::spawn(move || {
+            let _ = start_volt(workspace, configurations, catalog_rpc, meta);
+        });
     }
+
+    eprintln!("send volt installed to core rpc");
+    catalog_rpc.core_rpc.volt_installed(volt);
 
     Ok(())
 }
 
-pub fn install_plugin(
+pub fn remove_volt(
     catalog_rpc: PluginCatalogRpcHandler,
-    plugin: PluginDescription,
+    volt: VoltInfo,
 ) -> Result<()> {
     let home = home_dir().unwrap();
-    let path = home.join(".lapce").join("plugins").join(&plugin.name);
-    let _ = fs::remove_dir_all(&path);
-
-    fs::create_dir_all(&path)?;
-
-    {
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .truncate(true)
-            .write(true)
-            .open(path.join("plugin.toml"))?;
-        file.write_all(&toml::to_vec(&plugin)?)?;
-    }
-
-    let mut plugin = plugin;
-    if let Some(wasm) = plugin.wasm.clone() {
-        {
-            let url = format!(
-                "https://raw.githubusercontent.com/{}/master/{}",
-                plugin.repository, wasm
-            );
-            let mut resp = reqwest::blocking::get(url)?;
-            let mut file = fs::OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(path.join(&wasm))?;
-            std::io::copy(&mut resp, &mut file)?;
-        }
-
-        plugin.dir = Some(path.clone());
-        plugin.wasm = Some(
-            path.join(&wasm)
-                .to_str()
-                .ok_or_else(|| anyhow!("path can't to string"))?
-                .to_string(),
-        );
-    }
-    if let Some(themes) = plugin.themes.as_ref() {
-        for theme in themes {
-            {
-                let url = format!(
-                    "https://raw.githubusercontent.com/{}/master/{}",
-                    plugin.repository, theme
-                );
-                let mut resp = reqwest::blocking::get(url)?;
-                let mut file = fs::OpenOptions::new()
-                    .create(true)
-                    .truncate(true)
-                    .write(true)
-                    .open(path.join(theme))?;
-                std::io::copy(&mut resp, &mut file)?;
-            }
-        }
-    }
-    let _ = catalog_rpc.plugin_installed(plugin);
-    Ok(())
-}
-
-pub fn remove_plugin(
-    catalog_rpc: PluginCatalogRpcHandler,
-    plugin: PluginDescription,
-) -> Result<()> {
-    let home = home_dir().unwrap();
-    let path = home.join(".lapce").join("plugins").join(&plugin.name);
+    let path = home.join(".lapce").join("plugins").join(volt.id());
     fs::remove_dir_all(&path)?;
-    let _ = catalog_rpc.plugin_removed(plugin);
+    let _ = catalog_rpc.core_rpc.volt_removed(volt);
     Ok(())
 }
 

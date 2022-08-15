@@ -179,6 +179,7 @@ pub fn load_all_volts(
                 let workspace = workspace.clone();
                 let configurations = volt_configurations.get(&meta.name).cloned();
                 let plugin_rpc = plugin_rpc.clone();
+                plugin_rpc.core_rpc.volt_installed(meta.info());
                 thread::spawn(move || {
                     let _ = start_volt(workspace, configurations, plugin_rpc, meta);
                 });
@@ -296,102 +297,6 @@ pub fn start_volt(
     }
 
     Ok(())
-}
-
-pub fn load_all_plugins(
-    workspace: Option<PathBuf>,
-    plugin_rpc: PluginCatalogRpcHandler,
-    plugin_configurations: HashMap<String, serde_json::Value>,
-) {
-    let all_plugins = find_all_plugins();
-    for plugin_path in &all_plugins {
-        match load_plugin(plugin_path) {
-            Err(_e) => (),
-            Ok(plugin_desc) => {
-                let workspace = workspace.clone();
-                let configurations =
-                    plugin_configurations.get(&plugin_desc.name).cloned();
-                let plugin_rpc = plugin_rpc.clone();
-                thread::spawn(move || {
-                    let _ = start_plugin(
-                        workspace,
-                        configurations,
-                        plugin_rpc,
-                        plugin_desc,
-                    );
-                });
-            }
-        }
-    }
-}
-
-fn load_plugin(path: &Path) -> Result<PluginDescription> {
-    let mut file = fs::File::open(&path)?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-    let mut plugin: PluginDescription = toml::from_str(&contents)?;
-    plugin.dir = Some(path.parent().unwrap().canonicalize()?);
-    plugin.wasm = plugin.wasm.as_ref().and_then(|wasm| {
-        Some(
-            path.parent()?
-                .join(wasm)
-                .canonicalize()
-                .ok()?
-                .to_str()?
-                .to_string(),
-        )
-    });
-    plugin.themes = plugin.themes.as_ref().map(|themes| {
-        themes
-            .iter()
-            .filter_map(|theme| {
-                Some(
-                    path.parent()?
-                        .join(theme)
-                        .canonicalize()
-                        .ok()?
-                        .to_str()?
-                        .to_string(),
-                )
-            })
-            .collect()
-    });
-    Ok(plugin)
-}
-
-fn format_plugin_configurations(
-    desc_configurations: &HashMap<String, PluginConfiguration>,
-    configurations: &HashMap<String, serde_json::Value>,
-) -> serde_json::Value {
-    let mut configs = HashMap::new();
-    for name in desc_configurations.keys() {
-        if let Some(value) = configurations.get(name) {
-            configs.insert(name.to_string(), value.clone());
-        }
-    }
-    serde_json::to_value(configs).unwrap()
-}
-
-pub fn start_plugin(
-    workspace: Option<PathBuf>,
-    configurations: Option<serde_json::Value>,
-    plugin_rpc: PluginCatalogRpcHandler,
-    plugin_desc: PluginDescription,
-) -> Result<()> {
-    Ok(())
-}
-
-pub fn find_all_plugins() -> Vec<PathBuf> {
-    let mut plugin_paths = Vec::new();
-    let home = home_dir().unwrap();
-    let path = home.join(".lapce").join("plugins");
-    let _ = path.read_dir().map(|dir| {
-        dir.flat_map(|item| item.map(|p| p.path()).ok())
-            .map(|dir| dir.join("plugin.toml"))
-            .filter(|f| f.exists())
-            .for_each(|f| plugin_paths.push(f))
-    });
-    plugin_paths
 }
 
 pub(crate) fn lapce_exports(

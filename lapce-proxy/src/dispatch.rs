@@ -1,7 +1,7 @@
 use crate::buffer::{get_mod_time, load_file, Buffer};
 use crate::plugin::lsp::LspCatalog;
 use crate::plugin::{catalog::NewPluginCatalog, PluginCatalog};
-use crate::plugin::{install_plugin, remove_plugin, PluginCatalogRpcHandler};
+use crate::plugin::{remove_volt, PluginCatalogRpcHandler};
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
 use crate::{
@@ -173,20 +173,15 @@ impl ProxyHandler for NewDispatcher {
                 let catalog_rpc = self.catalog_rpc.clone();
                 let _ = catalog_rpc.install_volt(volt);
             }
-            InstallPlugin { plugin } => {
+            RemoveVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();
+                let _ = catalog_rpc.stop_volt(volt.clone());
                 thread::spawn(move || {
-                    let _ = install_plugin(catalog_rpc, plugin);
+                    let _ = remove_volt(catalog_rpc, volt);
                 });
             }
             DisablePlugin { plugin } => todo!(),
             EnablePlugin { plugin } => todo!(),
-            RemovePlugin { plugin } => {
-                let catalog_rpc = self.catalog_rpc.clone();
-                thread::spawn(move || {
-                    let _ = remove_plugin(catalog_rpc, plugin);
-                });
-            }
             GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.as_ref() {
                     match git_commit(workspace, &message, diffs) {

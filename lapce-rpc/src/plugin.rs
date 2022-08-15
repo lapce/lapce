@@ -164,4 +164,15 @@ impl VoltMetadata {
     pub fn id(&self) -> String {
         format!("{}.{}", self.publisher, self.name)
     }
+
+    pub fn info(&self) -> VoltInfo {
+        VoltInfo {
+            name: self.name.clone(),
+            version: self.version.clone(),
+            display_name: self.display_name.clone(),
+            publisher: self.publisher.clone(),
+            description: self.description.clone(),
+            meta: "".to_string(),
+        }
+    }
 }

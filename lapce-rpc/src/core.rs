@@ -13,7 +13,7 @@ use std::{
 
 use crate::{
     file::FileNodeItem,
-    plugin::{PluginConfiguration, PluginDescription, PluginId},
+    plugin::{PluginConfiguration, PluginDescription, PluginId, VoltInfo},
     source_control::DiffInfo,
     terminal::TermId,
     RequestId, RpcError,
@@ -54,6 +54,12 @@ pub enum CoreNotification {
     },
     HomeDir {
         path: PathBuf,
+    },
+    VoltInstalled {
+        volt: VoltInfo,
+    },
+    VoltRemoved {
+        volt: VoltInfo,
     },
     InstalledPlugins {
         plugins: HashMap<String, PluginDescription>,
@@ -194,6 +200,14 @@ impl CoreRpcHandler {
             resp,
             plugin_id,
         });
+    }
+
+    pub fn volt_installed(&self, volt: VoltInfo) {
+        self.notification(CoreNotification::VoltInstalled { volt });
+    }
+
+    pub fn volt_removed(&self, volt: VoltInfo) {
+        self.notification(CoreNotification::VoltRemoved { volt });
     }
 
     pub fn publish_diagnostics(&self, diagnostics: PublishDiagnosticsParams) {
