@@ -180,8 +180,12 @@ impl ProxyHandler for NewDispatcher {
                     let _ = remove_volt(catalog_rpc, volt);
                 });
             }
-            DisablePlugin { plugin } => todo!(),
-            EnablePlugin { plugin } => todo!(),
+            DisableVolt { volt } => {
+                let _ = self.catalog_rpc.stop_volt(volt);
+            }
+            EnableVolt { volt } => {
+                let _ = self.catalog_rpc.start_volt(volt);
+            }
             GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.as_ref() {
                     match git_commit(workspace, &message, diffs) {

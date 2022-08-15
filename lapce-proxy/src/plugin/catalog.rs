@@ -20,7 +20,7 @@ use psp_types::Notification;
 use serde_json::Value;
 use xi_rope::{Rope, RopeDelta};
 
-use crate::plugin::install_volt;
+use crate::plugin::{install_volt, wasi::start_volt_from_info};
 
 use super::{
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
@@ -222,6 +222,26 @@ impl NewPluginCatalog {
                         plugin.shutdown();
                     }
                 }
+            }
+            StartVolt(volt) => {
+                let volt_id = volt.id();
+                for (_, volt) in self.new_plugins.iter() {
+                    if volt.volt_id == volt_id {
+                        return;
+                    }
+                }
+                let workspace = self.workspace.clone();
+                let catalog_rpc = self.plugin_rpc.clone();
+                let configurations =
+                    self.plugin_configurations.get(&volt.name).cloned();
+                thread::spawn(move || {
+                    let _ = start_volt_from_info(
+                        workspace,
+                        configurations,
+                        catalog_rpc,
+                        volt,
+                    );
+                });
             }
             Shutdown => {
                 for (_, plugin) in self.new_plugins.iter() {

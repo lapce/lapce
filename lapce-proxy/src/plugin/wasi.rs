@@ -12,7 +12,9 @@ use anyhow::{anyhow, Result};
 use home::home_dir;
 use jsonrpc_lite::Params;
 use lapce_rpc::{
-    plugin::{PluginConfiguration, PluginDescription, PluginId, VoltMetadata},
+    plugin::{
+        PluginConfiguration, PluginDescription, PluginId, VoltInfo, VoltMetadata,
+    },
     style::LineStyle,
     RpcError,
 };
@@ -218,6 +220,23 @@ fn load_volt(path: &Path) -> Result<VoltMetadata> {
         )
     });
     Ok(meta)
+}
+
+pub fn start_volt_from_info(
+    workspace: Option<PathBuf>,
+    configurations: Option<serde_json::Value>,
+    catalog_rpc: PluginCatalogRpcHandler,
+    volt: VoltInfo,
+) -> Result<()> {
+    let home = home_dir().unwrap();
+    let path = home
+        .join(".lapce")
+        .join("plugins")
+        .join(volt.id())
+        .join("volt.toml");
+    let meta = load_volt(&path)?;
+    start_volt(workspace, configurations, catalog_rpc, meta)?;
+    Ok(())
 }
 
 pub fn start_volt(

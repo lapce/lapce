@@ -926,6 +926,22 @@ impl LapceTab {
                         let plugin = Arc::make_mut(&mut data.plugin);
                         plugin.installed.remove(volt);
                     }
+                    LapceUICommand::DisableVolt(volt) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.disabled.insert(volt.id());
+                        data.proxy.proxy_rpc.disable_volt(volt.clone());
+                        let _ = data
+                            .db
+                            .save_disabled_volts(plugin.disabled.iter().collect());
+                    }
+                    LapceUICommand::EnableVolt(volt) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.disabled.remove(&volt.id());
+                        data.proxy.proxy_rpc.enable_volt(volt.clone());
+                        let _ = data
+                            .db
+                            .save_disabled_volts(plugin.disabled.iter().collect());
+                    }
                     LapceUICommand::RemoveVolt(volt) => {
                         data.proxy.proxy_rpc.remove_volt(volt.clone());
                     }
@@ -980,13 +996,6 @@ impl LapceTab {
                             }
                         }
                     }
-                    LapceUICommand::DisablePlugin(plugin) => {
-                        data.proxy.proxy_rpc.disable_plugin(plugin.clone());
-                    }
-                    LapceUICommand::EnablePlugin(plugin) => {
-                        data.proxy.proxy_rpc.enable_plugin(plugin.clone());
-                    }
-                    LapceUICommand::RemovePlugin(plugin) => {}
                     LapceUICommand::UpdateDiffInfo(diff) => {
                         let source_control = Arc::make_mut(&mut data.source_control);
                         source_control.branch = diff.head.to_string();

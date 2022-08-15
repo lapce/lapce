@@ -100,6 +100,7 @@ pub enum PluginCatalogNotification {
     PluginServerLoaded(PluginServerRpcHandler),
     InstallVolt(VoltInfo),
     StopVolt(VoltInfo),
+    StartVolt(VoltInfo),
     Shutdown,
 }
 
@@ -714,6 +715,10 @@ impl PluginCatalogRpcHandler {
     pub fn stop_volt(&self, volt: VoltInfo) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::StopVolt(volt))
     }
+
+    pub fn start_volt(&self, volt: VoltInfo) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::StartVolt(volt))
+    }
 }
 
 pub struct PluginCatalog {
@@ -1138,7 +1143,6 @@ pub fn install_volt(
         });
     }
 
-    eprintln!("send volt installed to core rpc");
     catalog_rpc.core_rpc.volt_installed(volt);
 
     Ok(())
@@ -1151,7 +1155,7 @@ pub fn remove_volt(
     let home = home_dir().unwrap();
     let path = home.join(".lapce").join("plugins").join(volt.id());
     fs::remove_dir_all(&path)?;
-    let _ = catalog_rpc.core_rpc.volt_removed(volt);
+    catalog_rpc.core_rpc.volt_removed(volt);
     Ok(())
 }
 

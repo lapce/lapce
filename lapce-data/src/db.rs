@@ -494,6 +494,14 @@ impl LapceDb {
         Ok(())
     }
 
+    pub fn save_disabled_volts(&self, volts: Vec<&String>) -> Result<()> {
+        let sled_db = self.get_db()?;
+        let volts = serde_json::to_string(&volts)?;
+        sled_db.insert(b"disabled_volts", volts.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
     pub fn save_last_window(&self, window: &LapceWindowData) {
         let info = window.info();
         let _ = self.insert_last_window_info(info);
