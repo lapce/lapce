@@ -62,6 +62,7 @@ impl ProxyHandler for NewDispatcher {
         match rpc {
             Initialize {
                 workspace,
+                disabled_volts,
                 plugin_configurations,
             } => {
                 self.workspace = workspace;
@@ -80,6 +81,7 @@ impl ProxyHandler for NewDispatcher {
                 thread::spawn(move || {
                     let mut plugin = NewPluginCatalog::new(
                         workspace,
+                        disabled_volts,
                         plugin_configurations,
                         plugin_rpc.clone(),
                     );

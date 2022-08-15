@@ -502,6 +502,16 @@ impl LapceDb {
         Ok(())
     }
 
+    pub fn get_disabled_volts(&self) -> Result<Vec<String>> {
+        let sled_db = self.get_db()?;
+        let volts = sled_db
+            .get("disabled_volts")?
+            .ok_or_else(|| anyhow!("can't find disable volts"))?;
+        let volts = std::str::from_utf8(&volts)?;
+        let volts: Vec<String> = serde_json::from_str(volts)?;
+        Ok(volts)
+    }
+
     pub fn save_last_window(&self, window: &LapceWindowData) {
         let info = window.info();
         let _ = self.insert_last_window_info(info);

@@ -609,9 +609,11 @@ impl LapceTabData {
         };
 
         let (term_sender, term_receiver) = unbounded();
+        let disabled_volts = db.get_disabled_volts().unwrap_or_default();
         let proxy = Arc::new(LapceProxy::new(
             tab_id,
             workspace.clone(),
+            disabled_volts.clone(),
             config.plugins.clone(),
             term_sender.clone(),
             event_sink.clone(),
@@ -622,7 +624,7 @@ impl LapceTabData {
         let source_control = Arc::new(SourceControlData::new());
         let settings = Arc::new(LapceSettingsPanelData::new());
         let alert = Arc::new(AlertData::new());
-        let plugin = Arc::new(PluginData::new());
+        let plugin = Arc::new(PluginData::new(disabled_volts));
         let file_explorer = Arc::new(FileExplorerData::new(
             tab_id,
             workspace.clone(),

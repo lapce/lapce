@@ -362,6 +362,7 @@ impl LapceProxy {
     pub fn new(
         tab_id: WidgetId,
         workspace: LapceWorkspace,
+        disabled_volts: Vec<String>,
         plugin_configurations: HashMap<String, serde_json::Value>,
         term_tx: Sender<(TermId, TermEvent)>,
         event_sink: ExtEventSink,
@@ -384,7 +385,11 @@ impl LapceProxy {
                 LapceUICommand::ProxyUpdateStatus(ProxyStatus::Connecting),
                 Target::Widget(tab_id),
             );
-            let _ = local_proxy.start(workspace.clone(), plugin_configurations);
+            let _ = local_proxy.start(
+                workspace.clone(),
+                disabled_volts,
+                plugin_configurations,
+            );
             println!("proxy stopped");
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
@@ -399,10 +404,14 @@ impl LapceProxy {
     fn start(
         &self,
         workspace: LapceWorkspace,
+        disabled_volts: Vec<String>,
         plugin_configurations: HashMap<String, serde_json::Value>,
     ) -> Result<()> {
-        self.proxy_rpc
-            .initialize(workspace.path.clone(), plugin_configurations);
+        self.proxy_rpc.initialize(
+            workspace.path.clone(),
+            disabled_volts,
+            plugin_configurations,
+        );
         let (core_sender, core_receiver) = crossbeam_channel::unbounded();
         match workspace.kind {
             LapceWorkspaceType::Local => {

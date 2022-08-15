@@ -171,6 +171,7 @@ impl NewPlugin {
 pub fn load_all_volts(
     workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
+    disabled_volts: Vec<String>,
     volt_configurations: HashMap<String, serde_json::Value>,
 ) {
     let all_volts = find_all_volts();
@@ -178,10 +179,13 @@ pub fn load_all_volts(
         match load_volt(volt_path) {
             Err(_e) => (),
             Ok(meta) => {
+                plugin_rpc.core_rpc.volt_installed(meta.info());
+                if disabled_volts.contains(&meta.id()) {
+                    continue;
+                }
                 let workspace = workspace.clone();
                 let configurations = volt_configurations.get(&meta.name).cloned();
                 let plugin_rpc = plugin_rpc.clone();
-                plugin_rpc.core_rpc.volt_installed(meta.info());
                 thread::spawn(move || {
                     let _ = start_volt(workspace, configurations, plugin_rpc, meta);
                 });

@@ -76,14 +76,14 @@ pub enum PluginLoadStatus {
 }
 
 impl PluginData {
-    pub fn new() -> Self {
+    pub fn new(disabled: Vec<String>) -> Self {
         Self {
             widget_id: WidgetId::next(),
             installed_id: WidgetId::next(),
             uninstalled_id: WidgetId::next(),
             volts: VoltsList::new(),
             installed: VoltsList::new(),
-            disabled: HashSet::new(),
+            disabled: HashSet::from_iter(disabled.into_iter()),
         }
     }
 
@@ -128,12 +128,6 @@ impl PluginData {
         let volts: Vec<VoltInfo> =
             reqwest::blocking::get("https://lapce.dev/volts")?.json()?;
         Ok(volts)
-    }
-}
-
-impl Default for PluginData {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

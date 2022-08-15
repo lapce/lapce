@@ -136,6 +136,7 @@ pub enum CoreProxyRequest {
 pub enum CoreProxyNotification {
     Initialize {
         workspace: Option<PathBuf>,
+        disabled_volts: Vec<String>,
         plugin_configurations: HashMap<String, serde_json::Value>,
     },
     OpenFileChanged {
@@ -416,10 +417,12 @@ impl ProxyRpcHandler {
     pub fn initialize(
         &self,
         workspace: Option<PathBuf>,
+        disabled_volts: Vec<String>,
         plugin_configurations: HashMap<String, serde_json::Value>,
     ) {
         self.notification(CoreProxyNotification::Initialize {
             workspace,
+            disabled_volts,
             plugin_configurations,
         });
     }
