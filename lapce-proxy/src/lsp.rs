@@ -22,7 +22,6 @@ use lapce_rpc::{
     style::{LineStyle, SemanticStyles, Style},
     RequestId,
 };
-use log::error;
 use lsp_types::{request::GotoTypeDefinitionParams, *};
 use parking_lot::Mutex;
 use serde_json::{json, to_value, Value};
@@ -878,7 +877,7 @@ impl LspClient {
                 if buffer.trim().is_empty() {
                     continue;
                 }
-                error!("[LSP::{}] {}", language_id, buffer.trim())
+                log::debug!("[LSP::{}] {}", language_id, buffer.trim())
             }
         });
     }
@@ -960,6 +959,7 @@ impl LspClient {
     }
 
     pub fn handle_message(&self, message: &str) {
+        log::debug!(target: "lapce_proxy::dispatch::handle_message", "{message}");
         match JsonRpc::parse(message) {
             Ok(value @ JsonRpc::Request(_)) => {
                 let id = value.get_id().unwrap();
@@ -1118,6 +1118,7 @@ impl LspClient {
     }
 
     pub fn send_request(&self, method: &str, params: Params, completion: Callback) {
+        log::debug!(target: "lapce_proxy::dispatch::send_request", "{method} : {params:?}");
         let request = {
             let mut state = self.state.lock();
             let next_id = state.next_id;

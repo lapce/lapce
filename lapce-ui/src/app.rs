@@ -34,7 +34,7 @@ pub fn launch() {
         for arg in args {
             match arg.as_str() {
                 "-v" | "--version" => {
-                    println!("lapce v{VERSION}");
+                    println!("lapce {VERSION}");
                     return;
                 }
                 "-h" | "--help" => {
@@ -63,18 +63,34 @@ pub fn launch() {
                 message
             ))
         })
-        .level(if cfg!(debug_assertions) {
-            log::LevelFilter::Warn
-        } else {
-            log::LevelFilter::Off
-        })
-        .chain(std::io::stderr());
+        .level(log::LevelFilter::Debug)
+        .chain(override_log_levels(
+            fern::Dispatch::new()
+                .level(if cfg!(debug_assertions) {
+                    log::LevelFilter::Warn
+                } else {
+                    log::LevelFilter::Off
+                })
+                .chain(std::io::stderr()),
+        ));
 
     if let Some(log_file) = Config::log_file().and_then(|f| fern::log_file(f).ok()) {
-        log_dispatch = log_dispatch.chain(log_file);
+        log_dispatch = log_dispatch.chain(
+            fern::Dispatch::new()
+                .level(log::LevelFilter::Debug)
+                .level_for("lapce_data::keypress", log::LevelFilter::Off)
+                .level_for("sled", log::LevelFilter::Off)
+                .level_for("tracing", log::LevelFilter::Off)
+                .level_for("druid::core", log::LevelFilter::Off)
+                .level_for("druid::box_constraints", log::LevelFilter::Off)
+                .level_for("cranelift_codegen", log::LevelFilter::Off)
+                .level_for("wasmer_compiler_cranelift", log::LevelFilter::Off)
+                .level_for("regalloc", log::LevelFilter::Off)
+                .level_for("hyper::proto", log::LevelFilter::Off)
+                .chain(log_file),
+        );
     }
 
-    log_dispatch = override_log_levels(log_dispatch);
     match log_dispatch.apply() {
         Ok(()) => (),
         Err(e) => eprintln!("Initialising logging failed {e:?}"),

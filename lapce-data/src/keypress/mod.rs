@@ -634,28 +634,7 @@ impl KeyPressData {
     }
 
     pub fn file() -> Option<PathBuf> {
-        let path = Config::dir().map(|d| {
-            d.join(if !cfg!(debug_assertions) {
-                "keymaps.toml"
-            } else {
-                "debug-keymaps.toml"
-            })
-        })?;
-
-        if let Some(dir) = path.parent() {
-            if !dir.exists() {
-                let _ = std::fs::create_dir_all(dir);
-            }
-        }
-
-        if !path.exists() {
-            let _ = std::fs::OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .open(&path);
-        }
-
-        Some(path)
+        Config::keymaps_file()
     }
 
     #[allow(clippy::type_complexity)]
