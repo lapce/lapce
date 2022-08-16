@@ -38,7 +38,7 @@ use super::{
 };
 
 #[derive(WasmerEnv, Clone)]
-pub struct NewPluginEnv {
+pub struct PluginEnv {
     id: PluginId,
     plugin_rpc: PluginCatalogRpcHandler,
     rpc: PluginServerRpcHandler,
@@ -46,15 +46,15 @@ pub struct NewPluginEnv {
     meta: VoltMetadata,
 }
 
-pub struct NewPlugin {
+pub struct Plugin {
     id: PluginId,
     instance: wasmer::Instance,
-    env: NewPluginEnv,
+    env: PluginEnv,
     host: PluginHostHandler,
     configurations: Option<serde_json::Value>,
 }
 
-impl PluginServerHandler for NewPlugin {
+impl PluginServerHandler for Plugin {
     fn method_registered(&mut self, method: &'static str) -> bool {
         self.host.method_registered(method)
     }
@@ -135,7 +135,7 @@ impl PluginServerHandler for NewPlugin {
     }
 }
 
-impl NewPlugin {
+impl Plugin {
     fn initialize(&mut self) {
         let server_rpc = self.host.server_rpc.clone();
         let workspace = self.host.workspace.clone();
@@ -281,7 +281,7 @@ pub fn start_volt(
     let rpc = PluginServerRpcHandler::new(meta.name.clone(), io_tx);
 
     let id = PluginId::next();
-    let plugin_env = NewPluginEnv {
+    let plugin_env = PluginEnv {
         id,
         rpc: rpc.clone(),
         wasi_env,
@@ -291,7 +291,7 @@ pub fn start_volt(
     let lapce = lapce_exports(&store, &plugin_env);
     let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
 
-    let mut plugin = NewPlugin {
+    let mut plugin = Plugin {
         id,
         instance,
         env: plugin_env.clone(),
@@ -332,10 +332,7 @@ pub fn start_volt(
     Ok(())
 }
 
-pub(crate) fn lapce_exports(
-    store: &Store,
-    plugin_env: &NewPluginEnv,
-) -> ImportObject {
+pub(crate) fn lapce_exports(store: &Store, plugin_env: &PluginEnv) -> ImportObject {
     macro_rules! lapce_export {
         ($($host_function:ident),+ $(,)?) => {
             wasmer::imports! {
@@ -352,7 +349,7 @@ pub(crate) fn lapce_exports(
     }
 }
 
-fn host_handle_rpc(plugin_env: &NewPluginEnv) {
+fn host_handle_rpc(plugin_env: &PluginEnv) {
     let msg = wasi_read_string(&plugin_env.wasi_env).unwrap();
     handle_plugin_server_message(&plugin_env.rpc, &msg);
 }
