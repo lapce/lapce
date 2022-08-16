@@ -12,8 +12,8 @@ use lapce_core::command::{
 use lapce_core::syntax::Syntax;
 use lapce_rpc::plugin::{PluginId, VoltInfo, VoltMetadata};
 use lapce_rpc::{
-    buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
-    source_control::DiffInfo, style::Style, terminal::TermId,
+    buffer::BufferId, file::FileNodeItem, source_control::DiffInfo, style::Style,
+    terminal::TermId,
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
@@ -405,13 +405,6 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "toggle_inlay_hints")]
     #[strum(message = "Toggle Inlay Hints")]
     ToggleInlayHints,
-}
-
-#[derive(Debug, Clone)]
-pub enum PluginLoadingStatus {
-    Loading,
-    Failed,
-    Ok(Vec<PluginDescription>),
 }
 
 #[derive(Debug)]

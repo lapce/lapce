@@ -12,9 +12,7 @@ use anyhow::{anyhow, Result};
 use home::home_dir;
 use jsonrpc_lite::Params;
 use lapce_rpc::{
-    plugin::{
-        PluginConfiguration, PluginDescription, PluginId, VoltInfo, VoltMetadata,
-    },
+    plugin::{PluginId, VoltInfo, VoltMetadata},
     style::LineStyle,
     RpcError,
 };

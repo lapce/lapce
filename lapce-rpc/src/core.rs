@@ -13,9 +13,7 @@ use std::{
 
 use crate::{
     file::FileNodeItem,
-    plugin::{
-        PluginConfiguration, PluginDescription, PluginId, VoltInfo, VoltMetadata,
-    },
+    plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::DiffInfo,
     terminal::TermId,
     RequestId, RpcError,

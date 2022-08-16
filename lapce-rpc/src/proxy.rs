@@ -11,7 +11,7 @@ use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeActionResponse, CompletionItem,
     DocumentSymbolResponse, GotoDefinitionResponse, Hover, InlayHint, Location,
-    Position, SemanticTokensResult, SymbolInformation, TextDocumentItem, TextEdit,
+    Position, SymbolInformation, TextDocumentItem, TextEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,7 @@ use xi_rope::RopeDelta;
 use crate::{
     buffer::BufferId,
     file::FileNodeItem,
-    plugin::{PluginDescription, PluginId, VoltInfo, VoltMetadata},
+    plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
     style::SemanticStyles,
     terminal::TermId,

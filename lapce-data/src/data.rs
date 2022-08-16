@@ -30,23 +30,22 @@ use lapce_core::{
     selection::Selection,
 };
 use lapce_rpc::{
-    buffer::BufferId, plugin::PluginDescription, proxy::CoreProxyResponse,
-    source_control::FileDiff, terminal::TermId,
+    buffer::BufferId, proxy::CoreProxyResponse, source_control::FileDiff,
+    terminal::TermId,
 };
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdit};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use toml_edit::easy as toml;
 use xi_rope::{Rope, RopeDelta};
 
 use crate::{
     alert::{AlertContentData, AlertData},
     command::{
         CommandKind, EnsureVisiblePosition, InitBufferContentCb, LapceCommand,
-        LapceUICommand, LapceWorkbenchCommand, PluginLoadingStatus, LAPCE_COMMAND,
-        LAPCE_OPEN_FILE, LAPCE_OPEN_FOLDER, LAPCE_UI_COMMAND,
+        LapceUICommand, LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_OPEN_FILE,
+        LAPCE_OPEN_FOLDER, LAPCE_UI_COMMAND,
     },
     completion::CompletionData,
     config::{Config, ConfigWatcher, GetConfig, LapceTheme},
@@ -213,27 +212,6 @@ impl LapceData {
         env.set(LapceTheme::INPUT_LINE_PADDING, 5.0);
         env.set(LapceTheme::INPUT_FONT_SIZE, 13u64);
     }
-
-    pub fn load_plugin_descriptions() -> Result<Vec<PluginDescription>> {
-        let plugins: Vec<String> =
-            reqwest::blocking::get("https://lapce.github.io/plugins.json")?
-                .json()?;
-        let plugins: Vec<PluginDescription> = plugins
-            .iter()
-            .filter_map(|plugin| LapceData::load_plugin_description(plugin).ok())
-            .collect();
-        Ok(plugins)
-    }
-
-    fn load_plugin_description(plugin: &str) -> Result<PluginDescription> {
-        let url = format!(
-            "https://raw.githubusercontent.com/{}/HEAD/plugin.toml",
-            plugin
-        );
-        let content = reqwest::blocking::get(url)?.text()?;
-        let plugin: PluginDescription = toml::from_str(&content)?;
-        Ok(plugin)
-    }
 }
 
 /// `LapceWindowData` is the application model for a top-level window.
@@ -268,7 +246,6 @@ pub struct LapceWindowData {
     pub active_id: WidgetId,
     pub keypress: Arc<KeyPressData>,
     pub config: Arc<Config>,
-    pub plugins: Arc<Vec<PluginDescription>>,
     pub db: Arc<LapceDb>,
     pub watcher: Arc<notify::RecommendedWatcher>,
     /// The size of the window.
@@ -287,7 +264,6 @@ impl Data for LapceWindowData {
             && self.pos.same(&other.pos)
             && self.maximised.same(&other.maximised)
             && self.keypress.same(&other.keypress)
-            && self.plugins.same(&other.plugins)
             && self.panel_orders.same(&other.panel_orders)
     }
 }
@@ -374,7 +350,6 @@ impl LapceWindowData {
             tabs,
             tabs_order: Arc::new(tabs_order),
             active,
-            plugins: Arc::new(Vec::new()),
             active_id: active_tab_id,
             keypress,
             config,
@@ -459,11 +434,6 @@ pub struct LapceTabData {
     pub search: Arc<SearchData>,
     pub plugin: Arc<PluginData>,
     pub picker: Arc<FilePickerData>,
-    pub plugins: Arc<Vec<PluginDescription>>,
-    pub installed_plugins_desc: Arc<PluginLoadingStatus>,
-    pub uninstalled_plugins_desc: Arc<PluginLoadingStatus>,
-    pub installed_plugins: Arc<HashMap<String, PluginDescription>>,
-    pub disabled_plugins: Arc<HashMap<String, PluginDescription>>,
     pub file_explorer: Arc<FileExplorerData>,
     pub proxy: Arc<LapceProxy>,
     pub proxy_status: Arc<ProxyStatus>,
@@ -503,14 +473,6 @@ impl Data for LapceTabData {
             && self.plugin.same(&other.plugin)
             && self.problem.same(&other.problem)
             && self.search.same(&other.search)
-            && self
-                .installed_plugins_desc
-                .same(&other.installed_plugins_desc)
-            && self
-                .uninstalled_plugins_desc
-                .same(&other.uninstalled_plugins_desc)
-            && self.disabled_plugins.same(&other.disabled_plugins)
-            && self.installed_plugins.same(&other.installed_plugins)
             && self.picker.same(&other.picker)
             && self.drag.same(&other.drag)
             && self.keypress.same(&other.keypress)
@@ -666,11 +628,6 @@ impl LapceTabData {
             plugin,
             problem,
             search,
-            plugins: Arc::new(Vec::new()),
-            disabled_plugins: Arc::new(HashMap::new()),
-            installed_plugins_desc: Arc::new(PluginLoadingStatus::Ok(Vec::new())),
-            uninstalled_plugins_desc: Arc::new(PluginLoadingStatus::Ok(Vec::new())),
-            installed_plugins: Arc::new(HashMap::new()),
             find: Arc::new(Find::new(0)),
             picker: file_picker,
             source_control,
@@ -1656,7 +1613,6 @@ impl Lens<LapceWindowData, LapceTabData> for LapceTabLens {
     ) -> V {
         let mut tab = data.tabs.get(&self.0).unwrap().clone();
         tab.keypress = data.keypress.clone();
-        tab.plugins = data.plugins.clone();
         tab.multiple_tab = data.tabs.len() > 1;
         if !tab.panel.order.same(&data.panel_orders) {
             Arc::make_mut(&mut tab.panel).order = data.panel_orders.clone();

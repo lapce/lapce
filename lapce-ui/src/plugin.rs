@@ -6,14 +6,12 @@ use druid::{
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_data::{
-    command::{LapceUICommand, PluginLoadingStatus, LAPCE_UI_COMMAND},
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     data::{LapceData, LapceTabData},
     panel::PanelKind,
     plugin::{PluginData, PluginLoadStatus, PluginStatus},
 };
-use lapce_rpc::plugin::{PluginDescription, VoltInfo};
-use strum_macros::Display;
 
 use crate::panel::{LapcePanel, PanelHeaderKind};
 
@@ -281,8 +279,6 @@ impl Plugin {
 
     fn hit_test<'a>(
         &'a self,
-        ctx: &mut EventCtx,
-        data: &'a LapceTabData,
         mouse_event: &MouseEvent,
     ) -> Option<(usize, &'a PluginStatus)> {
         let index = (mouse_event.pos.y / (self.line_height * 3.0)) as usize;
@@ -311,7 +307,7 @@ impl Widget<LapceTabData> for Plugin {
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
-                if self.hit_test(ctx, data, mouse_event).is_some() {
+                if self.hit_test(mouse_event).is_some() {
                     ctx.set_cursor(&Cursor::Pointer);
                 } else {
                     ctx.clear_cursor();
@@ -319,9 +315,7 @@ impl Widget<LapceTabData> for Plugin {
             }
             Event::MouseDown(mouse_event) => {
                 if mouse_event.button.is_left() {
-                    if let Some((index, status)) =
-                        self.hit_test(ctx, data, mouse_event)
-                    {
+                    if let Some((index, status)) = self.hit_test(mouse_event) {
                         if !self.installed {
                             if let Some((_, volt)) =
                                 data.plugin.volts.volts.get_index(index)

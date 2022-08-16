@@ -32,7 +32,6 @@ pub struct NewPluginCatalog {
     workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
     new_plugins: HashMap<PluginId, PluginServerRpcHandler>,
-    disabled_volts: Vec<String>,
     plugin_configurations: HashMap<String, serde_json::Value>,
 }
 
@@ -46,7 +45,6 @@ impl NewPluginCatalog {
         let plugin = Self {
             workspace: workspace.clone(),
             plugin_rpc: plugin_rpc.clone(),
-            disabled_volts: disabled_volts.clone(),
             plugin_configurations: plugin_configurations.clone(),
             new_plugins: HashMap::new(),
         };

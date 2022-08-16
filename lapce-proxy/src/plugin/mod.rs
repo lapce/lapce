@@ -10,8 +10,8 @@ use jsonrpc_lite::{Id, JsonRpc};
 use lapce_rpc::counter::Counter;
 use lapce_rpc::plugin::{PluginDescription, PluginId, VoltInfo, VoltMetadata};
 use lapce_rpc::proxy::ProxyRpcHandler;
-use lapce_rpc::style::{LineStyle, SemanticStyles};
-use lapce_rpc::{RequestId, RpcError, RpcMessage};
+use lapce_rpc::style::LineStyle;
+use lapce_rpc::{RequestId, RpcError};
 use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{
     CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
@@ -25,11 +25,10 @@ use lsp_types::{
     DocumentFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
     FormattingOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverParams, InlayHint, InlayHintParams, Location, PartialResultParams,
-    Position, Range, ReferenceContext, ReferenceParams, SemanticToken,
-    SemanticTokens, SemanticTokensParams, SemanticTokensResult, SymbolInformation,
-    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit,
-    Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
-    WorkspaceSymbolParams,
+    Position, Range, ReferenceContext, ReferenceParams, SemanticTokens,
+    SemanticTokensParams, SymbolInformation, TextDocumentIdentifier,
+    TextDocumentItem, TextDocumentPositionParams, TextEdit, Url,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceSymbolParams,
 };
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
@@ -37,15 +36,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
-use toml_edit::easy as toml;
-use wasmer::Store;
-use wasmer::WasmerEnv;
-use wasmer_wasi::WasiEnv;
 use xi_rope::{Rope, RopeDelta};
 
 use crate::buffer::language_id_from_path;
@@ -700,11 +695,6 @@ impl PluginCatalogRpcHandler {
     pub fn start_volt(&self, volt: VoltInfo) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::StartVolt(volt))
     }
-}
-
-enum PluginTransmissionMessage {
-    Initialize,
-    Stop,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

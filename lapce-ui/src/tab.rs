@@ -17,8 +17,8 @@ use lapce_core::{
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
-        PluginLoadingStatus, LAPCE_COMMAND, LAPCE_OPEN_FILE, LAPCE_OPEN_FOLDER,
-        LAPCE_SAVE_FILE_AS, LAPCE_UI_COMMAND,
+        LAPCE_COMMAND, LAPCE_OPEN_FILE, LAPCE_OPEN_FOLDER, LAPCE_SAVE_FILE_AS,
+        LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
     config::{Config, LapceTheme},
@@ -36,10 +36,9 @@ use lapce_data::{
         PanelContainerPosition, PanelKind, PanelPosition, PanelResizePosition,
         PanelStyle,
     },
-    plugin::PluginLoadStatus,
     proxy::path_from_url,
 };
-use lapce_rpc::{plugin::PluginDescription, proxy::CoreProxyResponse};
+use lapce_rpc::proxy::CoreProxyResponse;
 use lsp_types::DiagnosticSeverity;
 use xi_rope::Rope;
 

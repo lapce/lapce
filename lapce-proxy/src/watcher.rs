@@ -60,7 +60,6 @@ impl FileWatcher {
         let (tx_event, rx_event) = unbounded();
 
         let state = Arc::new(Mutex::new(WatcherState::default()));
-        let state_clone = state.clone();
 
         let inner = recommended_watcher(tx_event).expect("watcher should spawn");
 
@@ -201,6 +200,12 @@ impl FileWatcher {
         let mut state = self.state.lock();
         let WatcherState { ref mut events, .. } = *state;
         std::mem::take(events)
+    }
+}
+
+impl Default for FileWatcher {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
