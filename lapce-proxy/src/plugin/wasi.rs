@@ -9,7 +9,6 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use home::home_dir;
 use jsonrpc_lite::Params;
 use lapce_rpc::{
     plugin::{PluginId, VoltInfo, VoltMetadata},
@@ -28,7 +27,7 @@ use wasmer::{ChainableNamedResolver, ImportObject, Store, WasmerEnv};
 use wasmer_wasi::{Pipe, WasiEnv, WasiState};
 use xi_rope::{Rope, RopeDelta};
 
-use crate::plugin::psp::PluginServerRpcHandler;
+use crate::{directory::Directory, plugin::psp::PluginServerRpcHandler};
 
 use super::{
     psp::{
@@ -191,16 +190,16 @@ pub fn load_all_volts(
 }
 
 pub fn find_all_volts() -> Vec<VoltMetadata> {
-    let home = home_dir().unwrap();
-    let path = home.join(".lapce").join("plugins");
-    path.read_dir()
-        .map(|dir| {
-            dir.filter_map(|result| {
-                let entry = result.ok()?;
-                let path = entry.path().join("volt.toml");
-                load_volt(&path).ok()
+    Directory::plugins_directory()
+        .and_then(|d| {
+            d.read_dir().ok().map(|dir| {
+                dir.filter_map(|result| {
+                    let entry = result.ok()?;
+                    let path = entry.path().join("volt.toml");
+                    load_volt(&path).ok()
+                })
+                .collect()
             })
-            .collect()
         })
         .unwrap_or_default()
 }
@@ -245,10 +244,8 @@ pub fn start_volt_from_info(
     catalog_rpc: PluginCatalogRpcHandler,
     volt: VoltInfo,
 ) -> Result<()> {
-    let home = home_dir().unwrap();
-    let path = home
-        .join(".lapce")
-        .join("plugins")
+    let path = Directory::plugins_directory()
+        .ok_or_else(|| anyhow!("can't get plugin directory"))?
         .join(volt.id())
         .join("volt.toml");
     let meta = load_volt(&path)?;

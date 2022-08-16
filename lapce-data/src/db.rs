@@ -8,9 +8,9 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
-use directories::ProjectDirs;
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
 
+use lapce_proxy::directory::Directory;
 use serde::{Deserialize, Serialize};
 use xi_rope::Rope;
 
@@ -322,13 +322,9 @@ impl EditorInfo {
 
 impl LapceDb {
     pub fn new() -> Result<Self> {
-        let proj_dirs = ProjectDirs::from("", "", "Lapce")
-            .ok_or_else(|| anyhow!("can't find project dirs"))?;
-        let path = proj_dirs.config_dir().join(if !cfg!(debug_assertions) {
-            "lapce.db"
-        } else {
-            "debug-lapce.db"
-        });
+        let path = Directory::config_directory()
+            .ok_or_else(|| anyhow!("can't get config directory"))?
+            .join("lapce.db");
         let (save_tx, save_rx) = unbounded();
 
         let sled_db = sled::Config::default()

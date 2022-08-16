@@ -4,11 +4,11 @@ pub mod psp;
 pub mod wasi;
 
 use anyhow::{anyhow, Result};
-use directories::ProjectDirs;
-use hotwatch::Hotwatch;
-use jsonrpc_lite::{Id, JsonRpc};
-use lapce_rpc::counter::Counter;
-use lapce_rpc::plugin::{PluginDescription, PluginId, VoltInfo, VoltMetadata};
+use crossbeam_channel::{Receiver, Sender};
+use dyn_clone::DynClone;
+use jsonrpc_lite::{Id, };
+use lapce_rpc::core::CoreRpcHandler;
+use lapce_rpc::plugin::{PluginId, VoltInfo, VoltMetadata};
 use lapce_rpc::proxy::ProxyRpcHandler;
 use lapce_rpc::style::LineStyle;
 use lapce_rpc::{RequestId, RpcError};
@@ -41,16 +41,16 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
+use wasmer_wasi::WasiEnv;
 use xi_rope::{Rope, RopeDelta};
 
 use crate::buffer::language_id_from_path;
-use crate::dispatch::Dispatcher;
-use crate::lsp::{LspRpcHandler, NewLspClient};
-use crate::lsp::{
-    LspRpcHandler, NewLspClient, PluginHandlerNotification, PluginServerHandler,
-    PluginServerRpc, PluginServerRpcHandler,
-};
-use crate::{dispatch::Dispatcher, APPLICATION_NAME};
+use crate::directory::Directory;
+use crate::APPLICATION_NAME;
+
+use self::catalog::NewPluginCatalog;
+use self::psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback};
+use self::wasi::{load_volt, start_volt};
 
 pub type PluginName = String;
 
@@ -738,8 +738,9 @@ pub fn download_volt(volt: VoltInfo, wasm: bool) -> Result<VoltMetadata> {
     }
 
     let id = volt.id();
-    let home = home_dir().ok_or_else(|| anyhow!("can't find home"))?;
-    let path = home.join(".lapce").join("plugins").join(&id);
+    let path = Directory::plugins_directory()
+        .ok_or_else(|| anyhow!("can't get plugin directory"))?
+        .join(&id);
     let _ = fs::remove_dir_all(&path);
 
     fs::create_dir_all(&path)?;
@@ -811,199 +812,4 @@ pub fn remove_volt(
     fs::remove_dir_all(path)?;
     catalog_rpc.core_rpc.volt_removed(volt.info());
     Ok(())
-}
-
-// fn host_handle_notification(plugin_env: &PluginEnv) {
-//     let notification: Result<PluginNotification> =
-//         wasi_read_object(&plugin_env.wasi_env);
-//     if let Ok(notification) = notification {
-//         match notification {
-//             PluginNotification::StartLspServer {
-//                 exec_path,
-//                 language_id,
-//                 options,
-//                 system_lsp,
-//             } => {
-//                 let exec_path = if system_lsp.unwrap_or(false) {
-//                     // System LSP should be handled by PATH during
-//                     // process creation, so we forbid anything that
-//                     // is not just an executable name
-//                     match PathBuf::from(&exec_path).file_name() {
-//                         Some(v) => v.to_str().unwrap().to_string(),
-//                         None => return,
-//                     }
-//                 } else {
-//                     plugin_env
-//                         .desc
-//                         .dir
-//                         .clone()
-//                         .unwrap()
-//                         .join(&exec_path)
-//                         .to_str()
-//                         .unwrap()
-//                         .to_string()
-//                 };
-//                 plugin_env.dispatcher.lsp.lock().start_server(
-//                     &exec_path,
-//                     &language_id,
-//                     options,
-//                 );
-//             }
-//             PluginNotification::DownloadFile { url, path } => {
-//                 let mut resp = reqwest::blocking::get(url).expect("request failed");
-//                 let mut out = fs::File::create(
-//                     plugin_env.desc.dir.clone().unwrap().join(path),
-//                 )
-//                 .expect("failed to create file");
-//                 std::io::copy(&mut resp, &mut out).expect("failed to copy content");
-//             }
-//             PluginNotification::LockFile { path } => {
-//                 let path = plugin_env.desc.dir.clone().unwrap().join(path);
-//                 let mut n = 0;
-//                 loop {
-//                     if let Ok(_file) = fs::OpenOptions::new()
-//                         .write(true)
-//                         .create_new(true)
-//                         .open(&path)
-//                     {
-//                         return;
-//                     }
-//                     if n > 10 {
-//                         return;
-//                     }
-//                     n += 1;
-//                     let mut hotwatch =
-//                         Hotwatch::new().expect("hotwatch failed to initialize!");
-//                     let (tx, rx) = crossbeam_channel::bounded(1);
-//                     let _ = hotwatch.watch(&path, move |_event| {
-//                         #[allow(deprecated)]
-//                         let _ = tx.send(0);
-//                     });
-//                     let _ = rx.recv_timeout(Duration::from_secs(10));
-//                 }
-//             }
-//             PluginNotification::MakeFileExecutable { path } => {
-//                 let _ = Command::new("chmod")
-//                     .arg("+x")
-//                     .arg(&plugin_env.desc.dir.clone().unwrap().join(path))
-//                     .output();
-//             }
-//         }
-//     }
-// }
-
-pub fn wasi_read_string(wasi_env: &WasiEnv) -> Result<String> {
-    let mut state = wasi_env.state();
-    let wasi_file = state
-        .fs
-        .stdout_mut()?
-        .as_mut()
-        .ok_or_else(|| anyhow!("can't get stdout"))?;
-    let mut buf = String::new();
-    wasi_file.read_to_string(&mut buf)?;
-    Ok(buf)
-}
-
-pub fn wasi_read_object<T: DeserializeOwned>(wasi_env: &WasiEnv) -> Result<T> {
-    let json = wasi_read_string(wasi_env)?;
-    Ok(serde_json::from_str(&json)?)
-}
-
-pub fn wasi_write_string(wasi_env: &WasiEnv, buf: &str) {
-    let mut state = wasi_env.state();
-    let wasi_file = state.fs.stdin_mut().unwrap().as_mut().unwrap();
-    writeln!(wasi_file, "{}\r", buf).unwrap();
-}
-
-pub fn wasi_write_object(wasi_env: &WasiEnv, object: &(impl Serialize + ?Sized)) {
-    wasi_write_string(wasi_env, &serde_json::to_string(&object).unwrap());
-}
-
-pub struct PluginHandler {}
-
-fn find_all_plugins() -> Vec<PathBuf> {
-    let mut plugin_paths = Vec::new();
-    let path = plugins_directory().expect("Couldn't obtain plugin dirs");
-    let _ = path.read_dir().map(|dir| {
-        dir.flat_map(|item| item.map(|p| p.path()).ok())
-            .map(|dir| dir.join("plugin.toml"))
-            .filter(|f| f.exists())
-            .for_each(|f| plugin_paths.push(f))
-    });
-    plugin_paths
-}
-
-fn load_plugin(path: &Path) -> Result<PluginDescription> {
-    let mut file = fs::File::open(&path)?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-    let mut plugin: PluginDescription = toml::from_str(&contents)?;
-    plugin.dir = Some(path.parent().unwrap().canonicalize()?);
-    plugin.wasm = plugin.wasm.as_ref().and_then(|wasm| {
-        Some(
-            path.parent()?
-                .join(wasm)
-                .canonicalize()
-                .ok()?
-                .to_str()?
-                .to_string(),
-        )
-    });
-    plugin.themes = plugin.themes.as_ref().map(|themes| {
-        themes
-            .iter()
-            .filter_map(|theme| {
-                Some(
-                    path.parent()?
-                        .join(theme)
-                        .canonicalize()
-                        .ok()?
-                        .to_str()?
-                        .to_string(),
-                )
-            })
-            .collect()
-    });
-    Ok(plugin)
-}
-
-pub fn plugins_directory() -> Option<PathBuf> {
-    match ProjectDirs::from("dev", "lapce", APPLICATION_NAME) {
-        Some(dir) => {
-            if !dir.data_local_dir().exists() {
-                match std::fs::create_dir_all(dir.data_local_dir()) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        log::error!(target: "lapce_proxy::plugin::plugins_directory", "{e}")
-                    }
-                };
-            }
-            Some(dir.data_local_dir().join("plugins"))
-        }
-        None => None,
-    }
-}
-
-pub fn config_directory() -> Option<PathBuf> {
-    match ProjectDirs::from("dev", "lapce", APPLICATION_NAME) {
-        Some(dir) => {
-            if !dir.config_dir().exists() {
-                match std::fs::create_dir_all(dir.config_dir()) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        log::error!(target: "lapce_proxy::plugin::config_directory", "{e}")
-                    }
-                };
-            }
-            Some(dir.config_dir().to_path_buf())
-        }
-        None => None,
-    }
-}
-
-pub fn send_plugin_notification(
-    plugin_sender: &Sender<PluginRpcMessage>,
-    notification: NewPluginNotification,
-) {
-    let _ = plugin_sender.send(RpcMessage::Notification(notification));
 }

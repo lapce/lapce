@@ -5,13 +5,12 @@ use std::{
 };
 
 use anyhow::Result;
-use directories::ProjectDirs;
 use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
     Color, ExtEventSink, FontFamily, Size, Target,
 };
 use indexmap::IndexMap;
-use lapce_proxy::plugin::wasi::find_all_volts;
+use lapce_proxy::{directory::Directory, plugin::wasi::find_all_volts};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -738,7 +737,7 @@ impl Config {
     }
 
     fn load_local_themes() -> Option<HashMap<String, (String, config::Config)>> {
-        let themes_folder = Config::themes_directory()?;
+        let themes_folder = Directory::themes_directory()?;
         let themes: HashMap<String, (String, config::Config)> =
             std::fs::read_dir(themes_folder)
                 .ok()?
@@ -808,7 +807,7 @@ impl Config {
     }
 
     pub fn keymaps_file() -> Option<PathBuf> {
-        let path = Self::config_directory()?.join("keymaps.toml");
+        let path = Directory::config_directory()?.join("keymaps.toml");
 
         if !path.exists() {
             let _ = std::fs::OpenOptions::new()
@@ -825,7 +824,7 @@ impl Config {
 
         let file_name = format!("{time}.log");
 
-        let path = Self::logs_directory()?.join(file_name);
+        let path = Directory::logs_directory()?.join(file_name);
 
         if !path.exists() {
             let _ = std::fs::OpenOptions::new()
@@ -838,7 +837,7 @@ impl Config {
     }
 
     pub fn settings_file() -> Option<PathBuf> {
-        let path = Self::config_directory()?.join("settings.toml");
+        let path = Directory::config_directory()?.join("settings.toml");
 
         if !path.exists() {
             let _ = std::fs::OpenOptions::new()
@@ -848,101 +847,6 @@ impl Config {
         }
 
         Some(path)
-    }
-
-    /// Get the path to logs directory
-    /// Each log file is for individual application startup
-    pub fn logs_directory() -> Option<PathBuf> {
-        if let Some(dir) = Self::data_local_directory() {
-            let dir = dir.join("logs");
-            if !dir.exists() {
-                let _ = std::fs::create_dir(&dir);
-            }
-
-            Some(dir)
-        } else {
-            None
-        }
-    }
-
-    /// Directory to store proxy executables used on local
-    /// host as well, as ones uploaded to remote host when
-    /// connecting
-    pub fn proxy_directory() -> Option<PathBuf> {
-        if let Some(dir) = Self::data_local_directory() {
-            let dir = dir.join("proxy");
-            if !dir.exists() {
-                let _ = std::fs::create_dir(&dir);
-            }
-
-            Some(dir)
-        } else {
-            None
-        }
-    }
-
-    /// Get the path to the themes folder
-    /// Themes are stored within as individual toml files
-    pub fn themes_directory() -> Option<PathBuf> {
-        if let Some(dir) = Self::data_local_directory() {
-            let dir = dir.join("themes");
-            if !dir.exists() {
-                let _ = std::fs::create_dir(&dir);
-            }
-
-            Some(dir)
-        } else {
-            None
-        }
-    }
-
-    // Get the path to plugins directory
-    // Each plugin has own directory that contains
-    // metadata file and plugin wasm
-    pub fn plugins_directory() -> Option<PathBuf> {
-        if let Some(dir) = Self::data_local_directory() {
-            let dir = dir.join("plugins");
-            if !dir.exists() {
-                let _ = std::fs::create_dir(&dir);
-            }
-
-            Some(dir)
-        } else {
-            None
-        }
-    }
-
-    // Config directory contain only configuration files
-    pub fn config_directory() -> Option<PathBuf> {
-        match ProjectDirs::from("dev", "lapce", APPLICATION_NAME) {
-            Some(dir) => {
-                let dir = dir.config_dir();
-                if !dir.exists() {
-                    let _ = std::fs::create_dir_all(dir);
-                }
-
-                Some(dir.to_path_buf())
-            }
-            None => None,
-        }
-    }
-
-    // Get path of local data directory
-    // Local data directory differs from data directory
-    // on some platforms and is not transferred across
-    // machines
-    pub fn data_local_directory() -> Option<PathBuf> {
-        match ProjectDirs::from("dev", "lapce", APPLICATION_NAME) {
-            Some(dir) => {
-                let dir = dir.data_local_dir();
-                if !dir.exists() {
-                    let _ = std::fs::create_dir_all(dir);
-                }
-
-                Some(dir.to_path_buf())
-            }
-            None => None,
-        }
     }
 
     fn get_file_table() -> Option<toml_edit::Document> {
@@ -1236,9 +1140,7 @@ impl Config {
     }
 
     pub fn recent_workspaces_file() -> Option<PathBuf> {
-        let proj_dirs = ProjectDirs::from("", "", "Lapce")?;
-        let _ = std::fs::create_dir_all(proj_dirs.config_dir());
-        let path = proj_dirs.config_dir().join("workspaces.toml");
+        let path = Directory::config_directory()?.join("workspaces.toml");
         {
             let _ = std::fs::OpenOptions::new()
                 .create_new(true)

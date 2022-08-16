@@ -1,4 +1,5 @@
 pub mod buffer;
+pub mod directory;
 pub mod dispatch;
 pub mod plugin;
 pub mod terminal;
@@ -33,9 +34,9 @@ pub const APPLICATION_NAME: &str = "Lapce";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn mainloop() {
-    let (sender, receiver) = lapce_rpc::stdio();
-    let dispatcher = Dispatcher::new(sender);
-    let _ = dispatcher.mainloop(receiver);
+    // let (sender, receiver) = lapce_rpc::stdio();
+    // let dispatcher = Dispatcher::new(sender);
+    // let _ = dispatcher.mainloop(receiver);
 }
 
 struct CoreStdout {

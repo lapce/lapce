@@ -3,10 +3,6 @@ use crate::plugin::catalog::NewPluginCatalog;
 use crate::plugin::{remove_volt, PluginCatalogRpcHandler};
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
-use crate::{
-    buffer::{get_mod_time, load_file, Buffer},
-    plugin::plugins_directory,
-};
 use alacritty_terminal::event_loop::Msg;
 use alacritty_terminal::term::SizeInfo;
 use anyhow::{anyhow, Context, Result};

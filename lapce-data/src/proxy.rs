@@ -12,11 +12,12 @@ use crossbeam_channel::Sender;
 use druid::Target;
 use druid::{ExtEventSink, WidgetId};
 use flate2::read::GzDecoder;
+use lapce_proxy::directory::Directory;
+use lapce_proxy::dispatch::NewDispatcher;
+use lapce_proxy::APPLICATION_NAME;
 pub use lapce_proxy::VERSION;
-use lapce_proxy::{dispatch::Dispatcher, APPLICATION_NAME};
-use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
 use lapce_rpc::core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler};
-use lapce_rpc::proxy::{CoreProxyResponse, ProxyRpcHandler};
+use lapce_rpc::proxy::{CoreProxyNotification, CoreProxyResponse, ProxyRpcHandler};
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::RequestId;
 use lapce_rpc::{RpcMessage, RpcObject};
@@ -344,7 +345,7 @@ impl LapceProxy {
                 .status()?,
         };
         if !cmd.success() {
-            let local_proxy_file = Config::proxy_directory()
+            let local_proxy_file = Directory::proxy_directory()
                 .ok_or_else(|| anyhow!("can't find proxy directory"))?
                 .join(&proxy_filename);
             if !local_proxy_file.exists() {
@@ -470,41 +471,6 @@ impl LapceProxy {
             }
         };
         Ok(spec)
-    }
-
-    pub fn initialize(&self, workspace: Option<PathBuf>) {
-        self.new_rpc
-            .send_core_notification(CoreProxyNotification::Initialize { workspace });
-    }
-
-    pub fn terminal_close(&self, term_id: TermId) {
-        self.rpc.send_rpc_notification(
-            "terminal_close",
-            &json!({
-                "term_id": term_id,
-            }),
-        )
-    }
-
-    pub fn terminal_resize(&self, term_id: TermId, width: usize, height: usize) {
-        self.rpc.send_rpc_notification(
-            "terminal_resize",
-            &json!({
-                "term_id": term_id,
-                "width": width,
-                "height": height,
-            }),
-        )
-    }
-
-    pub fn terminal_write(&self, term_id: TermId, content: &str) {
-        self.rpc.send_rpc_notification(
-            "terminal_write",
-            &json!({
-                "term_id": term_id,
-                "content": content,
-            }),
-        )
     }
 
     pub fn new_terminal(
@@ -708,22 +674,6 @@ pub fn path_from_url(url: &Url) -> PathBuf {
 #[cfg(not(windows))]
 pub fn path_from_url(url: &Url) -> PathBuf {
     PathBuf::from(url.path())
-}
-
-/// Create a callback that receives an unparsed json result
-/// Then parse it to the given type and pass it to the callback
-/// Most callbacks currently don't need to do anything beyond parsing it to a specific type
-fn box_json_cb<
-    T: DeserializeOwned,
-    F: FnOnce(Result<T, RequestError>) + Send + 'static,
->(
-    f: F,
-) -> Box<dyn Callback> {
-    Box::new(|res: Result<Value, Value>| {
-        f(res.map_err(RequestError::Rpc).and_then(|x| {
-            serde_json::from_value::<T>(x).map_err(RequestError::Deser)
-        }))
-    })
 }
 
 fn parse_arch(arch: &str) -> HostArchitecture {

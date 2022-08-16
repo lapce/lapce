@@ -29,6 +29,7 @@ use lapce_core::{
     register::Register,
     selection::Selection,
 };
+use lapce_proxy::directory::Directory;
 use lapce_rpc::{
     buffer::BufferId, proxy::CoreProxyResponse, source_control::FileDiff,
     terminal::TermId,
@@ -336,13 +337,13 @@ impl LapceWindowData {
         if let Some(path) = Config::settings_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-        if let Some(path) = Config::themes_directory() {
+        if let Some(path) = Directory::themes_directory() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
         if let Some(path) = Config::keymaps_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-        if let Some(path) = Config::plugins_directory() {
+        if let Some(path) = Directory::plugins_directory() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
         Self {
@@ -2338,7 +2339,7 @@ impl LapceMainSplitData {
             EditorTabChild::Editor(view_id, _, _) => {
                 let editor = self.editors.get(&view_id).unwrap();
                 if let BufferContent::File(ref path) = editor.content {
-                    if let Some(folder) = Config::themes_directory() {
+                    if let Some(folder) = Directory::themes_directory() {
                         if let Some(file_name) = path.file_name() {
                             let _ = std::fs::copy(path, folder.join(file_name));
                         }
