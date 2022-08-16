@@ -1,10 +1,10 @@
 use std::{
-    collections::HashMap,
-    default, fs,
-    io::Read,
+    collections::{HashMap, VecDeque},
+    fs,
+    io::{Read, Seek, Write},
     path::{Path, PathBuf},
-    process, result,
-    sync::Arc,
+    process,
+    sync::{Arc, RwLock},
     thread,
 };
 
@@ -23,8 +23,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use psp_types::Request;
 use toml_edit::easy as toml;
-use wasmer::{ChainableNamedResolver, ImportObject, Store, WasmerEnv};
-use wasmer_wasi::{Pipe, WasiEnv, WasiState};
+use wasmtime_wasi::WasiCtxBuilder;
 use xi_rope::{Rope, RopeDelta};
 
 use crate::{directory::Directory, plugin::psp::PluginServerRpcHandler};
@@ -37,19 +36,48 @@ use super::{
     PluginCatalogRpcHandler,
 };
 
-#[derive(WasmerEnv, Clone)]
-pub struct PluginEnv {
-    id: PluginId,
-    plugin_rpc: PluginCatalogRpcHandler,
-    rpc: PluginServerRpcHandler,
-    wasi_env: WasiEnv,
-    meta: VoltMetadata,
+#[derive(Default)]
+pub struct WasiPipe {
+    buffer: VecDeque<u8>,
+}
+
+impl WasiPipe {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Read for WasiPipe {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let amt = std::cmp::min(buf.len(), self.buffer.len());
+        for (i, byte) in self.buffer.drain(..amt).enumerate() {
+            buf[i] = byte;
+        }
+        Ok(amt)
+    }
+}
+
+impl Write for WasiPipe {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.buffer.extend(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Seek for WasiPipe {
+    fn seek(&mut self, _pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "can not seek in a pipe",
+        ))
+    }
 }
 
 pub struct Plugin {
     id: PluginId,
-    instance: wasmer::Instance,
-    env: PluginEnv,
     host: PluginHostHandler,
     configurations: Option<serde_json::Value>,
 }
@@ -184,7 +212,9 @@ pub fn load_all_volts(
         let configurations = volt_configurations.get(&meta.name).cloned();
         let plugin_rpc = plugin_rpc.clone();
         thread::spawn(move || {
-            let _ = start_volt(workspace, configurations, plugin_rpc, meta);
+            if let Err(e) = start_volt(workspace, configurations, plugin_rpc, meta) {
+                eprintln!("start volt error {e}");
+            }
         });
     }
 }
@@ -259,42 +289,58 @@ pub fn start_volt(
     plugin_rpc: PluginCatalogRpcHandler,
     meta: VoltMetadata,
 ) -> Result<()> {
-    let store = Store::default();
-    let module = wasmer::Module::from_file(
-        &store,
+    let engine = wasmtime::Engine::default();
+    let module = wasmtime::Module::from_file(
+        &engine,
         meta.wasm
             .as_ref()
             .ok_or_else(|| anyhow!("no wasm in plugin"))?,
     )?;
+    let mut linker = wasmtime::Linker::new(&engine);
+    wasmtime_wasi::add_to_linker(&mut linker, |s| s)?;
 
-    let output = Pipe::new();
-    let input = Pipe::new();
-    let mut wasi_env = WasiState::new("Lapce")
-        .map_dir("/", meta.dir.clone().unwrap())?
-        .stdin(Box::new(input))
-        .stdout(Box::new(output))
-        // .envs(env)
-        .finalize()?;
-    let wasi = wasi_env.import_object(&module)?;
+    let stdin = Arc::new(RwLock::new(WasiPipe::new()));
+    let stdout = Arc::new(RwLock::new(WasiPipe::new()));
+    let wasi = WasiCtxBuilder::new()
+        .inherit_env()?
+        .stdin(Box::new(wasi_common::pipe::ReadPipe::from_shared(
+            stdin.clone(),
+        )))
+        .stdout(Box::new(wasi_common::pipe::WritePipe::from_shared(
+            stdout.clone(),
+        )))
+        .build();
+    let mut store = wasmtime::Store::new(&engine, wasi);
 
     let (io_tx, io_rx) = crossbeam_channel::unbounded();
     let rpc = PluginServerRpcHandler::new(meta.name.clone(), io_tx);
 
-    let id = PluginId::next();
-    let plugin_env = PluginEnv {
-        id,
-        rpc: rpc.clone(),
-        wasi_env,
-        plugin_rpc: plugin_rpc.clone(),
-        meta: meta.clone(),
-    };
-    let lapce = lapce_exports(&store, &plugin_env);
-    let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
+    let local_rpc = rpc.clone();
+    linker.func_wrap("lapce", "host_handle_rpc", move || {
+        if let Ok(msg) = wasi_read_string(&stdout) {
+            handle_plugin_server_message(&local_rpc, &msg);
+        }
+    })?;
+    linker.module(&mut store, "", &module)?;
+    let handle_rpc = linker
+        .get(&mut store, "", "handle_rpc")
+        .ok_or_else(|| anyhow!("no function in wasm"))?
+        .into_func()
+        .ok_or_else(|| anyhow!("can't convet to function"))?
+        .typed::<(), (), _>(&mut store)?;
 
+    thread::spawn(move || {
+        for msg in io_rx {
+            {
+                let _ = writeln!(stdin.write().unwrap(), "{}\r", msg);
+            }
+            let _ = handle_rpc.call(&mut store, ());
+        }
+    });
+
+    let id = PluginId::next();
     let mut plugin = Plugin {
         id,
-        instance,
-        env: plugin_env.clone(),
         host: PluginHostHandler::new(
             workspace,
             meta.dir.clone(),
@@ -305,21 +351,6 @@ pub fn start_volt(
         ),
         configurations,
     };
-
-    let wasi_env = plugin_env.wasi_env;
-    let handle_rpc = plugin
-        .instance
-        .exports
-        .get_function("handle_rpc")
-        .unwrap()
-        .clone();
-    thread::spawn(move || {
-        for msg in io_rx {
-            wasi_write_string(&wasi_env, &msg);
-            let _ = handle_rpc.call(&[]);
-        }
-    });
-
     let local_rpc = rpc.clone();
     thread::spawn(move || {
         local_rpc.mainloop(&mut plugin);
@@ -328,46 +359,11 @@ pub fn start_volt(
     if plugin_rpc.plugin_server_loaded(rpc.clone()).is_err() {
         rpc.shutdown();
     }
-
     Ok(())
 }
 
-pub(crate) fn lapce_exports(store: &Store, plugin_env: &PluginEnv) -> ImportObject {
-    macro_rules! lapce_export {
-        ($($host_function:ident),+ $(,)?) => {
-            wasmer::imports! {
-                "lapce" => {
-                    $(stringify!($host_function) =>
-                        wasmer::Function::new_native_with_env(store, plugin_env.clone(), $host_function),)+
-                }
-            }
-        }
-    }
-
-    lapce_export! {
-        host_handle_rpc,
-    }
-}
-
-fn host_handle_rpc(plugin_env: &PluginEnv) {
-    let msg = wasi_read_string(&plugin_env.wasi_env).unwrap();
-    handle_plugin_server_message(&plugin_env.rpc, &msg);
-}
-
-fn wasi_write_string(wasi_env: &WasiEnv, buf: &str) {
-    let mut state = wasi_env.state();
-    let wasi_file = state.fs.stdin_mut().unwrap().as_mut().unwrap();
-    writeln!(wasi_file, "{}\r", buf).unwrap();
-}
-
-fn wasi_read_string(wasi_env: &WasiEnv) -> Result<String> {
-    let mut state = wasi_env.state();
-    let wasi_file = state
-        .fs
-        .stdout_mut()?
-        .as_mut()
-        .ok_or_else(|| anyhow!("can't get stdout"))?;
+fn wasi_read_string(stdout: &Arc<RwLock<WasiPipe>>) -> Result<String> {
     let mut buf = String::new();
-    wasi_file.read_to_string(&mut buf)?;
+    stdout.write().unwrap().read_to_string(&mut buf)?;
     Ok(buf)
 }

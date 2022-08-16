@@ -274,7 +274,6 @@ impl LapceProxy {
                     let mut dispatcher = NewDispatcher::new(core_rpc, proxy_rpc);
                     let proxy_rpc = dispatcher.proxy_rpc.clone();
                     proxy_rpc.mainloop(&mut dispatcher);
-                    println!("proxy rpc stopped");
                 });
             }
             LapceWorkspaceType::RemoteSSH(user, host) => {
