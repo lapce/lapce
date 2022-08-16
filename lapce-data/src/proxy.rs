@@ -17,7 +17,7 @@ use lapce_proxy::dispatch::NewDispatcher;
 use lapce_proxy::APPLICATION_NAME;
 pub use lapce_proxy::VERSION;
 use lapce_rpc::core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler};
-use lapce_rpc::proxy::{CoreProxyNotification, CoreProxyResponse, ProxyRpcHandler};
+use lapce_rpc::proxy::{CoreProxyResponse, ProxyRpcHandler};
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::RequestId;
 use lapce_rpc::{RpcMessage, RpcObject};
@@ -29,7 +29,6 @@ use xi_rope::Rope;
 
 use crate::command::LapceUICommand;
 use crate::command::LAPCE_UI_COMMAND;
-use crate::config::Config;
 use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::terminal::RawTerminal;
 

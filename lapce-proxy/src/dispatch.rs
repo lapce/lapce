@@ -6,7 +6,7 @@ use crate::watcher::{FileWatcher, Notify, WatchToken};
 use alacritty_terminal::event_loop::Msg;
 use alacritty_terminal::term::SizeInfo;
 use anyhow::{anyhow, Context, Result};
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::Sender;
 use git2::build::CheckoutBuilder;
 use git2::{DiffOptions, Repository};
 use grep_matcher::Matcher;
