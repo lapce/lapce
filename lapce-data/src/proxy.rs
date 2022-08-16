@@ -364,6 +364,7 @@ impl LapceProxy {
             remote
                 .command_builder()
                 .arg("mkdir")
+                .arg("-p")
                 .arg(remote_proxy_path)
                 .status()?;
 
