@@ -275,11 +275,6 @@ impl ProxyHandler for NewDispatcher {
                 };
                 self.respond_rpc(id, result);
             }
-            GetCompletion {
-                request_id,
-                buffer_id,
-                position,
-            } => {}
             GlobalSearch { pattern } => {
                 let workspace = self.workspace.clone();
                 let proxy_rpc = self.proxy_rpc.clone();
@@ -1144,17 +1139,6 @@ impl Dispatcher {
                         }));
                     }
                 }
-            }
-            GetCompletion {
-                buffer_id,
-                position,
-                request_id,
-            } => {
-                let buffers = self.buffers.lock();
-                let buffer = buffers.get(&buffer_id).unwrap();
-                self.lsp
-                    .lock()
-                    .get_completion(id, request_id, buffer, position);
             }
             CompletionResolve {
                 plugin_id,

@@ -34,8 +34,6 @@ use lapce_rpc::{
     source_control::FileDiff, terminal::TermId,
 };
 
-use lapce_proxy::plugin::PluginCatalog;
-
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdit};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};

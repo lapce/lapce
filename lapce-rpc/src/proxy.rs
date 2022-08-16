@@ -44,11 +44,6 @@ pub enum CoreProxyRequest {
     BufferHead {
         path: PathBuf,
     },
-    GetCompletion {
-        request_id: usize,
-        buffer_id: BufferId,
-        position: Position,
-    },
     GlobalSearch {
         pattern: String,
     },
