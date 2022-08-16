@@ -169,7 +169,7 @@ impl LapceData {
             let window = LapceWindowData::new(
                 keypress.clone(),
                 panel_orders.clone(),
-                event_sink.clone(),
+                event_sink,
                 &info,
                 db.clone(),
             );

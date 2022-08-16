@@ -3,10 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use anyhow::Result;
 use druid::{ExtEventSink, Target, WidgetId};
 use indexmap::IndexMap;
-use lapce_proxy::plugin::{
-    download_volt,
-    wasi::{find_all_volts, load_volt},
-};
+use lapce_proxy::plugin::{download_volt, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
 use strum_macros::Display;
 
@@ -65,7 +62,6 @@ impl Default for VoltsList {
 
 #[derive(Clone)]
 pub struct PluginData {
-    tab_id: WidgetId,
     pub widget_id: WidgetId,
     pub installed_id: WidgetId,
     pub uninstalled_id: WidgetId,
@@ -95,7 +91,6 @@ impl PluginData {
         });
 
         Self {
-            tab_id,
             widget_id: WidgetId::next(),
             installed_id: WidgetId::next(),
             uninstalled_id: WidgetId::next(),

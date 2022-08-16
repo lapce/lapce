@@ -5,13 +5,12 @@ pub mod terminal;
 pub mod watcher;
 
 use std::{
-    io::{stdin, stdout, BufRead, BufReader, Stdin, Stdout, Write},
+    io::{stdin, stdout, BufRead, BufReader, Stdin, Stdout},
     thread,
 };
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::{Receiver, Sender};
-use dispatch::{Dispatcher, NewDispatcher};
+use dispatch::NewDispatcher;
 use lapce_rpc::{
     core::{
         CoreHandler, CoreNotification, CoreRequest, CoreResponse, CoreRpcHandler,

@@ -13,7 +13,7 @@ use alacritty_terminal::{
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
 use directories::BaseDirs;
-use lapce_rpc::{core::CoreRpcHandler, proxy::ProxyRpcHandler, terminal::TermId};
+use lapce_rpc::{core::CoreRpcHandler, terminal::TermId};
 #[cfg(not(windows))]
 use mio::unix::UnixReady;
 #[allow(deprecated)]
@@ -21,9 +21,6 @@ use mio::{
     channel::{channel, Receiver, Sender},
     Events, PollOpt, Ready,
 };
-use serde_json::json;
-
-use crate::dispatch::Dispatcher;
 
 const READ_BUFFER_SIZE: usize = 0x10_0000;
 

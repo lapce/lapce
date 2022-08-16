@@ -8,7 +8,6 @@ use std::thread;
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use druid::Target;
 use druid::{ExtEventSink, WidgetId};
@@ -17,18 +16,12 @@ pub use lapce_proxy::VERSION;
 use lapce_proxy::{dispatch::Dispatcher, APPLICATION_NAME};
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
 use lapce_rpc::core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler};
-use lapce_rpc::plugin::PluginDescription;
-use lapce_rpc::proxy::{CoreProxyRequest, CoreProxyResponse, ProxyRpcHandler};
-use lapce_rpc::source_control::FileDiff;
+use lapce_rpc::proxy::{CoreProxyResponse, ProxyRpcHandler};
 use lapce_rpc::terminal::TermId;
-use lapce_rpc::{Callback, RpcMessage, RpcObject};
-use lapce_rpc::{ControlFlow, Handler};
-use lapce_rpc::{RequestId, RpcHandler};
-use lsp_types::Position;
+use lapce_rpc::RequestId;
+use lapce_rpc::{RpcMessage, RpcObject};
 use lsp_types::Url;
 use parking_lot::Mutex;
-use serde::de::DeserializeOwned;
-use serde_json::json;
 use serde_json::Value;
 use thiserror::Error;
 use xi_rope::Rope;
@@ -215,102 +208,6 @@ impl CoreHandler for LapceProxy {
     }
 
     fn handle_request(&mut self, _id: RequestId, _rpc: CoreRequest) {}
-}
-
-impl Handler for LapceProxy {
-    type Notification = CoreNotification;
-    type Request = CoreRequest;
-
-    fn handle_notification(&mut self, rpc: Self::Notification) -> ControlFlow {
-        use lapce_rpc::core::CoreNotification::*;
-        match rpc {
-            VoltInstalled { .. } => {}
-            VoltRemoved { .. } => {}
-            OpenFileChanged { path, content } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::OpenFileChanged {
-                        path,
-                        content: Rope::from(content),
-                    },
-                    Target::Widget(self.tab_id),
-                );
-            }
-            ReloadBuffer { path, content, rev } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::ReloadBuffer {
-                        path,
-                        rev,
-                        content: Rope::from(content),
-                    },
-                    Target::Widget(self.tab_id),
-                );
-            }
-            PublishDiagnostics { diagnostics } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::PublishDiagnostics(diagnostics),
-                    Target::Widget(self.tab_id),
-                );
-            }
-            WorkDoneProgress { progress } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::WorkDoneProgress(progress),
-                    Target::Widget(self.tab_id),
-                );
-            }
-            DiffInfo { diff } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateDiffInfo(diff),
-                    Target::Widget(self.tab_id),
-                );
-            }
-            UpdateTerminal { term_id, content } => {
-                let _ = self
-                    .term_tx
-                    .send((term_id, TermEvent::UpdateContent(content)));
-            }
-            CloseTerminal { term_id } => {
-                let _ = self.term_tx.send((term_id, TermEvent::CloseTerminal));
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::CloseTerminal(term_id),
-                    Target::Widget(self.tab_id),
-                );
-            }
-            ProxyConnected {} => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::ProxyUpdateStatus(ProxyStatus::Connected),
-                    Target::Widget(self.tab_id),
-                );
-            }
-            HomeDir { path } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::HomeDir(path),
-                    Target::Widget(self.tab_id),
-                );
-            }
-            ListDir { .. } | DiffFiles { .. } => {}
-            WorkspaceFileChange {} => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::WorkspaceFileChange,
-                    Target::Widget(self.tab_id),
-                );
-            }
-            CompletionResponse { .. } => todo!(),
-        }
-        ControlFlow::Continue
-    }
-
-    fn handle_request(&mut self, _rpc: Self::Request) -> Result<Value, Value> {
-        Err(json!("unimplemented"))
-    }
 }
 
 impl LapceProxy {

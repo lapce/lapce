@@ -1,10 +1,7 @@
-use std::{collections::HashMap, fmt, path::PathBuf, process::Command};
+use std::{collections::HashMap, path::PathBuf, process::Command};
 
 use anyhow::{format_err, Error};
-use serde::{
-    de::{self, MapAccess, SeqAccess, Visitor},
-    Deserialize, Deserializer, Serialize,
-};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::counter::Counter;
