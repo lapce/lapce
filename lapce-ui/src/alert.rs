@@ -161,6 +161,10 @@ impl Widget<LapceTabData> for AlertBoxContent {
                 Arc::make_mut(&mut data.keypress)
                     .key_down(ctx, key_event, &mut focus, env);
             }
+            Event::KeyUp(key_event) => {
+                let mut keypress = data.keypress.clone();
+                Arc::make_mut(&mut keypress).key_up(key_event);
+            }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down_point = mouse_event.pos;
             }

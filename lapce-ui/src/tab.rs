@@ -1769,6 +1769,11 @@ impl Widget<LapceTabData> for LapceTab {
                 data.keypress = keypress;
                 ctx.set_handled();
             }
+            Event::KeyUp(key_event) if !ctx.is_handled() => {
+                let mut keypress = data.keypress.clone();
+                Arc::make_mut(&mut keypress).key_up(key_event);
+                ctx.set_handled();
+            }
             _ => (),
         }
     }

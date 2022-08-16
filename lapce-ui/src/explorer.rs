@@ -450,6 +450,12 @@ impl Widget<LapceTabData> for FileExplorerFileList {
             }
         }
 
+        if let Event::KeyUp(key_ev) = event {
+            let mut keypress = data.keypress.clone();
+            Arc::make_mut(&mut keypress).key_up(key_ev);
+            ctx.set_handled();
+        }
+
         if data.file_explorer.naming.is_some() {
             self.name_edit_input.event(ctx, event, data, env);
             // If the input handled the event, then we just ignore it.

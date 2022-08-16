@@ -313,6 +313,16 @@ impl KeyPressData {
         }
     }
 
+    pub fn key_up(&mut self, key_event: &KeyEvent) -> bool {
+        dbg!(key_event);
+        dbg!(key_event.key == KbKey::Shift);
+        if key_event.key == KbKey::Shift {
+            self.is_shift_down = false;
+        }
+        // Will always mark the event as handled and stop unnecesary propagation.
+        return true;
+    }
+
     pub fn key_down<T: KeyPressFocus>(
         &mut self,
         ctx: &mut EventCtx,

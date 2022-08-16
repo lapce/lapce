@@ -187,16 +187,14 @@ impl LapceEditorTabHeader {
             false => FocusCommand::SplitVertical,
         };
 
-        let command = Command::new(
+        Command::new(
             LAPCE_COMMAND,
             LapceCommand {
                 kind: CommandKind::Focus(focus_command),
                 data: None,
             },
             Target::Widget(self.widget_id),
-        );
-
-        command
+        )
     }
 }
 
@@ -312,6 +310,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                 true => "split-vertical.svg",
                 false => "split-horizontal.svg",
             };
+            dbg!(split_icon);
             let split_command =
                 self.determine_split_command(data.keypress.is_shift_down);
             let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);

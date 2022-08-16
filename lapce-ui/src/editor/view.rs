@@ -640,6 +640,11 @@ impl Widget<LapceTabData> for LapceEditorView {
                 data.keypress = keypress.clone();
                 ctx.set_handled();
             }
+            Event::KeyUp(key_event) => {
+                let mut keypress = data.keypress.clone();
+                Arc::make_mut(&mut keypress).key_up(key_event);
+                ctx.set_handled();
+            }
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_COMMAND);
                 if editor_data.run_command(
