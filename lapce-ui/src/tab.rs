@@ -931,6 +931,33 @@ impl LapceTab {
                                 plugin.disabled.iter().collect(),
                             );
                         }
+                        if plugin.workspace_disabled.contains(&id) {
+                            plugin.workspace_disabled.remove(&id);
+                            let _ = data.db.save_disabled_volts(
+                                plugin.workspace_disabled.iter().collect(),
+                            );
+                        }
+                    }
+                    LapceUICommand::DisableVoltWorkspace(volt) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.workspace_disabled.insert(volt.id());
+                        data.proxy.proxy_rpc.disable_volt(volt.clone());
+                        let _ = data.db.save_workspace_disabled_volts(
+                            &data.workspace,
+                            plugin.workspace_disabled.iter().collect(),
+                        );
+                    }
+                    LapceUICommand::EnableVoltWorkspace(volt) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        let id = volt.id();
+                        plugin.workspace_disabled.remove(&id);
+                        if !plugin.plugin_disabled(&id) {
+                            data.proxy.proxy_rpc.enable_volt(volt.clone());
+                        }
+                        let _ = data.db.save_workspace_disabled_volts(
+                            &data.workspace,
+                            plugin.workspace_disabled.iter().collect(),
+                        );
                     }
                     LapceUICommand::DisableVolt(volt) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
@@ -942,62 +969,14 @@ impl LapceTab {
                     }
                     LapceUICommand::EnableVolt(volt) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
-                        plugin.disabled.remove(&volt.id());
-                        data.proxy.proxy_rpc.enable_volt(volt.clone());
+                        let id = volt.id();
+                        plugin.disabled.remove(&id);
+                        if !plugin.plugin_disabled(&id) {
+                            data.proxy.proxy_rpc.enable_volt(volt.clone());
+                        }
                         let _ = data
                             .db
                             .save_disabled_volts(plugin.disabled.iter().collect());
-                    }
-                    LapceUICommand::UpdateInstalledPlugins(plugins) => {
-                        data.installed_plugins = Arc::new(plugins.to_owned());
-                    }
-                    LapceUICommand::UpdateInstalledPluginDescriptions(plugins) => {
-                        data.installed_plugins_desc = Arc::new(plugins.to_owned());
-                    }
-                    LapceUICommand::UpdateUninstalledPluginDescriptions(plugins) => {
-                        data.uninstalled_plugins_desc = Arc::new(plugins.to_owned());
-                    }
-                    LapceUICommand::UpdateDisabledPlugins(plugins) => {
-                        data.disabled_plugins = Arc::new(plugins.to_owned());
-                    }
-                    LapceUICommand::UpdatePluginInstallationChange(plugins) => {
-                        if let PluginLoadingStatus::Ok(ref installed_plugins_desc) =
-                            *data.installed_plugins_desc
-                        {
-                            if installed_plugins_desc.len() != plugins.len() {
-                                let local_plugins = plugins.clone();
-                                let handle = std::thread::spawn(move || {
-                                    if let Ok(fetched_plugins) =
-                                        LapceData::load_plugin_descriptions()
-                                    {
-                                        let (installed, uninstalled): (
-                                            Vec<PluginDescription>,
-                                            Vec<PluginDescription>,
-                                        ) = fetched_plugins.into_iter().partition(
-                                            |p| {
-                                                local_plugins
-                                                    .iter()
-                                                    .find(|(_, ip)| {
-                                                        ip.name == p.name
-                                                    })
-                                                    .ok_or(())
-                                                    .is_ok()
-                                            },
-                                        );
-                                        return Ok((installed, uninstalled));
-                                    }
-                                    Err(())
-                                });
-                                let fetch_result = handle.join().unwrap_or(Err(()));
-                                if let Ok((installed, uninstalled)) = fetch_result {
-                                    data.installed_plugins_desc =
-                                        Arc::new(PluginLoadingStatus::Ok(installed));
-                                    data.uninstalled_plugins_desc = Arc::new(
-                                        PluginLoadingStatus::Ok(uninstalled),
-                                    );
-                                }
-                            }
-                        }
                     }
                     LapceUICommand::UpdateDiffInfo(diff) => {
                         let source_control = Arc::make_mut(&mut data.source_control);

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, io::Write, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 
 use anyhow::Result;
 use druid::{ExtEventSink, Target, WidgetId};
@@ -65,6 +65,7 @@ impl Default for VoltsList {
 
 #[derive(Clone)]
 pub struct PluginData {
+    tab_id: WidgetId,
     pub widget_id: WidgetId,
     pub installed_id: WidgetId,
     pub uninstalled_id: WidgetId,
@@ -72,6 +73,7 @@ pub struct PluginData {
     pub volts: VoltsList,
     pub installed: IndexMap<String, VoltMetadata>,
     pub disabled: HashSet<String>,
+    pub workspace_disabled: HashSet<String>,
 }
 
 #[derive(Clone)]
@@ -82,24 +84,35 @@ pub enum PluginLoadStatus {
 }
 
 impl PluginData {
-    pub fn new(disabled: Vec<String>) -> Self {
+    pub fn new(
+        tab_id: WidgetId,
+        disabled: Vec<String>,
+        workspace_disabled: Vec<String>,
+        event_sink: ExtEventSink,
+    ) -> Self {
+        std::thread::spawn(move || {
+            Self::load(tab_id, event_sink);
+        });
+
         Self {
+            tab_id,
             widget_id: WidgetId::next(),
             installed_id: WidgetId::next(),
             uninstalled_id: WidgetId::next(),
             volts: VoltsList::new(),
             installed: IndexMap::new(),
             disabled: HashSet::from_iter(disabled.into_iter()),
+            workspace_disabled: HashSet::from_iter(workspace_disabled.into_iter()),
         }
     }
 
-    pub fn load(event_sink: ExtEventSink) {
+    fn load(tab_id: WidgetId, event_sink: ExtEventSink) {
         for meta in find_all_volts() {
             if meta.wasm.is_none() {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::VoltInstalled(meta),
-                    Target::Auto,
+                    Target::Widget(tab_id),
                 );
             }
         }
@@ -109,21 +122,25 @@ impl PluginData {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::LoadPlugins(volts),
-                    Target::Auto,
+                    Target::Widget(tab_id),
                 );
             }
             Err(_) => {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::LoadPluginsFailed,
-                    Target::Auto,
+                    Target::Widget(tab_id),
                 );
             }
         }
     }
 
+    pub fn plugin_disabled(&self, id: &str) -> bool {
+        self.disabled.contains(id) || self.workspace_disabled.contains(id)
+    }
+
     pub fn plugin_status(&self, id: &str) -> PluginStatus {
-        if self.disabled.contains(id) {
+        if self.plugin_disabled(id) {
             return PluginStatus::Disabled;
         }
 

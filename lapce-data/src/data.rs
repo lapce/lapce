@@ -178,70 +178,6 @@ impl LapceData {
             windows.insert(window.window_id, window);
         }
 
-        thread::spawn(move || {
-            PluginData::load(event_sink.clone());
-
-            let mut catalog = PluginCatalog::new();
-            catalog.reload();
-            let plugins = catalog
-                .items
-                .values()
-                .cloned()
-                .collect::<Vec<PluginDescription>>();
-            let _ = event_sink.submit_command(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateInstalledPluginDescriptions(
-                    PluginLoadingStatus::Ok(plugins.clone()),
-                ),
-                Target::Auto,
-            );
-            let _ = event_sink.submit_command(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateUninstalledPluginDescriptions(
-                    PluginLoadingStatus::Loading,
-                ),
-                Target::Auto,
-            );
-            let _ = event_sink.submit_command(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateInstalledPlugins(catalog.items.clone()),
-                Target::Auto,
-            );
-            if let Ok(fetched_plugins) = LapceData::load_plugin_descriptions() {
-                let (installed, uninstalled): (
-                    Vec<PluginDescription>,
-                    Vec<PluginDescription>,
-                ) = fetched_plugins.into_iter().partition(|p| {
-                    plugins
-                        .iter()
-                        .find(|ip| ip.name == p.name)
-                        .ok_or(())
-                        .is_ok()
-                });
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateInstalledPluginDescriptions(
-                        PluginLoadingStatus::Ok(installed),
-                    ),
-                    Target::Auto,
-                );
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateUninstalledPluginDescriptions(
-                        PluginLoadingStatus::Ok(uninstalled),
-                    ),
-                    Target::Auto,
-                );
-            } else {
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateUninstalledPluginDescriptions(
-                        PluginLoadingStatus::Failed,
-                    ),
-                    Target::Auto,
-                );
-            }
-        });
         Self {
             windows,
             keypress,
@@ -610,10 +546,15 @@ impl LapceTabData {
 
         let (term_sender, term_receiver) = unbounded();
         let disabled_volts = db.get_disabled_volts().unwrap_or_default();
+        let workspace_disabled_volts = db
+            .get_workspace_disabled_volts(&workspace)
+            .unwrap_or_default();
+        let mut all_disabled_volts = disabled_volts.clone();
+        all_disabled_volts.extend_from_slice(&workspace_disabled_volts);
         let proxy = Arc::new(LapceProxy::new(
             tab_id,
             workspace.clone(),
-            disabled_volts.clone(),
+            all_disabled_volts,
             config.plugins.clone(),
             term_sender.clone(),
             event_sink.clone(),
@@ -624,7 +565,12 @@ impl LapceTabData {
         let source_control = Arc::new(SourceControlData::new());
         let settings = Arc::new(LapceSettingsPanelData::new());
         let alert = Arc::new(AlertData::new());
-        let plugin = Arc::new(PluginData::new(disabled_volts));
+        let plugin = Arc::new(PluginData::new(
+            tab_id,
+            disabled_volts,
+            workspace_disabled_volts,
+            event_sink.clone(),
+        ));
         let file_explorer = Arc::new(FileExplorerData::new(
             tab_id,
             workspace.clone(),

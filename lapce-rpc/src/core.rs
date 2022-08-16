@@ -63,12 +63,6 @@ pub enum CoreNotification {
     VoltRemoved {
         volt: VoltInfo,
     },
-    InstalledPlugins {
-        plugins: HashMap<String, PluginDescription>,
-    },
-    DisabledPlugins {
-        plugins: HashMap<String, PluginDescription>,
-    },
     ListDir {
         items: Vec<FileNodeItem>,
     },

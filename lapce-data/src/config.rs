@@ -11,7 +11,7 @@ use druid::{
     Color, ExtEventSink, FontFamily, Size, Target,
 };
 use indexmap::IndexMap;
-use lapce_proxy::plugin::{wasi::find_all_volts, PluginCatalog};
+use lapce_proxy::plugin::wasi::find_all_volts;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

@@ -512,6 +512,31 @@ impl LapceDb {
         Ok(volts)
     }
 
+    pub fn save_workspace_disabled_volts(
+        &self,
+        workspace: &LapceWorkspace,
+        volts: Vec<&String>,
+    ) -> Result<()> {
+        let sled_db = self.get_db()?;
+        let volts = serde_json::to_string(&volts)?;
+        sled_db.insert(format!("disabled_volts:{}", workspace), volts.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
+    pub fn get_workspace_disabled_volts(
+        &self,
+        workspace: &LapceWorkspace,
+    ) -> Result<Vec<String>> {
+        let sled_db = self.get_db()?;
+        let volts = sled_db
+            .get(format!("disabled_volts:{}", workspace))?
+            .ok_or_else(|| anyhow!("can't find disable volts"))?;
+        let volts = std::str::from_utf8(&volts)?;
+        let volts: Vec<String> = serde_json::from_str(volts)?;
+        Ok(volts)
+    }
+
     pub fn save_last_window(&self, window: &LapceWindowData) {
         let info = window.info();
         let _ = self.insert_last_window_info(info);

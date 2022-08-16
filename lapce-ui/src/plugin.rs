@@ -49,7 +49,7 @@ impl Plugin {
                 ),
                 (
                     data.plugin.uninstalled_id,
-                    PanelHeaderKind::Simple("Uninstalled".into()),
+                    PanelHeaderKind::Simple("Available".into()),
                     LapceScroll::new(Self::new(false)).boxed(),
                     PanelSizing::Flex(true),
                 ),
@@ -57,6 +57,7 @@ impl Plugin {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn paint_plugin(
         &mut self,
         ctx: &mut PaintCtx,
@@ -330,7 +331,7 @@ impl Widget<LapceTabData> for Plugin {
                                     volt.clone(),
                                 );
                             }
-                        } else if let Some((_, meta)) =
+                        } else if let Some((id, meta)) =
                             data.plugin.installed.get_index(index)
                         {
                             let mut menu = druid::Menu::<LapceData>::new("Plugin");
@@ -347,38 +348,78 @@ impl Widget<LapceTabData> for Plugin {
                                         );
                                     });
                                 menu = menu.entry(item);
+                                menu = menu.separator();
                             }
 
                             let local_volt = meta.info();
                             let tab_id = data.id;
-                            let item =
-                                if status == &PluginStatus::Disabled {
-                                    druid::MenuItem::new("Enable Plugin")
-                                        .on_activate(move |ctx, _data, _env| {
-                                            ctx.submit_command(Command::new(
-                                                LAPCE_UI_COMMAND,
-                                                LapceUICommand::EnableVolt(
-                                                    local_volt.clone(),
-                                                ),
-                                                Target::Widget(tab_id),
-                                            ));
-                                        })
-                                } else {
-                                    druid::MenuItem::new("Disable Plugin")
-                                        .on_activate(move |ctx, _data, _env| {
-                                            ctx.submit_command(Command::new(
-                                                LAPCE_UI_COMMAND,
-                                                LapceUICommand::DisableVolt(
-                                                    local_volt.clone(),
-                                                ),
-                                                Target::Widget(tab_id),
-                                            ));
-                                        })
-                                };
+                            let item = druid::MenuItem::new("Enable")
+                                .on_activate(move |ctx, _data, _env| {
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::EnableVolt(
+                                            local_volt.clone(),
+                                        ),
+                                        Target::Widget(tab_id),
+                                    ));
+                                })
+                                .enabled(data.plugin.disabled.contains(id));
                             menu = menu.entry(item);
+
+                            let local_volt = meta.info();
+                            let tab_id = data.id;
+                            let item = druid::MenuItem::new("Disable")
+                                .on_activate(move |ctx, _data, _env| {
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::DisableVolt(
+                                            local_volt.clone(),
+                                        ),
+                                        Target::Widget(tab_id),
+                                    ));
+                                })
+                                .enabled(!data.plugin.disabled.contains(id));
+                            menu = menu.entry(item);
+
+                            menu = menu.separator();
+
+                            let local_volt = meta.info();
+                            let tab_id = data.id;
+                            let item = druid::MenuItem::new("Enable For Workspace")
+                                .on_activate(move |ctx, _data, _env| {
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::EnableVoltWorkspace(
+                                            local_volt.clone(),
+                                        ),
+                                        Target::Widget(tab_id),
+                                    ));
+                                })
+                                .enabled(
+                                    data.plugin.workspace_disabled.contains(id),
+                                );
+                            menu = menu.entry(item);
+
+                            let local_volt = meta.info();
+                            let tab_id = data.id;
+                            let item = druid::MenuItem::new("Disable For Workspace")
+                                .on_activate(move |ctx, _data, _env| {
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::DisableVoltWorkspace(
+                                            local_volt.clone(),
+                                        ),
+                                        Target::Widget(tab_id),
+                                    ));
+                                })
+                                .enabled(
+                                    !data.plugin.workspace_disabled.contains(id),
+                                );
+                            menu = menu.entry(item);
+
                             let local_meta = meta.clone();
                             let proxy = data.proxy.clone();
-                            let item = druid::MenuItem::new("Remove Plugin")
+                            let item = druid::MenuItem::new("Uninstall")
                                 .on_activate(
                                     move |_ctx, _data: &mut LapceData, _env| {
                                         let _ = PluginData::remove_volt(
@@ -387,7 +428,7 @@ impl Widget<LapceTabData> for Plugin {
                                         );
                                     },
                                 );
-                            menu = menu.entry(item);
+                            menu = menu.separator().entry(item);
                             ctx.show_context_menu::<LapceData>(
                                 menu,
                                 ctx.to_window(mouse_event.pos),

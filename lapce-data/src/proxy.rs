@@ -176,31 +176,6 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            InstalledPlugins { plugins } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateInstalledPlugins(plugins),
-                    Target::Widget(self.tab_id),
-                );
-                // let plugins_desc = plugins
-                //     .iter()
-                //     .map(|(_, desc)| desc.to_owned())
-                //     .collect::<Vec<PluginDescription>>();
-                // let _ = self.event_sink.submit_command(
-                //     LAPCE_UI_COMMAND,
-                //     LapceUICommand::UpdateInstalledPluginDescriptions(Some(
-                //         plugins_desc.clone(),
-                //     )),
-                //     Target::Widget(self.tab_id),
-                // );
-                // let _ = self.event_sink.submit_command(
-                //     LAPCE_UI_COMMAND,
-                //     LapceUICommand::DeleteUninstalledPluginDescriptions(
-                //         plugins_desc,
-                //     ),
-                //     Target::Widget(self.tab_id),
-                // );
-            }
             ListDir { .. } | DiffFiles { .. } => {}
             DiffInfo { diff } => {
                 let _ = self.event_sink.submit_command(
@@ -236,7 +211,6 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            DisabledPlugins { plugins } => todo!(),
         }
     }
 
@@ -285,25 +259,6 @@ impl Handler for LapceProxy {
                     LAPCE_UI_COMMAND,
                     LapceUICommand::WorkDoneProgress(progress),
                     Target::Widget(self.tab_id),
-                );
-            }
-            InstalledPlugins { plugins } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateInstalledPlugins(plugins.clone()),
-                    Target::Widget(self.tab_id),
-                );
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdatePluginInstallationChange(plugins),
-                    Target::Widget(self.tab_id),
-                );
-            }
-            DisabledPlugins { plugins } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateDisabledPlugins(plugins),
-                    Target::Auto,
                 );
             }
             DiffInfo { diff } => {
