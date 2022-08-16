@@ -137,14 +137,14 @@ pub struct VoltInfo {
     pub name: String,
     pub version: String,
     pub display_name: String,
-    pub publisher: String,
+    pub author: String,
     pub description: String,
     pub meta: String,
 }
 
 impl VoltInfo {
     pub fn id(&self) -> String {
-        format!("{}.{}", self.publisher, self.name)
+        format!("{}.{}", self.author, self.name)
     }
 }
 
@@ -154,15 +154,16 @@ pub struct VoltMetadata {
     pub name: String,
     pub version: String,
     pub display_name: String,
-    pub publisher: String,
+    pub author: String,
     pub description: String,
     pub wasm: Option<String>,
+    pub themes: Option<Vec<String>>,
     pub dir: Option<PathBuf>,
 }
 
 impl VoltMetadata {
     pub fn id(&self) -> String {
-        format!("{}.{}", self.publisher, self.name)
+        format!("{}.{}", self.author, self.name)
     }
 
     pub fn info(&self) -> VoltInfo {
@@ -170,7 +171,7 @@ impl VoltMetadata {
             name: self.name.clone(),
             version: self.version.clone(),
             display_name: self.display_name.clone(),
-            publisher: self.publisher.clone(),
+            author: self.author.clone(),
             description: self.description.clone(),
             meta: "".to_string(),
         }

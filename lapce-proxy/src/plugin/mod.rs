@@ -1101,14 +1101,13 @@ fn number_from_id(id: &Id) -> u64 {
     }
 }
 
-pub fn install_volt(
-    catalog_rpc: PluginCatalogRpcHandler,
-    workspace: Option<PathBuf>,
-    configurations: Option<serde_json::Value>,
-    volt: VoltInfo,
-) -> Result<()> {
+pub fn download_volt(volt: VoltInfo, wasm: bool) -> Result<VoltMetadata> {
     let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
     let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
+
+    if meta.wasm.is_some() != wasm {
+        return Err(anyhow!("plugin type not fit"));
+    }
 
     let id = volt.id();
     let home = home_dir().ok_or_else(|| anyhow!("can't find home"))?;
@@ -1116,17 +1115,18 @@ pub fn install_volt(
     let _ = fs::remove_dir_all(&path);
 
     fs::create_dir_all(&path)?;
+    let meta_path = path.join("volt.toml");
     {
         let mut file = fs::OpenOptions::new()
             .create(true)
             .truncate(true)
             .write(true)
-            .open(path.join("volt.toml"))?;
+            .open(&meta_path)?;
         file.write_all(meta_str.as_bytes())?;
     }
 
+    let url = url::Url::parse(&volt.meta)?;
     if let Some(wasm) = meta.wasm.as_ref() {
-        let url = url::Url::parse(&volt.meta)?;
         let url = url.join(wasm)?;
         {
             let mut resp = reqwest::blocking::get(url)?;
@@ -1137,25 +1137,51 @@ pub fn install_volt(
                 .open(path.join(&wasm))?;
             std::io::copy(&mut resp, &mut file)?;
         }
-        let catalog_rpc = catalog_rpc.clone();
-        thread::spawn(move || {
-            let _ = start_volt(workspace, configurations, catalog_rpc, meta);
-        });
+    }
+    if let Some(themes) = meta.themes.as_ref() {
+        for theme in themes {
+            let url = url.join(theme)?;
+            {
+                let mut resp = reqwest::blocking::get(url)?;
+                let mut file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open(path.join(&theme))?;
+                std::io::copy(&mut resp, &mut file)?;
+            }
+        }
     }
 
-    catalog_rpc.core_rpc.volt_installed(volt);
+    let meta = load_volt(&meta_path)?;
+    Ok(meta)
+}
+
+pub fn install_volt(
+    catalog_rpc: PluginCatalogRpcHandler,
+    workspace: Option<PathBuf>,
+    configurations: Option<serde_json::Value>,
+    volt: VoltInfo,
+) -> Result<()> {
+    let meta = download_volt(volt, true)?;
+    let local_catalog_rpc = catalog_rpc.clone();
+    let local_meta = meta.clone();
+    thread::spawn(move || {
+        let _ = start_volt(workspace, configurations, local_catalog_rpc, local_meta);
+    });
+
+    catalog_rpc.core_rpc.volt_installed(meta);
 
     Ok(())
 }
 
 pub fn remove_volt(
     catalog_rpc: PluginCatalogRpcHandler,
-    volt: VoltInfo,
+    volt: VoltMetadata,
 ) -> Result<()> {
-    let home = home_dir().unwrap();
-    let path = home.join(".lapce").join("plugins").join(volt.id());
-    fs::remove_dir_all(&path)?;
-    catalog_rpc.core_rpc.volt_removed(volt);
+    let path = volt.dir.as_ref().ok_or_else(|| anyhow!("don't have dir"))?;
+    fs::remove_dir_all(path)?;
+    catalog_rpc.core_rpc.volt_removed(volt.info());
     Ok(())
 }
 

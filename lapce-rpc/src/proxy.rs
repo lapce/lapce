@@ -20,7 +20,7 @@ use xi_rope::RopeDelta;
 use crate::{
     buffer::BufferId,
     file::FileNodeItem,
-    plugin::{PluginDescription, PluginId, VoltInfo},
+    plugin::{PluginDescription, PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
     style::SemanticStyles,
     terminal::TermId,
@@ -163,7 +163,7 @@ pub enum CoreProxyNotification {
         volt: VoltInfo,
     },
     RemoveVolt {
-        volt: VoltInfo,
+        volt: VoltMetadata,
     },
     DisableVolt {
         volt: VoltInfo,
@@ -397,7 +397,7 @@ impl ProxyRpcHandler {
         self.notification(CoreProxyNotification::InstallVolt { volt });
     }
 
-    pub fn remove_volt(&self, volt: VoltInfo) {
+    pub fn remove_volt(&self, volt: VoltMetadata) {
         self.notification(CoreProxyNotification::RemoveVolt { volt });
     }
 

@@ -2305,6 +2305,7 @@ dependencies = [
  "toml_edit",
  "unicode-segmentation",
  "unicode-width",
+ "url",
  "uuid",
  "xi-rope",
  "xi-unicode",

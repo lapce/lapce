@@ -11,7 +11,7 @@ use druid::{
     Color, ExtEventSink, FontFamily, Size, Target,
 };
 use indexmap::IndexMap;
-use lapce_proxy::plugin::PluginCatalog;
+use lapce_proxy::plugin::{wasi::find_all_volts, PluginCatalog};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -750,13 +750,9 @@ impl Config {
     }
 
     fn load_plugin_themes() -> Option<HashMap<String, (String, config::Config)>> {
-        let mut catalog = PluginCatalog::new();
-        catalog.reload();
-
         let mut themes: HashMap<String, (String, config::Config)> = HashMap::new();
-
-        for (_, plugin) in catalog.items.iter() {
-            if let Some(plugin_themes) = plugin.themes.as_ref() {
+        for meta in find_all_volts() {
+            if let Some(plugin_themes) = meta.themes.as_ref() {
                 for theme_path in plugin_themes {
                     if let Some((key, theme)) =
                         Self::load_theme(&PathBuf::from(theme_path))

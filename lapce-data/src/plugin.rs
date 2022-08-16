@@ -1,13 +1,19 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, io::Write, sync::Arc};
 
 use anyhow::Result;
 use druid::{ExtEventSink, Target, WidgetId};
-use im::HashMap;
 use indexmap::IndexMap;
-use lapce_rpc::plugin::VoltInfo;
+use lapce_proxy::plugin::{
+    download_volt,
+    wasi::{find_all_volts, load_volt},
+};
+use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
 use strum_macros::Display;
 
-use crate::command::{LapceUICommand, LAPCE_UI_COMMAND};
+use crate::{
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    proxy::LapceProxy,
+};
 
 #[derive(Clone)]
 pub struct VoltsList {
@@ -64,7 +70,7 @@ pub struct PluginData {
     pub uninstalled_id: WidgetId,
 
     pub volts: VoltsList,
-    pub installed: VoltsList,
+    pub installed: IndexMap<String, VoltMetadata>,
     pub disabled: HashSet<String>,
 }
 
@@ -82,12 +88,22 @@ impl PluginData {
             installed_id: WidgetId::next(),
             uninstalled_id: WidgetId::next(),
             volts: VoltsList::new(),
-            installed: VoltsList::new(),
+            installed: IndexMap::new(),
             disabled: HashSet::from_iter(disabled.into_iter()),
         }
     }
 
     pub fn load(event_sink: ExtEventSink) {
+        for meta in find_all_volts() {
+            if meta.wasm.is_none() {
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::VoltInstalled(meta),
+                    Target::Auto,
+                );
+            }
+        }
+
         match Self::load_volts() {
             Ok(volts) => {
                 let _ = event_sink.submit_command(
@@ -106,22 +122,24 @@ impl PluginData {
         }
     }
 
-    pub fn plugin_status(&self, id: &str, version: &str) -> PluginStatus {
+    pub fn plugin_status(&self, id: &str) -> PluginStatus {
         if self.disabled.contains(id) {
             return PluginStatus::Disabled;
         }
 
-        let status = match self
-            .installed
-            .volts
-            .get(id)
-            .map(|installed| version == installed.version)
-        {
-            Some(true) => PluginStatus::Installed,
-            Some(false) => PluginStatus::Upgrade,
-            None => PluginStatus::Install,
-        };
-        status
+        if let Some(meta) = self.installed.get(id) {
+            if let Some(volt) = self.volts.volts.get(id) {
+                if meta.version == volt.version {
+                    PluginStatus::Installed
+                } else {
+                    PluginStatus::Upgrade(volt.meta.clone())
+                }
+            } else {
+                PluginStatus::Installed
+            }
+        } else {
+            PluginStatus::Install
+        }
     }
 
     fn load_volts() -> Result<Vec<VoltInfo>> {
@@ -129,12 +147,44 @@ impl PluginData {
             reqwest::blocking::get("https://lapce.dev/volts")?.json()?;
         Ok(volts)
     }
+
+    pub fn install_volt(proxy: Arc<LapceProxy>, volt: VoltInfo) -> Result<()> {
+        let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
+        let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
+        if meta.wasm.is_some() {
+            proxy.proxy_rpc.install_volt(volt);
+        } else {
+            std::thread::spawn(move || -> Result<()> {
+                let meta = download_volt(volt, false)?;
+                proxy.core_rpc.volt_installed(meta);
+                Ok(())
+            });
+        }
+        Ok(())
+    }
+
+    pub fn remove_volt(proxy: Arc<LapceProxy>, meta: VoltMetadata) -> Result<()> {
+        if meta.wasm.is_some() {
+            proxy.proxy_rpc.remove_volt(meta);
+        } else {
+            std::thread::spawn(move || -> Result<()> {
+                let path = meta
+                    .dir
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("don't have dir"))?;
+                std::fs::remove_dir_all(path)?;
+                proxy.core_rpc.volt_removed(meta.info());
+                Ok(())
+            });
+        }
+        Ok(())
+    }
 }
 
-#[derive(Display, PartialEq, Eq)]
+#[derive(Display, PartialEq, Eq, Clone)]
 pub enum PluginStatus {
     Installed,
     Install,
-    Upgrade,
+    Upgrade(String),
     Disabled,
 }

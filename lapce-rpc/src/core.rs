@@ -13,7 +13,9 @@ use std::{
 
 use crate::{
     file::FileNodeItem,
-    plugin::{PluginConfiguration, PluginDescription, PluginId, VoltInfo},
+    plugin::{
+        PluginConfiguration, PluginDescription, PluginId, VoltInfo, VoltMetadata,
+    },
     source_control::DiffInfo,
     terminal::TermId,
     RequestId, RpcError,
@@ -56,7 +58,7 @@ pub enum CoreNotification {
         path: PathBuf,
     },
     VoltInstalled {
-        volt: VoltInfo,
+        volt: VoltMetadata,
     },
     VoltRemoved {
         volt: VoltInfo,
@@ -202,7 +204,7 @@ impl CoreRpcHandler {
         });
     }
 
-    pub fn volt_installed(&self, volt: VoltInfo) {
+    pub fn volt_installed(&self, volt: VoltMetadata) {
         self.notification(CoreNotification::VoltInstalled { volt });
     }
 

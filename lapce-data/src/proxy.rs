@@ -97,7 +97,7 @@ enum HostArchitecture {
 pub struct LapceProxy {
     pub tab_id: WidgetId,
     pub proxy_rpc: ProxyRpcHandler,
-    core_rpc: CoreRpcHandler,
+    pub core_rpc: CoreRpcHandler,
     term_tx: Sender<(TermId, TermEvent)>,
     event_sink: ExtEventSink,
 }

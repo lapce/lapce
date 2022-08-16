@@ -3,7 +3,7 @@ use std::{
     default, fs,
     io::Read,
     path::{Path, PathBuf},
-    process,
+    process, result,
     sync::Arc,
     thread,
 };
@@ -175,39 +175,39 @@ pub fn load_all_volts(
     volt_configurations: HashMap<String, serde_json::Value>,
 ) {
     let all_volts = find_all_volts();
-    for volt_path in &all_volts {
-        match load_volt(volt_path) {
-            Err(_e) => (),
-            Ok(meta) => {
-                plugin_rpc.core_rpc.volt_installed(meta.info());
-                if disabled_volts.contains(&meta.id()) {
-                    continue;
-                }
-                let workspace = workspace.clone();
-                let configurations = volt_configurations.get(&meta.name).cloned();
-                let plugin_rpc = plugin_rpc.clone();
-                thread::spawn(move || {
-                    let _ = start_volt(workspace, configurations, plugin_rpc, meta);
-                });
-            }
+    for meta in all_volts {
+        if meta.wasm.is_none() {
+            continue;
         }
+        plugin_rpc.core_rpc.volt_installed(meta.clone());
+        if disabled_volts.contains(&meta.id()) {
+            continue;
+        }
+        let workspace = workspace.clone();
+        let configurations = volt_configurations.get(&meta.name).cloned();
+        let plugin_rpc = plugin_rpc.clone();
+        thread::spawn(move || {
+            let _ = start_volt(workspace, configurations, plugin_rpc, meta);
+        });
     }
 }
 
-pub fn find_all_volts() -> Vec<PathBuf> {
-    let mut plugin_paths = Vec::new();
+pub fn find_all_volts() -> Vec<VoltMetadata> {
     let home = home_dir().unwrap();
     let path = home.join(".lapce").join("plugins");
-    let _ = path.read_dir().map(|dir| {
-        dir.flat_map(|item| item.map(|p| p.path()).ok())
-            .map(|dir| dir.join("volt.toml"))
-            .filter(|f| f.exists())
-            .for_each(|f| plugin_paths.push(f))
-    });
-    plugin_paths
+    path.read_dir()
+        .map(|dir| {
+            dir.filter_map(|result| {
+                let entry = result.ok()?;
+                let path = entry.path().join("volt.toml");
+                load_volt(&path).ok()
+            })
+            .collect()
+        })
+        .unwrap_or_default()
 }
 
-fn load_volt(path: &Path) -> Result<VoltMetadata> {
+pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
     let mut file = fs::File::open(&path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
@@ -222,6 +222,21 @@ fn load_volt(path: &Path) -> Result<VoltMetadata> {
                 .to_str()?
                 .to_string(),
         )
+    });
+    meta.themes = meta.themes.as_ref().map(|themes| {
+        themes
+            .iter()
+            .filter_map(|theme| {
+                Some(
+                    path.parent()?
+                        .join(theme)
+                        .canonicalize()
+                        .ok()?
+                        .to_str()?
+                        .to_string(),
+                )
+            })
+            .collect()
     });
     Ok(meta)
 }

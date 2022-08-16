@@ -177,7 +177,7 @@ impl ProxyHandler for NewDispatcher {
             }
             RemoveVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();
-                let _ = catalog_rpc.stop_volt(volt.clone());
+                let _ = catalog_rpc.stop_volt(volt.info());
                 thread::spawn(move || {
                     let _ = remove_volt(catalog_rpc, volt);
                 });

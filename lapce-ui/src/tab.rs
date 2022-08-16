@@ -918,13 +918,19 @@ impl LapceTab {
                         plugin.volts.failed();
                     }
                     LapceUICommand::VoltInstalled(volt) => {
-                        println!("volt installed");
                         let plugin = Arc::make_mut(&mut data.plugin);
-                        plugin.installed.update(volt);
+                        plugin.installed.insert(volt.id(), volt.clone());
                     }
                     LapceUICommand::VoltRemoved(volt) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
-                        plugin.installed.remove(volt);
+                        let id = volt.id();
+                        plugin.installed.remove(&id);
+                        if plugin.disabled.contains(&id) {
+                            plugin.disabled.remove(&id);
+                            let _ = data.db.save_disabled_volts(
+                                plugin.disabled.iter().collect(),
+                            );
+                        }
                     }
                     LapceUICommand::DisableVolt(volt) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
@@ -941,9 +947,6 @@ impl LapceTab {
                         let _ = data
                             .db
                             .save_disabled_volts(plugin.disabled.iter().collect());
-                    }
-                    LapceUICommand::RemoveVolt(volt) => {
-                        data.proxy.proxy_rpc.remove_volt(volt.clone());
                     }
                     LapceUICommand::UpdateInstalledPlugins(plugins) => {
                         data.installed_plugins = Arc::new(plugins.to_owned());
