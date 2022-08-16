@@ -6,7 +6,7 @@ pub mod wasi;
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
-use jsonrpc_lite::{Id, };
+use jsonrpc_lite::Id;
 use lapce_rpc::core::CoreRpcHandler;
 use lapce_rpc::plugin::{PluginId, VoltInfo, VoltMetadata};
 use lapce_rpc::proxy::ProxyRpcHandler;
@@ -41,12 +41,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
-use wasmer_wasi::WasiEnv;
 use xi_rope::{Rope, RopeDelta};
 
 use crate::buffer::language_id_from_path;
 use crate::directory::Directory;
-use crate::APPLICATION_NAME;
 
 use self::catalog::NewPluginCatalog;
 use self::psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback};
