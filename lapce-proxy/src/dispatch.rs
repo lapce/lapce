@@ -1,5 +1,5 @@
 use crate::buffer::{get_mod_time, load_file, Buffer};
-use crate::plugin::catalog::NewPluginCatalog;
+use crate::plugin::catalog::PluginCatalog;
 use crate::plugin::{remove_volt, PluginCatalogRpcHandler};
 use crate::terminal::Terminal;
 use crate::watcher::{FileWatcher, Notify, WatchToken};
@@ -71,7 +71,7 @@ impl ProxyHandler for NewDispatcher {
                 let plugin_rpc = self.catalog_rpc.clone();
                 let workspace = self.workspace.clone();
                 thread::spawn(move || {
-                    let mut plugin = NewPluginCatalog::new(
+                    let mut plugin = PluginCatalog::new(
                         workspace,
                         disabled_volts,
                         plugin_configurations,

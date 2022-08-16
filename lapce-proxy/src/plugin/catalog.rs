@@ -28,14 +28,14 @@ use super::{
     PluginCatalogNotification, PluginCatalogRpcHandler,
 };
 
-pub struct NewPluginCatalog {
+pub struct PluginCatalog {
     workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
     new_plugins: HashMap<PluginId, PluginServerRpcHandler>,
     plugin_configurations: HashMap<String, serde_json::Value>,
 }
 
-impl NewPluginCatalog {
+impl PluginCatalog {
     pub fn new(
         workspace: Option<PathBuf>,
         disabled_volts: Vec<String>,

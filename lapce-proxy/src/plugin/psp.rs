@@ -45,7 +45,7 @@ use serde_json::Value;
 use xi_rope::{Rope, RopeDelta};
 
 use super::{
-    lsp::{DocumentFilter, NewLspClient},
+    lsp::{DocumentFilter, LspClient},
     number_from_id, PluginCatalogRpcHandler,
 };
 
@@ -777,7 +777,7 @@ impl PluginHostHandler {
                 let catalog_rpc = self.catalog_rpc.clone();
                 let volt_id = self.volt_id.clone();
                 thread::spawn(move || {
-                    let _ = NewLspClient::start(
+                    let _ = LspClient::start(
                         catalog_rpc,
                         params.language_id,
                         workspace,

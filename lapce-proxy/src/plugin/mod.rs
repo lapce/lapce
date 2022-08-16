@@ -46,7 +46,7 @@ use xi_rope::{Rope, RopeDelta};
 use crate::buffer::language_id_from_path;
 use crate::directory::Directory;
 
-use self::catalog::NewPluginCatalog;
+use self::catalog::PluginCatalog;
 use self::psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback};
 use self::wasi::{load_volt, start_volt};
 
@@ -126,7 +126,7 @@ impl PluginCatalogRpcHandler {
         }
     }
 
-    pub fn mainloop(&self, plugin: &mut NewPluginCatalog) {
+    pub fn mainloop(&self, plugin: &mut PluginCatalog) {
         let plugin_rx = self.plugin_rx.lock().take().unwrap();
         for msg in plugin_rx {
             match msg {

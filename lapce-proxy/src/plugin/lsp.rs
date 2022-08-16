@@ -50,7 +50,7 @@ pub enum LspRpc {
     },
 }
 
-pub struct NewLspClient {
+pub struct LspClient {
     plugin_rpc: PluginCatalogRpcHandler,
     server_rpc: PluginServerRpcHandler,
     process: Child,
@@ -61,7 +61,7 @@ pub struct NewLspClient {
     options: Option<Value>,
 }
 
-impl PluginServerHandler for NewLspClient {
+impl PluginServerHandler for LspClient {
     fn method_registered(&mut self, method: &'static str) -> bool {
         self.host.method_registered(method)
     }
@@ -142,7 +142,7 @@ impl PluginServerHandler for NewLspClient {
     }
 }
 
-impl NewLspClient {
+impl LspClient {
     fn new(
         plugin_rpc: PluginCatalogRpcHandler,
         laguage_id: String,
