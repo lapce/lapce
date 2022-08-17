@@ -355,21 +355,20 @@ impl LapceProxy {
                 }
             }
 
-            #[cfg(target_family = "unix")]
-            remote
-                .command_builder()
-                .arg("mkdir")
-                .arg("-p")
-                .arg(remote_proxy_path)
-                .status()?;
-
-            #[cfg(target_family = "windows")]
-            remote
-                .command_builder()
-                .arg("mkdir")
-                .arg("-p")
-                .arg(remote_proxy_path)
-                .status()?;
+            if platform == Windows {
+                remote
+                    .command_builder()
+                    .arg("mkdir")
+                    .arg(remote_proxy_path)
+                    .status()?;
+            } else {
+                remote
+                    .command_builder()
+                    .arg("mkdir")
+                    .arg("-p")
+                    .arg(remote_proxy_path)
+                    .status()?;
+            }
 
             remote.upload_file(&local_proxy_file, &remote_proxy_file)?;
         }
