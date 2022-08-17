@@ -18,6 +18,7 @@ reqwest = { version = "0.11", features = ["blocking", "json", "socks"] }
 wasmtime = "0.39.1"
 wasmtime-wasi = "0.39.1"
 wasi-common = "0.39.1"
+wasi-experimental-http-wasmtime = { git = "https://github.com/lapce/wasi-experimental-http" }
 directories = "4.0.1"
 locale_config = "0.3.0"
 base64 = "0.13.0"

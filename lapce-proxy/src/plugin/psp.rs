@@ -783,7 +783,7 @@ impl PluginHostHandler {
                         workspace,
                         volt_id,
                         pwd,
-                        params.exec_path,
+                        params.server_uri,
                         Vec::new(),
                         params.options,
                     );

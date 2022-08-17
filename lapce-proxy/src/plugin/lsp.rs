@@ -55,7 +55,7 @@ pub struct LspClient {
     server_rpc: PluginServerRpcHandler,
     process: Child,
     workspace: Option<PathBuf>,
-    exec_path: PathBuf,
+    server_uri: Url,
     args: Vec<String>,
     host: PluginHostHandler,
     options: Option<Value>,
@@ -149,16 +149,20 @@ impl LspClient {
         workspace: Option<PathBuf>,
         volt_id: String,
         pwd: Option<PathBuf>,
-        exec_path: PathBuf,
+        server_uri: Url,
         args: Vec<String>,
         options: Option<Value>,
     ) -> Result<Self> {
-        let exec_path = pwd
-            .as_ref()
-            .map(|p| p.join(&exec_path))
-            .unwrap_or(exec_path);
+        let server = match server_uri.scheme() {
+            "file" => {
+                let path = server_uri.to_file_path().map_err(|_| anyhow!(""))?;
+                path.to_str().ok_or_else(|| anyhow!(""))?.to_string()
+            }
+            "urn" => server_uri.path().to_string(),
+            _ => return Err(anyhow!("uri not supported")),
+        };
 
-        let mut process = Self::process(workspace.as_ref(), &exec_path, &args)?;
+        let mut process = Self::process(workspace.as_ref(), &server, &args)?;
         let stdin = process.stdin.take().unwrap();
         let stdout = process.stdout.take().unwrap();
 
@@ -205,7 +209,7 @@ impl LspClient {
             server_rpc,
             process,
             workspace,
-            exec_path,
+            server_uri,
             args,
             host,
             options,
@@ -218,12 +222,12 @@ impl LspClient {
         workspace: Option<PathBuf>,
         volt_id: String,
         pwd: Option<PathBuf>,
-        exec_path: PathBuf,
+        server_uri: Url,
         args: Vec<String>,
         options: Option<Value>,
     ) -> Result<()> {
         let mut lsp = Self::new(
-            plugin_rpc, laguage_id, workspace, volt_id, pwd, exec_path, args,
+            plugin_rpc, laguage_id, workspace, volt_id, pwd, server_uri, args,
             options,
         )?;
         let rpc = lsp.server_rpc.clone();
@@ -391,10 +395,10 @@ impl LspClient {
 
     fn process(
         workspace: Option<&PathBuf>,
-        exec_path: &Path,
+        server: &str,
         args: &[String],
     ) -> Result<Child> {
-        let mut process = Command::new(exec_path);
+        let mut process = Command::new(server);
         if let Some(workspace) = workspace {
             process.current_dir(&workspace);
         }

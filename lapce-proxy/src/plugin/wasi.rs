@@ -23,6 +23,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use psp_types::Request;
 use toml_edit::easy as toml;
+use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
 use xi_rope::{Rope, RopeDelta};
 
@@ -298,17 +299,42 @@ pub fn start_volt(
     )?;
     let mut linker = wasmtime::Linker::new(&engine);
     wasmtime_wasi::add_to_linker(&mut linker, |s| s)?;
+    HttpState::new()?.add_to_linker(&mut linker, |_| HttpCtx {
+        allowed_hosts: Some(vec!["insecure:allow-all".to_string()]),
+        max_concurrent_requests: Some(100),
+    })?;
+
+    let volt_path = meta
+        .dir
+        .as_ref()
+        .ok_or_else(|| anyhow!("plugin meta doesn't have dir"))?;
 
     let stdin = Arc::new(RwLock::new(WasiPipe::new()));
     let stdout = Arc::new(RwLock::new(WasiPipe::new()));
+    let stderr = Arc::new(RwLock::new(WasiPipe::new()));
     let wasi = WasiCtxBuilder::new()
         .inherit_env()?
+        .env("OS", std::env::consts::OS)?
+        .env("ARCH", std::env::consts::ARCH)?
+        .env(
+            "VOLT_URI",
+            Url::from_directory_path(volt_path)
+                .map_err(|_| anyhow!("can't convert folder path to uri"))?
+                .as_ref(),
+        )?
         .stdin(Box::new(wasi_common::pipe::ReadPipe::from_shared(
             stdin.clone(),
         )))
         .stdout(Box::new(wasi_common::pipe::WritePipe::from_shared(
             stdout.clone(),
         )))
+        .stderr(Box::new(wasi_common::pipe::WritePipe::from_shared(
+            stderr.clone(),
+        )))
+        .preopened_dir(
+            wasmtime_wasi::Dir::from_std_file(std::fs::File::open(volt_path)?),
+            "/",
+        )?
         .build();
     let mut store = wasmtime::Store::new(&engine, wasi);
 
@@ -319,6 +345,11 @@ pub fn start_volt(
     linker.func_wrap("lapce", "host_handle_rpc", move || {
         if let Ok(msg) = wasi_read_string(&stdout) {
             handle_plugin_server_message(&local_rpc, &msg);
+        }
+    })?;
+    linker.func_wrap("lapce", "host_handle_stderr", move || {
+        if let Ok(msg) = wasi_read_string(&stderr) {
+            eprintln!("got stderr from plugin: {msg}");
         }
     })?;
     linker.module(&mut store, "", &module)?;
