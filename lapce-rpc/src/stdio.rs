@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 use serde::{de::DeserializeOwned, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::{
     io::{self, BufRead, Write},
     thread,
@@ -72,6 +72,8 @@ fn new_write_msg<W, Req, Notif, Resp>(
 where
     W: Write,
     Req: Serialize,
+    Notif: Serialize,
+    Resp: Serialize,
 {
     let value = match msg {
         RpcMessage::Request(id, req) => {
@@ -81,9 +83,19 @@ where
                 .insert("id".into(), id.into());
             msg
         }
-        RpcMessage::Response(_, _) => todo!(),
-        RpcMessage::Notification(_) => todo!(),
-        RpcMessage::Error(_, _) => todo!(),
+        RpcMessage::Response(id, resp) => {
+            json!({
+                "id": id,
+                "result": resp,
+            })
+        }
+        RpcMessage::Notification(n) => serde_json::to_value(n)?,
+        RpcMessage::Error(id, err) => {
+            json!({
+                "id": id,
+                "error": err,
+            })
+        }
     };
     let msg = format!("{}\n", serde_json::to_string(&value)?);
     out.write_all(msg.as_bytes())?;

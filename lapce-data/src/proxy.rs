@@ -16,8 +16,11 @@ use lapce_proxy::directory::Directory;
 use lapce_proxy::dispatch::NewDispatcher;
 use lapce_proxy::APPLICATION_NAME;
 pub use lapce_proxy::VERSION;
-use lapce_rpc::core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler};
-use lapce_rpc::proxy::{CoreProxyResponse, ProxyRpcHandler};
+use lapce_rpc::core::{
+    CoreHandler, CoreNotification, CoreRequest, CoreRpc, CoreRpcHandler,
+};
+use lapce_rpc::proxy::{CoreProxyResponse, ProxyRpcHandler, ProxyRpcMessage};
+use lapce_rpc::stdio::new_stdio_transport;
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::RequestId;
 use lapce_rpc::{RpcMessage, RpcObject};
@@ -389,26 +392,62 @@ impl LapceProxy {
             .stdin
             .take()
             .ok_or_else(|| anyhow!("can't find stdin"))?;
-        let mut stdout = BufReader::new(
+        let stdout = BufReader::new(
             child
                 .stdout
                 .take()
                 .ok_or_else(|| anyhow!("can't find stdout"))?,
         );
 
-        // stdio_transport(stdin, proxy_receiver, stdout, core_sender);
+        let (writer_tx, writer_rx) = crossbeam_channel::unbounded();
+        let (reader_tx, reader_rx) = crossbeam_channel::unbounded();
+        new_stdio_transport(stdin, writer_rx, stdout, reader_tx);
+
+        let local_proxy_rpc = self.proxy_rpc.clone();
+        let local_writer_tx = writer_tx.clone();
+        thread::spawn(move || {
+            for msg in local_proxy_rpc.rx() {
+                match msg {
+                    ProxyRpcMessage::Request(id, rpc) => {
+                        let _ = local_writer_tx.send(RpcMessage::Request(id, rpc));
+                    }
+                    ProxyRpcMessage::Notification(rpc) => {
+                        let _ = local_writer_tx.send(RpcMessage::Notification(rpc));
+                    }
+                    ProxyRpcMessage::Shutdown => {
+                        return;
+                    }
+                }
+            }
+        });
 
         let core_rpc = self.core_rpc.clone();
-        thread::spawn(move || -> Result<()> {
-            loop {
-                let msg = read_msg(&mut stdout)?;
+        let proxy_rpc = self.proxy_rpc.clone();
+        thread::spawn(move || {
+            for msg in reader_rx {
                 match msg {
-                    RpcMessage::Request(_, _) => todo!(),
+                    RpcMessage::Request(id, req) => {
+                        let writer_tx = writer_tx.clone();
+                        let core_rpc = core_rpc.clone();
+                        thread::spawn(move || match core_rpc.request(req) {
+                            Ok(resp) => {
+                                let _ =
+                                    writer_tx.send(RpcMessage::Response(id, resp));
+                            }
+                            Err(e) => {
+                                let _ = writer_tx.send(RpcMessage::Error(id, e));
+                            }
+                        });
+                    }
                     RpcMessage::Notification(n) => {
                         core_rpc.notification(n);
                     }
-                    RpcMessage::Response(_, _) => todo!(),
-                    RpcMessage::Error(_, _) => todo!(),
+                    RpcMessage::Response(id, resp) => {
+                        proxy_rpc.handle_response(id, Ok(resp));
+                    }
+                    RpcMessage::Error(id, err) => {
+                        proxy_rpc.handle_response(id, Err(err));
+                    }
                 }
             }
         });

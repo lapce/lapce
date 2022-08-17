@@ -27,7 +27,7 @@ use crate::{
     RequestId, RpcError,
 };
 
-enum ProxyRpcMessage {
+pub enum ProxyRpcMessage {
     Request(RequestId, CoreProxyRequest),
     Notification(CoreProxyNotification),
     Shutdown,
@@ -273,6 +273,7 @@ impl<F: Send + FnOnce(Result<CoreProxyResponse, RpcError>)> ProxyCallback for F 
 enum ResponseHandler {
     Callback(Box<dyn ProxyCallback>),
     Chan(Sender<Result<CoreProxyResponse, RpcError>>),
+    SharedChan(Arc<Sender<Result<CoreProxyResponse, RpcError>>>),
 }
 
 impl ResponseHandler {
@@ -280,6 +281,9 @@ impl ResponseHandler {
         match self {
             ResponseHandler::Callback(f) => f.call(result),
             ResponseHandler::Chan(tx) => {
+                let _ = tx.send(result);
+            }
+            ResponseHandler::SharedChan(tx) => {
                 let _ = tx.send(result);
             }
         }
@@ -308,6 +312,10 @@ impl ProxyRpcHandler {
             id: Arc::new(AtomicU64::new(0)),
             pending: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    pub fn rx(&self) -> &Receiver<ProxyRpcMessage> {
+        &self.rx
     }
 
     pub fn mainloop<H>(&self, handler: &mut H)
@@ -353,7 +361,7 @@ impl ProxyRpcHandler {
         })
     }
 
-    fn request_async(
+    pub fn request_async(
         &self,
         request: CoreProxyRequest,
         f: impl ProxyCallback + 'static,

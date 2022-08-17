@@ -19,7 +19,7 @@ use crate::{
     RequestId, RpcError,
 };
 
-enum CoreRpc {
+pub enum CoreRpc {
     Request(RequestId, CoreRequest),
     Notification(CoreNotification),
     Shutdown,
@@ -128,6 +128,10 @@ impl CoreRpcHandler {
                 }
             }
         }
+    }
+
+    pub fn rx(&self) -> &Receiver<CoreRpc> {
+        &self.rx
     }
 
     pub fn handle_response(

@@ -7,7 +7,7 @@ mod parse;
 pub mod plugin;
 pub mod proxy;
 pub mod source_control;
-mod stdio;
+pub mod stdio;
 pub mod style;
 pub mod terminal;
 
