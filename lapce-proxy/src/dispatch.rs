@@ -105,6 +105,7 @@ impl ProxyHandler for Dispatcher {
                     #[allow(deprecated)]
                     let _ = sender.send(Msg::Shutdown);
                 }
+                self.proxy_rpc.shutdown();
             }
             Update { path, delta, rev } => {
                 let buffer = self.buffers.get_mut(&path).unwrap();

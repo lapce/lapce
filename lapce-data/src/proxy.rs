@@ -243,7 +243,6 @@ impl LapceProxy {
                 disabled_volts,
                 plugin_configurations,
             );
-            println!("proxy stopped");
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ProxyUpdateStatus(ProxyStatus::Disconnected),
@@ -401,8 +400,6 @@ impl LapceProxy {
                 .ok_or_else(|| anyhow!("can't find stdout"))?,
         );
 
-        println!("started remote proxy");
-
         let (writer_tx, writer_rx) = crossbeam_channel::unbounded();
         let (reader_tx, reader_rx) = crossbeam_channel::unbounded();
         stdio_transport(stdin, writer_rx, stdout, reader_tx);
@@ -419,6 +416,8 @@ impl LapceProxy {
                         let _ = local_writer_tx.send(RpcMessage::Notification(rpc));
                     }
                     ProxyRpc::Shutdown => {
+                        let _ = child.kill();
+                        let _ = child.wait();
                         return;
                     }
                 }
