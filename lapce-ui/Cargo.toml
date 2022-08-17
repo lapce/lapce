@@ -5,14 +5,11 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-image = "0.24"
 chrono = "0.4.19"
 log = "0.4.14"
 fern = "0.6.0"
 Inflector = "0.11.4"
 rayon = "1.5.1"
-diff = "0.1.12"
-libloading = "0.7"
 flate2 = "1.0.22"
 hashbrown = "0.11.2"
 sled = "0.34.7"
@@ -29,7 +26,6 @@ crossbeam-channel = "0.5.0"
 crossbeam-utils = "0.8.4"
 regex = "1.5.6"
 jsonrpc-lite = "0.5.0"
-bit-vec = "0.5.0"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
 include_dir = "0.6.0"
 anyhow = "1.0.32"

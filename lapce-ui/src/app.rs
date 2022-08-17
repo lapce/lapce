@@ -34,7 +34,7 @@ pub fn launch() {
         for arg in args {
             match arg.as_str() {
                 "-v" | "--version" => {
-                    println!("lapce {VERSION}");
+                    println!("lapce {}", *VERSION);
                     return;
                 }
                 "-h" | "--help" => {

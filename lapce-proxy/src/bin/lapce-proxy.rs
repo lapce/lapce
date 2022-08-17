@@ -8,7 +8,7 @@ fn main() {
         for arg in args {
             match arg.as_str() {
                 "-v" | "--version" => {
-                    println!("lapce-proxy {VERSION}");
+                    println!("lapce-proxy {}", *VERSION);
                     return;
                 }
                 "-h" | "--help" => {

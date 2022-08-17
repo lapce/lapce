@@ -131,7 +131,7 @@ impl LapceEditorTabHeader {
             }
             EditorTabChild::Settings(_, _) => {
                 text = "Settings".to_string();
-                hint = format!("ver. {}", VERSION);
+                hint = format!("ver. {}", *VERSION);
             }
         }
         let font_size = data.config.ui.font_size() as f64;

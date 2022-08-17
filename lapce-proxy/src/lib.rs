@@ -26,23 +26,26 @@ use lapce_rpc::{
     stdio::new_stdio_transport,
     RequestId, RpcError, RpcMessage, RpcObject,
 };
+use once_cell::sync::Lazy;
 use serde_json::Value;
 
 #[cfg(debug_assertions)]
 pub const APPLICATION_NAME: &str = "Lapce-debug";
 
-#[cfg(debug_assertions)]
-pub const VERSION: &str = "debug";
-
 #[cfg(not(debug_assertions))]
 pub const APPLICATION_NAME: &str = "Lapce";
 
-#[cfg(not(debug_assertions))]
-pub const VERSION: &str = if env!("RELEASE_TAG_NAME") == "nightly" {
-    "nightly"
-} else {
-    env!("CARGO_PKG_VERSION")
-};
+pub static VERSION: Lazy<&str> = Lazy::new(version);
+
+fn version() -> &'static str {
+    if cfg!(debug_assertions) {
+        "debug"
+    } else if option_env!("RELEASE_TAG_NAME") == Some("nightly") {
+        "nightly"
+    } else {
+        env!("CARGO_PKG_VERSION")
+    }
+}
 
 pub fn mainloop() {
     let core_rpc = CoreRpcHandler::new();
