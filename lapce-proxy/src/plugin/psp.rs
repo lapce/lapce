@@ -15,7 +15,7 @@ use jsonrpc_lite::{JsonRpc, Params};
 use lapce_core::{buffer::RopeText, encoding::offset_utf16_to_utf8};
 use lapce_rpc::{
     plugin::PluginId,
-    style::{LineStyle, SemanticStyles, Style},
+    style::{LineStyle, Style},
     RpcError,
 };
 use lsp_types::{

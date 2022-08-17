@@ -78,6 +78,7 @@ impl Seek for WasiPipe {
 }
 
 pub struct Plugin {
+    #[allow(dead_code)]
     id: PluginId,
     host: PluginHostHandler,
     configurations: Option<serde_json::Value>,
@@ -171,7 +172,7 @@ impl Plugin {
         let configurations = self.configurations.clone();
         thread::spawn(move || {
             let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
-            server_rpc.server_request(
+            let _ = server_rpc.server_request(
                 Initialize::METHOD,
                 #[allow(deprecated)]
                 InitializeParams {

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use std::path::Path;
@@ -16,14 +16,12 @@ use lapce_proxy::directory::Directory;
 use lapce_proxy::dispatch::NewDispatcher;
 use lapce_proxy::APPLICATION_NAME;
 pub use lapce_proxy::VERSION;
-use lapce_rpc::core::{
-    CoreHandler, CoreNotification, CoreRequest, CoreRpc, CoreRpcHandler,
-};
-use lapce_rpc::proxy::{CoreProxyResponse, ProxyRpcHandler, ProxyRpcMessage};
+use lapce_rpc::core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler};
+use lapce_rpc::proxy::{ProxyRpcHandler, ProxyRpcMessage};
 use lapce_rpc::stdio::new_stdio_transport;
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::RequestId;
-use lapce_rpc::{RpcMessage, RpcObject};
+use lapce_rpc::RpcMessage;
 use lsp_types::Url;
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -267,7 +265,6 @@ impl LapceProxy {
             disabled_volts,
             plugin_configurations,
         );
-        let (core_sender, core_receiver) = crossbeam_channel::unbounded();
         match workspace.kind {
             LapceWorkspaceType::Local => {
                 let proxy_rpc = self.proxy_rpc.clone();
@@ -280,7 +277,7 @@ impl LapceProxy {
                 });
             }
             LapceWorkspaceType::RemoteSSH(user, host) => {
-                self.start_remote(SshRemote { user, host }, core_sender)?;
+                self.start_remote(SshRemote { user, host })?;
             }
             LapceWorkspaceType::RemoteWSL => {
                 let distro = WslDistro::all()?
@@ -288,7 +285,7 @@ impl LapceProxy {
                     .find(|distro| distro.default)
                     .ok_or_else(|| anyhow!("no default distro found"))?
                     .name;
-                self.start_remote(WslRemote { distro }, core_sender)?;
+                self.start_remote(WslRemote { distro })?;
             }
         }
 
@@ -298,11 +295,7 @@ impl LapceProxy {
         Ok(())
     }
 
-    fn start_remote(
-        &self,
-        remote: impl Remote,
-        core_sender: Sender<Value>,
-    ) -> Result<()> {
+    fn start_remote(&self, remote: impl Remote) -> Result<()> {
         remote.connection_debug();
 
         use HostPlatform::*;
@@ -743,38 +736,4 @@ fn parse_os(os: &str) -> HostPlatform {
             }
         }
     }
-}
-
-fn read_msg<R: BufRead>(
-    reader: &mut R,
-) -> Result<RpcMessage<CoreRequest, CoreNotification, CoreProxyResponse>> {
-    let mut buf = String::new();
-    let _s = reader.read_line(&mut buf)?;
-    let value: Value = serde_json::from_str(&buf)?;
-    let object = RpcObject(value);
-    let is_response = object.is_response();
-    let msg = if is_response {
-        let id = object.get_id().ok_or_else(|| anyhow!("no id"))?;
-        let resp = object.into_response().map_err(|e| anyhow!(e))?;
-        match resp {
-            Ok(value) => {
-                todo!()
-            }
-            Err(value) => {
-                todo!()
-            }
-        }
-    } else {
-        match object.get_id() {
-            Some(id) => {
-                let req: CoreRequest = serde_json::from_value(object.0)?;
-                RpcMessage::Request(id, req)
-            }
-            None => {
-                let notif: CoreNotification = serde_json::from_value(object.0)?;
-                RpcMessage::Notification(notif)
-            }
-        }
-    };
-    Ok(msg)
 }

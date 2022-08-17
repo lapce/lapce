@@ -249,6 +249,7 @@ pub enum CoreProxyResponse {
         items: Vec<TextDocumentItem>,
     },
     GlobalSearchResponse {
+        #[allow(clippy::type_complexity)]
         matches: HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
     },
     Success {},
@@ -273,7 +274,6 @@ impl<F: Send + FnOnce(Result<CoreProxyResponse, RpcError>)> ProxyCallback for F 
 enum ResponseHandler {
     Callback(Box<dyn ProxyCallback>),
     Chan(Sender<Result<CoreProxyResponse, RpcError>>),
-    SharedChan(Arc<Sender<Result<CoreProxyResponse, RpcError>>>),
 }
 
 impl ResponseHandler {
@@ -281,9 +281,6 @@ impl ResponseHandler {
         match self {
             ResponseHandler::Callback(f) => f.call(result),
             ResponseHandler::Chan(tx) => {
-                let _ = tx.send(result);
-            }
-            ResponseHandler::SharedChan(tx) => {
                 let _ = tx.send(result);
             }
         }

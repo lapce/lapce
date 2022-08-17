@@ -6,28 +6,19 @@ pub mod terminal;
 pub mod watcher;
 
 use std::{
-    io::{stdin, stdout, BufRead, BufReader, Stdin, Stdout, Write},
+    io::{stdin, stdout, BufReader},
     sync::Arc,
     thread,
 };
 
-use anyhow::{anyhow, Result};
-use crossbeam_channel::Receiver;
 use dispatch::NewDispatcher;
-use jsonrpc_lite::JsonRpc;
 use lapce_rpc::{
-    core::{
-        CoreHandler, CoreNotification, CoreRequest, CoreResponse, CoreRpc,
-        CoreRpcHandler,
-    },
-    proxy::{
-        CoreProxyNotification, CoreProxyRequest, CoreProxyResponse, ProxyRpcHandler,
-    },
+    core::{CoreRpc, CoreRpcHandler},
+    proxy::ProxyRpcHandler,
     stdio::new_stdio_transport,
-    RequestId, RpcError, RpcMessage, RpcObject,
+    RpcMessage,
 };
 use once_cell::sync::Lazy;
-use serde_json::Value;
 
 #[cfg(debug_assertions)]
 pub const APPLICATION_NAME: &str = "Lapce-debug";

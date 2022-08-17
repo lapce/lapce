@@ -103,7 +103,9 @@ pub struct PluginCatalogRpcHandler {
     proxy_rpc: ProxyRpcHandler,
     plugin_tx: Sender<PluginCatalogRpc>,
     plugin_rx: Arc<Mutex<Option<Receiver<PluginCatalogRpc>>>>,
+    #[allow(dead_code)]
     id: Arc<AtomicU64>,
+    #[allow(dead_code, clippy::type_complexity)]
     pending: Arc<Mutex<HashMap<u64, Sender<Result<Value, RpcError>>>>>,
 }
 
@@ -120,9 +122,10 @@ impl PluginCatalogRpcHandler {
         }
     }
 
+    #[allow(dead_code)]
     fn handle_response(&self, id: RequestId, result: Result<Value, RpcError>) {
         if let Some(chan) = { self.pending.lock().remove(&id) } {
-            chan.send(result);
+            let _ = chan.send(result);
         }
     }
 

@@ -2,7 +2,7 @@
 use std::os::windows::process::CommandExt;
 use std::{
     io::{BufRead, BufReader, BufWriter, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{self, Child, Command, Stdio},
     sync::Arc,
     thread,
@@ -55,8 +55,6 @@ pub struct LspClient {
     server_rpc: PluginServerRpcHandler,
     process: Child,
     workspace: Option<PathBuf>,
-    server_uri: Url,
-    args: Vec<String>,
     host: PluginHostHandler,
     options: Option<Value>,
 }
@@ -143,6 +141,7 @@ impl PluginServerHandler for LspClient {
 }
 
 impl LspClient {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         plugin_rpc: PluginCatalogRpcHandler,
         laguage_id: String,
@@ -209,13 +208,12 @@ impl LspClient {
             server_rpc,
             process,
             workspace,
-            server_uri,
-            args,
             host,
             options,
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn start(
         plugin_rpc: PluginCatalogRpcHandler,
         laguage_id: String,

@@ -66,110 +66,6 @@ pub struct RpcError {
     pub message: String,
 }
 
-#[derive(Clone)]
-pub struct NewRpcHandler<Req, Notif, Resp, Resp2> {
-    sender: Sender<RpcMessage<Req, Notif, Resp>>,
-    id: Arc<AtomicU64>,
-    pending: Arc<Mutex<HashMap<u64, NewResponseHandler<Resp2>>>>,
-}
-
-impl<Req, Notif, Resp, Resp2> NewRpcHandler<Req, Notif, Resp, Resp2> {
-    pub fn new(sender: Sender<RpcMessage<Req, Notif, Resp>>) -> Self {
-        Self {
-            sender,
-            id: Arc::new(AtomicU64::new(0)),
-            pending: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    pub fn mainloop<H, Req2, Notif2>(
-        &mut self,
-        receiver: Receiver<RpcMessage<Req2, Notif2, Resp2>>,
-        handler: &mut H,
-    ) where
-        H: NewHandler<Req2, Notif2, Resp2>,
-    {
-        for msg in receiver {
-            match msg {
-                RpcMessage::Request(id, request) => {
-                    handler.handle_request(request);
-                }
-                RpcMessage::Notification(notification) => {
-                    handler.handle_notification(notification);
-                }
-                RpcMessage::Response(id, resp) => {
-                    self.handle_response(id, Ok(resp));
-                }
-                RpcMessage::Error(id, err) => {
-                    self.handle_response(id, Err(err));
-                }
-            }
-        }
-    }
-
-    fn handle_response(&self, id: u64, resp: Result<Resp2, RpcError>) {
-        println!("rpc handler hanlde respone");
-        let handler = {
-            let mut pending = self.pending.lock();
-            pending.remove(&id)
-        };
-        if let Some(responsehandler) = handler {
-            responsehandler.invoke(resp)
-        }
-    }
-
-    pub fn send_rpc_request_async(&self, req: Req, f: Box<dyn NewCallback<Resp2>>) {
-        self.send_rpc_request_common(req, NewResponseHandler::Callback(f));
-    }
-
-    fn send_rpc_request_common(&self, req: Req, rh: NewResponseHandler<Resp2>) {
-        let id = self.id.fetch_add(1, Ordering::Relaxed);
-        {
-            let mut pending = self.pending.lock();
-            pending.insert(id, rh);
-        }
-        if let Err(_e) = self.sender.send(RpcMessage::Request(id, req)) {
-            let mut pending = self.pending.lock();
-            if let Some(rh) = pending.remove(&id) {
-                rh.invoke(Err(RpcError {
-                    code: 0,
-                    message: "io error".to_string(),
-                }));
-            }
-        }
-    }
-
-    pub fn send_rpc_notification(&self, notification: Notif) {
-        if let Err(_e) = self.sender.send(RpcMessage::Notification(notification)) {}
-    }
-}
-
-pub fn new_stdio<Req1, Notif1, Resp1, Req2, Notif2, Resp2>() -> (
-    Sender<RpcMessage<Req1, Notif1, Resp1>>,
-    Sender<RpcMessage<Req2, Notif2, Resp2>>,
-    Receiver<RpcMessage<Req2, Notif2, Resp2>>,
-)
-where
-    Req1: 'static + Serialize + DeserializeOwned + Send + Sync,
-    Notif1: 'static + Serialize + DeserializeOwned + Send + Sync,
-    Resp1: 'static + Serialize + DeserializeOwned + Send + Sync,
-    Req2: 'static + Serialize + DeserializeOwned + Send + Sync,
-    Notif2: 'static + Serialize + DeserializeOwned + Send + Sync,
-    Resp2: 'static + Serialize + DeserializeOwned + Send + Sync,
-{
-    let stdout = stdout();
-    let stdin = BufReader::new(stdin());
-    let (writer_sender, writer_receiver) = crossbeam_channel::unbounded();
-    let (reader_sender, reader_receiver) = crossbeam_channel::unbounded();
-    stdio::new_stdio_transport(
-        stdout,
-        writer_receiver,
-        stdin,
-        reader_sender.clone(),
-    );
-    (writer_sender, reader_sender, reader_receiver)
-}
-
 pub fn stdio<S, D>() -> (Sender<S>, Receiver<D>)
 where
     S: 'static + Serialize + Send + Sync,
@@ -200,18 +96,6 @@ pub trait NewCallback<Resp>: Send {
 impl<Resp, F: Send + FnOnce(Result<Resp, RpcError>)> NewCallback<Resp> for F {
     fn call(self: Box<F>, result: Result<Resp, RpcError>) {
         (*self)(result)
-    }
-}
-
-enum NewResponseHandler<Resp> {
-    Callback(Box<dyn NewCallback<Resp>>),
-}
-
-impl<Resp> NewResponseHandler<Resp> {
-    fn invoke(self, result: Result<Resp, RpcError>) {
-        match self {
-            NewResponseHandler::Callback(f) => f.call(result),
-        }
     }
 }
 

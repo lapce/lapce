@@ -97,6 +97,7 @@ pub struct CoreRpcHandler {
     tx: Sender<CoreRpc>,
     rx: Receiver<CoreRpc>,
     id: Arc<AtomicU64>,
+    #[allow(clippy::type_complexity)]
     pending: Arc<Mutex<HashMap<u64, Sender<Result<CoreResponse, RpcError>>>>>,
 }
 
@@ -222,5 +223,11 @@ impl CoreRpcHandler {
 
     pub fn update_terminal(&self, term_id: TermId, content: String) {
         self.notification(CoreNotification::UpdateTerminal { term_id, content });
+    }
+}
+
+impl Default for CoreRpcHandler {
+    fn default() -> Self {
+        Self::new()
     }
 }
