@@ -12,9 +12,6 @@ pub mod style;
 pub mod terminal;
 
 use std::collections::HashMap;
-use std::io::stdin;
-use std::io::stdout;
-use std::io::BufReader;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -64,19 +61,6 @@ impl<Req: Serialize, Notif: Serialize, Resp: Serialize>
 pub struct RpcError {
     pub code: i64,
     pub message: String,
-}
-
-pub fn stdio<S, D>() -> (Sender<S>, Receiver<D>)
-where
-    S: 'static + Serialize + Send + Sync,
-    D: 'static + DeserializeOwned + Send + Sync,
-{
-    let stdout = stdout();
-    let stdin = BufReader::new(stdin());
-    let (writer_sender, writer_receiver) = crossbeam_channel::unbounded();
-    let (reader_sender, reader_receiver) = crossbeam_channel::unbounded();
-    stdio::stdio_transport(stdout, writer_receiver, stdin, reader_sender);
-    (writer_sender, reader_receiver)
 }
 
 pub trait Callback: Send {

@@ -31,7 +31,7 @@ use lapce_core::{
 };
 use lapce_proxy::directory::Directory;
 use lapce_rpc::{
-    buffer::BufferId, proxy::CoreProxyResponse, source_control::FileDiff,
+    buffer::BufferId, proxy::ProxyResponse, source_control::FileDiff,
     terminal::TermId,
 };
 
@@ -1866,7 +1866,7 @@ impl LapceMainSplitData {
             rev,
             path.clone(),
             Box::new(move |result| {
-                if let Ok(CoreProxyResponse::SaveResponse {}) = result {
+                if let Ok(ProxyResponse::SaveResponse {}) = result {
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::BufferSave(path, rev, exit_widget_id),

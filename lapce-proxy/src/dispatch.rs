@@ -16,8 +16,7 @@ use grep_searcher::SearcherBuilder;
 use lapce_rpc::core::CoreRpcHandler;
 use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::proxy::{
-    CoreProxyNotification, CoreProxyRequest, CoreProxyResponse, ProxyHandler,
-    ProxyRpcHandler,
+    ProxyHandler, ProxyNotification, ProxyRequest, ProxyResponse, ProxyRpcHandler,
 };
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::style::{LineStyle, SemanticStyles};
@@ -37,7 +36,7 @@ use xi_rope::Rope;
 const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(1);
 const WORKSPACE_EVENT_TOKEN: WatchToken = WatchToken(2);
 
-pub struct NewDispatcher {
+pub struct Dispatcher {
     workspace: Option<PathBuf>,
     pub proxy_rpc: ProxyRpcHandler,
     core_rpc: CoreRpcHandler,
@@ -48,9 +47,9 @@ pub struct NewDispatcher {
     file_watcher: FileWatcher,
 }
 
-impl ProxyHandler for NewDispatcher {
-    fn handle_notification(&mut self, rpc: CoreProxyNotification) {
-        use CoreProxyNotification::*;
+impl ProxyHandler for Dispatcher {
+    fn handle_notification(&mut self, rpc: ProxyNotification) {
+        use ProxyNotification::*;
         match rpc {
             Initialize {
                 workspace,
@@ -227,8 +226,8 @@ impl ProxyHandler for NewDispatcher {
         }
     }
 
-    fn handle_request(&mut self, id: RequestId, rpc: CoreProxyRequest) {
-        use CoreProxyRequest::*;
+    fn handle_request(&mut self, id: RequestId, rpc: ProxyRequest) {
+        use ProxyRequest::*;
         match rpc {
             NewBuffer { buffer_id, path } => {
                 let buffer = Buffer::new(buffer_id, path.clone());
@@ -243,14 +242,14 @@ impl ProxyHandler for NewDispatcher {
                 self.buffers.insert(path, buffer);
                 self.respond_rpc(
                     id,
-                    Ok(CoreProxyResponse::NewBufferResponse { content }),
+                    Ok(ProxyResponse::NewBufferResponse { content }),
                 );
             }
             BufferHead { path } => {
                 let result = if let Some(workspace) = self.workspace.as_ref() {
                     let result = file_get_head(workspace, &path);
                     if let Ok((_blob_id, content)) = result {
-                        Ok(CoreProxyResponse::BufferHeadResponse {
+                        Ok(ProxyResponse::BufferHeadResponse {
                             version: "head".to_string(),
                             content,
                         })
@@ -308,7 +307,7 @@ impl ProxyHandler for NewDispatcher {
                                 }
                             }
                         }
-                        Ok(CoreProxyResponse::GlobalSearchResponse { matches })
+                        Ok(ProxyResponse::GlobalSearchResponse { matches })
                     } else {
                         Err(RpcError {
                             code: 0,
@@ -328,7 +327,7 @@ impl ProxyHandler for NewDispatcher {
                     *completion_item,
                     move |result| {
                         let result = result.map(|item| {
-                            CoreProxyResponse::CompletionResolveResponse {
+                            ProxyResponse::CompletionResolveResponse {
                                 item: Box::new(item),
                             }
                         });
@@ -343,8 +342,9 @@ impl ProxyHandler for NewDispatcher {
             } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc.hover(&path, position, move |_, result| {
-                    let result = result.map(|hover| {
-                        CoreProxyResponse::HoverResponse { request_id, hover }
+                    let result = result.map(|hover| ProxyResponse::HoverResponse {
+                        request_id,
+                        hover,
                     });
                     proxy_rpc.handle_response(id, result);
                 });
@@ -357,7 +357,7 @@ impl ProxyHandler for NewDispatcher {
                     position,
                     move |_, result| {
                         let result = result.map(|references| {
-                            CoreProxyResponse::GetReferencesResponse { references }
+                            ProxyResponse::GetReferencesResponse { references }
                         });
                         proxy_rpc.handle_response(id, result);
                     },
@@ -374,7 +374,7 @@ impl ProxyHandler for NewDispatcher {
                     position,
                     move |_, result| {
                         let result = result.map(|definition| {
-                            CoreProxyResponse::GetDefinitionResponse {
+                            ProxyResponse::GetDefinitionResponse {
                                 request_id,
                                 definition,
                             }
@@ -394,7 +394,7 @@ impl ProxyHandler for NewDispatcher {
                     position,
                     move |_, result| {
                         let result = result.map(|definition| {
-                            CoreProxyResponse::GetTypeDefinition {
+                            ProxyResponse::GetTypeDefinition {
                                 request_id,
                                 definition,
                             }
@@ -413,7 +413,7 @@ impl ProxyHandler for NewDispatcher {
                 self.catalog_rpc
                     .get_inlay_hints(&path, range, move |_, result| {
                         let result = result
-                            .map(|hints| CoreProxyResponse::GetInlayHints { hints });
+                            .map(|hints| ProxyResponse::GetInlayHints { hints });
                         proxy_rpc.handle_response(id, result);
                     });
             }
@@ -431,7 +431,7 @@ impl ProxyHandler for NewDispatcher {
                         Ok(styles) => {
                             proxy_rpc.handle_response(
                                 id,
-                                Ok(CoreProxyResponse::GetSemanticTokens {
+                                Ok(ProxyResponse::GetSemanticTokens {
                                     styles: SemanticStyles {
                                         rev,
                                         path: local_path,
@@ -471,7 +471,7 @@ impl ProxyHandler for NewDispatcher {
                     position,
                     move |_, result| {
                         let result = result.map(|resp| {
-                            CoreProxyResponse::GetCodeActionsResponse { resp }
+                            ProxyResponse::GetCodeActionsResponse { resp }
                         });
                         proxy_rpc.handle_response(id, result);
                     },
@@ -481,9 +481,8 @@ impl ProxyHandler for NewDispatcher {
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc
                     .get_document_symbols(&path, move |_, result| {
-                        let result = result.map(|resp| {
-                            CoreProxyResponse::GetDocumentSymbols { resp }
-                        });
+                        let result = result
+                            .map(|resp| ProxyResponse::GetDocumentSymbols { resp });
                         proxy_rpc.handle_response(id, result);
                     });
             }
@@ -492,7 +491,7 @@ impl ProxyHandler for NewDispatcher {
                 self.catalog_rpc
                     .get_workspace_symbols(query, move |_, result| {
                         let result = result.map(|symbols| {
-                            CoreProxyResponse::GetWorkspaceSymbols { symbols }
+                            ProxyResponse::GetWorkspaceSymbols { symbols }
                         });
                         proxy_rpc.handle_response(id, result);
                     });
@@ -502,7 +501,7 @@ impl ProxyHandler for NewDispatcher {
                 self.catalog_rpc
                     .get_document_formatting(&path, move |_, result| {
                         let result = result.map(|edits| {
-                            CoreProxyResponse::GetDocumentFormatting { edits }
+                            ProxyResponse::GetDocumentFormatting { edits }
                         });
                         proxy_rpc.handle_response(id, result);
                     });
@@ -520,7 +519,7 @@ impl ProxyHandler for NewDispatcher {
                                 }
                             }
                         }
-                        Ok(CoreProxyResponse::GetFilesResponse { items })
+                        Ok(ProxyResponse::GetFilesResponse { items })
                     } else {
                         Err(RpcError {
                             code: 0,
@@ -541,7 +540,7 @@ impl ProxyHandler for NewDispatcher {
                         text: buffer.get_document(),
                     })
                     .collect();
-                let resp = CoreProxyResponse::GetOpenFilesContentResponse { items };
+                let resp = ProxyResponse::GetOpenFilesContentResponse { items };
                 self.proxy_rpc.handle_response(id, Ok(resp));
             }
             ReadDir { path } => {
@@ -570,7 +569,7 @@ impl ProxyHandler for NewDispatcher {
                                 })
                                 .collect::<HashMap<PathBuf, FileNodeItem>>();
 
-                            CoreProxyResponse::ReadDirResponse { items }
+                            ProxyResponse::ReadDirResponse { items }
                         })
                         .map_err(|e| RpcError {
                             code: 0,
@@ -586,7 +585,7 @@ impl ProxyHandler for NewDispatcher {
                     .map(|_r| {
                         self.catalog_rpc
                             .did_save_text_document(&path, buffer.rope.clone());
-                        CoreProxyResponse::SaveResponse {}
+                        ProxyResponse::SaveResponse {}
                     })
                     .map_err(|e| RpcError {
                         code: 0,
@@ -605,7 +604,7 @@ impl ProxyHandler for NewDispatcher {
                 buffer.rev = rev;
                 let result = buffer
                     .save(rev)
-                    .map(|_| CoreProxyResponse::Success {})
+                    .map(|_| ProxyResponse::Success {})
                     .map_err(|e| RpcError {
                         code: 0,
                         message: e.to_string(),
@@ -617,7 +616,7 @@ impl ProxyHandler for NewDispatcher {
                     .write(true)
                     .create_new(true)
                     .open(path)
-                    .map(|_| CoreProxyResponse::Success {})
+                    .map(|_| ProxyResponse::Success {})
                     .map_err(|e| RpcError {
                         code: 0,
                         message: e.to_string(),
@@ -626,7 +625,7 @@ impl ProxyHandler for NewDispatcher {
             }
             CreateDirectory { path } => {
                 let result = std::fs::create_dir(path)
-                    .map(|_| CoreProxyResponse::Success {})
+                    .map(|_| ProxyResponse::Success {})
                     .map_err(|e| RpcError {
                         code: 0,
                         message: e.to_string(),
@@ -635,7 +634,7 @@ impl ProxyHandler for NewDispatcher {
             }
             TrashPath { path } => {
                 let result = trash::delete(path)
-                    .map(|_| CoreProxyResponse::Success {})
+                    .map(|_| ProxyResponse::Success {})
                     .map_err(|e| RpcError {
                         code: 0,
                         message: e.to_string(),
@@ -652,7 +651,7 @@ impl ProxyHandler for NewDispatcher {
                     })
                 } else {
                     std::fs::rename(from, to)
-                        .map(|_| CoreProxyResponse::Success {})
+                        .map(|_| ProxyResponse::Success {})
                         .map_err(|e| RpcError {
                             code: 0,
                             message: e.to_string(),
@@ -664,7 +663,7 @@ impl ProxyHandler for NewDispatcher {
     }
 }
 
-impl NewDispatcher {
+impl Dispatcher {
     pub fn new(core_rpc: CoreRpcHandler, proxy_rpc: ProxyRpcHandler) -> Self {
         let plugin_rpc =
             PluginCatalogRpcHandler::new(core_rpc.clone(), proxy_rpc.clone());
@@ -682,11 +681,7 @@ impl NewDispatcher {
         }
     }
 
-    fn respond_rpc(
-        &self,
-        id: RequestId,
-        result: Result<CoreProxyResponse, RpcError>,
-    ) {
+    fn respond_rpc(&self, id: RequestId, result: Result<ProxyResponse, RpcError>) {
         self.proxy_rpc.handle_response(id, result);
     }
 }
@@ -747,7 +742,7 @@ impl FileWatchNotifer {
         if event.kind.is_modify() {
             for path in event.paths {
                 self.proxy_rpc
-                    .notification(CoreProxyNotification::OpenFileChanged { path });
+                    .notification(ProxyNotification::OpenFileChanged { path });
             }
         }
     }

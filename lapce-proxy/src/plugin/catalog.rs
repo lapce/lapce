@@ -9,7 +9,7 @@ use std::{
 };
 
 use lapce_rpc::{
-    plugin::PluginId, proxy::CoreProxyResponse, style::LineStyle, RpcError,
+    plugin::PluginId, proxy::ProxyResponse, style::LineStyle, RpcError,
 };
 use lsp_types::{
     notification::DidOpenTextDocument, DidOpenTextDocumentParams, SemanticTokens,
@@ -191,7 +191,7 @@ impl PluginCatalog {
         match notification {
             PluginServerLoaded(plugin) => {
                 // TODO: check if the server has did open registered
-                if let Ok(CoreProxyResponse::GetOpenFilesContentResponse { items }) =
+                if let Ok(ProxyResponse::GetOpenFilesContentResponse { items }) =
                     self.plugin_rpc.proxy_rpc.get_open_files_content()
                 {
                     for item in items {

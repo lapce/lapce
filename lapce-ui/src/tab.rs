@@ -38,7 +38,7 @@ use lapce_data::{
     },
     proxy::path_from_url,
 };
-use lapce_rpc::proxy::CoreProxyResponse;
+use lapce_rpc::proxy::ProxyResponse;
 use lsp_types::DiagnosticSeverity;
 use xi_rope::Rope;
 
@@ -808,7 +808,7 @@ impl LapceTab {
                                 pattern.clone(),
                                 Box::new(move |result| {
                                     if let Ok(
-                                        CoreProxyResponse::GlobalSearchResponse {
+                                        ProxyResponse::GlobalSearchResponse {
                                             matches,
                                         },
                                     ) = result

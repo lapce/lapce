@@ -32,7 +32,7 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::BufferId,
-    proxy::CoreProxyResponse,
+    proxy::ProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
 use lsp_types::{
@@ -587,8 +587,7 @@ impl Document {
             let proxy = self.proxy.clone();
             std::thread::spawn(move || {
                 proxy.proxy_rpc.new_buffer(id, path.clone(), move |result| {
-                    if let Ok(CoreProxyResponse::NewBufferResponse { content }) =
-                        result
+                    if let Ok(ProxyResponse::NewBufferResponse { content }) = result
                     {
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
@@ -771,9 +770,7 @@ impl Document {
             self.proxy
                 .proxy_rpc
                 .get_semantic_tokens(path.clone(), move |result| {
-                    if let Ok(CoreProxyResponse::GetSemanticTokens { styles }) =
-                        result
-                    {
+                    if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
                         rayon::spawn(move || {
                             let mut styles_span = SpansBuilder::new(len);
                             for style in styles.styles {
@@ -818,9 +815,7 @@ impl Document {
             self.proxy
                 .proxy_rpc
                 .get_inlay_hints(path.clone(), move |result| {
-                    if let Ok(CoreProxyResponse::GetInlayHints { mut hints }) =
-                        result
-                    {
+                    if let Ok(ProxyResponse::GetInlayHints { mut hints }) = result {
                         // Sort the inlay hints by their position, as the LSP does not guarantee that it will
                         // provide them in the order that they are in within the file
                         // as well, Spans does not iterate in the order that they appear

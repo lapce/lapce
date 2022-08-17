@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use druid::{ExtEventSink, Size, Target, WidgetId};
-use lapce_rpc::{buffer::BufferId, proxy::CoreProxyResponse};
+use lapce_rpc::{buffer::BufferId, proxy::ProxyResponse};
 use lsp_types::{HoverContents, MarkedString, MarkupKind, Position};
 
 use crate::{
@@ -131,10 +131,8 @@ impl HoverData {
                 path.clone(),
                 position,
                 Box::new(move |result| {
-                    if let Ok(CoreProxyResponse::HoverResponse {
-                        request_id,
-                        hover,
-                    }) = result
+                    if let Ok(ProxyResponse::HoverResponse { request_id, hover }) =
+                        result
                     {
                         let items = parse_hover_resp(hover, &p_config);
 

@@ -27,16 +27,16 @@ use crate::{
     RequestId, RpcError,
 };
 
-pub enum ProxyRpcMessage {
-    Request(RequestId, CoreProxyRequest),
-    Notification(CoreProxyNotification),
+pub enum ProxyRpc {
+    Request(RequestId, ProxyRequest),
+    Notification(ProxyNotification),
     Shutdown,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
-pub enum CoreProxyRequest {
+pub enum ProxyRequest {
     NewBuffer {
         buffer_id: BufferId,
         path: PathBuf,
@@ -128,7 +128,7 @@ pub enum CoreProxyRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
-pub enum CoreProxyNotification {
+pub enum ProxyNotification {
     Initialize {
         workspace: Option<PathBuf>,
         disabled_volts: Vec<String>,
@@ -195,7 +195,7 @@ pub enum CoreProxyNotification {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
-pub enum CoreProxyResponse {
+pub enum ProxyResponse {
     NewBufferResponse {
         content: String,
     },
@@ -262,22 +262,22 @@ pub struct ReadDirResponse {
 }
 
 pub trait ProxyCallback: Send {
-    fn call(self: Box<Self>, result: Result<CoreProxyResponse, RpcError>);
+    fn call(self: Box<Self>, result: Result<ProxyResponse, RpcError>);
 }
 
-impl<F: Send + FnOnce(Result<CoreProxyResponse, RpcError>)> ProxyCallback for F {
-    fn call(self: Box<F>, result: Result<CoreProxyResponse, RpcError>) {
+impl<F: Send + FnOnce(Result<ProxyResponse, RpcError>)> ProxyCallback for F {
+    fn call(self: Box<F>, result: Result<ProxyResponse, RpcError>) {
         (*self)(result)
     }
 }
 
 enum ResponseHandler {
     Callback(Box<dyn ProxyCallback>),
-    Chan(Sender<Result<CoreProxyResponse, RpcError>>),
+    Chan(Sender<Result<ProxyResponse, RpcError>>),
 }
 
 impl ResponseHandler {
-    fn invoke(self, result: Result<CoreProxyResponse, RpcError>) {
+    fn invoke(self, result: Result<ProxyResponse, RpcError>) {
         match self {
             ResponseHandler::Callback(f) => f.call(result),
             ResponseHandler::Chan(tx) => {
@@ -288,14 +288,14 @@ impl ResponseHandler {
 }
 
 pub trait ProxyHandler {
-    fn handle_notification(&mut self, rpc: CoreProxyNotification);
-    fn handle_request(&mut self, id: RequestId, rpc: CoreProxyRequest);
+    fn handle_notification(&mut self, rpc: ProxyNotification);
+    fn handle_request(&mut self, id: RequestId, rpc: ProxyRequest);
 }
 
 #[derive(Clone)]
 pub struct ProxyRpcHandler {
-    tx: Sender<ProxyRpcMessage>,
-    rx: Receiver<ProxyRpcMessage>,
+    tx: Sender<ProxyRpc>,
+    rx: Receiver<ProxyRpc>,
     id: Arc<AtomicU64>,
     pending: Arc<Mutex<HashMap<u64, ResponseHandler>>>,
 }
@@ -311,7 +311,7 @@ impl ProxyRpcHandler {
         }
     }
 
-    pub fn rx(&self) -> &Receiver<ProxyRpcMessage> {
+    pub fn rx(&self) -> &Receiver<ProxyRpc> {
         &self.rx
     }
 
@@ -319,7 +319,7 @@ impl ProxyRpcHandler {
     where
         H: ProxyHandler,
     {
-        use ProxyRpcMessage::*;
+        use ProxyRpc::*;
         for msg in &self.rx {
             match msg {
                 Request(id, request) => {
@@ -335,19 +335,16 @@ impl ProxyRpcHandler {
         }
     }
 
-    fn request_common(&self, request: CoreProxyRequest, rh: ResponseHandler) {
+    fn request_common(&self, request: ProxyRequest, rh: ResponseHandler) {
         let id = self.id.fetch_add(1, Ordering::Relaxed);
         {
             let mut pending = self.pending.lock();
             pending.insert(id, rh);
         }
-        let _ = self.tx.send(ProxyRpcMessage::Request(id, request));
+        let _ = self.tx.send(ProxyRpc::Request(id, request));
     }
 
-    fn request(
-        &self,
-        request: CoreProxyRequest,
-    ) -> Result<CoreProxyResponse, RpcError> {
+    fn request(&self, request: ProxyRequest) -> Result<ProxyResponse, RpcError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.request_common(request, ResponseHandler::Chan(tx));
         rx.recv().unwrap_or_else(|_| {
@@ -360,7 +357,7 @@ impl ProxyRpcHandler {
 
     pub fn request_async(
         &self,
-        request: CoreProxyRequest,
+        request: ProxyRequest,
         f: impl ProxyCallback + 'static,
     ) {
         self.request_common(request, ResponseHandler::Callback(Box::new(f)))
@@ -369,7 +366,7 @@ impl ProxyRpcHandler {
     pub fn handle_response(
         &self,
         id: RequestId,
-        result: Result<CoreProxyResponse, RpcError>,
+        result: Result<ProxyResponse, RpcError>,
     ) {
         let handler = { self.pending.lock().remove(&id) };
         if let Some(handler) = handler {
@@ -377,41 +374,41 @@ impl ProxyRpcHandler {
         }
     }
 
-    pub fn notification(&self, notification: CoreProxyNotification) {
-        let _ = self.tx.send(ProxyRpcMessage::Notification(notification));
+    pub fn notification(&self, notification: ProxyNotification) {
+        let _ = self.tx.send(ProxyRpc::Notification(notification));
     }
 
     pub fn git_init(&self) {
-        self.notification(CoreProxyNotification::GitInit {});
+        self.notification(ProxyNotification::GitInit {});
     }
 
     pub fn git_commit(&self, message: String, diffs: Vec<FileDiff>) {
-        self.notification(CoreProxyNotification::GitCommit { message, diffs });
+        self.notification(ProxyNotification::GitCommit { message, diffs });
     }
 
     pub fn git_checkout(&self, branch: String) {
-        self.notification(CoreProxyNotification::GitCheckout { branch });
+        self.notification(ProxyNotification::GitCheckout { branch });
     }
 
     pub fn install_volt(&self, volt: VoltInfo) {
-        self.notification(CoreProxyNotification::InstallVolt { volt });
+        self.notification(ProxyNotification::InstallVolt { volt });
     }
 
     pub fn remove_volt(&self, volt: VoltMetadata) {
-        self.notification(CoreProxyNotification::RemoveVolt { volt });
+        self.notification(ProxyNotification::RemoveVolt { volt });
     }
 
     pub fn disable_volt(&self, volt: VoltInfo) {
-        self.notification(CoreProxyNotification::DisableVolt { volt });
+        self.notification(ProxyNotification::DisableVolt { volt });
     }
 
     pub fn enable_volt(&self, volt: VoltInfo) {
-        self.notification(CoreProxyNotification::EnableVolt { volt });
+        self.notification(ProxyNotification::EnableVolt { volt });
     }
 
     pub fn shutdown(&self) {
-        self.notification(CoreProxyNotification::Shutdown {});
-        let _ = self.tx.send(ProxyRpcMessage::Shutdown);
+        self.notification(ProxyNotification::Shutdown {});
+        let _ = self.tx.send(ProxyRpc::Shutdown);
     }
 
     pub fn initialize(
@@ -420,7 +417,7 @@ impl ProxyRpcHandler {
         disabled_volts: Vec<String>,
         plugin_configurations: HashMap<String, serde_json::Value>,
     ) {
-        self.notification(CoreProxyNotification::Initialize {
+        self.notification(ProxyNotification::Initialize {
             workspace,
             disabled_volts,
             plugin_configurations,
@@ -434,7 +431,7 @@ impl ProxyRpcHandler {
         input: String,
         position: Position,
     ) {
-        self.notification(CoreProxyNotification::Completion {
+        self.notification(ProxyNotification::Completion {
             request_id,
             path,
             input,
@@ -448,7 +445,7 @@ impl ProxyRpcHandler {
         cwd: Option<PathBuf>,
         shell: String,
     ) {
-        self.notification(CoreProxyNotification::NewTerminal {
+        self.notification(ProxyNotification::NewTerminal {
             term_id,
             cwd,
             shell,
@@ -456,11 +453,11 @@ impl ProxyRpcHandler {
     }
 
     pub fn terminal_close(&self, term_id: TermId) {
-        self.notification(CoreProxyNotification::TerminalClose { term_id });
+        self.notification(ProxyNotification::TerminalClose { term_id });
     }
 
     pub fn terminal_resize(&self, term_id: TermId, width: usize, height: usize) {
-        self.notification(CoreProxyNotification::TerminalResize {
+        self.notification(ProxyNotification::TerminalResize {
             term_id,
             width,
             height,
@@ -468,7 +465,7 @@ impl ProxyRpcHandler {
     }
 
     pub fn terminal_write(&self, term_id: TermId, content: &str) {
-        self.notification(CoreProxyNotification::TerminalWrite {
+        self.notification(ProxyNotification::TerminalWrite {
             term_id,
             content: content.to_string(),
         });
@@ -480,7 +477,7 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(CoreProxyRequest::NewBuffer { buffer_id, path }, f);
+        self.request_async(ProxyRequest::NewBuffer { buffer_id, path }, f);
     }
 
     pub fn get_buffer_head(
@@ -489,19 +486,19 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(CoreProxyRequest::BufferHead { path }, f);
+        self.request_async(ProxyRequest::BufferHead { path }, f);
     }
 
     pub fn create_file(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(CoreProxyRequest::CreateFile { path }, f);
+        self.request_async(ProxyRequest::CreateFile { path }, f);
     }
 
     pub fn create_directory(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(CoreProxyRequest::CreateDirectory { path }, f);
+        self.request_async(ProxyRequest::CreateDirectory { path }, f);
     }
 
     pub fn trash_path(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(CoreProxyRequest::TrashPath { path }, f);
+        self.request_async(ProxyRequest::TrashPath { path }, f);
     }
 
     pub fn rename_path(
@@ -510,7 +507,7 @@ impl ProxyRpcHandler {
         to: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(CoreProxyRequest::RenamePath { from, to }, f);
+        self.request_async(ProxyRequest::RenamePath { from, to }, f);
     }
 
     pub fn save_buffer_as(
@@ -522,7 +519,7 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(
-            CoreProxyRequest::SaveBufferAs {
+            ProxyRequest::SaveBufferAs {
                 buffer_id,
                 path,
                 rev,
@@ -533,28 +530,28 @@ impl ProxyRpcHandler {
     }
 
     pub fn global_search(&self, pattern: String, f: impl ProxyCallback + 'static) {
-        self.request_async(CoreProxyRequest::GlobalSearch { pattern }, f);
+        self.request_async(ProxyRequest::GlobalSearch { pattern }, f);
     }
 
     pub fn save(&self, rev: u64, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(CoreProxyRequest::Save { rev, path }, f);
+        self.request_async(ProxyRequest::Save { rev, path }, f);
     }
 
     pub fn get_files(&self, f: impl ProxyCallback + 'static) {
         self.request_async(
-            CoreProxyRequest::GetFiles {
+            ProxyRequest::GetFiles {
                 path: "path".into(),
             },
             f,
         );
     }
 
-    pub fn get_open_files_content(&self) -> Result<CoreProxyResponse, RpcError> {
-        self.request(CoreProxyRequest::GetOpenFilesContent {})
+    pub fn get_open_files_content(&self) -> Result<ProxyResponse, RpcError> {
+        self.request(ProxyRequest::GetOpenFilesContent {})
     }
 
     pub fn read_dir(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(CoreProxyRequest::ReadDir { path }, f);
+        self.request_async(ProxyRequest::ReadDir { path }, f);
     }
 
     pub fn completion_resolve(
@@ -564,7 +561,7 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(
-            CoreProxyRequest::CompletionResolve {
+            ProxyRequest::CompletionResolve {
                 plugin_id,
                 completion_item: Box::new(completion_item),
             },
@@ -580,7 +577,7 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(
-            CoreProxyRequest::GetHover {
+            ProxyRequest::GetHover {
                 request_id,
                 path,
                 position,
@@ -597,7 +594,7 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(
-            CoreProxyRequest::GetDefinition {
+            ProxyRequest::GetDefinition {
                 request_id,
                 path,
                 position,
@@ -614,7 +611,7 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(
-            CoreProxyRequest::GetTypeDefinition {
+            ProxyRequest::GetTypeDefinition {
                 request_id,
                 path,
                 position,
@@ -629,7 +626,7 @@ impl ProxyRpcHandler {
         position: Position,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(CoreProxyRequest::GetReferences { path, position }, f);
+        self.request_async(ProxyRequest::GetReferences { path, position }, f);
     }
 
     pub fn get_code_actions(
@@ -638,7 +635,7 @@ impl ProxyRpcHandler {
         position: Position,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(CoreProxyRequest::GetCodeActions { path, position }, f);
+        self.request_async(ProxyRequest::GetCodeActions { path, position }, f);
     }
 
     pub fn get_document_formatting(
@@ -646,7 +643,7 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(CoreProxyRequest::GetDocumentFormatting { path }, f);
+        self.request_async(ProxyRequest::GetDocumentFormatting { path }, f);
     }
 
     pub fn get_semantic_tokens(
@@ -654,7 +651,7 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(CoreProxyRequest::GetSemanticTokens { path }, f);
+        self.request_async(ProxyRequest::GetSemanticTokens { path }, f);
     }
 
     pub fn get_document_symbols(
@@ -662,7 +659,7 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(CoreProxyRequest::GetDocumentSymbols { path }, f);
+        self.request_async(ProxyRequest::GetDocumentSymbols { path }, f);
     }
 
     pub fn get_workspace_symbols(
@@ -670,23 +667,23 @@ impl ProxyRpcHandler {
         query: String,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(CoreProxyRequest::GetWorkspaceSymbols { query }, f);
+        self.request_async(ProxyRequest::GetWorkspaceSymbols { query }, f);
     }
 
     pub fn get_inlay_hints(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(CoreProxyRequest::GetInlayHints { path }, f);
+        self.request_async(ProxyRequest::GetInlayHints { path }, f);
     }
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {
-        self.notification(CoreProxyNotification::Update { path, delta, rev });
+        self.notification(ProxyNotification::Update { path, delta, rev });
     }
 
     pub fn git_discard_files_changes(&self, files: Vec<PathBuf>) {
-        self.notification(CoreProxyNotification::GitDiscardFilesChanges { files });
+        self.notification(ProxyNotification::GitDiscardFilesChanges { files });
     }
 
     pub fn git_discard_workspace_changes(&self) {
-        self.notification(CoreProxyNotification::GitDiscardWorkspaceChanges {});
+        self.notification(ProxyNotification::GitDiscardWorkspaceChanges {});
     }
 }
 

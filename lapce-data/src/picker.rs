@@ -4,7 +4,7 @@ use std::{
 };
 
 use druid::{ExtEventSink, Target, WidgetId};
-use lapce_rpc::{file::FileNodeItem, proxy::CoreProxyResponse};
+use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -88,7 +88,7 @@ impl FilePickerData {
         let path = PathBuf::from(path);
         let local_path = path.clone();
         proxy.proxy_rpc.read_dir(local_path, move |result| {
-            if let Ok(CoreProxyResponse::ReadDirResponse { items }) = result {
+            if let Ok(ProxyResponse::ReadDirResponse { items }) = result {
                 let path = path.clone();
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,

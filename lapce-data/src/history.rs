@@ -15,7 +15,7 @@ use lapce_core::{
     syntax::Syntax,
 };
 use lapce_rpc::{
-    proxy::CoreProxyResponse,
+    proxy::ProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
 use xi_rope::{spans::Spans, Rope};
@@ -178,7 +178,7 @@ impl DocumentHistory {
                 proxy
                     .proxy_rpc
                     .get_buffer_head(id, path.clone(), move |result| {
-                        if let Ok(CoreProxyResponse::BufferHeadResponse {
+                        if let Ok(ProxyResponse::BufferHeadResponse {
                             version,
                             content,
                         }) = result

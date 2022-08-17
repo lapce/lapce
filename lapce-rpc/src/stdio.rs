@@ -9,7 +9,7 @@ use std::{
 
 use crate::{RpcError, RpcMessage, RpcObject};
 
-pub fn new_stdio_transport<W, R, Req1, Notif1, Resp1, Req2, Notif2, Resp2>(
+pub fn stdio_transport<W, R, Req1, Notif1, Resp1, Req2, Notif2, Resp2>(
     mut writer: W,
     writer_receiver: Receiver<RpcMessage<Req2, Notif2, Resp2>>,
     mut reader: R,
@@ -26,33 +26,7 @@ pub fn new_stdio_transport<W, R, Req1, Notif1, Resp1, Req2, Notif2, Resp2>(
 {
     thread::spawn(move || {
         for value in writer_receiver {
-            if new_write_msg(&mut writer, value).is_err() {
-                return;
-            };
-        }
-    });
-    thread::spawn(move || -> Result<()> {
-        loop {
-            let msg = new_read_msg(&mut reader)?;
-            reader_sender.send(msg)?;
-        }
-    });
-}
-
-pub fn stdio_transport<W, R, S, D>(
-    mut writer: W,
-    writer_receiver: Receiver<S>,
-    mut reader: R,
-    reader_sender: Sender<D>,
-) where
-    W: 'static + Write + Send,
-    R: 'static + BufRead + Send,
-    S: 'static + Serialize + Send + Sync,
-    D: 'static + DeserializeOwned + Send + Sync,
-{
-    thread::spawn(move || {
-        for value in writer_receiver {
-            if write_msg(&mut writer, &value).is_err() {
+            if write_msg(&mut writer, value).is_err() {
                 return;
             };
         }
@@ -65,7 +39,7 @@ pub fn stdio_transport<W, R, S, D>(
     });
 }
 
-fn new_write_msg<W, Req, Notif, Resp>(
+fn write_msg<W, Req, Notif, Resp>(
     out: &mut W,
     msg: RpcMessage<Req, Notif, Resp>,
 ) -> io::Result<()>
@@ -103,7 +77,7 @@ where
     Ok(())
 }
 
-fn new_read_msg<R, Req, Notif, Resp>(
+fn read_msg<R, Req, Notif, Resp>(
     inp: &mut R,
 ) -> io::Result<RpcMessage<Req, Notif, Resp>>
 where
@@ -145,26 +119,4 @@ where
         }
     };
     Ok(msg)
-}
-
-fn write_msg<W, S>(out: &mut W, msg: S) -> io::Result<()>
-where
-    W: Write,
-    S: Serialize,
-{
-    let msg = format!("{}\n", serde_json::to_string(&msg)?);
-    out.write_all(msg.as_bytes())?;
-    out.flush()?;
-    Ok(())
-}
-
-fn read_msg<R, D>(inp: &mut R) -> io::Result<D>
-where
-    R: BufRead,
-    D: DeserializeOwned,
-{
-    let mut buf = String::new();
-    let _s = inp.read_line(&mut buf)?;
-    let value: D = serde_json::from_str(&buf)?;
-    Ok(value)
 }

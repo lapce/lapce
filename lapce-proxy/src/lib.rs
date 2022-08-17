@@ -11,11 +11,11 @@ use std::{
     thread,
 };
 
-use dispatch::NewDispatcher;
+use dispatch::Dispatcher;
 use lapce_rpc::{
     core::{CoreRpc, CoreRpcHandler},
     proxy::ProxyRpcHandler,
-    stdio::new_stdio_transport,
+    stdio::stdio_transport,
     RpcMessage,
 };
 use once_cell::sync::Lazy;
@@ -41,11 +41,11 @@ fn version() -> &'static str {
 pub fn mainloop() {
     let core_rpc = CoreRpcHandler::new();
     let proxy_rpc = ProxyRpcHandler::new();
-    let mut dispatcher = NewDispatcher::new(core_rpc.clone(), proxy_rpc.clone());
+    let mut dispatcher = Dispatcher::new(core_rpc.clone(), proxy_rpc.clone());
 
     let (writer_tx, writer_rx) = crossbeam_channel::unbounded();
     let (reader_tx, reader_rx) = crossbeam_channel::unbounded();
-    new_stdio_transport(stdout(), writer_rx, BufReader::new(stdin()), reader_tx);
+    stdio_transport(stdout(), writer_rx, BufReader::new(stdin()), reader_tx);
 
     let local_core_rpc = core_rpc.clone();
     let local_writer_tx = writer_tx.clone();

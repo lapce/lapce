@@ -10,7 +10,7 @@ use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_core::language::LapceLanguage;
 use lapce_core::mode::Mode;
 use lapce_core::movement::Movement;
-use lapce_rpc::proxy::CoreProxyResponse;
+use lapce_rpc::proxy::ProxyResponse;
 use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -804,7 +804,7 @@ impl PaletteViewData {
         let workspace = self.workspace.clone();
         let event_sink = ctx.get_external_handle();
         self.palette.proxy.proxy_rpc.get_files(move |result| {
-            if let Ok(CoreProxyResponse::GetFilesResponse { items }) = result {
+            if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
                 let items: Vec<PaletteItem> = items
                     .iter()
                     .enumerate()
@@ -1046,9 +1046,7 @@ impl PaletteViewData {
                 .proxy
                 .proxy_rpc
                 .get_document_symbols(path, move |result| {
-                    if let Ok(CoreProxyResponse::GetDocumentSymbols { resp }) =
-                        result
-                    {
+                    if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
                         let items: Vec<PaletteItem> = match resp {
                             DocumentSymbolResponse::Flat(symbols) => symbols
                                 .iter()
@@ -1119,7 +1117,7 @@ impl PaletteViewData {
             self.palette.proxy.proxy_rpc.get_workspace_symbols(
                 query,
                 move |result| {
-                    if let Ok(CoreProxyResponse::GetWorkspaceSymbols { symbols }) =
+                    if let Ok(ProxyResponse::GetWorkspaceSymbols { symbols }) =
                         result
                     {
                         let items: Vec<PaletteItem> = symbols

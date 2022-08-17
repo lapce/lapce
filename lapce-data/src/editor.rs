@@ -48,7 +48,7 @@ use lapce_core::mode::{Mode, MotionMode};
 use lapce_core::selection::InsertDrift;
 use lapce_core::selection::Selection;
 pub use lapce_core::syntax::Syntax;
-use lapce_rpc::proxy::CoreProxyResponse;
+use lapce_rpc::proxy::ProxyResponse;
 use lsp_types::request::GotoTypeDefinitionResponse;
 use lsp_types::CodeActionOrCommand;
 use lsp_types::CompletionTextEdit;
@@ -308,9 +308,8 @@ impl LapceEditorBufferData {
                     path.clone(),
                     position,
                     move |result| {
-                        if let Ok(CoreProxyResponse::GetCodeActionsResponse {
-                            resp,
-                        }) = result
+                        if let Ok(ProxyResponse::GetCodeActionsResponse { resp }) =
+                            result
                         {
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
@@ -1249,7 +1248,7 @@ impl LapceEditorBufferData {
                         |e| Err(anyhow!("{}", e)),
                         |v| {
                             v.map_err(|e| anyhow!("{:?}", e)).and_then(|r| {
-                                if let CoreProxyResponse::GetDocumentFormatting {
+                                if let ProxyResponse::GetDocumentFormatting {
                                     edits,
                                 } = r
                                 {
@@ -1633,7 +1632,7 @@ impl LapceEditorBufferData {
                             move |result| {
                                 // let item = result.unwrap_or_else(|_| item.clone());
                                 let item = if let Ok(
-                                    CoreProxyResponse::CompletionResolveResponse {
+                                    ProxyResponse::CompletionResolveResponse {
                                         item,
                                     },
                                 ) = result
@@ -1853,7 +1852,7 @@ impl LapceEditorBufferData {
                         path.clone(),
                         position,
                         move |result| {
-                            if let Ok(CoreProxyResponse::GetDefinitionResponse {
+                            if let Ok(ProxyResponse::GetDefinitionResponse {
                                 definition,
                                 ..
                             }) = result
@@ -1878,7 +1877,7 @@ impl LapceEditorBufferData {
                                             path.clone(),
                                             position,
                                             move |result| {
-                                                if let Ok(CoreProxyResponse::GetReferencesResponse { references }) = result {
+                                                if let Ok(ProxyResponse::GetReferencesResponse { references }) = result {
                                                     process_get_references(
                                                     offset, references, event_sink,
                                                 );
@@ -1929,7 +1928,7 @@ impl LapceEditorBufferData {
                         path.clone(),
                         position,
                         move |result| {
-                            if let Ok(CoreProxyResponse::GetTypeDefinition {
+                            if let Ok(ProxyResponse::GetTypeDefinition {
                                 definition,
                                 ..
                             }) = result
@@ -2043,7 +2042,7 @@ impl LapceEditorBufferData {
                                 |e| Err(anyhow!("{}", e)),
                                 |v| {
                                     v.map_err(|e| anyhow!("{:?}", e)).and_then(|r| {
-                                if let CoreProxyResponse::GetDocumentFormatting {
+                                        if let ProxyResponse::GetDocumentFormatting {
                                     edits,
                                 } = r
                                 {
@@ -2051,7 +2050,7 @@ impl LapceEditorBufferData {
                                 } else {
                                     Err(anyhow!("wrong response"))
                                 }
-                            })
+                                    })
                                 },
                             );
                         let _ = event_sink.submit_command(

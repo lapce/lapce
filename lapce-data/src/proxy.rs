@@ -13,12 +13,12 @@ use druid::Target;
 use druid::{ExtEventSink, WidgetId};
 use flate2::read::GzDecoder;
 use lapce_proxy::directory::Directory;
-use lapce_proxy::dispatch::NewDispatcher;
+use lapce_proxy::dispatch::Dispatcher;
 use lapce_proxy::APPLICATION_NAME;
 pub use lapce_proxy::VERSION;
 use lapce_rpc::core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler};
-use lapce_rpc::proxy::{ProxyRpcHandler, ProxyRpcMessage};
-use lapce_rpc::stdio::new_stdio_transport;
+use lapce_rpc::proxy::{ProxyRpc, ProxyRpcHandler};
+use lapce_rpc::stdio::stdio_transport;
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::RequestId;
 use lapce_rpc::RpcMessage;
@@ -271,7 +271,7 @@ impl LapceProxy {
                 let core_rpc = self.core_rpc.clone();
 
                 thread::spawn(move || {
-                    let mut dispatcher = NewDispatcher::new(core_rpc, proxy_rpc);
+                    let mut dispatcher = Dispatcher::new(core_rpc, proxy_rpc);
                     let proxy_rpc = dispatcher.proxy_rpc.clone();
                     proxy_rpc.mainloop(&mut dispatcher);
                 });
@@ -396,20 +396,20 @@ impl LapceProxy {
 
         let (writer_tx, writer_rx) = crossbeam_channel::unbounded();
         let (reader_tx, reader_rx) = crossbeam_channel::unbounded();
-        new_stdio_transport(stdin, writer_rx, stdout, reader_tx);
+        stdio_transport(stdin, writer_rx, stdout, reader_tx);
 
         let local_proxy_rpc = self.proxy_rpc.clone();
         let local_writer_tx = writer_tx.clone();
         thread::spawn(move || {
             for msg in local_proxy_rpc.rx() {
                 match msg {
-                    ProxyRpcMessage::Request(id, rpc) => {
+                    ProxyRpc::Request(id, rpc) => {
                         let _ = local_writer_tx.send(RpcMessage::Request(id, rpc));
                     }
-                    ProxyRpcMessage::Notification(rpc) => {
+                    ProxyRpc::Notification(rpc) => {
                         let _ = local_writer_tx.send(RpcMessage::Notification(rpc));
                     }
-                    ProxyRpcMessage::Shutdown => {
+                    ProxyRpc::Shutdown => {
                         return;
                     }
                 }
