@@ -11,6 +11,7 @@ use druid::{Target, WidgetId};
 use lapce_core::cursor::CursorMode;
 use lapce_core::selection::Selection;
 use lapce_rpc::file::FileNodeItem;
+use lapce_rpc::proxy::ProxyResponse;
 use xi_rope::Rope;
 
 use crate::data::LapceMainSplitData;
@@ -251,12 +252,12 @@ impl FileExplorerData {
     ) {
         let path = PathBuf::from(path);
         let local_path = path.clone();
-        proxy.read_dir(&local_path, move |result| {
-            if let Ok(resp) = result {
+        proxy.proxy_rpc.read_dir(local_path, move |result| {
+            if let Ok(ProxyResponse::ReadDirResponse { items }) = result {
                 let path = path.clone();
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateExplorerItems(path, resp.items, expand),
+                    LapceUICommand::UpdateExplorerItems(path, items, expand),
                     Target::Widget(tab_id),
                 );
 

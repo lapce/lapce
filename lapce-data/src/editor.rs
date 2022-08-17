@@ -19,7 +19,6 @@ use crate::keypress::KeyMap;
 use crate::keypress::KeyPressFocus;
 use crate::palette::PaletteData;
 use crate::proxy::path_from_url;
-use crate::proxy::RequestError;
 use crate::{
     command::{
         EnsureVisiblePosition, InitBufferContent, LapceUICommand, LAPCE_UI_COMMAND,
@@ -49,6 +48,7 @@ use lapce_core::mode::{Mode, MotionMode};
 use lapce_core::selection::InsertDrift;
 use lapce_core::selection::Selection;
 pub use lapce_core::syntax::Syntax;
+use lapce_rpc::proxy::ProxyResponse;
 use lsp_types::request::GotoTypeDefinitionResponse;
 use lsp_types::CodeActionOrCommand;
 use lsp_types::CompletionTextEdit;
@@ -294,7 +294,6 @@ impl LapceEditorBufferData {
             let offset = self.editor.cursor.offset();
             let prev_offset = self.doc.buffer().prev_code_boundary(offset);
             if self.doc.code_actions.get(&prev_offset).is_none() {
-                let buffer_id = self.doc.id();
                 let position = if let Some(position) =
                     self.doc.buffer().offset_to_position(prev_offset)
                 {
@@ -305,9 +304,13 @@ impl LapceEditorBufferData {
                 };
                 let rev = self.doc.rev();
                 let event_sink = ctx.get_external_handle();
-                self.proxy
-                    .get_code_actions(buffer_id, position, move |result| {
-                        if let Ok(resp) = result {
+                self.proxy.proxy_rpc.get_code_actions(
+                    path.clone(),
+                    position,
+                    move |result| {
+                        if let Ok(ProxyResponse::GetCodeActionsResponse { resp }) =
+                            result
+                        {
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::UpdateCodeActions(
@@ -319,7 +322,8 @@ impl LapceEditorBufferData {
                                 Target::Auto,
                             );
                         }
-                    });
+                    },
+                );
             }
         }
     }
@@ -597,7 +601,7 @@ impl LapceEditorBufferData {
     /// Sends a request to the LSP for completion information
     fn update_completion(
         &mut self,
-        ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
         display_if_empty_input: bool,
     ) {
         if self.get_mode() != Mode::Insert {
@@ -643,15 +647,12 @@ impl LapceEditorBufferData {
                 if let Some(start_pos) =
                     self.doc.buffer().offset_to_position(start_offset)
                 {
-                    let event_sink = ctx.get_external_handle();
                     completion.request(
                         self.proxy.clone(),
                         completion.request_id,
-                        self.doc.id(),
+                        self.doc.content().path().unwrap().into(),
                         "".to_string(),
                         start_pos,
-                        completion.id,
-                        event_sink,
                     );
                 } else {
                     log::error!("Failed to convert start offset: {start_offset} to Position when making completion request");
@@ -659,17 +660,14 @@ impl LapceEditorBufferData {
             }
 
             if !completion.input_items.contains_key(&input) {
-                let event_sink = ctx.get_external_handle();
                 if let Some(position) = self.doc.buffer().offset_to_position(offset)
                 {
                     completion.request(
                         self.proxy.clone(),
                         completion.request_id,
-                        self.doc.id(),
+                        self.doc.content().path().unwrap().into(),
                         input,
                         position,
-                        completion.id,
-                        event_sink,
                     );
                 } else {
                     log::error!("Failed to convert offset: {offset} to Position when making completion request");
@@ -685,16 +683,13 @@ impl LapceEditorBufferData {
         completion.status = CompletionStatus::Started;
         completion.input_items.clear();
         completion.request_id += 1;
-        let event_sink = ctx.get_external_handle();
         if let Some(start_pos) = self.doc.buffer().offset_to_position(start_offset) {
             completion.request(
                 self.proxy.clone(),
                 completion.request_id,
-                self.doc.id(),
+                self.doc.content().path().unwrap().into(),
                 "".to_string(),
                 start_pos,
-                completion.id,
-                event_sink.clone(),
             );
         }
         if !input.is_empty() {
@@ -702,11 +697,9 @@ impl LapceEditorBufferData {
                 completion.request(
                     self.proxy.clone(),
                     completion.request_id,
-                    self.doc.id(),
+                    self.doc.content().path().unwrap().into(),
                     input,
                     position,
-                    completion.id,
-                    event_sink,
                 );
             }
         }
@@ -1237,15 +1230,14 @@ impl LapceEditorBufferData {
             let format_on_save = self.config.editor.format_on_save;
             let path = path.clone();
             let proxy = self.proxy.clone();
-            let buffer_id = self.doc.id();
             let rev = self.doc.rev();
             let event_sink = ctx.get_external_handle();
             let view_id = self.editor.view_id;
             let tab_id = self.main_split.tab_id.clone();
             let (sender, receiver) = bounded(1);
             thread::spawn(move || {
-                proxy.get_document_formatting(
-                    buffer_id,
+                proxy.proxy_rpc.get_document_formatting(
+                    path.clone(),
                     Box::new(move |result| {
                         let _ = sender.send(result);
                     }),
@@ -1254,7 +1246,18 @@ impl LapceEditorBufferData {
                 let result =
                     receiver.recv_timeout(Duration::from_secs(1)).map_or_else(
                         |e| Err(anyhow!("{}", e)),
-                        |v| v.map_err(|e| anyhow!("{:?}", e)),
+                        |v| {
+                            v.map_err(|e| anyhow!("{:?}", e)).and_then(|r| {
+                                if let ProxyResponse::GetDocumentFormatting {
+                                    edits,
+                                } = r
+                                {
+                                    Ok(edits)
+                                } else {
+                                    Err(anyhow!("wrong response"))
+                                }
+                            })
+                        },
                     );
 
                 let exit = if exit { Some(view_id) } else { None };
@@ -1617,17 +1620,27 @@ impl LapceEditorBufferData {
                 } else {
                     let item = self.completion.current_item().to_owned();
                     self.cancel_completion();
-                    if item.data.is_some() {
+                    if item.item.data.is_some() {
                         let view_id = self.editor.view_id;
                         let buffer_id = self.doc.id();
                         let rev = self.doc.rev();
                         let offset = self.editor.cursor.offset();
                         let event_sink = ctx.get_external_handle();
-                        self.proxy.completion_resolve(
-                            buffer_id,
-                            item.clone(),
+                        self.proxy.proxy_rpc.completion_resolve(
+                            item.plugin_id,
+                            item.item.clone(),
                             move |result| {
-                                let item = result.unwrap_or_else(|_| item.clone());
+                                // let item = result.unwrap_or_else(|_| item.clone());
+                                let item = if let Ok(
+                                    ProxyResponse::CompletionResolveResponse {
+                                        item,
+                                    },
+                                ) = result
+                                {
+                                    *item
+                                } else {
+                                    item.item.clone()
+                                };
                                 let _ = event_sink.submit_command(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::ResolveCompletion(
@@ -1641,7 +1654,7 @@ impl LapceEditorBufferData {
                             },
                         );
                     } else {
-                        let _ = self.apply_completion_item(&item);
+                        let _ = self.apply_completion_item(&item.item);
                     }
                 }
             }
@@ -1811,158 +1824,181 @@ impl LapceEditorBufferData {
                 self.update_completion(ctx, true);
             }
             GotoDefinition => {
-                let offset = self.editor.cursor.offset();
-                let start_offset = self.doc.buffer().prev_code_boundary(offset);
-                let start_position = if let Some(start_position) =
-                    self.doc.buffer().offset_to_position(start_offset)
-                {
-                    start_position
-                } else {
-                    log::error!("Failed to convert offset {start_offset} to position in GotoDefinition");
-                    return CommandExecuted::Yes;
-                };
-                let event_sink = ctx.get_external_handle();
-                let buffer_id = self.doc.id();
-                let position = if let Some(position) =
-                    self.doc.buffer().offset_to_position(offset)
-                {
-                    position
-                } else {
-                    log::error!("Failed to convert offset {offset} to position in GotoDefinition");
-                    return CommandExecuted::Yes;
-                };
-                let proxy = self.proxy.clone();
-                let editor_view_id = self.editor.view_id;
-                self.proxy.get_definition(
-                    offset,
-                    buffer_id,
-                    position,
-                    move |result| {
-                        if let Ok(resp) = result {
-                            if let Some(location) = match resp {
-                                GotoDefinitionResponse::Scalar(location) => {
-                                    Some(location)
-                                }
-                                GotoDefinitionResponse::Array(locations) => {
-                                    if !locations.is_empty() {
-                                        Some(locations[0].clone())
+                if let BufferContent::File(path) = self.doc.content() {
+                    let offset = self.editor.cursor.offset();
+                    let start_offset = self.doc.buffer().prev_code_boundary(offset);
+                    let start_position = if let Some(start_position) =
+                        self.doc.buffer().offset_to_position(start_offset)
+                    {
+                        start_position
+                    } else {
+                        log::error!("Failed to convert offset {start_offset} to position in GotoDefinition");
+                        return CommandExecuted::Yes;
+                    };
+                    let event_sink = ctx.get_external_handle();
+                    let position = if let Some(position) =
+                        self.doc.buffer().offset_to_position(offset)
+                    {
+                        position
+                    } else {
+                        log::error!("Failed to convert offset {offset} to position in GotoDefinition");
+                        return CommandExecuted::Yes;
+                    };
+                    let proxy = self.proxy.clone();
+                    let editor_view_id = self.editor.view_id;
+                    let path = path.clone();
+                    self.proxy.proxy_rpc.get_definition(
+                        offset,
+                        path.clone(),
+                        position,
+                        move |result| {
+                            if let Ok(ProxyResponse::GetDefinitionResponse {
+                                definition,
+                                ..
+                            }) = result
+                            {
+                                if let Some(location) = match definition {
+                                    GotoDefinitionResponse::Scalar(location) => {
+                                        Some(location)
+                                    }
+                                    GotoDefinitionResponse::Array(locations) => {
+                                        if !locations.is_empty() {
+                                            Some(locations[0].clone())
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    GotoDefinitionResponse::Link(
+                                        _location_links,
+                                    ) => None,
+                                } {
+                                    if location.range.start == start_position {
+                                        proxy.proxy_rpc.get_references(
+                                            path.clone(),
+                                            position,
+                                            move |result| {
+                                                if let Ok(ProxyResponse::GetReferencesResponse { references }) = result {
+                                                    process_get_references(
+                                                    offset, references, event_sink,
+                                                );
+                                                }
+                                            },
+                                        );
                                     } else {
-                                        None
+                                        let _ = event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::GotoDefinition {
+                                                editor_view_id,
+                                                offset,
+                                                location: EditorLocation {
+                                                    path: path_from_url(
+                                                        &location.uri,
+                                                    ),
+                                                    position: Some(
+                                                        location.range.start,
+                                                    ),
+                                                    scroll_offset: None,
+                                                    history: None,
+                                                },
+                                            },
+                                            Target::Auto,
+                                        );
                                     }
                                 }
-                                GotoDefinitionResponse::Link(_location_links) => {
-                                    None
-                                }
-                            } {
-                                if location.range.start == start_position {
-                                    proxy.get_references(
-                                        buffer_id,
-                                        position,
-                                        move |result| {
-                                            let _ = process_get_references(
-                                                offset, result, event_sink,
-                                            );
-                                        },
-                                    );
-                                } else {
-                                    let _ = event_sink.submit_command(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::GotoDefinition {
-                                            editor_view_id,
-                                            offset,
-                                            location: EditorLocation {
-                                                path: path_from_url(&location.uri),
-                                                position: Some(location.range.start),
-                                                scroll_offset: None,
-                                                history: None,
-                                            },
-                                        },
-                                        Target::Auto,
-                                    );
-                                }
                             }
-                        }
-                    },
-                );
+                        },
+                    );
+                }
             }
             GotoTypeDefinition => {
-                let offset = self.editor.cursor.offset();
-                let event_sink = ctx.get_external_handle();
-                let buffer_id = self.doc.id();
-                let position = if let Some(position) =
-                    self.doc.buffer().offset_to_position(offset)
-                {
-                    position
-                } else {
-                    log::error!("Failed to convert offset {offset} to position in GotoTypeDefinition");
-                    return CommandExecuted::Yes;
-                };
-                let editor_view_id = self.editor.view_id;
-                self.proxy.get_type_definition(
-                    offset,
-                    buffer_id,
-                    position,
-                    move |result| {
-                        if let Ok(resp) = result {
-                            match resp {
-                                GotoTypeDefinitionResponse::Scalar(location) => {
-                                    let _ = event_sink.submit_command(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::GotoDefinition {
-                                            editor_view_id,
-                                            offset,
-                                            location: EditorLocation {
-                                                path: path_from_url(&location.uri),
-                                                position: Some(location.range.start),
-                                                scroll_offset: None,
-                                                history: None,
-                                            },
-                                        },
-                                        Target::Auto,
-                                    );
-                                }
-                                GotoTypeDefinitionResponse::Array(locations) => {
-                                    let len = locations.len();
-                                    match len {
-                                        1 => {
-                                            let _ = event_sink.submit_command(
-                                                LAPCE_UI_COMMAND,
-                                                LapceUICommand::GotoDefinition {
-                                                    editor_view_id,
-                                                    offset,
-                                                    location: EditorLocation {
-                                                        path: path_from_url(
-                                                            &locations[0].uri,
-                                                        ),
-                                                        position: Some(
-                                                            locations[0].range.start,
-                                                        ),
-                                                        scroll_offset: None,
-                                                        history: None,
-                                                    },
+                if let BufferContent::File(path) = self.doc.content() {
+                    let offset = self.editor.cursor.offset();
+                    let event_sink = ctx.get_external_handle();
+                    let position = if let Some(position) =
+                        self.doc.buffer().offset_to_position(offset)
+                    {
+                        position
+                    } else {
+                        log::error!("Failed to convert offset {offset} to position in GotoTypeDefinition");
+                        return CommandExecuted::Yes;
+                    };
+                    let editor_view_id = self.editor.view_id;
+                    self.proxy.proxy_rpc.get_type_definition(
+                        offset,
+                        path.clone(),
+                        position,
+                        move |result| {
+                            if let Ok(ProxyResponse::GetTypeDefinition {
+                                definition,
+                                ..
+                            }) = result
+                            {
+                                match definition {
+                                    GotoTypeDefinitionResponse::Scalar(location) => {
+                                        let _ = event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::GotoDefinition {
+                                                editor_view_id,
+                                                offset,
+                                                location: EditorLocation {
+                                                    path: path_from_url(
+                                                        &location.uri,
+                                                    ),
+                                                    position: Some(
+                                                        location.range.start,
+                                                    ),
+                                                    scroll_offset: None,
+                                                    history: None,
                                                 },
-                                                Target::Auto,
-                                            );
-                                        }
-                                        _ if len > 1 => {
-                                            let _ = event_sink.submit_command(
+                                            },
+                                            Target::Auto,
+                                        );
+                                    }
+                                    GotoTypeDefinitionResponse::Array(locations) => {
+                                        let len = locations.len();
+                                        match len {
+                                            1 => {
+                                                let _ = event_sink.submit_command(
+                                                    LAPCE_UI_COMMAND,
+                                                    LapceUICommand::GotoDefinition {
+                                                        editor_view_id,
+                                                        offset,
+                                                        location: EditorLocation {
+                                                            path: path_from_url(
+                                                                &locations[0].uri,
+                                                            ),
+                                                            position: Some(
+                                                                locations[0]
+                                                                    .range
+                                                                    .start,
+                                                            ),
+                                                            scroll_offset: None,
+                                                            history: None,
+                                                        },
+                                                    },
+                                                    Target::Auto,
+                                                );
+                                            }
+                                            _ if len > 1 => {
+                                                let _ = event_sink.submit_command(
                                                 LAPCE_UI_COMMAND,
                                                 LapceUICommand::PaletteReferences(
                                                     offset, locations,
                                                 ),
                                                 Target::Auto,
                                             );
+                                            }
+                                            _ => (),
                                         }
-                                        _ => (),
                                     }
+                                    GotoTypeDefinitionResponse::Link(
+                                        _location_links,
+                                    ) => {}
                                 }
-                                GotoTypeDefinitionResponse::Link(
-                                    _location_links,
-                                ) => {}
                             }
-                        }
-                    },
-                );
+                        },
+                    );
+                }
             }
             JumpLocationBackward => {
                 self.jump_location_backward(ctx);
@@ -1988,14 +2024,13 @@ impl LapceEditorBufferData {
                 if let BufferContent::File(path) = self.doc.content() {
                     let path = path.clone();
                     let proxy = self.proxy.clone();
-                    let buffer_id = self.doc.id();
                     let rev = self.doc.rev();
                     let event_sink = ctx.get_external_handle();
                     let (sender, receiver) = bounded(1);
                     let tab_id = self.main_split.tab_id.clone();
                     thread::spawn(move || {
-                        proxy.get_document_formatting(
-                            buffer_id,
+                        proxy.proxy_rpc.get_document_formatting(
+                            path.clone(),
                             Box::new(move |result| {
                                 let _ = sender.send(result);
                             }),
@@ -2005,7 +2040,18 @@ impl LapceEditorBufferData {
                             .recv_timeout(Duration::from_secs(1))
                             .map_or_else(
                                 |e| Err(anyhow!("{}", e)),
-                                |v| v.map_err(|e| anyhow!("{:?}", e)),
+                                |v| {
+                                    v.map_err(|e| anyhow!("{:?}", e)).and_then(|r| {
+                                        if let ProxyResponse::GetDocumentFormatting {
+                                    edits,
+                                } = r
+                                {
+                                    Ok(edits)
+                                } else {
+                                    Err(anyhow!("wrong response"))
+                                }
+                                    })
+                                },
                             );
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
@@ -2294,12 +2340,12 @@ fn next_in_file_errors_offset(
 
 fn process_get_references(
     offset: usize,
-    result: Result<Vec<Location>, RequestError>,
+    locations: Vec<Location>,
     event_sink: ExtEventSink,
-) -> Result<()> {
-    let locations = result.map_err(|e| anyhow!("{:?}", e))?;
+) {
+    println!("process references");
     if locations.is_empty() {
-        return Ok(());
+        return;
     }
     if locations.len() == 1 {
         // If there's only a single location then just jump directly to it
@@ -2324,7 +2370,6 @@ fn process_get_references(
             Target::Auto,
         );
     }
-    Ok(())
 }
 
 fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> {

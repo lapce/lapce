@@ -17,8 +17,8 @@ use lapce_core::{
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
-        PluginLoadingStatus, LAPCE_COMMAND, LAPCE_OPEN_FILE, LAPCE_OPEN_FOLDER,
-        LAPCE_SAVE_FILE_AS, LAPCE_UI_COMMAND,
+        LAPCE_COMMAND, LAPCE_OPEN_FILE, LAPCE_OPEN_FOLDER, LAPCE_SAVE_FILE_AS,
+        LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
     config::{Config, LapceTheme},
@@ -38,7 +38,7 @@ use lapce_data::{
     },
     proxy::path_from_url,
 };
-use lapce_rpc::plugin::PluginDescription;
+use lapce_rpc::proxy::ProxyResponse;
 use lsp_types::DiagnosticSeverity;
 use xi_rope::Rope;
 
@@ -804,10 +804,15 @@ impl LapceTab {
                             let pattern = pattern.to_string();
                             let event_sink = ctx.get_external_handle();
                             let tab_id = data.id;
-                            data.proxy.global_search(
+                            data.proxy.proxy_rpc.global_search(
                                 pattern.clone(),
                                 Box::new(move |result| {
-                                    if let Ok(matches) = result {
+                                    if let Ok(
+                                        ProxyResponse::GlobalSearchResponse {
+                                            matches,
+                                        },
+                                    ) = result
+                                    {
                                         let _ = event_sink.submit_command(
                                             LAPCE_UI_COMMAND,
                                             LapceUICommand::GlobalSearchResult(
@@ -867,6 +872,26 @@ impl LapceTab {
                         data.handle_workspace_file_change(ctx);
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateCompletion(
+                        request_id,
+                        input,
+                        resp,
+                        plugin_id,
+                    ) => {
+                        let completion = Arc::make_mut(&mut data.completion);
+                        completion.receive(
+                            *request_id,
+                            input.to_owned(),
+                            resp.to_owned(),
+                            *plugin_id,
+                        );
+                    }
+                    LapceUICommand::CancelCompletion(request_id) => {
+                        if data.completion.request_id == *request_id {
+                            let completion = Arc::make_mut(&mut data.completion);
+                            completion.cancel();
+                        }
+                    }
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
                         if let Some(terminal) = terminal_panel.terminals.get_mut(id)
@@ -879,69 +904,78 @@ impl LapceTab {
                                 ),
                                 Target::Widget(terminal.split_id),
                             ));
-                            data.proxy.terminal_close(terminal.term_id);
+                            data.proxy.proxy_rpc.terminal_close(terminal.term_id);
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateInstalledPlugins(plugins) => {
-                        data.installed_plugins = Arc::new(plugins.to_owned());
+                    LapceUICommand::LoadPlugins(volts) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.volts.update_volts(volts);
                     }
-                    LapceUICommand::UpdateInstalledPluginDescriptions(plugins) => {
-                        data.installed_plugins_desc = Arc::new(plugins.to_owned());
+                    LapceUICommand::LoadPluginsFailed => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.volts.failed();
                     }
-                    LapceUICommand::UpdateUninstalledPluginDescriptions(plugins) => {
-                        data.uninstalled_plugins_desc = Arc::new(plugins.to_owned());
+                    LapceUICommand::VoltInstalled(volt) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.installed.insert(volt.id(), volt.clone());
                     }
-                    LapceUICommand::UpdateDisabledPlugins(plugins) => {
-                        data.disabled_plugins = Arc::new(plugins.to_owned());
-                    }
-                    LapceUICommand::UpdatePluginInstallationChange(plugins) => {
-                        if let PluginLoadingStatus::Ok(ref installed_plugins_desc) =
-                            *data.installed_plugins_desc
-                        {
-                            if installed_plugins_desc.len() != plugins.len() {
-                                let local_plugins = plugins.clone();
-                                let handle = std::thread::spawn(move || {
-                                    if let Ok(fetched_plugins) =
-                                        LapceData::load_plugin_descriptions()
-                                    {
-                                        let (installed, uninstalled): (
-                                            Vec<PluginDescription>,
-                                            Vec<PluginDescription>,
-                                        ) = fetched_plugins.into_iter().partition(
-                                            |p| {
-                                                local_plugins
-                                                    .iter()
-                                                    .find(|(_, ip)| {
-                                                        ip.name == p.name
-                                                    })
-                                                    .ok_or(())
-                                                    .is_ok()
-                                            },
-                                        );
-                                        return Ok((installed, uninstalled));
-                                    }
-                                    Err(())
-                                });
-                                let fetch_result = handle.join().unwrap_or(Err(()));
-                                if let Ok((installed, uninstalled)) = fetch_result {
-                                    data.installed_plugins_desc =
-                                        Arc::new(PluginLoadingStatus::Ok(installed));
-                                    data.uninstalled_plugins_desc = Arc::new(
-                                        PluginLoadingStatus::Ok(uninstalled),
-                                    );
-                                }
-                            }
+                    LapceUICommand::VoltRemoved(volt) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        let id = volt.id();
+                        plugin.installed.remove(&id);
+                        if plugin.disabled.contains(&id) {
+                            plugin.disabled.remove(&id);
+                            let _ = data.db.save_disabled_volts(
+                                plugin.disabled.iter().collect(),
+                            );
+                        }
+                        if plugin.workspace_disabled.contains(&id) {
+                            plugin.workspace_disabled.remove(&id);
+                            let _ = data.db.save_disabled_volts(
+                                plugin.workspace_disabled.iter().collect(),
+                            );
                         }
                     }
-                    LapceUICommand::DisablePlugin(plugin) => {
-                        data.proxy.disable_plugin(plugin);
+                    LapceUICommand::DisableVoltWorkspace(volt) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.workspace_disabled.insert(volt.id());
+                        data.proxy.proxy_rpc.disable_volt(volt.clone());
+                        let _ = data.db.save_workspace_disabled_volts(
+                            &data.workspace,
+                            plugin.workspace_disabled.iter().collect(),
+                        );
                     }
-                    LapceUICommand::EnablePlugin(plugin) => {
-                        data.proxy.enable_plugin(plugin);
+                    LapceUICommand::EnableVoltWorkspace(volt) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        let id = volt.id();
+                        plugin.workspace_disabled.remove(&id);
+                        if !plugin.plugin_disabled(&id) {
+                            data.proxy.proxy_rpc.enable_volt(volt.clone());
+                        }
+                        let _ = data.db.save_workspace_disabled_volts(
+                            &data.workspace,
+                            plugin.workspace_disabled.iter().collect(),
+                        );
                     }
-                    LapceUICommand::RemovePlugin(plugin) => {
-                        data.proxy.remove_plugin(plugin);
+                    LapceUICommand::DisableVolt(volt) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.disabled.insert(volt.id());
+                        data.proxy.proxy_rpc.disable_volt(volt.clone());
+                        let _ = data
+                            .db
+                            .save_disabled_volts(plugin.disabled.iter().collect());
+                    }
+                    LapceUICommand::EnableVolt(volt) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        let id = volt.id();
+                        plugin.disabled.remove(&id);
+                        if !plugin.plugin_disabled(&id) {
+                            data.proxy.proxy_rpc.enable_volt(volt.clone());
+                        }
+                        let _ = data
+                            .db
+                            .save_disabled_volts(plugin.disabled.iter().collect());
                     }
                     LapceUICommand::UpdateDiffInfo(diff) => {
                         let source_control = Arc::make_mut(&mut data.source_control);
@@ -1554,8 +1588,8 @@ impl LapceTab {
                         let event_sink = ctx.get_external_handle();
                         let tab_id = data.id;
                         let explorer = data.file_explorer.clone();
-                        data.proxy.create_file(
-                            path,
+                        data.proxy.proxy_rpc.create_file(
+                            path.clone(),
                             Box::new(move |res| {
                                 match res {
                                     Ok(_) => {
@@ -1580,8 +1614,8 @@ impl LapceTab {
                     }
                     LapceUICommand::CreateDirectory { path } => {
                         let explorer = data.file_explorer.clone();
-                        data.proxy.create_directory(
-                            path,
+                        data.proxy.proxy_rpc.create_directory(
+                            path.clone(),
                             Box::new(move |res| {
                                 if let Err(err) = res {
                                     // TODO: Inform the user through a corner-notif
@@ -1597,9 +1631,9 @@ impl LapceTab {
                     }
                     LapceUICommand::RenamePath { from, to } => {
                         let explorer = data.file_explorer.clone();
-                        data.proxy.rename_path(
-                            from,
-                            to,
+                        data.proxy.proxy_rpc.rename_path(
+                            from.clone(),
+                            to.clone(),
                             Box::new(move |res| {
                                 if let Err(err) = res {
                                     // TODO: inform the user through a corner-notif
@@ -1611,8 +1645,8 @@ impl LapceTab {
                     }
                     LapceUICommand::TrashPath { path } => {
                         let explorer = data.file_explorer.clone();
-                        data.proxy.trash_path(
-                            path,
+                        data.proxy.proxy_rpc.trash_path(
+                            path.clone(),
                             Box::new(move |res| {
                                 if let Err(err) = res {
                                     // TODO: inform the user through a corner-notif

@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use crossbeam_channel::unbounded;
+use crossbeam_channel::{unbounded, Receiver};
 use notify::{
     event::{ModifyKind, RenameMode},
     recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode,
@@ -16,6 +16,7 @@ use parking_lot::Mutex;
 /// in a separate thread, and communicates with it via a [crossbeam channel].
 /// [crossbeam channel]: https://docs.rs/crossbeam-channel
 pub struct FileWatcher {
+    rx_event: Option<Receiver<Result<Event, notify::Error>>>,
     inner: RecommendedWatcher,
     state: Arc<Mutex<WatcherState>>,
 }
@@ -47,7 +48,7 @@ pub struct WatchToken(pub usize);
 /// A trait for types which can be notified of new events.
 /// New events are accessible through the `FileWatcher` instance.
 pub trait Notify: Send {
-    fn notify(&self);
+    fn notify(&self, events: Vec<(WatchToken, Event)>);
 }
 
 pub type EventQueue = VecDeque<(WatchToken, Event)>;
@@ -55,35 +56,42 @@ pub type EventQueue = VecDeque<(WatchToken, Event)>;
 pub type PathFilter = dyn Fn(&Path) -> bool + Send + 'static;
 
 impl FileWatcher {
-    pub fn new<T: Notify + 'static>(peer: T) -> Self {
+    pub fn new() -> Self {
         let (tx_event, rx_event) = unbounded();
 
         let state = Arc::new(Mutex::new(WatcherState::default()));
-        let state_clone = state.clone();
 
         let inner = recommended_watcher(tx_event).expect("watcher should spawn");
 
+        FileWatcher {
+            rx_event: Some(rx_event),
+            inner,
+            state,
+        }
+    }
+
+    pub fn notify<T: Notify + 'static>(&mut self, peer: T) {
+        let rx_event = self.rx_event.take().unwrap();
+        let state = self.state.clone();
         std::thread::spawn(move || {
             while let Ok(Ok(event)) = rx_event.recv() {
+                let mut events = Vec::new();
                 {
-                    let mut state = state_clone.lock();
+                    let mut state = state.lock();
                     let WatcherState {
-                        ref mut events,
-                        ref mut watchees,
+                        ref mut watchees, ..
                     } = *state;
 
                     watchees
                         .iter()
                         .filter(|w| w.wants_event(&event))
                         .map(|w| w.token)
-                        .for_each(|t| events.push_back((t, event.clone())));
+                        .for_each(|t| events.push((t, event.clone())));
                 }
 
-                peer.notify();
+                peer.notify(events);
             }
         });
-
-        FileWatcher { inner, state }
     }
 
     /// Begin watching `path`. As `Event`s (documented in the
@@ -188,10 +196,16 @@ impl FileWatcher {
     }
 
     /// Takes ownership of this `Watcher`'s current event queue.
-    pub fn take_events(&mut self) -> VecDeque<(WatchToken, Event)> {
+    pub fn take_events(&self) -> VecDeque<(WatchToken, Event)> {
         let mut state = self.state.lock();
         let WatcherState { ref mut events, .. } = *state;
         std::mem::take(events)
+    }
+}
+
+impl Default for FileWatcher {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

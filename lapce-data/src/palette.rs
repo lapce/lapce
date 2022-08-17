@@ -10,6 +10,7 @@ use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_core::language::LapceLanguage;
 use lapce_core::mode::Mode;
 use lapce_core::movement::Movement;
+use lapce_rpc::proxy::ProxyResponse;
 use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -802,9 +803,9 @@ impl PaletteViewData {
         let widget_id = self.palette.widget_id;
         let workspace = self.workspace.clone();
         let event_sink = ctx.get_external_handle();
-        self.palette.proxy.get_files(move |result| {
-            if let Ok(resp) = result {
-                let items: Vec<PaletteItem> = resp
+        self.palette.proxy.proxy_rpc.get_files(move |result| {
+            if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
+                let items: Vec<PaletteItem> = items
                     .iter()
                     .enumerate()
                     .map(|(_index, path)| {
@@ -1038,14 +1039,14 @@ impl PaletteViewData {
 
         if let BufferContent::File(path) = &editor.content {
             let path = path.clone();
-            let buffer_id = self.main_split.open_docs.get(&path).unwrap().id();
             let run_id = self.palette.run_id.clone();
             let event_sink = ctx.get_external_handle();
 
             self.palette
                 .proxy
-                .get_document_symbols(buffer_id, move |result| {
-                    if let Ok(resp) = result {
+                .proxy_rpc
+                .get_document_symbols(path, move |result| {
+                    if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
                         let items: Vec<PaletteItem> = match resp {
                             DocumentSymbolResponse::Flat(symbols) => symbols
                                 .iter()
@@ -1107,56 +1108,46 @@ impl PaletteViewData {
         let widget_id = self.palette.widget_id;
 
         // TODO: We'd like to be able to request symbols even when not in an editor.
-        if let BufferContent::File(path) = &editor.content {
-            let buffer_id = self.main_split.open_docs.get(path).unwrap().id();
+        if let BufferContent::File(_path) = &editor.content {
             let run_id = self.palette.run_id.clone();
             let event_sink = ctx.get_external_handle();
 
-            let query = self.palette.get_input();
+            let query = self.palette.get_input().to_string();
 
-            self.palette.proxy.get_workspace_symbols(
-                buffer_id,
+            self.palette.proxy.proxy_rpc.get_workspace_symbols(
                 query,
                 move |result| {
-                    if let Ok(resp) = result {
-                        let items: Vec<PaletteItem> = match resp {
-                            Some(symbols) => symbols
-                                .iter()
-                                .map(|s| {
-                                    // TODO: Should we be using filter text?
-                                    let mut filter_text = s.name.clone();
-                                    if let Some(container_name) =
-                                        s.container_name.as_ref()
-                                    {
-                                        filter_text += container_name;
-                                    }
-                                    PaletteItem {
-                                        content:
-                                            PaletteItemContent::WorkspaceSymbol {
-                                                kind: s.kind,
-                                                name: s.name.clone(),
-                                                location: EditorLocation {
-                                                    path: path_from_url(
-                                                        &s.location.uri,
-                                                    ),
-                                                    position: Some(
-                                                        s.location.range.start,
-                                                    ),
-                                                    scroll_offset: None,
-                                                    history: None,
-                                                },
-                                                container_name: s
-                                                    .container_name
-                                                    .clone(),
-                                            },
-                                        filter_text,
-                                        score: 0,
-                                        indices: Vec::new(),
-                                    }
-                                })
-                                .collect(),
-                            None => Vec::new(),
-                        };
+                    if let Ok(ProxyResponse::GetWorkspaceSymbols { symbols }) =
+                        result
+                    {
+                        let items: Vec<PaletteItem> = symbols
+                            .iter()
+                            .map(|s| {
+                                // TODO: Should we be using filter text?
+                                let mut filter_text = s.name.clone();
+                                if let Some(container_name) =
+                                    s.container_name.as_ref()
+                                {
+                                    filter_text += container_name;
+                                }
+                                PaletteItem {
+                                    content: PaletteItemContent::WorkspaceSymbol {
+                                        kind: s.kind,
+                                        name: s.name.clone(),
+                                        location: EditorLocation {
+                                            path: path_from_url(&s.location.uri),
+                                            position: Some(s.location.range.start),
+                                            scroll_offset: None,
+                                            history: None,
+                                        },
+                                        container_name: s.container_name.clone(),
+                                    },
+                                    filter_text,
+                                    score: 0,
+                                    indices: Vec::new(),
+                                }
+                            })
+                            .collect();
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::UpdatePaletteItems(run_id, items),

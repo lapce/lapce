@@ -999,6 +999,131 @@ impl Buffer {
     }
 }
 
+pub struct RopeText<'a> {
+    text: &'a Rope,
+}
+
+impl<'a> RopeText<'a> {
+    pub fn new(text: &'a Rope) -> Self {
+        Self { text }
+    }
+
+    pub fn len(&self) -> usize {
+        self.text.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn last_line(&self) -> usize {
+        self.line_of_offset(self.text.len())
+    }
+
+    pub fn offset_of_line(&self, line: usize) -> usize {
+        let last_line = self.last_line();
+        let line = if line > last_line + 1 {
+            last_line + 1
+        } else {
+            line
+        };
+        self.text.offset_of_line(line)
+    }
+
+    pub fn line_of_offset(&self, offset: usize) -> usize {
+        let offset = offset.min(self.len());
+        let offset = self
+            .text
+            .at_or_prev_codepoint_boundary(offset)
+            .unwrap_or(offset);
+
+        self.text.line_of_offset(offset)
+    }
+
+    /// Converts a UTF8 offset to a UTF16 LSP position  
+    /// Returns None if it is not a valid UTF16 offset
+    pub fn offset_to_position(&self, offset: usize) -> Option<Position> {
+        let (line, col) = self.offset_to_line_col(offset);
+        let line_offset = self.offset_of_line(line);
+
+        let utf16_col =
+            offset_utf8_to_utf16(self.char_indices_iter(line_offset..), col)?;
+
+        Some(Position {
+            line: line as u32,
+            character: utf16_col as u32,
+        })
+    }
+
+    /// Returns None if the UTF16 Position can't be converted to a UTF8 offset
+    pub fn offset_of_position(&self, pos: &Position) -> Option<usize> {
+        let (line, column) = self.position_to_line_col(pos);
+        let column = column?;
+        Some(self.offset_of_line_col(line, column))
+    }
+
+    /// Returns None if the UTF16 Position can't be converted to a UTF8 offset
+    pub fn position_to_line_col(&self, pos: &Position) -> (usize, Option<usize>) {
+        let line = pos.line as usize;
+        let line_offset = self.offset_of_line(line);
+
+        let column = offset_utf16_to_utf8(
+            self.char_indices_iter(line_offset..),
+            pos.character as usize,
+        );
+
+        (line, column)
+    }
+
+    pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
+        let max = self.len();
+        let offset = if offset > max { max } else { offset };
+        let line = self.line_of_offset(offset);
+        let line_start = self.offset_of_line(line);
+        if offset == line_start {
+            return (line, 0);
+        }
+
+        let col = offset - line_start;
+        (line, col)
+    }
+
+    pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
+        let mut pos = 0;
+        let mut offset = self.offset_of_line(line);
+        for c in self
+            .slice_to_cow(offset..self.offset_of_line(line + 1))
+            .chars()
+        {
+            if c == '\n' {
+                return offset;
+            }
+
+            let char_len = c.len_utf8();
+            if pos + char_len > col {
+                return offset;
+            }
+            pos += char_len;
+            offset += char_len;
+        }
+        offset
+    }
+
+    pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<str> {
+        self.text
+            .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
+    }
+
+    /// Iterate over (utf8_offset, char) values in the given range  
+    /// This uses `iter_chunks` and so does not allocate, compared to `slice_to_cow` which can
+    pub fn char_indices_iter<T: IntervalBounds>(
+        &self,
+        range: T,
+    ) -> impl Iterator<Item = (usize, char)> + '_ {
+        CharIndicesJoin::new(self.text.iter_chunks(range).map(str::char_indices))
+    }
+}
+
 fn shuffle_tombstones(
     text: &Rope,
     tombstones: &Rope,
