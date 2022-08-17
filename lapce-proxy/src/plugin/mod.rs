@@ -587,7 +587,6 @@ impl PluginCatalogRpcHandler {
         input: String,
         position: Position,
     ) {
-        eprintln!("send completion {input} {position:?}");
         let uri = Url::from_file_path(path).unwrap();
         let method = Completion::METHOD;
         let params = CompletionParams {

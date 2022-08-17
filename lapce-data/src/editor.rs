@@ -588,6 +588,9 @@ impl LapceEditorBufferData {
     }
 
     pub fn cancel_completion(&mut self) {
+        if self.completion.status == CompletionStatus::Inactive {
+            return;
+        }
         let completion = Arc::make_mut(&mut self.completion);
         completion.cancel();
     }
@@ -1354,6 +1357,8 @@ impl LapceEditorBufferData {
 
         if show_completion(cmd, &doc_before_edit, &deltas) {
             self.update_completion(ctx, false);
+        } else {
+            self.cancel_completion();
         }
         self.apply_deltas(&deltas);
 
@@ -2235,6 +2240,8 @@ impl KeyPressFocus for LapceEditorBufferData {
                 .all(|c| c.is_whitespace() || c.is_ascii_whitespace())
             {
                 self.update_completion(ctx, false);
+            } else {
+                self.cancel_completion();
             }
             self.cancel_hover();
             self.apply_deltas(&deltas);
@@ -2464,7 +2471,11 @@ fn show_completion(
     deltas: &[(RopeDelta, InvalLines)],
 ) -> bool {
     let show_completion = match cmd {
-        EditCommand::DeleteBackward | EditCommand::DeleteForward => {
+        EditCommand::DeleteBackward
+        | EditCommand::DeleteForward
+        | EditCommand::DeleteWordBackward
+        | EditCommand::DeleteWordForward
+        | EditCommand::DeleteForwardAndInsert => {
             let start = match deltas.get(0).and_then(|delta| delta.0.els.get(0)) {
                 Some(xi_rope::DeltaElement::Copy(_, start)) => *start,
                 _ => 0,
@@ -2483,13 +2494,7 @@ fn show_completion(
                 true
             }
         }
-        EditCommand::InsertNewLine
-        | EditCommand::InsertTab
-        | EditCommand::NewLineAbove
-        | EditCommand::NewLineBelow
-        | EditCommand::Undo
-        | EditCommand::Redo => false,
-        _ => true,
+        _ => false,
     };
 
     show_completion
