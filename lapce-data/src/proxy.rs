@@ -356,6 +356,15 @@ impl LapceProxy {
                 }
             }
 
+            #[cfg(target_family = "unix")]
+            remote
+                .command_builder()
+                .arg("mkdir")
+                .arg("-p")
+                .arg(remote_proxy_path)
+                .status()?;
+
+            #[cfg(target_family = "windows")]
             remote
                 .command_builder()
                 .arg("mkdir")
