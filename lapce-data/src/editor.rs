@@ -2350,7 +2350,6 @@ fn process_get_references(
     locations: Vec<Location>,
     event_sink: ExtEventSink,
 ) {
-    println!("process references");
     if locations.is_empty() {
         return;
     }
