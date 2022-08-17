@@ -399,6 +399,8 @@ impl LapceProxy {
                 .ok_or_else(|| anyhow!("can't find stdout"))?,
         );
 
+        println!("started remote proxy");
+
         let (writer_tx, writer_rx) = crossbeam_channel::unbounded();
         let (reader_tx, reader_rx) = crossbeam_channel::unbounded();
         new_stdio_transport(stdin, writer_rx, stdout, reader_tx);

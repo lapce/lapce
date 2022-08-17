@@ -79,6 +79,7 @@ impl ProxyHandler for NewDispatcher {
                     );
                     plugin_rpc.mainloop(&mut plugin);
                 });
+                self.core_rpc.proxy_connected();
             }
             OpenFileChanged { path } => {
                 if let Some(buffer) = self.buffers.get(&path) {
