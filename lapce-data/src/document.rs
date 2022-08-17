@@ -1592,6 +1592,9 @@ impl Document {
 
         let line = line.min(self.buffer.last_line());
 
+        let phantom_text = self.line_phantom_text(config, line);
+        let col = phantom_text.col_after(col, true);
+
         let mut x_shift = 0.0;
         if font_size < config.editor.font_size {
             let line_content = self.buffer.line_content(line);
