@@ -155,6 +155,10 @@ impl LspClient {
         let server = match server_uri.scheme() {
             "file" => {
                 let path = server_uri.to_file_path().map_err(|_| anyhow!(""))?;
+                let _ = std::process::Command::new("chmod")
+                    .arg("+x")
+                    .arg(&path)
+                    .output();
                 path.to_str().ok_or_else(|| anyhow!(""))?.to_string()
             }
             "urn" => server_uri.path().to_string(),
