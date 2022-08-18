@@ -31,7 +31,7 @@ pub fn update(_process_id: &str, src: &Path, dest: &Path) -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn update(_process_id: &str, _src: &Path, _dest: &Path) -> Result<()> {
+pub fn update(_process_id: &str, src: &Path, _dest: &Path) -> Result<()> {
     let tar_gz = std::fs::File::open(src)?;
     let tar = flate2::read::GzDecoder::new(tar_gz);
     let mut archive = tar::Archive::new(tar);
