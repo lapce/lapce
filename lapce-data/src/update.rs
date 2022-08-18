@@ -111,7 +111,7 @@ pub fn update(_process_id: &str, src: &Path, dest: &Path) -> Result<()> {
     let parent = src.parent().ok_or_else(|| anyhow::anyhow!("no parent"))?;
     archive.unpack(parent)?;
     let dest = dest.join("lapce");
-    std::fs::copy(parent.join("Lapce").join("lapce"), dest)?;
+    std::fs::copy(parent.join("Lapce").join("lapce"), &dest)?;
     let _ = std::process::Command::new(dest).arg("&").output();
     Ok(())
 }
