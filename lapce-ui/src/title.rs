@@ -11,6 +11,7 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, Region, RenderContext, Size,
     Target, Widget, WidgetExt, WidgetPod, WindowState,
 };
+use lapce_data::proxy::VERSION;
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
@@ -176,6 +177,7 @@ impl Title {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectSshHost),
                 data: None,
             },
+            enabled: true,
         })];
 
         if cfg!(target_os = "windows") {
@@ -185,6 +187,7 @@ impl Title {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectWsl),
                     data: None,
                 },
+                enabled: true,
             }));
         }
 
@@ -197,6 +200,7 @@ impl Title {
                     ),
                     data: None,
                 },
+                enabled: true,
             }));
         }
 
@@ -282,6 +286,7 @@ impl Title {
                             ),
                             data: Some(json!(b.to_string())),
                         },
+                        enabled: true,
                     })
                 })
                 .collect();
@@ -344,6 +349,11 @@ impl Title {
                     .clone(),
             ),
         ));
+        let latest_version = data
+            .latest_release
+            .as_ref()
+            .as_ref()
+            .map(|r| r.version.as_str());
         let menu_items = vec![
             MenuKind::Item(MenuItem {
                 desc: None,
@@ -353,7 +363,9 @@ impl Title {
                     ),
                     data: None,
                 },
+                enabled: true,
             }),
+            MenuKind::Separator,
             MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
@@ -362,6 +374,7 @@ impl Title {
                     ),
                     data: None,
                 },
+                enabled: true,
             }),
             MenuKind::Item(MenuItem {
                 desc: None,
@@ -371,6 +384,25 @@ impl Title {
                     ),
                     data: None,
                 },
+                enabled: true,
+            }),
+            MenuKind::Separator,
+            MenuKind::Item(MenuItem {
+                desc: Some(
+                    if latest_version.is_some() && latest_version != Some(*VERSION) {
+                        format!("Restart to Update ({})", latest_version.unwrap())
+                    } else {
+                        "Restart to Update".to_string()
+                    },
+                ),
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::RestartToUpdate,
+                    ),
+                    data: None,
+                },
+                enabled: latest_version.is_some()
+                    && latest_version != Some(*VERSION),
             }),
         ];
         self.commands.push((
@@ -497,6 +529,7 @@ impl Title {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
                     data: None,
                 },
+                enabled: true,
             }),
             MenuKind::Item(MenuItem {
                 desc: None,
@@ -506,6 +539,7 @@ impl Title {
                     ),
                     data: None,
                 },
+                enabled: true,
             }),
         ];
         let command_rect = Size::new(size.height, size.height)

@@ -718,11 +718,13 @@ impl LapceTab {
                                             );
                                         }
                                     }
-                                    item = item.command(Command::new(
-                                        LAPCE_COMMAND,
-                                        i.command.clone(),
-                                        Target::Widget(data.id),
-                                    ));
+                                    item = item
+                                        .command(Command::new(
+                                            LAPCE_COMMAND,
+                                            i.command.clone(),
+                                            Target::Widget(data.id),
+                                        ))
+                                        .enabled(i.enabled);
                                     menu = menu.entry(item);
                                 }
                                 MenuKind::Separator => {

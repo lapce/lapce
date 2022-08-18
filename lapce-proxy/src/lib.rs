@@ -31,8 +31,12 @@ pub static VERSION: Lazy<&str> = Lazy::new(version);
 fn version() -> &'static str {
     if cfg!(debug_assertions) {
         "debug"
-    } else if option_env!("RELEASE_TAG_NAME") == Some("nightly") {
-        "nightly"
+    } else if option_env!("RELEASE_TAG_NAME").is_some()
+        && option_env!("RELEASE_TAG_NAME")
+            .unwrap()
+            .starts_with("nightly")
+    {
+        option_env!("RELEASE_TAG_NAME").unwrap()
     } else {
         env!("CARGO_PKG_VERSION")
     }

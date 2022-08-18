@@ -15,7 +15,6 @@ on:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   CARGO_TERM_COLOR: always
-  RELEASE_TAG_NAME: ${{ github.event.inputs.tag_name }}
 
 jobs:
   tagname:
@@ -31,6 +30,11 @@ jobs:
         run: |
           TAG_NAME=${{ github.ref }}
           echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
+      - id: vars
+        shell: bash
+        run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+      - if: env.TAG_NAME == 'nightly'
+        run: echo 'TAG_NAME=nightly-${{ steps.vars.outputs.sha_short }}' >> $GITHUB_ENV
       - id: tag
         run: echo "::set-output name=tag::$TAG_NAME"
   

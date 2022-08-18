@@ -26,7 +26,7 @@ use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use xi_rope::{spans::Spans, Rope};
 
 use crate::alert::AlertContentData;
-use crate::data::{LapceMainSplitData, LapceTabData, LapceWorkspace};
+use crate::data::{LapceMainSplitData, LapceTabData, LapceWorkspace, ReleaseInfo};
 use crate::document::BufferContent;
 use crate::editor::{EditorPosition, Line, LineCol};
 use crate::menu::MenuKind;
@@ -405,6 +405,9 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "toggle_inlay_hints")]
     #[strum(message = "Toggle Inlay Hints")]
     ToggleInlayHints,
+
+    #[strum(serialize = "restart_to_update")]
+    RestartToUpdate,
 }
 
 #[derive(Debug)]
@@ -478,6 +481,7 @@ pub enum LapceUICommand {
     ShowCodeActions(Option<Point>),
     Hide,
     ResignFocus,
+    UpdateLatestRelease(ReleaseInfo),
     Focus,
     ChildrenChanged,
     EnsureEditorTabActiveVisible,

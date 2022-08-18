@@ -11,7 +11,7 @@ use std::{
 #[cfg(target_os = "windows")]
 use std::env;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
     piet::PietText, theme, Command, Data, Env, EventCtx, ExtEventSink,
@@ -29,7 +29,7 @@ use lapce_core::{
     register::Register,
     selection::Selection,
 };
-use lapce_proxy::directory::Directory;
+use lapce_proxy::{directory::Directory, VERSION};
 use lapce_rpc::{
     buffer::BufferId, proxy::ProxyResponse, source_control::FileDiff,
     terminal::TermId,
@@ -215,6 +215,51 @@ impl LapceData {
     }
 }
 
+#[derive(Clone, Deserialize)]
+pub struct ReleaseInfo {
+    pub tag_name: String,
+    pub target_commitish: String,
+    pub assets: Vec<ReleaseAsset>,
+    #[serde(skip)]
+    pub version: String,
+}
+
+#[derive(Clone, Deserialize)]
+pub struct ReleaseAsset {
+    pub name: String,
+    pub browser_download_url: String,
+}
+
+fn get_latest_release() -> Result<ReleaseInfo> {
+    let version = *VERSION;
+    let url = match version {
+        "debug" => {
+            return Err(anyhow!("no release for debug"));
+        }
+        version if version.starts_with("nightly") => {
+            "https://api.github.com/repos/lapce/lapce/releases/tags/nightly"
+        }
+        _ => "https://api.github.com/repos/lapce/lapce/releases/latest",
+    };
+
+    let resp = reqwest::blocking::ClientBuilder::new()
+        .user_agent("Lapce")
+        .build()?
+        .get(url)
+        .send()?;
+    if !resp.status().is_success() {
+        return Err(anyhow!("get release info failed {}", resp.text()?));
+    }
+    let mut release: ReleaseInfo = serde_json::from_str(&resp.text()?)?;
+
+    release.version = match release.tag_name.as_str() {
+        "nightly" => format!("nightly-{}", &release.target_commitish[..7]),
+        _ => release.tag_name[1..].to_string(),
+    };
+
+    Ok(release)
+}
+
 /// `LapceWindowData` is the application model for a top-level window.
 ///
 /// A top-level window can be independently moved around and
@@ -255,6 +300,7 @@ pub struct LapceWindowData {
     /// The position of the window.
     pub pos: Point,
     pub panel_orders: PanelOrder,
+    pub latest_release: Arc<Option<ReleaseInfo>>,
 }
 
 impl Data for LapceWindowData {
@@ -266,6 +312,7 @@ impl Data for LapceWindowData {
             && self.maximised.same(&other.maximised)
             && self.keypress.same(&other.keypress)
             && self.panel_orders.same(&other.panel_orders)
+            && self.latest_release.same(&other.latest_release)
     }
 }
 
@@ -281,6 +328,7 @@ impl LapceWindowData {
         let mut tabs_order = Vec::new();
         let mut active_tab_id = WidgetId::next();
         let mut active = 0;
+        let latest_release = Arc::new(None);
 
         let window_id = WindowId::next();
         for (i, workspace) in info.tabs.workspaces.iter().enumerate() {
@@ -291,6 +339,7 @@ impl LapceWindowData {
                 workspace.clone(),
                 db.clone(),
                 keypress.clone(),
+                latest_release.clone(),
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -310,6 +359,7 @@ impl LapceWindowData {
                 LapceWorkspace::default(),
                 db.clone(),
                 keypress.clone(),
+                latest_release.clone(),
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -333,7 +383,8 @@ impl LapceWindowData {
         );
 
         let mut watcher =
-            notify::recommended_watcher(ConfigWatcher::new(event_sink)).unwrap();
+            notify::recommended_watcher(ConfigWatcher::new(event_sink.clone()))
+                .unwrap();
         if let Some(path) = Config::settings_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
@@ -346,6 +397,17 @@ impl LapceWindowData {
         if let Some(path) = Directory::plugins_directory() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
+
+        std::thread::spawn(move || {
+            if let Ok(release) = get_latest_release() {
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateLatestRelease(release),
+                    Target::Window(window_id),
+                );
+            }
+        });
+
         Self {
             window_id,
             tabs,
@@ -360,6 +422,7 @@ impl LapceWindowData {
             pos: info.pos,
             maximised: info.maximised,
             panel_orders,
+            latest_release,
         }
     }
 
@@ -451,6 +514,7 @@ pub struct LapceTabData {
     pub db: Arc<LapceDb>,
     pub progresses: im::Vector<WorkProgress>,
     pub drag: Arc<Option<(Vec2, Vec2, DragContent)>>,
+    pub latest_release: Arc<Option<ReleaseInfo>>,
 }
 
 impl Data for LapceTabData {
@@ -478,6 +542,7 @@ impl Data for LapceTabData {
             && self.drag.same(&other.drag)
             && self.keypress.same(&other.keypress)
             && self.settings.same(&other.settings)
+            && self.latest_release.same(&other.latest_release)
     }
 }
 
@@ -494,6 +559,7 @@ impl LapceTabData {
         workspace: LapceWorkspace,
         db: Arc<LapceDb>,
         keypress: Arc<KeyPressData>,
+        latest_release: Arc<Option<ReleaseInfo>>,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
     ) -> Self {
@@ -648,6 +714,7 @@ impl LapceTabData {
             db,
             progresses: im::Vector::new(),
             drag: Arc::new(None),
+            latest_release,
         };
         tab.start_update_process(event_sink);
         tab
@@ -927,6 +994,11 @@ impl LapceTabData {
         _env: &Env,
     ) {
         match command {
+            LapceWorkbenchCommand::RestartToUpdate => {
+                if let Some(release) = self.latest_release.as_ref() {
+                    if release.version != *VERSION {}
+                }
+            }
             LapceWorkbenchCommand::CloseFolder => {
                 if self.workspace.path.is_some() {
                     let mut workspace = (*self.workspace).clone();
@@ -1614,6 +1686,7 @@ impl Lens<LapceWindowData, LapceTabData> for LapceTabLens {
     ) -> V {
         let mut tab = data.tabs.get(&self.0).unwrap().clone();
         tab.keypress = data.keypress.clone();
+        tab.latest_release = data.latest_release.clone();
         tab.multiple_tab = data.tabs.len() > 1;
         if !tab.panel.order.same(&data.panel_orders) {
             Arc::make_mut(&mut tab.panel).order = data.panel_orders.clone();

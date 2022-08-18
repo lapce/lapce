@@ -1,56 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
-use lapce_data::proxy::VERSION;
+use lapce_data::{data::ReleaseInfo, proxy::VERSION};
 use serde::Deserialize;
 use tempdir::TempDir;
-
-#[derive(Deserialize)]
-pub struct ReleaseInfo {
-    tag_name: String,
-    target_commitish: String,
-    assets: Vec<ReleaseAsset>,
-}
-
-#[derive(Deserialize)]
-pub struct ReleaseAsset {
-    name: String,
-    browser_download_url: String,
-}
-
-impl ReleaseInfo {
-    pub fn version(&self) -> String {
-        match self.tag_name.as_str() {
-            "nightly" => format!("nightly-{}", &self.target_commitish[..7]),
-            _ => self.tag_name[1..].to_string(),
-        }
-    }
-}
-
-pub fn latest_release() -> Result<ReleaseInfo> {
-    let version = *VERSION;
-    let url = match version {
-        "debug" => {
-            return Err(anyhow!("no release for debug"));
-        }
-        version if version.starts_with("nightly") => {
-            "https://api.github.com/repos/lapce/lapce/releases/tags/nightly"
-        }
-        _ => "https://api.github.com/repos/lapce/lapce/releases/latest",
-    };
-
-    let resp = reqwest::blocking::ClientBuilder::new()
-        .user_agent("Lapce")
-        .build()?
-        .get(url)
-        .send()?;
-    if !resp.status().is_success() {
-        return Err(anyhow!("get release info failed {}", resp.text()?));
-    }
-    let release: ReleaseInfo = serde_json::from_str(&resp.text()?)?;
-
-    Ok(release)
-}
 
 pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
     let dir = TempDir::new(&format!("lapce-update-{}", release.tag_name))?;
