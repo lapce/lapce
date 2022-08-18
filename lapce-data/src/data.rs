@@ -972,7 +972,6 @@ impl LapceTabData {
                                         .arg(process_id.to_string())
                                         .arg(&src)
                                         .arg(dest)
-                                        .arg("&")
                                         .spawn()?
                                         .wait();
 
