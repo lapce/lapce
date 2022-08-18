@@ -27,6 +27,7 @@ pub fn build_window(data: &mut LapceWindowData) -> impl Widget<LapceData> {
 }
 
 pub fn launch() {
+    println!("{}", std::process::id());
     let mut args = std::env::args();
     let mut path = None;
     if args.len() > 1 {
@@ -239,6 +240,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         //FIXME: no event::aplicationWillTerminate is sent.
         if let Event::ApplicationWillTerminate = event {
             let _ = data.db.save_app(data);
+            println!("application now terminate");
             return None;
         }
         Some(event)

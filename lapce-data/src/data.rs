@@ -1024,6 +1024,7 @@ impl LapceTabData {
             LapceWorkbenchCommand::RestartToUpdate => {
                 if let Some(release) = (*self.latest_release).clone() {
                     if release.version != *VERSION {
+                        let event_sink = ctx.get_external_handle();
                         thread::spawn(move || {
                             if let Some(process_path) =
                                 process_path::get_executable_path()
@@ -1036,7 +1037,13 @@ impl LapceTabData {
                                         .arg("--update")
                                         .arg(&src)
                                         .arg(dest)
-                                        .output();
+                                        .spawn();
+
+                                        let _ = event_sink.submit_command(
+                                            druid::commands::QUIT_APP,
+                                            (),
+                                            Target::Global,
+                                        );
                                     }
                                 }
                             }
