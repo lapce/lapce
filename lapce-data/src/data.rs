@@ -955,32 +955,34 @@ impl LapceTabData {
                 if let Some(release) = (*self.latest_release).clone() {
                     if release.version != *VERSION {
                         let event_sink = ctx.get_external_handle();
-                        thread::spawn(move || {
+                        thread::spawn(move || -> Result<()> {
                             if let Some(process_path) =
                                 process_path::get_executable_path()
                             {
                                 if let Some(dest) = process_path.parent() {
-                                    if let Ok(src) = download_release(&release) {
-                                        let process_id = std::process::id();
-                                        if let Ok(fork::Fork::Child) = fork::fork() {
-                                            let _ = std::process::Command::new(
-                                                process_path.clone(),
-                                            )
+                                    let src = download_release(&release)?;
+                                    let process_id = std::process::id();
+                                    let copyed_process =
+                                        src.parent().unwrap().join("lapce");
+                                    std::fs::copy(&process_path, &copyed_process)?;
+
+                                    let _ =
+                                        std::process::Command::new(copyed_process)
                                             .arg("--update")
                                             .arg(process_id.to_string())
                                             .arg(&src)
                                             .arg(dest)
+                                            .arg("&")
                                             .output();
-                                        }
 
-                                        let _ = event_sink.submit_command(
-                                            druid::commands::QUIT_APP,
-                                            (),
-                                            Target::Global,
-                                        );
-                                    }
+                                    let _ = event_sink.submit_command(
+                                        druid::commands::QUIT_APP,
+                                        (),
+                                        Target::Global,
+                                    );
                                 }
                             }
+                            Ok(())
                         });
                     }
                 }
