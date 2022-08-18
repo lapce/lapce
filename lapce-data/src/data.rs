@@ -11,7 +11,7 @@ use std::{
 #[cfg(target_os = "windows")]
 use std::env;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
     piet::PietText, theme, Command, Data, Env, EventCtx, ExtEventSink,
@@ -73,6 +73,7 @@ use crate::{
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
     terminal::TerminalSplitData,
+    update::{download_release, get_latest_release, ReleaseInfo},
 };
 
 /// `LapceData` is the topmost structure in a tree of structures that holds
@@ -213,77 +214,6 @@ impl LapceData {
         env.set(LapceTheme::INPUT_LINE_PADDING, 5.0);
         env.set(LapceTheme::INPUT_FONT_SIZE, 13u64);
     }
-}
-
-#[derive(Clone, Deserialize)]
-pub struct ReleaseInfo {
-    pub tag_name: String,
-    pub target_commitish: String,
-    pub assets: Vec<ReleaseAsset>,
-    #[serde(skip)]
-    pub version: String,
-}
-
-#[derive(Clone, Deserialize)]
-pub struct ReleaseAsset {
-    pub name: String,
-    pub browser_download_url: String,
-}
-
-fn get_latest_release() -> Result<ReleaseInfo> {
-    let version = *VERSION;
-    let url = match version {
-        "debug" => {
-            return Err(anyhow!("no release for debug"));
-        }
-        version if version.starts_with("nightly") => {
-            "https://api.github.com/repos/lapce/lapce/releases/tags/nightly"
-        }
-        _ => "https://api.github.com/repos/lapce/lapce/releases/latest",
-    };
-
-    let resp = reqwest::blocking::ClientBuilder::new()
-        .user_agent("Lapce")
-        .build()?
-        .get(url)
-        .send()?;
-    if !resp.status().is_success() {
-        return Err(anyhow!("get release info failed {}", resp.text()?));
-    }
-    let mut release: ReleaseInfo = serde_json::from_str(&resp.text()?)?;
-
-    release.version = match release.tag_name.as_str() {
-        "nightly" => format!("nightly-{}", &release.target_commitish[..7]),
-        _ => release.tag_name[1..].to_string(),
-    };
-
-    Ok(release)
-}
-
-fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
-    let dir =
-        Directory::updates_directory().ok_or_else(|| anyhow!("no directory"))?;
-    let name = match std::env::consts::OS {
-        "macos" => "Lapce-macos.dmg",
-        "linux" => "Lapce-linux.tar.gz",
-        "windows" => "Lapce-windows-portable.zip",
-        _ => return Err(anyhow!("os not supported")),
-    };
-    let file_path = dir.join(name);
-
-    for asset in &release.assets {
-        if asset.name == name {
-            let mut resp = reqwest::blocking::get(&asset.browser_download_url)?;
-            if !resp.status().is_success() {
-                return Err(anyhow!("download file error {}", resp.text()?));
-            }
-            let mut out = std::fs::File::create(&file_path)?;
-            resp.copy_to(&mut out)?;
-            return Ok(file_path);
-        }
-    }
-
-    Err(anyhow!("can't download release"))
 }
 
 /// `LapceWindowData` is the application model for a top-level window.

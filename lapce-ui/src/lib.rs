@@ -23,5 +23,4 @@ mod svg;
 mod tab;
 pub mod terminal;
 pub mod title;
-mod update;
 pub mod window;

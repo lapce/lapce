@@ -26,11 +26,12 @@ use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use xi_rope::{spans::Spans, Rope};
 
 use crate::alert::AlertContentData;
-use crate::data::{LapceMainSplitData, LapceTabData, LapceWorkspace, ReleaseInfo};
+use crate::data::{LapceMainSplitData, LapceTabData, LapceWorkspace};
 use crate::document::BufferContent;
 use crate::editor::{EditorPosition, Line, LineCol};
 use crate::menu::MenuKind;
 use crate::rich_text::RichText;
+use crate::update::ReleaseInfo;
 use crate::{
     data::{EditorTabChild, SplitContent},
     editor::EditorLocation,

@@ -45,7 +45,7 @@ pub fn launch() {
                     if let Some(process_id) = args.next() {
                         if let Some(src) = args.next() {
                             if let Some(dest) = args.next() {
-                                if let Err(e) = crate::update::update(
+                                if let Err(e) = lapce_data::update::update(
                                     &process_id,
                                     &PathBuf::from(src),
                                     &PathBuf::from(dest),
