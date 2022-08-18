@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{io::Write, path::PathBuf, sync::Arc};
 
 use druid::{
     AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Size,
@@ -31,7 +31,7 @@ pub fn launch() {
     let mut path = None;
     if args.len() > 1 {
         args.next();
-        for arg in args {
+        if let Some(arg) = args.next() {
             match arg.as_str() {
                 "-v" | "--version" => {
                     println!("lapce {}", *VERSION);
@@ -39,6 +39,19 @@ pub fn launch() {
                 }
                 "-h" | "--help" => {
                     println!("lapce [-h|--help] [-v|--version] [PATH]");
+                    return;
+                }
+                "-u" | "--update" => {
+                    if let Some(src) = args.next() {
+                        if let Some(dest) = args.next() {
+                            if let Err(e) = crate::update::update(
+                                &PathBuf::from(src),
+                                &PathBuf::from(dest),
+                            ) {
+                                eprintln!("{e}");
+                            }
+                        }
+                    }
                     return;
                 }
                 v => {

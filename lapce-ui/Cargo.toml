@@ -5,6 +5,10 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+process_path = "0.1.4"
+fs_extra = "1.2.0"
+tempdir = "0.3.7"
+reqwest = { version = "0.11", features = ["blocking", "json", "socks"] }
 image = "0.24.3"
 chrono = "0.4.19"
 log = "0.4.14"
@@ -50,6 +54,9 @@ lapce-rpc = { path = "../lapce-rpc" }
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1.12"
+
+[target.'cfg(target_os="macos")'.dependencies]
+dmg = "0.1.1"
 
 [features]
 default = ["all-languages"]
