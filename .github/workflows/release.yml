@@ -18,8 +18,27 @@ env:
   RELEASE_TAG_NAME: ${{ github.event.inputs.tag_name }}
 
 jobs:
+  tagname:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.tag.outputs.tag }}
+    steps:
+      - if: github.event_name == 'workflow_dispatch'
+        run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
+      - if: github.event_name == 'schedule'
+        run: echo 'TAG_NAME=nightly' >> $GITHUB_ENV
+      - if: github.event_name == 'push'
+        run: |
+          TAG_NAME=${{ github.ref }}
+          echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
+      - id: tag
+        run: echo "::set-output name=tag::$TAG_NAME"
+  
   windows:
     runs-on: windows-latest
+    needs: tagname
+    env:
+      RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
 
     defaults:
       run:
@@ -64,6 +83,9 @@ jobs:
 
   linux:
     runs-on: ubuntu-18.04
+    needs: tagname
+    env:
+      RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
 
     steps:
       - uses: actions/checkout@v2
@@ -90,7 +112,9 @@ jobs:
   linux-musl:
     name: Build lapce-proxy for ${{ matrix.platform }}
     runs-on: ubuntu-latest
+    needs: tagname
     env:
+      RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
       CROSS_SYSROOT: /mnt/alpine-${{ matrix.platform }}
       PACKAGES: >
         zlib-static freetype-static fontconfig-static
@@ -171,6 +195,9 @@ jobs:
 
   macos:
     runs-on: macos-11
+    needs: tagname
+    env:
+      RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
 
     env:
       NOTARIZE_USERNAME: ${{ secrets.NOTARIZE_USERNAME }}
