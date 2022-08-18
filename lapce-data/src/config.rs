@@ -5,13 +5,12 @@ use std::{
 };
 
 use anyhow::Result;
-use directories::ProjectDirs;
 use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
     Color, ExtEventSink, FontFamily, Size, Target,
 };
 use indexmap::IndexMap;
-use lapce_proxy::plugin::PluginCatalog;
+use lapce_proxy::{directory::Directory, plugin::wasi::find_all_volts};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -23,6 +22,8 @@ use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     data::{LapceWorkspace, LapceWorkspaceType},
 };
+
+pub use lapce_proxy::APPLICATION_NAME;
 
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
 const DEFAULT_LIGHT_THEME: &str = include_str!("../../defaults/light-theme.toml");
@@ -598,6 +599,8 @@ pub struct Config {
     pub editor: EditorConfig,
     pub terminal: TerminalConfig,
     pub theme: ThemeConfig,
+    #[serde(flatten)]
+    pub plugins: HashMap<String, serde_json::Value>,
     #[serde(skip)]
     pub default_theme: ThemeConfig,
     #[serde(skip)]
@@ -734,7 +737,7 @@ impl Config {
     }
 
     fn load_local_themes() -> Option<HashMap<String, (String, config::Config)>> {
-        let themes_folder = Config::themes_folder()?;
+        let themes_folder = Directory::themes_directory()?;
         let themes: HashMap<String, (String, config::Config)> =
             std::fs::read_dir(themes_folder)
                 .ok()?
@@ -746,13 +749,9 @@ impl Config {
     }
 
     fn load_plugin_themes() -> Option<HashMap<String, (String, config::Config)>> {
-        let mut catalog = PluginCatalog::new();
-        catalog.reload();
-
         let mut themes: HashMap<String, (String, config::Config)> = HashMap::new();
-
-        for (_, plugin) in catalog.items.iter() {
-            if let Some(plugin_themes) = plugin.themes.as_ref() {
+        for meta in find_all_volts() {
+            if let Some(plugin_themes) = meta.themes.as_ref() {
                 for theme_path in plugin_themes {
                     if let Some((key, theme)) =
                         Self::load_theme(&PathBuf::from(theme_path))
@@ -807,24 +806,25 @@ impl Config {
         toml::to_string(&value).unwrap()
     }
 
-    pub fn dir() -> Option<PathBuf> {
-        ProjectDirs::from("", "", "Lapce").map(|d| PathBuf::from(d.config_dir()))
+    pub fn keymaps_file() -> Option<PathBuf> {
+        let path = Directory::config_directory()?.join("keymaps.toml");
+
+        if !path.exists() {
+            let _ = std::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&path);
+        }
+
+        Some(path)
     }
 
     pub fn log_file() -> Option<PathBuf> {
-        let path = Self::dir().map(|d| {
-            d.join(if !cfg!(debug_assertions) {
-                "lapce.log"
-            } else {
-                "debug-lapce.log"
-            })
-        })?;
+        let time = chrono::Local::now().format("%Y%m%d-%H%M%S");
 
-        if let Some(dir) = path.parent() {
-            if !dir.exists() {
-                let _ = std::fs::create_dir_all(dir);
-            }
-        }
+        let file_name = format!("{time}.log");
+
+        let path = Directory::logs_directory()?.join(file_name);
 
         if !path.exists() {
             let _ = std::fs::OpenOptions::new()
@@ -837,43 +837,13 @@ impl Config {
     }
 
     pub fn settings_file() -> Option<PathBuf> {
-        let path = Self::dir().map(|d| {
-            d.join(if !cfg!(debug_assertions) {
-                "settings.toml"
-            } else {
-                "debug-settings.toml"
-            })
-        })?;
-
-        if let Some(dir) = path.parent() {
-            if !dir.exists() {
-                let _ = std::fs::create_dir_all(dir);
-            }
-        }
+        let path = Directory::config_directory()?.join("settings.toml");
 
         if !path.exists() {
             let _ = std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
                 .open(&path);
-        }
-
-        Some(path)
-    }
-
-    /// Get the path to the themes folder
-    /// Themes are stored within as individual toml files
-    pub fn themes_folder() -> Option<PathBuf> {
-        let path = Self::dir()?.join("themes");
-
-        if let Some(dir) = path.parent() {
-            if !dir.exists() {
-                let _ = std::fs::create_dir_all(dir);
-            }
-        }
-
-        if !path.exists() {
-            let _ = std::fs::create_dir(&path);
         }
 
         Some(path)
@@ -1170,9 +1140,7 @@ impl Config {
     }
 
     pub fn recent_workspaces_file() -> Option<PathBuf> {
-        let proj_dirs = ProjectDirs::from("", "", "Lapce")?;
-        let _ = std::fs::create_dir_all(proj_dirs.config_dir());
-        let path = proj_dirs.config_dir().join("workspaces.toml");
+        let path = Directory::config_directory()?.join("workspaces.toml");
         {
             let _ = std::fs::OpenOptions::new()
                 .create_new(true)

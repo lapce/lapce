@@ -3,7 +3,7 @@ use std::fmt::Write;
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MotionMode {
     Delete,
     Yank,

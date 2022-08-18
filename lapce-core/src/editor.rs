@@ -17,7 +17,7 @@ use crate::{
     word::{get_word_property, WordProperty},
 };
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EditType {
     InsertChars,
     Delete,

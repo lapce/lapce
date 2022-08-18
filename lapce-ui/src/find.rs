@@ -14,6 +14,7 @@ use lapce_data::{
 use crate::{editor::view::LapceEditorView, svg::get_svg, tab::LapceIcon};
 
 pub struct FindBox {
+    parent_view_id: WidgetId,
     input_width: f64,
     result_width: f64,
     result_pos: Point,
@@ -71,6 +72,7 @@ impl FindBox {
             },
         ];
         Self {
+            parent_view_id,
             input_width: 200.0,
             result_width: 75.0,
             result_pos: Point::ZERO,
@@ -193,25 +195,7 @@ impl Widget<LapceTabData> for FindBox {
             return;
         }
 
-        let buffer = match &data.main_split.active_tab.as_ref() {
-            Some(active_tab) => {
-                match data
-                    .main_split
-                    .editor_tabs
-                    .get(active_tab)
-                    .unwrap()
-                    .active_child()
-                {
-                    lapce_data::data::EditorTabChild::Editor(view_id, _, _) => {
-                        data.editor_view_content(*view_id)
-                    }
-                    lapce_data::data::EditorTabChild::Settings(view_id, _) => {
-                        data.editor_view_content(*view_id)
-                    }
-                }
-            }
-            None => return,
-        };
+        let buffer = data.editor_view_content(self.parent_view_id);
 
         let rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {

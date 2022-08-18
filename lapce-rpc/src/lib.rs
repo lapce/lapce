@@ -2,18 +2,16 @@ pub mod buffer;
 pub mod core;
 pub mod counter;
 pub mod file;
+pub mod lsp;
 mod parse;
 pub mod plugin;
 pub mod proxy;
 pub mod source_control;
-mod stdio;
+pub mod stdio;
 pub mod style;
 pub mod terminal;
 
 use std::collections::HashMap;
-use std::io::stdin;
-use std::io::stdout;
-use std::io::BufReader;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -25,18 +23,44 @@ pub use parse::Call;
 pub use parse::RequestId;
 pub use parse::RpcObject;
 use serde::de::DeserializeOwned;
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::json;
 use serde_json::Value;
 
 pub use stdio::stdio_transport;
 
-pub fn stdio() -> (Sender<Value>, Receiver<Value>) {
-    let stdout = stdout();
-    let stdin = BufReader::new(stdin());
-    let (writer_sender, writer_receiver) = crossbeam_channel::unbounded();
-    let (reader_sender, reader_receiver) = crossbeam_channel::unbounded();
-    stdio::stdio_transport(stdout, writer_receiver, stdin, reader_sender);
-    (writer_sender, reader_receiver)
+pub enum RpcMessage<Req, Notif, Resp> {
+    Request(RequestId, Req),
+    Response(RequestId, Resp),
+    Notification(Notif),
+    Error(RequestId, RpcError),
+}
+
+impl<Req: Serialize, Notif: Serialize, Resp: Serialize>
+    RpcMessage<Req, Notif, Resp>
+{
+    pub fn to_value(&self) -> Result<Value> {
+        let value = match self {
+            RpcMessage::Request(id, req) => {
+                let mut msg = serde_json::to_value(req)?;
+                msg.as_object_mut()
+                    .ok_or_else(|| anyhow::anyhow!(""))?
+                    .insert("id".into(), (*id).into());
+                msg
+            }
+            RpcMessage::Response(_, _) => todo!(),
+            RpcMessage::Notification(_) => todo!(),
+            RpcMessage::Error(_, _) => todo!(),
+        };
+        Ok(value)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RpcError {
+    pub code: i64,
+    pub message: String,
 }
 
 pub trait Callback: Send {
@@ -45,6 +69,16 @@ pub trait Callback: Send {
 
 impl<F: Send + FnOnce(Result<Value, Value>)> Callback for F {
     fn call(self: Box<F>, result: Result<Value, Value>) {
+        (*self)(result)
+    }
+}
+
+pub trait NewCallback<Resp>: Send {
+    fn call(self: Box<Self>, result: Result<Resp, RpcError>);
+}
+
+impl<Resp, F: Send + FnOnce(Result<Resp, RpcError>)> NewCallback<Resp> for F {
+    fn call(self: Box<F>, result: Result<Resp, RpcError>) {
         (*self)(result)
     }
 }
@@ -65,7 +99,7 @@ impl ResponseHandler {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub enum ControlFlow {
     Continue,
     Exit,
@@ -77,6 +111,11 @@ pub trait Handler {
 
     fn handle_notification(&mut self, rpc: Self::Notification) -> ControlFlow;
     fn handle_request(&mut self, rpc: Self::Request) -> Result<Value, Value>;
+}
+
+pub trait NewHandler<Req, Notif, Resp> {
+    fn handle_notification(&mut self, rpc: Notif);
+    fn handle_request(&mut self, rpc: Req);
 }
 
 #[derive(Clone)]

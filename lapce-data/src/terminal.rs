@@ -239,6 +239,7 @@ impl LapceTerminalViewData {
         if let Some(command) = LapceTerminalData::resolve_key_event(key) {
             self.terminal
                 .proxy
+                .proxy_rpc
                 .terminal_write(self.terminal.term_id, command.as_ref());
             self.terminal.raw.lock().term.scroll_display(Scroll::Bottom);
         }
@@ -455,7 +456,10 @@ impl KeyPressFocus for LapceTerminalViewData {
 
     fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
         if self.terminal.mode == Mode::Terminal {
-            self.terminal.proxy.terminal_write(self.terminal.term_id, c);
+            self.terminal
+                .proxy
+                .proxy_rpc
+                .terminal_write(self.terminal.term_id, c);
             self.terminal.raw.lock().term.scroll_display(Scroll::Bottom);
         }
     }
@@ -562,7 +566,7 @@ impl LapceTerminalData {
         let term_id = self.term_id;
         std::thread::spawn(move || {
             raw.lock().term.resize(size);
-            proxy.terminal_resize(term_id, width, height);
+            proxy.proxy_rpc.terminal_resize(term_id, width, height);
         });
     }
 
@@ -815,7 +819,7 @@ impl EventListener for EventProxy {
     fn send_event(&self, event: alacritty_terminal::event::Event) {
         match event {
             alacritty_terminal::event::Event::PtyWrite(s) => {
-                self.proxy.terminal_write(self.term_id, &s);
+                self.proxy.proxy_rpc.terminal_write(self.term_id, &s);
             }
             alacritty_terminal::event::Event::Title(title) => {
                 let _ = self.event_sink.submit_command(

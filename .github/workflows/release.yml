@@ -15,6 +15,7 @@ on:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   CARGO_TERM_COLOR: always
+  RELEASE_TAG_NAME: ${{ github.event.inputs.tag_name }}
 
 jobs:
   windows:

@@ -2,7 +2,7 @@ use xi_rope::{Cursor, Rope, RopeInfo};
 
 use crate::syntax::{matching_char, matching_pair_direction};
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum WordProperty {
     Cr,
     Lf,

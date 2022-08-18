@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     cell::RefCell,
     collections::{HashMap, HashSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     rc::Rc,
     sync::{
         atomic::{self},
@@ -32,6 +32,7 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::BufferId,
+    proxy::ProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
 use lsp_types::{
@@ -120,7 +121,7 @@ pub enum LocalBufferKind {
     PathName,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BufferContent {
     File(PathBuf),
     Local(LocalBufferKind),
@@ -129,6 +130,14 @@ pub enum BufferContent {
 }
 
 impl BufferContent {
+    pub fn path(&self) -> Option<&Path> {
+        if let BufferContent::File(p) = &self {
+            Some(p)
+        } else {
+            None
+        }
+    }
+
     pub fn is_file(&self) -> bool {
         matches!(self, BufferContent::File(_))
     }
@@ -577,13 +586,14 @@ impl Document {
             let event_sink = self.event_sink.clone();
             let proxy = self.proxy.clone();
             std::thread::spawn(move || {
-                proxy.new_buffer(id, path.clone(), move |result| {
-                    if let Ok(resp) = result {
+                proxy.proxy_rpc.new_buffer(id, path.clone(), move |result| {
+                    if let Ok(ProxyResponse::NewBufferResponse { content }) = result
+                    {
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
                             P::init_buffer_content_cmd(
                                 path,
-                                Rope::from(resp.content),
+                                Rope::from(content),
                                 locations,
                                 unsaved_buffer,
                                 cb,
@@ -757,30 +767,32 @@ impl Document {
             let rev = self.rev();
             let len = self.buffer().len();
             let event_sink = self.event_sink.clone();
-            self.proxy.get_semantic_tokens(buffer_id, move |result| {
-                if let Ok(resp) = result {
-                    rayon::spawn(move || {
-                        let mut styles_span = SpansBuilder::new(len);
-                        for style in resp.styles {
-                            styles_span.add_span(
-                                Interval::new(style.start, style.end),
-                                style.style,
+            self.proxy
+                .proxy_rpc
+                .get_semantic_tokens(path.clone(), move |result| {
+                    if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
+                        rayon::spawn(move || {
+                            let mut styles_span = SpansBuilder::new(len);
+                            for style in styles.styles {
+                                styles_span.add_span(
+                                    Interval::new(style.start, style.end),
+                                    style.style,
+                                );
+                            }
+                            let styles_span = Arc::new(styles_span.build());
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdateSemanticStyles(
+                                    buffer_id,
+                                    path,
+                                    rev,
+                                    styles_span,
+                                ),
+                                Target::Widget(tab_id),
                             );
-                        }
-                        let styles_span = Arc::new(styles_span.build());
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSemanticStyles(
-                                buffer_id,
-                                path,
-                                rev,
-                                styles_span,
-                            ),
-                            Target::Widget(tab_id),
-                        );
-                    });
-                }
-            });
+                        });
+                    }
+                });
         }
     }
 
@@ -796,38 +808,41 @@ impl Document {
         if let BufferContent::File(path) = self.content() {
             let tab_id = self.tab_id;
             let path = path.clone();
-            let buffer_id = self.id();
             let rev = self.rev();
             let len = self.buffer().len();
             let buffer = self.buffer().clone();
             let event_sink = self.event_sink.clone();
-            self.proxy.get_inlay_hints(buffer_id, move |result| {
-                if let Ok(mut resp) = result {
-                    // Sort the inlay hints by their position, as the LSP does not guarantee that it will
-                    // provide them in the order that they are in within the file
-                    // as well, Spans does not iterate in the order that they appear
-                    resp.sort_by(|left, right| left.position.cmp(&right.position));
+            self.proxy
+                .proxy_rpc
+                .get_inlay_hints(path.clone(), move |result| {
+                    if let Ok(ProxyResponse::GetInlayHints { mut hints }) = result {
+                        // Sort the inlay hints by their position, as the LSP does not guarantee that it will
+                        // provide them in the order that they are in within the file
+                        // as well, Spans does not iterate in the order that they appear
+                        hints.sort_by(|left, right| {
+                            left.position.cmp(&right.position)
+                        });
 
-                    let mut hints_span = SpansBuilder::new(len);
-                    for hint in resp {
-                        if let Some(offset) =
-                            buffer.offset_of_position(&hint.position)
-                        {
-                            let offset = offset.min(len);
-                            hints_span.add_span(
-                                Interval::new(offset, (offset + 1).min(len)),
-                                hint.clone(),
-                            );
+                        let mut hints_span = SpansBuilder::new(len);
+                        for hint in hints {
+                            if let Some(offset) =
+                                buffer.offset_of_position(&hint.position)
+                            {
+                                let offset = offset.min(len);
+                                hints_span.add_span(
+                                    Interval::new(offset, (offset + 1).min(len)),
+                                    hint.clone(),
+                                );
+                            }
                         }
+                        let hints = hints_span.build();
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateInlayHints { path, rev, hints },
+                            Target::Widget(tab_id),
+                        );
                     }
-                    let hints = hints_span.build();
-                    let _ = event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateInlayHints { path, rev, hints },
-                        Target::Widget(tab_id),
-                    );
-                }
-            });
+                });
         }
     }
 
@@ -1038,8 +1053,12 @@ impl Document {
             self.update_styles(delta);
             self.update_inlay_hints(delta);
             self.update_diagnostics(delta);
-            if self.content.is_file() {
-                self.proxy.update(self.id, delta, rev + i as u64 + 1);
+            if let BufferContent::File(path) = &self.content {
+                self.proxy.proxy_rpc.update(
+                    path.clone(),
+                    delta.clone(),
+                    rev + i as u64 + 1,
+                );
             }
         }
 
@@ -1572,6 +1591,9 @@ impl Document {
         };
 
         let line = line.min(self.buffer.last_line());
+
+        let phantom_text = self.line_phantom_text(config, line);
+        let col = phantom_text.col_after(col, true);
 
         let mut x_shift = 0.0;
         if font_size < config.editor.font_size {

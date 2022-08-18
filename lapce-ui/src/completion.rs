@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fmt::Display, sync::Arc};
+use std::fmt::Display;
 
 use anyhow::Error;
 use druid::{
@@ -17,7 +17,7 @@ use lapce_data::{
     markdown::parse_markdown,
     rich_text::{RichText, RichTextBuilder},
 };
-use lsp_types::{CompletionItem, Documentation, MarkupKind};
+use lsp_types::{Documentation, MarkupKind};
 use regex::Regex;
 use std::str::FromStr;
 
@@ -122,7 +122,7 @@ impl Snippet {
                     .map(|e| format!("\\{}", e))
                     .any(|x| x == *esc)
                 {
-                    ele = ele + &s[1..2].to_string();
+                    ele += &s[1..2];
                     end += 2;
                     s = &s[2..];
                     continue;
@@ -131,7 +131,7 @@ impl Snippet {
             if escs.contains(&&s[0..1]) {
                 break;
             }
-            ele = ele + &s[0..1].to_string();
+            ele += &s[0..1];
             end += 1;
             s = &s[1..];
         }
@@ -264,7 +264,7 @@ impl CompletionContainer {
             let current_item = (!data.completion.is_empty())
                 .then(|| data.completion.current_item());
 
-            current_item.and_then(|item| item.documentation.as_ref())
+            current_item.and_then(|item| item.item.documentation.as_ref())
         } else {
             None
         };
@@ -304,29 +304,6 @@ impl Widget<LapceTabData> for CompletionContainer {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        match event {
-            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
-                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::UpdateCompletion(request_id, input, resp) => {
-                        let completion = Arc::make_mut(&mut data.completion);
-                        completion.receive(
-                            *request_id,
-                            input.to_owned(),
-                            resp.to_owned(),
-                        );
-                    }
-                    LapceUICommand::CancelCompletion(request_id) => {
-                        if data.completion.request_id == *request_id {
-                            let completion = Arc::make_mut(&mut data.completion);
-                            completion.cancel();
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            _ => {}
-        }
         self.completion.event(ctx, event, data, env);
         self.documentation.event(ctx, event, data, env);
     }
@@ -799,22 +776,6 @@ impl CompletionState {
             LapceUICommand::RequestPaint,
             Target::Widget(self.widget_id),
         ));
-    }
-
-    pub fn update(&mut self, input: String, completion_items: Vec<CompletionItem>) {
-        self.items = completion_items
-            .iter()
-            .enumerate()
-            .map(|(index, item)| ScoredCompletionItem {
-                item: item.to_owned(),
-                score: -1 - index as i64,
-                label_score: -1 - index as i64,
-                indices: Vec::new(),
-            })
-            .collect();
-        self.items
-            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
-        self.input = input;
     }
 }
 

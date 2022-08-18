@@ -8,9 +8,9 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
-use directories::ProjectDirs;
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
 
+use lapce_proxy::directory::Directory;
 use serde::{Deserialize, Serialize};
 use xi_rope::Rope;
 
@@ -322,13 +322,9 @@ impl EditorInfo {
 
 impl LapceDb {
     pub fn new() -> Result<Self> {
-        let proj_dirs = ProjectDirs::from("", "", "Lapce")
-            .ok_or_else(|| anyhow!("can't find project dirs"))?;
-        let path = proj_dirs.config_dir().join(if !cfg!(debug_assertions) {
-            "lapce.db"
-        } else {
-            "debug-lapce.db"
-        });
+        let path = Directory::config_directory()
+            .ok_or_else(|| anyhow!("can't get config directory"))?
+            .join("lapce.db");
         let (save_tx, save_rx) = unbounded();
 
         let sled_db = sled::Config::default()
@@ -492,6 +488,49 @@ impl LapceDb {
         sled_db.insert(b"tabs", tabs_info.as_str())?;
         sled_db.flush()?;
         Ok(())
+    }
+
+    pub fn save_disabled_volts(&self, volts: Vec<&String>) -> Result<()> {
+        let sled_db = self.get_db()?;
+        let volts = serde_json::to_string(&volts)?;
+        sled_db.insert(b"disabled_volts", volts.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
+    pub fn get_disabled_volts(&self) -> Result<Vec<String>> {
+        let sled_db = self.get_db()?;
+        let volts = sled_db
+            .get("disabled_volts")?
+            .ok_or_else(|| anyhow!("can't find disable volts"))?;
+        let volts = std::str::from_utf8(&volts)?;
+        let volts: Vec<String> = serde_json::from_str(volts)?;
+        Ok(volts)
+    }
+
+    pub fn save_workspace_disabled_volts(
+        &self,
+        workspace: &LapceWorkspace,
+        volts: Vec<&String>,
+    ) -> Result<()> {
+        let sled_db = self.get_db()?;
+        let volts = serde_json::to_string(&volts)?;
+        sled_db.insert(format!("disabled_volts:{}", workspace), volts.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
+    pub fn get_workspace_disabled_volts(
+        &self,
+        workspace: &LapceWorkspace,
+    ) -> Result<Vec<String>> {
+        let sled_db = self.get_db()?;
+        let volts = sled_db
+            .get(format!("disabled_volts:{}", workspace))?
+            .ok_or_else(|| anyhow!("can't find disable volts"))?;
+        let volts = std::str::from_utf8(&volts)?;
+        let volts: Vec<String> = serde_json::from_str(volts)?;
+        Ok(volts)
     }
 
     pub fn save_last_window(&self, window: &LapceWindowData) {

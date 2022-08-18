@@ -12,7 +12,7 @@ use crate::{
     split::SplitDirection,
 };
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SettingsValueKind {
     String,
     Number,

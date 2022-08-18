@@ -10,9 +10,10 @@ use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
 use lapce_core::syntax::Syntax;
+use lapce_rpc::plugin::{PluginId, VoltInfo, VoltMetadata};
 use lapce_rpc::{
-    buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
-    source_control::DiffInfo, style::Style, terminal::TermId,
+    buffer::BufferId, file::FileNodeItem, source_control::DiffInfo, style::Style,
+    terminal::TermId,
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
@@ -111,7 +112,7 @@ impl LapceCommand {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub enum CommandExecuted {
     Yes,
     No,
@@ -177,6 +178,7 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
     EnumIter,
     Clone,
     PartialEq,
+    Eq,
     Debug,
     EnumMessage,
     IntoStaticStr,
@@ -405,13 +407,6 @@ pub enum LapceWorkbenchCommand {
     ToggleInlayHints,
 }
 
-#[derive(Debug, Clone)]
-pub enum PluginLoadingStatus {
-    Loading,
-    Failed,
-    Ok(Vec<PluginDescription>),
-}
-
 #[derive(Debug)]
 pub enum EnsureVisiblePosition {
     // Move the view so the cursor line will be at the center of the window.  If
@@ -470,7 +465,7 @@ pub enum LapceUICommand {
     OpenFileDiff(PathBuf, String),
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
-    UpdateCompletion(usize, String, CompletionResponse),
+    UpdateCompletion(usize, String, CompletionResponse, PluginId),
     UpdateHover(usize, Arc<Vec<RichText>>),
     UpdateInlayHints {
         path: PathBuf,
@@ -504,15 +499,14 @@ pub enum LapceUICommand {
     UpdatePickerPwd(PathBuf),
     UpdatePickerItems(PathBuf, HashMap<PathBuf, FileNodeItem>),
     UpdateExplorerItems(PathBuf, HashMap<PathBuf, FileNodeItem>, bool),
-    UpdateInstalledPlugins(HashMap<String, PluginDescription>),
-    UpdatePluginDescriptions(Vec<PluginDescription>),
-    UpdateInstalledPluginDescriptions(PluginLoadingStatus),
-    UpdateUninstalledPluginDescriptions(PluginLoadingStatus),
-    UpdatePluginInstallationChange(HashMap<String, PluginDescription>),
-    UpdateDisabledPlugins(HashMap<String, PluginDescription>),
-    DisablePlugin(PluginDescription),
-    EnablePlugin(PluginDescription),
-    RemovePlugin(PluginDescription),
+    LoadPlugins(Vec<VoltInfo>),
+    LoadPluginsFailed,
+    VoltInstalled(VoltMetadata),
+    VoltRemoved(VoltInfo),
+    EnableVolt(VoltInfo),
+    DisableVolt(VoltInfo),
+    EnableVoltWorkspace(VoltInfo),
+    DisableVoltWorkspace(VoltInfo),
     RequestLayout,
     RequestPaint,
     ResetFade,

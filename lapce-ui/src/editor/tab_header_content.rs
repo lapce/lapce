@@ -370,7 +370,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     }
                 }
                 EditorTabChild::Settings(_, _) => {
-                    text = format!("Settings v{}", VERSION);
+                    text = format!("Settings (ver. {})", *VERSION);
                 }
             }
             let font_size = data.config.ui.font_size() as f64;
