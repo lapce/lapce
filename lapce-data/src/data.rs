@@ -1031,13 +1031,17 @@ impl LapceTabData {
                             {
                                 if let Some(dest) = process_path.parent() {
                                     if let Ok(src) = download_release(&release) {
-                                        let _ = std::process::Command::new(
-                                            process_path.clone(),
-                                        )
-                                        .arg("--update")
-                                        .arg(&src)
-                                        .arg(dest)
-                                        .spawn();
+                                        let process_id = std::process::id();
+                                        if let Ok(fork::Fork::Child) = fork::fork() {
+                                            let _ = std::process::Command::new(
+                                                process_path.clone(),
+                                            )
+                                            .arg("--update")
+                                            .arg(process_id.to_string())
+                                            .arg(&src)
+                                            .arg(dest)
+                                            .output();
+                                        }
 
                                         let _ = event_sink.submit_command(
                                             druid::commands::QUIT_APP,
