@@ -966,14 +966,15 @@ impl LapceTabData {
                                         src.parent().unwrap().join("lapce");
                                     std::fs::copy(&process_path, &copyed_process)?;
 
-                                    let _ =
-                                        std::process::Command::new(copyed_process)
-                                            .arg("--update")
-                                            .arg(process_id.to_string())
-                                            .arg(&src)
-                                            .arg(dest)
-                                            .arg("&")
-                                            .output();
+                                    let _ = std::process::Command::new("nohup")
+                                        .arg(copyed_process)
+                                        .arg("--update")
+                                        .arg(process_id.to_string())
+                                        .arg(&src)
+                                        .arg(dest)
+                                        .arg("&")
+                                        .spawn()?
+                                        .wait();
 
                                     let _ = event_sink.submit_command(
                                         druid::commands::QUIT_APP,
