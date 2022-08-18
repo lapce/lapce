@@ -101,4 +101,17 @@ impl Directory {
             None => None,
         }
     }
+
+    pub fn updates_directory() -> Option<PathBuf> {
+        if let Some(dir) = Self::data_local_directory() {
+            let dir = dir.join("updates");
+            if !dir.exists() {
+                let _ = std::fs::create_dir(&dir);
+            }
+
+            Some(dir)
+        } else {
+            None
+        }
+    }
 }

@@ -1,4 +1,4 @@
-use std::{io::Write, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use druid::{
     AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Size,
@@ -42,13 +42,16 @@ pub fn launch() {
                     return;
                 }
                 "-u" | "--update" => {
-                    if let Some(src) = args.next() {
-                        if let Some(dest) = args.next() {
-                            if let Err(e) = crate::update::update(
-                                &PathBuf::from(src),
-                                &PathBuf::from(dest),
-                            ) {
-                                eprintln!("{e}");
+                    if let Some(process_id) = args.next() {
+                        if let Some(src) = args.next() {
+                            if let Some(dest) = args.next() {
+                                if let Err(e) = crate::update::update(
+                                    &process_id,
+                                    &PathBuf::from(src),
+                                    &PathBuf::from(dest),
+                                ) {
+                                    eprintln!("{e}");
+                                }
                             }
                         }
                     }

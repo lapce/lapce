@@ -260,6 +260,32 @@ fn get_latest_release() -> Result<ReleaseInfo> {
     Ok(release)
 }
 
+fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
+    let dir =
+        Directory::updates_directory().ok_or_else(|| anyhow!("no directory"))?;
+    let name = match std::env::consts::OS {
+        "macos" => "Lapce-macos.dmg",
+        "linux" => "Lapce-linux.tar.gz",
+        "windows" => "Lapce-windows-portable.zip",
+        _ => return Err(anyhow!("os not supported")),
+    };
+    let file_path = dir.join(name);
+
+    for asset in &release.assets {
+        if asset.name == name {
+            let mut resp = reqwest::blocking::get(&asset.browser_download_url)?;
+            if !resp.status().is_success() {
+                return Err(anyhow!("download file error {}", resp.text()?));
+            }
+            let mut out = std::fs::File::create(&file_path)?;
+            resp.copy_to(&mut out)?;
+            return Ok(file_path);
+        }
+    }
+
+    Err(anyhow!("can't download release"))
+}
+
 /// `LapceWindowData` is the application model for a top-level window.
 ///
 /// A top-level window can be independently moved around and
@@ -553,6 +579,7 @@ impl GetConfig for LapceTabData {
 }
 
 impl LapceTabData {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         window_id: WindowId,
         tab_id: WidgetId,
@@ -995,8 +1022,26 @@ impl LapceTabData {
     ) {
         match command {
             LapceWorkbenchCommand::RestartToUpdate => {
-                if let Some(release) = self.latest_release.as_ref() {
-                    if release.version != *VERSION {}
+                if let Some(release) = (*self.latest_release).clone() {
+                    if release.version != *VERSION {
+                        thread::spawn(move || {
+                            if let Some(process_path) =
+                                process_path::get_executable_path()
+                            {
+                                if let Some(dest) = process_path.parent() {
+                                    if let Ok(src) = download_release(&release) {
+                                        let _ = std::process::Command::new(
+                                            process_path.clone(),
+                                        )
+                                        .arg("--update")
+                                        .arg(&src)
+                                        .arg(dest)
+                                        .output();
+                                    }
+                                }
+                            }
+                        });
+                    }
                 }
             }
             LapceWorkbenchCommand::CloseFolder => {

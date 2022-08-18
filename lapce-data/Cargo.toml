@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+process_path = "0.1.4"
 url = "2.2.2"
 bitflags = "1"
 chrono = "0.4.19"
