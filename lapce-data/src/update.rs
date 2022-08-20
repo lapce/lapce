@@ -146,9 +146,9 @@ pub fn restart(path: &Path) -> Result<()> {
         .to_str()
         .ok_or_else(|| anyhow!("can't get path to str"))?;
     println!("\"{}\"", path);
-    std::process::Command::new("start")
-        .arg("\"\"")
-        .arg(format!("\"{}\"", path))
+    std::process::Command::new("cmd")
+        .arg("/C")
+        .arg(format!("\"start {}\"", path))
         .creation_flags(DETACHED_PROCESS)
         .spawn()?;
     Ok(())
