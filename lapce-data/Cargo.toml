@@ -59,3 +59,6 @@ smallvec = "1.8.0"
 
 [target.'cfg(target_os="macos")'.dependencies]
 dmg = "0.1.1"
+
+[features]
+updater = []

@@ -73,7 +73,7 @@ use crate::{
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
     terminal::TerminalSplitData,
-    update::{get_latest_release, ReleaseInfo},
+    update::ReleaseInfo,
 };
 
 /// `LapceData` is the topmost structure in a tree of structures that holds
@@ -354,8 +354,9 @@ impl LapceWindowData {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
 
+        #[cfg(feature = "updater")]
         std::thread::spawn(move || {
-            if let Ok(release) = get_latest_release() {
+            if let Ok(release) = crate::update::get_latest_release() {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateLatestRelease(release),
