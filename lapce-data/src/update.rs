@@ -146,7 +146,6 @@ pub fn restart(path: &Path) -> Result<()> {
     let path = path
         .to_str()
         .ok_or_else(|| anyhow!("can't get path to str"))?;
-    println!("\"{}\"", path);
     std::process::Command::new("cmd")
         .arg("/C")
         .arg(format!("taskkill /PID {} & start {}", process_id, path))

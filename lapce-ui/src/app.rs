@@ -258,13 +258,8 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                 let release = release.clone();
                 std::thread::spawn(move || -> anyhow::Result<()> {
                     let src = lapce_data::update::download_release(&release)?;
-                    let result = lapce_data::update::extract(&src, &process_path);
-                    println!("extract result {result:?}");
-                    let path = result?;
-                    println!(
-                        "restart result {:?}",
-                        lapce_data::update::restart(&path)
-                    );
+                    let path = lapce_data::update::extract(&src, &process_path)?;
+                    lapce_data::update::restart(&path)?;
                     Ok(())
                 });
                 return druid::Handled::Yes;
