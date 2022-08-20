@@ -257,11 +257,11 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                 let process_path = process_path.clone();
                 let release = release.clone();
                 std::thread::spawn(move || -> anyhow::Result<()> {
-                    log::info!("start to update Lapce");
+                    log::info!("start to down new versoin");
                     let src = lapce_data::update::download_release(&release)?;
-                    log::info!("start to download");
+                    log::info!("start to extract");
                     let path = lapce_data::update::extract(&src, &process_path)?;
-                    log::info!("now restart");
+                    log::info!("now restart {path:?}");
                     lapce_data::update::restart(&path)?;
                     Ok(())
                 });

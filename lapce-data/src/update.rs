@@ -127,7 +127,10 @@ pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
 #[cfg(target_os = "macos")]
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::unix::process::CommandExt;
-    std::process::Command::new("open").arg(path).exec();
+    std::process::Command::new("open")
+        .arg("-n")
+        .arg(path)
+        .exec();
     Ok(())
 }
 
