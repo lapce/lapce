@@ -75,30 +75,30 @@ pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
     Err(anyhow!("can't download release"))
 }
 
-// #[cfg(target_os = "macos")]
-// pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
-//     let info = dmg::Attach::new(src).with()?;
-//     let dest = process_path.parent().ok_or_else(|| anyhow!("no parent"))?;
-//     let dest = if dest.file_name().and_then(|s| s.to_str()) == Some("MacOS") {
-//         dest.parent().unwrap().parent().unwrap().parent().unwrap()
-//     } else {
-//         dest
-//     };
-//     let _ = std::fs::remove_dir_all(dest.join("Lapce.app"));
-//     fs_extra::copy_items(
-//         &[info.mount_point.join("Lapce.app")],
-//         dest,
-//         &fs_extra::dir::CopyOptions {
-//             overwrite: true,
-//             skip_exist: false,
-//             buffer_size: 64000,
-//             copy_inside: true,
-//             content_only: false,
-//             depth: 0,
-//         },
-//     )?;
-//     Ok(dest.join("Lapce.app"))
-// }
+#[cfg(target_os = "macos")]
+pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
+    let info = dmg::Attach::new(src).with()?;
+    let dest = process_path.parent().ok_or_else(|| anyhow!("no parent"))?;
+    let dest = if dest.file_name().and_then(|s| s.to_str()) == Some("MacOS") {
+        dest.parent().unwrap().parent().unwrap().parent().unwrap()
+    } else {
+        dest
+    };
+    let _ = std::fs::remove_dir_all(dest.join("Lapce.app"));
+    fs_extra::copy_items(
+        &[info.mount_point.join("Lapce.app")],
+        dest,
+        &fs_extra::dir::CopyOptions {
+            overwrite: true,
+            skip_exist: false,
+            buffer_size: 64000,
+            copy_inside: true,
+            content_only: false,
+            depth: 0,
+        },
+    )?;
+    Ok(dest.join("Lapce.app"))
+}
 
 #[cfg(target_os = "linux")]
 pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
