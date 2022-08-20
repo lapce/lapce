@@ -262,7 +262,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                     println!("extract result {result:?}");
                     let path = result?;
                     println!(
-                        "{restart result:?}",
+                        "restart result {:?}",
                         lapce_data::update::restart(&path)
                     );
                     Ok(())
