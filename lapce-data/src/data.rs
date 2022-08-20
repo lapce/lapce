@@ -954,33 +954,14 @@ impl LapceTabData {
             LapceWorkbenchCommand::RestartToUpdate => {
                 if let Some(release) = (*self.latest_release).clone() {
                     if release.version != *VERSION {
-                        let event_sink = ctx.get_external_handle();
                         thread::spawn(move || -> Result<()> {
                             if let Some(process_path) =
                                 process_path::get_executable_path()
                             {
-                                if let Some(dest) = process_path.parent() {
-                                    let src = download_release(&release)?;
-                                    let process_id = std::process::id();
-                                    let copyed_process =
-                                        src.parent().unwrap().join("lapce");
-                                    std::fs::copy(&process_path, &copyed_process)?;
-
-                                    let _ = std::process::Command::new("nohup")
-                                        .arg(copyed_process)
-                                        .arg("--update")
-                                        .arg(process_id.to_string())
-                                        .arg(&src)
-                                        .arg(dest)
-                                        .spawn()?
-                                        .wait();
-
-                                    let _ = event_sink.submit_command(
-                                        druid::commands::QUIT_APP,
-                                        (),
-                                        Target::Global,
-                                    );
-                                }
+                                let src = download_release(&release)?;
+                                let path =
+                                    crate::update::extract(&src, &process_path)?;
+                                crate::update::restart(&path)?;
                             }
                             Ok(())
                         });

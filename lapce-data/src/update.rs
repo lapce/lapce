@@ -76,6 +76,57 @@ pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
 }
 
 #[cfg(target_os = "macos")]
+pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
+    let info = dmg::Attach::new(src).with()?;
+    let dest = process_path.parent().ok_or_else(|| anyhow!("no parent"))?;
+    let dest = if dest.file_name().and_then(|s| s.to_str()) == Some("MacOS") {
+        dest.parent().unwrap().parent().unwrap().parent().unwrap()
+    } else {
+        dest
+    };
+    let _ = std::fs::remove_dir_all(dest.join("Lapce.app"));
+    fs_extra::copy_items(
+        &[info.mount_point.join("Lapce.app")],
+        dest,
+        &fs_extra::dir::CopyOptions {
+            overwrite: true,
+            skip_exist: false,
+            buffer_size: 64000,
+            copy_inside: true,
+            content_only: false,
+            depth: 0,
+        },
+    )?;
+    Ok(dest.join("Lapce.app"))
+}
+
+#[cfg(target_os = "linux")]
+pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
+    let tar_gz = std::fs::File::open(src)?;
+    let tar = flate2::read::GzDecoder::new(tar_gz);
+    let mut archive = tar::Archive::new(tar);
+    let parent = src.parent().ok_or_else(|| anyhow::anyhow!("no parent"))?;
+    archive.unpack(parent)?;
+    std::fs::remove_file(process_path)?;
+    std::fs::copy(parent.join("lapce"), process_path)?;
+    Ok(process_path.to_path_buf())
+}
+
+#[cfg(target_os = "macos")]
+pub fn restart(path: &Path) -> Result<()> {
+    use std::os::unix::process::CommandExt;
+    std::process::Command::new("open").arg(path).exec();
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+pub fn restart(path: &Path) -> Result<()> {
+    use std::os::unix::process::CommandExt;
+    std::process::Command::new(path).exec();
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
 pub fn update(_process_id: &str, src: &Path, dest: &Path) -> Result<()> {
     let info = dmg::Attach::new(src).with()?;
     if dest.file_name().and_then(|s| s.to_str()) == Some("MacOS") {
