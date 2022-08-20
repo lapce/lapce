@@ -32,7 +32,7 @@ jobs:
           echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
       - id: vars
         shell: bash
-        run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+        run: echo "::set-output name=sha_short::${GITHUB_SHA::7}"
       - if: env.TAG_NAME == 'nightly'
         run: echo 'TAG_NAME=nightly-${{ steps.vars.outputs.sha_short }}' >> $GITHUB_ENV
       - id: tag
