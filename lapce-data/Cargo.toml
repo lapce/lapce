@@ -5,7 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-zip = { version = "0.6.2", default-features = false }
+zip = { version = "0.6.2", default-features = false, features = ["deflate"] }
 tar = "0.4.38"
 flate2 = "1.0.24"
 fs_extra = "1.2.0"
