@@ -392,6 +392,10 @@ impl CompletionData {
 
         self.input_items.insert(input, Arc::new(items));
         self.filter_items();
+
+        if self.index >= self.len() {
+            self.index = 0;
+        }
     }
 
     pub fn filter_items(&mut self) {

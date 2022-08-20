@@ -3,6 +3,7 @@ use std::sync::Arc;
 #[cfg(not(target_os = "macos"))]
 use crate::window::window_controls;
 use crate::{palette::Palette, svg::get_svg};
+use druid::kurbo::Circle;
 use druid::WindowConfig;
 use druid::{
     kurbo::Line,
@@ -32,6 +33,7 @@ pub struct Title {
     text_layouts: Vec<(PietTextLayout, Point)>,
     borders: Vec<Line>,
     rects: Vec<(Rect, Color)>,
+    circles: Vec<(Circle, Color)>,
     palette: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     dragable_area: Region,
 }
@@ -46,6 +48,7 @@ impl Title {
             text_layouts: Vec::new(),
             borders: Vec::new(),
             rects: Vec::new(),
+            circles: Vec::new(),
             palette: WidgetPod::new(palette.boxed()),
             dragable_area: Region::EMPTY,
         }
@@ -321,8 +324,7 @@ impl Title {
         data: &LapceTabData,
         #[cfg(not(target_os = "macos"))] window_state: &WindowState,
         #[cfg(target_os = "macos")] _window_state: &WindowState,
-        #[cfg(not(target_os = "macos"))] piet_text: &mut PietText,
-        #[cfg(target_os = "macos")] _piet_text: &mut PietText,
+        piet_text: &mut PietText,
         size: Size,
         _padding: f64,
         x: f64,
@@ -405,6 +407,31 @@ impl Title {
                     && latest_version != Some(*VERSION),
             }),
         ];
+        if latest_version.is_some() && latest_version != Some(*VERSION) {
+            let text_layout = piet_text
+                .new_text_layout("1")
+                .font(data.config.ui.font_family(), 10.0)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            let size = text_layout.size();
+            let point = settings_rect.center() + (5.0, 3.0);
+            let circle = Circle::new(
+                Point::new(point.x + size.width / 2.0, point.y + size.height / 2.0),
+                ((size.width / 2.0).powi(2) + (size.height / 2.0).powi(2)).sqrt(),
+            );
+            self.circles.push((
+                circle,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_CARET)
+                    .clone(),
+            ));
+            self.text_layouts.push((text_layout, point));
+        }
         self.commands.push((
             settings_rect,
             Command::new(
@@ -756,6 +783,10 @@ impl Widget<LapceTabData> for Title {
 
         for (svg, rect, color) in self.svgs.iter() {
             ctx.draw_svg(svg, *rect, color.as_ref());
+        }
+
+        for (circle, color) in self.circles.iter() {
+            ctx.fill(circle, color);
         }
 
         for (text_layout, point) in self.text_layouts.iter() {

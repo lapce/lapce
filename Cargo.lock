@@ -3405,7 +3405,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu?branch=shell_opengl#5499eed471f38f84a43d18edd9d1a6389e6e4412"
+source = "git+https://github.com/lapce/piet-wgpu?branch=shell_opengl#1fed61133af22010df13324209082a7eb6c9528d"
 dependencies = [
  "bytemuck",
  "glam",
