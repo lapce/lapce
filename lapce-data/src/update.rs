@@ -126,6 +126,11 @@ pub fn restart(path: &Path) -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
+pub fn restart(path: &Path) -> Result<()> {
+    Ok(())
+}
+
 #[cfg(target_os = "macos")]
 pub fn update(_process_id: &str, src: &Path, dest: &Path) -> Result<()> {
     let info = dmg::Attach::new(src).with()?;
