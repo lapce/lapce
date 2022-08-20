@@ -73,7 +73,7 @@ use crate::{
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
     terminal::TerminalSplitData,
-    update::{download_release, get_latest_release, ReleaseInfo},
+    update::{get_latest_release, ReleaseInfo},
 };
 
 /// `LapceData` is the topmost structure in a tree of structures that holds
@@ -954,17 +954,18 @@ impl LapceTabData {
             LapceWorkbenchCommand::RestartToUpdate => {
                 if let Some(release) = (*self.latest_release).clone() {
                     if release.version != *VERSION {
-                        thread::spawn(move || -> Result<()> {
-                            if let Some(process_path) =
-                                process_path::get_executable_path()
-                            {
-                                let src = download_release(&release)?;
-                                let path =
-                                    crate::update::extract(&src, &process_path)?;
-                                crate::update::restart(&path)?;
-                            }
-                            Ok(())
-                        });
+                        if let Some(process_path) =
+                            process_path::get_executable_path()
+                        {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::RestartToUpdate(
+                                    process_path,
+                                    release,
+                                ),
+                                Target::Global,
+                            ));
+                        }
                     }
                 }
             }

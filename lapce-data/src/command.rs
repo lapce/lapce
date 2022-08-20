@@ -526,6 +526,7 @@ pub enum LapceUICommand {
     NextEditorTab,
     PreviousEditorTab,
     FilterItems,
+    RestartToUpdate(PathBuf, ReleaseInfo),
     NewWindow(WindowId),
     ReloadWindow,
     CloseBuffers(Vec<BufferId>),
