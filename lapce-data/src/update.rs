@@ -142,13 +142,14 @@ pub fn restart(path: &Path) -> Result<()> {
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::windows::process::CommandExt;
     const DETACHED_PROCESS: u32 = 0x00000008;
+    let process_id = std::process::id();
     let path = path
         .to_str()
         .ok_or_else(|| anyhow!("can't get path to str"))?;
     println!("\"{}\"", path);
     std::process::Command::new("cmd")
         .arg("/C")
-        .arg(format!("start {}", path))
+        .arg(format!("taskkill /PID {} & start {}", process_id, path))
         .creation_flags(DETACHED_PROCESS)
         .spawn()?;
     Ok(())
