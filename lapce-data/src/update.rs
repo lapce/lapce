@@ -142,7 +142,7 @@ pub fn restart(path: &Path) -> Result<()> {
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::windows::process::CommandExt;
     const DETACHED_PROCESS: u32 = 0x00000008;
-    std::process::Command::new("start")
+    std::process::Command::new("start.exe")
         .arg(path)
         .arg("&")
         .arg("exit")
