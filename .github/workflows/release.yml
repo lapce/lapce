@@ -203,7 +203,6 @@ jobs:
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
 
-    env:
       NOTARIZE_USERNAME: ${{ secrets.NOTARIZE_USERNAME }}
       NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
 
