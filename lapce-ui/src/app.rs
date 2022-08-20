@@ -261,7 +261,10 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                     let result = lapce_data::update::extract(&src, &process_path);
                     println!("extract result {result:?}");
                     let path = result?;
-                    lapce_data::update::restart(&path)?;
+                    println!(
+                        "{restart result:?}",
+                        lapce_data::update::restart(&path)
+                    );
                     Ok(())
                 });
                 return druid::Handled::Yes;
