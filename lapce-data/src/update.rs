@@ -148,7 +148,7 @@ pub fn restart(path: &Path) -> Result<()> {
     println!("\"{}\"", path);
     std::process::Command::new("cmd")
         .arg("/C")
-        .arg(format!("\"start {}\"", path))
+        .arg(format!("start {}", path))
         .creation_flags(DETACHED_PROCESS)
         .spawn()?;
     Ok(())
