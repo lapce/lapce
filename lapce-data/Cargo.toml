@@ -5,12 +5,16 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+zip = { version = "0.6.2", default-features = false, features = ["deflate"] }
+tar = "0.4.38"
+flate2 = "1.0.24"
+fs_extra = "1.2.0"
+process_path = "0.1.4"
 url = "2.2.2"
 bitflags = "1"
 chrono = "0.4.19"
 log = "0.4.14"
 rayon = "1.5.1"
-flate2 = "1.0.22"
 reqwest = { version = "0.11", features = ["blocking", "json", "socks"] }
 hashbrown = "0.11.2"
 sled = "0.34.7"
@@ -52,3 +56,9 @@ bytemuck = "1.8.0"
 # For parsing markdown data, such as in hovers
 pulldown-cmark = "0.9.1"
 smallvec = "1.8.0"
+
+[target.'cfg(target_os="macos")'.dependencies]
+dmg = "0.1.1"
+
+[features]
+updater = []

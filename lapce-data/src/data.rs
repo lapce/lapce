@@ -29,7 +29,7 @@ use lapce_core::{
     register::Register,
     selection::Selection,
 };
-use lapce_proxy::directory::Directory;
+use lapce_proxy::{directory::Directory, VERSION};
 use lapce_rpc::{
     buffer::BufferId, proxy::ProxyResponse, source_control::FileDiff,
     terminal::TermId,
@@ -73,6 +73,7 @@ use crate::{
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
     terminal::TerminalSplitData,
+    update::ReleaseInfo,
 };
 
 /// `LapceData` is the topmost structure in a tree of structures that holds
@@ -255,6 +256,7 @@ pub struct LapceWindowData {
     /// The position of the window.
     pub pos: Point,
     pub panel_orders: PanelOrder,
+    pub latest_release: Arc<Option<ReleaseInfo>>,
 }
 
 impl Data for LapceWindowData {
@@ -266,6 +268,7 @@ impl Data for LapceWindowData {
             && self.maximised.same(&other.maximised)
             && self.keypress.same(&other.keypress)
             && self.panel_orders.same(&other.panel_orders)
+            && self.latest_release.same(&other.latest_release)
     }
 }
 
@@ -281,6 +284,7 @@ impl LapceWindowData {
         let mut tabs_order = Vec::new();
         let mut active_tab_id = WidgetId::next();
         let mut active = 0;
+        let latest_release = Arc::new(None);
 
         let window_id = WindowId::next();
         for (i, workspace) in info.tabs.workspaces.iter().enumerate() {
@@ -291,6 +295,7 @@ impl LapceWindowData {
                 workspace.clone(),
                 db.clone(),
                 keypress.clone(),
+                latest_release.clone(),
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -310,6 +315,7 @@ impl LapceWindowData {
                 LapceWorkspace::default(),
                 db.clone(),
                 keypress.clone(),
+                latest_release.clone(),
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -333,7 +339,8 @@ impl LapceWindowData {
         );
 
         let mut watcher =
-            notify::recommended_watcher(ConfigWatcher::new(event_sink)).unwrap();
+            notify::recommended_watcher(ConfigWatcher::new(event_sink.clone()))
+                .unwrap();
         if let Some(path) = Config::settings_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
@@ -346,6 +353,18 @@ impl LapceWindowData {
         if let Some(path) = Directory::plugins_directory() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
+
+        #[cfg(feature = "updater")]
+        std::thread::spawn(move || {
+            if let Ok(release) = crate::update::get_latest_release() {
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateLatestRelease(release),
+                    Target::Window(window_id),
+                );
+            }
+        });
+
         Self {
             window_id,
             tabs,
@@ -360,6 +379,7 @@ impl LapceWindowData {
             pos: info.pos,
             maximised: info.maximised,
             panel_orders,
+            latest_release,
         }
     }
 
@@ -451,6 +471,7 @@ pub struct LapceTabData {
     pub db: Arc<LapceDb>,
     pub progresses: im::Vector<WorkProgress>,
     pub drag: Arc<Option<(Vec2, Vec2, DragContent)>>,
+    pub latest_release: Arc<Option<ReleaseInfo>>,
 }
 
 impl Data for LapceTabData {
@@ -478,6 +499,7 @@ impl Data for LapceTabData {
             && self.drag.same(&other.drag)
             && self.keypress.same(&other.keypress)
             && self.settings.same(&other.settings)
+            && self.latest_release.same(&other.latest_release)
     }
 }
 
@@ -488,12 +510,14 @@ impl GetConfig for LapceTabData {
 }
 
 impl LapceTabData {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         window_id: WindowId,
         tab_id: WidgetId,
         workspace: LapceWorkspace,
         db: Arc<LapceDb>,
         keypress: Arc<KeyPressData>,
+        latest_release: Arc<Option<ReleaseInfo>>,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
     ) -> Self {
@@ -648,6 +672,7 @@ impl LapceTabData {
             db,
             progresses: im::Vector::new(),
             drag: Arc::new(None),
+            latest_release,
         };
         tab.start_update_process(event_sink);
         tab
@@ -927,6 +952,24 @@ impl LapceTabData {
         _env: &Env,
     ) {
         match command {
+            LapceWorkbenchCommand::RestartToUpdate => {
+                if let Some(release) = (*self.latest_release).clone() {
+                    if release.version != *VERSION {
+                        if let Some(process_path) =
+                            process_path::get_executable_path()
+                        {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::RestartToUpdate(
+                                    process_path,
+                                    release,
+                                ),
+                                Target::Global,
+                            ));
+                        }
+                    }
+                }
+            }
             LapceWorkbenchCommand::CloseFolder => {
                 if self.workspace.path.is_some() {
                     let mut workspace = (*self.workspace).clone();
@@ -1614,6 +1657,7 @@ impl Lens<LapceWindowData, LapceTabData> for LapceTabLens {
     ) -> V {
         let mut tab = data.tabs.get(&self.0).unwrap().clone();
         tab.keypress = data.keypress.clone();
+        tab.latest_release = data.latest_release.clone();
         tab.multiple_tab = data.tabs.len() > 1;
         if !tab.panel.order.same(&data.panel_orders) {
             Arc::make_mut(&mut tab.panel).order = data.panel_orders.clone();

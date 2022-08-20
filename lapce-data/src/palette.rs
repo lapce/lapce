@@ -1011,9 +1011,9 @@ impl PaletteViewData {
                 let line_number = i + 1;
                 let text = format!(
                     "{}{} {}",
+                    line_number,
                     vec![" "; last_line_number_len - line_number.to_string().len()]
                         .join(""),
-                    line_number,
                     l
                 );
                 PaletteItem {

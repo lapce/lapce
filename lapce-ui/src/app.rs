@@ -31,7 +31,7 @@ pub fn launch() {
     let mut path = None;
     if args.len() > 1 {
         args.next();
-        for arg in args {
+        if let Some(arg) = args.next() {
             match arg.as_str() {
                 "-v" | "--version" => {
                     println!("lapce {}", *VERSION);
@@ -251,45 +251,61 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         data: &mut LapceData,
         _env: &Env,
     ) -> druid::Handled {
-        if let Some(LapceUICommand::NewWindow(from_window_id)) =
-            cmd.get(LAPCE_UI_COMMAND)
-        {
-            let (size, pos) = data
-                .windows
-                .get(from_window_id)
-                // If maximised, use default dimensions instead
-                .filter(|win| !win.maximised)
-                .map(|win| (win.size, win.pos + (50.0, 50.0)))
-                .unwrap_or((Size::new(800.0, 600.0), Point::new(0.0, 0.0)));
-            let info = WindowInfo {
-                size,
-                pos,
-                maximised: false,
-                tabs: TabsInfo {
-                    active_tab: 0,
-                    workspaces: vec![],
-                },
-            };
-            let mut window_data = LapceWindowData::new(
-                data.keypress.clone(),
-                data.panel_orders.clone(),
-                ctx.get_external_handle(),
-                &info,
-                data.db.clone(),
-            );
-            let root = build_window(&mut window_data);
-            let window_id = window_data.window_id;
-            data.windows.insert(window_id, window_data.clone());
-            let desc = new_window_desc(
-                window_id,
-                root,
-                info.size,
-                info.pos,
-                info.maximised,
-                &window_data.config,
-            );
-            ctx.new_window(desc);
-            return druid::Handled::Yes;
+        match cmd.get(LAPCE_UI_COMMAND) {
+            Some(LapceUICommand::RestartToUpdate(process_path, release)) => {
+                let _ = data.db.save_app(data);
+                let process_path = process_path.clone();
+                let release = release.clone();
+                std::thread::spawn(move || -> anyhow::Result<()> {
+                    log::info!("start to down new versoin");
+                    let src = lapce_data::update::download_release(&release)?;
+                    log::info!("start to extract");
+                    let path = lapce_data::update::extract(&src, &process_path)?;
+                    log::info!("now restart {path:?}");
+                    lapce_data::update::restart(&path)?;
+                    Ok(())
+                });
+                return druid::Handled::Yes;
+            }
+            Some(LapceUICommand::NewWindow(from_window_id)) => {
+                let (size, pos) = data
+                    .windows
+                    .get(from_window_id)
+                    // If maximised, use default dimensions instead
+                    .filter(|win| !win.maximised)
+                    .map(|win| (win.size, win.pos + (50.0, 50.0)))
+                    .unwrap_or((Size::new(800.0, 600.0), Point::new(0.0, 0.0)));
+                let info = WindowInfo {
+                    size,
+                    pos,
+                    maximised: false,
+                    tabs: TabsInfo {
+                        active_tab: 0,
+                        workspaces: vec![],
+                    },
+                };
+                let mut window_data = LapceWindowData::new(
+                    data.keypress.clone(),
+                    data.panel_orders.clone(),
+                    ctx.get_external_handle(),
+                    &info,
+                    data.db.clone(),
+                );
+                let root = build_window(&mut window_data);
+                let window_id = window_data.window_id;
+                data.windows.insert(window_id, window_data.clone());
+                let desc = new_window_desc(
+                    window_id,
+                    root,
+                    info.size,
+                    info.pos,
+                    info.maximised,
+                    &window_data.config,
+                );
+                ctx.new_window(desc);
+                return druid::Handled::Yes;
+            }
+            _ => (),
         }
         druid::Handled::No
     }

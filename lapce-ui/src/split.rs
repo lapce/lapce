@@ -572,7 +572,11 @@ impl LapceSplit {
             return;
         }
 
-        let hover_i = self.get_hovered_child_index();
+        let hover_i = if ctx.is_hot() || ctx.is_active() {
+            self.get_hovered_child_index()
+        } else {
+            None
+        };
 
         let size = ctx.size();
         for i in 1..children_len {

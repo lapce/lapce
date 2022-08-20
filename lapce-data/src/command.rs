@@ -31,6 +31,7 @@ use crate::document::BufferContent;
 use crate::editor::{EditorPosition, Line, LineCol};
 use crate::menu::MenuKind;
 use crate::rich_text::RichText;
+use crate::update::ReleaseInfo;
 use crate::{
     data::{EditorTabChild, SplitContent},
     editor::EditorLocation,
@@ -405,6 +406,9 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "toggle_inlay_hints")]
     #[strum(message = "Toggle Inlay Hints")]
     ToggleInlayHints,
+
+    #[strum(serialize = "restart_to_update")]
+    RestartToUpdate,
 }
 
 #[derive(Debug)]
@@ -478,6 +482,7 @@ pub enum LapceUICommand {
     ShowCodeActions(Option<Point>),
     Hide,
     ResignFocus,
+    UpdateLatestRelease(ReleaseInfo),
     Focus,
     ChildrenChanged,
     EnsureEditorTabActiveVisible,
@@ -521,6 +526,7 @@ pub enum LapceUICommand {
     NextEditorTab,
     PreviousEditorTab,
     FilterItems,
+    RestartToUpdate(PathBuf, ReleaseInfo),
     NewWindow(WindowId),
     ReloadWindow,
     CloseBuffers(Vec<BufferId>),

@@ -10,6 +10,7 @@ pub enum MenuKind {
 pub struct MenuItem {
     pub desc: Option<String>,
     pub command: LapceCommand,
+    pub enabled: bool,
 }
 
 impl MenuItem {

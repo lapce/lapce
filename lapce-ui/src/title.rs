@@ -3,6 +3,7 @@ use std::sync::Arc;
 #[cfg(not(target_os = "macos"))]
 use crate::window::window_controls;
 use crate::{palette::Palette, svg::get_svg};
+use druid::kurbo::Circle;
 use druid::WindowConfig;
 use druid::{
     kurbo::Line,
@@ -11,6 +12,7 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, Region, RenderContext, Size,
     Target, Widget, WidgetExt, WidgetPod, WindowState,
 };
+use lapce_data::proxy::VERSION;
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
@@ -31,6 +33,7 @@ pub struct Title {
     text_layouts: Vec<(PietTextLayout, Point)>,
     borders: Vec<Line>,
     rects: Vec<(Rect, Color)>,
+    circles: Vec<(Circle, Color)>,
     palette: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     dragable_area: Region,
 }
@@ -45,6 +48,7 @@ impl Title {
             text_layouts: Vec::new(),
             borders: Vec::new(),
             rects: Vec::new(),
+            circles: Vec::new(),
             palette: WidgetPod::new(palette.boxed()),
             dragable_area: Region::EMPTY,
         }
@@ -176,6 +180,7 @@ impl Title {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectSshHost),
                 data: None,
             },
+            enabled: true,
         })];
 
         if cfg!(target_os = "windows") {
@@ -185,6 +190,7 @@ impl Title {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectWsl),
                     data: None,
                 },
+                enabled: true,
             }));
         }
 
@@ -197,6 +203,7 @@ impl Title {
                     ),
                     data: None,
                 },
+                enabled: true,
             }));
         }
 
@@ -282,6 +289,7 @@ impl Title {
                             ),
                             data: Some(json!(b.to_string())),
                         },
+                        enabled: true,
                     })
                 })
                 .collect();
@@ -316,8 +324,7 @@ impl Title {
         data: &LapceTabData,
         #[cfg(not(target_os = "macos"))] window_state: &WindowState,
         #[cfg(target_os = "macos")] _window_state: &WindowState,
-        #[cfg(not(target_os = "macos"))] piet_text: &mut PietText,
-        #[cfg(target_os = "macos")] _piet_text: &mut PietText,
+        piet_text: &mut PietText,
         size: Size,
         _padding: f64,
         x: f64,
@@ -344,6 +351,11 @@ impl Title {
                     .clone(),
             ),
         ));
+        let latest_version = data
+            .latest_release
+            .as_ref()
+            .as_ref()
+            .map(|r| r.version.as_str());
         let menu_items = vec![
             MenuKind::Item(MenuItem {
                 desc: None,
@@ -353,7 +365,9 @@ impl Title {
                     ),
                     data: None,
                 },
+                enabled: true,
             }),
+            MenuKind::Separator,
             MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
@@ -362,6 +376,7 @@ impl Title {
                     ),
                     data: None,
                 },
+                enabled: true,
             }),
             MenuKind::Item(MenuItem {
                 desc: None,
@@ -371,8 +386,52 @@ impl Title {
                     ),
                     data: None,
                 },
+                enabled: true,
+            }),
+            MenuKind::Separator,
+            MenuKind::Item(MenuItem {
+                desc: Some(
+                    if latest_version.is_some() && latest_version != Some(*VERSION) {
+                        format!("Restart to Update ({})", latest_version.unwrap())
+                    } else {
+                        "Restart to Update".to_string()
+                    },
+                ),
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::RestartToUpdate,
+                    ),
+                    data: None,
+                },
+                enabled: latest_version.is_some()
+                    && latest_version != Some(*VERSION),
             }),
         ];
+        if latest_version.is_some() && latest_version != Some(*VERSION) {
+            let text_layout = piet_text
+                .new_text_layout("1")
+                .font(data.config.ui.font_family(), 10.0)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            let size = text_layout.size();
+            let point = settings_rect.center() + (5.0, 3.0);
+            let circle = Circle::new(
+                Point::new(point.x + size.width / 2.0, point.y + size.height / 2.0),
+                ((size.width / 2.0).powi(2) + (size.height / 2.0).powi(2)).sqrt(),
+            );
+            self.circles.push((
+                circle,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_CARET)
+                    .clone(),
+            ));
+            self.text_layouts.push((text_layout, point));
+        }
         self.commands.push((
             settings_rect,
             Command::new(
@@ -497,6 +556,7 @@ impl Title {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
                     data: None,
                 },
+                enabled: true,
             }),
             MenuKind::Item(MenuItem {
                 desc: None,
@@ -506,6 +566,7 @@ impl Title {
                     ),
                     data: None,
                 },
+                enabled: true,
             }),
         ];
         let command_rect = Size::new(size.height, size.height)
@@ -722,6 +783,10 @@ impl Widget<LapceTabData> for Title {
 
         for (svg, rect, color) in self.svgs.iter() {
             ctx.draw_svg(svg, *rect, color.as_ref());
+        }
+
+        for (circle, color) in self.circles.iter() {
+            ctx.fill(circle, color);
         }
 
         for (text_layout, point) in self.text_layouts.iter() {

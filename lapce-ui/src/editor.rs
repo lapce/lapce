@@ -287,6 +287,7 @@ impl LapceEditor {
                     kind: CommandKind::Focus(FocusCommand::GotoDefinition),
                     data: None,
                 },
+                enabled: true,
             }),
             MenuKind::Item(MenuItem {
                 desc: None,
@@ -294,6 +295,7 @@ impl LapceEditor {
                     kind: CommandKind::Focus(FocusCommand::GotoTypeDefinition),
                     data: None,
                 },
+                enabled: true,
             }),
             MenuKind::Separator,
             MenuKind::Item(MenuItem {
@@ -302,6 +304,7 @@ impl LapceEditor {
                     kind: CommandKind::Edit(EditCommand::ClipboardCut),
                     data: None,
                 },
+                enabled: true,
             }),
             MenuKind::Item(MenuItem {
                 desc: None,
@@ -309,6 +312,7 @@ impl LapceEditor {
                     kind: CommandKind::Edit(EditCommand::ClipboardCopy),
                     data: None,
                 },
+                enabled: true,
             }),
             MenuKind::Item(MenuItem {
                 desc: None,
@@ -316,6 +320,7 @@ impl LapceEditor {
                     kind: CommandKind::Edit(EditCommand::ClipboardPaste),
                     data: None,
                 },
+                enabled: true,
             }),
             MenuKind::Separator,
             MenuKind::Item(MenuItem {
@@ -326,6 +331,7 @@ impl LapceEditor {
                     ),
                     data: None,
                 },
+                enabled: true,
             }),
         ];
 
