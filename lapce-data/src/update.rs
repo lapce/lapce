@@ -127,6 +127,8 @@ pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
 #[cfg(target_os = "macos")]
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::unix::process::CommandExt;
+    path.to_str()
+        .ok_or_else(|| anyhow!("can't get path to str"))?;
     std::process::Command::new("open").arg(path).exec();
     Ok(())
 }
@@ -142,6 +144,9 @@ pub fn restart(path: &Path) -> Result<()> {
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::windows::process::CommandExt;
     const DETACHED_PROCESS: u32 = 0x00000008;
+    let path = path
+        .to_str()
+        .ok_or_else(|| anyhow!("can't get path to str"))?;
     println!(format!("\"{}\"", path));
     std::process::Command::new("start")
         .arg("\"\"")
