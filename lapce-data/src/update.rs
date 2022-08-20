@@ -140,6 +140,11 @@ pub fn restart(path: &Path) -> Result<()> {
 
 #[cfg(target_os = "windows")]
 pub fn restart(path: &Path) -> Result<()> {
+    use std::os::windows::process::CommandExt;
+    const DETACHED_PROCESS: u32 = 0x00000008;
+    std::process::Command::new(path)
+        .creation_flags(DETACHED_PROCESS)
+        .spawn()?;
     Ok(())
 }
 
