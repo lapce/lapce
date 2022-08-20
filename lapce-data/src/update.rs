@@ -114,12 +114,13 @@ pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
 
 #[cfg(target_os = "windows")]
 pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
+    let parent = src.parent().ok_or_else(|| anyhow::anyhow!("no parent"))?;
     {
         let mut archive = zip::ZipArchive::new(std::fs::File::open(src)?)?;
-        let parent = src.parent().ok_or_else(|| anyhow::anyhow!("no parent"))?;
         archive.extract(parent)?;
     }
-
+    std::fs::remove_file(process_path)?;
+    std::fs::copy(parent.join("lapce.exe"), process_path)?;
     Ok(process_path.to_path_buf())
 }
 
