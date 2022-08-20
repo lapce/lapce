@@ -75,30 +75,30 @@ pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
     Err(anyhow!("can't download release"))
 }
 
-#[cfg(target_os = "macos")]
-pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
-    let info = dmg::Attach::new(src).with()?;
-    let dest = process_path.parent().ok_or_else(|| anyhow!("no parent"))?;
-    let dest = if dest.file_name().and_then(|s| s.to_str()) == Some("MacOS") {
-        dest.parent().unwrap().parent().unwrap().parent().unwrap()
-    } else {
-        dest
-    };
-    let _ = std::fs::remove_dir_all(dest.join("Lapce.app"));
-    fs_extra::copy_items(
-        &[info.mount_point.join("Lapce.app")],
-        dest,
-        &fs_extra::dir::CopyOptions {
-            overwrite: true,
-            skip_exist: false,
-            buffer_size: 64000,
-            copy_inside: true,
-            content_only: false,
-            depth: 0,
-        },
-    )?;
-    Ok(dest.join("Lapce.app"))
-}
+// #[cfg(target_os = "macos")]
+// pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
+//     let info = dmg::Attach::new(src).with()?;
+//     let dest = process_path.parent().ok_or_else(|| anyhow!("no parent"))?;
+//     let dest = if dest.file_name().and_then(|s| s.to_str()) == Some("MacOS") {
+//         dest.parent().unwrap().parent().unwrap().parent().unwrap()
+//     } else {
+//         dest
+//     };
+//     let _ = std::fs::remove_dir_all(dest.join("Lapce.app"));
+//     fs_extra::copy_items(
+//         &[info.mount_point.join("Lapce.app")],
+//         dest,
+//         &fs_extra::dir::CopyOptions {
+//             overwrite: true,
+//             skip_exist: false,
+//             buffer_size: 64000,
+//             copy_inside: true,
+//             content_only: false,
+//             depth: 0,
+//         },
+//     )?;
+//     Ok(dest.join("Lapce.app"))
+// }
 
 #[cfg(target_os = "linux")]
 pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
@@ -109,6 +109,21 @@ pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
     archive.unpack(parent)?;
     std::fs::remove_file(process_path)?;
     std::fs::copy(parent.join("Lapce").join("lapce"), process_path)?;
+    Ok(process_path.to_path_buf())
+}
+
+#[cfg(target_os = "windows")]
+pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
+    {
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(src)?)?;
+        let mut file = archive.by_name("lapce.exe")?;
+        let parent = src.parent().ok_or_else(|| anyhow::anyhow!("no parent"))?;
+        std::io::copy(
+            &mut file,
+            &mut std::fs::File::create(parent.join("lapce.exe"))?,
+        )?;
+    }
+
     Ok(process_path.to_path_buf())
 }
 
