@@ -127,8 +127,6 @@ pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
 #[cfg(target_os = "macos")]
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::unix::process::CommandExt;
-    path.to_str()
-        .ok_or_else(|| anyhow!("can't get path to str"))?;
     std::process::Command::new("open").arg(path).exec();
     Ok(())
 }
