@@ -107,8 +107,8 @@ pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
     let mut archive = tar::Archive::new(tar);
     let parent = src.parent().ok_or_else(|| anyhow::anyhow!("no parent"))?;
     archive.unpack(parent)?;
-    std::fs::remove_file(process_path)?;
-    std::fs::copy(parent.join("Lapce").join("lapce"), process_path)?;
+    // std::fs::remove_file(process_path)?;
+    // std::fs::copy(parent.join("Lapce").join("lapce"), process_path)?;
     Ok(process_path.to_path_buf())
 }
 

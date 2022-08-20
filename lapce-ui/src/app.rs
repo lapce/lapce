@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 use druid::{
     AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Size,
@@ -39,22 +39,6 @@ pub fn launch() {
                 }
                 "-h" | "--help" => {
                     println!("lapce [-h|--help] [-v|--version] [PATH]");
-                    return;
-                }
-                "-u" | "--update" => {
-                    if let Some(process_id) = args.next() {
-                        if let Some(src) = args.next() {
-                            if let Some(dest) = args.next() {
-                                if let Err(e) = lapce_data::update::update(
-                                    &process_id,
-                                    &PathBuf::from(src),
-                                    &PathBuf::from(dest),
-                                ) {
-                                    eprintln!("{e}");
-                                }
-                            }
-                        }
-                    }
                     return;
                 }
                 v => {
