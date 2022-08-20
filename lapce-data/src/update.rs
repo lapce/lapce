@@ -115,12 +115,9 @@ pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
 #[cfg(target_os = "windows")]
 pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
     {
-        let mut gz = flate2::read::GzDecoder::new(std::fs::File::open(src)?);
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(src)?)?;
         let parent = src.parent().ok_or_else(|| anyhow::anyhow!("no parent"))?;
-        std::io::copy(
-            &mut gz,
-            &mut std::fs::File::create(parent.join("lapce.exe"))?,
-        )?;
+        archive.extract(parent)?;
     }
 
     Ok(process_path.to_path_buf())
