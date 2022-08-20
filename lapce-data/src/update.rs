@@ -147,7 +147,7 @@ pub fn restart(path: &Path) -> Result<()> {
     let path = path
         .to_str()
         .ok_or_else(|| anyhow!("can't get path to str"))?;
-    println!(""\{}\"", path);
+    println!("\"{}\"", path);
     std::process::Command::new("start")
         .arg("\"\"")
         .arg(format!("\"{}\"", path))
