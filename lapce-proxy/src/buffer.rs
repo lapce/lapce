@@ -186,6 +186,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
         "jsx" => "javascriptreact",
         "ts" => "typescript",
         "tsx" => "typescriptreact",
+        "ex" | "exs" => "elixir",
         _ => return None,
     })
 }
