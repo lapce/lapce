@@ -92,6 +92,8 @@ pub struct LapceData {
     pub db: Arc<LapceDb>,
     /// The order of panels in each postion
     pub panel_orders: PanelOrder,
+    /// The latest release information
+    pub latest_release: Arc<Option<ReleaseInfo>>,
 }
 
 impl LapceData {
@@ -105,6 +107,7 @@ impl LapceData {
         let panel_orders = db
             .get_panel_orders()
             .unwrap_or_else(|_| Self::default_panel_orders());
+        let latest_release = Arc::new(None);
 
         if let Some(path) = path {
             let path = PathBuf::from(path).canonicalize().unwrap();
@@ -137,6 +140,7 @@ impl LapceData {
                 };
                 let window = LapceWindowData::new(
                     keypress.clone(),
+                    latest_release.clone(),
                     panel_orders.clone(),
                     event_sink.clone(),
                     &info,
@@ -148,6 +152,7 @@ impl LapceData {
             for info in app.windows.iter() {
                 let window = LapceWindowData::new(
                     keypress.clone(),
+                    latest_release.clone(),
                     panel_orders.clone(),
                     event_sink.clone(),
                     info,
@@ -169,19 +174,33 @@ impl LapceData {
             });
             let window = LapceWindowData::new(
                 keypress.clone(),
+                latest_release.clone(),
                 panel_orders.clone(),
-                event_sink,
+                event_sink.clone(),
                 &info,
                 db.clone(),
             );
             windows.insert(window.window_id, window);
         }
 
+        #[cfg(feature = "updater")]
+        std::thread::spawn(move || loop {
+            if let Ok(release) = crate::update::get_latest_release() {
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateLatestRelease(release),
+                    Target::Global,
+                );
+            }
+            std::thread::sleep(std::time::Duration::from_secs(60 * 60));
+        });
+
         Self {
             windows,
             keypress,
             db,
             panel_orders,
+            latest_release,
         }
     }
 
@@ -275,6 +294,7 @@ impl Data for LapceWindowData {
 impl LapceWindowData {
     pub fn new(
         keypress: Arc<KeyPressData>,
+        latest_release: Arc<Option<ReleaseInfo>>,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
         info: &WindowInfo,
@@ -284,7 +304,6 @@ impl LapceWindowData {
         let mut tabs_order = Vec::new();
         let mut active_tab_id = WidgetId::next();
         let mut active = 0;
-        let latest_release = Arc::new(None);
 
         let window_id = WindowId::next();
         for (i, workspace) in info.tabs.workspaces.iter().enumerate() {
@@ -339,8 +358,7 @@ impl LapceWindowData {
         );
 
         let mut watcher =
-            notify::recommended_watcher(ConfigWatcher::new(event_sink.clone()))
-                .unwrap();
+            notify::recommended_watcher(ConfigWatcher::new(event_sink)).unwrap();
         if let Some(path) = Config::settings_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
@@ -353,17 +371,6 @@ impl LapceWindowData {
         if let Some(path) = Directory::plugins_directory() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-
-        #[cfg(feature = "updater")]
-        std::thread::spawn(move || {
-            if let Ok(release) = crate::update::get_latest_release() {
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateLatestRelease(release),
-                    Target::Window(window_id),
-                );
-            }
-        });
 
         Self {
             window_id,
@@ -1693,6 +1700,7 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
     ) -> V {
         let mut win = data.windows.get(&self.0).unwrap().clone();
         win.keypress = data.keypress.clone();
+        win.latest_release = data.latest_release.clone();
         win.panel_orders = data.panel_orders.clone();
         let result = f(&mut win);
         data.keypress = win.keypress.clone();

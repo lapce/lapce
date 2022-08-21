@@ -272,11 +272,6 @@ impl Widget<LapceWindowData> for LapceWindow {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
-                    LapceUICommand::UpdateLatestRelease(release) => {
-                        *Arc::make_mut(&mut data.latest_release) =
-                            Some(release.clone());
-                        ctx.set_handled();
-                    }
                     LapceUICommand::Focus => {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,

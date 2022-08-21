@@ -252,6 +252,10 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         _env: &Env,
     ) -> druid::Handled {
         match cmd.get(LAPCE_UI_COMMAND) {
+            Some(LapceUICommand::UpdateLatestRelease(release)) => {
+                *Arc::make_mut(&mut data.latest_release) = Some(release.clone());
+                return druid::Handled::Yes;
+            }
             Some(LapceUICommand::RestartToUpdate(process_path, release)) => {
                 let _ = data.db.save_app(data);
                 let process_path = process_path.clone();
@@ -286,6 +290,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                 };
                 let mut window_data = LapceWindowData::new(
                     data.keypress.clone(),
+                    data.latest_release.clone(),
                     data.panel_orders.clone(),
                     ctx.get_external_handle(),
                     &info,
