@@ -425,6 +425,10 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     file_explorer.active_selected = path.clone();
                     ctx.request_paint();
                 }
+
+                if let LapceUICommand::FileExplorerRefresh = command {
+                    let _ = &data.file_explorer.reload();
+                }
             }
             _ => {}
         }
@@ -605,6 +609,14 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                                 index,
                                 indent_level,
                                 true,
+                            ));
+                        menu = menu.entry(item);
+
+                        let item =
+                            druid::MenuItem::new("Refresh").command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::FileExplorerRefresh,
+                                Target::Auto,
                             ));
                         menu = menu.entry(item);
 

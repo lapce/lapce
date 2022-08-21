@@ -649,6 +649,7 @@ pub enum LapceUICommand {
         /// Whether it should name/rename the file with the input data
         apply_naming: bool,
     },
+    FileExplorerRefresh,
     SetLanguage(String),
 }
 
