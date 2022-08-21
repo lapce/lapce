@@ -427,7 +427,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                 }
 
                 if let LapceUICommand::FileExplorerRefresh = command {
-                    let _ = &data.file_explorer.reload();
+                    data.file_explorer.reload();
                 }
             }
             _ => {}
@@ -612,14 +612,6 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             ));
                         menu = menu.entry(item);
 
-                        let item =
-                            druid::MenuItem::new("Refresh").command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::FileExplorerRefresh,
-                                Target::Auto,
-                            ));
-                        menu = menu.entry(item);
-
                         // Separator between non destructive and destructive actions
                         menu = menu.separator();
 
@@ -658,6 +650,15 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             );
                             menu = menu.entry(item);
                         }
+
+                        menu = menu.separator();
+                        let item =
+                            druid::MenuItem::new("Refresh").command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::FileExplorerRefresh,
+                                Target::Auto,
+                            ));
+                        menu = menu.entry(item);
 
                         ctx.show_context_menu::<LapceData>(
                             menu,
