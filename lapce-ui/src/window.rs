@@ -776,23 +776,27 @@ pub fn window_controls(
 
     let mut text_layouts = Vec::new();
     if cfg!(target_os = "windows") {
+        let font = piet_text
+            .font_family("Segoe Fluent Icons")
+            .or_else(|| piet_text.font_family("Segoe MDL2 Assets"))
+            .unwrap();
+
         let texts = vec![
-            "\u{E949}",
+            "\u{E921}",
             if window_state == &WindowState::Restored {
-                "\u{E739}"
+                "\u{E922}"
             } else {
                 "\u{E923}"
             },
-            "\u{E106}",
+            "\u{E8BB}",
         ];
         let font_size = 10.0;
-        let font_family = "Segoe MDL2 Assets";
         for (i, text_layout) in texts
             .iter()
             .map(|text| {
                 piet_text
                     .new_text_layout(text.to_string())
-                    .font(piet_text.font_family(font_family).unwrap(), font_size)
+                    .font(font.clone(), font_size)
                     .text_color(
                         config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
