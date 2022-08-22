@@ -7,12 +7,16 @@ use crate::APPLICATION_NAME;
 pub struct Directory {}
 
 impl Directory {
+    fn project_dirs() -> Option<ProjectDirs> {
+        ProjectDirs::from("dev", "lapce", *APPLICATION_NAME)
+    }
+
     // Get path of local data directory
     // Local data directory differs from data directory
     // on some platforms and is not transferred across
     // machines
     pub fn data_local_directory() -> Option<PathBuf> {
-        match ProjectDirs::from("dev", "lapce", APPLICATION_NAME) {
+        match Self::project_dirs() {
             Some(dir) => {
                 let dir = dir.data_local_dir();
                 if !dir.exists() {
@@ -89,7 +93,7 @@ impl Directory {
 
     // Config directory contain only configuration files
     pub fn config_directory() -> Option<PathBuf> {
-        match ProjectDirs::from("dev", "lapce", APPLICATION_NAME) {
+        match Self::project_dirs() {
             Some(dir) => {
                 let dir = dir.config_dir();
                 if !dir.exists() {

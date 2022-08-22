@@ -20,21 +20,29 @@ use lapce_rpc::{
 };
 use once_cell::sync::Lazy;
 
-#[cfg(debug_assertions)]
-pub const APPLICATION_NAME: &str = "Lapce-debug";
+pub static APPLICATION_NAME: Lazy<&str> = Lazy::new(application_name);
 
-#[cfg(not(debug_assertions))]
-pub const APPLICATION_NAME: &str = "Lapce";
+fn application_name() -> &'static str {
+    if cfg!(debug_assertions) {
+        "Lapce-Debug"
+    } else if option_env!("RELEASE_TAG_NAME")
+        .unwrap_or("")
+        .starts_with("nightly")
+    {
+        "Lapce-Nightly"
+    } else {
+        "Lapce-Stable"
+    }
+}
 
 pub static VERSION: Lazy<&str> = Lazy::new(version);
 
 fn version() -> &'static str {
     if cfg!(debug_assertions) {
         "debug"
-    } else if option_env!("RELEASE_TAG_NAME").is_some()
-        && option_env!("RELEASE_TAG_NAME")
-            .unwrap()
-            .starts_with("nightly")
+    } else if option_env!("RELEASE_TAG_NAME")
+        .unwrap_or("")
+        .starts_with("nightly")
     {
         option_env!("RELEASE_TAG_NAME").unwrap()
     } else {
