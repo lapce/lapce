@@ -749,7 +749,10 @@ pub fn window_controls(
     ));
 
     let mut svgs = Vec::new();
-    if cfg!(target_os = "linux") {
+    if cfg!(target_os = "linux")
+        || cfg!(target_os = "freebsd")
+        || cfg!(target_os = "openbsd")
+    {
         let minimize_rect = Size::new(width, width)
             .to_rect()
             .with_origin(Point::new(x, 0.0))
