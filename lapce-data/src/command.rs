@@ -465,6 +465,7 @@ pub enum LapceUICommand {
     SetWorkspace(LapceWorkspace),
     SetTheme(String, bool),
     UpdateKeymap(KeyMap, Vec<KeyPress>),
+    OpenURI(String),
     OpenFile(PathBuf),
     OpenFileDiff(PathBuf, String),
     CancelCompletion(usize),

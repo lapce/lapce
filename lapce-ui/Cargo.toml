@@ -40,9 +40,12 @@ xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 xi-unicode = "0.3.0"
 fuzzy-matcher = "0.3.7"
 lsp-types = { version = "0.93", features = ["proposed"] }
+toml_edit = { version = "0.14.4", features = ["easy"] }
+open = { version = "3.0.2", features = [] }
+
+# lapce deps
 druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = [ "svg", "im", "serde", ] }
 # druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
-toml_edit = { version = "0.14.4", features = ["easy"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
 lapce-core = { path = "../lapce-core" }
 lapce-data = { path = "../lapce-data" }
