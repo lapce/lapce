@@ -100,7 +100,7 @@ pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
     Ok(dest.join("Lapce.app"))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
 pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
     let tar_gz = std::fs::File::open(src)?;
     let tar = flate2::read::GzDecoder::new(tar_gz);
@@ -134,7 +134,7 @@ pub fn restart(path: &Path) -> Result<()> {
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::unix::process::CommandExt;
     std::process::Command::new(path).exec();
@@ -185,7 +185,7 @@ pub fn update(_process_id: &str, src: &Path, dest: &Path) -> Result<()> {
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
 pub fn update(_process_id: &str, src: &Path, dest: &Path) -> Result<()> {
     let tar_gz = std::fs::File::open(src)?;
     let tar = flate2::read::GzDecoder::new(tar_gz);

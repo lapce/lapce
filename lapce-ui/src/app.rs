@@ -17,7 +17,7 @@ use lapce_data::{
 use crate::logging::override_log_levels;
 use crate::window::LapceWindow;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
 const LOGO_PNG: &[u8] = include_bytes!("../../extra/images/logo.png");
 #[cfg(target_os = "windows")]
 const LOGO_ICO: &[u8] = include_bytes!("../../extra/windows/lapce.ico");
@@ -154,7 +154,7 @@ fn window_icon() -> Option<druid::Icon> {
     None
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
 fn window_icon() -> Option<druid::Icon> {
     let image = image::load_from_memory(LOGO_PNG)
         .expect("Invalid Icon")
