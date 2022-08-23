@@ -3,8 +3,8 @@ use std::sync::Arc;
 #[cfg(not(target_os = "macos"))]
 use crate::window::window_controls;
 use crate::{palette::Palette, svg::get_svg};
-use druid::kurbo::Circle;
 use druid::WindowConfig;
+use druid::{kurbo::Circle, InternalEvent};
 use druid::{
     kurbo::Line,
     piet::{PietText, PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
@@ -29,7 +29,7 @@ use serde_json::json;
 pub struct Title {
     mouse_pos: Point,
     commands: Vec<(Rect, Command)>,
-    svgs: Vec<(Svg, Rect, Option<Color>)>,
+    svgs: Vec<(Svg, Rect, Option<Color>, Option<Color>)>,
     text_layouts: Vec<(PietTextLayout, Point)>,
     borders: Vec<Line>,
     rects: Vec<(Rect, Color)>,
@@ -94,12 +94,13 @@ impl Title {
                         .clone()
                         .with_alpha(0.5),
                 ),
+                None,
             ));
             x += size.height;
         }
 
         let padding = 15.0;
-        x = self.update_remote(data, piet_text, size, padding, x);
+        x = self.update_remote(data, size, padding, x);
         x = self.update_source_control(data, piet_text, size, padding, x);
 
         let mut region = Region::EMPTY;
@@ -136,7 +137,6 @@ impl Title {
     fn update_remote(
         &mut self,
         data: &LapceTabData,
-        _piet_text: &mut PietText,
         size: Size,
         _padding: f64,
         x: f64,
@@ -163,12 +163,13 @@ impl Title {
             Size::new(size.height, size.height)
                 .to_rect()
                 .with_origin(Point::new(x + 5.0, 0.0))
-                .inflate(-8.0, -8.0),
+                .inflate(-6.0, -6.0),
             Some(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
                     .clone(),
             ),
+            None,
         ));
         let x = x + remote_rect.width();
         let command_rect =
@@ -183,7 +184,8 @@ impl Title {
             enabled: true,
         })];
 
-        if cfg!(target_os = "windows") {
+        #[cfg(target_os = "windows")]
+        {
             menu_items.push(MenuKind::Item(MenuItem {
                 desc: None,
                 command: LapceCommand {
@@ -243,12 +245,13 @@ impl Title {
                 .with_origin(Point::new(x, 0.0));
             self.svgs.push((
                 folder_svg,
-                folder_rect.inflate(-10.5, -10.5),
+                folder_rect.inflate(-8.5, -8.5),
                 Some(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                         .clone(),
                 ),
+                None,
             ));
             x += size.height;
 
@@ -330,13 +333,40 @@ impl Title {
         x: f64,
     ) -> f64 {
         let mut x = x;
-        if cfg!(target_os = "macos") || data.multiple_tab {
+        if cfg!(target_os = "macos")
+            || data.multiple_tab
+            || !data.config.lapce.custom_titlebar
+        {
             x -= size.height;
         } else {
             x = size.width - (size.height * 4.0);
         }
 
         let offset = x;
+
+        let hover_color = {
+            let (r, g, b, a) = data
+                .config
+                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND)
+                .to_owned()
+                .as_rgba8();
+            // TODO: hacky way to detect "lightness" of colour, should be fixed once we have dark/light themes
+            if r < 128 || g < 128 || b < 128 {
+                Color::rgba8(
+                    r.saturating_add(25),
+                    g.saturating_add(25),
+                    b.saturating_add(25),
+                    a,
+                )
+            } else {
+                Color::rgba8(
+                    r.saturating_sub(30),
+                    g.saturating_sub(30),
+                    b.saturating_sub(30),
+                    a,
+                )
+            }
+        };
 
         let settings_rect = Size::new(size.height, size.height)
             .to_rect()
@@ -350,6 +380,7 @@ impl Title {
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                     .clone(),
             ),
+            Some(hover_color),
         ));
         let latest_version = data
             .latest_release
@@ -449,12 +480,11 @@ impl Title {
         ));
 
         #[cfg(not(target_os = "macos"))]
-        if !data.multiple_tab {
+        if !data.multiple_tab && data.config.lapce.custom_titlebar {
             x += size.height;
-            let (commands, svgs, text_layouts) = window_controls(
+            let (commands, svgs) = window_controls(
                 data.window_id,
                 window_state,
-                piet_text,
                 x,
                 size.height,
                 &data.config,
@@ -464,7 +494,7 @@ impl Title {
                 self.commands.push(command);
             }
 
-            for (svg, rect) in svgs {
+            for (svg, rect, color) in svgs {
                 self.svgs.push((
                     svg,
                     rect,
@@ -473,11 +503,8 @@ impl Title {
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                             .clone(),
                     ),
+                    Some(color),
                 ));
-            }
-
-            for text_layout in text_layouts {
-                self.text_layouts.push(text_layout);
             }
         }
 
@@ -548,6 +575,7 @@ impl Title {
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                     .clone(),
             ),
+            None,
         ));
         let menu_items = vec![
             MenuKind::Item(MenuItem {
@@ -580,6 +608,7 @@ impl Title {
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                     .clone(),
             ),
+            None,
         ));
         self.commands.push((
             command_rect,
@@ -626,6 +655,10 @@ impl Widget<LapceTabData> for Title {
         env: &Env,
     ) {
         match event {
+            Event::Internal(InternalEvent::MouseLeave) => {
+                self.mouse_pos = Point::ZERO;
+                ctx.request_paint();
+            }
             Event::MouseMove(mouse_event) => {
                 self.mouse_pos = mouse_event.pos;
                 if self.icon_hit_test(mouse_event) {
@@ -783,8 +816,22 @@ impl Widget<LapceTabData> for Title {
             ctx.fill(rect, color);
         }
 
-        for (svg, rect, color) in self.svgs.iter() {
-            ctx.draw_svg(svg, *rect, color.as_ref());
+        for (svg, rect, color, bg_color) in self.svgs.iter() {
+            if rect.inflate(10.0, 10.0).contains(self.mouse_pos)
+                && bg_color.is_some()
+            {
+                let bg_color = bg_color.to_owned().unwrap();
+                ctx.fill(rect.inflate(10.0, 10.0), &bg_color);
+
+                // TODO: hacky way to detect close button, should be fixed once we have dark/light themes
+                if bg_color.as_rgba8() == (210, 16, 33, 255) {
+                    ctx.draw_svg(svg, *rect, Some(&Color::WHITE));
+                } else {
+                    ctx.draw_svg(svg, *rect, color.as_ref());
+                }
+            } else {
+                ctx.draw_svg(svg, *rect, color.as_ref());
+            }
         }
 
         for (circle, color) in self.circles.iter() {
