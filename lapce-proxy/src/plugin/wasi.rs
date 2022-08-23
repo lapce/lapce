@@ -310,6 +310,8 @@ pub fn start_volt(
         .as_ref()
         .ok_or_else(|| anyhow!("plugin meta doesn't have dir"))?;
 
+    log::debug!(target: "lapce_proxy::plugin::wasi::start_volt::volt_path", "{volt_path:?}");
+
     let stdin = Arc::new(RwLock::new(WasiPipe::new()));
     let stdout = Arc::new(RwLock::new(WasiPipe::new()));
     let stderr = Arc::new(RwLock::new(WasiPipe::new()));
@@ -333,9 +335,14 @@ pub fn start_volt(
             stderr.clone(),
         )))
         .preopened_dir(
-            wasmtime_wasi::Dir::from_std_file(std::fs::File::open(volt_path)?),
+            wasmtime_wasi::Dir::open_ambient_dir(
+                volt_path,
+                wasmtime_wasi::ambient_authority(),
+            )
+            .map_err(|_| anyhow!("failed to open dir with ambient"))?,
             "/",
-        )?
+        )
+        .map_err(|_| anyhow!("cannot preopen_dir"))?
         .build();
     let mut store = wasmtime::Store::new(&engine, wasi);
 
