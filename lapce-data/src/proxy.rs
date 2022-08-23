@@ -310,9 +310,17 @@ impl LapceProxy {
         // ! Below paths have to be synced with what is
         // ! returned by Config::proxy_directory()
         let remote_proxy_path = match platform {
-            Windows => format!("%HOMEDRIVE%%HOMEPATH%\\AppData\\Local\\lapce\\{APPLICATION_NAME}\\data\\proxy"),
-            Darwin => format!("~/Library/Application Support/dev.lapce.{APPLICATION_NAME}/proxy"),
-            _ => format!("~/.local/share/{APPLICATION_NAME}/proxy").to_lowercase(),
+            Windows => format!(
+                "%HOMEDRIVE%%HOMEPATH%\\AppData\\Local\\lapce\\{}\\data\\proxy",
+                *APPLICATION_NAME
+            ),
+            Darwin => format!(
+                "~/Library/Application Support/dev.lapce.{}/proxy",
+                *APPLICATION_NAME
+            ),
+            _ => {
+                format!("~/.local/share/{}/proxy", *APPLICATION_NAME).to_lowercase()
+            }
         };
 
         let remote_proxy_file = match platform {
@@ -342,7 +350,11 @@ impl LapceProxy {
                 .ok_or_else(|| anyhow!("can't find proxy directory"))?
                 .join(&proxy_filename);
             if !local_proxy_file.exists() {
-                let url = format!("https://github.com/lapce/lapce/releases/download/{}/{proxy_filename}.gz", if VERSION.eq("nightly") { VERSION.to_string() } else { format!("v{}", *VERSION) });
+                let url = format!("https://github.com/lapce/lapce/releases/download/{}/{proxy_filename}.gz", match *VERSION {
+                    "nightly" | "debug" => "nightly".to_string(),
+                    _ => format!("v{}", *VERSION),
+                });
+                log::debug!(target: "lapce_data::proxy::start_remote", "proxy download URI: {url}");
                 let mut resp = reqwest::blocking::get(url).expect("request failed");
                 if resp.status().is_success() {
                     let mut out = std::fs::File::create(&local_proxy_file)
