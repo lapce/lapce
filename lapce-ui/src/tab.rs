@@ -1223,6 +1223,20 @@ impl LapceTab {
                     LapceUICommand::UpdateKeymap(keymap, keys) => {
                         KeyPressData::update_file(keymap, keys);
                     }
+                    LapceUICommand::OpenURI(uri) => {
+                        ctx.set_handled();
+                        if !uri.is_empty() {
+                            log::debug!(target: "lapce_ui::tab::handle_event::open_uri", "uri: {uri}");
+                            match open::that(uri) {
+                                Ok(_) => {
+                                    log::debug!(target: "lapce_ui::tab::handle_event::open_uri", "successfully opened URI: {uri}")
+                                }
+                                Err(e) => {
+                                    log::error!(target: "lapce_ui::tab::handle_event::open_uri", "{e}")
+                                }
+                            }
+                        }
+                    }
                     LapceUICommand::OpenFile(path) => {
                         data.main_split.jump_to_location(
                             ctx,
