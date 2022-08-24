@@ -50,6 +50,7 @@ jobs:
   fmt:
     name: Rustfmt (${{ matrix.toolchain }}) on ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ ubuntu-latest, windows-latest, macos-latest ]
         toolchain: [ stable ]
@@ -78,6 +79,7 @@ jobs:
   clippy:
     name: Clippy (${{ matrix.toolchain }}) on ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ ubuntu-latest, windows-latest, macos-latest ]
         toolchain: [ stable ]
