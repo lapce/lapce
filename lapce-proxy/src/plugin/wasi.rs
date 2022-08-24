@@ -333,7 +333,10 @@ pub fn start_volt(
             stderr.clone(),
         )))
         .preopened_dir(
-            wasmtime_wasi::Dir::from_std_file(std::fs::File::open(volt_path)?),
+            wasmtime_wasi::Dir::from_std_file(std::fs::File::open(
+                volt_path.join("volt.toml"),
+            )?)
+            .open_parent_dir(wasmtime_wasi::ambient_authority())?,
             "/",
         )?
         .build();

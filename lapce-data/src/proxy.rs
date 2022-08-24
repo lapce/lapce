@@ -295,8 +295,6 @@ impl LapceProxy {
     }
 
     fn start_remote(&self, remote: impl Remote) -> Result<()> {
-        remote.connection_debug();
-
         use HostPlatform::*;
         let (platform, architecture) = self.host_specification(&remote).unwrap();
 
@@ -566,8 +564,6 @@ trait Remote: Sized {
     fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()>;
 
     fn command_builder(&self) -> Command;
-
-    fn connection_debug(&self);
 }
 
 struct SshRemote {
@@ -594,10 +590,6 @@ impl SshRemote {
     fn command_builder(user: &str, host: &str) -> Command {
         let mut cmd = new_command("ssh");
         cmd.arg(format!("{}@{}", user, host)).args(Self::SSH_ARGS);
-
-        #[cfg(debug_assertions)]
-        cmd.arg("-v");
-
         cmd
     }
 }
@@ -614,20 +606,6 @@ impl Remote for SshRemote {
 
     fn command_builder(&self) -> Command {
         Self::command_builder(&self.user, &self.host)
-    }
-
-    fn connection_debug(&self) {
-        if let Ok(out) = self.command_builder().arg("-v").arg("exit").output() {
-            let stderr = String::from_utf8_lossy(&out.stderr);
-            for line in stderr.split_terminator(['\n', '\r']) {
-                if line.is_empty() {
-                    continue;
-                }
-                log::debug!(target: "lapce_data::proxy::connection_debug", "{line}");
-            }
-        } else {
-            log::debug!(target: "lapce_data::proxy::connection_debug", "ssh debug output failed");
-        }
     }
 }
 
@@ -696,8 +674,6 @@ impl Remote for WslRemote {
         cmd.arg("-d").arg(&self.distro).arg("--");
         cmd
     }
-
-    fn connection_debug(&self) {}
 }
 
 // Rust-analyzer returns paths in the form of "file:///<drive>:/...", which gets parsed into URL
