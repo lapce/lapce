@@ -2219,33 +2219,67 @@ impl Widget<LapceTabData> for LapceTabHeader {
                 }
             }
             Event::MouseDown(mouse_event) => {
-                if self.close_icon_rect.contains(mouse_event.pos) {
-                    self.holding_click_rect = Some(self.close_icon_rect);
-                } else {
-                    self.drag_start =
-                        Some((ctx.to_window(mouse_event.pos), ctx.window_origin()));
-                    self.mouse_pos = ctx.to_window(mouse_event.pos);
-                    ctx.set_active(true);
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::FocusTabId(data.id),
-                        Target::Auto,
-                    ));
+                if mouse_event.button.is_left() {
+                    if self.close_icon_rect.contains(mouse_event.pos) {
+                        self.holding_click_rect = Some(self.close_icon_rect);
+                    } else {
+                        self.drag_start = Some((
+                            ctx.to_window(mouse_event.pos),
+                            ctx.window_origin(),
+                        ));
+                        self.mouse_pos = ctx.to_window(mouse_event.pos);
+                        ctx.set_active(true);
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::FocusTabId(data.id),
+                            Target::Auto,
+                        ));
+                    }
                 }
             }
             Event::MouseUp(mouse_event) => {
-                if self.close_icon_rect.contains(mouse_event.pos)
-                    && self.holding_click_rect.eq(&Some(self.close_icon_rect))
-                {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::CloseTabId(data.id),
-                        Target::Auto,
-                    ));
+                if mouse_event.button.is_right() {
+                    let tab_id = data.id;
+
+                    let mut menu = druid::Menu::<LapceData>::new("Tab");
+                    let item = druid::MenuItem::new("Open Tab With a New Window")
+                        .on_activate(move |ctx, _data, _env| {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::TabToWindow(tab_id),
+                                Target::Auto,
+                            ));
+                        });
+                    menu = menu.entry(item);
+
+                    let item = druid::MenuItem::new("Close Tab").on_activate(
+                        move |ctx, _data, _env| {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::CloseTabId(tab_id),
+                                Target::Auto,
+                            ));
+                        },
+                    );
+                    menu = menu.entry(item);
+                    ctx.show_context_menu::<LapceData>(
+                        menu,
+                        ctx.to_window(mouse_event.pos),
+                    )
+                } else {
+                    if self.close_icon_rect.contains(mouse_event.pos)
+                        && self.holding_click_rect.eq(&Some(self.close_icon_rect))
+                    {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::CloseTabId(data.id),
+                            Target::Auto,
+                        ));
+                    }
+                    self.holding_click_rect = None;
+                    ctx.set_active(false);
+                    self.drag_start = None;
                 }
-                self.holding_click_rect = None;
-                ctx.set_active(false);
-                self.drag_start = None;
             }
             _ => {}
         }

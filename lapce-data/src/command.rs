@@ -521,6 +521,7 @@ pub enum LapceUICommand {
     CloseTabId(WidgetId),
     FocusTabId(WidgetId),
     SwapTab(usize),
+    TabToWindow(WidgetId),
     NewTab,
     NextTab,
     PreviousTab,
