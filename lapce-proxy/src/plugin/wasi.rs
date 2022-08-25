@@ -315,8 +315,8 @@ pub fn start_volt(
     let stderr = Arc::new(RwLock::new(WasiPipe::new()));
     let wasi = WasiCtxBuilder::new()
         .inherit_env()?
-        .env("OS", std::env::consts::OS)?
-        .env("ARCH", std::env::consts::ARCH)?
+        .env("VOLT_OS", std::env::consts::OS)?
+        .env("VOLT_ARCH", std::env::consts::ARCH)?
         .env(
             "VOLT_URI",
             Url::from_directory_path(volt_path)
