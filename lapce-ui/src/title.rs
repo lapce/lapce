@@ -28,7 +28,9 @@ use serde_json::json;
 
 pub struct Title {
     mouse_pos: Point,
-    commands: Vec<(Rect, Command)>,
+    menus: Vec<(Rect, Command)>,
+    window_controls: Vec<(Rect, Command)>,
+    holding_click_rect: Option<Rect>,
     svgs: Vec<(Svg, Rect, Option<Color>, Option<Color>)>,
     text_layouts: Vec<(PietTextLayout, Point)>,
     borders: Vec<Line>,
@@ -43,7 +45,9 @@ impl Title {
         let palette = Palette::new(data);
         Self {
             mouse_pos: Point::ZERO,
-            commands: Vec::new(),
+            menus: Vec::new(),
+            window_controls: Vec::new(),
+            holding_click_rect: None,
             svgs: Vec::new(),
             text_layouts: Vec::new(),
             borders: Vec::new(),
@@ -63,7 +67,8 @@ impl Title {
         piet_text: &mut PietText,
         size: Size,
     ) -> Rect {
-        self.commands.clear();
+        self.menus.clear();
+        self.window_controls.clear();
         self.svgs.clear();
         self.text_layouts.clear();
         self.borders.clear();
@@ -209,7 +214,7 @@ impl Title {
             }));
         }
 
-        self.commands.push((
+        self.menus.push((
             command_rect,
             Command::new(
                 LAPCE_UI_COMMAND,
@@ -296,7 +301,7 @@ impl Title {
                     })
                 })
                 .collect();
-            self.commands.push((
+            self.menus.push((
                 command_rect,
                 Command::new(
                     LAPCE_UI_COMMAND,
@@ -463,7 +468,7 @@ impl Title {
             ));
             self.text_layouts.push((text_layout, point));
         }
-        self.commands.push((
+        self.menus.push((
             settings_rect,
             Command::new(
                 LAPCE_UI_COMMAND,
@@ -482,7 +487,7 @@ impl Title {
         #[cfg(not(target_os = "macos"))]
         if !data.multiple_tab && data.config.lapce.custom_titlebar {
             x += size.height;
-            let (commands, svgs) = window_controls(
+            let (window_controls, svgs) = window_controls(
                 data.window_id,
                 window_state,
                 x,
@@ -490,8 +495,8 @@ impl Title {
                 &data.config,
             );
 
-            for command in commands {
-                self.commands.push(command);
+            for command in window_controls {
+                self.window_controls.push(command);
             }
 
             for (svg, rect, color) in svgs {
@@ -610,7 +615,7 @@ impl Title {
             ),
             None,
         ));
-        self.commands.push((
+        self.menus.push((
             command_rect,
             Command::new(
                 LAPCE_UI_COMMAND,
@@ -627,7 +632,12 @@ impl Title {
     }
 
     fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
-        for (rect, _) in self.commands.iter() {
+        for (rect, _) in self.menus.iter() {
+            if rect.contains(mouse_event.pos) {
+                return true;
+            }
+        }
+        for (rect, _) in self.window_controls.iter() {
             if rect.contains(mouse_event.pos) {
                 return true;
             }
@@ -635,9 +645,29 @@ impl Title {
         false
     }
 
-    fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
-        for (rect, command) in self.commands.iter() {
+    fn mouse_down(&mut self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
+        for (rect, command) in self.menus.iter() {
             if rect.contains(mouse_event.pos) {
+                self.holding_click_rect = Some(*rect);
+                ctx.submit_command(command.clone());
+                ctx.set_handled();
+                return;
+            }
+        }
+        for (rect, _command) in self.window_controls.iter() {
+            if rect.contains(mouse_event.pos) {
+                self.holding_click_rect = Some(*rect);
+                ctx.set_handled();
+                return;
+            }
+        }
+    }
+
+    fn mouse_up(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
+        for (rect, command) in self.window_controls.iter() {
+            if rect.contains(mouse_event.pos)
+                && self.holding_click_rect.eq(&Some(*rect))
+            {
                 ctx.submit_command(command.clone());
                 ctx.set_handled();
                 return;
@@ -707,7 +737,14 @@ impl Widget<LapceTabData> for Title {
                             .with(WindowConfig::default().set_window_state(state))
                             .to(Target::Window(data.window_id)),
                     );
+                    return;
                 }
+
+                if mouse_event.button.is_left() {
+                    self.mouse_up(ctx, mouse_event);
+                }
+
+                self.holding_click_rect = None;
             }
             _ => {}
         }
@@ -817,11 +854,14 @@ impl Widget<LapceTabData> for Title {
         }
 
         for (svg, rect, color, bg_color) in self.svgs.iter() {
-            if rect.inflate(10.0, 10.0).contains(self.mouse_pos)
+            let hover_rect = rect.inflate(10.0, 10.0);
+            if hover_rect.contains(self.mouse_pos)
                 && bg_color.is_some()
+                && (self.holding_click_rect.is_none()
+                    || self.holding_click_rect.unwrap().contains(self.mouse_pos))
             {
                 let bg_color = bg_color.to_owned().unwrap();
-                ctx.fill(rect.inflate(10.0, 10.0), &bg_color);
+                ctx.fill(hover_rect, &bg_color);
 
                 // TODO: hacky way to detect close button, should be fixed once we have dark/light themes
                 if bg_color.as_rgba8() == (210, 16, 33, 255) {

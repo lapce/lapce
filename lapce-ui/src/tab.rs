@@ -2176,12 +2176,14 @@ pub struct LapceTabHeader {
     pub drag_start: Option<(Point, Point)>,
     pub mouse_pos: Point,
     close_icon_rect: Rect,
+    holding_click_rect: Option<Rect>,
 }
 
 impl LapceTabHeader {
     pub fn new() -> Self {
         Self {
             close_icon_rect: Rect::ZERO,
+            holding_click_rect: None,
             drag_start: None,
             mouse_pos: Point::ZERO,
         }
@@ -2218,11 +2220,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
             }
             Event::MouseDown(mouse_event) => {
                 if self.close_icon_rect.contains(mouse_event.pos) {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::CloseTabId(data.id),
-                        Target::Auto,
-                    ));
+                    self.holding_click_rect = Some(self.close_icon_rect);
                 } else {
                     self.drag_start =
                         Some((ctx.to_window(mouse_event.pos), ctx.window_origin()));
@@ -2235,7 +2233,17 @@ impl Widget<LapceTabData> for LapceTabHeader {
                     ));
                 }
             }
-            Event::MouseUp(_mouse_event) => {
+            Event::MouseUp(mouse_event) => {
+                if self.close_icon_rect.contains(mouse_event.pos)
+                    && self.holding_click_rect.eq(&Some(self.close_icon_rect))
+                {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::CloseTabId(data.id),
+                        Target::Auto,
+                    ));
+                }
+                self.holding_click_rect = None;
                 ctx.set_active(false);
                 self.drag_start = None;
             }

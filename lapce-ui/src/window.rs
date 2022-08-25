@@ -28,6 +28,8 @@ pub struct LapceWindow {
     dragable_area: Region,
     tab_header_cmds: Vec<(Rect, Command)>,
     mouse_down_cmd: Option<(Rect, Command)>,
+    #[cfg(not(target_os = "macos"))]
+    holding_click_rect: Option<Rect>,
 }
 
 impl LapceWindow {
@@ -57,6 +59,8 @@ impl LapceWindow {
             tab_headers,
             tab_header_cmds: Vec::new(),
             mouse_down_cmd: None,
+            #[cfg(not(target_os = "macos"))]
+            holding_click_rect: None,
         }
     }
 
@@ -233,10 +237,13 @@ impl Widget<LapceWindowData> for LapceWindow {
             Event::MouseDown(_mouse_event) => {
                 self.mouse_down_cmd = None;
                 #[cfg(not(target_os = "macos"))]
-                if data.tabs.len() > 1 && _mouse_event.count == 1 {
+                if (data.tabs.len() > 1 && _mouse_event.count == 1)
+                    || data.config.lapce.custom_titlebar
+                {
                     for (rect, cmd) in self.tab_header_cmds.iter() {
                         if rect.contains(_mouse_event.pos) {
                             self.mouse_down_cmd = Some((*rect, cmd.clone()));
+                            self.holding_click_rect = Some(*rect);
                             break;
                         }
                     }
@@ -262,13 +269,29 @@ impl Widget<LapceWindowData> for LapceWindow {
                             .to(Target::Window(data.window_id)),
                     )
                 }
+
                 #[cfg(not(target_os = "macos"))]
-                if data.tabs.len() > 1 && mouse_event.count < 2 {
+                if (data.tabs.len() > 1 && mouse_event.count < 2)
+                    || data.config.lapce.custom_titlebar
+                {
                     if let Some((rect, cmd)) = self.mouse_down_cmd.as_ref() {
                         if rect.contains(mouse_event.pos) {
                             ctx.submit_command(cmd.clone());
                         }
                     }
+
+                    for (rect, cmd) in self.tab_header_cmds.iter() {
+                        if let Some(click_rect) = self.holding_click_rect {
+                            if rect.contains(mouse_event.pos)
+                                && click_rect.contains(mouse_event.pos)
+                            {
+                                ctx.submit_command(cmd.clone());
+                                ctx.set_handled();
+                            }
+                        }
+                    }
+
+                    self.holding_click_rect = None;
                 }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
@@ -687,7 +710,13 @@ impl Widget<LapceWindowData> for LapceWindow {
 
                 for (svg, rect, color) in svgs {
                     let hover_rect = rect.inflate(10.0, 10.0);
-                    if hover_rect.contains(self.mouse_pos) {
+                    if hover_rect.contains(self.mouse_pos)
+                        && (self.holding_click_rect.is_none()
+                            || self
+                                .holding_click_rect
+                                .unwrap()
+                                .contains(self.mouse_pos))
+                    {
                         ctx.fill(hover_rect, &color);
                         ctx.stroke(
                             Line::new(
