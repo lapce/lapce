@@ -650,7 +650,9 @@ impl Widget<LapceTabData> for Title {
                 }
             }
             Event::MouseDown(mouse_event) => {
-                self.mouse_down(ctx, mouse_event);
+                if mouse_event.button.is_left() {
+                    self.mouse_down(ctx, mouse_event);
+                }
             }
             Event::MouseUp(mouse_event) => {
                 if !data.multiple_tab
