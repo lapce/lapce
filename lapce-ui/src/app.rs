@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use druid::{
     AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Region,
-    Size, Target, Widget, WidgetExt, WidgetPod, WindowDesc, WindowHandle, WindowId,
+    Size, Widget, WidgetExt, WidgetPod, WindowDesc, WindowHandle, WindowId,
     WindowState,
 };
 #[cfg(target_os = "macos")]

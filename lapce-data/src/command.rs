@@ -518,10 +518,7 @@ pub enum LapceUICommand {
     ResetFade,
     //FocusTab,
     CloseTab,
-    CloseTabId {
-        tab_id: WidgetId,
-        stop_proxy: bool,
-    },
+    CloseTabId(WidgetId),
     FocusTabId(WidgetId),
     SwapTab(usize),
     TabToWindow(WindowId, WidgetId),

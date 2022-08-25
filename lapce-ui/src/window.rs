@@ -383,8 +383,8 @@ impl Widget<LapceWindowData> for LapceWindow {
                         self.close_tab(ctx, data);
                         return;
                     }
-                    LapceUICommand::CloseTabId { tab_id, stop_proxy } => {
-                        self.close_tab_id(ctx, data, *tab_id, *stop_proxy);
+                    LapceUICommand::CloseTabId(tab_id) => {
+                        self.close_tab_id(ctx, data, *tab_id, true);
                         return;
                     }
                     LapceUICommand::TabToWindow(_, tab_id) => {

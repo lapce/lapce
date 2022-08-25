@@ -2204,6 +2204,12 @@ impl LapceTabHeader {
     }
 }
 
+impl Default for LapceTabHeader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Widget<LapceTabData> for LapceTabHeader {
     fn event(
         &mut self,
@@ -2266,10 +2272,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
                         move |ctx, _data, _env| {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::CloseTabId {
-                                    tab_id,
-                                    stop_proxy: true,
-                                },
+                                LapceUICommand::CloseTabId(tab_id),
                                 Target::Auto,
                             ));
                         },
