@@ -1,21 +1,22 @@
 use std::sync::Arc;
 
 use druid::{
-    AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Size,
-    Widget, WidgetExt, WindowDesc, WindowHandle, WindowId, WindowState,
+    AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Region,
+    Size, Target, Widget, WidgetExt, WidgetPod, WindowDesc, WindowHandle, WindowId,
+    WindowState,
 };
 #[cfg(target_os = "macos")]
 use druid::{Menu, MenuItem, SysMods};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::Config,
-    data::{LapceData, LapceWindowData, LapceWindowLens},
+    data::{LapceData, LapceTabLens, LapceWindowData, LapceWindowLens},
     db::{TabsInfo, WindowInfo},
     proxy::VERSION,
 };
 
-use crate::logging::override_log_levels;
-use crate::window::LapceWindow;
+use crate::{logging::override_log_levels, tab::LAPCE_TAB_META};
+use crate::{tab::LapceTabHeader, window::LapceWindow};
 
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
 const LOGO_PNG: &[u8] = include_bytes!("../../extra/images/logo.png");
@@ -273,32 +274,13 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         data: &mut LapceData,
         _env: &Env,
     ) -> druid::Handled {
-        match cmd.get(LAPCE_UI_COMMAND) {
-            Some(LapceUICommand::UpdateLatestRelease(release)) => {
-                *Arc::make_mut(&mut data.latest_release) = Some(release.clone());
-                return druid::Handled::Yes;
-            }
-            Some(LapceUICommand::RestartToUpdate(process_path, release)) => {
-                let _ = data.db.save_app(data);
-                let process_path = process_path.clone();
-                let release = release.clone();
-                std::thread::spawn(move || -> anyhow::Result<()> {
-                    log::info!("start to down new versoin");
-                    let src = lapce_data::update::download_release(&release)?;
-                    log::info!("start to extract");
-                    let path = lapce_data::update::extract(&src, &process_path)?;
-                    log::info!("now restart {path:?}");
-                    lapce_data::update::restart(&path)?;
-                    Ok(())
-                });
-                return druid::Handled::Yes;
-            }
-            Some(LapceUICommand::NewWindow(from_window_id)) => {
+        match cmd {
+            cmd if cmd.is(LAPCE_TAB_META) => {
+                let meta = cmd.get_unchecked(LAPCE_TAB_META).take().unwrap();
+
                 let (size, pos) = data
                     .windows
-                    .get(from_window_id)
-                    // If maximised, use default dimensions instead
-                    .filter(|win| !win.maximised)
+                    .get(&meta.data.window_id)
                     .map(|win| (win.size, win.pos + (50.0, 50.0)))
                     .unwrap_or((Size::new(800.0, 600.0), Point::new(0.0, 0.0)));
                 let info = WindowInfo {
@@ -318,8 +300,32 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                     &info,
                     data.db.clone(),
                 );
-                let root = build_window(&mut window_data);
+
+                let mut tab = meta.data;
+                tab.window_id = window_data.window_id;
+
+                let tab_id = tab.id;
+                window_data.tabs_order = Arc::new(vec![tab_id]);
+                window_data.active_id = tab_id;
+                window_data.tabs.clear();
+                window_data.tabs.insert(tab_id, tab);
+
+                let window_widget = LapceWindow {
+                    tabs: vec![meta.widget],
+                    tab_headers: [tab_id]
+                        .iter()
+                        .map(|tab_id| {
+                            let tab_header =
+                                LapceTabHeader::new().lens(LapceTabLens(*tab_id));
+                            WidgetPod::new(tab_header)
+                        })
+                        .collect(),
+                    dragable_area: Region::EMPTY,
+                    tab_header_cmds: Vec::new(),
+                    mouse_down_cmd: None,
+                };
                 let window_id = window_data.window_id;
+                let root = window_widget.lens(LapceWindowLens(window_id));
                 data.windows.insert(window_id, window_data.clone());
                 let desc = new_window_desc(
                     window_id,
@@ -331,6 +337,76 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                 );
                 ctx.new_window(desc);
                 return druid::Handled::Yes;
+            }
+            cmd if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                match command {
+                    LapceUICommand::UpdateLatestRelease(release) => {
+                        *Arc::make_mut(&mut data.latest_release) =
+                            Some(release.clone());
+                        return druid::Handled::Yes;
+                    }
+                    LapceUICommand::RestartToUpdate(process_path, release) => {
+                        let _ = data.db.save_app(data);
+                        let process_path = process_path.clone();
+                        let release = release.clone();
+                        std::thread::spawn(move || -> anyhow::Result<()> {
+                            log::info!("start to down new versoin");
+                            let src =
+                                lapce_data::update::download_release(&release)?;
+                            log::info!("start to extract");
+                            let path =
+                                lapce_data::update::extract(&src, &process_path)?;
+                            log::info!("now restart {path:?}");
+                            lapce_data::update::restart(&path)?;
+                            Ok(())
+                        });
+                        return druid::Handled::Yes;
+                    }
+                    LapceUICommand::NewWindow(from_window_id) => {
+                        let (size, pos) = data
+                            .windows
+                            .get(from_window_id)
+                            // If maximised, use default dimensions instead
+                            .filter(|win| !win.maximised)
+                            .map(|win| (win.size, win.pos + (50.0, 50.0)))
+                            .unwrap_or((
+                                Size::new(800.0, 600.0),
+                                Point::new(0.0, 0.0),
+                            ));
+                        let info = WindowInfo {
+                            size,
+                            pos,
+                            maximised: false,
+                            tabs: TabsInfo {
+                                active_tab: 0,
+                                workspaces: vec![],
+                            },
+                        };
+                        let mut window_data = LapceWindowData::new(
+                            data.keypress.clone(),
+                            data.latest_release.clone(),
+                            data.panel_orders.clone(),
+                            ctx.get_external_handle(),
+                            &info,
+                            data.db.clone(),
+                        );
+                        let root = build_window(&mut window_data);
+                        let window_id = window_data.window_id;
+                        data.windows.insert(window_id, window_data.clone());
+                        let desc = new_window_desc(
+                            window_id,
+                            root,
+                            info.size,
+                            info.pos,
+                            info.maximised,
+                            &window_data.config,
+                        );
+                        ctx.new_window(desc);
+                        return druid::Handled::Yes;
+                    }
+                    _ => (),
+                }
             }
             _ => (),
         }

@@ -4,8 +4,9 @@ use druid::{
     kurbo::Line,
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, InternalLifeCycle,
-    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext,
+    Selector, SingleUse, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
+    WidgetPod,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -24,7 +25,7 @@ use lapce_data::{
     config::{Config, LapceTheme},
     data::{
         DragContent, EditorDiagnostic, FocusArea, LapceData, LapceTabData,
-        LapceWorkspace, LapceWorkspaceType, WorkProgress,
+        LapceWindowData, LapceWorkspace, LapceWorkspaceType, WorkProgress,
     },
     document::{BufferContent, LocalBufferKind},
     editor::EditorLocation,
@@ -50,6 +51,14 @@ use crate::{
     split::split_data_widget, status::LapceStatus, svg::get_svg,
     terminal::TerminalPanel, title::Title,
 };
+
+pub const LAPCE_TAB_META: Selector<SingleUse<LapceTabMeta>> =
+    Selector::new("lapce.tab_meta");
+
+pub struct LapceTabMeta {
+    pub data: LapceTabData,
+    pub widget: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
+}
 
 pub struct LapceIcon {
     pub rect: Rect,
@@ -2240,14 +2249,15 @@ impl Widget<LapceTabData> for LapceTabHeader {
             Event::MouseUp(mouse_event) => {
                 if mouse_event.button.is_right() {
                     let tab_id = data.id;
+                    let window_id = data.window_id;
 
                     let mut menu = druid::Menu::<LapceData>::new("Tab");
-                    let item = druid::MenuItem::new("Open Tab With a New Window")
+                    let item = druid::MenuItem::new("Move Tab To a New Window")
                         .on_activate(move |ctx, _data, _env| {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::TabToWindow(tab_id),
-                                Target::Auto,
+                                LapceUICommand::TabToWindow(window_id, tab_id),
+                                Target::Window(window_id),
                             ));
                         });
                     menu = menu.entry(item);
@@ -2256,7 +2266,10 @@ impl Widget<LapceTabData> for LapceTabHeader {
                         move |ctx, _data, _env| {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::CloseTabId(tab_id),
+                                LapceUICommand::CloseTabId {
+                                    tab_id,
+                                    stop_proxy: true,
+                                },
                                 Target::Auto,
                             ));
                         },
