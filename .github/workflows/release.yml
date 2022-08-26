@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.tag.outputs.tag }}
+      release: ${{ steps.tag.outputs.release }}
     steps:
       - if: github.event_name == 'workflow_dispatch'
         run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
@@ -30,13 +31,18 @@ jobs:
         run: |
           TAG_NAME=${{ github.ref }}
           echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
+          echo "RELEASE=Stable" >> $GITHUB_ENV
       - id: vars
         shell: bash
         run: echo "::set-output name=sha_short::${GITHUB_SHA::7}"
       - if: env.TAG_NAME == 'nightly'
-        run: echo 'TAG_NAME=nightly-${{ steps.vars.outputs.sha_short }}' >> $GITHUB_ENV
+        run: |
+          echo 'TAG_NAME=nightly-${{ steps.vars.outputs.sha_short }}' >> $GITHUB_ENV
+          echo "RELEASE=Nightly" >> $GITHUB_ENV
       - id: tag
-        run: echo "::set-output name=tag::$TAG_NAME"
+        run: |
+          echo "::set-output name=tag::$TAG_NAME"
+          echo "::set-output name=release::$RELEASE"
   
   windows:
     runs-on: windows-latest
@@ -210,6 +216,7 @@ jobs:
     needs: tagname
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
+      RELEASE_TYPE: ${{ needs.tagname.outputs.release }}
 
       NOTARIZE_USERNAME: ${{ secrets.NOTARIZE_USERNAME }}
       NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
@@ -224,7 +231,7 @@ jobs:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
       - name: Make DMG
-        run: make dmg-universal
+        run: RELEASE=$RELEASE_TYPE make dmg-universal
       - name: Rename
         run: |
           cp ./target/release-lto/macos/Lapce.dmg ./target/release-lto/macos/Lapce-macos.dmg
@@ -260,7 +267,7 @@ jobs:
       # before running, and would therefore delete the downloaded artifacts
       - uses: actions/checkout@v3
 
-      - uses: actions/download-artifact@v3          
+      - uses: actions/download-artifact@v3
       
       - if: github.event_name == 'workflow_dispatch'
         run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
