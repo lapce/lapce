@@ -1,5 +1,6 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
+use clap::Parser;
 use druid::{
     AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Region,
     Size, Widget, WidgetExt, WidgetPod, WindowDesc, WindowHandle, WindowId,
@@ -23,36 +24,22 @@ const LOGO_PNG: &[u8] = include_bytes!("../../extra/images/logo.png");
 #[cfg(target_os = "windows")]
 const LOGO_ICO: &[u8] = include_bytes!("../../extra/windows/lapce.ico");
 
+#[derive(Parser)]
+#[clap(name = "Lapce")]
+#[clap(version=*VERSION)]
+struct Cli {
+    paths: Vec<PathBuf>,
+}
+
 pub fn build_window(data: &mut LapceWindowData) -> impl Widget<LapceData> {
     LapceWindow::new(data).lens(LapceWindowLens(data.window_id))
 }
 
 pub fn launch() {
-    let mut args = std::env::args();
-    let mut path = None;
-    if args.len() > 1 {
-        args.next();
-        if let Some(arg) = args.next() {
-            match arg.as_str() {
-                "-v" | "--version" => {
-                    println!("lapce {}", *VERSION);
-                    return;
-                }
-                "-h" | "--help" => {
-                    println!("lapce [-h|--help] [-v|--version] [PATH]");
-                    return;
-                }
-                v => {
-                    if v.starts_with('-') {
-                        eprintln!("lapce: unrecognized option: {v}");
-                        std::process::exit(1)
-                    } else {
-                        path = Some(v.to_string())
-                    }
-                }
-            }
-        }
-    }
+    let cli = Cli::parse();
+    println!("paths {:?}", cli.paths);
+    let pwd = std::env::current_dir().unwrap_or_default();
+    let paths = cli.paths.iter().map(|p| pwd.join(p)).collect();
 
     let mut log_dispatch = fern::Dispatch::new()
         .format(|out, message, record| {
@@ -98,7 +85,7 @@ pub fn launch() {
     }
 
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
-    let mut data = LapceData::load(launcher.get_external_handle(), path);
+    let mut data = LapceData::load(launcher.get_external_handle(), paths);
     for (_window_id, window_data) in data.windows.iter_mut() {
         let root = build_window(window_data);
         let window = new_window_desc(
