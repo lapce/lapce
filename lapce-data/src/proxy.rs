@@ -474,7 +474,7 @@ impl LapceProxy {
         use HostArchitecture::*;
         use HostPlatform::*;
 
-        let cmd = remote.command_builder().arg("uname -sm").output();
+        let cmd = remote.command_builder().args(["uname", "-sm"]).output();
 
         let spec = match cmd {
             Ok(cmd) => {
