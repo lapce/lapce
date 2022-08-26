@@ -5,7 +5,7 @@ ASSETS_DIR = extra
 RELEASE_DIR = target/release-lto
 
 APP_NAME = Lapce-$(RELEASE).app
-APP_TEMPLATE = $(ASSETS_DIR)/macos/$(APP_NAME)
+APP_TEMPLATE = $(ASSETS_DIR)/macos/Lapce.app
 APP_DIR = $(RELEASE_DIR)/macos
 APP_BINARY = $(RELEASE_DIR)/$(TARGET)
 APP_BINARY_DIR = $(APP_DIR)/$(APP_NAME)/Contents/MacOS
