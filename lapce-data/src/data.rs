@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
+    io::{BufReader, Read},
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
@@ -31,8 +32,12 @@ use lapce_core::{
 };
 use lapce_proxy::{directory::Directory, VERSION};
 use lapce_rpc::{
-    buffer::BufferId, proxy::ProxyResponse, source_control::FileDiff,
+    buffer::BufferId,
+    core::{CoreNotification, CoreRequest, CoreResponse},
+    proxy::ProxyResponse,
+    source_control::FileDiff,
     terminal::TermId,
+    RpcMessage,
 };
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdit};
@@ -216,6 +221,29 @@ impl LapceData {
             }
             std::thread::sleep(std::time::Duration::from_secs(60 * 60));
         });
+
+        if let Some(local_socket) = Directory::local_socket() {
+            if let Ok(socket) =
+                interprocess::local_socket::LocalSocketListener::bind(local_socket)
+            {
+                for stream in socket.incoming().flatten() {
+                    let mut reader = BufReader::new(stream);
+                    thread::spawn(move || -> Result<()> {
+                        loop {
+                            let msg: RpcMessage<
+                                CoreRequest,
+                                CoreNotification,
+                                CoreResponse,
+                            > = lapce_rpc::stdio::read_msg(&mut reader)?;
+                            if let RpcMessage::Notification(
+                                CoreNotification::OpenPaths { paths },
+                            ) = msg
+                            {}
+                        }
+                    });
+                }
+            }
+        }
 
         Self {
             windows,

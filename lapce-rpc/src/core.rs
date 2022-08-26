@@ -45,6 +45,9 @@ pub enum CoreNotification {
         content: String,
         rev: u64,
     },
+    OpenPaths {
+        paths: Vec<PathBuf>,
+    },
     WorkspaceFileChange {},
     PublishDiagnostics {
         diagnostics: PublishDiagnosticsParams,

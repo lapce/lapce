@@ -77,7 +77,7 @@ where
     Ok(())
 }
 
-fn read_msg<R, Req, Notif, Resp>(
+pub fn read_msg<R, Req, Notif, Resp>(
     inp: &mut R,
 ) -> io::Result<RpcMessage<Req, Notif, Resp>>
 where

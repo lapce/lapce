@@ -100,6 +100,7 @@ impl CoreHandler for LapceProxy {
     fn handle_notification(&mut self, rpc: CoreNotification) {
         use CoreNotification::*;
         match rpc {
+            OpenPaths { .. } => {}
             ProxyConnected {} => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
