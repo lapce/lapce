@@ -441,6 +441,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Save All Files")]
     #[strum(serialize = "save_all")]
     SaveAll,
+
+    #[strum(serialize = "quit")]
+    #[strum(message = "Quit Editor")]
+    Quit,
 }
 
 #[derive(Debug)]

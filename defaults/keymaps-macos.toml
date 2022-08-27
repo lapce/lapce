@@ -27,6 +27,10 @@ command = "open_settings"
 key = "meta+k meta+s"
 command = "open_keyboard_shortcuts"
 
+# [[keymaps]]
+# key = "meta+q"
+# command = "quit"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
