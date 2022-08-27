@@ -48,13 +48,8 @@ jobs:
           args: --workspace
 
   fmt:
-    name: Rustfmt (${{ matrix.toolchain }}) on ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
-        toolchain: [ stable ]
-    runs-on: ${{ matrix.os }}
+    name: Rustfmt
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -63,12 +58,9 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: ${{ matrix.toolchain }}
+          toolchain: stable
           override: true
           components: rustfmt
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v1
 
       - name: Run rustfmt
         uses: actions-rs/cargo@v1
