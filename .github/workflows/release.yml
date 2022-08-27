@@ -206,6 +206,7 @@ jobs:
           retention-days: 1
 
   macos:
+    if: github.repository == 'lapce/lapce'
     runs-on: macos-11
     needs: tagname
     env:
