@@ -39,7 +39,7 @@ pub fn stdio_transport<W, R, Req1, Notif1, Resp1, Req2, Notif2, Resp2>(
     });
 }
 
-fn write_msg<W, Req, Notif, Resp>(
+pub fn write_msg<W, Req, Notif, Resp>(
     out: &mut W,
     msg: RpcMessage<Req, Notif, Resp>,
 ) -> io::Result<()>

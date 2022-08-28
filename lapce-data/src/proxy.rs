@@ -9,8 +9,8 @@ use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
-use druid::Target;
 use druid::{ExtEventSink, WidgetId};
+use druid::{Target, WindowId};
 use flate2::read::GzDecoder;
 use lapce_proxy::directory::Directory;
 use lapce_proxy::dispatch::Dispatcher;
@@ -100,7 +100,26 @@ impl CoreHandler for LapceProxy {
     fn handle_notification(&mut self, rpc: CoreNotification) {
         use CoreNotification::*;
         match rpc {
-            OpenPaths { .. } => {}
+            OpenPaths {
+                window_tab_id,
+                folders,
+                files,
+            } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::OpenPaths {
+                        window_tab_id: window_tab_id.map(|(window_id, tab_id)| {
+                            (
+                                WindowId::from_usize(window_id),
+                                WidgetId::from_usize(tab_id),
+                            )
+                        }),
+                        folders,
+                        files,
+                    },
+                    Target::Global,
+                );
+            }
             ProxyConnected {} => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -214,6 +233,7 @@ impl CoreHandler for LapceProxy {
 
 impl LapceProxy {
     pub fn new(
+        window_id: WindowId,
         tab_id: WidgetId,
         workspace: LapceWorkspace,
         disabled_volts: Vec<String>,
@@ -243,6 +263,8 @@ impl LapceProxy {
                 workspace.clone(),
                 disabled_volts,
                 plugin_configurations,
+                window_id.to_usize(),
+                tab_id.to_usize(),
             );
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
@@ -259,11 +281,15 @@ impl LapceProxy {
         workspace: LapceWorkspace,
         disabled_volts: Vec<String>,
         plugin_configurations: HashMap<String, serde_json::Value>,
+        window_id: usize,
+        tab_id: usize,
     ) -> Result<()> {
         self.proxy_rpc.initialize(
             workspace.path.clone(),
             disabled_volts,
             plugin_configurations,
+            window_id,
+            tab_id,
         );
         match workspace.kind {
             LapceWorkspaceType::Local => {

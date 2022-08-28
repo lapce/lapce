@@ -375,7 +375,13 @@ impl Widget<LapceWindowData> for LapceWindow {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::ShowWindow => {
+                        ctx.set_handled();
+                        ctx.submit_command(druid::commands::SHOW_WINDOW);
+                        return;
+                    }
                     LapceUICommand::NewTab(workspace) => {
+                        ctx.set_handled();
                         self.new_tab(
                             ctx,
                             data,

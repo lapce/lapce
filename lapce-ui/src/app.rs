@@ -13,6 +13,7 @@ use lapce_data::{
     config::Config,
     data::{
         LapceData, LapceTabLens, LapceWindowData, LapceWindowLens, LapceWorkspace,
+        LapceWorkspaceType,
     },
     db::{TabsInfo, WindowInfo},
     proxy::VERSION,
@@ -40,7 +41,10 @@ pub fn build_window(data: &mut LapceWindowData) -> impl Widget<LapceData> {
 pub fn launch() {
     let cli = Cli::parse();
     let pwd = std::env::current_dir().unwrap_or_default();
-    let paths = cli.paths.iter().map(|p| pwd.join(p)).collect();
+    let paths: Vec<PathBuf> = cli.paths.iter().map(|p| pwd.join(p)).collect();
+    if LapceData::check_local_socket(paths.clone()).is_ok() {
+        return;
+    }
 
     let mut log_dispatch = fern::Dispatch::new()
         .format(|out, message, record| {
@@ -231,11 +235,17 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         data: &mut LapceData,
         _env: &Env,
     ) -> Option<Event> {
-        //FIXME: no event::aplicationWillTerminate is sent.
-        if let Event::ApplicationWillTerminate = event {
-            let _ = data.db.save_app(data);
-            return None;
-        }
+        match event {
+            Event::ApplicationWillTerminate => {
+                let _ = data.db.save_app(data);
+                return None;
+            }
+            Event::WindowGotFocus(window_id) => {
+                data.active_window = Arc::new(window_id);
+                return Some(event);
+            }
+            _ => {}
+        };
         Some(event)
     }
 
@@ -351,20 +361,24 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                         });
                         return druid::Handled::Yes;
                     }
-                    LapceUICommand::OpenPaths(paths, window_tab_id) => {
-                        let dirs: Vec<&PathBuf> =
-                            paths.iter().filter(|p| p.is_dir()).collect();
-                        let files: Vec<&PathBuf> =
-                            paths.iter().filter(|p| p.is_file()).collect();
-
+                    LapceUICommand::OpenPaths {
+                        window_tab_id,
+                        folders,
+                        files,
+                    } => {
                         if let Some((window_id, tab_id)) = window_tab_id {
-                            if let Some(window_data) = data.windows.get(&window_id) {
-                                if let Some(tab_data) = window_data.tabs.get(&tab_id)
+                            if let Some(window_data) = data.windows.get(window_id) {
+                                if let Some(tab_data) = window_data.tabs.get(tab_id)
                                 {
-                                    for dir in dirs {
+                                    for folder in folders {
+                                        ctx.submit_command(Command::new(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::ShowWindow,
+                                            Target::Window(*window_id),
+                                        ));
                                         let workspace = LapceWorkspace {
                                             kind: tab_data.workspace.kind.clone(),
-                                            path: Some(dir.to_path_buf()),
+                                            path: Some(folder.to_path_buf()),
                                             last_open: 0,
                                         };
                                         ctx.submit_command(Command::new(
@@ -385,6 +399,31 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                                     return druid::Handled::Yes;
                                 }
                             }
+                        }
+
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ShowWindow,
+                            Target::Window(*data.active_window),
+                        ));
+                        for folder in folders {
+                            let workspace = LapceWorkspace {
+                                kind: LapceWorkspaceType::Local,
+                                path: Some(folder.to_path_buf()),
+                                last_open: 0,
+                            };
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::NewTab(Some(workspace)),
+                                Target::Window(*data.active_window),
+                            ));
+                        }
+                        for file in files {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::OpenFile(file.to_path_buf()),
+                                Target::Window(*data.active_window),
+                            ));
                         }
                         return druid::Handled::Yes;
                     }

@@ -13,7 +13,7 @@ use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
-use lapce_rpc::core::CoreRpcHandler;
+use lapce_rpc::core::{CoreNotification, CoreRpcHandler};
 use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::proxy::{
     ProxyHandler, ProxyNotification, ProxyRequest, ProxyResponse, ProxyRpcHandler,
@@ -45,6 +45,9 @@ pub struct Dispatcher {
     #[allow(deprecated)]
     terminals: HashMap<TermId, mio::channel::Sender<Msg>>,
     file_watcher: FileWatcher,
+
+    window_id: usize,
+    tab_id: usize,
 }
 
 impl ProxyHandler for Dispatcher {
@@ -55,7 +58,11 @@ impl ProxyHandler for Dispatcher {
                 workspace,
                 disabled_volts,
                 plugin_configurations,
+                window_id,
+                tab_id,
             } => {
+                self.window_id = window_id;
+                self.tab_id = tab_id;
                 self.workspace = workspace;
                 self.file_watcher.notify(FileWatchNotifer::new(
                     self.workspace.clone(),
@@ -79,6 +86,13 @@ impl ProxyHandler for Dispatcher {
                     plugin_rpc.mainloop(&mut plugin);
                 });
                 self.core_rpc.proxy_connected();
+            }
+            OpenPaths { folders, files } => {
+                self.core_rpc.notification(CoreNotification::OpenPaths {
+                    window_tab_id: Some((self.window_id, self.tab_id)),
+                    folders,
+                    files,
+                });
             }
             OpenFileChanged { path } => {
                 if let Some(buffer) = self.buffers.get(&path) {
@@ -679,6 +693,8 @@ impl Dispatcher {
             buffers: HashMap::new(),
             terminals: HashMap::new(),
             file_watcher,
+            window_id: 1,
+            tab_id: 1,
         }
     }
 

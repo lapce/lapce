@@ -7,14 +7,18 @@ pub mod watcher;
 
 use std::{
     io::{stdin, stdout, BufReader},
+    path::PathBuf,
     sync::Arc,
     thread,
 };
 
+use anyhow::{anyhow, Result};
+use clap::Parser;
+use directory::Directory;
 use dispatch::Dispatcher;
 use lapce_rpc::{
     core::{CoreRpc, CoreRpcHandler},
-    proxy::ProxyRpcHandler,
+    proxy::{ProxyNotification, ProxyRequest, ProxyResponse, ProxyRpcHandler},
     stdio::stdio_transport,
     RpcMessage,
 };
@@ -50,7 +54,21 @@ fn version() -> &'static str {
     }
 }
 
+#[derive(Parser)]
+#[clap(name = "Lapce")]
+#[clap(version=*VERSION)]
+struct Cli {
+    #[clap(short, long, action)]
+    proxy: bool,
+    paths: Vec<PathBuf>,
+}
+
 pub fn mainloop() {
+    let cli = Cli::parse();
+    if !cli.proxy {
+        let _ = check_local_socket(cli.paths);
+        return;
+    }
     let core_rpc = CoreRpcHandler::new();
     let proxy_rpc = ProxyRpcHandler::new();
     let mut dispatcher = Dispatcher::new(core_rpc.clone(), proxy_rpc.clone());
@@ -106,5 +124,60 @@ pub fn mainloop() {
         }
     });
 
+    let local_proxy_rpc = proxy_rpc.clone();
+    std::thread::spawn(move || {
+        let _ = crate::listen_local_socket(local_proxy_rpc);
+    });
+    if let Some(path) = process_path::get_executable_path() {
+        if let Some(path) = path.parent() {
+            if let Some(path) = path.to_str() {
+                std::env::set_var("PATH", &format!("{}:$PATH", path));
+            }
+        }
+    }
+
     proxy_rpc.mainloop(&mut dispatcher);
+}
+
+fn check_local_socket(paths: Vec<PathBuf>) -> Result<()> {
+    let local_socket = Directory::local_socket()
+        .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+    let mut socket =
+        interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
+    let folders: Vec<PathBuf> =
+        paths.clone().into_iter().filter(|p| p.is_dir()).collect();
+    let files: Vec<PathBuf> = paths.into_iter().filter(|p| p.is_file()).collect();
+    let msg: RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse> =
+        RpcMessage::Notification(ProxyNotification::OpenPaths { folders, files });
+    lapce_rpc::stdio::write_msg(&mut socket, msg)?;
+    Ok(())
+}
+
+pub(crate) fn listen_local_socket(proxy_rpc: ProxyRpcHandler) -> Result<()> {
+    let local_socket = Directory::local_socket()
+        .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+    let _ = std::fs::remove_file(&local_socket);
+    let socket =
+        interprocess::local_socket::LocalSocketListener::bind(local_socket)?;
+    for stream in socket.incoming().flatten() {
+        let mut reader = BufReader::new(stream);
+        let proxy_rpc = proxy_rpc.clone();
+        thread::spawn(move || -> Result<()> {
+            loop {
+                let msg: RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse> =
+                    lapce_rpc::stdio::read_msg(&mut reader)?;
+                if let RpcMessage::Notification(ProxyNotification::OpenPaths {
+                    folders,
+                    files,
+                }) = msg
+                {
+                    proxy_rpc.notification(ProxyNotification::OpenPaths {
+                        folders,
+                        files,
+                    });
+                }
+            }
+        });
+    }
+    Ok(())
 }
