@@ -211,16 +211,19 @@ impl LapceData {
         }
 
         #[cfg(feature = "updater")]
-        std::thread::spawn(move || loop {
-            if let Ok(release) = crate::update::get_latest_release() {
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateLatestRelease(release),
-                    Target::Global,
-                );
-            }
-            std::thread::sleep(std::time::Duration::from_secs(60 * 60));
-        });
+        {
+            let local_event_sink = event_sink.clone();
+            std::thread::spawn(move || loop {
+                if let Ok(release) = crate::update::get_latest_release() {
+                    let _ = local_event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateLatestRelease(release),
+                        Target::Global,
+                    );
+                }
+                std::thread::sleep(std::time::Duration::from_secs(60 * 60));
+            });
+        }
 
         if let Some(local_socket) = Directory::local_socket() {
             if let Ok(socket) =
@@ -228,6 +231,7 @@ impl LapceData {
             {
                 for stream in socket.incoming().flatten() {
                     let mut reader = BufReader::new(stream);
+                    let event_sink = event_sink.clone();
                     thread::spawn(move || -> Result<()> {
                         loop {
                             let msg: RpcMessage<
@@ -236,9 +240,20 @@ impl LapceData {
                                 CoreResponse,
                             > = lapce_rpc::stdio::read_msg(&mut reader)?;
                             if let RpcMessage::Notification(
-                                CoreNotification::OpenPaths { paths },
+                                CoreNotification::OpenPaths {
+                                    window_tab_id,
+                                    paths,
+                                },
                             ) = msg
-                            {}
+                            {
+                                let window_tab_id =
+                                    window_tab_id.map(|(window_id, tab_id)| (WindowId::from_usize(window_id), WidgetId::from_usize(tab_id)));
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::OpenPaths(paths, window_tab_id),
+                                    Target::Global,
+                                );
+                            }
                         }
                     });
                 }
@@ -1203,7 +1218,7 @@ impl LapceTabData {
             LapceWorkbenchCommand::NewWindowTab => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::NewTab,
+                    LapceUICommand::NewTab(None),
                     Target::Auto,
                 ));
             }

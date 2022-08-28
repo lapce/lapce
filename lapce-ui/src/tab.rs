@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use druid::{
     kurbo::Line,
@@ -1051,6 +1051,32 @@ impl LapceTab {
                                     }
                                 }
                             }
+                        }
+                    }
+                    LapceUICommand::OpenPaths(paths) => {
+                        ctx.set_handled();
+                        let dirs: Vec<&PathBuf> =
+                            paths.iter().filter(|p| p.is_dir()).collect();
+                        let files: Vec<&PathBuf> =
+                            paths.iter().filter(|p| p.is_file()).collect();
+                        for dir in dirs {
+                            let workspace = LapceWorkspace {
+                                kind: data.workspace.kind.clone(),
+                                path: Some(dir.to_path_buf()),
+                                last_open: 0,
+                            };
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::NewTab(Some(workspace)),
+                                Target::Window(data.window_id),
+                            ));
+                        }
+                        for file in files {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::OpenFile(file.to_path_buf()),
+                                Target::Widget(data.id),
+                            ));
                         }
                     }
                     LapceUICommand::PublishDiagnostics(diagnostics) => {

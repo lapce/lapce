@@ -46,6 +46,7 @@ pub enum CoreNotification {
         rev: u64,
     },
     OpenPaths {
+        window_tab_id: Option<(usize, usize)>,
         paths: Vec<PathBuf>,
     },
     WorkspaceFileChange {},

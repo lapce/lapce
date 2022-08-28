@@ -375,8 +375,13 @@ impl Widget<LapceWindowData> for LapceWindow {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::NewTab => {
-                        self.new_tab(ctx, data, LapceWorkspace::default(), false);
+                    LapceUICommand::NewTab(workspace) => {
+                        self.new_tab(
+                            ctx,
+                            data,
+                            workspace.clone().unwrap_or_default(),
+                            false,
+                        );
                         return;
                     }
                     LapceUICommand::CloseTab => {
