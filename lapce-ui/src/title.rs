@@ -68,6 +68,7 @@ impl Title {
         self.text_layouts.clear();
         self.borders.clear();
         self.rects.clear();
+        self.circles.clear();
 
         #[cfg(not(target_os = "macos"))]
         let mut x = 0.0;
