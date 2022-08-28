@@ -1090,6 +1090,28 @@ impl LapceTabData {
                     );
                 }
             }
+            LapceWorkbenchCommand::OpenSettingsDirectory
+            | LapceWorkbenchCommand::OpenProxyDirectory
+            | LapceWorkbenchCommand::OpenThemesDirectory
+            | LapceWorkbenchCommand::OpenLogsDirectory
+            | LapceWorkbenchCommand::OpenPluginsDirectory => {
+                use LapceWorkbenchCommand::*;
+                let dir = match command {
+                    OpenSettingsDirectory => Directory::config_directory(),
+                    OpenProxyDirectory => Directory::proxy_directory(),
+                    OpenThemesDirectory => Directory::themes_directory(),
+                    OpenLogsDirectory => Directory::logs_directory(),
+                    OpenPluginsDirectory => Directory::plugins_directory(),
+                    _ => return,
+                };
+                if let Some(dir) = dir {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::OpenURI(dir.to_string_lossy().to_string()),
+                        Target::Auto,
+                    ))
+                }
+            }
             LapceWorkbenchCommand::OpenKeyboardShortcuts => {
                 self.main_split.open_settings(ctx, true);
             }
