@@ -310,6 +310,29 @@ pub fn start_volt(
         .as_ref()
         .ok_or_else(|| anyhow!("plugin meta doesn't have dir"))?;
 
+    #[cfg(target_os = "linux")]
+    let volt_libc = {
+        match std::process::Command::new("ldd").arg("--version").output() {
+            Ok(cmd) => {
+                if String::from_utf8_lossy(&cmd.stdout)
+                    .to_lowercase()
+                    .split_terminator('\n')
+                    .next()
+                    .unwrap_or("")
+                    .contains("musl")
+                {
+                    "musl"
+                } else {
+                    "glibc"
+                }
+            }
+            _ => "glibc",
+        }
+    };
+
+    #[cfg(not(target_os = "linux"))]
+    let volt_libc = "";
+
     let stdin = Arc::new(RwLock::new(WasiPipe::new()));
     let stdout = Arc::new(RwLock::new(WasiPipe::new()));
     let stderr = Arc::new(RwLock::new(WasiPipe::new()));
@@ -317,6 +340,7 @@ pub fn start_volt(
         .inherit_env()?
         .env("VOLT_OS", std::env::consts::OS)?
         .env("VOLT_ARCH", std::env::consts::ARCH)?
+        .env("VOLT_LIBC", volt_libc)?
         .env(
             "VOLT_URI",
             Url::from_directory_path(volt_path)
