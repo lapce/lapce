@@ -373,7 +373,8 @@ impl LapceProxy {
                 .join(&proxy_filename);
             if !local_proxy_file.exists() {
                 let url = format!("https://github.com/lapce/lapce/releases/download/{}/{proxy_filename}.gz", match *VERSION {
-                    "nightly" | "debug" => "nightly".to_string(),
+                    "debug" => "nightly".to_string(),
+                    s if s.starts_with("nightly") => "nightly".to_string(),
                     _ => format!("v{}", *VERSION),
                 });
                 log::debug!(target: "lapce_data::proxy::start_remote", "proxy download URI: {url}");
