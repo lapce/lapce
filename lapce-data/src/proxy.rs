@@ -330,7 +330,7 @@ impl LapceProxy {
             return Err(anyhow!("Unknown OS and/or architecture"));
         }
 
-        let proxy_filename = "lapce-proxy";
+        let proxy_filename = "lapce";
 
         // ! Below paths have to be synced with what is
         // ! returned by Config::proxy_directory()
@@ -422,6 +422,7 @@ impl LapceProxy {
         let mut child = remote
             .command_builder()
             .arg(&remote_proxy_file)
+            .arg("--proxy")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
