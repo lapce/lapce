@@ -66,7 +66,9 @@ struct Cli {
 pub fn mainloop() {
     let cli = Cli::parse();
     if !cli.proxy {
-        let _ = check_local_socket(cli.paths);
+        let pwd = std::env::current_dir().unwrap_or_default();
+        let paths: Vec<PathBuf> = cli.paths.iter().map(|p| pwd.join(p)).collect();
+        let _ = check_local_socket(paths);
         return;
     }
     let core_rpc = CoreRpcHandler::new();
