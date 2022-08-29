@@ -3,8 +3,8 @@ use std::sync::Arc;
 use druid::{
     piet::{PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, FontWeight, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, TextAlignment,
-    UpdateCtx, Widget, WidgetId, WidgetPod,
+    LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    TextAlignment, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
@@ -141,6 +141,18 @@ impl AlertBoxContent {
             mouse_down_point: Point::ZERO,
         }
     }
+
+    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+        for rect in self.buttons.iter() {
+            if rect.contains(mouse_event.pos) {
+                return true;
+            }
+        }
+        if self.cancel_rect.contains(mouse_event.pos) {
+            return true;
+        }
+        false
+    }
 }
 
 impl Widget<LapceTabData> for AlertBoxContent {
@@ -160,6 +172,15 @@ impl Widget<LapceTabData> for AlertBoxContent {
                 let mut focus = AlertFocusData::new(data);
                 Arc::make_mut(&mut data.keypress)
                     .key_down(ctx, key_event, &mut focus, env);
+            }
+            Event::MouseMove(mouse_event) => {
+                if self.icon_hit_test(mouse_event) {
+                    ctx.set_cursor(&druid::Cursor::Pointer);
+                    ctx.request_paint();
+                } else {
+                    ctx.clear_cursor();
+                    ctx.request_paint();
+                }
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down_point = mouse_event.pos;
