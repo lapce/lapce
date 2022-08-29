@@ -8,7 +8,7 @@ use druid::{
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
-    alert::AlertFocusData,
+    about::AboutFocusData,
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
@@ -18,20 +18,25 @@ use lapce_data::{
 
 use crate::svg::get_svg;
 
-pub struct AlertBox {
-    content: WidgetPod<LapceTabData, AlertBoxContent>,
+const URI_LAPCE: &str = "https://lapce.dev";
+const URI_GITHUB: &str = "https://github.com/lapce/lapce";
+const URI_MATRIX: &str = "https://matrix.to/#/#lapce-editor:matrix.org";
+const URI_DISCORD: &str = "https://discord.gg/n8tGJ6Rn6D";
+
+pub struct AboutBox {
+    content: WidgetPod<LapceTabData, AboutBoxContent>,
 }
 
-impl AlertBox {
+impl AboutBox {
     pub fn new(data: &LapceTabData) -> Self {
-        let content = AlertBoxContent::new(data);
+        let content = AboutBoxContent::new(data);
         Self {
             content: WidgetPod::new(content),
         }
     }
 }
 
-impl Widget<LapceTabData> for AlertBox {
+impl Widget<LapceTabData> for AboutBox {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -39,7 +44,7 @@ impl Widget<LapceTabData> for AlertBox {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        if !data.alert.active {
+        if !data.about.active {
             return;
         }
         self.content.event(ctx, event, data, env);
@@ -87,7 +92,7 @@ impl Widget<LapceTabData> for AlertBox {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        if !data.alert.active {
+        if !data.about.active {
             return;
         }
         let rect = ctx.size().to_rect();
@@ -104,58 +109,70 @@ impl Widget<LapceTabData> for AlertBox {
     }
 }
 
-pub struct AlertBoxContent {
+pub struct AboutBoxContent {
+    mouse_pos: Point,
     widget_id: WidgetId,
 
     width: f64,
+    _height: f64,
     padding: f64,
     svg_size: f64,
     button_height: f64,
 
-    svg_rect: Rect,
-    cancel_rect: Rect,
-    buttons: Vec<Rect>,
-    title_layout: Option<PietTextLayout>,
-    title_origin: Point,
-    msg_layout: Option<PietTextLayout>,
-    msg_origin: Point,
+    logo_rect: Rect,
+    close_rect: Rect,
+    // close_rect_icon: Rect,
+    title: Option<(PietTextLayout, Point)>,
+    links: Vec<(PietTextLayout, Point)>,
 
+    commands: Vec<(Rect, Command)>,
     mouse_down_point: Point,
 }
 
-impl AlertBoxContent {
+impl AboutBoxContent {
     pub fn new(data: &LapceTabData) -> Self {
         Self {
-            widget_id: data.alert.widget_id,
-            width: 250.0,
+            mouse_pos: Point::ZERO,
+            widget_id: data.about.widget_id,
+            width: 384.0,
+            _height: 384.0,
             padding: 20.0,
             svg_size: 50.0,
             button_height: 30.0,
-            svg_rect: Rect::ZERO,
-            cancel_rect: Rect::ZERO,
-            buttons: Vec::new(),
-            title_layout: None,
-            title_origin: Point::ZERO,
-            msg_layout: None,
-            msg_origin: Point::ZERO,
+            logo_rect: Rect::ZERO,
+            close_rect: Rect::ZERO,
+            // close_rect_icon: Rect::ZERO,
+            title: None,
+            links: Vec::new(),
+            commands: vec![],
             mouse_down_point: Point::ZERO,
         }
     }
 
     fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
-        for rect in self.buttons.iter() {
+        for (rect, _) in self.commands.iter() {
             if rect.contains(mouse_event.pos) {
                 return true;
             }
         }
-        if self.cancel_rect.contains(mouse_event.pos) {
+        if self.close_rect.contains(mouse_event.pos) {
             return true;
         }
         false
     }
+
+    fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
+        for (rect, command) in self.commands.iter() {
+            if rect.contains(mouse_event.pos) {
+                ctx.submit_command(command.clone());
+                ctx.set_handled();
+                return;
+            }
+        }
+    }
 }
 
-impl Widget<LapceTabData> for AlertBoxContent {
+impl Widget<LapceTabData> for AboutBoxContent {
     fn id(&self) -> Option<WidgetId> {
         Some(self.widget_id)
     }
@@ -169,11 +186,12 @@ impl Widget<LapceTabData> for AlertBoxContent {
     ) {
         match event {
             Event::KeyDown(key_event) => {
-                let mut focus = AlertFocusData::new(data);
+                let mut focus = AboutFocusData::new(data);
                 Arc::make_mut(&mut data.keypress)
                     .key_down(ctx, key_event, &mut focus, env);
             }
             Event::MouseMove(mouse_event) => {
+                self.mouse_pos = mouse_event.pos;
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
                     ctx.request_paint();
@@ -181,13 +199,17 @@ impl Widget<LapceTabData> for AlertBoxContent {
                     ctx.clear_cursor();
                     ctx.request_paint();
                 }
+                ctx.set_handled();
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down_point = mouse_event.pos;
+                if mouse_event.button.is_left() {
+                    self.mouse_down(ctx, mouse_event);
+                }
             }
             Event::MouseUp(mouse_event) => {
-                if self.cancel_rect.contains(self.mouse_down_point)
-                    && self.cancel_rect.contains(mouse_event.pos)
+                if self.close_rect.contains(self.mouse_down_point)
+                    && self.close_rect.contains(mouse_event.pos)
                 {
                     ctx.submit_command(Command::new(
                         LAPCE_COMMAND,
@@ -197,37 +219,15 @@ impl Widget<LapceTabData> for AlertBoxContent {
                         },
                         Target::Widget(self.widget_id),
                     ));
-                    ctx.set_handled();
-                    return;
                 }
-
-                for (i, rect) in self.buttons.iter().enumerate() {
-                    if rect.contains(self.mouse_down_point)
-                        && rect.contains(mouse_event.pos)
-                    {
-                        ctx.submit_command(Command::new(
-                            LAPCE_COMMAND,
-                            data.alert.content.buttons[i].2.clone(),
-                            Target::Widget(data.alert.content.buttons[i].1),
-                        ));
-                        ctx.submit_command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Focus(FocusCommand::ModalClose),
-                                data: None,
-                            },
-                            Target::Widget(self.widget_id),
-                        ));
-                        ctx.set_handled();
-                        return;
-                    }
-                }
+                self.mouse_down_point = Point::ZERO;
+                ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_COMMAND);
                 if let CommandKind::Focus(FocusCommand::ModalClose) = &command.kind {
-                    let alert = Arc::make_mut(&mut data.alert);
-                    alert.active = false;
+                    let about = Arc::make_mut(&mut data.about);
+                    about.active = false;
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::Focus,
@@ -272,7 +272,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
         data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        self.svg_rect = Rect::ZERO
+        self.logo_rect = Rect::ZERO
             .with_origin(Point::new(
                 self.width / 2.0,
                 self.padding + self.svg_size / 2.0,
@@ -281,7 +281,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
 
         let title_layout = ctx
             .text()
-            .new_text_layout(data.alert.content.title.clone())
+            .new_text_layout("About Lapce")
             .font(
                 data.config.ui.font_family(),
                 data.config.ui.font_size() as f64,
@@ -298,54 +298,55 @@ impl Widget<LapceTabData> for AlertBoxContent {
             .build()
             .unwrap();
         let title_size = title_layout.size();
-        self.title_origin =
-            Point::new(self.padding, self.padding * 2.0 + self.svg_size);
+        self.title = Some((
+            title_layout,
+            Point::new(self.padding, self.padding * 2.0 + self.svg_size),
+        ));
 
-        let msg_layout = ctx
-            .text()
-            .new_text_layout(data.alert.content.msg.clone())
-            .font(
-                data.config.ui.font_family(),
-                (data.config.ui.font_size() - 1) as f64,
-            )
-            .alignment(TextAlignment::Center)
-            .set_line_height(1.2)
-            .max_width(self.width - self.padding * 2.0)
-            .text_color(
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            )
-            .build()
-            .unwrap();
-        self.msg_origin = Point::new(
-            self.padding,
-            self.padding * 2.0
-                + self.svg_size
-                + title_size.height
-                + self.padding / 2.0,
-        );
+        // GitHub: {}\nDiscord: {}\nMatrix: {}\n\n\nThird party resources used:\n\nCodicons (CC-BY-4.0)\n{}
+        // "https://lapce.dev",
+        // "https://github.com/lapce/lapce",
+        // "https://discord.gg/n8tGJ6Rn6D",
+        // "https://matrix.to/#/#lapce-editor:matrix.org",
+        // "https://github.com/microsoft/vscode-codicons"
 
-        let mut y = self.msg_origin.y + msg_layout.size().height + self.padding;
-        self.buttons.clear();
-        for _ in data.alert.content.buttons.iter() {
-            let rect = Rect::ZERO
-                .with_origin(Point::new(
-                    self.width / 2.0,
-                    y + self.button_height / 2.0,
-                ))
-                .inflate(self.width / 2.0 - self.padding, self.button_height / 2.0);
-            self.buttons.push(rect);
-            y += self.button_height + self.padding / 2.0;
+        let mut y = self.padding * 2.0
+            + self.svg_size
+            + title_size.height
+            + self.padding / 2.0;
+
+        for msg in [
+            ("Website:", URI_LAPCE),
+            ("GitHub:", URI_GITHUB),
+            ("Discord:", URI_DISCORD),
+            ("Matrix:", URI_MATRIX),
+        ] {
+            let msg_layout = ctx
+                .text()
+                .new_text_layout(format!("{} {}\n", msg.0, msg.1))
+                .font(
+                    data.config.ui.font_family(),
+                    (data.config.ui.font_size()) as f64,
+                )
+                .set_line_height(1.2)
+                .max_width(self.width - self.padding * 2.0)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            self.links.append(&mut vec![(
+                msg_layout.clone(),
+                Point::new(self.padding, y),
+            )]);
+            y += msg_layout.size().height;
         }
 
-        y += self.padding / 2.0;
-        self.cancel_rect = Rect::ZERO
-            .with_origin(Point::new(self.width / 2.0, y + self.button_height / 2.0))
-            .inflate(self.width / 2.0 - self.padding, self.button_height / 2.0);
-
-        self.title_layout = Some(title_layout);
-        self.msg_layout = Some(msg_layout);
+        self.close_rect = Size::new(20.0, 20.0)
+            .to_rect()
+            .with_origin(Point::new(self.width - 20.0, 0.0));
 
         Size::new(self.width, y + self.button_height + self.padding)
     }
@@ -367,64 +368,88 @@ impl Widget<LapceTabData> for AlertBoxContent {
                 .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
         );
 
-        let svg = get_svg("warning.svg").unwrap();
         ctx.draw_svg(
-            &svg,
-            self.svg_rect,
-            Some(data.config.get_color_unchecked(LapceTheme::LAPCE_WARN)),
+            &get_svg("lapce_logo").unwrap(),
+            self.logo_rect,
+            Some(data.config.get_color_unchecked(LapceTheme::EDITOR_DIM)),
         );
 
-        ctx.draw_text(self.title_layout.as_ref().unwrap(), self.title_origin);
-        ctx.draw_text(self.msg_layout.as_ref().unwrap(), self.msg_origin);
+        ctx.draw_text(
+            &self.title.as_ref().unwrap().0,
+            self.title.as_ref().unwrap().1,
+        );
 
-        for (i, (text, _, _)) in data.alert.content.buttons.iter().enumerate() {
-            ctx.stroke(
-                self.buttons[i],
-                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                1.0,
-            );
-            let text_layout = ctx
+        let mut y = self.title.as_ref().unwrap().1.y
+            + self.title.as_ref().unwrap().0.size().height;
+
+        for (msg, link) in [
+            ("Website", URI_LAPCE),
+            ("Discord", URI_DISCORD),
+            ("GitHub", URI_GITHUB),
+            ("Matrix", URI_MATRIX),
+        ] {
+            let left_item = ctx
                 .text()
-                .new_text_layout(text.to_string())
+                .new_text_layout(msg)
                 .font(
                     data.config.ui.font_family(),
-                    data.config.ui.font_size() as f64,
+                    (data.config.ui.font_size()) as f64,
                 )
+                .alignment(TextAlignment::Center)
+                .set_line_height(1.2)
+                .max_width(self.width - self.padding * 2.0)
                 .text_color(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .get_color_unchecked(LapceTheme::EDITOR_LINK)
                         .clone(),
                 )
                 .build()
                 .unwrap();
-            let text_layout_size = text_layout.size();
-            let point = self.buttons[i].center()
-                - (text_layout_size.width / 2.0, text_layout_size.height / 2.0);
-            ctx.draw_text(&text_layout, point);
+            let site_rect = Size::new(
+                left_item.layout.width() as f64,
+                left_item.layout.height() as f64,
+            )
+            .to_rect()
+            .with_origin(Point::new(
+                self.width / 2.0 + (left_item.layout.width() as f64 / 2.0)
+                    - left_item.layout.width() as f64,
+                y,
+            ));
+
+            self.commands.push((
+                site_rect,
+                Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::OpenURI(link.to_string()),
+                    Target::Auto,
+                ),
+            ));
+
+            ctx.draw_text(&left_item, Point::new(self.padding, y));
+            y += left_item.size().height;
         }
 
-        ctx.stroke(
-            self.cancel_rect,
-            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-            1.0,
-        );
-        let text_layout = ctx
-            .text()
-            .new_text_layout("Cancel")
-            .font(
-                data.config.ui.font_family(),
-                data.config.ui.font_size() as f64,
-            )
-            .text_color(
+        if self.close_rect.contains(self.mouse_pos) {
+            let c = data
+                .config
+                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND);
+            let c = c.as_rgba8();
+            let c = (
+                c.0.saturating_add(30),
+                c.1.saturating_add(30),
+                c.2.saturating_add(30),
+                c.3.saturating_add(30),
+            );
+            ctx.fill(self.close_rect, &druid::Color::rgba8(c.0, c.1, c.2, c.3));
+        }
+
+        ctx.draw_svg(
+            &get_svg("chrome-close.svg").unwrap(),
+            self.close_rect.inflate(-2.0, -2.0),
+            Some(
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            )
-            .build()
-            .unwrap();
-        let text_layout_size = text_layout.size();
-        let cancel_point = self.cancel_rect.center()
-            - (text_layout_size.width / 2.0, text_layout_size.height / 2.0);
-        ctx.draw_text(&text_layout, cancel_point);
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+            ),
+        );
     }
 }

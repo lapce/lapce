@@ -1,3 +1,4 @@
+pub mod about;
 pub mod alert;
 pub mod command;
 pub mod completion;

@@ -443,6 +443,15 @@ impl Title {
                 enabled: latest_version.is_some()
                     && latest_version != Some(*VERSION),
             }),
+            MenuKind::Separator,
+            MenuKind::Item(MenuItem {
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(LapceWorkbenchCommand::ShowAbout),
+                    data: None,
+                },
+                enabled: true,
+            }),
         ];
         if latest_version.is_some() && latest_version != Some(*VERSION) {
             let text_layout = piet_text
