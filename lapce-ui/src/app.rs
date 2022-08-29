@@ -121,17 +121,22 @@ fn new_window_desc<W, T: druid::Data>(
     size: Size,
     pos: Point,
     maximised: bool,
-    _config: &Arc<Config>,
+    config: &Arc<Config>,
 ) -> WindowDesc<T>
 where
     W: Widget<T> + 'static,
 {
     let mut desc = WindowDesc::new_with_id(window_id, root)
-        .show_titlebar(false)
         .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
         .with_min_size(Size::new(384.0, 384.0))
         .window_size(size)
         .set_position(pos);
+
+    if cfg!(not(target_os = "macos")) {
+        desc = desc.show_titlebar(!config.lapce.custom_titlebar);
+    } else {
+        desc = desc.show_titlebar(false);
+    }
 
     if maximised {
         desc = desc.set_window_state(WindowState::Maximized);
