@@ -3,7 +3,7 @@ use std::time::Duration;
 use druid::{
     kurbo::Line,
     piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    BoxConstraints, Code, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size, Target,
     TimerToken, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
@@ -34,6 +34,7 @@ pub struct LapceEditorTabHeader {
     icons: Vec<LapceIcon>,
     mouse_pos: Point,
     is_hot: bool,
+    is_shift_down: bool,
 }
 
 impl LapceEditorTabHeader {
@@ -48,6 +49,7 @@ impl LapceEditorTabHeader {
             icons: Vec::new(),
             mouse_pos: Point::ZERO,
             is_hot: false,
+            is_shift_down: false,
         }
     }
 
@@ -178,6 +180,22 @@ impl LapceEditorTabHeader {
             ),
         );
     }
+
+    fn determine_split_command(&self, is_shift_down: bool) -> Command {
+        let focus_command = match is_shift_down {
+            true => FocusCommand::SplitHorizontal,
+            false => FocusCommand::SplitVertical,
+        };
+
+        Command::new(
+            LAPCE_COMMAND,
+            LapceCommand {
+                kind: CommandKind::Focus(focus_command),
+                data: None,
+            },
+            Target::Widget(self.widget_id),
+        )
+    }
 }
 
 impl Widget<LapceTabData> for LapceEditorTabHeader {
@@ -200,6 +218,20 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event);
+            }
+            Event::KeyDown(key_event) => {
+                dbg!(&key_event);
+                if let Code::ShiftLeft | Code::ShiftRight = key_event.code {
+                    self.is_shift_down = true;
+                    ctx.request_paint();
+                }
+            }
+            Event::KeyUp(key_event) => {
+                dbg!(&key_event);
+                if let Code::ShiftLeft | Code::ShiftRight = key_event.code {
+                    self.is_shift_down = false;
+                    ctx.request_paint();
+                }
             }
             _ => (),
         }
@@ -274,20 +306,20 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             };
             self.icons.push(icon);
 
+            let split_icon = match data.keypress.is_shift_down {
+                true => "split-vertical.svg",
+                false => "split-horizontal.svg",
+            };
+            dbg!(split_icon);
+            let split_command =
+                self.determine_split_command(data.keypress.is_shift_down);
             let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
             let icon = LapceIcon {
-                icon: "split-horizontal.svg",
+                icon: split_icon,
                 rect: Size::new(icon_size, icon_size)
                     .to_rect()
                     .with_origin(Point::new(x, gap)),
-                command: Command::new(
-                    LAPCE_COMMAND,
-                    LapceCommand {
-                        kind: CommandKind::Focus(FocusCommand::SplitVertical),
-                        data: None,
-                    },
-                    Target::Widget(self.widget_id),
-                ),
+                command: split_command,
             };
             self.icons.push(icon);
 

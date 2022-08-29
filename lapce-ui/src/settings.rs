@@ -158,6 +158,11 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     }
                 }
             }
+            Event::KeyUp(key_event) => {
+                let mut keypress = data.keypress.clone();
+                Arc::make_mut(&mut keypress).key_up(key_event);
+                ctx.set_handled();
+            }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event, data);
             }

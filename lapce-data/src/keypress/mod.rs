@@ -158,6 +158,7 @@ pub struct KeyPressData {
     count: Option<usize>,
 
     event_sink: ExtEventSink,
+    pub is_shift_down: bool,
 }
 
 impl KeyPressData {
@@ -176,6 +177,7 @@ impl KeyPressData {
             filtered_commands_without_keymap: Arc::new(Vec::new()),
             count: None,
             event_sink,
+            is_shift_down: false,
         };
         keypress.load_commands();
         keypress
@@ -311,6 +313,16 @@ impl KeyPressData {
         }
     }
 
+    pub fn key_up(&mut self, key_event: &KeyEvent) -> bool {
+        dbg!(key_event);
+        dbg!(key_event.key == KbKey::Shift);
+        if key_event.key == KbKey::Shift {
+            self.is_shift_down = false;
+        }
+        // Will always mark the event as handled and stop unnecesary propagation.
+        return true;
+    }
+
     pub fn key_down<T: KeyPressFocus>(
         &mut self,
         ctx: &mut EventCtx,
@@ -325,6 +337,10 @@ impl KeyPressData {
 
         if key_event.key == KbKey::Shift && mods.is_empty() {
             return false;
+        }
+
+        if key_event.key == KbKey::Shift {
+            self.is_shift_down = true;
         }
 
         let keypress = KeyPress {

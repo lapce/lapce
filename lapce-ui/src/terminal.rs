@@ -539,6 +539,11 @@ impl Widget<LapceTabData> for LapceTerminal {
                 ctx.set_handled();
                 data.keypress = keypress.clone();
             }
+            Event::KeyUp(key_event) => {
+                let mut keypress = data.keypress.clone();
+                Arc::make_mut(&mut keypress).key_up(key_event);
+                ctx.set_handled();
+            }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 if let LapceUICommand::Focus = command {

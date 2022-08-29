@@ -159,6 +159,11 @@ impl Widget<LapceTabData> for LapceKeymap {
                     );
                 }
             }
+            Event::KeyUp(key_event) => {
+                let mut keypress = data.keypress.clone();
+                Arc::make_mut(&mut keypress).key_up(key_event);
+                ctx.set_handled();
+            }
             _ => (),
         }
     }
