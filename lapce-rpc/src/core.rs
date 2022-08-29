@@ -45,6 +45,11 @@ pub enum CoreNotification {
         content: String,
         rev: u64,
     },
+    OpenPaths {
+        window_tab_id: Option<(usize, usize)>,
+        folders: Vec<PathBuf>,
+        files: Vec<PathBuf>,
+    },
     WorkspaceFileChange {},
     PublishDiagnostics {
         diagnostics: PublishDiagnosticsParams,

@@ -2,8 +2,8 @@ use druid::{
     kurbo::Line,
     widget::{LensWrap, WidgetExt},
     BoxConstraints, Command, Data, Env, Event, EventCtx, InternalEvent, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, Region, RenderContext, Size,
-    Target, Widget, WidgetId, WidgetPod, WindowConfig, WindowState,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, Region, RenderContext,
+    SingleUse, Size, Target, Widget, WidgetId, WidgetPod, WindowConfig, WindowState,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -13,23 +13,23 @@ use lapce_data::{
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use crate::tab::{LapceTab, LapceTabHeader};
+use crate::tab::{LapceTab, LapceTabHeader, LapceTabMeta, LAPCE_TAB_META};
 
 pub struct LapceWindow {
-    mouse_pos: Point,
+    pub mouse_pos: Point,
     // pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
     pub tabs: Vec<WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>>,
-    tab_headers: Vec<
+    pub tab_headers: Vec<
         WidgetPod<
             LapceWindowData,
             LensWrap<LapceWindowData, LapceTabData, LapceTabLens, LapceTabHeader>,
         >,
     >,
-    dragable_area: Region,
-    tab_header_cmds: Vec<(Rect, Command)>,
-    mouse_down_cmd: Option<(Rect, Command)>,
+    pub dragable_area: Region,
+    pub tab_header_cmds: Vec<(Rect, Command)>,
+    pub mouse_down_cmd: Option<(Rect, Command)>,
     #[cfg(not(target_os = "macos"))]
-    holding_click_rect: Option<Rect>,
+    pub holding_click_rect: Option<Rect>,
 }
 
 impl LapceWindow {
@@ -121,17 +121,25 @@ impl LapceWindow {
         ctx: &mut EventCtx,
         data: &mut LapceWindowData,
         index: usize,
-    ) {
+        stop_proxy: bool,
+    ) -> Option<LapceTabMeta> {
+        let mut removed_tab = None;
         if data.tabs.len() == 1 {
-            return;
+            return removed_tab;
         }
 
         let id = self.tabs[index].id();
-        self.tabs.remove(index);
+        let tab_widget = self.tabs.remove(index);
         self.tab_headers.remove(index);
         if let Some(tab) = data.tabs.remove(&id) {
             let _ = tab.db.save_workspace(&tab);
-            tab.proxy.stop();
+            if stop_proxy {
+                tab.proxy.stop();
+            }
+            removed_tab = Some(LapceTabMeta {
+                data: tab,
+                widget: tab_widget,
+            });
         }
 
         match data.active.cmp(&index) {
@@ -155,6 +163,8 @@ impl LapceWindow {
         ctx.children_changed();
         ctx.set_handled();
         ctx.request_layout();
+
+        removed_tab
     }
 
     pub fn close_tab_id(
@@ -162,17 +172,18 @@ impl LapceWindow {
         ctx: &mut EventCtx,
         data: &mut LapceWindowData,
         tab_id: WidgetId,
-    ) {
+        stop_proxy: bool,
+    ) -> Option<LapceTabMeta> {
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab_id == tab.id() {
-                self.close_index_tab(ctx, data, i);
-                return;
+                return self.close_index_tab(ctx, data, i, stop_proxy);
             }
         }
+        None
     }
 
     pub fn close_tab(&mut self, ctx: &mut EventCtx, data: &mut LapceWindowData) {
-        self.close_index_tab(ctx, data, data.active);
+        self.close_index_tab(ctx, data, data.active, true);
     }
 }
 
@@ -361,8 +372,19 @@ impl Widget<LapceWindowData> for LapceWindow {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::NewTab => {
-                        self.new_tab(ctx, data, LapceWorkspace::default(), false);
+                    LapceUICommand::ShowWindow => {
+                        ctx.set_handled();
+                        ctx.submit_command(druid::commands::SHOW_WINDOW);
+                        return;
+                    }
+                    LapceUICommand::NewTab(workspace) => {
+                        ctx.set_handled();
+                        self.new_tab(
+                            ctx,
+                            data,
+                            workspace.clone().unwrap_or_default(),
+                            false,
+                        );
                         return;
                     }
                     LapceUICommand::CloseTab => {
@@ -370,7 +392,19 @@ impl Widget<LapceWindowData> for LapceWindow {
                         return;
                     }
                     LapceUICommand::CloseTabId(tab_id) => {
-                        self.close_tab_id(ctx, data, *tab_id);
+                        self.close_tab_id(ctx, data, *tab_id, true);
+                        return;
+                    }
+                    LapceUICommand::TabToWindow(_, tab_id) => {
+                        if let Some(meta) =
+                            self.close_tab_id(ctx, data, *tab_id, false)
+                        {
+                            ctx.submit_command(Command::new(
+                                LAPCE_TAB_META,
+                                SingleUse::new(meta),
+                                Target::Global,
+                            ))
+                        }
                         return;
                     }
                     LapceUICommand::FocusTabId(tab_id) => {
@@ -475,7 +509,6 @@ impl Widget<LapceWindowData> for LapceWindow {
         data: &LapceWindowData,
         env: &Env,
     ) {
-        // self.title.lifecycle(ctx, event, data, env);
         for tab in self.tabs.iter_mut() {
             tab.lifecycle(ctx, event, data, env);
         }

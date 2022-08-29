@@ -133,9 +133,15 @@ pub enum ProxyNotification {
         workspace: Option<PathBuf>,
         disabled_volts: Vec<String>,
         plugin_configurations: HashMap<String, serde_json::Value>,
+        window_id: usize,
+        tab_id: usize,
     },
     OpenFileChanged {
         path: PathBuf,
+    },
+    OpenPaths {
+        folders: Vec<PathBuf>,
+        files: Vec<PathBuf>,
     },
     Shutdown {},
     Completion {
@@ -416,11 +422,15 @@ impl ProxyRpcHandler {
         workspace: Option<PathBuf>,
         disabled_volts: Vec<String>,
         plugin_configurations: HashMap<String, serde_json::Value>,
+        window_id: usize,
+        tab_id: usize,
     ) {
         self.notification(ProxyNotification::Initialize {
             workspace,
             disabled_volts,
             plugin_configurations,
+            window_id,
+            tab_id,
         });
     }
 

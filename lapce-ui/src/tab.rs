@@ -4,8 +4,9 @@ use druid::{
     kurbo::Line,
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, InternalLifeCycle,
-    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext,
+    Selector, SingleUse, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
+    WidgetPod,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -24,7 +25,7 @@ use lapce_data::{
     config::{Config, LapceTheme},
     data::{
         DragContent, EditorDiagnostic, FocusArea, LapceData, LapceTabData,
-        LapceWorkspace, LapceWorkspaceType, WorkProgress,
+        LapceWindowData, LapceWorkspace, LapceWorkspaceType, WorkProgress,
     },
     document::{BufferContent, LocalBufferKind},
     editor::EditorLocation,
@@ -50,6 +51,14 @@ use crate::{
     split::split_data_widget, status::LapceStatus, svg::get_svg,
     terminal::TerminalPanel, title::Title,
 };
+
+pub const LAPCE_TAB_META: Selector<SingleUse<LapceTabMeta>> =
+    Selector::new("lapce.tab_meta");
+
+pub struct LapceTabMeta {
+    pub data: LapceTabData,
+    pub widget: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
+}
 
 pub struct LapceIcon {
     pub rect: Rect,
@@ -2195,6 +2204,12 @@ impl LapceTabHeader {
     }
 }
 
+impl Default for LapceTabHeader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Widget<LapceTabData> for LapceTabHeader {
     fn event(
         &mut self,
@@ -2219,33 +2234,68 @@ impl Widget<LapceTabData> for LapceTabHeader {
                 }
             }
             Event::MouseDown(mouse_event) => {
-                if self.close_icon_rect.contains(mouse_event.pos) {
-                    self.holding_click_rect = Some(self.close_icon_rect);
-                } else {
-                    self.drag_start =
-                        Some((ctx.to_window(mouse_event.pos), ctx.window_origin()));
-                    self.mouse_pos = ctx.to_window(mouse_event.pos);
-                    ctx.set_active(true);
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::FocusTabId(data.id),
-                        Target::Auto,
-                    ));
+                if mouse_event.button.is_left() {
+                    if self.close_icon_rect.contains(mouse_event.pos) {
+                        self.holding_click_rect = Some(self.close_icon_rect);
+                    } else {
+                        self.drag_start = Some((
+                            ctx.to_window(mouse_event.pos),
+                            ctx.window_origin(),
+                        ));
+                        self.mouse_pos = ctx.to_window(mouse_event.pos);
+                        ctx.set_active(true);
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::FocusTabId(data.id),
+                            Target::Auto,
+                        ));
+                    }
                 }
             }
             Event::MouseUp(mouse_event) => {
-                if self.close_icon_rect.contains(mouse_event.pos)
-                    && self.holding_click_rect.eq(&Some(self.close_icon_rect))
-                {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::CloseTabId(data.id),
-                        Target::Auto,
-                    ));
+                if mouse_event.button.is_right() {
+                    let tab_id = data.id;
+                    let window_id = data.window_id;
+
+                    let mut menu = druid::Menu::<LapceData>::new("Tab");
+                    let item = druid::MenuItem::new("Move Tab To a New Window")
+                        .on_activate(move |ctx, _data, _env| {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::TabToWindow(window_id, tab_id),
+                                Target::Window(window_id),
+                            ));
+                        });
+                    menu = menu.entry(item);
+
+                    let item = druid::MenuItem::new("Close Tab").on_activate(
+                        move |ctx, _data, _env| {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::CloseTabId(tab_id),
+                                Target::Auto,
+                            ));
+                        },
+                    );
+                    menu = menu.entry(item);
+                    ctx.show_context_menu::<LapceData>(
+                        menu,
+                        ctx.to_window(mouse_event.pos),
+                    )
+                } else {
+                    if self.close_icon_rect.contains(mouse_event.pos)
+                        && self.holding_click_rect.eq(&Some(self.close_icon_rect))
+                    {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::CloseTabId(data.id),
+                            Target::Auto,
+                        ));
+                    }
+                    self.holding_click_rect = None;
+                    ctx.set_active(false);
+                    self.drag_start = None;
                 }
-                self.holding_click_rect = None;
-                ctx.set_active(false);
-                self.drag_start = None;
             }
             _ => {}
         }

@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
+    io::BufReader,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
@@ -11,7 +12,7 @@ use std::{
 #[cfg(target_os = "windows")]
 use std::env;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
     piet::PietText, theme, Command, Data, Env, EventCtx, ExtEventSink,
@@ -31,8 +32,12 @@ use lapce_core::{
 };
 use lapce_proxy::{directory::Directory, VERSION};
 use lapce_rpc::{
-    buffer::BufferId, proxy::ProxyResponse, source_control::FileDiff,
+    buffer::BufferId,
+    core::{CoreNotification, CoreRequest, CoreResponse},
+    proxy::ProxyResponse,
+    source_control::FileDiff,
     terminal::TermId,
+    RpcMessage,
 };
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdit};
@@ -94,12 +99,14 @@ pub struct LapceData {
     pub panel_orders: PanelOrder,
     /// The latest release information
     pub latest_release: Arc<Option<ReleaseInfo>>,
+    /// The window on focus
+    pub active_window: Arc<WindowId>,
 }
 
 impl LapceData {
     /// Create a new `LapceData` struct by loading configuration, and state
     /// previously written to the Lapce database.
-    pub fn load(event_sink: ExtEventSink, path: Option<String>) -> Self {
+    pub fn load(event_sink: ExtEventSink, paths: Vec<PathBuf>) -> Self {
         let db = Arc::new(LapceDb::new().unwrap());
         let mut windows = im::HashMap::new();
         let config = Config::load(&LapceWorkspace::default()).unwrap_or_default();
@@ -109,9 +116,14 @@ impl LapceData {
             .unwrap_or_else(|_| Self::default_panel_orders());
         let latest_release = Arc::new(None);
 
-        if let Some(path) = path {
-            let path = PathBuf::from(path).canonicalize().unwrap();
-            if path.is_dir() {
+        let dirs: Vec<&PathBuf> = paths.iter().filter(|p| p.is_dir()).collect();
+        let files: Vec<&PathBuf> = paths.iter().filter(|p| p.is_file()).collect();
+        if !dirs.is_empty() {
+            let (size, mut pos) = db
+                .get_last_window_info()
+                .map(|i| (i.size, i.pos))
+                .unwrap_or_else(|_| (Size::new(800.0, 600.0), Point::new(0.0, 0.0)));
+            for dir in dirs {
                 #[cfg(target_os = "windows")]
                 let workspace_type =
                     if !env::var("WSL_DISTRO_NAME").unwrap_or_default().is_empty()
@@ -126,18 +138,19 @@ impl LapceData {
                 let workspace_type = LapceWorkspaceType::Local;
 
                 let info = WindowInfo {
-                    size: Size::new(800.0, 600.0),
-                    pos: Point::new(0.0, 0.0),
+                    size,
+                    pos,
                     maximised: false,
                     tabs: TabsInfo {
                         active_tab: 0,
                         workspaces: vec![LapceWorkspace {
                             kind: workspace_type,
-                            path: Some(path),
+                            path: Some(dir.to_path_buf()),
                             last_open: 0,
                         }],
                     },
                 };
+                pos += (50.0, 50.0);
                 let window = LapceWindowData::new(
                     keypress.clone(),
                     latest_release.clone(),
@@ -148,30 +161,36 @@ impl LapceData {
                 );
                 windows.insert(window.window_id, window);
             }
-        } else if let Ok(app) = db.get_app() {
-            for info in app.windows.iter() {
-                let window = LapceWindowData::new(
-                    keypress.clone(),
-                    latest_release.clone(),
-                    panel_orders.clone(),
-                    event_sink.clone(),
-                    info,
-                    db.clone(),
-                );
-                windows.insert(window.window_id, window);
+        } else if files.is_empty() {
+            if let Ok(app) = db.get_app() {
+                for info in app.windows.iter() {
+                    let window = LapceWindowData::new(
+                        keypress.clone(),
+                        latest_release.clone(),
+                        panel_orders.clone(),
+                        event_sink.clone(),
+                        info,
+                        db.clone(),
+                    );
+                    windows.insert(window.window_id, window);
+                }
             }
         }
 
         if windows.is_empty() {
-            let info = db.get_last_window_info().unwrap_or_else(|_| WindowInfo {
-                size: Size::new(800.0, 600.0),
-                pos: Point::new(0.0, 0.0),
+            let (size, pos) = db
+                .get_last_window_info()
+                .map(|i| (i.size, i.pos))
+                .unwrap_or_else(|_| (Size::new(800.0, 600.0), Point::new(0.0, 0.0)));
+            let info = WindowInfo {
+                size,
+                pos,
                 maximised: false,
                 tabs: TabsInfo {
                     active_tab: 0,
                     workspaces: vec![],
                 },
-            });
+            };
             let window = LapceWindowData::new(
                 keypress.clone(),
                 latest_release.clone(),
@@ -183,19 +202,44 @@ impl LapceData {
             windows.insert(window.window_id, window);
         }
 
-        #[cfg(feature = "updater")]
-        std::thread::spawn(move || loop {
-            if let Ok(release) = crate::update::get_latest_release() {
+        if let Some((window_id, _)) = windows.iter().next() {
+            for file in files {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateLatestRelease(release),
-                    Target::Global,
+                    LapceUICommand::OpenFile(file.to_path_buf()),
+                    Target::Window(*window_id),
                 );
             }
-            std::thread::sleep(std::time::Duration::from_secs(60 * 60));
+        }
+
+        #[cfg(feature = "updater")]
+        {
+            let local_event_sink = event_sink.clone();
+            std::thread::spawn(move || loop {
+                if let Ok(release) = crate::update::get_latest_release() {
+                    let _ = local_event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateLatestRelease(release),
+                        Target::Global,
+                    );
+                }
+                std::thread::sleep(std::time::Duration::from_secs(60 * 60));
+            });
+        }
+
+        std::thread::spawn(move || {
+            let _ = Self::listen_local_socket(event_sink);
         });
 
         Self {
+            active_window: Arc::new(
+                windows
+                    .iter()
+                    .next()
+                    .map(|(w, _)| *w)
+                    .unwrap_or_else(WindowId::next),
+            ),
+
             windows,
             keypress,
             db,
@@ -232,6 +276,81 @@ impl LapceData {
         env.set(LapceTheme::INPUT_LINE_HEIGHT, 20.0);
         env.set(LapceTheme::INPUT_LINE_PADDING, 5.0);
         env.set(LapceTheme::INPUT_FONT_SIZE, 13u64);
+    }
+
+    fn listen_local_socket(event_sink: ExtEventSink) -> Result<()> {
+        if let Some(path) = process_path::get_executable_path() {
+            if let Some(path) = path.parent() {
+                if let Some(path) = path.to_str() {
+                    if let Ok(current_path) = std::env::var("PATH") {
+                        std::env::set_var("PATH", &format!("{path}:{current_path}"));
+                    }
+                }
+            }
+        }
+
+        let local_socket = Directory::local_socket()
+            .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+        let _ = std::fs::remove_file(&local_socket);
+        let socket =
+            interprocess::local_socket::LocalSocketListener::bind(local_socket)?;
+
+        for stream in socket.incoming().flatten() {
+            let mut reader = BufReader::new(stream);
+            let event_sink = event_sink.clone();
+            thread::spawn(move || -> Result<()> {
+                loop {
+                    let msg: RpcMessage<
+                        CoreRequest,
+                        CoreNotification,
+                        CoreResponse,
+                    > = lapce_rpc::stdio::read_msg(&mut reader)?;
+                    if let RpcMessage::Notification(CoreNotification::OpenPaths {
+                        window_tab_id,
+                        folders,
+                        files,
+                    }) = msg
+                    {
+                        let window_tab_id =
+                            window_tab_id.map(|(window_id, tab_id)| {
+                                (
+                                    WindowId::from_usize(window_id),
+                                    WidgetId::from_usize(tab_id),
+                                )
+                            });
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::OpenPaths {
+                                window_tab_id,
+                                folders,
+                                files,
+                            },
+                            Target::Global,
+                        );
+                    }
+                }
+            });
+        }
+        Ok(())
+    }
+
+    pub fn check_local_socket(paths: Vec<PathBuf>) -> Result<()> {
+        let local_socket = Directory::local_socket()
+            .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+        let mut socket =
+            interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
+        let folders: Vec<PathBuf> =
+            paths.clone().into_iter().filter(|p| p.is_dir()).collect();
+        let files: Vec<PathBuf> =
+            paths.into_iter().filter(|p| p.is_file()).collect();
+        let msg: RpcMessage<CoreRequest, CoreNotification, CoreResponse> =
+            RpcMessage::Notification(CoreNotification::OpenPaths {
+                window_tab_id: None,
+                folders,
+                files,
+            });
+        lapce_rpc::stdio::write_msg(&mut socket, msg)?;
+        Ok(())
     }
 }
 
@@ -544,6 +663,7 @@ impl LapceTabData {
         let mut all_disabled_volts = disabled_volts.clone();
         all_disabled_volts.extend_from_slice(&workspace_disabled_volts);
         let proxy = Arc::new(LapceProxy::new(
+            window_id,
             tab_id,
             workspace.clone(),
             all_disabled_volts,
@@ -1153,7 +1273,7 @@ impl LapceTabData {
             LapceWorkbenchCommand::NewWindowTab => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::NewTab,
+                    LapceUICommand::NewTab(None),
                     Target::Auto,
                 ));
             }
