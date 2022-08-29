@@ -126,6 +126,23 @@ fn new_window_desc<W, T: druid::Data>(
 where
     W: Widget<T> + 'static,
 {
+    // Check if the window would spawn in point (x: 0, y: 0)
+    // (initial coordinates of top left corner on primary screen)
+    // and isn't maximised, then calculate point to spawn center of
+    // editor in center of primary screen
+    let pos = if pos.x == 0.0 && pos.y == 0.0 && !maximised {
+        let screens = druid::Screen::get_monitors();
+        let mut screens = screens.iter().filter(|f| f.is_primary());
+        // Get actual workspace rectangle excluding taskbars/menus
+        let screen_pos = screens.next().unwrap().virtual_work_rect().center();
+        // Position our window centered, not in center point
+        Point::new(
+            screen_pos.x - size.width / 2.0,
+            screen_pos.y - size.height / 2.0,
+        )
+    } else {
+        pos
+    };
     let mut desc = WindowDesc::new_with_id(window_id, root)
         .show_titlebar(false)
         .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
