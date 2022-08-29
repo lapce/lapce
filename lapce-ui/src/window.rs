@@ -1,9 +1,9 @@
 use druid::{
     kurbo::Line,
     widget::{LensWrap, WidgetExt},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Rect, Region, RenderContext, SingleUse, Size,
-    Target, Widget, WidgetId, WidgetPod, WindowConfig, WindowId, WindowState,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, InternalEvent, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, Region, RenderContext,
+    SingleUse, Size, Target, Widget, WidgetId, WidgetPod, WindowConfig, WindowState,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -13,13 +13,10 @@ use lapce_data::{
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use crate::{
-    svg::get_svg,
-    tab::{LapceTab, LapceTabHeader, LapceTabMeta, LAPCE_TAB_META},
-};
+use crate::tab::{LapceTab, LapceTabHeader, LapceTabMeta, LAPCE_TAB_META};
 
 pub struct LapceWindow {
-    mouse_pos: Point,
+    pub mouse_pos: Point,
     // pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
     pub tabs: Vec<WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>>,
     pub tab_headers: Vec<
@@ -32,7 +29,7 @@ pub struct LapceWindow {
     pub tab_header_cmds: Vec<(Rect, Command)>,
     pub mouse_down_cmd: Option<(Rect, Command)>,
     #[cfg(not(target_os = "macos"))]
-    holding_click_rect: Option<Rect>,
+    pub holding_click_rect: Option<Rect>,
 }
 
 impl LapceWindow {

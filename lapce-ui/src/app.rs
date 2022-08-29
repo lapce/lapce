@@ -309,6 +309,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                 window_data.tabs.insert(tab_id, tab);
 
                 let window_widget = LapceWindow {
+                    mouse_pos: Point::ZERO,
                     tabs: vec![meta.widget],
                     tab_headers: [tab_id]
                         .iter()
@@ -321,6 +322,8 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                     dragable_area: Region::EMPTY,
                     tab_header_cmds: Vec::new(),
                     mouse_down_cmd: None,
+                    #[cfg(not(target_os = "macos"))]
+                    holding_click_rect: None,
                 };
                 let window_id = window_data.window_id;
                 let root = window_widget.lens(LapceWindowLens(window_id));

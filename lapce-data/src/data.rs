@@ -282,7 +282,9 @@ impl LapceData {
         if let Some(path) = process_path::get_executable_path() {
             if let Some(path) = path.parent() {
                 if let Some(path) = path.to_str() {
-                    std::env::set_var("PATH", &format!("{}:$PATH", path));
+                    if let Ok(current_path) = std::env::var("PATH") {
+                        std::env::set_var("PATH", &format!("{path}:{current_path}"));
+                    }
                 }
             }
         }

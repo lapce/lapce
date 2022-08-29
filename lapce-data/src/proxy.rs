@@ -330,8 +330,6 @@ impl LapceProxy {
             return Err(anyhow!("Unknown OS and/or architecture"));
         }
 
-        let proxy_filename = "lapce";
-
         // ! Below paths have to be synced with what is
         // ! returned by Config::proxy_directory()
         let remote_proxy_path = match platform {
@@ -349,12 +347,11 @@ impl LapceProxy {
         };
 
         let remote_proxy_file = match platform {
-            Windows => format!("{remote_proxy_path}\\{proxy_filename}.exe"),
-            _ => format!("{remote_proxy_path}/{proxy_filename}"),
+            Windows => format!("{remote_proxy_path}\\lapce.exe"),
+            _ => format!("{remote_proxy_path}/lapce"),
         };
 
-        let proxy_filename =
-            format!("{proxy_filename}-{}-{}", platform, architecture);
+        let proxy_filename = format!("lapce-proxy-{}-{}", platform, architecture);
 
         log::debug!(target: "lapce_data::proxy::start_remote", "remote proxy path: {remote_proxy_path}");
 
