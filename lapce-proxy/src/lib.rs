@@ -128,7 +128,7 @@ pub fn mainloop() {
 
     let local_proxy_rpc = proxy_rpc.clone();
     std::thread::spawn(move || {
-        let _ = crate::listen_local_socket(local_proxy_rpc);
+        let _ = listen_local_socket(local_proxy_rpc);
     });
     if let Some(path) = process_path::get_executable_path() {
         if let Some(path) = path.parent() {
