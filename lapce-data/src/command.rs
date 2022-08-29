@@ -409,6 +409,10 @@ pub enum LapceWorkbenchCommand {
 
     #[strum(serialize = "restart_to_update")]
     RestartToUpdate,
+
+    #[strum(serialize = "show_about")]
+    #[strum(message = "About")]
+    ShowAbout,
 }
 
 #[derive(Debug)]
@@ -456,6 +460,7 @@ pub enum LapceUICommand {
         editor_view_id: WidgetId,
         location: EditorLocation,
     },
+    ShowAbout,
     ShowAlert(AlertContentData),
     ShowMenu(Point, Arc<Vec<MenuKind>>),
     UpdateSearchInput(String),

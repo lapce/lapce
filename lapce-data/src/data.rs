@@ -42,6 +42,7 @@ use serde_json::Value;
 use xi_rope::{Rope, RopeDelta};
 
 use crate::{
+    about::AboutData,
     alert::{AlertContentData, AlertData},
     command::{
         CommandKind, EnsureVisiblePosition, InitBufferContentCb, LapceCommand,
@@ -467,6 +468,7 @@ pub struct LapceTabData {
     pub proxy_status: Arc<ProxyStatus>,
     pub keypress: Arc<KeyPressData>,
     pub settings: Arc<LapceSettingsPanelData>,
+    pub about: Arc<AboutData>,
     pub alert: Arc<AlertData>,
     pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
     pub term_rx: Option<Receiver<(TermId, TermEvent)>>,
@@ -496,6 +498,7 @@ impl Data for LapceTabData {
             && self.focus_area == other.focus_area
             && self.proxy_status.same(&other.proxy_status)
             && self.find.same(&other.find)
+            && self.about.same(&other.about)
             && self.alert.same(&other.alert)
             && self.progresses.ptr_eq(&other.progresses)
             && self.file_explorer.same(&other.file_explorer)
@@ -556,6 +559,7 @@ impl LapceTabData {
         let hover = Arc::new(HoverData::new());
         let source_control = Arc::new(SourceControlData::new());
         let settings = Arc::new(LapceSettingsPanelData::new());
+        let about = Arc::new(AboutData::new());
         let alert = Arc::new(AlertData::new());
         let plugin = Arc::new(PluginData::new(
             tab_id,
@@ -669,6 +673,7 @@ impl LapceTabData {
             palette,
             proxy,
             settings,
+            about,
             alert,
             proxy_status: Arc::new(ProxyStatus::Connecting),
             keypress,
@@ -1424,6 +1429,13 @@ impl LapceTabData {
                     "enable-inlay-hints",
                     toml_edit::Value::from(config.editor.enable_inlay_hints),
                 );
+            }
+            LapceWorkbenchCommand::ShowAbout => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ShowAbout,
+                    Target::Widget(self.id),
+                ));
             }
         }
     }
