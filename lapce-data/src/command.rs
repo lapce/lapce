@@ -217,6 +217,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open Settings File")]
     OpenSettingsFile,
 
+    #[strum(serialize = "open_settings_directory")]
+    #[strum(message = "Open Settings Directory")]
+    OpenSettingsDirectory,
+
     #[strum(serialize = "open_keyboard_shortcuts")]
     #[strum(message = "Open Keyboard Shortcuts")]
     OpenKeyboardShortcuts,
@@ -228,6 +232,22 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "open_log_file")]
     #[strum(message = "Open Log File")]
     OpenLogFile,
+
+    #[strum(serialize = "open_logs_directory")]
+    #[strum(message = "Open Logs Directory")]
+    OpenLogsDirectory,
+
+    #[strum(serialize = "open_proxy_directory")]
+    #[strum(message = "Open Proxy Directory")]
+    OpenProxyDirectory,
+
+    #[strum(serialize = "open_themes_directory")]
+    #[strum(message = "Open Themes Directory")]
+    OpenThemesDirectory,
+
+    #[strum(serialize = "open_plugins_directory")]
+    #[strum(message = "Open Plugins Directory")]
+    OpenPluginsDirectory,
 
     #[strum(serialize = "close_window_tab")]
     #[strum(message = "Close Current Window Tab")]
