@@ -380,7 +380,7 @@ impl Title {
         let settings_svg = get_svg("settings.svg").unwrap();
         self.svgs.push((
             settings_svg,
-            settings_rect.inflate(-10.5, -10.5),
+            settings_rect.inflate(-10.0, -10.0),
             Some(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
