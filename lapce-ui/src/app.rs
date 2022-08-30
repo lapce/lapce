@@ -229,7 +229,7 @@ impl Default for LapceAppDelegate {
 impl AppDelegate<LapceData> for LapceAppDelegate {
     fn event(
         &mut self,
-        _ctx: &mut druid::DelegateCtx,
+        ctx: &mut druid::DelegateCtx,
         _window_id: WindowId,
         event: druid::Event,
         data: &mut LapceData,
@@ -238,6 +238,16 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         match event {
             Event::ApplicationWillTerminate => {
                 let _ = data.db.save_app(data);
+                return None;
+            }
+            Event::ApplicationShouldHandleReopen(has_visible_windows) => {
+                if !has_visible_windows {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::NewWindow(WindowId::next()),
+                        Target::Global,
+                    ));
+                }
                 return None;
             }
             Event::WindowGotFocus(window_id) => {
@@ -437,10 +447,17 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                             // If maximised, use default dimensions instead
                             .filter(|win| !win.maximised)
                             .map(|win| (win.size, win.pos + (50.0, 50.0)))
-                            .unwrap_or((
-                                Size::new(800.0, 600.0),
-                                Point::new(0.0, 0.0),
-                            ));
+                            .unwrap_or_else(|| {
+                                data.db
+                                    .get_last_window_info()
+                                    .map(|i| (i.size, i.pos))
+                                    .unwrap_or_else(|_| {
+                                        (
+                                            Size::new(800.0, 600.0),
+                                            Point::new(0.0, 0.0),
+                                        )
+                                    })
+                            });
                         let info = WindowInfo {
                             size,
                             pos,
