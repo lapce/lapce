@@ -293,6 +293,9 @@ pub enum FocusCommand {
     SaveAndExit,
     #[strum(serialize = "force_exit")]
     ForceExit,
+    #[strum(serialize = "rename_symbol")]
+    #[strum(message = "Rename Symbol")]
+    Rename,
 }
 
 #[derive(

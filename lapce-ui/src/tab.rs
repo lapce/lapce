@@ -45,11 +45,12 @@ use xi_rope::Rope;
 
 use crate::{
     about::AboutBox, alert::AlertBox, completion::CompletionContainer,
-    explorer::FileExplorer, hover::HoverContainer, panel::PanelContainer,
-    picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
-    search::new_search_panel, settings::LapceSettingsPanel,
-    source_control::new_source_control_panel, split::split_data_widget,
-    status::LapceStatus, svg::get_svg, terminal::TerminalPanel, title::Title,
+    editor::view::LapceEditorView, explorer::FileExplorer, hover::HoverContainer,
+    panel::PanelContainer, picker::FilePicker, plugin::Plugin,
+    problem::new_problem_panel, search::new_search_panel,
+    settings::LapceSettingsPanel, source_control::new_source_control_panel,
+    split::split_data_widget, status::LapceStatus, svg::get_svg,
+    terminal::TerminalPanel, title::Title,
 };
 
 pub const LAPCE_TAB_META: Selector<SingleUse<LapceTabMeta>> =
@@ -78,6 +79,7 @@ pub struct LapceTab {
     main_split: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     completion: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     hover: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    rename: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     picker: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     settings: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
@@ -105,6 +107,11 @@ impl LapceTab {
 
         let completion = CompletionContainer::new(&data.completion);
         let hover = HoverContainer::new(&data.hover);
+        let rename =
+            LapceEditorView::new(data.rename.view_id, data.rename.editor_id, None)
+                .hide_header()
+                .hide_gutter()
+                .padding((10.0, 5.0, 10.0, 5.0));
         let status = LapceStatus::new();
         let picker = FilePicker::new(data);
 
@@ -178,6 +185,7 @@ impl LapceTab {
             main_split: WidgetPod::new(main_split.boxed()),
             completion: WidgetPod::new(completion.boxed()),
             hover: WidgetPod::new(hover.boxed()),
+            rename: WidgetPod::new(rename.boxed()),
             picker: WidgetPod::new(picker.boxed()),
             status: WidgetPod::new(status.boxed()),
             settings: WidgetPod::new(settings.boxed()),
@@ -860,6 +868,26 @@ impl LapceTab {
                         let doc = Arc::make_mut(doc);
                         doc.load_history(version, content.clone());
                         ctx.set_handled();
+                    }
+                    LapceUICommand::PrepareRename {
+                        path,
+                        rev,
+                        offset,
+                        start,
+                        end,
+                        placeholder,
+                    } => {
+                        ctx.set_handled();
+                        Arc::make_mut(&mut data.rename).handle_prepare_rename(
+                            ctx,
+                            &mut data.main_split,
+                            path.to_path_buf(),
+                            *rev,
+                            *offset,
+                            *start,
+                            *end,
+                            placeholder.clone(),
+                        );
                     }
                     LapceUICommand::UpdateTerminalTitle(term_id, title) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
@@ -1779,6 +1807,9 @@ impl Widget<LapceTabData> for LapceTab {
         {
             self.hover.event(ctx, event, data, env);
         }
+        if data.rename.active || event.should_propagate_to_hidden() {
+            self.rename.event(ctx, event, data, env);
+        }
 
         if !event.should_propagate_to_hidden() && !ctx.is_handled() {
             self.handle_event(ctx, event, data, env);
@@ -1867,6 +1898,7 @@ impl Widget<LapceTabData> for LapceTab {
         self.status.lifecycle(ctx, event, data, env);
         self.completion.lifecycle(ctx, event, data, env);
         self.hover.lifecycle(ctx, event, data, env);
+        self.rename.lifecycle(ctx, event, data, env);
         self.picker.lifecycle(ctx, event, data, env);
         self.settings.lifecycle(ctx, event, data, env);
         self.about.lifecycle(ctx, event, data, env);
@@ -1930,6 +1962,10 @@ impl Widget<LapceTabData> for LapceTab {
             ctx.request_layout();
         }
 
+        if old_data.rename.active != data.rename.active {
+            ctx.request_layout();
+        }
+
         if old_data.picker.active != data.picker.active {
             ctx.request_layout();
         }
@@ -1938,6 +1974,7 @@ impl Widget<LapceTabData> for LapceTab {
         self.main_split.update(ctx, data, env);
         self.completion.update(ctx, data, env);
         self.hover.update(ctx, data, env);
+        self.rename.update(ctx, data, env);
         self.status.update(ctx, data, env);
         self.picker.update(ctx, data, env);
         self.settings.update(ctx, data, env);
@@ -2081,6 +2118,18 @@ impl Widget<LapceTabData> for LapceTab {
             self.hover.set_origin(ctx, data, env, hover_origin);
         }
 
+        if data.rename.active {
+            let rename_size = self.rename.layout(
+                ctx,
+                &BoxConstraints::tight(Size::new(300.0, 300.0)),
+                data,
+                env,
+            );
+            let rename_origin =
+                data.rename_origin(ctx.text(), self_size, rename_size, &data.config);
+            self.rename.set_origin(ctx, data, env, rename_origin);
+        }
+
         if data.picker.active {
             let picker_size = self.picker.layout(ctx, bc, data, env);
             self.picker.set_origin(
@@ -2189,6 +2238,9 @@ impl Widget<LapceTabData> for LapceTab {
         }
         self.title.paint(ctx, data, env);
         self.status.paint(ctx, data, env);
+        if data.rename.active {
+            self.rename.paint(ctx, data, env);
+        }
         self.completion.paint(ctx, data, env);
         self.hover.paint(ctx, data, env);
         self.picker.paint(ctx, data, env);

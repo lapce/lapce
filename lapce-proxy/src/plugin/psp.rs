@@ -26,8 +26,9 @@ use lsp_types::{
     request::{
         CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
         GotoDefinition, GotoTypeDefinition, HoverRequest, Initialize,
-        InlayHintRequest, References, RegisterCapability, ResolveCompletionItem,
-        SemanticTokensFullRequest, WorkDoneProgressCreate, WorkspaceSymbol,
+        InlayHintRequest, PrepareRenameRequest, References, RegisterCapability,
+        Rename, ResolveCompletionItem, SemanticTokensFullRequest,
+        WorkDoneProgressCreate, WorkspaceSymbol,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidSaveTextDocumentParams, HoverProviderCapability, OneOf, ProgressParams,
@@ -654,6 +655,10 @@ impl PluginHostHandler {
             WorkspaceSymbol::METHOD => {
                 self.server_capabilities.workspace_symbol_provider.is_some()
             }
+            PrepareRenameRequest::METHOD => {
+                self.server_capabilities.rename_provider.is_some()
+            }
+            Rename::METHOD => self.server_capabilities.rename_provider.is_some(),
             _ => false,
         }
     }

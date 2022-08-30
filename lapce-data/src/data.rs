@@ -74,6 +74,7 @@ use crate::{
     plugin::PluginData,
     problem::ProblemData,
     proxy::{LapceProxy, ProxyStatus, TermEvent},
+    rename::RenameData,
     search::SearchData,
     settings::LapceSettingsPanelData,
     source_control::SourceControlData,
@@ -574,6 +575,7 @@ pub struct LapceTabData {
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
     pub hover: Arc<HoverData>,
+    pub rename: Arc<RenameData>,
     pub terminal: Arc<TerminalSplitData>,
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
@@ -607,6 +609,7 @@ impl Data for LapceTabData {
         self.main_split.same(&other.main_split)
             && self.completion.same(&other.completion)
             && self.hover.same(&other.hover)
+            && self.rename.same(&other.rename)
             && self.palette.same(&other.palette)
             && self.workspace.same(&other.workspace)
             && self.source_control.same(&other.source_control)
@@ -677,6 +680,7 @@ impl LapceTabData {
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
         let hover = Arc::new(HoverData::new());
+        let rename = Arc::new(RenameData::new());
         let source_control = Arc::new(SourceControlData::new());
         let settings = Arc::new(LapceSettingsPanelData::new());
         let about = Arc::new(AboutData::new());
@@ -752,6 +756,13 @@ impl LapceTabData {
             event_sink.clone(),
         );
         main_split.add_editor(
+            rename.view_id,
+            None,
+            LocalBufferKind::Rename,
+            &config,
+            event_sink.clone(),
+        );
+        main_split.add_editor(
             file_picker.editor_view_id,
             None,
             LocalBufferKind::FilePicker,
@@ -780,6 +791,7 @@ impl LapceTabData {
             main_split,
             completion,
             hover,
+            rename,
             terminal,
             plugin,
             problem,
@@ -873,6 +885,7 @@ impl LapceTabData {
             main_split: self.main_split.clone(),
             completion: self.completion.clone(),
             hover: self.hover.clone(),
+            rename: self.rename.clone(),
             source_control: self.source_control.clone(),
             proxy: self.proxy.clone(),
             find: self.find.clone(),
@@ -919,6 +932,7 @@ impl LapceTabData {
     ) {
         self.completion = editor_buffer_data.completion.clone();
         self.hover = editor_buffer_data.hover.clone();
+        self.rename = editor_buffer_data.rename.clone();
         self.main_split = editor_buffer_data.main_split.clone();
         self.find = editor_buffer_data.find.clone();
         if !editor_buffer_data.editor.same(editor) {
@@ -997,6 +1011,57 @@ impl LapceTabData {
                 }
                 if origin.x + self.completion.size.width + 1.0 > tab_size.width {
                     origin.x = tab_size.width - self.completion.size.width - 1.0;
+                }
+                if origin.x <= 0.0 {
+                    origin.x = 0.0;
+                }
+
+                origin
+            }
+        }
+    }
+
+    pub fn rename_origin(
+        &self,
+        text: &mut PietText,
+        tab_size: Size,
+        rename_size: Size,
+        config: &Config,
+    ) -> Point {
+        let editor = self.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return Point::ZERO,
+        };
+
+        match &editor.content {
+            BufferContent::Local(_) => {
+                *editor.window_origin.borrow()
+                    - self.window_origin.borrow().to_vec2()
+            }
+            BufferContent::SettingsValue(..) => {
+                *editor.window_origin.borrow()
+                    - self.window_origin.borrow().to_vec2()
+            }
+            BufferContent::File(_) | BufferContent::Scratch(..) => {
+                let doc = self.main_split.editor_doc(editor.view_id);
+                let offset = self.rename.start;
+                let (point_above, point_below) =
+                    doc.points_of_offset(text, offset, &editor.view, config);
+
+                let line_height = self.config.editor.line_height as f64;
+
+                let mut origin = *editor.window_origin.borrow()
+                    - self.window_origin.borrow().to_vec2()
+                    + Vec2::new(point_below.x, point_below.y);
+                if origin.y + rename_size.height + 1.0 > tab_size.height {
+                    origin.y = editor.window_origin.borrow().y
+                        - self.window_origin.borrow().y
+                        + point_above.y
+                        - rename_size.height;
+                }
+                if origin.x + rename_size.width + 1.0 > tab_size.width {
+                    origin.x = tab_size.width - rename_size.width - 1.0;
                 }
                 if origin.x <= 0.0 {
                     origin.x = 0.0;

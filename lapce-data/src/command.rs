@@ -638,6 +638,14 @@ pub enum LapceUICommand {
         offset: usize,
         location: EditorLocation<Position>,
     },
+    PrepareRename {
+        path: PathBuf,
+        rev: u64,
+        offset: usize,
+        start: usize,
+        end: usize,
+        placeholder: String,
+    },
     PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),
     ActiveFileChanged {

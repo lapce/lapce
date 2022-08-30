@@ -82,6 +82,10 @@ command = "previous_editor_tab"
 # --------------------------------- Rich Language Editing ----------------------------
 
 [[keymaps]]
+key = "F2"
+command = "rename_symbol"
+
+[[keymaps]]
 key = "F12"
 command = "goto_definition"
 

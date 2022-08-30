@@ -169,6 +169,7 @@ impl LapceEditorView {
                     Arc::make_mut(&mut data.source_control).active = self.view_id;
                 }
                 LocalBufferKind::PathName => {}
+                LocalBufferKind::Rename => {}
                 LocalBufferKind::Empty => {
                     data.focus_area = FocusArea::Editor;
                     data.main_split.active = Arc::new(Some(self.view_id));

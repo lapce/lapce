@@ -19,6 +19,7 @@ use crate::keypress::KeyMap;
 use crate::keypress::KeyPressFocus;
 use crate::palette::PaletteData;
 use crate::proxy::path_from_url;
+use crate::rename::RenameData;
 use crate::{
     command::{
         EnsureVisiblePosition, InitBufferContent, LapceUICommand, LAPCE_UI_COMMAND,
@@ -55,6 +56,7 @@ use lsp_types::CompletionTextEdit;
 use lsp_types::DocumentChangeOperation;
 use lsp_types::DocumentChanges;
 use lsp_types::OneOf;
+use lsp_types::PrepareRenameResponse;
 use lsp_types::TextEdit;
 use lsp_types::Url;
 use lsp_types::WorkspaceEdit;
@@ -218,6 +220,7 @@ pub struct LapceEditorBufferData {
     pub doc: Arc<Document>,
     pub completion: Arc<CompletionData>,
     pub hover: Arc<HoverData>,
+    pub rename: Arc<RenameData>,
     pub main_split: LapceMainSplitData,
     pub source_control: Arc<SourceControlData>,
     pub palette: Arc<PaletteData>,
@@ -2143,6 +2146,41 @@ impl LapceEditorBufferData {
             }
             Save => {
                 self.save(ctx, false);
+            }
+            Rename => {
+                if let BufferContent::File(path) = self.doc.content() {
+                    let offset = self.editor.cursor.offset();
+                    let buffer = self.doc.buffer().clone();
+                    let rev = self.doc.rev();
+                    let path = path.to_path_buf();
+                    let tab_id = *self.main_split.tab_id;
+                    let event_sink = ctx.get_external_handle();
+
+                    Arc::make_mut(&mut self.rename).update(
+                        path.clone(),
+                        rev,
+                        offset,
+                    );
+
+                    if let Some(position) =
+                        self.doc.buffer().offset_to_position(offset)
+                    {
+                        self.proxy.proxy_rpc.prepare_rename(
+                            path.clone(),
+                            position,
+                            move |result| {
+                                if let Ok(ProxyResponse::PrepareRename { resp }) =
+                                    result
+                                {
+                                    RenameData::prepare_rename(
+                                        tab_id, path, offset, rev, buffer, resp,
+                                        event_sink,
+                                    );
+                                }
+                            },
+                        );
+                    }
+                }
             }
             _ => return CommandExecuted::No,
         }
