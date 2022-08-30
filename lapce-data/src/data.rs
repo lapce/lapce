@@ -556,6 +556,7 @@ pub struct WorkProgress {
 pub enum FocusArea {
     Palette,
     Editor,
+    Rename,
     Panel(PanelKind),
     FilePicker,
 }
@@ -886,6 +887,7 @@ impl LapceTabData {
             completion: self.completion.clone(),
             hover: self.hover.clone(),
             rename: self.rename.clone(),
+            focus_area: self.focus_area.clone(),
             source_control: self.source_control.clone(),
             proxy: self.proxy.clone(),
             find: self.find.clone(),
@@ -1048,8 +1050,6 @@ impl LapceTabData {
                 let offset = self.rename.start;
                 let (point_above, point_below) =
                     doc.points_of_offset(text, offset, &editor.view, config);
-
-                let line_height = self.config.editor.line_height as f64;
 
                 let mut origin = *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()

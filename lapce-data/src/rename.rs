@@ -49,6 +49,10 @@ impl RenameData {
         self.offset = offset;
     }
 
+    pub fn cancel(&mut self) {
+        self.active = false;
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn handle_prepare_rename(
         &mut self,

@@ -6,6 +6,7 @@ use crate::command::{CommandExecuted, CommandKind};
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::Config;
 use crate::data::EditorView;
+use crate::data::FocusArea;
 use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     SplitContent,
@@ -56,7 +57,6 @@ use lsp_types::CompletionTextEdit;
 use lsp_types::DocumentChangeOperation;
 use lsp_types::DocumentChanges;
 use lsp_types::OneOf;
-use lsp_types::PrepareRenameResponse;
 use lsp_types::TextEdit;
 use lsp_types::Url;
 use lsp_types::WorkspaceEdit;
@@ -222,6 +222,7 @@ pub struct LapceEditorBufferData {
     pub hover: Arc<HoverData>,
     pub rename: Arc<RenameData>,
     pub main_split: LapceMainSplitData,
+    pub focus_area: FocusArea,
     pub source_control: Arc<SourceControlData>,
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
@@ -345,6 +346,10 @@ impl LapceEditorBufferData {
         self.editor.content == BufferContent::Local(LocalBufferKind::Palette)
     }
 
+    fn is_rename(&self) -> bool {
+        self.editor.content == BufferContent::Local(LocalBufferKind::Rename)
+    }
+
     /// Check if there are completions that are being rendered
     fn has_completions(&self) -> bool {
         self.completion.status != CompletionStatus::Inactive
@@ -353,6 +358,10 @@ impl LapceEditorBufferData {
 
     fn has_hover(&self) -> bool {
         self.hover.status != HoverStatus::Inactive && !self.hover.is_empty()
+    }
+
+    fn has_rename(&self) -> bool {
+        self.rename.active
     }
 
     pub fn run_code_action(
@@ -601,6 +610,26 @@ impl LapceEditorBufferData {
     pub fn cancel_hover(&mut self) {
         let hover = Arc::make_mut(&mut self.hover);
         hover.cancel();
+    }
+
+    pub fn cancel_rename(&mut self, ctx: &mut EventCtx) {
+        let rename = Arc::make_mut(&mut self.rename);
+        rename.cancel();
+        if self.focus_area == FocusArea::Rename {
+            if let Some(active) = *self.main_split.active_tab {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(active),
+                ));
+            } else {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(*self.main_split.split_id),
+                ));
+            }
+        }
     }
 
     /// Update the displayed autocompletion box
@@ -1393,6 +1422,9 @@ impl LapceEditorBufferData {
                 }
                 if self.has_hover() {
                     self.cancel_hover();
+                }
+                if self.is_rename() {
+                    self.cancel_rename(ctx);
                 }
             }
             SplitVertical => {
@@ -2262,6 +2294,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 (self.has_completions() && !self.config.lapce.modal)
                     || self.has_hover()
                     || self.is_palette()
+                    || self.has_rename()
             }
             _ => false,
         }

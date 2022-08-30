@@ -1850,17 +1850,27 @@ impl Widget<LapceTabData> for LapceTab {
                 }
             }
             Event::MouseDown(_) => {
-                if !ctx.is_handled()
-                    && data.palette.status != PaletteStatus::Inactive
-                {
-                    ctx.submit_command(Command::new(
-                        LAPCE_COMMAND,
-                        LapceCommand {
-                            kind: CommandKind::Focus(FocusCommand::ModalClose),
-                            data: None,
-                        },
-                        Target::Widget(data.palette.widget_id),
-                    ));
+                if !ctx.is_handled() {
+                    if data.palette.status != PaletteStatus::Inactive {
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Focus(FocusCommand::ModalClose),
+                                data: None,
+                            },
+                            Target::Widget(data.palette.widget_id),
+                        ));
+                    }
+                    if data.focus_area == FocusArea::Rename {
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Focus(FocusCommand::ModalClose),
+                                data: None,
+                            },
+                            Target::Widget(data.rename.view_id),
+                        ));
+                    }
                 }
             }
             Event::KeyDown(key_event) if !ctx.is_handled() => {
@@ -2121,7 +2131,7 @@ impl Widget<LapceTabData> for LapceTab {
         if data.rename.active {
             let rename_size = self.rename.layout(
                 ctx,
-                &BoxConstraints::tight(Size::new(300.0, 300.0)),
+                &BoxConstraints::tight(Size::new(200.0, 200.0)),
                 data,
                 env,
             );
@@ -2239,6 +2249,27 @@ impl Widget<LapceTabData> for LapceTab {
         self.title.paint(ctx, data, env);
         self.status.paint(ctx, data, env);
         if data.rename.active {
+            let rect = self.rename.layout_rect();
+            let shadow_width = data.config.ui.drop_shadow_width() as f64;
+            if shadow_width > 0.0 {
+                ctx.blurred_rect(
+                    rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            } else {
+                ctx.stroke(
+                    rect.inflate(0.5, 0.5),
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
+            }
+            ctx.fill(
+                rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+            );
             self.rename.paint(ctx, data, env);
         }
         self.completion.paint(ctx, data, env);
