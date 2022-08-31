@@ -1401,6 +1401,13 @@ impl LapceTabData {
                     Target::Global,
                 ));
             }
+            LapceWorkbenchCommand::CloseWindow => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::CloseWindow(self.window_id),
+                    Target::Auto,
+                ));
+            }
             LapceWorkbenchCommand::ReloadWindow => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,

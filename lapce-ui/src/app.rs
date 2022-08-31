@@ -498,6 +498,15 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                         ctx.new_window(desc);
                         return druid::Handled::Yes;
                     }
+                    LapceUICommand::CloseWindow(window_id) => {
+                        ctx.submit_command(Command::new(
+                            druid::commands::CLOSE_WINDOW,
+                            (),
+                            Target::Window(*window_id),
+                        ));
+                        let _ = data.db.save_app(data);
+                        return druid::Handled::Yes;
+                    }
                     _ => (),
                 }
             }
