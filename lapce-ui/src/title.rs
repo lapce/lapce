@@ -828,59 +828,98 @@ impl Widget<LapceTabData> for Title {
         let arrow_left_rect = Size::new(36.0, 36.0)
             .to_rect()
             .with_origin(Point::new(palette_origin.x - 36.0 - 36.0, 0.0));
+        let (arrow_left_svg_color, arrow_left_svg_hover_color) =
+            if data.main_split.current_location < 1 {
+                (
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .clone(),
+                    ),
+                    None,
+                )
+            } else {
+                self.menus.push((
+                    arrow_left_rect,
+                    Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(
+                                FocusCommand::JumpLocationBackward,
+                            ),
+                            data: None,
+                        },
+                        target,
+                    ),
+                ));
+                (
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    ),
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_CURRENT)
+                            .clone(),
+                    ),
+                )
+            };
         self.svgs.push((
             get_svg("arrow-left.svg").unwrap(),
             arrow_left_rect.inflate(-10.5, -10.5),
-            Some(
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            ),
-            Some(
-                data.config
-                    .get_color_unchecked(LapceTheme::PANEL_CURRENT)
-                    .clone(),
-            ),
-        ));
-        self.menus.push((
-            arrow_left_rect,
-            Command::new(
-                LAPCE_COMMAND,
-                LapceCommand {
-                    kind: CommandKind::Focus(FocusCommand::JumpLocationBackward),
-                    data: None,
-                },
-                target,
-            ),
+            arrow_left_svg_color,
+            arrow_left_svg_hover_color,
         ));
 
         let arrow_right_rect = Size::new(36.0, 36.0)
             .to_rect()
             .with_origin(Point::new(palette_origin.x - 36.0, 0.0));
+        let (arrow_right_svg_color, arrow_right_svg_hover_color) = if data
+            .main_split
+            .locations
+            .is_empty()
+            || data.main_split.current_location
+                >= data.main_split.locations.len() - 1
+        {
+            (
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .clone(),
+                ),
+                None,
+            )
+        } else {
+            self.menus.push((
+                arrow_right_rect,
+                Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::JumpLocationForward),
+                        data: None,
+                    },
+                    target,
+                ),
+            ));
+            (
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                ),
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_CURRENT)
+                        .clone(),
+                ),
+            )
+        };
         self.svgs.push((
             get_svg("arrow-right.svg").unwrap(),
             arrow_right_rect.inflate(-10.5, -10.5),
-            Some(
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            ),
-            Some(
-                data.config
-                    .get_color_unchecked(LapceTheme::PANEL_CURRENT)
-                    .clone(),
-            ),
-        ));
-        self.menus.push((
-            arrow_right_rect,
-            Command::new(
-                LAPCE_COMMAND,
-                LapceCommand {
-                    kind: CommandKind::Focus(FocusCommand::JumpLocationForward),
-                    data: None,
-                },
-                target,
-            ),
+            arrow_right_svg_color,
+            arrow_right_svg_hover_color,
         ));
 
         self.dragable_area.clear();
