@@ -5035,7 +5035,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-yaml"
 version = "0.0.1"
-source = "git+https://github.com/panekj/tree-sitter-yaml?branch=master#faed130c65531addfa3edf855e1d417b96c7f163"
+source = "git+https://github.com/panekj/tree-sitter-yaml?branch=master#80c8d76847f03e772c5c524cf29bafb56858a8d1"
 dependencies = [
  "cc",
  "tree-sitter",
