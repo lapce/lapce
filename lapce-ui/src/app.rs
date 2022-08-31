@@ -71,13 +71,13 @@ pub fn launch() {
         log_dispatch = log_dispatch.chain(
             fern::Dispatch::new()
                 .level(log::LevelFilter::Debug)
-                .level_for("lapce_data::keypress", log::LevelFilter::Off)
+                .level_for("lapce_data::keypress::key_down", log::LevelFilter::Off)
                 .level_for("sled", log::LevelFilter::Off)
                 .level_for("tracing", log::LevelFilter::Off)
                 .level_for("druid::core", log::LevelFilter::Off)
                 .level_for("druid::box_constraints", log::LevelFilter::Off)
                 .level_for("cranelift_codegen", log::LevelFilter::Off)
-                .level_for("wasmer_compiler_cranelift", log::LevelFilter::Off)
+                .level_for("wasmtime_cranelift", log::LevelFilter::Off)
                 .level_for("regalloc", log::LevelFilter::Off)
                 .level_for("hyper::proto", log::LevelFilter::Off)
                 .chain(log_file),
