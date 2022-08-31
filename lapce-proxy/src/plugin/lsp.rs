@@ -192,6 +192,7 @@ impl LspClient {
                         );
                     }
                     Err(_err) => {
+                        log::info!("lsp server {server} stopped");
                         return;
                     }
                 };
