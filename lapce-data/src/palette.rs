@@ -157,7 +157,7 @@ impl PaletteItemContent {
                 if !preview {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::OpenFile(full_path.clone()),
+                        LapceUICommand::OpenFile(full_path.clone(), true),
                         Target::Auto,
                     ));
                 }
@@ -170,7 +170,7 @@ impl PaletteItemContent {
                 };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToPosition(editor_id, range.start),
+                    LapceUICommand::JumpToPosition(editor_id, range.start, true),
                     Target::Auto,
                 ));
             }
@@ -182,7 +182,11 @@ impl PaletteItemContent {
                 };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToLspLocation(editor_id, location.clone()),
+                    LapceUICommand::JumpToLspLocation(
+                        editor_id,
+                        location.clone(),
+                        true,
+                    ),
                     Target::Auto,
                 ));
             }
@@ -206,7 +210,11 @@ impl PaletteItemContent {
                 };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToLspLocation(editor_id, location.clone()),
+                    LapceUICommand::JumpToLspLocation(
+                        editor_id,
+                        location.clone(),
+                        true,
+                    ),
                     Target::Auto,
                 ));
             }

@@ -169,6 +169,9 @@ impl LapceEditorView {
                     Arc::make_mut(&mut data.source_control).active = self.view_id;
                 }
                 LocalBufferKind::PathName => {}
+                LocalBufferKind::Rename => {
+                    data.focus_area = FocusArea::Rename;
+                }
                 LocalBufferKind::Empty => {
                     data.focus_area = FocusArea::Editor;
                     data.main_split.active = Arc::new(Some(self.view_id));
@@ -190,6 +193,9 @@ impl LapceEditorView {
         match cmd {
             LapceUICommand::RunCodeAction(action) => {
                 data.run_code_action(ctx, action);
+            }
+            LapceUICommand::ApplyWorkspaceEdit(edit) => {
+                data.apply_workspace_edit(ctx, edit);
             }
             LapceUICommand::EnsureCursorVisible(position) => {
                 self.ensure_cursor_visible(ctx, data, panel, position.as_ref(), env);
@@ -723,6 +729,18 @@ impl Widget<LapceTabData> for LapceEditorView {
                                     data: None,
                                 },
                                 Target::Widget(data.palette.widget_id),
+                            ));
+                        }
+                        BufferContent::Local(LocalBufferKind::Rename) => {
+                            ctx.submit_command(Command::new(
+                                LAPCE_COMMAND,
+                                LapceCommand {
+                                    kind: CommandKind::Focus(
+                                        FocusCommand::ModalClose,
+                                    ),
+                                    data: None,
+                                },
+                                Target::Widget(data.rename.view_id),
                             ));
                         }
                         BufferContent::Local(LocalBufferKind::PathName) => {

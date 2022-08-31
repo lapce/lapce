@@ -11,7 +11,8 @@ use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeActionResponse, CompletionItem,
     DocumentSymbolResponse, GotoDefinitionResponse, Hover, InlayHint, Location,
-    Position, SymbolInformation, TextDocumentItem, TextEdit,
+    Position, PrepareRenameResponse, SymbolInformation, TextDocumentItem, TextEdit,
+    WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -79,6 +80,15 @@ pub enum ProxyRequest {
     },
     GetSemanticTokens {
         path: PathBuf,
+    },
+    PrepareRename {
+        path: PathBuf,
+        position: Position,
+    },
+    Rename {
+        path: PathBuf,
+        position: Position,
+        new_name: String,
     },
     GetCodeActions {
         path: PathBuf,
@@ -250,6 +260,12 @@ pub enum ProxyResponse {
     },
     GetSemanticTokens {
         styles: SemanticStyles,
+    },
+    PrepareRename {
+        resp: PrepareRenameResponse,
+    },
+    Rename {
+        edit: WorkspaceEdit,
     },
     GetOpenFilesContentResponse {
         items: Vec<TextDocumentItem>,
@@ -678,6 +694,32 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::GetWorkspaceSymbols { query }, f);
+    }
+
+    pub fn prepare_rename(
+        &self,
+        path: PathBuf,
+        position: Position,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::PrepareRename { path, position }, f);
+    }
+
+    pub fn rename(
+        &self,
+        path: PathBuf,
+        position: Position,
+        new_name: String,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::Rename {
+                path,
+                position,
+                new_name,
+            },
+            f,
+        );
     }
 
     pub fn get_inlay_hints(&self, path: PathBuf, f: impl ProxyCallback + 'static) {

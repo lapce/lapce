@@ -107,6 +107,7 @@ impl ProblemContent {
                                 scroll_offset: None,
                                 history: None,
                             },
+                            false,
                         ),
                         Target::Widget(data.id),
                     ));
@@ -137,6 +138,7 @@ impl ProblemContent {
                                     scroll_offset: None,
                                     history: None,
                                 },
+                                false,
                             ),
                             Target::Widget(data.id),
                         ));

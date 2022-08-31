@@ -12,6 +12,8 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, Region, RenderContext, Size,
     Target, Widget, WidgetExt, WidgetPod, WindowState,
 };
+use lapce_core::command::FocusCommand;
+use lapce_data::command::LAPCE_COMMAND;
 use lapce_data::proxy::VERSION;
 use lapce_data::{
     command::{
@@ -799,7 +801,7 @@ impl Widget<LapceTabData> for Title {
 
         let remaining = bc.max().width
             - (remaining_rect.x0.max(bc.max().width - remaining_rect.x1)) * 2.0
-            - 80.0;
+            - 36.0 * 4.0;
 
         let min_palette_width = if data.palette.status == PaletteStatus::Inactive {
             100.0
@@ -818,12 +820,114 @@ impl Widget<LapceTabData> for Title {
         self.palette.set_origin(ctx, data, env, palette_origin);
         let palette_rect = self.palette.layout_rect();
 
+        let target = if let Some(active) = *data.main_split.active {
+            Target::Widget(active)
+        } else {
+            Target::Auto
+        };
+        let arrow_left_rect = Size::new(36.0, 36.0)
+            .to_rect()
+            .with_origin(Point::new(palette_origin.x - 36.0 - 36.0, 0.0));
+        let (arrow_left_svg_color, arrow_left_svg_hover_color) =
+            if data.main_split.current_location < 1 {
+                (
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .clone(),
+                    ),
+                    None,
+                )
+            } else {
+                self.menus.push((
+                    arrow_left_rect,
+                    Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(
+                                FocusCommand::JumpLocationBackward,
+                            ),
+                            data: None,
+                        },
+                        target,
+                    ),
+                ));
+                (
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    ),
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_CURRENT)
+                            .clone(),
+                    ),
+                )
+            };
+        self.svgs.push((
+            get_svg("arrow-left.svg").unwrap(),
+            arrow_left_rect.inflate(-10.5, -10.5),
+            arrow_left_svg_color,
+            arrow_left_svg_hover_color,
+        ));
+
+        let arrow_right_rect = Size::new(36.0, 36.0)
+            .to_rect()
+            .with_origin(Point::new(palette_origin.x - 36.0, 0.0));
+        let (arrow_right_svg_color, arrow_right_svg_hover_color) = if data
+            .main_split
+            .locations
+            .is_empty()
+            || data.main_split.current_location
+                >= data.main_split.locations.len() - 1
+        {
+            (
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .clone(),
+                ),
+                None,
+            )
+        } else {
+            self.menus.push((
+                arrow_right_rect,
+                Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::JumpLocationForward),
+                        data: None,
+                    },
+                    target,
+                ),
+            ));
+            (
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                ),
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_CURRENT)
+                        .clone(),
+                ),
+            )
+        };
+        self.svgs.push((
+            get_svg("arrow-right.svg").unwrap(),
+            arrow_right_rect.inflate(-10.5, -10.5),
+            arrow_right_svg_color,
+            arrow_right_svg_hover_color,
+        ));
+
         self.dragable_area.clear();
         if !data.multiple_tab {
             self.dragable_area.add_rect(Rect::new(
                 remaining_rect.x0,
                 0.0,
-                palette_rect.x0,
+                palette_rect.x0 - 36.0 * 2.0,
                 36.0,
             ));
             self.dragable_area.add_rect(Rect::new(

@@ -364,7 +364,7 @@ impl ProxyHandler for Dispatcher {
                     proxy_rpc.handle_response(id, result);
                 });
             }
-            GetSignature { .. } => todo!(),
+            GetSignature { .. } => {}
             GetReferences { path, position } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc.get_references(
@@ -520,6 +520,35 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     });
+            }
+            PrepareRename { path, position } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.prepare_rename(
+                    &path,
+                    position,
+                    move |_, result| {
+                        let result =
+                            result.map(|resp| ProxyResponse::PrepareRename { resp });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
+            Rename {
+                path,
+                position,
+                new_name,
+            } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.rename(
+                    &path,
+                    position,
+                    new_name,
+                    move |_, result| {
+                        let result =
+                            result.map(|edit| ProxyResponse::Rename { edit });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
             }
             GetFiles { .. } => {
                 let workspace = self.workspace.clone();

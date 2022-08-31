@@ -82,6 +82,10 @@ command = "previous_editor_tab"
 # --------------------------------- Rich Language Editing ----------------------------
 
 [[keymaps]]
+key = "F2"
+command = "rename_symbol"
+
+[[keymaps]]
 key = "F12"
 command = "goto_definition"
 
@@ -250,6 +254,12 @@ mode = "i"
 key = "enter"
 command = "global_search_refresh"
 when = "global_search_focus"
+mode = "i"
+
+[[keymaps]]
+key = "enter"
+command = "confirm_rename"
+when = "rename_focus"
 mode = "i"
 
 [[keymaps]]

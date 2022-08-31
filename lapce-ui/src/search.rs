@@ -101,6 +101,7 @@ impl SearchContent {
                                 scroll_offset: None,
                                 history: None,
                             },
+                            false,
                         ),
                         Target::Widget(data.id),
                     ));

@@ -16,8 +16,9 @@ use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{
     CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
     GotoDefinition, GotoTypeDefinition, GotoTypeDefinitionParams,
-    GotoTypeDefinitionResponse, HoverRequest, InlayHintRequest, References, Request,
-    ResolveCompletionItem, SemanticTokensFullRequest, WorkspaceSymbol,
+    GotoTypeDefinitionResponse, HoverRequest, InlayHintRequest,
+    PrepareRenameRequest, References, Rename, Request, ResolveCompletionItem,
+    SemanticTokensFullRequest, WorkspaceSymbol,
 };
 use lsp_types::{
     CodeActionContext, CodeActionParams, CodeActionResponse, CompletionItem,
@@ -25,10 +26,11 @@ use lsp_types::{
     DocumentFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
     FormattingOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverParams, InlayHint, InlayHintParams, Location, PartialResultParams,
-    Position, Range, ReferenceContext, ReferenceParams, SemanticTokens,
-    SemanticTokensParams, SymbolInformation, TextDocumentIdentifier,
-    TextDocumentItem, TextDocumentPositionParams, TextEdit, Url,
-    VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceSymbolParams,
+    Position, PrepareRenameResponse, Range, ReferenceContext, ReferenceParams,
+    RenameParams, SemanticTokens, SemanticTokensParams, SymbolInformation,
+    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit,
+    Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceEdit,
+    WorkspaceSymbolParams,
 };
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
@@ -533,6 +535,51 @@ impl PluginCatalogRpcHandler {
                 insert_spaces: true,
                 ..Default::default()
             },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(method, params, language_id, cb);
+    }
+
+    pub fn prepare_rename(
+        &self,
+        path: &Path,
+        position: Position,
+        cb: impl FnOnce(PluginId, Result<PrepareRenameResponse, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = PrepareRenameRequest::METHOD;
+        let params = TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri },
+            position,
+        };
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(method, params, language_id, cb);
+    }
+
+    pub fn rename(
+        &self,
+        path: &Path,
+        position: Position,
+        new_name: String,
+        cb: impl FnOnce(PluginId, Result<WorkspaceEdit, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = Rename::METHOD;
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            new_name,
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
         let language_id =
