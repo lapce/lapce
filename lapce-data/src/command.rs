@@ -501,7 +501,7 @@ pub enum LapceUICommand {
         folders: Vec<PathBuf>,
         files: Vec<PathBuf>,
     },
-    OpenFile(PathBuf),
+    OpenFile(PathBuf, bool),
     OpenFileDiff(PathBuf, String),
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
@@ -630,14 +630,14 @@ pub enum LapceUICommand {
     EditorTabAdd(usize, EditorTabChild),
     EditorTabRemove(usize, bool, bool),
     EditorTabSwap(usize, usize),
-    JumpToPosition(Option<WidgetId>, Position),
+    JumpToPosition(Option<WidgetId>, Position, bool),
     JumpToLine(Option<WidgetId>, usize),
-    JumpToLocation(Option<WidgetId>, EditorLocation),
-    JumpToLspLocation(Option<WidgetId>, EditorLocation<Position>),
+    JumpToLocation(Option<WidgetId>, EditorLocation, bool),
+    JumpToLspLocation(Option<WidgetId>, EditorLocation<Position>, bool),
     JumpToLineLocation(Option<WidgetId>, EditorLocation<Line>),
-    JumpToLineColLocation(Option<WidgetId>, EditorLocation<LineCol>),
+    JumpToLineColLocation(Option<WidgetId>, EditorLocation<LineCol>, bool),
     TerminalJumpToLine(i32),
-    GoToLocation(Option<WidgetId>, EditorLocation),
+    GoToLocation(Option<WidgetId>, EditorLocation, bool),
     GotoDefinition {
         editor_view_id: WidgetId,
         offset: usize,
@@ -717,6 +717,7 @@ pub struct InitBufferContent<P: EditorPosition> {
     pub edits: Option<Rope>,
     pub cb: Option<InitBufferContentCb>,
 }
+
 impl<P: EditorPosition + Clone + Send + 'static> InitBufferContent<P> {
     pub fn execute(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         let doc = data.main_split.open_docs.get_mut(&self.path).unwrap();
@@ -736,6 +737,7 @@ impl<P: EditorPosition + Clone + Send + 'static> InitBufferContent<P> {
             data.main_split.go_to_location(
                 ctx,
                 Some(*view_id),
+                false,
                 location.clone(),
                 &data.config,
             );

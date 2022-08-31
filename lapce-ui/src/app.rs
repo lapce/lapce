@@ -405,6 +405,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                                             LAPCE_UI_COMMAND,
                                             LapceUICommand::OpenFile(
                                                 file.to_path_buf(),
+                                                false,
                                             ),
                                             Target::Widget(*tab_id),
                                         ));
@@ -434,7 +435,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                         for file in files {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::OpenFile(file.to_path_buf()),
+                                LapceUICommand::OpenFile(file.to_path_buf(), false),
                                 Target::Window(*data.active_window),
                             ));
                         }

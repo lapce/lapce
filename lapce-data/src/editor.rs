@@ -391,6 +391,7 @@ impl LapceEditorBufferData {
                         self.main_split.jump_to_location_cb(
                                         ctx,
                                         None,
+                                        false,
                                         EditorLocation {
                                             path: url_path.clone(),
                                             position,
@@ -909,7 +910,7 @@ impl LapceEditorBufferData {
             };
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::JumpToLocation(None, location),
+                LapceUICommand::JumpToLocation(None, location, true),
                 Target::Widget(*self.main_split.tab_id),
             ));
         }
@@ -945,7 +946,7 @@ impl LapceEditorBufferData {
                 };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToLspLocation(None, location),
+                    LapceUICommand::JumpToLspLocation(None, location, true),
                     Target::Auto,
                 ));
             } else {
@@ -966,7 +967,11 @@ impl LapceEditorBufferData {
             self.main_split.locations[self.main_split.current_location].clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::GoToLocation(None, location),
+            LapceUICommand::GoToLocation(
+                None,
+                location,
+                !self.config.editor.show_tab,
+            ),
             Target::Auto,
         ));
         None
@@ -991,7 +996,11 @@ impl LapceEditorBufferData {
             self.main_split.locations[self.main_split.current_location].clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::GoToLocation(None, location),
+            LapceUICommand::GoToLocation(
+                None,
+                location,
+                !self.config.editor.show_tab,
+            ),
             Target::Auto,
         ));
         None
@@ -2486,6 +2495,7 @@ fn process_get_references(
                     scroll_offset: None,
                     history: None,
                 },
+                true,
             ),
             Target::Auto,
         );

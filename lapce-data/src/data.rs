@@ -209,7 +209,7 @@ impl LapceData {
             for file in files {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::OpenFile(file.to_path_buf()),
+                    LapceUICommand::OpenFile(file.to_path_buf(), false),
                     Target::Window(*window_id),
                 );
             }
@@ -1253,6 +1253,7 @@ impl LapceTabData {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
+                        false,
                         EditorLocation {
                             path,
                             position: None::<usize>,
@@ -1271,6 +1272,7 @@ impl LapceTabData {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
+                        false,
                         EditorLocation {
                             path,
                             position: None::<usize>,
@@ -1311,6 +1313,7 @@ impl LapceTabData {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
+                        false,
                         EditorLocation {
                             path,
                             position: None::<usize>,
@@ -2363,13 +2366,24 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
+        same_tab: bool,
         path: Option<PathBuf>,
         scratch: bool,
         config: &Config,
     ) -> &mut LapceEditorData {
         let mut editor_size = Size::ZERO;
-        for (_, editor_tab) in
-            self.editor_tabs.iter_mut().sorted_by(|(_, a), (_, b)| {
+        let editor_tabs: Box<
+            dyn Iterator<Item = (&WidgetId, &mut Arc<LapceEditorTabData>)>,
+        > = if same_tab {
+            Box::new(
+                vec![(
+                    &editor_tab_id,
+                    self.editor_tabs.get_mut(&editor_tab_id).unwrap(),
+                )]
+                .into_iter(),
+            )
+        } else {
+            Box::new(self.editor_tabs.iter_mut().sorted_by(|(_, a), (_, b)| {
                 if Some(a.widget_id) == *self.active_tab {
                     return Ordering::Less;
                 }
@@ -2384,8 +2398,9 @@ impl LapceMainSplitData {
                 } else {
                     a_rect.y0.total_cmp(&b_rect.y0)
                 }
-            })
-        {
+            }))
+        };
+        for (_, editor_tab) in editor_tabs {
             let editor_tab = Arc::make_mut(editor_tab);
             for (i, child) in editor_tab.children.iter().enumerate() {
                 if let EditorTabChild::Editor(id, _, _) = child {
@@ -2469,6 +2484,7 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         editor_view_id: Option<WidgetId>,
+        same_tab: bool,
         path: Option<PathBuf>,
         scratch: bool,
         config: &Config,
@@ -2476,9 +2492,9 @@ impl LapceMainSplitData {
         match editor_view_id {
             Some(view_id) => Arc::make_mut(self.editors.get_mut(&view_id).unwrap()),
             None => match *self.active_tab {
-                Some(active) => {
-                    self.get_editor_from_tab(ctx, active, path, scratch, config)
-                }
+                Some(active) => self.get_editor_from_tab(
+                    ctx, active, same_tab, path, scratch, config,
+                ),
                 None => {
                     let editor_tab_id = self.new_editor_tab(ctx, *self.split_id);
                     let view_id =
@@ -2493,11 +2509,18 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         editor_view_id: Option<WidgetId>,
+        same_tab: bool,
         position: Position,
         config: &Config,
     ) {
-        let editor =
-            self.get_editor_or_new(ctx, editor_view_id, None, false, config);
+        let editor = self.get_editor_or_new(
+            ctx,
+            editor_view_id,
+            same_tab,
+            None,
+            false,
+            config,
+        );
         let path = if let BufferContent::File(path) = &editor.content {
             Some(path.clone())
         } else {
@@ -2511,7 +2534,7 @@ impl LapceMainSplitData {
                 scroll_offset: None,
                 history: None,
             };
-            self.jump_to_location(ctx, editor_view_id, location, config);
+            self.jump_to_location(ctx, editor_view_id, same_tab, location, config);
         }
     }
 
@@ -2580,12 +2603,14 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         editor_view_id: Option<WidgetId>,
+        same_tab: bool,
         location: EditorLocation<P>,
         config: &Config,
     ) -> WidgetId {
         self.jump_to_location_cb::<P, fn(&mut EventCtx, &mut LapceMainSplitData)>(
             ctx,
             editor_view_id,
+            same_tab,
             location,
             config,
             None,
@@ -2599,6 +2624,7 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         editor_view_id: Option<WidgetId>,
+        same_tab: bool,
         location: EditorLocation<P>,
         config: &Config,
         cb: Option<F>,
@@ -2621,6 +2647,7 @@ impl LapceMainSplitData {
             .get_editor_or_new(
                 ctx,
                 editor_view_id,
+                same_tab,
                 Some(location.path.clone()),
                 false,
                 config,
@@ -2629,6 +2656,7 @@ impl LapceMainSplitData {
         self.go_to_location_cb::<P, F>(
             ctx,
             Some(editor_view_id),
+            same_tab,
             location,
             config,
             cb,
@@ -2714,7 +2742,7 @@ impl LapceMainSplitData {
             Document::new(content.clone(), tab_id, ctx.get_external_handle(), proxy);
         self.scratch_docs.insert(buffer_id, Arc::new(doc));
 
-        let editor = self.get_editor_or_new(ctx, None, None, true, config);
+        let editor = self.get_editor_or_new(ctx, None, true, None, true, config);
         editor.content = content;
         editor.cursor = if config.lapce.modal {
             Cursor::new(CursorMode::Normal(0), None, None)
@@ -2728,6 +2756,7 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         editor_view_id: Option<WidgetId>,
+        same_tab: bool,
         location: EditorLocation<P>,
         config: &Config,
     ) {
@@ -2735,6 +2764,7 @@ impl LapceMainSplitData {
         self.go_to_location_cb::<P, fn(&mut EventCtx, &mut LapceMainSplitData)>(
             ctx,
             editor_view_id,
+            same_tab,
             location,
             config,
             None,
@@ -2750,6 +2780,7 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         editor_view_id: Option<WidgetId>,
+        same_tab: bool,
         location: EditorLocation<P>,
         config: &Config,
         cb: Option<F>,
@@ -2758,6 +2789,7 @@ impl LapceMainSplitData {
             .get_editor_or_new(
                 ctx,
                 editor_view_id,
+                same_tab,
                 Some(location.path.clone()),
                 false,
                 config,
@@ -2834,6 +2866,7 @@ impl LapceMainSplitData {
             let editor = self.get_editor_or_new(
                 ctx,
                 Some(editor_view_id),
+                same_tab,
                 Some(location.path.clone()),
                 false,
                 config,
@@ -2889,7 +2922,7 @@ impl LapceMainSplitData {
         config: &Config,
     ) {
         let editor =
-            self.get_editor_or_new(ctx, editor_view_id, None, false, config);
+            self.get_editor_or_new(ctx, editor_view_id, true, None, false, config);
         let path = if let BufferContent::File(path) = &editor.content {
             Some(path.clone())
         } else {
@@ -2905,7 +2938,7 @@ impl LapceMainSplitData {
                 scroll_offset: None,
                 history: None,
             };
-            self.jump_to_location(ctx, editor_view_id, location, config);
+            self.jump_to_location(ctx, editor_view_id, true, location, config);
         }
     }
 }

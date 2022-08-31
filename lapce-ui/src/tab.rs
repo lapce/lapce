@@ -707,7 +707,7 @@ impl LapceTab {
                 let file = cmd.get_unchecked(LAPCE_OPEN_FILE);
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::OpenFile(file.path.clone()),
+                    LapceUICommand::OpenFile(file.path.clone(), false),
                     Target::Widget(data.id),
                 ));
             }
@@ -1213,6 +1213,7 @@ impl LapceTab {
                         data.main_split.go_to_location(
                             ctx,
                             Some(*editor_view_id),
+                            false,
                             location.clone(),
                             &data.config,
                         );
@@ -1236,6 +1237,7 @@ impl LapceTab {
                         let editor_view_id = data.main_split.jump_to_location(
                             ctx,
                             *editor_view_id,
+                            false,
                             EditorLocation {
                                 path: path.clone(),
                                 position: None::<usize>,
@@ -1287,10 +1289,11 @@ impl LapceTab {
                             }
                         }
                     }
-                    LapceUICommand::OpenFile(path) => {
+                    LapceUICommand::OpenFile(path, same_tab) => {
                         data.main_split.jump_to_location(
                             ctx,
                             None,
+                            *same_tab,
                             EditorLocation {
                                 path: path.clone(),
                                 position: None::<usize>,
@@ -1301,37 +1304,57 @@ impl LapceTab {
                         );
                         ctx.set_handled();
                     }
-                    LapceUICommand::GoToLocation(editor_view_id, location) => {
+                    LapceUICommand::GoToLocation(
+                        editor_view_id,
+                        location,
+                        same_tab,
+                    ) => {
                         data.main_split.go_to_location(
                             ctx,
                             *editor_view_id,
+                            *same_tab,
                             location.clone(),
                             &data.config,
                         );
                         ctx.set_handled();
                     }
-                    LapceUICommand::JumpToPosition(editor_view_id, position) => {
+                    LapceUICommand::JumpToPosition(
+                        editor_view_id,
+                        position,
+                        same_tab,
+                    ) => {
                         data.main_split.jump_to_position(
                             ctx,
                             *editor_view_id,
+                            *same_tab,
                             *position,
                             &data.config,
                         );
                         ctx.set_handled();
                     }
-                    LapceUICommand::JumpToLocation(editor_view_id, location) => {
+                    LapceUICommand::JumpToLocation(
+                        editor_view_id,
+                        location,
+                        same_tab,
+                    ) => {
                         data.main_split.jump_to_location(
                             ctx,
                             *editor_view_id,
+                            *same_tab,
                             location.clone(),
                             &data.config,
                         );
                         ctx.set_handled();
                     }
-                    LapceUICommand::JumpToLspLocation(editor_view_id, location) => {
+                    LapceUICommand::JumpToLspLocation(
+                        editor_view_id,
+                        location,
+                        same_tab,
+                    ) => {
                         data.main_split.jump_to_location(
                             ctx,
                             *editor_view_id,
+                            *same_tab,
                             location.clone(),
                             &data.config,
                         );
@@ -1341,6 +1364,7 @@ impl LapceTab {
                         data.main_split.jump_to_location(
                             ctx,
                             *editor_view_id,
+                            true,
                             location.clone(),
                             &data.config,
                         );
@@ -1349,10 +1373,12 @@ impl LapceTab {
                     LapceUICommand::JumpToLineColLocation(
                         editor_view_id,
                         location,
+                        same_tab,
                     ) => {
                         data.main_split.jump_to_location(
                             ctx,
                             *editor_view_id,
+                            *same_tab,
                             location.clone(),
                             &data.config,
                         );
@@ -1399,6 +1425,7 @@ impl LapceTab {
                                 data.main_split.jump_to_location(
                                     ctx,
                                     None,
+                                    true,
                                     location.clone(),
                                     &data.config,
                                 );
@@ -1661,7 +1688,7 @@ impl LapceTab {
                                     Ok(_) => {
                                         let _ = event_sink.submit_command(
                                             LAPCE_UI_COMMAND,
-                                            LapceUICommand::OpenFile(path_c),
+                                            LapceUICommand::OpenFile(path_c, false),
                                             Target::Widget(tab_id),
                                         );
                                     }
