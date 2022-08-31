@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io::BufReader,
     path::{Path, PathBuf},
     rc::Rc,
@@ -1643,6 +1643,29 @@ impl LapceTabData {
                     LapceUICommand::ShowAbout,
                     Target::Widget(self.id),
                 ));
+            }
+            LapceWorkbenchCommand::SaveAll => {
+                let mut paths = HashSet::new();
+                for (_, editor) in self.main_split.editors.iter() {
+                    if let BufferContent::File(path) = &editor.content {
+                        if paths.contains(path) {
+                            continue;
+                        }
+                        paths.insert(path.to_path_buf());
+                        if let Some(doc) = self.main_split.open_docs.get(path) {
+                            if !doc.buffer().is_pristine() {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_COMMAND,
+                                    LapceCommand {
+                                        kind: CommandKind::Focus(FocusCommand::Save),
+                                        data: None,
+                                    },
+                                    Target::Widget(editor.view_id),
+                                ));
+                            }
+                        }
+                    }
+                }
             }
         }
     }

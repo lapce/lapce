@@ -433,6 +433,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "show_about")]
     #[strum(message = "About")]
     ShowAbout,
+
+    #[strum(message = "Save All Files")]
+    #[strum(serialize = "save_all")]
+    SaveAll,
 }
 
 #[derive(Debug)]

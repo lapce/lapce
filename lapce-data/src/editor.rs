@@ -203,6 +203,7 @@ pub struct EditorLocation<P: EditorPosition = usize> {
     pub scroll_offset: Option<Vec2>,
     pub history: Option<String>,
 }
+
 impl<P: EditorPosition> EditorLocation<P> {
     pub fn into_utf8_location(self, buffer: &Buffer) -> EditorLocation<usize> {
         EditorLocation {
