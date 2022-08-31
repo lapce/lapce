@@ -127,12 +127,20 @@ where
         let screens = druid::Screen::get_monitors();
         let mut screens = screens.iter().filter(|f| f.is_primary());
         // Get actual workspace rectangle excluding taskbars/menus
-        let screen_pos = screens.next().unwrap().virtual_work_rect().center();
-        // Position our window centered, not in center point
-        Point::new(
-            screen_pos.x - size.width / 2.0,
-            screen_pos.y - size.height / 2.0,
-        )
+        match screens.next() {
+            Some(screen) => {
+                let screen_center_pos = screen.virtual_work_rect().center();
+                // Position our window centered, not in center point
+                Point::new(
+                    screen_center_pos.x - size.width / 2.0,
+                    screen_center_pos.y - size.height / 2.0,
+                )
+            }
+            None => {
+                log::error!("No primary display found. Are you running lapce in console-only/SSH/WSL?");
+                pos
+            }
+        }
     } else {
         pos
     };
