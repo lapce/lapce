@@ -2688,6 +2688,7 @@ version = "0.1.3"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
+ "log 0.4.17",
  "lsp-types",
  "parking_lot 0.11.2",
  "serde 1.0.143",

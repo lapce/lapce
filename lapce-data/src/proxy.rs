@@ -5,7 +5,7 @@ use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::thread;
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
@@ -224,6 +224,11 @@ impl CoreHandler for LapceProxy {
                     ),
                     Target::Widget(self.tab_id),
                 );
+            }
+            Log { level, message } => {
+                if let Ok(level) = log::Level::from_str(&level) {
+                    log::log!(level, "{}", message);
+                }
             }
         }
     }

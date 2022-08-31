@@ -168,6 +168,7 @@ impl LspClient {
         let mut process = Self::process(workspace.as_ref(), &server, &args)?;
         let stdin = process.stdin.take().unwrap();
         let stdout = process.stdout.take().unwrap();
+        let stderr = process.stderr.take().unwrap();
 
         let mut writer = Box::new(BufWriter::new(stdin));
         let (io_tx, io_rx) = crossbeam_channel::unbounded();
@@ -181,6 +182,7 @@ impl LspClient {
         });
 
         let local_server_rpc = server_rpc.clone();
+        let core_rpc = plugin_rpc.core_rpc.clone();
         thread::spawn(move || {
             let mut reader = Box::new(BufReader::new(stdout));
             loop {
@@ -192,10 +194,35 @@ impl LspClient {
                         );
                     }
                     Err(_err) => {
-                        log::info!("lsp server {server} stopped");
+                        core_rpc.log(
+                            log::Level::Error,
+                            format!("lsp server {server} stopped!"),
+                        );
                         return;
                     }
                 };
+            }
+        });
+
+        let core_rpc = plugin_rpc.core_rpc.clone();
+        thread::spawn(move || {
+            let mut reader = Box::new(BufReader::new(stderr));
+            loop {
+                let mut line = String::new();
+                match reader.read_line(&mut line) {
+                    Ok(n) => {
+                        if n == 0 {
+                            return;
+                        }
+                        core_rpc.log(
+                            log::Level::Error,
+                            format!("lsp server stderr: {line}"),
+                        );
+                    }
+                    Err(_) => {
+                        return;
+                    }
+                }
             }
         });
 
