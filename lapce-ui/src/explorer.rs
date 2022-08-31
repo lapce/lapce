@@ -347,7 +347,7 @@ impl FileExplorer {
                             .and_then(|p| p.file_name())
                             .and_then(|s| s.to_str())
                             .map(|s| s.to_string())
-                            .unwrap_or_default()
+                            .unwrap_or_else(|| "No Folder Open".to_string())
                             .into(),
                     ),
                     Self::new(data).boxed(),
