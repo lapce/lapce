@@ -2,12 +2,16 @@ on:
   push:
     branches:
       - master
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 name: CI
 
 jobs:
   build:
     name: Rust (${{ matrix.toolchain }}) on ${{ matrix.os }}
+    if: github.event.push || github.event.pull_request.draft == false
+    needs: [fmt, clippy]
     strategy:
       fail-fast: false
       matrix:
@@ -15,62 +19,84 @@ jobs:
         toolchain: [ stable ]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repo
+        uses: actions/checkout@v2
 
       - name: Install dependencies on Ubuntu
         if: startsWith(matrix.os, 'ubuntu')
         run: sudo apt-get update && sudo apt-get install cmake pkg-config libgtk-3-dev
 
-      - name: Install toolchain
+      - name: Install latest toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: ${{ matrix.toolchain }}
+          override: true
 
-      - uses: Swatinem/rust-cache@v1
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v1
 
       - name: Build
         uses: actions-rs/cargo@v1
         with:
           command: build
-  
+
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --workspace
+
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Install latest toolchain with rustfmt
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - run: rustup component add rustfmt
-      - uses: Swatinem/rust-cache@v1
-      - uses: actions-rs/cargo@v1
+          components: rustfmt
+
+      - name: Run rustfmt
+        uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
 
   clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
+    name: Clippy (${{ matrix.toolchain }}) on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        toolchain: [ stable ]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Install latest toolchain with clippy
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ matrix.toolchain }}
           override: true
-      - run: rustup component add clippy
+          components: clippy
+
       - name: Install dependencies on Ubuntu
+        if: startsWith(matrix.os, 'ubuntu')
         run: sudo apt-get update && sudo apt-get install cmake pkg-config libgtk-3-dev
-      - uses: Swatinem/rust-cache@v1
-      - uses: actions-rs/cargo@v1
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v1
+
+      - name: Run clippy
+        uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: -- -D warnings

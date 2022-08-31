@@ -45,6 +45,11 @@ pub enum CoreNotification {
         content: String,
         rev: u64,
     },
+    OpenPaths {
+        window_tab_id: Option<(usize, usize)>,
+        folders: Vec<PathBuf>,
+        files: Vec<PathBuf>,
+    },
     WorkspaceFileChange {},
     PublishDiagnostics {
         diagnostics: PublishDiagnosticsParams,
@@ -76,6 +81,10 @@ pub enum CoreNotification {
     },
     CloseTerminal {
         term_id: TermId,
+    },
+    Log {
+        level: String,
+        message: String,
     },
 }
 
@@ -207,6 +216,13 @@ impl CoreRpcHandler {
 
     pub fn volt_removed(&self, volt: VoltInfo) {
         self.notification(CoreNotification::VoltRemoved { volt });
+    }
+
+    pub fn log(&self, level: log::Level, message: String) {
+        self.notification(CoreNotification::Log {
+            level: level.as_str().to_string(),
+            message,
+        });
     }
 
     pub fn publish_diagnostics(&self, diagnostics: PublishDiagnosticsParams) {

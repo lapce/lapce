@@ -1,3 +1,4 @@
+pub mod about;
 pub mod alert;
 pub mod command;
 pub mod completion;
@@ -20,6 +21,7 @@ pub mod picker;
 pub mod plugin;
 pub mod problem;
 pub mod proxy;
+pub mod rename;
 pub mod rich_text;
 pub mod search;
 pub mod settings;

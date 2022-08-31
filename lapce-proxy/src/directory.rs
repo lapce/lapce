@@ -106,6 +106,10 @@ impl Directory {
         }
     }
 
+    pub fn local_socket() -> Option<PathBuf> {
+        Self::data_local_directory().map(|dir| dir.join("local.sock"))
+    }
+
     pub fn updates_directory() -> Option<PathBuf> {
         if let Some(dir) = Self::data_local_directory() {
             let dir = dir.join("updates");

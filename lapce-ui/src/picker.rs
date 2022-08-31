@@ -396,7 +396,10 @@ impl FilePickerExplorer {
                             self.last_left_click = None;
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::OpenFile(node.path_buf.clone()),
+                                LapceUICommand::OpenFile(
+                                    node.path_buf.clone(),
+                                    false,
+                                ),
                                 Target::Widget(data.id),
                             ));
                             picker.active = false;
@@ -716,6 +719,7 @@ impl FilePickerControl {
                                         LAPCE_UI_COMMAND,
                                         LapceUICommand::OpenFile(
                                             node.path_buf.clone(),
+                                            false,
                                         ),
                                         Target::Widget(data.id),
                                     ));

@@ -119,6 +119,7 @@ pub enum LocalBufferKind {
     Keymap,
     Settings,
     PathName,
+    Rename,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -152,7 +153,8 @@ impl BufferContent {
                 | LocalBufferKind::FilePicker
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap
-                | LocalBufferKind::PathName => true,
+                | LocalBufferKind::PathName
+                | LocalBufferKind::Rename => true,
                 LocalBufferKind::Empty => false,
             },
             BufferContent::SettingsValue(..) => true,
@@ -169,7 +171,8 @@ impl BufferContent {
                 | LocalBufferKind::FilePicker
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap
-                | LocalBufferKind::PathName => true,
+                | LocalBufferKind::PathName
+                | LocalBufferKind::Rename => true,
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
             BufferContent::SettingsValue(..) => true,
@@ -873,6 +876,7 @@ impl Document {
                     }
                     LocalBufferKind::SourceControl => {}
                     LocalBufferKind::Empty => {}
+                    LocalBufferKind::Rename => {}
                     LocalBufferKind::Palette => {
                         let _ = self.event_sink.submit_command(
                             LAPCE_UI_COMMAND,

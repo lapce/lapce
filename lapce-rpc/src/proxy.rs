@@ -11,7 +11,8 @@ use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeActionResponse, CompletionItem,
     DocumentSymbolResponse, GotoDefinitionResponse, Hover, InlayHint, Location,
-    Position, SymbolInformation, TextDocumentItem, TextEdit,
+    Position, PrepareRenameResponse, SymbolInformation, TextDocumentItem, TextEdit,
+    WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -80,6 +81,15 @@ pub enum ProxyRequest {
     GetSemanticTokens {
         path: PathBuf,
     },
+    PrepareRename {
+        path: PathBuf,
+        position: Position,
+    },
+    Rename {
+        path: PathBuf,
+        position: Position,
+        new_name: String,
+    },
     GetCodeActions {
         path: PathBuf,
         position: Position,
@@ -133,9 +143,15 @@ pub enum ProxyNotification {
         workspace: Option<PathBuf>,
         disabled_volts: Vec<String>,
         plugin_configurations: HashMap<String, serde_json::Value>,
+        window_id: usize,
+        tab_id: usize,
     },
     OpenFileChanged {
         path: PathBuf,
+    },
+    OpenPaths {
+        folders: Vec<PathBuf>,
+        files: Vec<PathBuf>,
     },
     Shutdown {},
     Completion {
@@ -244,6 +260,12 @@ pub enum ProxyResponse {
     },
     GetSemanticTokens {
         styles: SemanticStyles,
+    },
+    PrepareRename {
+        resp: PrepareRenameResponse,
+    },
+    Rename {
+        edit: WorkspaceEdit,
     },
     GetOpenFilesContentResponse {
         items: Vec<TextDocumentItem>,
@@ -416,11 +438,15 @@ impl ProxyRpcHandler {
         workspace: Option<PathBuf>,
         disabled_volts: Vec<String>,
         plugin_configurations: HashMap<String, serde_json::Value>,
+        window_id: usize,
+        tab_id: usize,
     ) {
         self.notification(ProxyNotification::Initialize {
             workspace,
             disabled_volts,
             plugin_configurations,
+            window_id,
+            tab_id,
         });
     }
 
@@ -668,6 +694,32 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::GetWorkspaceSymbols { query }, f);
+    }
+
+    pub fn prepare_rename(
+        &self,
+        path: PathBuf,
+        position: Position,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::PrepareRename { path, position }, f);
+    }
+
+    pub fn rename(
+        &self,
+        path: PathBuf,
+        position: Position,
+        new_name: String,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::Rename {
+                path,
+                position,
+                new_name,
+            },
+            f,
+        );
     }
 
     pub fn get_inlay_hints(&self, path: PathBuf, f: impl ProxyCallback + 'static) {

@@ -18,7 +18,7 @@ use lapce_rpc::{
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     InlayHint, Location, Position, ProgressParams, PublishDiagnosticsParams,
-    TextEdit,
+    TextEdit, WorkspaceEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
@@ -217,6 +217,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open Settings File")]
     OpenSettingsFile,
 
+    #[strum(serialize = "open_settings_directory")]
+    #[strum(message = "Open Settings Directory")]
+    OpenSettingsDirectory,
+
     #[strum(serialize = "open_keyboard_shortcuts")]
     #[strum(message = "Open Keyboard Shortcuts")]
     OpenKeyboardShortcuts,
@@ -228,6 +232,22 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "open_log_file")]
     #[strum(message = "Open Log File")]
     OpenLogFile,
+
+    #[strum(serialize = "open_logs_directory")]
+    #[strum(message = "Open Logs Directory")]
+    OpenLogsDirectory,
+
+    #[strum(serialize = "open_proxy_directory")]
+    #[strum(message = "Open Proxy Directory")]
+    OpenProxyDirectory,
+
+    #[strum(serialize = "open_themes_directory")]
+    #[strum(message = "Open Themes Directory")]
+    OpenThemesDirectory,
+
+    #[strum(serialize = "open_plugins_directory")]
+    #[strum(message = "Open Plugins Directory")]
+    OpenPluginsDirectory,
 
     #[strum(serialize = "close_window_tab")]
     #[strum(message = "Close Current Window Tab")]
@@ -252,6 +272,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "New Window")]
     #[strum(serialize = "new_window")]
     NewWindow,
+
+    #[strum(message = "Close Window")]
+    #[strum(serialize = "close_window")]
+    CloseWindow,
 
     #[strum(message = "New File")]
     #[strum(serialize = "new_file")]
@@ -409,6 +433,14 @@ pub enum LapceWorkbenchCommand {
 
     #[strum(serialize = "restart_to_update")]
     RestartToUpdate,
+
+    #[strum(serialize = "show_about")]
+    #[strum(message = "About")]
+    ShowAbout,
+
+    #[strum(message = "Save All Files")]
+    #[strum(serialize = "save_all")]
+    SaveAll,
 }
 
 #[derive(Debug)]
@@ -456,8 +488,10 @@ pub enum LapceUICommand {
         editor_view_id: WidgetId,
         location: EditorLocation,
     },
+    ShowAbout,
     ShowAlert(AlertContentData),
     ShowMenu(Point, Arc<Vec<MenuKind>>),
+    ShowWindow,
     UpdateSearchInput(String),
     UpdateSearch(String),
     GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),
@@ -466,7 +500,12 @@ pub enum LapceUICommand {
     SetTheme(String, bool),
     UpdateKeymap(KeyMap, Vec<KeyPress>),
     OpenURI(String),
-    OpenFile(PathBuf),
+    OpenPaths {
+        window_tab_id: Option<(WindowId, WidgetId)>,
+        folders: Vec<PathBuf>,
+        files: Vec<PathBuf>,
+    },
+    OpenFile(PathBuf, bool),
     OpenFileDiff(PathBuf, String),
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
@@ -480,6 +519,7 @@ pub enum LapceUICommand {
     UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,
     RunCodeAction(CodeActionOrCommand),
+    ApplyWorkspaceEdit(WorkspaceEdit),
     ShowCodeActions(Option<Point>),
     Hide,
     ResignFocus,
@@ -521,7 +561,8 @@ pub enum LapceUICommand {
     CloseTabId(WidgetId),
     FocusTabId(WidgetId),
     SwapTab(usize),
-    NewTab,
+    TabToWindow(WindowId, WidgetId),
+    NewTab(Option<LapceWorkspace>),
     NextTab,
     PreviousTab,
     NextEditorTab,
@@ -529,6 +570,7 @@ pub enum LapceUICommand {
     FilterItems,
     RestartToUpdate(PathBuf, ReleaseInfo),
     NewWindow(WindowId),
+    CloseWindow(WindowId),
     ReloadWindow,
     CloseBuffers(Vec<BufferId>),
     RequestPaintRect(Rect),
@@ -593,18 +635,26 @@ pub enum LapceUICommand {
     EditorTabAdd(usize, EditorTabChild),
     EditorTabRemove(usize, bool, bool),
     EditorTabSwap(usize, usize),
-    JumpToPosition(Option<WidgetId>, Position),
+    JumpToPosition(Option<WidgetId>, Position, bool),
     JumpToLine(Option<WidgetId>, usize),
-    JumpToLocation(Option<WidgetId>, EditorLocation),
-    JumpToLspLocation(Option<WidgetId>, EditorLocation<Position>),
+    JumpToLocation(Option<WidgetId>, EditorLocation, bool),
+    JumpToLspLocation(Option<WidgetId>, EditorLocation<Position>, bool),
     JumpToLineLocation(Option<WidgetId>, EditorLocation<Line>),
-    JumpToLineColLocation(Option<WidgetId>, EditorLocation<LineCol>),
+    JumpToLineColLocation(Option<WidgetId>, EditorLocation<LineCol>, bool),
     TerminalJumpToLine(i32),
-    GoToLocationNew(WidgetId, EditorLocation),
+    GoToLocation(Option<WidgetId>, EditorLocation, bool),
     GotoDefinition {
         editor_view_id: WidgetId,
         offset: usize,
         location: EditorLocation<Position>,
+    },
+    PrepareRename {
+        path: PathBuf,
+        rev: u64,
+        offset: usize,
+        start: usize,
+        end: usize,
+        placeholder: String,
     },
     PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),
@@ -672,6 +722,7 @@ pub struct InitBufferContent<P: EditorPosition> {
     pub edits: Option<Rope>,
     pub cb: Option<InitBufferContentCb>,
 }
+
 impl<P: EditorPosition + Clone + Send + 'static> InitBufferContent<P> {
     pub fn execute(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         let doc = data.main_split.open_docs.get_mut(&self.path).unwrap();
@@ -691,6 +742,7 @@ impl<P: EditorPosition + Clone + Send + 'static> InitBufferContent<P> {
             data.main_split.go_to_location(
                 ctx,
                 Some(*view_id),
+                false,
                 location.clone(),
                 &data.config,
             );
