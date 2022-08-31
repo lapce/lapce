@@ -829,7 +829,11 @@ pub fn window_controls(
 
     commands.push((
         close_rect,
-        Command::new(druid::commands::QUIT_APP, (), Target::Global),
+        Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::CloseWindow(window_id),
+            Target::Auto,
+        ),
     ));
 
     let hover_color = {

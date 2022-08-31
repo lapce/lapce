@@ -273,6 +273,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "new_window")]
     NewWindow,
 
+    #[strum(message = "Close Window")]
+    #[strum(serialize = "close_window")]
+    CloseWindow,
+
     #[strum(message = "New File")]
     #[strum(serialize = "new_file")]
     NewFile,
@@ -561,6 +565,7 @@ pub enum LapceUICommand {
     FilterItems,
     RestartToUpdate(PathBuf, ReleaseInfo),
     NewWindow(WindowId),
+    CloseWindow(WindowId),
     ReloadWindow,
     CloseBuffers(Vec<BufferId>),
     RequestPaintRect(Rect),
