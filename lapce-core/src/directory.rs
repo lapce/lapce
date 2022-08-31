@@ -1,11 +1,15 @@
 use std::path::PathBuf;
 
-use directories::ProjectDirs;
+use directories::{ProjectDirs, BaseDirs};
 
 use crate::meta::NAME;
 pub struct Directory {}
 
 impl Directory {
+    pub fn home_dir() -> Option<PathBuf> {
+        BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
+    }
+
     fn project_dirs() -> Option<ProjectDirs> {
         ProjectDirs::from("dev", "lapce", &NAME)
     }

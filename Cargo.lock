@@ -2686,7 +2686,6 @@ dependencies = [
  "base64 0.13.0",
  "clap",
  "crossbeam-channel",
- "directories",
  "dyn-clone",
  "flate2",
  "git2",

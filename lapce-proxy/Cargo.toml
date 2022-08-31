@@ -27,7 +27,6 @@ wasmtime = "1.0.0"
 wasmtime-wasi = "1.0.0"
 wasi-common = "1.0.0"
 wasi-experimental-http-wasmtime = { git = "https://github.com/lapce/wasi-experimental-http" }
-directories = "4.0.1"
 locale_config = "0.3.0"
 base64 = "0.13.0"
 alacritty_terminal = "0.17.0"
