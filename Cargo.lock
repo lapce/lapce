@@ -5016,8 +5016,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-typescript"
 version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e8ed0ecb931cdff13c6a13f45ccd615156e2779d9ffb0395864e05505e6e86d"
+source = "git+https://github.com/ConnorSMorrison/tree-sitter-typescript.git?rev=5be6646#5be66469e7fcdaab07e1a9e7f188a4f655b5991e"
 dependencies = [
  "cc",
  "tree-sitter",
