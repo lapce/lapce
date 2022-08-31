@@ -637,7 +637,7 @@ pub enum LapceUICommand {
     JumpToLineLocation(Option<WidgetId>, EditorLocation<Line>),
     JumpToLineColLocation(Option<WidgetId>, EditorLocation<LineCol>),
     TerminalJumpToLine(i32),
-    GoToLocationNew(WidgetId, EditorLocation),
+    GoToLocation(Option<WidgetId>, EditorLocation),
     GotoDefinition {
         editor_view_id: WidgetId,
         offset: usize,

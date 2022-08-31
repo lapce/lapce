@@ -2071,6 +2071,8 @@ pub struct LapceMainSplitData {
     pub warning_count: usize,
     pub workspace: Arc<LapceWorkspace>,
     pub db: Arc<LapceDb>,
+    pub locations: Arc<Vec<EditorLocation>>,
+    pub current_location: usize,
 }
 
 impl LapceMainSplitData {
@@ -2583,6 +2585,20 @@ impl LapceMainSplitData {
         config: &Config,
         cb: Option<F>,
     ) -> WidgetId {
+        if let Some(active_tab) = self.active_tab.as_ref() {
+            let editor_tab = self.editor_tabs.get(active_tab).unwrap();
+            if let EditorTabChild::Editor(view_id, _, _) = editor_tab.active_child()
+            {
+                let editor = self.editors.get(view_id).unwrap();
+                if let BufferContent::File(path) = &editor.content {
+                    self.save_jump_location(
+                        path.to_path_buf(),
+                        editor.cursor.offset(),
+                        editor.scroll_offset,
+                    );
+                }
+            }
+        }
         let editor_view_id = self
             .get_editor_or_new(
                 ctx,
@@ -2592,15 +2608,6 @@ impl LapceMainSplitData {
                 config,
             )
             .view_id;
-        let doc = self.editor_doc(editor_view_id);
-        let editor = self.get_editor_or_new(
-            ctx,
-            Some(editor_view_id),
-            Some(location.path.clone()),
-            false,
-            config,
-        );
-        editor.save_jump_location(&doc);
         self.go_to_location_cb::<P, F>(
             ctx,
             Some(editor_view_id),
@@ -2609,6 +2616,22 @@ impl LapceMainSplitData {
             cb,
         );
         editor_view_id
+    }
+
+    pub fn save_jump_location(
+        &mut self,
+        path: PathBuf,
+        offset: usize,
+        scroll_offset: Vec2,
+    ) {
+        let location = EditorLocation {
+            path,
+            position: Some(offset),
+            scroll_offset: Some(scroll_offset),
+            history: None,
+        };
+        Arc::make_mut(&mut self.locations).push(location);
+        self.current_location = self.locations.len();
     }
 
     fn get_name_for_new_file(&self) -> String {
@@ -2941,6 +2964,8 @@ impl LapceMainSplitData {
             warning_count: 0,
             workspace,
             db,
+            locations: Arc::new(Vec::new()),
+            current_location: 0,
         };
 
         if let Some(info) = workspace_info {
@@ -3614,8 +3639,6 @@ pub struct LapceEditorData {
     pub size: Rc<RefCell<Size>>,
     pub window_origin: Rc<RefCell<Point>>,
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
-    pub locations: Vec<EditorLocation>,
-    pub current_location: usize,
     pub last_movement_new: Movement,
     pub last_inline_find: Option<(InlineFindDirection, String)>,
     pub inline_find: Option<InlineFindDirection>,
@@ -3655,8 +3678,6 @@ impl LapceEditorData {
             compare: None,
             window_origin: Rc::new(RefCell::new(Point::ZERO)),
             snippet: None,
-            locations: vec![],
-            current_location: 0,
             last_movement_new: Movement::Left,
             inline_find: None,
             last_inline_find: None,
@@ -3705,19 +3726,6 @@ impl LapceEditorData {
         let v = placeholders.split_off(current);
         placeholders.extend_from_slice(&new_placeholders);
         placeholders.extend_from_slice(&v[1..]);
-    }
-
-    pub fn save_jump_location(&mut self, doc: &Document) {
-        if let BufferContent::File(path) = doc.content() {
-            let location = EditorLocation {
-                path: path.clone(),
-                position: Some(self.cursor.offset()),
-                scroll_offset: Some(self.scroll_offset),
-                history: None,
-            };
-            self.locations.push(location);
-            self.current_location = self.locations.len();
-        }
     }
 
     pub fn editor_info(&self, data: &LapceTabData) -> EditorInfo {

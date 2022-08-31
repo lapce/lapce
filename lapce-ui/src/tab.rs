@@ -1301,10 +1301,10 @@ impl LapceTab {
                         );
                         ctx.set_handled();
                     }
-                    LapceUICommand::GoToLocationNew(editor_view_id, location) => {
+                    LapceUICommand::GoToLocation(editor_view_id, location) => {
                         data.main_split.go_to_location(
                             ctx,
-                            Some(*editor_view_id),
+                            *editor_view_id,
                             location.clone(),
                             &data.config,
                         );

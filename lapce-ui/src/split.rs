@@ -1028,7 +1028,6 @@ impl LapceSplit {
             &data.config,
         );
         editor_data.cursor = from_editor.cursor.clone();
-        editor_data.locations = from_editor.locations.clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::ForceScrollTo(

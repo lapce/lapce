@@ -955,38 +955,43 @@ impl LapceEditorBufferData {
     }
 
     fn jump_location_forward(&mut self, ctx: &mut EventCtx) -> Option<()> {
-        if self.editor.locations.is_empty() {
+        if self.main_split.locations.is_empty() {
             return None;
         }
-        if self.editor.current_location >= self.editor.locations.len() - 1 {
+        if self.main_split.current_location >= self.main_split.locations.len() - 1 {
             return None;
         }
-        let editor = Arc::make_mut(&mut self.editor);
-        editor.current_location += 1;
-        let location = editor.locations[editor.current_location].clone();
+        self.main_split.current_location += 1;
+        let location =
+            self.main_split.locations[self.main_split.current_location].clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::GoToLocationNew(editor.view_id, location),
+            LapceUICommand::GoToLocation(None, location),
             Target::Auto,
         ));
         None
     }
 
     fn jump_location_backward(&mut self, ctx: &mut EventCtx) -> Option<()> {
-        if self.editor.current_location < 1 {
+        if self.main_split.current_location < 1 {
             return None;
         }
-        if self.editor.current_location >= self.editor.locations.len() {
-            let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(&self.doc);
-            editor.current_location -= 1;
+        if self.main_split.current_location >= self.main_split.locations.len() {
+            if let BufferContent::File(path) = &self.editor.content {
+                self.main_split.save_jump_location(
+                    path.to_path_buf(),
+                    self.editor.cursor.offset(),
+                    self.editor.scroll_offset,
+                );
+            }
+            self.main_split.current_location -= 1;
         }
-        let editor = Arc::make_mut(&mut self.editor);
-        editor.current_location -= 1;
-        let location = editor.locations[editor.current_location].clone();
+        self.main_split.current_location -= 1;
+        let location =
+            self.main_split.locations[self.main_split.current_location].clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::GoToLocationNew(editor.view_id, location),
+            LapceUICommand::GoToLocation(None, location),
             Target::Auto,
         ));
         None
@@ -1326,7 +1331,13 @@ impl LapceEditorBufferData {
         mods: Modifiers,
     ) -> CommandExecuted {
         if movement.is_jump() && movement != &self.editor.last_movement_new {
-            Arc::make_mut(&mut self.editor).save_jump_location(&self.doc);
+            if let BufferContent::File(path) = &self.editor.content {
+                self.main_split.save_jump_location(
+                    path.to_path_buf(),
+                    self.editor.cursor.offset(),
+                    self.editor.scroll_offset,
+                );
+            }
         }
         Arc::make_mut(&mut self.editor).last_movement_new = movement.clone();
 
