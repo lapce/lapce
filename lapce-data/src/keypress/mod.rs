@@ -318,7 +318,7 @@ impl KeyPressData {
         focus: &mut T,
         env: &Env,
     ) -> bool {
-        log::info!("Keypress: {key_event:?}");
+        log::info!(target: "lapce_data::keypress::key_down", "{key_event:?}");
 
         // We are removing Shift modifier since the character is already upper case.
         let mods = Self::get_key_modifiers(key_event);
