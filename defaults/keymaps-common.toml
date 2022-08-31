@@ -257,6 +257,12 @@ when = "global_search_focus"
 mode = "i"
 
 [[keymaps]]
+key = "enter"
+command = "confirm_rename"
+when = "rename_focus"
+mode = "i"
+
+[[keymaps]]
 key = "tab"
 command = "insert_tab"
 when = "!in_snippet && !completion_focus"

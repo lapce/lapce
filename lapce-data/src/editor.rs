@@ -364,44 +364,30 @@ impl LapceEditorBufferData {
         self.rename.active
     }
 
-    pub fn run_code_action(
+    pub fn apply_workspace_edit(
         &mut self,
         ctx: &mut EventCtx,
-        action: &CodeActionOrCommand,
+        edit: &WorkspaceEdit,
     ) {
         if let BufferContent::File(path) = &self.editor.content {
-            match action {
-                CodeActionOrCommand::Command(_cmd) => {}
-                CodeActionOrCommand::CodeAction(action) => {
-                    if let Some(edit) = action.edit.as_ref() {
-                        if let Some(edits) = workspace_edits(edit) {
-                            for (url, edits) in edits {
-                                if url_matches_path(path, &url) {
-                                    let path = path.clone();
-                                    let doc = self
-                                        .main_split
-                                        .open_docs
-                                        .get(&path)
-                                        .unwrap()
-                                        .clone();
-                                    apply_code_action(
-                                        &doc,
-                                        &mut self.main_split,
-                                        &path,
-                                        &edits,
-                                    );
-                                } else if let Ok(url_path) = url.to_file_path() {
-                                    // If it is not for the file we have open then we assume that
-                                    // we may have to load it
-                                    // So we jump to the location that the edits were at.
-                                    // TODO: url_matches_path checks if the url path 'goes back' to the original url
-                                    // Should we do that here?
+            if let Some(edits) = workspace_edits(edit) {
+                for (url, edits) in edits {
+                    if url_matches_path(path, &url) {
+                        let path = path.clone();
+                        let doc =
+                            self.main_split.open_docs.get(&path).unwrap().clone();
+                        apply_edit(&doc, &mut self.main_split, &path, &edits);
+                    } else if let Ok(url_path) = url.to_file_path() {
+                        // If it is not for the file we have open then we assume that
+                        // we may have to load it
+                        // So we jump to the location that the edits were at.
+                        // TODO: url_matches_path checks if the url path 'goes back' to the original url
+                        // Should we do that here?
 
-                                    // We choose to just jump to the start of the first edit. The edit function will jump
-                                    // appropriately when we actually apply the edits.
-                                    let position =
-                                        edits.get(0).map(|edit| edit.range.start);
-                                    self.main_split.jump_to_location_cb(
+                        // We choose to just jump to the start of the first edit. The edit function will jump
+                        // appropriately when we actually apply the edits.
+                        let position = edits.get(0).map(|edit| edit.range.start);
+                        self.main_split.jump_to_location_cb(
                                         ctx,
                                         None,
                                         EditorLocation {
@@ -422,15 +408,27 @@ impl LapceEditorBufferData {
                                                 return;
                                             };
 
-                                            apply_code_action(&doc, main_split, &url_path, &edits);
+                                            apply_edit(&doc, main_split, &url_path, &edits);
                                         }),
                                     );
-                                } else {
-                                    log::warn!("Text edits failed to apply to URL {url:?} because it was not found");
-                                }
-                            }
-                        }
+                    } else {
+                        log::warn!("Text edits failed to apply to URL {url:?} because it was not found");
                     }
+                }
+            }
+        }
+    }
+
+    pub fn run_code_action(
+        &mut self,
+        ctx: &mut EventCtx,
+        action: &CodeActionOrCommand,
+    ) {
+        match action {
+            CodeActionOrCommand::Command(_cmd) => {}
+            CodeActionOrCommand::CodeAction(action) => {
+                if let Some(edit) = action.edit.as_ref() {
+                    self.apply_workspace_edit(ctx, edit);
                 }
             }
         }
@@ -2188,15 +2186,16 @@ impl LapceEditorBufferData {
                     let tab_id = *self.main_split.tab_id;
                     let event_sink = ctx.get_external_handle();
 
-                    Arc::make_mut(&mut self.rename).update(
-                        path.clone(),
-                        rev,
-                        offset,
-                    );
-
                     if let Some(position) =
                         self.doc.buffer().offset_to_position(offset)
                     {
+                        Arc::make_mut(&mut self.rename).update(
+                            path.clone(),
+                            rev,
+                            offset,
+                            position,
+                            self.editor.view_id,
+                        );
                         self.proxy.proxy_rpc.prepare_rename(
                             path.clone(),
                             position,
@@ -2213,6 +2212,43 @@ impl LapceEditorBufferData {
                         );
                     }
                 }
+            }
+            ConfirmRename => {
+                let new_name = self
+                    .main_split
+                    .local_docs
+                    .get(&LocalBufferKind::Rename)
+                    .unwrap()
+                    .buffer()
+                    .text()
+                    .to_string();
+                let new_name = new_name.trim();
+                if !new_name.is_empty() {
+                    let event_sink = ctx.get_external_handle();
+                    let view_id = self.rename.from_editor;
+                    self.proxy.proxy_rpc.rename(
+                        self.rename.path.clone(),
+                        self.rename.position,
+                        new_name.to_string(),
+                        move |result| {
+                            if let Ok(ProxyResponse::Rename { edit }) = result {
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::ApplyWorkspaceEdit(edit),
+                                    Target::Widget(view_id),
+                                );
+                            }
+                        },
+                    );
+                }
+                ctx.submit_command(Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::ModalClose),
+                        data: None,
+                    },
+                    Target::Widget(self.rename.view_id),
+                ));
             }
             _ => return CommandExecuted::No,
         }
@@ -2290,6 +2326,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             "completion_focus" => self.has_completions(),
             "hover_focus" => self.has_hover(),
             "list_focus" => self.has_completions() || self.is_palette(),
+            "rename_focus" => self.has_rename(),
             "modal_focus" => {
                 (self.has_completions() && !self.config.lapce.modal)
                     || self.has_hover()
@@ -2509,7 +2546,7 @@ fn url_matches_path(path: &Path, url: &Url) -> bool {
     matches
 }
 
-fn apply_code_action(
+fn apply_edit(
     doc: &Document,
     main_split: &mut LapceMainSplitData,
     path: &Path,

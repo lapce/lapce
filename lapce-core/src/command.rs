@@ -296,6 +296,8 @@ pub enum FocusCommand {
     #[strum(serialize = "rename_symbol")]
     #[strum(message = "Rename Symbol")]
     Rename,
+    #[strum(serialize = "confirm_rename")]
+    ConfirmRename,
 }
 
 #[derive(

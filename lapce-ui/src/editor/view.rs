@@ -194,6 +194,9 @@ impl LapceEditorView {
             LapceUICommand::RunCodeAction(action) => {
                 data.run_code_action(ctx, action);
             }
+            LapceUICommand::ApplyWorkspaceEdit(edit) => {
+                data.apply_workspace_edit(ctx, edit);
+            }
             LapceUICommand::EnsureCursorVisible(position) => {
                 self.ensure_cursor_visible(ctx, data, panel, position.as_ref(), env);
             }

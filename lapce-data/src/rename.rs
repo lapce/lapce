@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use druid::{Command, EventCtx, ExtEventSink, Target, WidgetId};
 use lapce_core::buffer::Buffer;
-use lsp_types::PrepareRenameResponse;
+use lsp_types::{Position, PrepareRenameResponse};
 use xi_rope::Rope;
 
 use crate::{
@@ -21,6 +21,8 @@ pub struct RenameData {
     pub path: PathBuf,
     /// The offset that is currently being handled
     pub offset: usize,
+    pub position: Position,
+    pub from_editor: WidgetId,
 
     pub start: usize,
     pub end: usize,
@@ -36,17 +38,28 @@ impl RenameData {
             rev: 0,
             path: PathBuf::new(),
             offset: 0,
+            position: Position::new(0, 0),
+            from_editor: WidgetId::next(),
             start: 0,
             end: 0,
             placeholder: "".to_string(),
         }
     }
 
-    pub fn update(&mut self, path: PathBuf, rev: u64, offset: usize) {
+    pub fn update(
+        &mut self,
+        path: PathBuf,
+        rev: u64,
+        offset: usize,
+        position: Position,
+        from_editor: WidgetId,
+    ) {
         self.active = false;
         self.path = path;
         self.rev = rev;
         self.offset = offset;
+        self.from_editor = from_editor;
+        self.position = position;
     }
 
     pub fn cancel(&mut self) {

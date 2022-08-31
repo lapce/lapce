@@ -18,7 +18,7 @@ use lapce_rpc::{
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     InlayHint, Location, Position, ProgressParams, PublishDiagnosticsParams,
-    TextEdit,
+    TextEdit, WorkspaceEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
@@ -511,6 +511,7 @@ pub enum LapceUICommand {
     UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,
     RunCodeAction(CodeActionOrCommand),
+    ApplyWorkspaceEdit(WorkspaceEdit),
     ShowCodeActions(Option<Point>),
     Hide,
     ResignFocus,
