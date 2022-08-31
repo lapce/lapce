@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    cmp::Ordering,
     collections::{HashMap, HashSet},
     io::BufReader,
     path::{Path, PathBuf},
@@ -2367,7 +2368,24 @@ impl LapceMainSplitData {
         config: &Config,
     ) -> &mut LapceEditorData {
         let mut editor_size = Size::ZERO;
-        for (_, editor_tab) in self.editor_tabs.iter_mut() {
+        for (_, editor_tab) in
+            self.editor_tabs.iter_mut().sorted_by(|(_, a), (_, b)| {
+                if Some(a.widget_id) == *self.active_tab {
+                    return Ordering::Less;
+                }
+                if Some(b.widget_id) == *self.active_tab {
+                    return Ordering::Greater;
+                }
+                let a_rect = a.layout_rect.borrow();
+                let b_rect = b.layout_rect.borrow();
+
+                if a_rect.y0 == b_rect.y0 {
+                    a_rect.x0.total_cmp(&b_rect.x0)
+                } else {
+                    a_rect.y0.total_cmp(&b_rect.y0)
+                }
+            })
+        {
             let editor_tab = Arc::make_mut(editor_tab);
             for (i, child) in editor_tab.children.iter().enumerate() {
                 if let EditorTabChild::Editor(id, _, _) = child {
