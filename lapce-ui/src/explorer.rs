@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::{collections::HashMap, path::Path};
 
 use druid::menu::MenuEventCtx;
+use druid::piet::TextAttribute;
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
@@ -9,12 +10,15 @@ use druid::{
     Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use druid::{ExtEventSink, KbKey, WindowId};
-use lapce_data::data::{LapceData, LapceEditorData};
+use itertools::Itertools;
+use lapce_core::command::FocusCommand;
+use lapce_data::command::{CommandKind, LapceCommand, LAPCE_COMMAND};
+use lapce_data::data::{EditorTabChild, LapceData, LapceEditorData};
 use lapce_data::document::{BufferContent, LocalBufferKind};
 use lapce_data::explorer::FileExplorerData;
 use lapce_data::explorer::Naming;
 use lapce_data::panel::PanelKind;
-use lapce_data::proxy::LapceProxy;
+use lapce_data::proxy::{LapceProxy, VERSION};
 use lapce_data::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
@@ -327,12 +331,29 @@ impl FileExplorer {
             PanelKind::FileExplorer,
             data.file_explorer.widget_id,
             split_id,
-            vec![(
-                split_id,
-                PanelHeaderKind::None,
-                Self::new(data).boxed(),
-                PanelSizing::Flex(false),
-            )],
+            vec![
+                (
+                    WidgetId::next(),
+                    PanelHeaderKind::Simple("Open Editors".into()),
+                    LapceScroll::new(OpenEditorList::new()).boxed(),
+                    PanelSizing::Size(200.0),
+                ),
+                (
+                    split_id,
+                    PanelHeaderKind::Simple(
+                        data.workspace
+                            .path
+                            .as_ref()
+                            .and_then(|p| p.file_name())
+                            .and_then(|s| s.to_str())
+                            .map(|s| s.to_string())
+                            .unwrap_or_default()
+                            .into(),
+                    ),
+                    Self::new(data).boxed(),
+                    PanelSizing::Flex(true),
+                ),
+            ],
         )
     }
 }
@@ -392,6 +413,7 @@ impl Widget<LapceTabData> for FileExplorer {
 }
 
 type NameEditInput = WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>;
+
 struct FileExplorerFileList {
     line_height: f64,
     hovered: Option<usize>,
@@ -924,5 +946,346 @@ fn expand_dir(
         }
     } else {
         on_finished();
+    }
+}
+
+struct OpenEditorList {
+    line_height: f64,
+    mouse_pos: Point,
+    in_view_tab_children: HashMap<usize, (Rect, WidgetId)>,
+    mouse_down: Option<(usize, Option<Rect>)>,
+}
+
+impl OpenEditorList {
+    fn new() -> Self {
+        Self {
+            line_height: 25.0,
+            mouse_pos: Point::ZERO,
+            in_view_tab_children: HashMap::new(),
+            mouse_down: None,
+        }
+    }
+
+    fn paint_editor(
+        &mut self,
+        ctx: &mut PaintCtx,
+        i: usize,
+        data: &LapceTabData,
+        child: &EditorTabChild,
+        active: bool,
+    ) {
+        let size = ctx.size();
+        let mut text = "".to_string();
+        let mut hint = "".to_string();
+        let mut svg = get_svg("default_file.svg").unwrap();
+        let mut pristine = true;
+        match child {
+            EditorTabChild::Editor(view_id, _, _) => {
+                let editor_buffer = data.editor_view_content(*view_id);
+                pristine = editor_buffer.doc.buffer().is_pristine();
+
+                if let BufferContent::File(path) = &editor_buffer.editor.content {
+                    (svg, _) = file_svg(path);
+                    if let Some(file_name) = path.file_name() {
+                        if let Some(s) = file_name.to_str() {
+                            text = s.to_string();
+                        }
+                    }
+                    let mut path = path.to_path_buf();
+                    if let Some(workspace_path) = data.workspace.path.as_ref() {
+                        path = path
+                            .strip_prefix(workspace_path)
+                            .unwrap_or(&path)
+                            .to_path_buf();
+                    }
+                    hint = path
+                        .parent()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("")
+                        .to_string();
+                } else if let BufferContent::Scratch(..) =
+                    &editor_buffer.editor.content
+                {
+                    text = editor_buffer.editor.content.file_name().to_string();
+                }
+                if let Some(_compare) = editor_buffer.editor.compare.as_ref() {
+                    text = format!("{text} (Working tree)");
+                }
+            }
+            EditorTabChild::Settings(_, _) => {
+                text = "Settings".to_string();
+                hint = format!("ver. {}", *VERSION);
+            }
+        }
+
+        let font_size = data.config.ui.font_size() as f64;
+
+        if active {
+            ctx.fill(
+                Size::new(size.width, self.line_height)
+                    .to_rect()
+                    .with_origin(Point::new(0.0, i as f64 * self.line_height)),
+                data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+            );
+        } else if ctx.is_hot()
+            && i == (self.mouse_pos.y / self.line_height).floor() as usize
+        {
+            ctx.fill(
+                Size::new(size.width, self.line_height)
+                    .to_rect()
+                    .with_origin(Point::new(0.0, i as f64 * self.line_height)),
+                data.config.get_color_unchecked(LapceTheme::PANEL_HOVERED),
+            );
+        }
+
+        let close_rect =
+            Size::new(font_size, font_size)
+                .to_rect()
+                .with_origin(Point::new(
+                    10.0 + (self.line_height - font_size) / 2.0,
+                    i as f64 * self.line_height
+                        + (self.line_height - font_size) / 2.0,
+                ));
+
+        self.in_view_tab_children
+            .insert(i, (close_rect.inflate(2.0, 2.0), child.widget_id()));
+
+        let close_svg = if ctx.is_hot()
+            && close_rect.inflate(2.0, 2.0).contains(self.mouse_pos)
+        {
+            ctx.fill(
+                close_rect.inflate(2.0, 2.0),
+                data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+            );
+            Some(get_svg("close.svg").unwrap())
+        } else if pristine {
+            None
+        } else {
+            Some(get_svg("unsaved.svg").unwrap())
+        };
+        if let Some(close_svg) = close_svg {
+            ctx.draw_svg(&close_svg, close_rect, None);
+        }
+
+        let svg_rect =
+            Size::new(font_size, font_size)
+                .to_rect()
+                .with_origin(Point::new(
+                    10.0 + self.line_height,
+                    i as f64 * self.line_height
+                        + (self.line_height - font_size) / 2.0,
+                ));
+        ctx.draw_svg(&svg, svg_rect, None);
+
+        if !hint.is_empty() {
+            text = format!("{} {}", text, hint);
+        }
+        let total_len = text.len();
+        let mut text_layout = ctx
+            .text()
+            .new_text_layout(text)
+            .font(data.config.ui.font_family(), font_size)
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            );
+        if !hint.is_empty() {
+            text_layout = text_layout.range_attribute(
+                total_len - hint.len()..total_len,
+                TextAttribute::TextColor(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .clone(),
+                ),
+            );
+        }
+        let text_layout = text_layout.build().unwrap();
+        ctx.draw_text(
+            &text_layout,
+            Point::new(
+                svg_rect.x1 + 5.0,
+                i as f64 * self.line_height
+                    + (self.line_height - text_layout.size().height) / 2.0,
+            ),
+        );
+    }
+}
+
+impl Widget<LapceTabData> for OpenEditorList {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        _data: &mut LapceTabData,
+        _env: &Env,
+    ) {
+        match event {
+            Event::MouseMove(mouse_event) => {
+                let index = (mouse_event.pos.y / self.line_height).floor() as usize;
+                if self.in_view_tab_children.contains_key(&index) {
+                    ctx.set_cursor(&druid::Cursor::Pointer);
+                } else {
+                    ctx.clear_cursor();
+                }
+                self.mouse_pos = mouse_event.pos;
+            }
+            Event::MouseDown(mouse_event) => {
+                self.mouse_down = None;
+                let index = (mouse_event.pos.y / self.line_height).floor() as usize;
+                if let Some((close_rect, _)) = self.in_view_tab_children.get(&index)
+                {
+                    self.mouse_down = Some((
+                        index,
+                        if close_rect.contains(mouse_event.pos) {
+                            Some(*close_rect)
+                        } else {
+                            None
+                        },
+                    ));
+                }
+            }
+            Event::MouseUp(mouse_event) => {
+                if let Some((down_index, down_close_rect)) = self.mouse_down {
+                    let index =
+                        (mouse_event.pos.y / self.line_height).floor() as usize;
+                    if index == down_index {
+                        if let Some((close_rect, widget_id)) =
+                            self.in_view_tab_children.get(&index)
+                        {
+                            if down_close_rect.is_some()
+                                && close_rect.contains(mouse_event.pos)
+                            {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_COMMAND,
+                                    LapceCommand {
+                                        kind: CommandKind::Focus(
+                                            FocusCommand::SplitClose,
+                                        ),
+                                        data: None,
+                                    },
+                                    Target::Widget(*widget_id),
+                                ));
+                            } else {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::Focus,
+                                    Target::Widget(*widget_id),
+                                ));
+                            }
+                        }
+                    }
+                }
+                self.mouse_down = None;
+            }
+            _ => {}
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        _ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        _env: &Env,
+    ) -> Size {
+        let n = data
+            .main_split
+            .editor_tabs
+            .iter()
+            .map(|(_, tab)| tab.children.len())
+            .sum::<usize>();
+        let n = if data.main_split.editor_tabs.len() > 1 {
+            n + data.main_split.editor_tabs.len()
+        } else {
+            n
+        };
+        Size::new(bc.max().width, self.line_height * n as f64)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+        self.in_view_tab_children.clear();
+        let rect = ctx.region().bounding_box();
+        let mut i = 0;
+        let mut g = 0;
+        for (_, tab) in
+            data.main_split
+                .editor_tabs
+                .iter()
+                .sorted_by(|(_, a), (_, b)| {
+                    let a_rect = a.layout_rect.borrow();
+                    let b_rect = b.layout_rect.borrow();
+
+                    if a_rect.y0 == b_rect.y0 {
+                        a_rect.x0.total_cmp(&b_rect.x0)
+                    } else {
+                        a_rect.y0.total_cmp(&b_rect.y0)
+                    }
+                })
+        {
+            if data.main_split.editor_tabs.len() > 1 {
+                if self.line_height * (i as f64) > rect.y1 {
+                    return;
+                }
+                g += 1;
+                if self.line_height * ((i + 1) as f64) >= rect.y0 {
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout(format!("Group {}", g))
+                        .font(
+                            data.config.ui.font_family(),
+                            data.config.ui.font_size() as f64,
+                        )
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    ctx.draw_text(
+                        &text_layout,
+                        Point::new(
+                            10.0,
+                            (i as f64 * self.line_height)
+                                + (self.line_height - text_layout.size().height)
+                                    / 2.0,
+                        ),
+                    );
+                }
+                i += 1;
+            }
+            for (child_index, child) in tab.children.iter().enumerate() {
+                if self.line_height * ((i + 1) as f64) < rect.y0 {
+                    i += 1;
+                    continue;
+                }
+                if self.line_height * (i as f64) > rect.y1 {
+                    return;
+                }
+                let active = *data.main_split.active_tab == Some(tab.widget_id)
+                    && tab.active == child_index;
+                self.paint_editor(ctx, i, data, child, active);
+                i += 1;
+            }
+        }
     }
 }

@@ -2341,37 +2341,48 @@ impl LapceMainSplitData {
         scratch: bool,
         config: &Config,
     ) -> &mut LapceEditorData {
-        let editor_tab =
-            Arc::make_mut(self.editor_tabs.get_mut(&editor_tab_id).unwrap());
-
-        if !config.editor.show_tab || (path.is_none() && !scratch) {
-            if let EditorTabChild::Editor(id, _, _) = editor_tab.active_child() {
-                return Arc::make_mut(self.editors.get_mut(id).unwrap());
-            }
-        }
-
         let mut editor_size = Size::ZERO;
-        for (i, child) in editor_tab.children.iter().enumerate() {
-            if let EditorTabChild::Editor(id, _, _) = child {
-                let editor = self.editors.get(id).unwrap();
-                let current_size = *editor.size.borrow();
-                if current_size.height > 0.0 {
-                    editor_size = current_size;
-                }
-                if let Some(path) = path.as_ref() {
-                    if editor.content == BufferContent::File(path.clone()) {
-                        editor_tab.active = i;
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::Focus,
-                            Target::Widget(*id),
-                        ));
-                        return Arc::make_mut(self.editors.get_mut(id).unwrap());
+        for (_, editor_tab) in self.editor_tabs.iter_mut() {
+            let editor_tab = Arc::make_mut(editor_tab);
+            for (i, child) in editor_tab.children.iter().enumerate() {
+                if let EditorTabChild::Editor(id, _, _) = child {
+                    let editor = self.editors.get(id).unwrap();
+                    let current_size = *editor.size.borrow();
+                    if current_size.height > 0.0 {
+                        editor_size = current_size;
+                    }
+                    if let Some(path) = path.as_ref() {
+                        if editor.content == BufferContent::File(path.clone()) {
+                            editor_tab.active = i;
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::Focus,
+                                Target::Widget(*id),
+                            ));
+                            return Arc::make_mut(self.editors.get_mut(id).unwrap());
+                        }
                     }
                 }
             }
         }
 
+        if !config.editor.show_tab || (path.is_none() && !scratch) {
+            let editor_tab =
+                Arc::make_mut(self.editor_tabs.get_mut(&editor_tab_id).unwrap());
+            if let EditorTabChild::Editor(id, _, _) = editor_tab.active_child() {
+                let editor = self.editors.get_mut(id).unwrap();
+                if let BufferContent::File(path) = &editor.content {
+                    if let Some(doc) = self.open_docs.get(path) {
+                        if doc.buffer().is_pristine() {
+                            return Arc::make_mut(self.editors.get_mut(id).unwrap());
+                        }
+                    }
+                }
+            }
+        }
+
+        let editor_tab =
+            Arc::make_mut(self.editor_tabs.get_mut(&editor_tab_id).unwrap());
         let new_editor = Arc::new(LapceEditorData::new(
             None,
             None,
