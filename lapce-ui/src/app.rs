@@ -77,7 +77,7 @@ pub fn launch() {
                 .level_for("druid::core", log::LevelFilter::Off)
                 .level_for("druid::box_constraints", log::LevelFilter::Off)
                 .level_for("cranelift_codegen", log::LevelFilter::Off)
-                .level_for("wasmer_compiler_cranelift", log::LevelFilter::Off)
+                .level_for("wasmtime_cranelift", log::LevelFilter::Off)
                 .level_for("regalloc", log::LevelFilter::Off)
                 .level_for("hyper::proto", log::LevelFilter::Off)
                 .chain(log_file),
