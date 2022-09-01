@@ -240,10 +240,14 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
             }
         }
         // Handle paths without extension
+        #[allow(clippy::match_single_binding)]
         None => match path.file_name()?.to_str()? {
-            "dockerfile" => "dockerfile",
-            "makefile" | "gnumakefile" => "makefile",
-            _ => return None,
+            // case-insensitive matching
+            filename => match filename.to_lowercase().as_str() {
+                "dockerfile" => "dockerfile",
+                "makefile" | "gnumakefile" => "makefile",
+                _ => return None,
+            },
         },
     })
 }
