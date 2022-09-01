@@ -1070,7 +1070,15 @@ impl Widget<LapceTabData> for LapceSplit {
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
-                if ctx.is_active() {
+                if self.children.is_empty() {
+                    ctx.clear_cursor();
+                    for (_, _, rect, _) in &self.commands {
+                        if rect.contains(mouse_event.pos) {
+                            ctx.set_cursor(&druid::Cursor::Pointer);
+                            break;
+                        }
+                    }
+                } else if ctx.is_active() {
                     // If we're active then we're probably being dragged
                     self.update_resize_point(mouse_event.pos);
                     ctx.request_layout();
@@ -1100,16 +1108,6 @@ impl Widget<LapceTabData> for LapceSplit {
                         ctx.clear_cursor();
                     }
                 }
-
-                if self.children.is_empty() {
-                    for (_, _, rect, _) in &self.commands {
-                        if rect.contains(mouse_event.pos) {
-                            ctx.set_cursor(&druid::Cursor::Pointer);
-                            break;
-                        }
-                    }
-                }
-                ctx.request_paint();
             }
             Event::MouseDown(mouse_event) => {
                 if mouse_event.button.is_left() {
