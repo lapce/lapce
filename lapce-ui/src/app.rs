@@ -199,10 +199,23 @@ fn window_icon() -> Option<druid::Icon> {
 
 #[cfg(target_os = "macos")]
 fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
+    use lapce_data::command::{
+        CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND,
+    };
+
     desc.menu(|_, _, _| {
         Menu::new("Lapce").entry(
             Menu::new("")
-                .entry(MenuItem::new("About Lapce"))
+                .entry(MenuItem::new("About Lapce").command(Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::ShowAbout,
+                        ),
+                        data: None,
+                    },
+                    Target::Auto,
+                )))
                 .separator()
                 .entry(
                     MenuItem::new("Hide Lapce")
