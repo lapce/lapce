@@ -31,6 +31,8 @@ const LOGO_ICO: &[u8] = include_bytes!("../../extra/windows/lapce.ico");
 #[clap(name = "Lapce")]
 #[clap(version=*VERSION)]
 struct Cli {
+    #[clap(short, long, action)]
+    new: bool,
     paths: Vec<PathBuf>,
 }
 
@@ -42,7 +44,7 @@ pub fn launch() {
     let cli = Cli::parse();
     let pwd = std::env::current_dir().unwrap_or_default();
     let paths: Vec<PathBuf> = cli.paths.iter().map(|p| pwd.join(p)).collect();
-    if LapceData::check_local_socket(paths.clone()).is_ok() {
+    if !cli.new && LapceData::check_local_socket(paths.clone()).is_ok() {
         return;
     }
 
