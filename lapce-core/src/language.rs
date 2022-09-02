@@ -168,6 +168,8 @@ pub enum LapceLanguage {
     Wgsl,
     #[cfg(feature = "lang-dockerfile")]
     Dockerfile,
+    #[cfg(feature = "lang-csharp")]
+    Csharp,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -546,6 +548,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["dockerfile"],
     },
+    #[cfg(feature = "lang-csharp")]
+    SyntaxProperties {
+        id: LapceLanguage::Csharp,
+        language: tree_sitter_c_sharp::language,
+        highlight: tree_sitter_c_sharp::HIGHLIGHT_QUERY,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["cs", "csx"],
+    },
 ];
 
 impl LapceLanguage {
@@ -854,5 +866,9 @@ mod test {
     #[cfg(feature = "lang-dockerfile")]
     fn test_dockerfile_lang() {
         assert_language(LapceLanguage::Dockerfile, &["dockerfile"]);
+    }
+    #[cfg(feature = "lang-csharp")]
+    fn test_csharp_lang() {
+        assert_language(LapceLanguage::Csharp, &["cs", "csx"]);
     }
 }

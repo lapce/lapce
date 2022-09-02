@@ -52,6 +52,7 @@ tree-sitter-yaml = { git = "https://github.com/panekj/tree-sitter-yaml", branch 
 tree-sitter-julia = { git = "https://github.com/varlad/tree-sitter-julia", branch = "master", optional = true }
 tree-sitter-wgsl = { git = "https://github.com/szebniok/tree-sitter-wgsl", branch = "master", optional = true }
 tree-sitter-dockerfile = { git = "https://github.com/panekj/tree-sitter-dockerfile", branch = "queries", optional = true }
+tree-sitter-c-sharp = { git = "https://github.com/tree-sitter/tree-sitter-c-sharp", branch = "master", optional = true }
 
 [features]
 default = []
@@ -90,3 +91,4 @@ lang-yaml = ["dep:tree-sitter-yaml"]
 lang-julia = ["dep:tree-sitter-julia"]
 lang-wgsl = ["dep:tree-sitter-wgsl"]
 lang-dockerfile = ["dep:tree-sitter-dockerfile"]
+lang-csharp = ["dep:tree-sitter-c-sharp"]
