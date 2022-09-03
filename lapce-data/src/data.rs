@@ -2677,6 +2677,14 @@ impl LapceMainSplitData {
         offset: usize,
         scroll_offset: Vec2,
     ) {
+        if let Some(last_location) = self.locations.last() {
+            if last_location.path == path
+                && last_location.position == Some(offset)
+                && last_location.scroll_offset == Some(scroll_offset)
+            {
+                return;
+            }
+        }
         let location = EditorLocation {
             path,
             position: Some(offset),
