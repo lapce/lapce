@@ -17,7 +17,6 @@ pub struct FindBox {
     parent_view_id: WidgetId,
     input_width: f64,
     result_width: f64,
-    result_pos: Point,
     input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     icons: Vec<LapceIcon>,
     mouse_pos: Point,
@@ -75,7 +74,6 @@ impl FindBox {
             parent_view_id,
             input_width: 200.0,
             result_width: 75.0,
-            result_pos: Point::ZERO,
             input: WidgetPod::new(input.boxed()),
             icons,
             mouse_pos: Point::ZERO,
@@ -161,11 +159,6 @@ impl Widget<LapceTabData> for FindBox {
                 ))
                 .inflate(-5.0, -5.0);
         }
-
-        self.result_pos = Point::new(
-            input_size.width,
-            (height - data.config.ui.font_size() as f64) / 2.0,
-        );
 
         Size::new(width, height)
     }
@@ -263,7 +256,11 @@ impl Widget<LapceTabData> for FindBox {
             .build()
             .unwrap();
 
-        ctx.draw_text(&text_layout, self.result_pos);
+        let input_size = self.input.layout_rect().size();
+        ctx.draw_text(
+            &text_layout,
+            Point::new(input_size.width, text_layout.y_offset(input_size.height)),
+        );
 
         for icon in self.icons.iter() {
             if icon.rect.contains(self.mouse_pos) {

@@ -639,8 +639,7 @@ impl LapceEditor {
                             Point::new(
                                 0.0,
                                 line_height * l as f64
-                                    + (line_height - text_layout.text.size().height)
-                                        / 2.0,
+                                    + text_layout.text.y_offset(line_height),
                             ),
                         );
 
@@ -684,7 +683,7 @@ impl LapceEditor {
                         Point::new(
                             0.0,
                             line_height * line as f64
-                                + (line_height - text_layout.size().height) / 2.0,
+                                + text_layout.y_offset(line_height),
                         ),
                     );
                     line += 1;
@@ -845,9 +844,7 @@ impl LapceEditor {
                     &text_layout,
                     Point::new(
                         0.0,
-                        (data.config.editor.line_height as f64
-                            - text_layout.size().height)
-                            / 2.0,
+                        text_layout.y_offset(data.config.editor.line_height as f64),
                     ),
                 );
             }
@@ -876,8 +873,7 @@ impl LapceEditor {
                 info.font_size,
                 &data.config,
             );
-            let y =
-                info.y + (info.line_height - text_layout.text.size().height) / 2.0;
+            let y = info.y + text_layout.text.y_offset(info.line_height);
             let height = text_layout.text.size().height;
             for (x0, x1, style) in text_layout.extra_style.iter() {
                 if let Some(bg) = &style.bg_color {

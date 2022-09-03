@@ -637,10 +637,7 @@ pub fn paint_file_node_item_by_index(
             .unwrap();
         ctx.draw_text(
             &text_layout,
-            Point::new(
-                38.0 + padding,
-                y + (line_height - text_layout.size().height) / 2.0,
-            ),
+            Point::new(38.0 + padding, y + text_layout.y_offset(line_height)),
         );
     }
     let mut i = current;
@@ -882,7 +879,7 @@ impl Widget<LapceTabData> for FilePickerControl {
             let text_size = btn.text_layout.size();
             let btn_size = btn.rect.size();
             let x = btn.rect.x0 + (btn_size.width - text_size.width) / 2.0;
-            let y = btn.rect.y0 + (btn_size.height - text_size.height) / 2.0;
+            let y = btn.rect.y0 + btn.text_layout.y_offset(btn_size.height);
             ctx.draw_text(&btn.text_layout, Point::new(x, y));
         }
     }

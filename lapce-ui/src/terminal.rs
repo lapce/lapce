@@ -6,7 +6,7 @@ use alacritty_terminal::{
     term::{cell::Flags, search::RegexSearch},
 };
 use druid::{
-    piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
+    piet::{Text, TextAttribute, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, FontWeight, LayoutCtx,
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
@@ -431,7 +431,7 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
                 )
                 .build()
                 .unwrap();
-            let y = (self.height - text_layout.size().height) / 2.0;
+            let y = text_layout.y_offset(self.height);
             ctx.draw_text(&text_layout, Point::new(self.height, y));
         });
 
@@ -607,7 +607,6 @@ impl Widget<LapceTabData> for LapceTerminal {
         let char_size = data.config.editor_text_size(ctx.text(), "W");
         let char_width = char_size.width;
         let line_height = data.config.terminal_line_height() as f64;
-        let y_shift = (line_height - char_size.height) / 2.0;
 
         let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
         let raw = terminal.raw.lock();
@@ -748,7 +747,10 @@ impl Widget<LapceTabData> for LapceTerminal {
                         .default_attribute(TextAttribute::Weight(FontWeight::BOLD));
                 }
                 let text_layout = builder.build().unwrap();
-                ctx.draw_text(&text_layout, Point::new(x, y + y_shift));
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(x, y + text_layout.y_offset(line_height)),
+                );
             }
         }
         if data.find.visual {

@@ -78,7 +78,7 @@ impl Plugin {
             .unwrap();
         ctx.draw_text(
             &text_layout,
-            Point::new(x, y + (self.line_height - text_layout.size().height) / 2.0),
+            Point::new(x, y + text_layout.y_offset(self.line_height)),
         );
         let text_layout = ctx
             .text()
@@ -120,8 +120,7 @@ impl Plugin {
                 &text_layout,
                 Point::new(
                     x,
-                    y + self.line_height
-                        + (self.line_height - text_layout.size().height) / 2.0,
+                    y + self.line_height + text_layout.y_offset(self.line_height),
                 ),
             );
         } else {
@@ -129,8 +128,7 @@ impl Plugin {
                 &text_layout,
                 Point::new(
                     x,
-                    y + self.line_height
-                        + (self.line_height - text_layout.size().height) / 2.0,
+                    y + self.line_height + text_layout.y_offset(self.line_height),
                 ),
             );
         }
@@ -150,8 +148,7 @@ impl Plugin {
             &text_layout,
             Point::new(
                 x,
-                y + self.line_height * 2.0
-                    + (self.line_height - text_layout.size().height) / 2.0,
+                y + self.line_height * 2.0 + text_layout.y_offset(self.line_height),
             ),
         );
 
@@ -185,10 +182,7 @@ impl Plugin {
         ctx.fill(rect, &color);
         ctx.draw_text(
             &text_layout,
-            Point::new(
-                x + text_padding,
-                y + (self.line_height - text_layout.size().height) / 2.0,
-            ),
+            Point::new(x + text_padding, y + text_layout.y_offset(self.line_height)),
         );
         rect
     }

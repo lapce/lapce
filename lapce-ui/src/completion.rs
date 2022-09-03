@@ -542,8 +542,6 @@ impl Widget<LapceTabData> for Completion {
 
             let item = &items[line];
 
-            let y = line_height * line as f64 + 5.0;
-
             if let Some((svg, color)) = completion_svg(item.item.kind, &data.config)
             {
                 let color = color.unwrap_or_else(|| {
@@ -569,7 +567,6 @@ impl Widget<LapceTabData> for Completion {
             let focus_color =
                 data.config.get_color_unchecked(LapceTheme::EDITOR_FOCUS);
             let content = item.item.label.as_str();
-            let point = Point::new(line_height + 5.0, y);
 
             let mut text_layout = ctx
                 .text()
@@ -597,6 +594,8 @@ impl Widget<LapceTabData> for Completion {
                 );
             }
             let text_layout = text_layout.build().unwrap();
+            let y = line_height * line as f64 + text_layout.y_offset(line_height);
+            let point = Point::new(line_height + 5.0, y);
             ctx.draw_text(&text_layout, point);
         }
     }

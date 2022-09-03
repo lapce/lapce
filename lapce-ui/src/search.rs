@@ -232,7 +232,7 @@ impl Widget<LapceTabData> for SearchContent {
                 Point::new(
                     self.line_height,
                     self.line_height * i as f64
-                        + (self.line_height - text_layout.size().height) / 2.0,
+                        + text_layout.y_offset(self.line_height),
                 ),
             );
 
@@ -270,7 +270,7 @@ impl Widget<LapceTabData> for SearchContent {
                     Point::new(
                         x,
                         self.line_height * i as f64
-                            + (self.line_height - text_layout.size().height) / 2.0,
+                            + text_layout.y_offset(self.line_height),
                     ),
                 );
             }
@@ -309,8 +309,7 @@ impl Widget<LapceTabData> for SearchContent {
                         Point::new(
                             self.line_height,
                             self.line_height * i as f64
-                                + (self.line_height - text_layout.size().height)
-                                    / 2.0,
+                                + text_layout.y_offset(self.line_height),
                         ),
                     );
                 }

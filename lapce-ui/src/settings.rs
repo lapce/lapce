@@ -315,15 +315,13 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     )
                     .build()
                     .unwrap();
-                let text_size = text_layout.size();
                 ctx.draw_text(
                     &text_layout,
                     self.switcher_rect.origin()
                         + (
                             20.0,
                             i as f64 * self.switcher_line_height
-                                + (self.switcher_line_height / 2.0
-                                    - text_size.height / 2.0),
+                                + text_layout.y_offset(self.switcher_line_height),
                         ),
                 );
             }
@@ -1387,10 +1385,7 @@ impl Widget<LapceTabData> for ThemeSettings {
             )
             .build()
             .unwrap();
-        ctx.draw_text(
-            &header_text,
-            Point::new(0.0, (30.0 - header_text.size().height) / 2.0),
-        );
+        ctx.draw_text(&header_text, Point::new(0.0, header_text.y_offset(30.0)));
 
         for (i, input) in self.inputs.iter_mut().enumerate() {
             let text_layout = &self.text_layouts.as_ref().unwrap()[i];
@@ -1399,8 +1394,7 @@ impl Widget<LapceTabData> for ThemeSettings {
                 Point::new(
                     0.0,
                     input.layout_rect().y0
-                        + (input.layout_rect().height() - text_layout.size().height)
-                            / 2.0,
+                        + text_layout.y_offset(input.layout_rect().height()),
                 ),
             );
             input.paint(ctx, data, env);
@@ -1420,7 +1414,6 @@ impl Widget<LapceTabData> for ThemeSettings {
             )
             .build()
             .unwrap();
-        let reset_size = reset_text.size();
         for (_, _, rect) in self.changed_rects.iter() {
             ctx.stroke(
                 rect.inflate(-0.5, -0.5),
@@ -1431,7 +1424,7 @@ impl Widget<LapceTabData> for ThemeSettings {
                 &reset_text,
                 Point::new(
                     rect.x0 + 10.0,
-                    rect.y0 + (rect.height() - reset_size.height) / 2.0,
+                    rect.y0 + reset_text.y_offset(rect.height()),
                 ),
             )
         }

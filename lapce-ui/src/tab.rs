@@ -548,12 +548,11 @@ impl LapceTab {
                             rect.y0 + (size.height - height) / 2.0,
                         ));
                     ctx.draw_svg(&tab_rect.svg, svg_rect, None);
-                    let text_size = tab_rect.text_layout.size();
                     ctx.draw_text(
                         &tab_rect.text_layout,
                         Point::new(
                             rect.x0 + size.height,
-                            rect.y0 + (size.height - text_size.height) / 2.0,
+                            rect.y0 + tab_rect.text_layout.y_offset(size.height),
                         ),
                     );
                 }
@@ -2514,7 +2513,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
         let size = ctx.size();
         let text_size = text_layout.size();
         let x = (size.width - text_size.width) / 2.0;
-        let y = (size.height - text_size.height) / 2.0;
+        let y = text_layout.y_offset(size.height);
         ctx.draw_text(&text_layout, Point::new(x, y));
 
         if ctx.is_hot() {

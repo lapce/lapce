@@ -3493,7 +3493,7 @@ dependencies = [
 [[package]]
 name = "parley"
 version = "0.1.0"
-source = "git+https://github.com/lapce/parley#6baaa02bbe3ab717822656ad98a95f8121febd53"
+source = "git+https://github.com/lapce/parley#c37477b889ff53b9a3033e2180becddf90b9bb17"
 dependencies = [
  "fount",
  "swash",
@@ -3575,7 +3575,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu?branch=shell_opengl#f863b3e49175d1811e6008cea2ca1bd282fc5bed"
+source = "git+https://github.com/lapce/piet-wgpu?branch=shell_opengl#516c591c0b78bf6446fc6b04c4f2e8a89c4ee0b7"
 dependencies = [
  "bytemuck",
  "glam",

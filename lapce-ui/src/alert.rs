@@ -399,7 +399,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
                 .unwrap();
             let text_layout_size = text_layout.size();
             let point = self.buttons[i].center()
-                - (text_layout_size.width / 2.0, text_layout_size.height / 2.0);
+                - (text_layout_size.width / 2.0, text_layout.cap_center());
             ctx.draw_text(&text_layout, point);
         }
 
@@ -424,7 +424,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
             .unwrap();
         let text_layout_size = text_layout.size();
         let cancel_point = self.cancel_rect.center()
-            - (text_layout_size.width / 2.0, text_layout_size.height / 2.0);
+            - (text_layout_size.width / 2.0, text_layout.cap_center());
         ctx.draw_text(&text_layout, cancel_point);
     }
 }

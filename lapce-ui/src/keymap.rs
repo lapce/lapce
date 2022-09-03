@@ -290,13 +290,12 @@ impl Widget<LapceTabData> for LapceKeymap {
                             )
                             .build()
                             .unwrap();
-                        let text_size = text_layout.size();
                         ctx.draw_text(
                             &text_layout,
                             Point::new(
                                 10.0,
                                 i as f64 * self.line_height
-                                    + (self.line_height - text_size.height) / 2.0,
+                                    + text_layout.y_offset(self.line_height),
                             ),
                         );
                     });
@@ -323,7 +322,6 @@ impl Widget<LapceTabData> for LapceKeymap {
                         )
                         .build()
                         .unwrap();
-                    let text_size = text_layout.size();
                     ctx.draw_text(
                         &text_layout,
                         Point::new(
@@ -335,7 +333,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                                     0.0
                                 },
                             i as f64 * self.line_height
-                                + (self.line_height - text_size.height) / 2.0,
+                                + text_layout.y_offset(self.line_height),
                         ),
                     )
                 }

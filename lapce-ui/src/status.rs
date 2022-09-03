@@ -156,7 +156,7 @@ impl LapceStatus {
             None
         };
 
-        let point = Point::new(left, (height - text_layout.size().height) / 2.0);
+        let point = Point::new(left, text_layout.y_offset(height));
         (left + text_layout.size().width, svg, (point, text_layout))
     }
 
@@ -197,7 +197,7 @@ impl LapceStatus {
 
         let point = Point::new(
             right - text_layout.size().width,
-            (height - text_layout.size().height) / 2.0,
+            text_layout.y_offset(height),
         );
         (right - text_layout.size().width, svg, (point, text_layout))
     }
@@ -358,7 +358,7 @@ impl Widget<LapceTabData> for LapceStatus {
             ctx.fill(fill_size.to_rect(), data.config.get_color_unchecked(color));
             ctx.draw_text(
                 &text_layout,
-                Point::new(5.0, (size.height - text_layout.size().height) / 2.0),
+                Point::new(5.0, text_layout.y_offset(size.height)),
             );
             left += text_size.width + 10.0;
         }
@@ -452,10 +452,7 @@ impl Widget<LapceTabData> for LapceStatus {
                 .unwrap();
             ctx.draw_text(
                 &text_layout,
-                Point::new(
-                    left + 10.0,
-                    (size.height - text_layout.size().height) / 2.0,
-                ),
+                Point::new(left + 10.0, text_layout.y_offset(size.height)),
             );
             left += 10.0 + text_layout.size().width;
         }

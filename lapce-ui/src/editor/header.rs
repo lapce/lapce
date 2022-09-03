@@ -1,7 +1,7 @@
 use std::{iter::Iterator, path::PathBuf};
 
 use druid::{
-    piet::{Text, TextAttribute, TextLayout as TextLayoutTrait, TextLayoutBuilder},
+    piet::{Text, TextAttribute, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetId,
@@ -209,10 +209,7 @@ impl LapceEditorHeader {
                 let text_layout = text_layout.build().unwrap();
                 ctx.draw_text(
                     &text_layout,
-                    Point::new(
-                        size.height,
-                        (size.height - text_layout.size().height) / 2.0,
-                    ),
+                    Point::new(size.height, text_layout.y_offset(size.height)),
                 );
             });
         }

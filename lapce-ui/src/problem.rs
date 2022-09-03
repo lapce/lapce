@@ -270,8 +270,7 @@ impl Widget<LapceTabData> for ProblemContent {
                 &text_layout,
                 Point::new(
                     line_height,
-                    line_height * i as f64
-                        + (line_height - text_layout.size().height) / 2.0,
+                    line_height * i as f64 + text_layout.y_offset(line_height),
                 ),
             );
 
@@ -308,8 +307,7 @@ impl Widget<LapceTabData> for ProblemContent {
                     &text_layout,
                     Point::new(
                         x,
-                        line_height * i as f64
-                            + (line_height - text_layout.size().height) / 2.0,
+                        line_height * i as f64 + text_layout.y_offset(line_height),
                     ),
                 );
             }
@@ -379,7 +377,7 @@ impl Widget<LapceTabData> for ProblemContent {
                         Point::new(
                             2.0 * line_height,
                             line_height * i as f64
-                                + (line_height - text_layout.size().height) / 2.0,
+                                + text_layout.y_offset(line_height),
                         ),
                     );
                 }
@@ -453,7 +451,7 @@ impl Widget<LapceTabData> for ProblemContent {
                         Point::new(
                             3.0 * line_height,
                             line_height * i as f64
-                                + (line_height - text_layout.size().height) / 2.0,
+                                + text_layout.y_offset(line_height),
                         ),
                     );
                     for line in related.message.split('\n') {
@@ -478,8 +476,7 @@ impl Widget<LapceTabData> for ProblemContent {
                             Point::new(
                                 3.0 * line_height,
                                 line_height * i as f64
-                                    + (line_height - text_layout.size().height)
-                                        / 2.0,
+                                    + text_layout.y_offset(line_height),
                             ),
                         );
                     }

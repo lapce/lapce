@@ -317,7 +317,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 &text_layout,
                 Point::new(
                     self.line_height * 2.0,
-                    y + (self.line_height - text_layout.size().height) / 2.0,
+                    y + text_layout.y_offset(self.line_height),
                 ),
             );
             let folder = path
@@ -346,7 +346,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     &text_layout,
                     Point::new(
                         self.line_height * 2.0 + x + 5.0,
-                        y + (self.line_height - text_layout.size().height) / 2.0,
+                        y + text_layout.y_offset(self.line_height),
                     ),
                 );
             }

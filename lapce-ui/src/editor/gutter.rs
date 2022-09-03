@@ -192,12 +192,6 @@ impl LapceEditorGutter {
                         let actual_line = l - (line - len) + r.start;
 
                         let content = actual_line + 1;
-                        let x = ((last_line + 1).to_string().len()
-                            - content.to_string().len())
-                            as f64
-                            * width;
-                        let y = line_height * l as f64 + 5.0 - scroll_offset.y;
-                        let pos = Point::new(x, y);
 
                         let text_layout = ctx
                             .text()
@@ -221,6 +215,14 @@ impl LapceEditorGutter {
                             )
                             .build()
                             .unwrap();
+                        let x = ((last_line + 1).to_string().len()
+                            - content.to_string().len())
+                            as f64
+                            * width;
+                        let y = line_height * l as f64
+                            + text_layout.y_offset(line_height)
+                            - scroll_offset.y;
+                        let pos = Point::new(x, y);
                         ctx.draw_text(&text_layout, pos);
 
                         if l > end_line {
@@ -243,12 +245,6 @@ impl LapceEditorGutter {
                         let right_actual_line = l - (line - len) + r.start;
 
                         let left_content = left_actual_line + 1;
-                        let x = ((last_line + 1).to_string().len()
-                            - left_content.to_string().len())
-                            as f64
-                            * width;
-                        let y = line_height * l as f64 + 5.0 - scroll_offset.y;
-                        let pos = Point::new(x, y);
 
                         let text_layout = ctx
                             .text()
@@ -264,6 +260,14 @@ impl LapceEditorGutter {
                             )
                             .build()
                             .unwrap();
+                        let x = ((last_line + 1).to_string().len()
+                            - left_content.to_string().len())
+                            as f64
+                            * width;
+                        let y = line_height * l as f64
+                            + text_layout.y_offset(line_height)
+                            - scroll_offset.y;
+                        let pos = Point::new(x, y);
                         ctx.draw_text(&text_layout, pos);
 
                         let right_content = right_actual_line + 1;
@@ -346,14 +350,6 @@ impl LapceEditorGutter {
                         let actual_line = l - (line - len) + r.start;
 
                         let content = actual_line + 1;
-                        let x = ((last_line + 1).to_string().len()
-                            - content.to_string().len())
-                            as f64
-                            * width
-                            + self.width
-                            + 2.0 * width;
-                        let y = line_height * l as f64 + 5.0 - scroll_offset.y;
-                        let pos = Point::new(x, y);
 
                         let text_layout = ctx
                             .text()
@@ -375,6 +371,16 @@ impl LapceEditorGutter {
                             })
                             .build()
                             .unwrap();
+                        let x = ((last_line + 1).to_string().len()
+                            - content.to_string().len())
+                            as f64
+                            * width
+                            + self.width
+                            + 2.0 * width;
+                        let y = line_height * l as f64
+                            + text_layout.y_offset(line_height)
+                            - scroll_offset.y;
+                        let pos = Point::new(x, y);
                         ctx.draw_text(&text_layout, pos);
 
                         if l > end_line {
@@ -464,7 +470,7 @@ impl LapceEditorGutter {
                     + if is_small {
                         0.0
                     } else {
-                        (line_height as f64 - text_layout.size().height) / 2.0
+                        text_layout.y_offset(line_height as f64)
                     },
             );
             ctx.draw_text(&text_layout, pos);
@@ -580,7 +586,7 @@ impl LapceEditorGutter {
 
                 // Vertically centered
                 let y = line_height * line as f64 - scroll_offset.y
-                    + (line_height - text_layout.size().height) / 2.0;
+                    + text_layout.y_offset(line_height);
 
                 ctx.draw_text(&text_layout, Point::new(x, y));
             }

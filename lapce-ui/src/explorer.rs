@@ -4,7 +4,7 @@ use std::{collections::HashMap, path::Path};
 use druid::menu::MenuEventCtx;
 use druid::piet::TextAttribute;
 use druid::{
-    piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
+    piet::{Text, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
     Widget, WidgetExt, WidgetId, WidgetPod,
@@ -126,10 +126,7 @@ fn paint_single_file_node_item(
         .unwrap();
     ctx.draw_text(
         &text_layout,
-        Point::new(
-            38.0 + padding,
-            y + (line_height - text_layout.size().height) / 2.0,
-        ),
+        Point::new(38.0 + padding, y + text_layout.y_offset(line_height)),
     );
 }
 
@@ -1108,8 +1105,7 @@ impl OpenEditorList {
             &text_layout,
             Point::new(
                 svg_rect.x1 + 5.0,
-                i as f64 * self.line_height
-                    + (self.line_height - text_layout.size().height) / 2.0,
+                i as f64 * self.line_height + text_layout.y_offset(self.line_height),
             ),
         );
     }
@@ -1269,8 +1265,7 @@ impl Widget<LapceTabData> for OpenEditorList {
                         Point::new(
                             10.0,
                             (i as f64 * self.line_height)
-                                + (self.line_height - text_layout.size().height)
-                                    / 2.0,
+                                + text_layout.y_offset(self.line_height),
                         ),
                     );
                 }

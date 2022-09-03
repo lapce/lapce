@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use druid::{
     kurbo::Line,
-    piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
+    piet::{Text, TextAttribute, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size, Target,
     TimerToken, UpdateCtx, Widget, WidgetId, WidgetPod,
@@ -172,10 +172,7 @@ impl LapceEditorTabHeader {
         let text_layout = text_layout.build().unwrap();
         ctx.draw_text(
             &text_layout,
-            Point::new(
-                svg_rect.x1 + 5.0,
-                (size.height - text_layout.size().height) / 2.0,
-            ),
+            Point::new(svg_rect.x1 + 5.0, text_layout.y_offset(size.height)),
         );
     }
 }

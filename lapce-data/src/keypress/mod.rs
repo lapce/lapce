@@ -61,7 +61,7 @@ pub fn paint_key(
         .build()
         .unwrap();
     let text_size = text_layout.size();
-    let text_layout_point = origin + (5.0, -(text_size.height / 2.0));
+    let text_layout_point = origin + (5.0, -text_layout.cap_center());
     let rect = Size::new(text_size.width, 0.0)
         .to_rect()
         .with_origin(origin + (5.0, 0.0))
