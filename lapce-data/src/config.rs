@@ -221,7 +221,11 @@ pub struct EditorConfig {
 
 impl EditorConfig {
     pub fn font_family(&self) -> FontFamily {
-        FontFamily::new_unchecked(self.font_family.clone())
+        if self.font_family.is_empty() {
+            FontFamily::SYSTEM_UI
+        } else {
+            FontFamily::new_unchecked(self.font_family.clone())
+        }
     }
 
     pub fn inlay_hint_font_family(&self) -> FontFamily {
