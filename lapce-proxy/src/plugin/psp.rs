@@ -789,7 +789,7 @@ impl PluginHostHandler {
                         volt_id,
                         pwd,
                         params.server_uri,
-                        Vec::new(),
+                        params.server_args,
                         params.options,
                     );
                 });

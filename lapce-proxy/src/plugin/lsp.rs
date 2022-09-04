@@ -155,6 +155,7 @@ impl LspClient {
         let server = match server_uri.scheme() {
             "file" => {
                 let path = server_uri.to_file_path().map_err(|_| anyhow!(""))?;
+                #[cfg(unix)]
                 let _ = std::process::Command::new("chmod")
                     .arg("+x")
                     .arg(&path)
@@ -216,7 +217,7 @@ impl LspClient {
                         }
                         core_rpc.log(
                             log::Level::Error,
-                            format!("lsp server stderr: {line}"),
+                            format!("lsp server stderr: {}", line.trim_end()),
                         );
                     }
                     Err(_) => {
