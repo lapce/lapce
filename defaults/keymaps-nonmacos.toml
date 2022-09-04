@@ -45,12 +45,27 @@ command = "clipboard_cut"
 mode = "i"
 
 [[keymaps]]
+key = "shift+Delete"
+command = "clipboard_cut"
+mode = "i"
+
+[[keymaps]]
 key = "ctrl+c"
 command = "clipboard_copy"
 mode = "i"
 
 [[keymaps]]
+key = "ctrl+insert"
+command = "clipboard_copy"
+mode = "i"
+
+[[keymaps]]
 key = "ctrl+v"
+command = "clipboard_paste"
+mode = "i"
+
+[[keymaps]]
+key = "shift+insert"
 command = "clipboard_paste"
 mode = "i"
 
