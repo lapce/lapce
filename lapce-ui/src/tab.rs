@@ -91,6 +91,7 @@ pub struct LapceTab {
     current_bar_hover: Option<PanelResizePosition>,
     width: f64,
     height: f64,
+    title_height: f64,
     status_height: f64,
     mouse_pos: Point,
 }
@@ -198,6 +199,7 @@ impl LapceTab {
             width: 0.0,
             height: 0.0,
             status_height: 0.0,
+            title_height: 0.0,
             mouse_pos: Point::ZERO,
         }
     }
@@ -287,7 +289,19 @@ impl LapceTab {
                 PanelResizePosition::Bottom => {
                     let bottom =
                         self.height - mouse_pos.y.round() - self.status_height;
-                    Arc::make_mut(&mut data.panel).size.bottom = bottom.max(180.0);
+
+                    let header_height = data.config.ui.header_height() as f64;
+                    // The maximum position (from the bottom) that the bottom split is allowed to reach
+                    let minimum = self.height
+                        - self.title_height
+                        - self.status_height
+                        - header_height
+                        - 1.0;
+
+                    Arc::make_mut(&mut data.panel).size.bottom =
+                        bottom.max(180.0).min(minimum);
+
+                    // Check if it should snap the bottom panel away, if you are too low
                     if bottom < 90.0 {
                         if data
                             .panel
@@ -2035,7 +2049,8 @@ impl Widget<LapceTabData> for LapceTab {
 
         self.title.layout(ctx, bc, data, env);
         self.title.set_origin(ctx, data, env, Point::ZERO);
-        let title_height = 36.0;
+        self.title_height = 36.0;
+        let title_height = self.title_height;
 
         let status_size = self.status.layout(ctx, bc, data, env);
         self.status.set_origin(
