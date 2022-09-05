@@ -2,7 +2,7 @@ use std::{
     cell::RefCell,
     cmp::Ordering,
     collections::{HashMap, HashSet},
-    io::BufReader,
+    io::{BufReader, Read, Write},
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
@@ -297,11 +297,11 @@ impl LapceData {
         let socket =
             interprocess::local_socket::LocalSocketListener::bind(local_socket)?;
 
-        for stream in socket.incoming().flatten() {
-            let mut reader = BufReader::new(stream);
+        for mut stream in socket.incoming().flatten() {
             let event_sink = event_sink.clone();
             thread::spawn(move || -> Result<()> {
                 loop {
+                    let mut reader = BufReader::new(stream);
                     let msg: RpcMessage<
                         CoreRequest,
                         CoreNotification,
@@ -330,6 +330,10 @@ impl LapceData {
                             Target::Global,
                         );
                     }
+
+                    stream = reader.into_inner();
+                    let _ = stream.write_all(b"received");
+                    let _ = stream.flush();
                 }
             });
         }
@@ -352,6 +356,23 @@ impl LapceData {
                 files,
             });
         lapce_rpc::stdio::write_msg(&mut socket, msg)?;
+
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        thread::spawn(move || {
+            let mut buf = [0; 100];
+            let received = if let Ok(n) = socket.read(&mut buf) {
+                &buf[..n] == b"received"
+            } else {
+                false
+            };
+            tx.send(received)
+        });
+
+        let received = rx.recv_timeout(std::time::Duration::from_millis(500))?;
+        if !received {
+            return Err(anyhow!("didn't receive response"));
+        }
+
         Ok(())
     }
 }
