@@ -554,7 +554,7 @@ impl Widget<LapceTabData> for ProblemContent {
 }
 
 fn message_lines(diagnostic: &EditorDiagnostic) -> usize {
-    diagnostic.diagnostic.message.matches('\n').count() + 1
+    diagnostic.diagnostic.message.lines().count()
 }
 
 fn related_line_count(diagnostic: &EditorDiagnostic) -> usize {
@@ -562,10 +562,6 @@ fn related_line_count(diagnostic: &EditorDiagnostic) -> usize {
         .diagnostic
         .related_information
         .as_ref()
-        .map(|r| {
-            r.iter()
-                .map(|r| r.message.matches('\n').count() + 1 + 1)
-                .sum()
-        })
+        .map(|r| r.iter().map(|r| r.message.lines().count() + 1).sum())
         .unwrap_or(0)
 }
