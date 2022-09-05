@@ -353,18 +353,17 @@ impl Widget<LapceTabData> for ProblemContent {
                 continue;
             }
 
-            let mut path: PathBuf = path.clone();
-            if let Some(workspace_path) = data.workspace.path.as_ref() {
-                path = path
-                    .strip_prefix(workspace_path)
-                    .unwrap_or(&path)
-                    .to_path_buf();
-            }
-            let folder = path
+            let folder = data
+                .workspace
+                .path
+                .as_ref()
+                .and_then(|workspace_path| path.strip_prefix(workspace_path).ok())
+                .unwrap_or(path)
                 .parent()
-                .and_then(|s| s.to_str())
+                .and_then(Path::to_str)
                 .unwrap_or("")
                 .to_string();
+
             if !folder.is_empty() {
                 let x = text_layout.size().width + line_height + 5.0;
 
