@@ -103,8 +103,12 @@ impl ProblemContent {
         }
 
         //
-        let (path, diagnostics) = it.next()
-            .expect("Unexpected end of editor diagnostics. We should have found here currently clicked diagnostic message or file name header. This should never happen, please report a bug");
+        let (path, diagnostics) = if let Some(diag) = it.next() {
+            diag
+        } else {
+            // The user clicked an empty area.
+            return;
+        };
 
         // handle click on header with file name
         if line_cursor == click_line {
