@@ -306,6 +306,9 @@ impl Widget<LapceTabData> for ProblemContent {
         let min = (rect.y0 / line_height).floor() as usize;
         let max = (rect.y1 / line_height) as usize + 2;
 
+        let ui_font_family = data.config.ui.font_family();
+        let ui_font_size = data.config.ui.font_size() as f64;
+
         let items = data.main_split.diagnostics_items(self.severity);
         let mut current_line = 0;
         for (path, diagnostics) in items {
@@ -329,10 +332,7 @@ impl Widget<LapceTabData> for ProblemContent {
                 .new_text_layout(
                     path.file_name().unwrap().to_str().unwrap().to_string(),
                 )
-                .font(
-                    data.config.ui.font_family(),
-                    data.config.ui.font_size() as f64,
-                )
+                .font(ui_font_family.clone(), ui_font_size)
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -371,10 +371,7 @@ impl Widget<LapceTabData> for ProblemContent {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(folder)
-                    .font(
-                        data.config.ui.font_family(),
-                        data.config.ui.font_size() as f64,
-                    )
+                    .font(ui_font_family.clone(), ui_font_size)
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_DIM)
@@ -444,10 +441,7 @@ impl Widget<LapceTabData> for ProblemContent {
                     let text_layout = ctx
                         .text()
                         .new_text_layout(line.to_string())
-                        .font(
-                            data.config.ui.font_family(),
-                            data.config.ui.font_size() as f64,
-                        )
+                        .font(ui_font_family.clone(), ui_font_size)
                         .text_color(
                             data.config
                                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -513,10 +507,7 @@ impl Widget<LapceTabData> for ProblemContent {
                     let text_layout = ctx
                         .text()
                         .new_text_layout(text)
-                        .font(
-                            data.config.ui.font_family(),
-                            data.config.ui.font_size() as f64,
-                        )
+                        .font(ui_font_family.clone(), ui_font_size)
                         .text_color(
                             data.config
                                 .get_color_unchecked(LapceTheme::EDITOR_DIM)
@@ -538,10 +529,7 @@ impl Widget<LapceTabData> for ProblemContent {
                         let text_layout = ctx
                             .text()
                             .new_text_layout(line.to_string())
-                            .font(
-                                data.config.ui.font_family(),
-                                data.config.ui.font_size() as f64,
-                            )
+                            .font(ui_font_family.clone(), ui_font_size)
                             .text_color(
                                 data.config
                                     .get_color_unchecked(LapceTheme::EDITOR_DIM)
