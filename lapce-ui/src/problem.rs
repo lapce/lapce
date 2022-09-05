@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
@@ -44,6 +44,10 @@ pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
     )
 }
 
+fn is_collapsed(data: &LapceTabData, path: &Path) -> bool {
+    data.problem.collapsed.get(path).copied().unwrap_or(false)
+}
+
 struct ProblemContent {
     severity: DiagnosticSeverity,
     mouse_pos: Point,
@@ -82,9 +86,7 @@ impl ProblemContent {
 
         // Skip files before clicked section
         while let Some((path, diagnostics)) = it.peek() {
-            let is_collapsed =
-                data.problem.collapsed.get(*path).copied().unwrap_or(false);
-            let offset = if is_collapsed {
+            let offset = if is_collapsed(data, path) {
                 // If section is collapsed count only header with file name
                 1
             } else {
@@ -120,7 +122,7 @@ impl ProblemContent {
             return;
         }
 
-        if data.problem.collapsed.get(path).copied().unwrap_or(false) {
+        if is_collapsed(data, path) {
             log::warn!(
                 "File is collapsed. Can't click any element. This shouldn't happen, please report a bug."
             );
@@ -281,9 +283,7 @@ impl Widget<LapceTabData> for ProblemContent {
         let lines = items
             .iter()
             .map(|(path, diagnostics)| {
-                let is_collapsed =
-                    data.problem.collapsed.get(*path).copied().unwrap_or(false);
-                if is_collapsed {
+                if is_collapsed(data, path) {
                     1
                 } else {
                     diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1 /* file name header */
@@ -308,10 +308,9 @@ impl Widget<LapceTabData> for ProblemContent {
         let items = data.main_split.diagnostics_items(self.severity);
         let mut current_line = 0;
         for (path, diagnostics) in items {
-            let is_collapsed =
-                data.problem.collapsed.get(path).copied().unwrap_or(false);
             let diagnostics_len = diagnostics.iter().map(|d| d.lines).sum::<usize>();
-            if !is_collapsed && diagnostics_len + 1 + current_line < min {
+            if !is_collapsed(data, path) && diagnostics_len + 1 + current_line < min
+            {
                 current_line += diagnostics_len + 1;
                 continue;
             }
@@ -349,7 +348,7 @@ impl Widget<LapceTabData> for ProblemContent {
                 ),
             );
 
-            if is_collapsed {
+            if is_collapsed(data, path) {
                 current_line += 1;
                 continue;
             }
