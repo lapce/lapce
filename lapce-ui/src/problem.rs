@@ -298,6 +298,7 @@ impl Widget<LapceTabData> for ProblemContent {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let line_height = data.config.editor.line_height as f64;
+        let padding = (line_height - 14.0) / 2.0;
         let size = ctx.size();
         let mouse_line = (self.mouse_pos.y / line_height).floor() as usize;
 
@@ -316,7 +317,6 @@ impl Widget<LapceTabData> for ProblemContent {
                 continue;
             }
 
-            let padding = (line_height - 14.0) / 2.0;
             let (svg, svg_color) = file_svg(path);
             let rect = Size::new(line_height, line_height)
                 .to_rect()
