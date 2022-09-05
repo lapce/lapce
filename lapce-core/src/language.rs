@@ -211,7 +211,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "  ",
         code_lens: (&["source_file", "program"], &["source_file"]),
-        extensions: &["js"],
+        extensions: &["js", "cjs", "mjs"],
     },
     #[cfg(feature = "lang-javascript")]
     SyntaxProperties {
@@ -231,7 +231,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (&["source_file", "program"], &["source_file"]),
-        extensions: &["ts"],
+        extensions: &["ts", "cts", "mts"],
     },
     #[cfg(feature = "lang-typescript")]
     SyntaxProperties {
