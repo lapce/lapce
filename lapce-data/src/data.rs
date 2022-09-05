@@ -2237,7 +2237,7 @@ impl LapceMainSplitData {
                     None
                 }
             })
-            .sorted_by_key(|(path, _)| (*path).clone())
+            .sorted_by_key(|(path, _)| *path)
             .collect()
     }
 
