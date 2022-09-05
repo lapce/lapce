@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
@@ -308,9 +308,10 @@ impl Widget<LapceTabData> for ProblemContent {
         let items = data.main_split.diagnostics_items(self.severity);
         let mut current_line = 0;
         for (path, diagnostics) in items {
-            let diagnostics_len = diagnostics.iter().map(|d| d.lines).sum::<usize>();
-            if !is_collapsed(data, path) && diagnostics_len + 1 + current_line < min
-            {
+            let diagnostics_len =
+                diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1 /* file name header */;
+
+            if !is_collapsed(data, path) && diagnostics_len + current_line < min {
                 current_line += diagnostics_len + 1;
                 continue;
             }
