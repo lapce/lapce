@@ -25,7 +25,6 @@ use lapce_core::{
     command::{FocusCommand, MultiSelectionCommand},
     cursor::{Cursor, CursorMode},
     editor::EditType,
-    language::LapceLanguage,
     mode::MotionMode,
     movement::Movement,
     register::Register,
@@ -2743,7 +2742,10 @@ impl LapceMainSplitData {
         let id = self.new_file(ctx, config);
         let doc = self.scratch_docs.get_mut(&id).unwrap();
         let doc = Arc::make_mut(doc);
-        doc.set_language(LapceLanguage::Toml);
+
+        #[cfg(feature = "lang-toml")]
+        doc.set_language(lapce_core::language::LapceLanguage::Toml);
+
         doc.reload(Rope::from(config.export_theme()), true);
     }
 
