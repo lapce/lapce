@@ -369,7 +369,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                         text = editor.content.file_name().to_string();
                     }
                 }
-                EditorTabChild::Settings(_, _) => {
+                EditorTabChild::Settings { .. } => {
                     text = format!("Settings (ver. {})", *VERSION);
                 }
             }

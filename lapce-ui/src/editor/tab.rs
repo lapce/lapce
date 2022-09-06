@@ -60,7 +60,7 @@ impl LapceEditorTab {
                 EditorTabChild::Editor(view_id, _, _) => {
                     data.main_split.editors.remove(view_id);
                 }
-                EditorTabChild::Settings(_, _) => {}
+                EditorTabChild::Settings { .. } => {}
             }
         }
         ctx.submit_command(Command::new(
@@ -128,7 +128,7 @@ impl LapceEditorTab {
                 EditorTabChild::Editor(view_id, _, _) => {
                     data.main_split.editors.remove(&view_id);
                 }
-                EditorTabChild::Settings(_, _) => {}
+                EditorTabChild::Settings { .. } => {}
             }
         }
     }
@@ -696,7 +696,7 @@ impl TabRectRenderer for TabRect {
                     let doc = data.main_split.editor_doc(*editor_id);
                     doc.buffer().is_pristine()
                 }
-                EditorTabChild::Settings(_, _) => true,
+                EditorTabChild::Settings { .. } => true,
             };
 
             if !is_pristine {

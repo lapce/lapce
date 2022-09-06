@@ -48,9 +48,8 @@ use crate::{
     editor::view::LapceEditorView, explorer::FileExplorer, hover::HoverContainer,
     panel::PanelContainer, picker::FilePicker, plugin::Plugin,
     problem::new_problem_panel, search::new_search_panel,
-    settings::LapceSettingsPanel, source_control::new_source_control_panel,
-    split::split_data_widget, status::LapceStatus, svg::get_svg,
-    terminal::TerminalPanel, title::Title,
+    source_control::new_source_control_panel, split::split_data_widget,
+    status::LapceStatus, svg::get_svg, terminal::TerminalPanel, title::Title,
 };
 
 pub const LAPCE_TAB_META: Selector<SingleUse<LapceTabMeta>> =
@@ -82,7 +81,6 @@ pub struct LapceTab {
     rename: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     picker: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
-    settings: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     about: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     alert: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     panel_left: WidgetPod<LapceTabData, PanelContainer>,
@@ -115,9 +113,6 @@ impl LapceTab {
                 .padding((10.0, 5.0, 10.0, 5.0));
         let status = LapceStatus::new();
         let picker = FilePicker::new(data);
-
-        let settings =
-            LapceSettingsPanel::new(data, WidgetId::next(), WidgetId::next());
 
         let about = AboutBox::new(data);
         let alert = AlertBox::new(data);
@@ -189,7 +184,6 @@ impl LapceTab {
             rename: WidgetPod::new(rename.boxed()),
             picker: WidgetPod::new(picker.boxed()),
             status: WidgetPod::new(status.boxed()),
-            settings: WidgetPod::new(settings.boxed()),
             about: WidgetPod::new(about.boxed()),
             alert: WidgetPod::new(alert.boxed()),
             panel_left: WidgetPod::new(panel_left),
@@ -1950,7 +1944,6 @@ impl Widget<LapceTabData> for LapceTab {
         self.hover.lifecycle(ctx, event, data, env);
         self.rename.lifecycle(ctx, event, data, env);
         self.picker.lifecycle(ctx, event, data, env);
-        self.settings.lifecycle(ctx, event, data, env);
         self.about.lifecycle(ctx, event, data, env);
         self.alert.lifecycle(ctx, event, data, env);
         self.panel_left.lifecycle(ctx, event, data, env);
@@ -2027,7 +2020,6 @@ impl Widget<LapceTabData> for LapceTab {
         self.rename.update(ctx, data, env);
         self.status.update(ctx, data, env);
         self.picker.update(ctx, data, env);
-        self.settings.update(ctx, data, env);
         self.about.update(ctx, data, env);
         self.alert.update(ctx, data, env);
         self.panel_left.update(ctx, data, env);
@@ -2316,7 +2308,6 @@ impl Widget<LapceTabData> for LapceTab {
         self.completion.paint(ctx, data, env);
         self.hover.paint(ctx, data, env);
         self.picker.paint(ctx, data, env);
-        self.settings.paint(ctx, data, env);
         ctx.incr_alpha_depth();
         self.paint_drag_on_panel(ctx, data);
         self.paint_drag(ctx, data);

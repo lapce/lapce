@@ -54,9 +54,17 @@ pub fn editor_tab_child_widget(
         EditorTabChild::Editor(view_id, editor_id, find_view_id) => {
             LapceEditorView::new(*view_id, *editor_id, *find_view_id).boxed()
         }
-        EditorTabChild::Settings(widget_id, editor_tab_id) => {
-            LapceSettingsPanel::new(data, *widget_id, *editor_tab_id).boxed()
-        }
+        EditorTabChild::Settings {
+            settings_widget_id,
+            editor_tab_id,
+            keymap_input_view_id,
+        } => LapceSettingsPanel::new(
+            data,
+            *settings_widget_id,
+            *editor_tab_id,
+            *keymap_input_view_id,
+        )
+        .boxed(),
     }
 }
 

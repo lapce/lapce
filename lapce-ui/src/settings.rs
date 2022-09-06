@@ -58,6 +58,7 @@ impl LapceSettingsPanel {
         data: &LapceTabData,
         widget_id: WidgetId,
         editor_tab_id: WidgetId,
+        keymap_input_view_id: WidgetId,
     ) -> Self {
         let children = vec![
             WidgetPod::new(
@@ -73,7 +74,7 @@ impl LapceSettingsPanel {
                 LapceSettings::new_split(LapceSettingsKind::Terminal, data).boxed(),
             ),
             WidgetPod::new(ThemeSettings::new_boxed().boxed()),
-            WidgetPod::new(LapceKeymap::new_split(data).boxed()),
+            WidgetPod::new(LapceKeymap::new_split(keymap_input_view_id).boxed()),
         ];
         Self {
             widget_id,
@@ -147,6 +148,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                         widget_id: self.widget_id,
                         editor_tab_id: self.editor_tab_id,
                         main_split: data.main_split.clone(),
+                        config: data.config.clone(),
                     };
                     let mut_keypress = Arc::make_mut(&mut keypress);
                     let performed_action =
@@ -167,6 +169,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     widget_id: self.widget_id,
                     editor_tab_id: self.editor_tab_id,
                     main_split: data.main_split.clone(),
+                    config: data.config.clone(),
                 };
                 if focus.run_command(ctx, cmd, None, Modifiers::empty(), env)
                     == CommandExecuted::Yes

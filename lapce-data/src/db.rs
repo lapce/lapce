@@ -21,7 +21,7 @@ use crate::{
         LapceMainSplitData, LapceTabData, LapceWindowData, LapceWorkspace,
         SplitContent, SplitData,
     },
-    document::{BufferContent, Document},
+    document::{BufferContent, Document, LocalBufferKind},
     editor::EditorLocation,
     panel::{PanelData, PanelOrder},
     split::SplitDirection,
@@ -166,7 +166,21 @@ impl EditorTabChildInfo {
                 )
             }
             EditorTabChildInfo::Settings => {
-                EditorTabChild::Settings(WidgetId::next(), editor_tab_id)
+                let editor = LapceEditorData::new(
+                    None,
+                    None,
+                    None,
+                    BufferContent::Local(LocalBufferKind::Keymap),
+                    config,
+                );
+                let keymap_input_view_id = editor.view_id;
+                data.editors.insert(editor.view_id, Arc::new(editor));
+
+                EditorTabChild::Settings {
+                    settings_widget_id: WidgetId::next(),
+                    editor_tab_id,
+                    keymap_input_view_id,
+                }
             }
         }
     }

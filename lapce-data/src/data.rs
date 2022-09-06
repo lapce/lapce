@@ -1285,7 +1285,7 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::OpenSettings => {
-                self.main_split.open_settings(ctx, false);
+                self.main_split.open_settings(ctx, false, &self.config);
             }
             LapceWorkbenchCommand::OpenSettingsFile => {
                 if let Some(path) = Config::settings_file() {
@@ -1326,7 +1326,7 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::OpenKeyboardShortcuts => {
-                self.main_split.open_settings(ctx, true);
+                self.main_split.open_settings(ctx, true, &self.config);
             }
             LapceWorkbenchCommand::OpenKeyboardShortcutsFile => {
                 if let Some(path) = Config::keymaps_file() {
@@ -2357,10 +2357,24 @@ impl LapceMainSplitData {
         &mut self,
         _ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
+        config: &Config,
     ) -> WidgetId {
         let editor_tab = self.editor_tabs.get_mut(&editor_tab_id).unwrap();
         let editor_tab = Arc::make_mut(editor_tab);
-        let child = EditorTabChild::Settings(WidgetId::next(), editor_tab_id);
+        let editor = LapceEditorData::new(
+            None,
+            None,
+            None,
+            BufferContent::Local(LocalBufferKind::Keymap),
+            config,
+        );
+        let keymap_input_view_id = editor.view_id;
+        self.editors.insert(editor.view_id, Arc::new(editor));
+        let child = EditorTabChild::Settings {
+            settings_widget_id: WidgetId::next(),
+            editor_tab_id,
+            keymap_input_view_id,
+        };
         editor_tab.children.push(child.clone());
         child.widget_id()
     }
@@ -2565,14 +2579,19 @@ impl LapceMainSplitData {
         }
     }
 
-    pub fn open_settings(&mut self, ctx: &mut EventCtx, show_key_bindings: bool) {
+    pub fn open_settings(
+        &mut self,
+        ctx: &mut EventCtx,
+        show_key_bindings: bool,
+        config: &Config,
+    ) {
         let widget_id = match *self.active_tab {
             Some(active) => {
                 let editor_tab =
                     Arc::make_mut(self.editor_tabs.get_mut(&active).unwrap());
                 let mut existing: Option<WidgetId> = None;
                 for (i, child) in editor_tab.children.iter().enumerate() {
-                    if let EditorTabChild::Settings(_, _) = child {
+                    if let EditorTabChild::Settings { .. } = child {
                         editor_tab.active = i;
                         existing = Some(child.widget_id());
                         break;
@@ -2582,10 +2601,20 @@ impl LapceMainSplitData {
                 if let Some(widget_id) = existing {
                     widget_id
                 } else {
-                    let child = EditorTabChild::Settings(
-                        WidgetId::next(),
-                        editor_tab.widget_id,
+                    let editor = LapceEditorData::new(
+                        None,
+                        None,
+                        None,
+                        BufferContent::Local(LocalBufferKind::Keymap),
+                        config,
                     );
+                    let keymap_input_view_id = editor.view_id;
+                    self.editors.insert(editor.view_id, Arc::new(editor));
+                    let child = EditorTabChild::Settings {
+                        settings_widget_id: WidgetId::next(),
+                        editor_tab_id: editor_tab.widget_id,
+                        keymap_input_view_id,
+                    };
                     editor_tab
                         .children
                         .insert(editor_tab.active + 1, child.clone());
@@ -2603,7 +2632,7 @@ impl LapceMainSplitData {
             }
             None => {
                 let editor_tab_id = self.new_editor_tab(ctx, *self.split_id);
-                self.editor_tab_new_settings(ctx, editor_tab_id)
+                self.editor_tab_new_settings(ctx, editor_tab_id, config)
             }
         };
         ctx.submit_command(Command::new(
@@ -2755,7 +2784,7 @@ impl LapceMainSplitData {
                     }
                 }
             }
-            EditorTabChild::Settings(_, _) => {}
+            EditorTabChild::Settings { .. } => {}
         }
     }
 
@@ -3528,19 +3557,31 @@ impl LapceMainSplitData {
         ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
         direction: SplitDirection,
+        config: &Config,
     ) {
         let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
         let split_id = editor_tab.split;
+
+        let editor = LapceEditorData::new(
+            None,
+            None,
+            None,
+            BufferContent::Local(LocalBufferKind::Keymap),
+            config,
+        );
+        let keymap_input_view_id = editor.view_id;
+        self.editors.insert(editor.view_id, Arc::new(editor));
 
         let new_editor_tab_id = WidgetId::next();
         let mut new_editor_tab = LapceEditorTabData {
             widget_id: new_editor_tab_id,
             split: split_id,
             active: 0,
-            children: vec![EditorTabChild::Settings(
-                WidgetId::next(),
-                new_editor_tab_id,
-            )],
+            children: vec![EditorTabChild::Settings {
+                settings_widget_id: WidgetId::next(),
+                editor_tab_id: new_editor_tab_id,
+                keymap_input_view_id,
+            }],
             layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             content_is_hot: Rc::new(RefCell::new(false)),
         };
@@ -3629,14 +3670,20 @@ pub enum InlineFindDirection {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorTabChild {
     Editor(WidgetId, WidgetId, Option<(WidgetId, WidgetId)>),
-    Settings(WidgetId, WidgetId),
+    Settings {
+        settings_widget_id: WidgetId,
+        editor_tab_id: WidgetId,
+        keymap_input_view_id: WidgetId,
+    },
 }
 
 impl EditorTabChild {
     pub fn widget_id(&self) -> WidgetId {
         match &self {
             EditorTabChild::Editor(widget_id, _, _) => *widget_id,
-            EditorTabChild::Settings(widget_id, _) => *widget_id,
+            EditorTabChild::Settings {
+                settings_widget_id, ..
+            } => *settings_widget_id,
         }
     }
 
@@ -3646,23 +3693,23 @@ impl EditorTabChild {
                 let editor_data = data.main_split.editors.get(view_id).unwrap();
                 EditorTabChildInfo::Editor(editor_data.editor_info(data))
             }
-            EditorTabChild::Settings(_, _) => EditorTabChildInfo::Settings,
+            EditorTabChild::Settings { .. } => EditorTabChildInfo::Settings,
         }
     }
 
     pub fn set_editor_tab(
         &mut self,
         data: &mut LapceTabData,
-        editor_tab_id: WidgetId,
+        editor_tab_widget_id: WidgetId,
     ) {
         match self {
             EditorTabChild::Editor(view_id, _, _) => {
                 let editor_data = data.main_split.editors.get_mut(view_id).unwrap();
                 let editor_data = Arc::make_mut(editor_data);
-                editor_data.tab_id = Some(editor_tab_id);
+                editor_data.tab_id = Some(editor_tab_widget_id);
             }
-            EditorTabChild::Settings(_, current_editor_tab_id) => {
-                *current_editor_tab_id = editor_tab_id;
+            EditorTabChild::Settings { editor_tab_id, .. } => {
+                *editor_tab_id = editor_tab_widget_id;
             }
         }
     }

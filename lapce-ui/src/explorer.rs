@@ -1012,7 +1012,7 @@ impl OpenEditorList {
                     text = format!("{text} (Working tree)");
                 }
             }
-            EditorTabChild::Settings(_, _) => {
+            EditorTabChild::Settings { .. } => {
                 text = "Settings".to_string();
                 hint = format!("ver. {}", *VERSION);
             }
