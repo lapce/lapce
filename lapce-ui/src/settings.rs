@@ -27,6 +27,7 @@ use lapce_data::{
     keypress::KeyPressFocus,
     settings::{LapceSettingsFocusData, SettingsValueKind},
 };
+use serde::Serialize;
 use xi_rope::Rope;
 
 use crate::{
@@ -378,74 +379,56 @@ impl LapceSettings {
     }
 
     fn update_children(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        fn into_settings_map(
+            data: &impl Serialize,
+        ) -> HashMap<String, serde_json::Value> {
+            serde_json::to_value(data)
+                .and_then(serde_json::from_value)
+                .unwrap()
+        }
+
         self.children.clear();
 
-        let (kind, fields, descs, settings) = match self.kind {
-            LapceSettingsKind::Core => {
-                let settings: HashMap<String, serde_json::Value> =
-                    serde_json::from_value(
-                        serde_json::to_value(&data.config.lapce).unwrap(),
-                    )
-                    .unwrap();
-                (
-                    "lapce".to_string(),
-                    LapceConfig::FIELDS.to_vec(),
-                    LapceConfig::DESCS.to_vec(),
-                    settings,
-                )
-            }
-            LapceSettingsKind::UI => {
-                let settings: HashMap<String, serde_json::Value> =
-                    serde_json::from_value(
-                        serde_json::to_value(&data.config.ui).unwrap(),
-                    )
-                    .unwrap();
-                (
-                    "ui".to_string(),
-                    UIConfig::FIELDS.to_vec(),
-                    UIConfig::DESCS.to_vec(),
-                    settings,
-                )
-            }
-            LapceSettingsKind::Editor => {
-                let settings: HashMap<String, serde_json::Value> =
-                    serde_json::from_value(
-                        serde_json::to_value(&data.config.editor).unwrap(),
-                    )
-                    .unwrap();
-                (
-                    "editor".to_string(),
-                    EditorConfig::FIELDS.to_vec(),
-                    EditorConfig::DESCS.to_vec(),
-                    settings,
-                )
-            }
-            LapceSettingsKind::Terminal => {
-                let settings: HashMap<String, serde_json::Value> =
-                    serde_json::from_value(
-                        serde_json::to_value(&data.config.terminal).unwrap(),
-                    )
-                    .unwrap();
-                (
-                    "terminal".to_string(),
-                    TerminalConfig::FIELDS.to_vec(),
-                    TerminalConfig::DESCS.to_vec(),
-                    settings,
-                )
-            }
+        let (kind, fields, descs, mut settings) = match self.kind {
+            LapceSettingsKind::Core => (
+                "lapce",
+                &LapceConfig::FIELDS[..],
+                &LapceConfig::DESCS[..],
+                into_settings_map(&data.config.lapce),
+            ),
+            LapceSettingsKind::UI => (
+                "ui",
+                &UIConfig::FIELDS[..],
+                &UIConfig::DESCS[..],
+                into_settings_map(&data.config.ui),
+            ),
+            LapceSettingsKind::Editor => (
+                "editor",
+                &EditorConfig::FIELDS[..],
+                &EditorConfig::DESCS[..],
+                into_settings_map(&data.config.editor),
+            ),
+            LapceSettingsKind::Terminal => (
+                "terminal",
+                &TerminalConfig::FIELDS[..],
+                &TerminalConfig::DESCS[..],
+                into_settings_map(&data.config.terminal),
+            ),
         };
 
-        for (i, field) in fields.into_iter().enumerate() {
+        for (field, desc) in fields.iter().zip(descs.iter()) {
+            // TODO(dbuga): we should generate kebab-case field names
             let field = field.replace('_', "-");
+            let value = settings.remove(&field).unwrap();
             self.children.push(WidgetPod::new(
                 LapcePadding::new(
                     (10.0, 10.0),
                     LapceSettingsItem::new(
                         data,
-                        kind.clone(),
-                        field.clone(),
-                        descs[i].to_string(),
-                        settings.get(&field).unwrap().clone(),
+                        kind.to_string(),
+                        field,
+                        desc.to_string(),
+                        value,
                         ctx.get_external_handle(),
                     ),
                 )
