@@ -13,7 +13,7 @@ use druid::{ExtEventSink, KbKey, WindowId};
 use itertools::Itertools;
 use lapce_core::command::FocusCommand;
 use lapce_data::command::{CommandKind, LapceCommand, LAPCE_COMMAND};
-use lapce_data::data::{EditorTabChild, LapceData, LapceEditorData};
+use lapce_data::data::{EditorTabChild, FocusArea, LapceData, LapceEditorData};
 use lapce_data::document::{BufferContent, LocalBufferKind};
 use lapce_data::explorer::FileExplorerData;
 use lapce_data::explorer::Naming;
@@ -45,9 +45,14 @@ fn paint_single_file_node_item(
     current: usize,
     active: Option<&Path>,
     hovered: Option<usize>,
+    focused: Option<usize>,
     config: &Config,
     toggle_rects: &mut HashMap<usize, Rect>,
 ) {
+    let rect = Rect::ZERO
+        .with_origin(Point::new(0.0, current as f64 * line_height - line_height))
+        .with_size(Size::new(width, line_height));
+
     let background = if Some(item.path_buf.as_ref()) == active {
         Some(LapceTheme::PANEL_CURRENT)
     } else if Some(current) == hovered {
@@ -57,15 +62,17 @@ fn paint_single_file_node_item(
     };
 
     if let Some(background) = background {
-        ctx.fill(
-            Rect::ZERO
-                .with_origin(Point::new(
-                    0.0,
-                    current as f64 * line_height - line_height,
-                ))
-                .with_size(Size::new(width, line_height)),
-            config.get_color_unchecked(background),
-        );
+        ctx.fill(rect, config.get_color_unchecked(background));
+    }
+
+    let border = if Some(current) == focused {
+        Some(LapceTheme::EDITOR_CARET)
+    } else {
+        None
+    };
+
+    if let Some(border) = border {
+        ctx.stroke(rect, config.get_color_unchecked(border), 2.0);
     }
 
     let y = current as f64 * line_height - line_height;
@@ -144,6 +151,7 @@ pub fn paint_file_node_item(
     current: usize,
     active: Option<&Path>,
     hovered: Option<usize>,
+    focused: Option<usize>,
     naming: Option<&Naming>,
     name_edit_input: &mut NameEditInput,
     drawn_name_input: &mut bool,
@@ -184,6 +192,7 @@ pub fn paint_file_node_item(
                 i,
                 active,
                 hovered,
+                focused,
                 config,
                 toggle_rects,
             );
@@ -204,6 +213,7 @@ pub fn paint_file_node_item(
                 i + 1,
                 active,
                 hovered,
+                focused,
                 naming,
                 name_edit_input,
                 drawn_name_input,
@@ -414,6 +424,7 @@ type NameEditInput = WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>;
 struct FileExplorerFileList {
     line_height: f64,
     hovered: Option<usize>,
+    focused: Option<usize>,
     name_edit_input: NameEditInput,
 }
 
@@ -422,6 +433,7 @@ impl FileExplorerFileList {
         Self {
             line_height: 25.0,
             hovered: None,
+            focused: None,
             name_edit_input: input,
         }
     }
@@ -452,8 +464,83 @@ impl Widget<LapceTabData> for FileExplorerFileList {
             _ => {}
         }
 
-        // Finish any renaming if the user presses enter
+        fn select_dir(
+            ctx: &mut EventCtx,
+            data: &mut LapceTabData,
+            index: usize,
+            expected_open: Option<bool>,
+        ) {
+            let file_explorer = Arc::make_mut(&mut data.file_explorer);
+            if let Some((_, node)) = file_explorer.get_node_by_index_mut(index) {
+                if !node.is_dir {
+                    return;
+                }
+                if let Some(expected) = expected_open {
+                    if node.open != expected {
+                        return;
+                    }
+                }
+                if node.read {
+                    node.open = !node.open;
+                } else {
+                    let tab_id = data.id;
+                    let event_sink = ctx.get_external_handle();
+                    FileExplorerData::read_dir(
+                        &node.path_buf,
+                        true,
+                        tab_id,
+                        &data.proxy,
+                        event_sink,
+                    );
+                }
+                let path = node.path_buf.clone();
+                if let Some(paths) = file_explorer.node_tree(&path) {
+                    for path in &paths {
+                        file_explorer.update_node_count(path);
+                    }
+                }
+            }
+        }
+
+        fn select_file(ctx: &mut EventCtx, data: &mut LapceTabData, index: usize) {
+            if let Some((_, node)) = data.file_explorer.get_node_by_index(index) {
+                if node.is_dir {
+                    return;
+                }
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::OpenFile(node.path_buf.clone(), false),
+                    Target::Widget(data.id),
+                ));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ActiveFileChanged {
+                        path: Some(node.path_buf.clone()),
+                    },
+                    Target::Widget(data.file_explorer.widget_id),
+                ));
+            }
+        }
+
+        fn select_any(
+            ctx: &mut EventCtx,
+            data: &mut LapceTabData,
+            index: usize,
+        ) -> bool {
+            if let Some((_, node)) = data.file_explorer.get_node_by_index(index) {
+                if node.is_dir {
+                    select_dir(ctx, data, index, None);
+                } else {
+                    select_file(ctx, data, index);
+                }
+                true
+            } else {
+                false
+            }
+        }
+
         if let Event::KeyDown(key_ev) = event {
+            // Finish any renaming if the user presses enter
             if self.name_edit_input.has_focus() {
                 if key_ev.key == KbKey::Enter {
                     ctx.submit_command(Command::new(
@@ -469,6 +556,30 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         },
                         Target::Auto,
                     ));
+                }
+            } else if let Some(current) = self.focused {
+                let max = data
+                    .file_explorer
+                    .workspace
+                    .as_ref()
+                    .map(|w| w.children_open_count)
+                    .unwrap_or(0);
+                if key_ev.key == KbKey::ArrowUp {
+                    if current > 1 {
+                        ctx.request_paint();
+                        self.focused = Some(current - 1);
+                    }
+                } else if key_ev.key == KbKey::ArrowDown {
+                    if current < max {
+                        ctx.request_paint();
+                        self.focused = Some(current + 1);
+                    }
+                } else if key_ev.key == KbKey::ArrowLeft {
+                    select_dir(ctx, data, current, Some(true));
+                } else if key_ev.key == KbKey::ArrowRight {
+                    select_dir(ctx, data, current, Some(false));
+                } else if key_ev.key == KbKey::Enter {
+                    select_any(ctx, data, current);
                 }
             }
         }
@@ -529,60 +640,36 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     return;
                 }
 
-                let file_explorer = Arc::make_mut(&mut data.file_explorer);
                 let index = ((mouse_event.pos.y + self.line_height)
                     / self.line_height) as usize;
                 if mouse_event.button.is_left() {
-                    if let Some((_, node)) =
-                        file_explorer.get_node_by_index_mut(index)
-                    {
-                        if node.is_dir {
-                            if node.read {
-                                node.open = !node.open;
-                            } else {
-                                let tab_id = data.id;
-                                let event_sink = ctx.get_external_handle();
-                                FileExplorerData::read_dir(
-                                    &node.path_buf,
-                                    true,
-                                    tab_id,
-                                    &data.proxy,
-                                    event_sink,
-                                );
-                            }
-                            let path = node.path_buf.clone();
-                            if let Some(paths) = file_explorer.node_tree(&path) {
-                                for path in paths.iter() {
-                                    file_explorer.update_node_count(path);
-                                }
-                            }
-                        } else {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::OpenFile(
-                                    node.path_buf.clone(),
-                                    false,
-                                ),
-                                Target::Widget(data.id),
-                            ));
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::ActiveFileChanged {
-                                    path: Some(node.path_buf.clone()),
-                                },
-                                Target::Widget(file_explorer.widget_id),
-                            ));
+                    if select_any(ctx, data, index) {
+                        if Some(index) != self.focused {
+                            ctx.request_focus();
+                            data.focus = data.file_explorer.widget_id;
+                            data.focus_area =
+                                FocusArea::Panel(PanelKind::FileExplorer);
+                            ctx.request_paint();
+                            self.focused = Some(index);
                         }
+                    } else {
+                        ctx.request_paint();
+                        self.focused = None;
                     }
                 }
 
                 if mouse_event.button.is_right() {
-                    if let Some((indent_level, node)) = file_explorer
-                        .get_node_by_index(index)
-                        .or_else(|| file_explorer.workspace.as_ref().map(|x| (0, x)))
+                    if let Some((indent_level, node)) =
+                        data.file_explorer.get_node_by_index(index).or_else(|| {
+                            data.file_explorer.workspace.as_ref().map(|x| (0, x))
+                        })
                     {
                         let is_workspace = Some(&node.path_buf)
-                            == file_explorer.workspace.as_ref().map(|x| &x.path_buf);
+                            == data
+                                .file_explorer
+                                .workspace
+                                .as_ref()
+                                .map(|x| &x.path_buf);
 
                         // The folder that it is, or is within
                         let base = if node.is_dir {
@@ -810,6 +897,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     i + 1,
                     active,
                     self.hovered,
+                    self.focused,
                     data.file_explorer.naming.as_ref(),
                     &mut self.name_edit_input,
                     &mut drawn_name_input,
