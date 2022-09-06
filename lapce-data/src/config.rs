@@ -307,7 +307,7 @@ impl UIConfig {
         if self.font_family.is_empty() {
             FontFamily::SYSTEM_UI
         } else {
-            FontFamily::new_unchecked(self.font_family.clone())
+            FontFamily::new_unchecked(self.font_family.as_str())
         }
     }
 
@@ -345,7 +345,7 @@ impl UIConfig {
         if self.hover_font_family.is_empty() {
             self.font_family()
         } else {
-            FontFamily::new_unchecked(self.hover_font_family.clone())
+            FontFamily::new_unchecked(self.hover_font_family.as_str())
         }
     }
 
