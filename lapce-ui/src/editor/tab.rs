@@ -60,7 +60,7 @@ impl LapceEditorTab {
                 EditorTabChild::Editor(view_id, _, _) => {
                     data.main_split.editors.remove(view_id);
                 }
-                EditorTabChild::Settings(_, _) => {}
+                EditorTabChild::Settings { .. } => {}
             }
         }
         ctx.submit_command(Command::new(
@@ -128,7 +128,7 @@ impl LapceEditorTab {
                 EditorTabChild::Editor(view_id, _, _) => {
                     data.main_split.editors.remove(&view_id);
                 }
-                EditorTabChild::Settings(_, _) => {}
+                EditorTabChild::Settings { .. } => {}
             }
         }
     }
@@ -306,7 +306,6 @@ impl Widget<LapceTabData> for LapceEditorTab {
         match event {
             Event::MouseMove(mouse_event) => {
                 self.mouse_pos = mouse_event.pos;
-                ctx.request_paint();
             }
             Event::MouseUp(mouse_event) => {
                 self.mouse_up(ctx, data, mouse_event);
@@ -696,7 +695,7 @@ impl TabRectRenderer for TabRect {
                     let doc = data.main_split.editor_doc(*editor_id);
                     doc.buffer().is_pristine()
                 }
-                EditorTabChild::Settings(_, _) => true,
+                EditorTabChild::Settings { .. } => true,
             };
 
             if !is_pristine {

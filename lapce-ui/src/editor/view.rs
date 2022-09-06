@@ -54,9 +54,17 @@ pub fn editor_tab_child_widget(
         EditorTabChild::Editor(view_id, editor_id, find_view_id) => {
             LapceEditorView::new(*view_id, *editor_id, *find_view_id).boxed()
         }
-        EditorTabChild::Settings(widget_id, editor_tab_id) => {
-            LapceSettingsPanel::new(data, *widget_id, *editor_tab_id).boxed()
-        }
+        EditorTabChild::Settings {
+            settings_widget_id,
+            editor_tab_id,
+            keymap_input_view_id,
+        } => LapceSettingsPanel::new(
+            data,
+            *settings_widget_id,
+            *editor_tab_id,
+            *keymap_input_view_id,
+        )
+        .boxed(),
     }
 }
 
@@ -127,7 +135,7 @@ impl LapceEditorView {
         if left_click {
             ctx.request_focus();
         }
-        data.focus = self.view_id;
+        data.focus = Arc::new(self.view_id);
         let editor = data.main_split.editors.get(&self.view_id).unwrap().clone();
         if let Some(editor_tab_id) = editor.tab_id {
             let editor_tab =
@@ -814,8 +822,8 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
         }
 
-        if data.config.editor.blink_interval > 0 && data.focus == self.view_id {
-            let reset = if old_data.focus != self.view_id {
+        if data.config.editor.blink_interval > 0 && *data.focus == self.view_id {
+            let reset = if *old_data.focus != self.view_id {
                 true
             } else {
                 let mode = editor_data.editor.cursor.get_mode();

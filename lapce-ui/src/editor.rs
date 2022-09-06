@@ -1857,7 +1857,7 @@ impl Widget<LapceTabData> for LapceEditor {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let is_focused = data.focus == self.view_id;
+        let is_focused = *data.focus == self.view_id;
         let data = data.editor_view_content(self.view_id);
 
         // TODO: u128 is supported by config-rs since 0.12.0, but also the API changed heavily,

@@ -104,7 +104,7 @@ impl SourceControlFileList {
         let source_control = Arc::make_mut(&mut data.source_control);
         source_control.active = self.widget_id;
         data.focus_area = FocusArea::Panel(PanelKind::SourceControl);
-        data.focus = self.widget_id;
+        data.focus = Arc::new(self.widget_id);
     }
 }
 

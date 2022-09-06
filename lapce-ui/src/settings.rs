@@ -58,6 +58,7 @@ impl LapceSettingsPanel {
         data: &LapceTabData,
         widget_id: WidgetId,
         editor_tab_id: WidgetId,
+        keymap_input_view_id: WidgetId,
     ) -> Self {
         let children = vec![
             WidgetPod::new(
@@ -73,7 +74,7 @@ impl LapceSettingsPanel {
                 LapceSettings::new_split(LapceSettingsKind::Terminal, data).boxed(),
             ),
             WidgetPod::new(ThemeSettings::new_boxed().boxed()),
-            WidgetPod::new(LapceKeymap::new_split(data).boxed()),
+            WidgetPod::new(LapceKeymap::new_split(keymap_input_view_id).boxed()),
         ];
         Self {
             widget_id,
@@ -121,7 +122,7 @@ impl LapceSettingsPanel {
         }
 
         data.main_split.active_tab = Arc::new(Some(self.editor_tab_id));
-        data.focus = self.widget_id;
+        data.focus = Arc::new(self.widget_id);
         data.focus_area = FocusArea::Editor;
         ctx.request_focus();
     }
@@ -147,6 +148,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                         widget_id: self.widget_id,
                         editor_tab_id: self.editor_tab_id,
                         main_split: data.main_split.clone(),
+                        config: data.config.clone(),
                     };
                     let mut_keypress = Arc::make_mut(&mut keypress);
                     let performed_action =
@@ -167,6 +169,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     widget_id: self.widget_id,
                     editor_tab_id: self.editor_tab_id,
                     main_split: data.main_split.clone(),
+                    config: data.config.clone(),
                 };
                 if focus.run_command(ctx, cmd, None, Modifiers::empty(), env)
                     == CommandExecuted::Yes
@@ -551,7 +554,6 @@ struct LapceSettingsItem {
     name_text: Option<PietTextLayout>,
     desc_text: Option<PietTextLayout>,
     value_text: Option<Option<PietTextLayout>>,
-    input_rect: Rect,
     input_widget: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
 }
 
@@ -624,7 +626,6 @@ impl LapceSettingsItem {
             name_text: None,
             desc_text: None,
             value_text: None,
-            input_rect: Rect::ZERO,
             input_widget,
         }
     }
@@ -850,15 +851,8 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                     }
                 }
             }
-            Event::MouseMove(mouse_event) => {
+            Event::MouseMove(_) => {
                 ctx.set_handled();
-                if self.input_rect.contains(mouse_event.pos) {
-                    ctx.set_cursor(&druid::Cursor::IBeam);
-                    ctx.request_paint();
-                } else {
-                    ctx.clear_cursor();
-                    ctx.request_paint();
-                }
             }
             Event::Timer(token)
                 if self.value_changed && *token == self.last_idle_timer =>
@@ -886,6 +880,9 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if let LifeCycle::HotChanged(_) = event {
+            ctx.request_paint();
+        }
         if let Some(input) = self.input_widget.as_mut() {
             input.lifecycle(ctx, event, data, env);
         }

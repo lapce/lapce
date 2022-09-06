@@ -58,6 +58,9 @@ impl LapceEditorTabHeaderContent {
     }
 
     fn cancel_pending_drag(&mut self, data: &mut LapceTabData) {
+        if data.drag.is_none() {
+            return;
+        }
         *Arc::make_mut(&mut data.drag) = None;
     }
 
@@ -133,7 +136,6 @@ impl LapceEditorTabHeaderContent {
         } else {
             ctx.clear_cursor();
         }
-        ctx.request_paint();
 
         if !mouse_event.buttons.contains(MouseButton::Left) {
             // If drag data exists, mouse was released outside of the view.
@@ -369,7 +371,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                         text = editor.content.file_name().to_string();
                     }
                 }
-                EditorTabChild::Settings(_, _) => {
+                EditorTabChild::Settings { .. } => {
                     text = format!("Settings (ver. {})", *VERSION);
                 }
             }

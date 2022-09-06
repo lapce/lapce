@@ -4,7 +4,7 @@ use druid::{
     kurbo::Line,
     piet::{Text, TextAttribute, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size, Target,
+    LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     TimerToken, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_core::command::FocusCommand;
@@ -33,6 +33,7 @@ pub struct LapceEditorTabHeader {
     >,
     icons: Vec<LapceIcon>,
     mouse_pos: Point,
+    hover_rect: Option<Rect>,
     is_hot: bool,
 }
 
@@ -48,12 +49,14 @@ impl LapceEditorTabHeader {
             icons: Vec::new(),
             mouse_pos: Point::ZERO,
             is_hot: false,
+            hover_rect: None,
         }
     }
 
-    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+    fn icon_hit_test(&mut self, mouse_event: &MouseEvent) -> bool {
         for icon in self.icons.iter() {
             if icon.rect.contains(mouse_event.pos) {
+                self.hover_rect = Some(icon.rect);
                 return true;
             }
         }
@@ -129,7 +132,7 @@ impl LapceEditorTabHeader {
                     text = format!("{text} (Working tree)");
                 }
             }
-            EditorTabChild::Settings(_, _) => {
+            EditorTabChild::Settings { .. } => {
                 text = "Settings".to_string();
                 hint = format!("ver. {}", *VERSION);
             }
@@ -188,12 +191,16 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
         match event {
             Event::MouseMove(mouse_event) => {
                 self.mouse_pos = mouse_event.pos;
+                let hover_rect = self.hover_rect;
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
                 } else {
+                    self.hover_rect = None;
                     ctx.clear_cursor();
                 }
-                ctx.request_paint();
+                if hover_rect != self.hover_rect {
+                    ctx.request_paint();
+                }
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event);

@@ -345,50 +345,50 @@ impl Widget<LapceTabData> for CompletionContainer {
             {
                 ctx.request_layout();
             }
-        }
 
-        if old_data.completion.input != data.completion.input
-            || old_data.completion.request_id != data.completion.request_id
-            || old_data.completion.status != data.completion.status
-            || !old_data
-                .completion
-                .current_items()
-                .same(data.completion.current_items())
-            || !old_data
-                .completion
-                .filtered_items
-                .same(&data.completion.filtered_items)
-        {
-            self.update_documentation(data);
-            ctx.request_layout();
-        }
+            if old_data.completion.input != data.completion.input
+                || old_data.completion.request_id != data.completion.request_id
+                || old_data.completion.status != data.completion.status
+                || !old_data
+                    .completion
+                    .current_items()
+                    .same(data.completion.current_items())
+                || !old_data
+                    .completion
+                    .filtered_items
+                    .same(&data.completion.filtered_items)
+            {
+                self.update_documentation(data);
+                ctx.request_layout();
+            }
 
-        if (old_completion.status == CompletionStatus::Inactive
-            && completion.status != CompletionStatus::Inactive)
-            || (old_completion.input != completion.input)
-        {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::ResetFade,
-                Target::Widget(self.scroll_id),
-            ));
-        }
+            if (old_completion.status == CompletionStatus::Inactive
+                && completion.status != CompletionStatus::Inactive)
+                || (old_completion.input != completion.input)
+            {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ResetFade,
+                    Target::Widget(self.scroll_id),
+                ));
+            }
 
-        if old_completion.index != completion.index {
-            self.ensure_item_visible(ctx, data, env);
-            self.update_documentation(data);
-            ctx.request_paint();
-        }
+            if old_completion.index != completion.index {
+                self.ensure_item_visible(ctx, data, env);
+                self.update_documentation(data);
+                ctx.request_paint();
+            }
 
-        if self
-            .documentation
-            .widget_mut()
-            .inner_mut()
-            .child_mut()
-            .doc_layout
-            .needs_rebuild_after_update(ctx)
-        {
-            ctx.request_layout();
+            if self
+                .documentation
+                .widget_mut()
+                .inner_mut()
+                .child_mut()
+                .doc_layout
+                .needs_rebuild_after_update(ctx)
+            {
+                ctx.request_layout();
+            }
         }
     }
 
@@ -719,67 +719,5 @@ fn parse_documentation(doc: &Documentation, config: &Config) -> RichText {
             }
             MarkupKind::Markdown => parse_markdown(&content.value, config),
         },
-    }
-}
-
-#[derive(Clone)]
-pub struct CompletionState {
-    pub widget_id: WidgetId,
-    pub items: Vec<ScoredCompletionItem>,
-    pub input: String,
-    pub offset: usize,
-    pub index: usize,
-    pub scroll_offset: f64,
-}
-
-impl CompletionState {
-    pub fn new() -> CompletionState {
-        CompletionState {
-            widget_id: WidgetId::next(),
-            items: Vec::new(),
-            input: "".to_string(),
-            offset: 0,
-            index: 0,
-            scroll_offset: 0.0,
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.items.iter().filter(|i| i.score != 0).count()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn current_items(&self) -> Vec<&ScoredCompletionItem> {
-        self.items.iter().filter(|i| i.score != 0).collect()
-    }
-
-    pub fn clear(&mut self) {
-        self.input = "".to_string();
-        self.items = Vec::new();
-        self.offset = 0;
-        self.index = 0;
-        self.scroll_offset = 0.0;
-    }
-
-    pub fn cancel(&mut self, ctx: &mut EventCtx) {
-        self.clear();
-        self.request_paint(ctx);
-    }
-
-    pub fn request_paint(&self, ctx: &mut EventCtx) {
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::RequestPaint,
-            Target::Widget(self.widget_id),
-        ));
-    }
-}
-
-impl Default for CompletionState {
-    fn default() -> Self {
-        Self::new()
     }
 }

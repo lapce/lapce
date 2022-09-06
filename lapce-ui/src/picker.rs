@@ -216,10 +216,8 @@ impl Widget<LapceTabData> for FilePickerPwd {
                 ctx.set_handled();
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                 } else {
                     ctx.clear_cursor();
-                    ctx.request_paint();
                 }
             }
             Event::MouseDown(mouse_event) => {
@@ -754,10 +752,8 @@ impl Widget<LapceTabData> for FilePickerControl {
                 ctx.set_handled();
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                 } else {
                     ctx.clear_cursor();
-                    ctx.request_paint();
                 }
             }
             Event::MouseDown(mouse_event) => {

@@ -67,11 +67,16 @@ pub fn split_content_widget(
                         .boxed();
                         editor_tab = editor_tab.with_child(editor);
                     }
-                    EditorTabChild::Settings(widget_id, editor_tab_id) => {
+                    EditorTabChild::Settings {
+                        settings_widget_id,
+                        editor_tab_id,
+                        keymap_input_view_id,
+                    } => {
                         let settings = LapceSettingsPanel::new(
                             data,
-                            *widget_id,
+                            *settings_widget_id,
                             *editor_tab_id,
+                            *keymap_input_view_id,
                         )
                         .boxed();
                         editor_tab = editor_tab.with_child(settings);
@@ -1166,7 +1171,7 @@ impl Widget<LapceTabData> for LapceSplit {
                                 ));
                             } else {
                                 ctx.request_focus();
-                                data.focus = self.split_id;
+                                data.focus = Arc::new(self.split_id);
                                 data.focus_area = FocusArea::Editor;
                             }
                         }

@@ -262,6 +262,7 @@ struct LapceTerminalHeader {
     icons: Vec<LapceIcon>,
     mouse_pos: Point,
     view_is_hot: bool,
+    hover_rect: Option<Rect>,
 }
 
 impl LapceTerminalHeader {
@@ -274,6 +275,7 @@ impl LapceTerminalHeader {
             icon_padding: 4.0,
             icons: Vec::new(),
             view_is_hot: false,
+            hover_rect: None,
         }
     }
 
@@ -316,9 +318,10 @@ impl LapceTerminalHeader {
         icons
     }
 
-    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+    fn icon_hit_test(&mut self, mouse_event: &MouseEvent) -> bool {
         for icon in self.icons.iter() {
             if icon.rect.contains(mouse_event.pos) {
+                self.hover_rect = Some(icon.rect);
                 return true;
             }
         }
@@ -345,11 +348,14 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
         match event {
             Event::MouseMove(mouse_event) => {
                 self.mouse_pos = mouse_event.pos;
+                let hover_rect = self.hover_rect;
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                 } else {
+                    self.hover_rect = None;
                     ctx.clear_cursor();
+                }
+                if hover_rect != self.hover_rect {
                     ctx.request_paint();
                 }
             }
@@ -480,7 +486,7 @@ impl LapceTerminal {
         ctx.request_focus();
         Arc::make_mut(&mut data.terminal).active = self.widget_id;
         Arc::make_mut(&mut data.terminal).active_term_id = self.term_id;
-        data.focus = self.widget_id;
+        data.focus = Arc::new(self.widget_id);
         data.focus_area = FocusArea::Panel(PanelKind::Terminal);
         if let Some((index, position)) =
             data.panel.panel_position(&PanelKind::Terminal)

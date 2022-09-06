@@ -95,19 +95,19 @@ impl LapceWindow {
             if let Some(tab) = data.tabs.remove(&data.active_id) {
                 tab.proxy.stop();
             }
-            data.active_id = tab_id;
+            data.active_id = Arc::new(tab_id);
         } else {
             self.tabs
                 .insert(data.active + 1, WidgetPod::new(tab.boxed()));
             self.tab_headers
                 .insert(data.active + 1, WidgetPod::new(tab_header));
             data.active += 1;
-            data.active_id = tab_id;
+            data.active_id = Arc::new(tab_id);
         }
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::Focus,
-            Target::Widget(data.active_id),
+            Target::Widget(*data.active_id),
         ));
         data.tabs_order = Arc::new(self.tabs.iter().map(|t| t.id()).collect());
         let _ = data.db.save_tabs_async(data);
@@ -148,11 +148,11 @@ impl LapceWindow {
                 if data.active >= self.tabs.len() {
                     data.active = self.tabs.len() - 1;
                 }
-                data.active_id = self.tabs[data.active].id();
+                data.active_id = Arc::new(self.tabs[data.active].id());
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
-                    Target::Widget(data.active_id),
+                    Target::Widget(*data.active_id),
                 ));
             }
             _ => (),
@@ -212,7 +212,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
-                    Target::Widget(data.active_id),
+                    Target::Widget(*data.active_id),
                 ));
             }
             Event::Internal(InternalEvent::MouseLeave) => {
@@ -312,7 +312,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::Focus,
-                            Target::Widget(data.active_id),
+                            Target::Widget(*data.active_id),
                         ));
                         ctx.set_handled();
                     }
@@ -412,12 +412,12 @@ impl Widget<LapceWindowData> for LapceWindow {
                             if tab_id == &tab.id() {
                                 if i != data.active {
                                     data.active = i;
-                                    data.active_id = tab.id();
+                                    data.active_id = Arc::new(tab.id());
                                     let _ = data.db.save_tabs_async(data);
                                     ctx.submit_command(Command::new(
                                         LAPCE_UI_COMMAND,
                                         LapceUICommand::Focus,
-                                        Target::Widget(data.active_id),
+                                        Target::Widget(*data.active_id),
                                     ));
                                 }
                                 return;
@@ -444,12 +444,12 @@ impl Widget<LapceWindowData> for LapceWindow {
                             data.tabs.get(&data.active_id).unwrap(),
                         );
                         data.active = new_index;
-                        data.active_id = self.tabs[new_index].id();
+                        data.active_id = Arc::new(self.tabs[new_index].id());
                         let _ = data.db.save_tabs_async(data);
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::Focus,
-                            Target::Widget(data.active_id),
+                            Target::Widget(*data.active_id),
                         ));
                         ctx.request_layout();
                         ctx.set_handled();
@@ -464,12 +464,12 @@ impl Widget<LapceWindowData> for LapceWindow {
                             data.tabs.get(&data.active_id).unwrap(),
                         );
                         data.active = new_index;
-                        data.active_id = self.tabs[new_index].id();
+                        data.active_id = Arc::new(self.tabs[new_index].id());
                         let _ = data.db.save_tabs_async(data);
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::Focus,
-                            Target::Widget(data.active_id),
+                            Target::Widget(*data.active_id),
                         ));
                         ctx.request_layout();
                         ctx.set_handled();
