@@ -103,7 +103,7 @@ impl LapceKeymap {
     }
 
     fn request_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
-        data.focus = self.widget_id;
+        data.focus = Arc::new(self.widget_id);
         ctx.request_focus();
     }
 }

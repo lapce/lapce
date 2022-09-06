@@ -748,19 +748,21 @@ impl LapceEditorBufferData {
         is_inside: bool,
         within_scroll: bool,
     ) -> bool {
-        let hover = Arc::make_mut(&mut self.hover);
-
-        if hover.status != HoverStatus::Inactive {
+        if self.hover.status != HoverStatus::Inactive {
             if !is_inside || !within_scroll {
+                let hover = Arc::make_mut(&mut self.hover);
                 hover.cancel();
                 return false;
             }
 
             let start_offset = self.doc.buffer().prev_code_boundary(offset);
-            if self.doc.id() == hover.buffer_id && start_offset == hover.offset {
+            if self.doc.id() == self.hover.buffer_id
+                && start_offset == self.hover.offset
+            {
                 return true;
             }
 
+            let hover = Arc::make_mut(&mut self.hover);
             hover.cancel();
             return false;
         }

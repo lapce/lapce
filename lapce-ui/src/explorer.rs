@@ -604,7 +604,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
 
                         // The ids are so that the correct LapceTabData can be acquired inside the menu event cb
                         // since the context menu only gets access to LapceData
-                        let window_id = data.window_id;
+                        let window_id = *data.window_id;
                         let tab_id = data.id;
                         let item = druid::MenuItem::new("New File").on_activate(
                             make_new_file_cb(
@@ -954,6 +954,7 @@ struct OpenEditorList {
     mouse_pos: Point,
     in_view_tab_children: HashMap<usize, (Rect, WidgetId)>,
     mouse_down: Option<(usize, Option<Rect>)>,
+    hover_index: Option<usize>,
 }
 
 impl OpenEditorList {
@@ -963,6 +964,7 @@ impl OpenEditorList {
             mouse_pos: Point::ZERO,
             in_view_tab_children: HashMap::new(),
             mouse_down: None,
+            hover_index: None,
         }
     }
 
@@ -1121,13 +1123,19 @@ impl Widget<LapceTabData> for OpenEditorList {
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
+                self.mouse_pos = mouse_event.pos;
                 let index = (mouse_event.pos.y / self.line_height).floor() as usize;
+                let hover_index = self.hover_index;
                 if self.in_view_tab_children.contains_key(&index) {
+                    self.hover_index = Some(index);
                     ctx.set_cursor(&druid::Cursor::Pointer);
                 } else {
+                    self.hover_index = None;
                     ctx.clear_cursor();
                 }
-                self.mouse_pos = mouse_event.pos;
+                if hover_index != self.hover_index {
+                    ctx.request_paint();
+                }
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down = None;

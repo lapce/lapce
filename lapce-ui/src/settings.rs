@@ -122,7 +122,7 @@ impl LapceSettingsPanel {
         }
 
         data.main_split.active_tab = Arc::new(Some(self.editor_tab_id));
-        data.focus = self.widget_id;
+        data.focus = Arc::new(self.widget_id);
         data.focus_area = FocusArea::Editor;
         ctx.request_focus();
     }
@@ -554,7 +554,6 @@ struct LapceSettingsItem {
     name_text: Option<PietTextLayout>,
     desc_text: Option<PietTextLayout>,
     value_text: Option<Option<PietTextLayout>>,
-    input_rect: Rect,
     input_widget: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
 }
 
@@ -627,7 +626,6 @@ impl LapceSettingsItem {
             name_text: None,
             desc_text: None,
             value_text: None,
-            input_rect: Rect::ZERO,
             input_widget,
         }
     }
@@ -853,15 +851,8 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                     }
                 }
             }
-            Event::MouseMove(mouse_event) => {
+            Event::MouseMove(_) => {
                 ctx.set_handled();
-                if self.input_rect.contains(mouse_event.pos) {
-                    ctx.set_cursor(&druid::Cursor::IBeam);
-                    ctx.request_paint();
-                } else {
-                    ctx.clear_cursor();
-                    ctx.request_paint();
-                }
             }
             Event::Timer(token)
                 if self.value_changed && *token == self.last_idle_timer =>
@@ -889,6 +880,9 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if let LifeCycle::HotChanged(_) = event {
+            ctx.request_paint();
+        }
         if let Some(input) = self.input_widget.as_mut() {
             input.lifecycle(ctx, event, data, env);
         }

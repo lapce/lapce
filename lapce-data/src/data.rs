@@ -407,8 +407,7 @@ pub struct LapceWindowData {
     /// The index of the active window tab.
     pub active: usize,
     /// The Id of the active window tab.
-    #[data(ignore)]
-    pub active_id: WidgetId,
+    pub active_id: Arc<WidgetId>,
     pub keypress: Arc<KeyPressData>,
     pub config: Arc<Config>,
     pub db: Arc<LapceDb>,
@@ -508,7 +507,7 @@ impl LapceWindowData {
             tabs,
             tabs_order: Arc::new(tabs_order),
             active,
-            active_id: active_tab_id,
+            active_id: Arc::new(active_tab_id),
             keypress,
             config,
             db,
@@ -529,7 +528,7 @@ impl LapceWindowData {
             .enumerate()
             .map(|(i, w)| {
                 let tab = self.tabs.get(w).unwrap();
-                if tab.id == self.active_id {
+                if tab.id == *self.active_id {
                     active_tab = i;
                 }
                 (*tab.workspace).clone()
@@ -581,8 +580,7 @@ pub enum DragContent {
 pub struct LapceTabData {
     #[data(ignore)]
     pub id: WidgetId,
-    #[data(ignore)]
-    pub window_id: WindowId,
+    pub window_id: Arc<WindowId>,
     pub multiple_tab: bool,
     pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
@@ -613,13 +611,11 @@ pub struct LapceTabData {
     pub window_origin: Rc<RefCell<Point>>,
     pub panel: Arc<PanelData>,
     pub config: Arc<Config>,
-    #[data(ignore)]
-    pub focus: WidgetId,
+    pub focus: Arc<WidgetId>,
     pub focus_area: FocusArea,
     #[data(ignore)]
     pub db: Arc<LapceDb>,
-    #[data(ignore)]
-    pub progresses: im::Vector<WorkProgress>,
+    pub progresses: Arc<Vec<WorkProgress>>,
     pub drag: Arc<Option<(Vec2, Vec2, DragContent)>>,
     pub latest_release: Arc<Option<ReleaseInfo>>,
 }
@@ -774,9 +770,9 @@ impl LapceTabData {
         let mut tab = Self {
             id: tab_id,
             multiple_tab: false,
-            window_id,
+            window_id: Arc::new(window_id),
             workspace: Arc::new(workspace),
-            focus,
+            focus: Arc::new(focus),
             main_split,
             completion,
             hover,
@@ -803,7 +799,7 @@ impl LapceTabData {
             config,
             focus_area: FocusArea::Editor,
             db,
-            progresses: im::Vector::new(),
+            progresses: Arc::new(Vec::new()),
             drag: Arc::new(None),
             latest_release,
         };
@@ -1384,14 +1380,14 @@ impl LapceTabData {
             LapceWorkbenchCommand::NewWindow => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::NewWindow(self.window_id),
+                    LapceUICommand::NewWindow(*self.window_id),
                     Target::Global,
                 ));
             }
             LapceWorkbenchCommand::CloseWindow => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::CloseWindow(self.window_id),
+                    LapceUICommand::CloseWindow(*self.window_id),
                     Target::Auto,
                 ));
             }
@@ -1686,8 +1682,8 @@ impl LapceTabData {
                 );
             }
             CommandKind::Focus(_) | CommandKind::Edit(_) | CommandKind::Move(_) => {
-                let widget_id = if self.focus != self.palette.input_editor {
-                    self.focus
+                let widget_id = if *self.focus != self.palette.input_editor {
+                    *self.focus
                 } else if let Some(active_tab) = self.main_split.active_tab.as_ref()
                 {
                     self.main_split
@@ -1697,7 +1693,7 @@ impl LapceTabData {
                         .active_child()
                         .widget_id()
                 } else {
-                    self.focus
+                    *self.focus
                 };
 
                 ctx.submit_command(Command::new(
@@ -2685,6 +2681,15 @@ impl LapceMainSplitData {
             cb,
         );
         editor_view_id
+    }
+
+    pub fn can_jump_location_backward(&self) -> bool {
+        self.current_location >= 1
+    }
+
+    pub fn can_jump_location_forward(&self) -> bool {
+        !(self.locations.is_empty()
+            || self.current_location >= self.locations.len() - 1)
     }
 
     pub fn save_jump_location(

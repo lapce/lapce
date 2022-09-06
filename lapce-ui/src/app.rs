@@ -333,11 +333,11 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                 );
 
                 let mut tab = meta.data;
-                tab.window_id = window_data.window_id;
+                tab.window_id = Arc::new(window_data.window_id);
 
                 let tab_id = tab.id;
                 window_data.tabs_order = Arc::new(vec![tab_id]);
-                window_data.active_id = tab_id;
+                window_data.active_id = Arc::new(tab_id);
                 window_data.tabs.clear();
                 window_data.tabs.insert(tab_id, tab);
 

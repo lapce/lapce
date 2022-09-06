@@ -306,7 +306,6 @@ impl Widget<LapceTabData> for LapceEditorTab {
         match event {
             Event::MouseMove(mouse_event) => {
                 self.mouse_pos = mouse_event.pos;
-                ctx.request_paint();
             }
             Event::MouseUp(mouse_event) => {
                 self.mouse_up(ctx, data, mouse_event);

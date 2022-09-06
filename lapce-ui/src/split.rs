@@ -1171,7 +1171,7 @@ impl Widget<LapceTabData> for LapceSplit {
                                 ));
                             } else {
                                 ctx.request_focus();
-                                data.focus = self.split_id;
+                                data.focus = Arc::new(self.split_id);
                                 data.focus_area = FocusArea::Editor;
                             }
                         }

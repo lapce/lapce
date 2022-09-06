@@ -1,8 +1,8 @@
 use druid::{
     kurbo::Line,
     piet::{PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
-    Command, Event, EventCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext,
-    Size, Target, Widget,
+    Command, Data, Event, EventCtx, MouseEvent, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, Widget,
 };
 use lapce_core::mode::Mode;
 use lapce_data::{
@@ -19,6 +19,7 @@ pub struct LapceStatus {
     clickable_items: Vec<(Rect, Command)>,
     mouse_pos: Point,
     icon_size: f64,
+    active_icon: Option<Rect>,
 }
 
 impl LapceStatus {
@@ -28,6 +29,7 @@ impl LapceStatus {
             clickable_items: Vec::new(),
             mouse_pos: Point::ZERO,
             icon_size: 13.0,
+            active_icon: None,
         }
     }
 
@@ -92,14 +94,16 @@ impl LapceStatus {
         icons
     }
 
-    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+    fn icon_hit_test(&mut self, mouse_event: &MouseEvent) -> bool {
         for icon in self.panel_icons.iter() {
             if icon.rect.contains(mouse_event.pos) {
+                self.active_icon = Some(icon.rect);
                 return true;
             }
         }
         for (rect, _) in self.clickable_items.iter() {
             if rect.contains(mouse_event.pos) {
+                self.active_icon = Some(*rect);
                 return true;
             }
         }
@@ -220,11 +224,14 @@ impl Widget<LapceTabData> for LapceStatus {
         match event {
             Event::MouseMove(mouse_event) => {
                 self.mouse_pos = mouse_event.pos;
+                let active_icon = self.active_icon;
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                 } else {
+                    self.active_icon = None;
                     ctx.clear_cursor();
+                }
+                if active_icon != self.active_icon {
                     ctx.request_paint();
                 }
             }
@@ -273,7 +280,7 @@ impl Widget<LapceTabData> for LapceStatus {
             return;
         }
 
-        if !old_data.progresses.ptr_eq(&data.progresses) {
+        if !old_data.progresses.same(&data.progresses) {
             ctx.request_paint();
         }
     }

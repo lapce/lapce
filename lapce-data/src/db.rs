@@ -675,7 +675,7 @@ impl LapceDb {
             .enumerate()
             .map(|(i, w)| {
                 let tab = data.tabs.get(w).unwrap();
-                if tab.id == data.active_id {
+                if tab.id == *data.active_id {
                     active_tab = i;
                 }
                 (*tab.workspace).clone()

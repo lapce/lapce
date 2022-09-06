@@ -113,10 +113,8 @@ impl Widget<LapceTabData> for FindBox {
                 self.mouse_pos = mouse_event.pos;
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                 } else {
                     ctx.clear_cursor();
-                    ctx.request_paint();
                 }
             }
             Event::MouseDown(mouse_event) => {

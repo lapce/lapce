@@ -195,10 +195,8 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 self.mouse_pos = mouse_event.pos;
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                 } else {
                     ctx.clear_cursor();
-                    ctx.request_paint();
                 }
                 ctx.set_handled();
             }
@@ -232,7 +230,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::Focus,
-                        Target::Widget(data.focus),
+                        Target::Widget(*data.focus),
                     ));
                     ctx.set_handled();
                 }

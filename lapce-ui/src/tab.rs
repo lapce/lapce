@@ -706,7 +706,7 @@ impl LapceTab {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::SetWorkspace(workspace),
-                    Target::Window(data.window_id),
+                    Target::Window(*data.window_id),
                 ));
             }
             Event::Command(cmd) if cmd.is(LAPCE_OPEN_FILE) => {
@@ -1055,15 +1055,19 @@ impl LapceTab {
                             lsp_types::ProgressParamsValue::WorkDone(progress) => {
                                 match progress {
                                     lsp_types::WorkDoneProgress::Begin(begin) => {
-                                        data.progresses.push_back(WorkProgress {
-                                            token: params.token.clone(),
-                                            title: begin.title.clone(),
-                                            message: begin.message.clone(),
-                                            percentage: begin.percentage,
-                                        });
+                                        Arc::make_mut(&mut data.progresses).push(
+                                            WorkProgress {
+                                                token: params.token.clone(),
+                                                title: begin.title.clone(),
+                                                message: begin.message.clone(),
+                                                percentage: begin.percentage,
+                                            },
+                                        );
                                     }
                                     lsp_types::WorkDoneProgress::Report(report) => {
-                                        for p in data.progresses.iter_mut() {
+                                        for p in Arc::make_mut(&mut data.progresses)
+                                            .iter_mut()
+                                        {
                                             if p.token == params.token {
                                                 p.message = report.message.clone();
                                                 p.percentage = report.percentage;
@@ -1084,7 +1088,8 @@ impl LapceTab {
                                             .sorted()
                                             .rev()
                                         {
-                                            data.progresses.remove(i);
+                                            Arc::make_mut(&mut data.progresses)
+                                                .remove(i);
                                         }
                                     }
                                 }
@@ -1571,7 +1576,7 @@ impl LapceTab {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::Focus,
-                            Target::Widget(data.focus),
+                            Target::Widget(*data.focus),
                         ));
                         ctx.set_handled();
                     }
@@ -1970,14 +1975,14 @@ impl Widget<LapceTabData> for LapceTab {
             ctx.request_paint();
         }
 
-        if !old_data.about.active != data.about.active {
+        if old_data.about.active != data.about.active {
             ctx.request_layout();
         }
-        if !old_data.alert.active != data.alert.active {
+        if old_data.alert.active != data.alert.active {
             ctx.request_layout();
         }
 
-        if old_data
+        if !old_data
             .main_split
             .diagnostics
             .same(&data.main_split.diagnostics)
@@ -2396,7 +2401,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
             Event::MouseUp(mouse_event) => {
                 if mouse_event.button.is_right() {
                     let tab_id = data.id;
-                    let window_id = data.window_id;
+                    let window_id = *data.window_id;
 
                     let mut menu = druid::Menu::<LapceData>::new("Tab");
                     let item = druid::MenuItem::new("Move Tab To a New Window")
