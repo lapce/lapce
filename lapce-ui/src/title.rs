@@ -502,7 +502,7 @@ impl Title {
         if !data.multiple_tab && data.config.lapce.custom_titlebar {
             x += size.height;
             let (window_controls, svgs) = window_controls(
-                data.window_id,
+                *data.window_id,
                 window_state,
                 x,
                 size.height,
