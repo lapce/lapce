@@ -94,7 +94,7 @@ pub fn file_svg(path: &Path) -> Svg {
                 for (exts, file_type) in TYPES {
                     for ext in exts.iter() {
                         if extension.eq_ignore_ascii_case(ext) {
-                            Some(*file_type);
+                            Some(*file_type)
                         }
                     }
                 }
