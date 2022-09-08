@@ -51,15 +51,12 @@ pub fn get_svg(name: &'static str) -> Option<Svg> {
 pub fn file_svg(path: &Path) -> Svg {
     
     // catch if path.to_str() is Some without calling it twice
-    let path_str = path.to_str();
-    if path_str == None {
-        panic!("Missing path");
-    }
+    let path_str = path.to_str().expect("Missing path");
     let file_name = path_str.unwrap(); // unwrap path_str safely now
 
     let file_type = if file_name.contains("LICENSE") {
         "file_type_license.svg"
-    } else if file_name.to_lowercase().contains("makefile") {
+    } else if file_name.eq_ignore_ascii_case("makefile") {
         "file_type_make.svg"
     } else if file_name.to_lowercase().contains("git") {
         "git-icon.svg"
@@ -107,9 +104,7 @@ pub fn file_svg(path: &Path) -> Svg {
             .unwrap_or("default_file.svg")
     };
     
-    let svg_file = get_svg(file_type);
-    if svg_file.is_none() {
-        panic!("Missing svg icon '{}'", file_type);
+    let svg_file = get_svg(file_type).expect("Missing svg icon '{}'", file_type);
     }
     
     return svg_file.unwrap();
