@@ -411,10 +411,6 @@ pub struct UIConfig {
     hover_font_family: String,
     #[field_names(desc = "Set the hover font size. If 0, uses the UI font size")]
     hover_font_size: usize,
-    #[field_names(
-        desc = "Enable customised titlebar and disable OS native one (Windows and Linux only)"
-    )]
-    custom_titlebar: bool,
 }
 
 impl UIConfig {
@@ -470,10 +466,6 @@ impl UIConfig {
         } else {
             self.hover_font_size
         }
-    }
-
-    pub fn custom_titlebar(&self) -> bool {
-        self.custom_titlebar
     }
 }
 

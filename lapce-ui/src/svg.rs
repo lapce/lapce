@@ -125,7 +125,7 @@ pub fn file_svg(path: &Path) -> (Svg, Option<&Color>) {
     };
 
     match icon_name {
-        Some(svg) => (get_svg(svg).unwrap(), Some(&Color::WHITE)),
+        Some(svg) => (get_svg(svg).unwrap_or(get_svg(LapceIcons::FILE).unwrap()), Some(&Color::WHITE)),
         None => (get_svg(LapceIcons::FILE).unwrap(), Some(&Color::WHITE)),
     }
 }

@@ -347,6 +347,25 @@ impl Widget<LapceTabData> for AboutBoxContent {
             .to_rect()
             .with_origin(Point::new(self.width - 20.0, 0.0));
 
+        let msg_layout = ctx
+        .text()
+        .new_text_layout(format!("Codicons (CC-BY-4.0)\n"))
+        .font(
+            data.config.ui.font_family(),
+            (data.config.ui.font_size()) as f64,
+        )
+        .set_line_height(1.2)
+        .max_width(self.width - self.padding * 2.0)
+        .text_color(
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                .clone(),
+        )
+        .build()
+        .unwrap();
+
+        y += msg_layout.size().height * 3.0;
+
         Size::new(self.width, y + self.button_height + self.padding)
     }
 
@@ -408,7 +427,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
             ("GitHub", URI_GITHUB),
             ("Matrix", URI_MATRIX),
         ] {
-            let left_item = ctx
+            let row_item = ctx
                 .text()
                 .new_text_layout(msg)
                 .font(
@@ -426,13 +445,13 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 .build()
                 .unwrap();
             let site_rect = Size::new(
-                left_item.layout.width() as f64,
-                left_item.layout.height() as f64,
+                row_item.layout.width() as f64,
+                row_item.layout.height() as f64,
             )
             .to_rect()
             .with_origin(Point::new(
-                self.width / 2.0 + (left_item.layout.width() as f64 / 2.0)
-                    - left_item.layout.width() as f64,
+                self.width / 2.0 + (row_item.layout.width() as f64 / 2.0)
+                    - row_item.layout.width() as f64,
                 y,
             ));
 
@@ -445,9 +464,50 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 ),
             ));
 
-            ctx.draw_text(&left_item, Point::new(self.padding, y));
-            y += left_item.size().height + 5.0;
+            ctx.draw_text(&row_item, Point::new(self.padding, y));
+            y += row_item.size().height + 5.0;
         }
+
+        let row_item = ctx
+            .text()
+            .new_text_layout("Codicons (CC-BY-4.0)")
+            .font(
+                data.config.ui.font_family(),
+                (data.config.ui.font_size()) as f64,
+            )
+            .alignment(TextAlignment::Center)
+            .set_line_height(1.2)
+            .max_width(self.width - self.padding * 2.0)
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+
+        y += row_item.size().height * 3.0;
+        ctx.draw_text(&row_item, Point::new(self.padding, y));
+        y += row_item.size().height;
+
+        let row_item = ctx
+            .text()
+            .new_text_layout("https://github.com/microsoft/vscode-codicons")
+            .font(
+                data.config.ui.font_family(),
+                (data.config.ui.font_size()) as f64,
+            )
+            .alignment(TextAlignment::Center)
+            .set_line_height(1.2)
+            .max_width(self.width - self.padding * 2.0)
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_LINK)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        ctx.draw_text(&row_item, Point::new(self.padding, y));
 
         if self.close_rect.contains(self.mouse_pos) {
             let c = data
