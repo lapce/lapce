@@ -137,7 +137,7 @@ pub enum LapceLanguage {
     #[cfg(feature = "lang-swift")]
     Swift,
     #[cfg(feature = "lang-ql")]
-    QL,
+    Ql,
     #[cfg(feature = "lang-haskell")]
     Haskell,
     #[cfg(feature = "lang-glimmer")]
@@ -145,13 +145,13 @@ pub enum LapceLanguage {
     #[cfg(feature = "lang-haxe")]
     Haxe,
     #[cfg(feature = "lang-hcl")]
-    HCL,
+    Hcl,
     #[cfg(feature = "lang-ocaml")]
-    OCaml,
+    Ocaml,
     #[cfg(feature = "lang-ocaml")]
-    OCamlInterface,
+    OcamlInterface,
     #[cfg(feature = "lang-scss")]
-    SCSS,
+    Scss,
     #[cfg(feature = "lang-hare")]
     Hare,
     #[cfg(feature = "lang-css")]
@@ -166,6 +166,12 @@ pub enum LapceLanguage {
     Julia,
     #[cfg(feature = "lang-wgsl")]
     Wgsl,
+    #[cfg(feature = "lang-dockerfile")]
+    Dockerfile,
+    #[cfg(feature = "lang-csharp")]
+    Csharp,
+    #[cfg(feature = "lang-nix")]
+    Nix,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -386,7 +392,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     #[cfg(feature = "lang-ql")]
     SyntaxProperties {
-        id: LapceLanguage::QL,
+        id: LapceLanguage::Ql,
         language: tree_sitter_ql::language,
         highlight: tree_sitter_ql::HIGHLIGHTS_QUERY,
         comment: "//",
@@ -426,7 +432,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     #[cfg(feature = "lang-hcl")]
     SyntaxProperties {
-        id: LapceLanguage::HCL,
+        id: LapceLanguage::Hcl,
         language: tree_sitter_hcl::language,
         highlight: tree_sitter_hcl::HIGHLIGHTS_QUERY,
         comment: "//",
@@ -436,7 +442,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     #[cfg(feature = "lang-ocaml")]
     SyntaxProperties {
-        id: LapceLanguage::OCaml,
+        id: LapceLanguage::Ocaml,
         language: tree_sitter_ocaml::language_ocaml,
         highlight: tree_sitter_ocaml::HIGHLIGHTS_QUERY,
         comment: "(*",
@@ -446,7 +452,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     #[cfg(feature = "lang-ocaml")]
     SyntaxProperties {
-        id: LapceLanguage::OCaml,
+        id: LapceLanguage::Ocaml,
         language: tree_sitter_ocaml::language_ocaml_interface,
         highlight: tree_sitter_ocaml::HIGHLIGHTS_QUERY,
         comment: "(*",
@@ -456,7 +462,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     #[cfg(feature = "lang-scss")]
     SyntaxProperties {
-        id: LapceLanguage::SCSS,
+        id: LapceLanguage::Scss,
         language: tree_sitter_scss::language,
         highlight: tree_sitter_scss::HIGHLIGHTS_QUERY,
         comment: "//",
@@ -533,6 +539,36 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["wgsl"],
+    },
+    #[cfg(feature = "lang-dockerfile")]
+    SyntaxProperties {
+        id: LapceLanguage::Dockerfile,
+        language: tree_sitter_dockerfile::language,
+        highlight: tree_sitter_dockerfile::HIGHLIGHTS_QUERY,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["dockerfile"],
+    },
+    #[cfg(feature = "lang-csharp")]
+    SyntaxProperties {
+        id: LapceLanguage::Csharp,
+        language: tree_sitter_c_sharp::language,
+        highlight: tree_sitter_c_sharp::HIGHLIGHT_QUERY,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["cs", "csx"],
+    },
+    #[cfg(feature = "lang-nix")]
+    SyntaxProperties {
+        id: LapceLanguage::Nix,
+        language: tree_sitter_nix::language,
+        highlight: tree_sitter_nix::HIGHLIGHTS_QUERY,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["nix"],
     },
 ];
 
@@ -783,7 +819,7 @@ mod test {
     #[test]
     #[cfg(feature = "lang-ql")]
     fn test_ql_lang() {
-        assert_language(LapceLanguage::QL, &["ql"]);
+        assert_language(LapceLanguage::Ql, &["ql"]);
     }
     #[test]
     #[cfg(feature = "lang-haskell")]
@@ -800,16 +836,16 @@ mod test {
     }
     #[cfg(feature = "lang-hcl")]
     fn test_hcl_lang() {
-        assert_language(LapceLanguage::HCL, &["hcl"]);
+        assert_language(LapceLanguage::Hcl, &["hcl"]);
     }
     #[cfg(feature = "lang-ocaml")]
     fn test_ocaml_lang() {
-        assert_language(LapceLanguage::OCaml, &["ml"]);
-        assert_language(LapceLanguage::OCamlInterface, &["mli"]);
+        assert_language(LapceLanguage::Ocaml, &["ml"]);
+        assert_language(LapceLanguage::OcamlInterface, &["mli"]);
     }
     #[cfg(feature = "lang-scss")]
     fn test_scss_lang() {
-        assert_language(LapceLanguage::SCSS, &["scss"]);
+        assert_language(LapceLanguage::Scss, &["scss"]);
     }
     #[cfg(feature = "lang-hare")]
     fn test_hare_lang() {
@@ -838,5 +874,17 @@ mod test {
     #[cfg(feature = "lang-wgsl")]
     fn test_wgsl_lang() {
         assert_language(LapceLanguage::Wgsl, &["wgsl"]);
+    }
+    #[cfg(feature = "lang-dockerfile")]
+    fn test_dockerfile_lang() {
+        assert_language(LapceLanguage::Dockerfile, &["dockerfile"]);
+    }
+    #[cfg(feature = "lang-csharp")]
+    fn test_csharp_lang() {
+        assert_language(LapceLanguage::Csharp, &["cs", "csx"]);
+    }
+    #[cfg(feature = "lang-nix")]
+    fn test_nix_lang() {
+        assert_language(LapceLanguage::Nix, &["nix"]);
     }
 }

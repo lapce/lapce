@@ -2549,8 +2549,10 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-bash",
  "tree-sitter-c",
+ "tree-sitter-c-sharp",
  "tree-sitter-cpp",
  "tree-sitter-css",
+ "tree-sitter-dockerfile",
  "tree-sitter-elixir",
  "tree-sitter-elm",
  "tree-sitter-glimmer",
@@ -2565,6 +2567,7 @@ dependencies = [
  "tree-sitter-json",
  "tree-sitter-julia",
  "tree-sitter-md",
+ "tree-sitter-nix",
  "tree-sitter-ocaml",
  "tree-sitter-php",
  "tree-sitter-python",
@@ -4946,6 +4949,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-c-sharp"
+version = "0.19.1"
+source = "git+https://github.com/tree-sitter/tree-sitter-c-sharp?branch=master#2734945fcc2da52365e7071958b9eba4ff151937"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-cpp"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4959,6 +4971,15 @@ dependencies = [
 name = "tree-sitter-css"
 version = "0.19.0"
 source = "git+https://github.com/syntacti/tree-sitter-css?branch=master#b5018f23290618d70c7483cd60a06a05d54832e1"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-dockerfile"
+version = "0.1.0"
+source = "git+https://github.com/panekj/tree-sitter-dockerfile?branch=queries#c49d819e07685c90456270f1cc654d9cba640f53"
 dependencies = [
  "cc",
  "tree-sitter",
@@ -5091,6 +5112,15 @@ dependencies = [
 name = "tree-sitter-md"
 version = "0.0.1"
 source = "git+https://github.com/dzhou121/tree-sitter-markdown.git#134c7f870ad17b3c3e40cd90b8bbd08329ac4bbd"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-nix"
+version = "0.0.1"
+source = "git+https://github.com/panekj/tree-sitter-nix?branch=master#59fc47150ab437e8bb356c7ab21e9531e87f7cc8"
 dependencies = [
  "cc",
  "tree-sitter",
