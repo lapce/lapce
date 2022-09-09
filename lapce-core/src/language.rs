@@ -137,7 +137,7 @@ pub enum LapceLanguage {
     #[cfg(feature = "lang-swift")]
     Swift,
     #[cfg(feature = "lang-ql")]
-    QL,
+    Ql,
     #[cfg(feature = "lang-haskell")]
     Haskell,
     #[cfg(feature = "lang-glimmer")]
@@ -145,13 +145,13 @@ pub enum LapceLanguage {
     #[cfg(feature = "lang-haxe")]
     Haxe,
     #[cfg(feature = "lang-hcl")]
-    HCL,
+    Hcl,
     #[cfg(feature = "lang-ocaml")]
-    OCaml,
+    Ocaml,
     #[cfg(feature = "lang-ocaml")]
-    OCamlInterface,
+    OcamlInterface,
     #[cfg(feature = "lang-scss")]
-    SCSS,
+    Scss,
     #[cfg(feature = "lang-hare")]
     Hare,
     #[cfg(feature = "lang-css")]
@@ -392,7 +392,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     #[cfg(feature = "lang-ql")]
     SyntaxProperties {
-        id: LapceLanguage::QL,
+        id: LapceLanguage::Ql,
         language: tree_sitter_ql::language,
         highlight: tree_sitter_ql::HIGHLIGHTS_QUERY,
         comment: "//",
@@ -432,7 +432,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     #[cfg(feature = "lang-hcl")]
     SyntaxProperties {
-        id: LapceLanguage::HCL,
+        id: LapceLanguage::Hcl,
         language: tree_sitter_hcl::language,
         highlight: tree_sitter_hcl::HIGHLIGHTS_QUERY,
         comment: "//",
@@ -442,7 +442,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     #[cfg(feature = "lang-ocaml")]
     SyntaxProperties {
-        id: LapceLanguage::OCaml,
+        id: LapceLanguage::Ocaml,
         language: tree_sitter_ocaml::language_ocaml,
         highlight: tree_sitter_ocaml::HIGHLIGHTS_QUERY,
         comment: "(*",
@@ -452,7 +452,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     #[cfg(feature = "lang-ocaml")]
     SyntaxProperties {
-        id: LapceLanguage::OCaml,
+        id: LapceLanguage::Ocaml,
         language: tree_sitter_ocaml::language_ocaml_interface,
         highlight: tree_sitter_ocaml::HIGHLIGHTS_QUERY,
         comment: "(*",
@@ -462,7 +462,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     #[cfg(feature = "lang-scss")]
     SyntaxProperties {
-        id: LapceLanguage::SCSS,
+        id: LapceLanguage::Scss,
         language: tree_sitter_scss::language,
         highlight: tree_sitter_scss::HIGHLIGHTS_QUERY,
         comment: "//",
@@ -819,7 +819,7 @@ mod test {
     #[test]
     #[cfg(feature = "lang-ql")]
     fn test_ql_lang() {
-        assert_language(LapceLanguage::QL, &["ql"]);
+        assert_language(LapceLanguage::Ql, &["ql"]);
     }
     #[test]
     #[cfg(feature = "lang-haskell")]
@@ -836,16 +836,16 @@ mod test {
     }
     #[cfg(feature = "lang-hcl")]
     fn test_hcl_lang() {
-        assert_language(LapceLanguage::HCL, &["hcl"]);
+        assert_language(LapceLanguage::Hcl, &["hcl"]);
     }
     #[cfg(feature = "lang-ocaml")]
     fn test_ocaml_lang() {
-        assert_language(LapceLanguage::OCaml, &["ml"]);
-        assert_language(LapceLanguage::OCamlInterface, &["mli"]);
+        assert_language(LapceLanguage::Ocaml, &["ml"]);
+        assert_language(LapceLanguage::OcamlInterface, &["mli"]);
     }
     #[cfg(feature = "lang-scss")]
     fn test_scss_lang() {
-        assert_language(LapceLanguage::SCSS, &["scss"]);
+        assert_language(LapceLanguage::Scss, &["scss"]);
     }
     #[cfg(feature = "lang-hare")]
     fn test_hare_lang() {
