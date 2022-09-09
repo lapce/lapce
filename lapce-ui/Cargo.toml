@@ -96,6 +96,7 @@ all-languages = [
     "lang-wgsl",
     "lang-dockerfile",
     "lang-csharp",
+    "lang-nix",
 ]
 
 lang-rust = ["lapce-core/lang-rust"]
@@ -131,3 +132,4 @@ lang-julia = ["lapce-core/lang-julia"]
 lang-wgsl = ["lapce-core/lang-wgsl"]
 lang-dockerfile = ["lapce-core/lang-dockerfile"]
 lang-csharp = ["lapce-core/lang-csharp"]
+lang-nix = ["lapce-core/lang-nix"]
