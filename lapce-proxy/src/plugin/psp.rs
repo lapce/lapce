@@ -516,7 +516,7 @@ pub struct PluginHostHandler {
     volt_id: String,
     pwd: Option<PathBuf>,
     pub(crate) workspace: Option<PathBuf>,
-    lanaguage_id: Option<String>,
+    document_selector: Option<Vec<DocumentFilter>>,
     catalog_rpc: PluginCatalogRpcHandler,
     pub server_rpc: PluginServerRpcHandler,
     pub server_capabilities: ServerCapabilities,
@@ -528,7 +528,7 @@ impl PluginHostHandler {
         workspace: Option<PathBuf>,
         pwd: Option<PathBuf>,
         volt_id: String,
-        lanaguage_id: Option<String>,
+        document_selector: Option<Vec<DocumentFilter>>,
         server_rpc: PluginServerRpcHandler,
         catalog_rpc: PluginCatalogRpcHandler,
     ) -> Self {
@@ -536,7 +536,7 @@ impl PluginHostHandler {
             pwd,
             workspace,
             volt_id,
-            lanaguage_id,
+            document_selector,
             catalog_rpc,
             server_rpc,
             server_capabilities: ServerCapabilities::default(),
@@ -546,8 +546,17 @@ impl PluginHostHandler {
 
     pub fn language_supported(&mut self, language_id: Option<&str>) -> bool {
         match language_id {
-            Some(language_id) => match self.lanaguage_id.as_ref() {
-                Some(l) => l.as_str() == language_id,
+            Some(language_id) => match self.document_selector.as_ref() {
+                Some(langs) => {
+                    for lang in langs {
+                        if let Some(lang_id) = lang.language_id.as_ref() {
+                            if lang_id == language_id {
+                                return true;
+                            }
+                        }
+                    }
+                    false
+                }
                 None => true,
             },
             None => true,
@@ -664,8 +673,8 @@ impl PluginHostHandler {
     }
 
     fn check_save_capability(&self, language_id: &str, path: &Path) -> (bool, bool) {
-        if self.lanaguage_id.is_none()
-            || self.lanaguage_id.as_deref() == Some(language_id)
+        if self.document_selector.is_some()
+            || !self.document_selector.as_deref().unwrap().is_empty()
         {
             let (should_send, include_text) = self
                 .server_capabilities
@@ -784,7 +793,11 @@ impl PluginHostHandler {
                 thread::spawn(move || {
                     let _ = LspClient::start(
                         catalog_rpc,
-                        params.language_id,
+                        params
+                            .document_selector
+                            .iter()
+                            .map(DocumentFilter::from_lsp_filter_loose)
+                            .collect(),
                         workspace,
                         volt_id,
                         pwd,

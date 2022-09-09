@@ -144,7 +144,7 @@ impl LspClient {
     #[allow(clippy::too_many_arguments)]
     fn new(
         plugin_rpc: PluginCatalogRpcHandler,
-        laguage_id: String,
+        document_selector: Vec<DocumentFilter>,
         workspace: Option<PathBuf>,
         volt_id: String,
         pwd: Option<PathBuf>,
@@ -231,7 +231,7 @@ impl LspClient {
             workspace.clone(),
             pwd,
             volt_id,
-            Some(laguage_id),
+            Some(document_selector),
             server_rpc.clone(),
             plugin_rpc.clone(),
         );
@@ -249,7 +249,7 @@ impl LspClient {
     #[allow(clippy::too_many_arguments)]
     pub fn start(
         plugin_rpc: PluginCatalogRpcHandler,
-        laguage_id: String,
+        document_selector: Vec<DocumentFilter>,
         workspace: Option<PathBuf>,
         volt_id: String,
         pwd: Option<PathBuf>,
@@ -258,7 +258,13 @@ impl LspClient {
         options: Option<Value>,
     ) -> Result<()> {
         let mut lsp = Self::new(
-            plugin_rpc, laguage_id, workspace, volt_id, pwd, server_uri, args,
+            plugin_rpc,
+            document_selector,
+            workspace,
+            volt_id,
+            pwd,
+            server_uri,
+            args,
             options,
         )?;
         let rpc = lsp.server_rpc.clone();
@@ -442,7 +448,8 @@ pub struct DocumentFilter {
     pub language_id: Option<String>,
     /// The document's path must match this glob, if it exists
     pub pattern: Option<globset::GlobMatcher>,
-    // TODO: URI Scheme from lsp-types document filter
+    /// URI Scheme
+    pub scheme: Option<String>,
 }
 impl DocumentFilter {
     /// Constructs a document filter from the LSP version
@@ -459,6 +466,7 @@ impl DocumentFilter {
                 .map(globset::Glob::new)
                 .and_then(Result::ok)
                 .map(|x| globset::Glob::compile_matcher(&x)),
+            scheme: filter.scheme.clone(),
         }
     }
 }
