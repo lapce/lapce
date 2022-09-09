@@ -129,4 +129,4 @@ There is also a [Matrix Space](https://matrix.to/#/#lapce-editor:matrix.org), wh
 
 ## License
 
-Lapce is released under the Apache License Version 2, which is an open source license. You may contribute to this project, or use the code as you please as long as you adhere to its conditions. You can find a copy of the license text here : [`LICENSE`](LICENSE).
+Lapce is released under the Apache License Version 2, which is an open source license. You may contribute to this project, or use the code as you please as long as you adhere to its conditions. You can find a copy of the license text here: [`LICENSE`](LICENSE).
