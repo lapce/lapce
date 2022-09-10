@@ -157,7 +157,7 @@ impl ProblemContent {
             "Line cursor ({line_cursor}) is larger than clicked line ({click_line}). This should never happen!"
         );
 
-        let msg_lines = file_diagnostic.diagnostic.message.lines().count();
+        let msg_lines = message_lines(file_diagnostic);
 
         // Widget has mouse about it and line is clicked one.
         if (line_cursor..(line_cursor + msg_lines)).contains(&click_line) {
