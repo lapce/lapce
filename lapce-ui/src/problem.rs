@@ -82,30 +82,30 @@ impl ProblemContent {
 
         let mut line_cursor = 0;
 
-        let mut it = items.into_iter().peekable();
-
         // Skip files before clicked section
-        while let Some((path, diagnostics)) = it.peek() {
-            let offset = if is_collapsed(data, path) {
+        let mut current_file = None;
+        for (path, diagnostics) in items.into_iter() {
+            let diag_lines = if is_collapsed(data, path) {
                 // If section is collapsed count only header with file name
                 1
             } else {
                 // Total file lines and header with file name
                 diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1 /* file name header */
             };
+
             // did we reached clicked section?
-            if offset + line_cursor <= click_line {
-                // No. Move line cursor and consume file
-                line_cursor += offset;
-                it.next();
-            } else {
+            if line_cursor + diag_lines > click_line {
                 // Current file is what we are looking for
+                current_file = Some((path, diagnostics));
                 break;
             }
+
+            // No. Move line cursor
+            line_cursor += diag_lines;
         }
 
         //
-        let (path, diagnostics) = if let Some(diag) = it.next() {
+        let (path, diagnostics) = if let Some(diag) = current_file {
             diag
         } else {
             // The user clicked an empty area.
@@ -130,21 +130,21 @@ impl ProblemContent {
         }
 
         // Skip to clicked diagnostic
-        let mut it = diagnostics.into_iter().peekable();
-        while let Some(file_diagnostic) = it.peek() {
+        let mut clicked_file_diagnostic = None;
+        for file_diagnostic in diagnostics.into_iter() {
             // Is current diagnostic the clicked one?
-            if line_cursor + file_diagnostic.lines < click_line {
-                // No. Move line cursor and consume diagnostic
-                line_cursor += file_diagnostic.lines;
-                it.next();
-            } else {
+            if line_cursor + file_diagnostic.lines >= click_line {
                 // We found diagnostic we are looking for
+                clicked_file_diagnostic = Some(file_diagnostic);
                 break;
             }
+
+            // No. Move line cursor and consume diagnostic
+            line_cursor += file_diagnostic.lines;
         }
 
         // Handle current diagnostic
-        let file_diagnostic = it.next().expect("Editor diagnostic not found. We should find here file diagnostic but nothing left in the array. Please report a bug");
+        let file_diagnostic = clicked_file_diagnostic.expect("Editor diagnostic not found. We should find here file diagnostic but nothing left in the array. Please report a bug");
 
         if line_cursor > click_line {
             log::error!(
@@ -177,46 +177,47 @@ impl ProblemContent {
         line_cursor += msg_lines;
 
         // Skip to clicked related information
-        let mut it = file_diagnostic
+        let it = file_diagnostic
             .diagnostic
             .related_information
             .as_deref()
             .unwrap_or(&[])
-            .iter()
-            .peekable();
+            .iter();
 
-        while let Some(related) = it.peek() {
+        let mut clicked_related = None;
+        for related in it {
             let lines = related.message.lines().count() + 1 /*related info will have own file name header with msg location*/;
+            let item_line_range = line_cursor..=(line_cursor + lines);
+
             // is current line the clicked one?
-            if (line_cursor..=(line_cursor + lines)).contains(&click_line) {
-                // Yes. Do not move line cursor and stop
+            if item_line_range.contains(&click_line) {
+                clicked_related = Some(related);
                 break;
             }
-            // No. Move line cursor and consume related info
+
+            // No. Move line cursor
             line_cursor += lines;
-            it.next();
         }
 
-        let related = it.next()
-            .expect("No related information found but something was clicked. This should never happen. Please report a bug.");
-
-        let path = related.location.uri.to_file_path().unwrap();
-        let start = related.location.range.start;
-        let id = data.id;
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::JumpToLspLocation(
-                None,
-                EditorLocation {
-                    path,
-                    position: Some(start),
-                    scroll_offset: None,
-                    history: None,
-                },
-                false,
-            ),
-            Target::Widget(id),
-        ));
+        if let Some(related) = clicked_related {
+            // Yes. Do not move line cursor and stop
+            let path = related.location.uri.to_file_path().unwrap();
+            let start = related.location.range.start;
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::JumpToLspLocation(
+                    None,
+                    EditorLocation {
+                        path,
+                        position: Some(start),
+                        scroll_offset: None,
+                        history: None,
+                    },
+                    false,
+                ),
+                Target::Widget(data.id),
+            ));
+        }
     }
 }
 
