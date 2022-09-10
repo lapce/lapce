@@ -189,6 +189,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     }
                     "cs" | "csx" => "csharp",
                     "css" => "css",
+                    "d" | "di" | "dlang" => "dlang",
                     "diff" | "patch" => "diff",
                     "dart" => "dart",
                     "dockerfile" => "dockerfile",
