@@ -1661,6 +1661,9 @@ impl LapceTabData {
                     }
                 }
             }
+            LapceWorkbenchCommand::Quit => {
+                ctx.submit_command(druid::commands::QUIT_APP);
+            }
         }
     }
 
