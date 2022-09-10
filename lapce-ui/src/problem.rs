@@ -82,30 +82,30 @@ impl ProblemContent {
 
         let mut line_cursor = 0;
 
-        // Skip files before clicked section
+        // Skip files before clicked section.
         let mut current_file = None;
         for (path, diagnostics) in items {
             let diag_lines = if is_collapsed(data, path) {
-                // If section is collapsed count only header with file name
+                // If section is collapsed count only header with file name.
                 1
             } else {
-                // Total file lines and header with file name
+                // Total file lines and header with file name.
                 diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1 /* file name header */
             };
             let line_range = line_cursor..(line_cursor + diag_lines);
 
-            // did we reached clicked section?
+            // Did we reach the clicked section?
             if line_range.contains(&click_line) {
-                // Current file is what we are looking for
+                // The current file is what we are looking for.
                 current_file = Some((path, diagnostics));
                 break;
             }
 
-            // No. Move line cursor
+            // No. Move line cursor.
             line_cursor += diag_lines;
         }
 
-        //
+        // Check if we have clicked something interesting.
         let (path, diagnostics) = if let Some(diag) = current_file {
             diag
         } else {
@@ -113,7 +113,7 @@ impl ProblemContent {
             return;
         };
 
-        // handle click on header with file name
+        // Handle click on header with file name.
         if line_cursor == click_line {
             // Request layout to force a content height recalculation.
             ctx.request_layout();
@@ -130,26 +130,26 @@ impl ProblemContent {
             "File is collapsed. Can't click any element. This shouldn't happen, please report a bug."
         );
 
-        // Skip header
+        // Skip header.
         line_cursor += 1;
 
-        // Skip to clicked diagnostic
+        // Skip to clicked diagnostic.
         let mut clicked_file_diagnostic = None;
         for file_diagnostic in diagnostics {
             let line_range = line_cursor..(line_cursor + file_diagnostic.lines);
 
-            // Is current diagnostic the clicked one?
+            // Is the current diagnostic the clicked one?
             if line_range.contains(&click_line) {
-                // We found diagnostic we are looking for
+                // We found the diagnostic we are looking for.
                 clicked_file_diagnostic = Some(file_diagnostic);
                 break;
             }
 
-            // No. Move line cursor and consume diagnostic
+            // No. Move line cursor and consume diagnostic.
             line_cursor += file_diagnostic.lines;
         }
 
-        // Handle current diagnostic
+        // Handle current diagnostic.
         let file_diagnostic = clicked_file_diagnostic.expect("Editor diagnostic not found. We should find here file diagnostic but nothing left in the array. Please report a bug");
 
         assert!(
@@ -161,7 +161,7 @@ impl ProblemContent {
 
         // Widget has mouse about it and line is clicked one.
         if (line_cursor..(line_cursor + msg_lines)).contains(&click_line) {
-            // rust example: description without location
+            // Rust example: description without location.
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::JumpToLspLocation(
@@ -180,7 +180,7 @@ impl ProblemContent {
         }
         line_cursor += msg_lines;
 
-        // Skip to clicked related information
+        // Skip to clicked related information.
         let related = file_diagnostic
             .diagnostic
             .related_information
@@ -192,18 +192,18 @@ impl ProblemContent {
             let lines = related.message.lines().count();
             let item_line_range = line_cursor..(line_cursor + lines);
 
-            // is current line the clicked one?
+            // Is the current line the clicked one?
             if item_line_range.contains(&click_line) {
+                // We found the related info we are looking for.
                 clicked_related = Some(related);
                 break;
             }
 
-            // No. Move line cursor
+            // No. Move line cursor.
             line_cursor += lines;
         }
 
         if let Some(related) = clicked_related {
-            // Yes. Do not move line cursor and stop
             let path = related.location.uri.to_file_path().unwrap();
             let start = related.location.range.start;
             ctx.submit_command(Command::new(
