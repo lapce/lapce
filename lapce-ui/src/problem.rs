@@ -115,8 +115,6 @@ impl ProblemContent {
 
         // Handle click on header with file name.
         if line_cursor == click_line {
-            // Request layout to force a content height recalculation.
-            ctx.request_layout();
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ToggleProblem(path.to_path_buf()),
@@ -272,6 +270,10 @@ impl Widget<LapceTabData> for ProblemContent {
             .diagnostics
             .same(&old_data.main_split.diagnostics)
         {
+            ctx.request_layout();
+        }
+
+        if data.problem.collapsed != old_data.problem.collapsed {
             ctx.request_layout();
         }
     }
