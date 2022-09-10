@@ -786,7 +786,7 @@ impl LapceTerminalData {
                 } else if key.mods.alt() {
                     "\x1b\x7f"
                 } else {
-                	"\x7f"	
+                    "\x7f"
                 })
             }
 
