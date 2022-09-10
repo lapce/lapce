@@ -84,7 +84,7 @@ impl ProblemContent {
 
         // Skip files before clicked section
         let mut current_file = None;
-        for (path, diagnostics) in items.into_iter() {
+        for (path, diagnostics) in items {
             let diag_lines = if is_collapsed(data, path) {
                 // If section is collapsed count only header with file name
                 1
@@ -135,7 +135,7 @@ impl ProblemContent {
 
         // Skip to clicked diagnostic
         let mut clicked_file_diagnostic = None;
-        for file_diagnostic in diagnostics.into_iter() {
+        for file_diagnostic in diagnostics {
             let line_range = line_cursor..(line_cursor + file_diagnostic.lines);
 
             // Is current diagnostic the clicked one?
@@ -181,15 +181,14 @@ impl ProblemContent {
         line_cursor += msg_lines;
 
         // Skip to clicked related information
-        let it = file_diagnostic
+        let related = file_diagnostic
             .diagnostic
             .related_information
             .as_deref()
-            .unwrap_or(&[])
-            .iter();
+            .unwrap_or(&[]);
 
         let mut clicked_related = None;
-        for related in it {
+        for related in related {
             let lines = related.message.lines().count();
             let item_line_range = line_cursor..(line_cursor + lines);
 
