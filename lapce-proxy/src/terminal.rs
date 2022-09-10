@@ -55,14 +55,38 @@ impl Terminal {
                 BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
             };
         let shell = shell.trim();
-        if !shell.is_empty() {
+        let inside_flatpak = is_inside_flatpak();
+
+        if !shell.is_empty() || inside_flatpak {
             let mut parts = shell.split(' ');
-            let program = parts.next().unwrap();
-            if let Ok(p) = which::which(program) {
+
+            if inside_flatpak {
+                let flatpak_spawn_path = "/usr/bin/flatpak-spawn".to_string();
+                let host_shell = flatpak_get_default_host_shell();
+
+                let args = if shell.is_empty() {
+                    vec!["--host".to_string(), host_shell]
+                } else {
+                    vec![
+                        "--host".to_string(),
+                        host_shell,
+                        "-c".to_string(),
+                        shell.to_string(),
+                    ]
+                };
+
                 config.pty_config.shell = Some(Program::WithArgs {
-                    program: p.to_str().unwrap().to_string(),
-                    args: parts.map(|p| p.to_string()).collect::<Vec<String>>(),
+                    program: flatpak_spawn_path,
+                    args,
                 })
+            } else {
+                let program = parts.next().unwrap();
+                if let Ok(p) = which::which(program) {
+                    config.pty_config.shell = Some(Program::WithArgs {
+                        program: p.to_str().unwrap().to_string(),
+                        args: parts.map(|p| p.to_string()).collect::<Vec<String>>(),
+                    })
+                }
             }
         }
         setup_env(&config);
@@ -306,4 +330,53 @@ fn set_locale_environment() {
         .to_string()
         .replace('-', "_");
     std::env::set_var("LC_ALL", locale + ".UTF-8");
+}
+
+#[cfg(not(target_os = "linux"))]
+fn flatpak_get_default_host_shell() -> String {
+    panic!(
+        "This should never be reached. If it is, ensure you don't have a file
+        called .flatpak-info in your root directory"
+    );
+}
+
+#[cfg(target_os = "linux")]
+fn flatpak_get_default_host_shell() -> String {
+    use std::process::Command;
+
+    let env_string = Command::new("flatpak-spawn")
+        .arg("--host")
+        .arg("printenv")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let env_string = String::from_utf8(env_string).unwrap();
+
+    for env_pair in env_string.split('\n') {
+        let name_value: Vec<&str> = env_pair.split('=').collect();
+
+        if name_value[0] == "SHELL" {
+            return name_value[1].to_string();
+        }
+    }
+
+    // In case SHELL isn't set for whatever reason, fall back to this
+    "/bin/sh".to_string()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn is_inside_flatpak() -> bool {
+    false // Flatpak is only available on Linux
+}
+
+#[cfg(target_os = "linux")]
+fn is_inside_flatpak() -> bool {
+    use std::path::Path;
+
+    const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
+
+    /* The de-facto way of checking whether one is inside of a Flatpak container is by checking for
+    the presence of /.flatpak-info in the filesystem */
+    Path::new(FLATPAK_INFO_PATH).exists()
 }
