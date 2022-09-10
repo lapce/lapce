@@ -33,6 +33,7 @@ pub const SCOPES: &[&str] = &[
     "string.escape",
     "conceal",
     "none",
+    "tag",
 ];
 
 pub fn line_styles(
