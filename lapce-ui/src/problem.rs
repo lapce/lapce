@@ -115,6 +115,8 @@ impl ProblemContent {
 
         // handle click on header with file name
         if line_cursor == click_line {
+            // Request layout to force a content height recalculation.
+            ctx.request_layout();
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ToggleProblem(path.to_path_buf()),
@@ -123,12 +125,10 @@ impl ProblemContent {
             return;
         }
 
-        if is_collapsed(data, path) {
-            log::warn!(
-                "File is collapsed. Can't click any element. This shouldn't happen, please report a bug."
-            );
-            return;
-        }
+        assert!(
+            !is_collapsed(data, path),
+            "File is collapsed. Can't click any element. This shouldn't happen, please report a bug."
+        );
 
         // Skip header
         line_cursor += 1;
@@ -152,12 +152,10 @@ impl ProblemContent {
         // Handle current diagnostic
         let file_diagnostic = clicked_file_diagnostic.expect("Editor diagnostic not found. We should find here file diagnostic but nothing left in the array. Please report a bug");
 
-        if line_cursor > click_line {
-            log::error!(
-                "Line cursor is larger than clicked line. This should never happen!"
-            );
-            return;
-        }
+        assert!(
+            line_cursor <= click_line,
+            "Line cursor ({line_cursor}) is larger than clicked line ({click_line}). This should never happen!"
+        );
 
         let msg_lines = file_diagnostic.diagnostic.message.lines().count();
 
