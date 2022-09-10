@@ -1,9 +1,9 @@
 use std::{collections::HashSet, path::Path, str::FromStr};
 
 use strum_macros::{Display, EnumString};
-use tree_sitter::{Parser, TreeCursor};
+use tree_sitter::TreeCursor;
 
-use crate::style::HighlightConfiguration;
+use crate::syntax::highlight::HighlightConfiguration;
 
 //
 // To add support for an hypothetical language called Foo, for example, using
@@ -42,6 +42,7 @@ use crate::style::HighlightConfiguration;
 //            id: LapceLanguage::Foo,
 //            language: tree_sitter_foo::language,
 //            highlight: tree_sitter_foo::HIGHLIGHT_QUERY,
+//            injection: Some(tree_sitter_foo::INJECTION_QUERY), // or None if there is no injections
 //            comment: "//",
 //            indent: "    ",
 //            code_lens: (&[/* ... */], &[/* ... */]),
@@ -49,7 +50,10 @@ use crate::style::HighlightConfiguration;
 //        },
 //    ];
 //
-// 5. Add a new feature, say "lang-foo", to the lapce-ui crate (see
+// 5. In `syntax.rs`, add `Foo: "lang-foo",` to the list in the
+//    `declare_language_highlights` macro.
+//
+// 6. Add a new feature, say "lang-foo", to the lapce-ui crate (see
 //    lapce-ui/Cargo.toml).
 //
 //    [features]
@@ -75,6 +79,9 @@ struct SyntaxProperties {
     language: fn() -> tree_sitter::Language,
     /// For most languages, it is `tree_sitter_$crate::HIGHLIGHT_QUERY`.
     highlight: &'static str,
+    /// For most languages, it is `tree_sitter_$crate::INJECTION_QUERY`.  
+    /// Though, not all languages have injections.
+    injection: Option<&'static str>,
     /// The comment token.  "#" for python, "//" for rust for example.
     comment: &'static str,
     /// The indent unit.  "\t" for python, "    " for rust, for example.
@@ -126,6 +133,10 @@ pub enum LapceLanguage {
     Json,
     #[cfg(feature = "lang-markdown")]
     Markdown,
+    // TODO: Hide this when it is shown to the user!
+    #[cfg(feature = "lang-markdown")]
+    #[strum(serialize = "markdown.inline")]
+    MarkdownInline,
     #[cfg(feature = "lang-ruby")]
     Ruby,
     #[cfg(feature = "lang-html")]
@@ -159,6 +170,7 @@ pub enum LapceLanguage {
     #[cfg(feature = "lang-zig")]
     Zig,
     #[cfg(feature = "lang-bash")]
+    #[strum(serialize = "bash", serialize = "sh")]
     Bash,
     #[cfg(feature = "lang-yaml")]
     Yaml,
@@ -182,6 +194,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Rust,
         language: tree_sitter_rust::language,
         highlight: tree_sitter_rust::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "//",
         indent: "    ",
         code_lens: (
@@ -195,6 +208,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Go,
         language: tree_sitter_go::language,
         highlight: tree_sitter_go::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "//",
         indent: "    ",
         code_lens: (
@@ -214,6 +228,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Javascript,
         language: tree_sitter_javascript::language,
         highlight: tree_sitter_javascript::HIGHLIGHT_QUERY,
+        injection: Some(tree_sitter_javascript::INJECTION_QUERY),
         comment: "//",
         indent: "  ",
         code_lens: (&["source_file", "program"], &["source_file"]),
@@ -224,6 +239,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Jsx,
         language: tree_sitter_javascript::language,
         highlight: tree_sitter_javascript::JSX_HIGHLIGHT_QUERY,
+        // TODO: Does jsx use the javascript injection query too?
+        injection: Some(tree_sitter_javascript::INJECTION_QUERY),
         comment: "//",
         indent: "  ",
         code_lens: (&["source_file", "program"], &["source_file"]),
@@ -234,6 +251,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Typescript,
         language: tree_sitter_typescript::language_typescript,
         highlight: tree_sitter_typescript::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "//",
         indent: "    ",
         code_lens: (&["source_file", "program"], &["source_file"]),
@@ -244,6 +262,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Tsx,
         language: tree_sitter_typescript::language_tsx,
         highlight: tree_sitter_typescript::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "//",
         indent: "    ",
         code_lens: (&["source_file", "program"], &["source_file"]),
@@ -254,6 +273,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Python,
         language: tree_sitter_python::language,
         highlight: tree_sitter_python::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "#",
         indent: "\t",
         code_lens: (
@@ -275,6 +295,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Toml,
         language: tree_sitter_toml::language,
         highlight: tree_sitter_toml::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -285,6 +306,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Php,
         language: tree_sitter_php::language,
         highlight: tree_sitter_php::HIGHLIGHT_QUERY,
+        injection: Some(tree_sitter_php::INJECTIONS_QUERY),
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -295,6 +317,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Elixir,
         language: tree_sitter_elixir::language,
         highlight: tree_sitter_elixir::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -305,6 +328,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::C,
         language: tree_sitter_c::language,
         highlight: tree_sitter_c::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -315,6 +339,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Cpp,
         language: tree_sitter_cpp::language,
         highlight: tree_sitter_cpp::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -325,6 +350,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Json,
         language: tree_sitter_json::language,
         highlight: tree_sitter_json::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -334,17 +360,31 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Markdown,
         language: tree_sitter_md::language,
-        highlight: tree_sitter_md::HIGHLIGHT_QUERY,
+        highlight: include_str!("../queries/markdown/highlights.scm"),
+        injection: Some(include_str!("../queries/markdown/injections.scm")),
         comment: "",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["md"],
+    },
+    #[cfg(feature = "lang-markdown")]
+    SyntaxProperties {
+        id: LapceLanguage::MarkdownInline,
+        language: tree_sitter_md::inline_language,
+        highlight: include_str!("../queries/markdown.inline/highlights.scm"),
+        injection: Some(include_str!("../queries/markdown.inline/injections.scm")),
+        comment: "",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        // markdown inline is only used as an injection by the Markdown language
+        extensions: &[],
     },
     #[cfg(feature = "lang-ruby")]
     SyntaxProperties {
         id: LapceLanguage::Ruby,
         language: tree_sitter_ruby::language,
         highlight: tree_sitter_ruby::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -355,6 +395,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Html,
         language: tree_sitter_html::language,
         highlight: tree_sitter_html::HIGHLIGHT_QUERY,
+        injection: Some(tree_sitter_html::INJECTION_QUERY),
         comment: "",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -365,6 +406,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Java,
         language: tree_sitter_java::language,
         highlight: tree_sitter_java::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -375,6 +417,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Elm,
         language: tree_sitter_elm::language,
         highlight: tree_sitter_elm::HIGHLIGHTS_QUERY,
+        injection: Some(tree_sitter_elm::INJECTIONS_QUERY),
         comment: "#",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -385,6 +428,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Swift,
         language: tree_sitter_swift::language,
         highlight: tree_sitter_swift::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -395,6 +439,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Ql,
         language: tree_sitter_ql::language,
         highlight: tree_sitter_ql::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -405,6 +450,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Haskell,
         language: tree_sitter_haskell::language,
         highlight: tree_sitter_haskell::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "--",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -415,6 +461,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Glimmer,
         language: tree_sitter_glimmer::language,
         highlight: tree_sitter_glimmer::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "{{!",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -425,6 +472,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Haxe,
         language: tree_sitter_haxe::language,
         highlight: tree_sitter_haxe::HIGHLIGHTS_QUERY,
+        injection: Some(tree_sitter_haxe::INJECTIONS_QUERY),
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -435,6 +483,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Hcl,
         language: tree_sitter_hcl::language,
         highlight: tree_sitter_hcl::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -445,6 +494,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Ocaml,
         language: tree_sitter_ocaml::language_ocaml,
         highlight: tree_sitter_ocaml::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "(*",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -455,6 +505,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Ocaml,
         language: tree_sitter_ocaml::language_ocaml_interface,
         highlight: tree_sitter_ocaml::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "(*",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -465,6 +516,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Scss,
         language: tree_sitter_scss::language,
         highlight: tree_sitter_scss::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -475,6 +527,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Hare,
         language: tree_sitter_hare::language,
         highlight: tree_sitter_hare::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "//",
         indent: "        ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -485,6 +538,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Css,
         language: tree_sitter_css::language,
         highlight: tree_sitter_css::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "/*",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -495,6 +549,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Zig,
         language: tree_sitter_zig::language,
         highlight: tree_sitter_zig::HIGHLIGHTS_QUERY,
+        injection: Some(tree_sitter_zig::INJECTIONS_QUERY),
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -505,6 +560,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Bash,
         language: tree_sitter_bash::language,
         highlight: tree_sitter_bash::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -515,6 +571,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Yaml,
         language: tree_sitter_yaml::language,
         highlight: tree_sitter_yaml::HIGHLIGHTS_QUERY,
+        injection: Some(tree_sitter_yaml::INJECTIONS_QUERY),
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -525,6 +582,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Julia,
         language: tree_sitter_julia::language,
         highlight: include_str!("../queries/julia/highlights.scm"),
+        injection: None,
         comment: "#",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -535,6 +593,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Wgsl,
         language: tree_sitter_wgsl::language,
         highlight: tree_sitter_wgsl::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -545,6 +604,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Dockerfile,
         language: tree_sitter_dockerfile::language,
         highlight: tree_sitter_dockerfile::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -555,6 +615,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Csharp,
         language: tree_sitter_c_sharp::language,
         highlight: tree_sitter_c_sharp::HIGHLIGHT_QUERY,
+        injection: None,
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -565,6 +626,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Nix,
         language: tree_sitter_nix::language,
         highlight: tree_sitter_nix::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -626,18 +688,14 @@ impl LapceLanguage {
         self.properties().indent
     }
 
-    pub(crate) fn new_parser(&self) -> Parser {
-        let language = (self.properties().language)();
-        let mut parser = Parser::new();
-        parser.set_language(language).unwrap();
-        parser
-    }
-
     pub(crate) fn new_highlight_config(&self) -> HighlightConfiguration {
-        let language = (self.properties().language)();
-        let query = self.properties().highlight;
+        let props = self.properties();
+        let language = (props.language)();
+        let query = props.highlight;
+        let injection = props.injection;
 
-        HighlightConfiguration::new(language, query, "", "").unwrap()
+        HighlightConfiguration::new(language, query, injection.unwrap_or(""), "")
+            .unwrap()
     }
 
     pub(crate) fn walk_tree(

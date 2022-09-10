@@ -50,7 +50,13 @@ magenta = "#C678DD"
 "type.builtin" = "$cyan"
 "builtinType" = "$cyan"
 "escape" = "$cyan"
+"string.escape" = "$cyan"
 "embedded" = "$cyan"
+"punctuation.delimiter" = "$yellow"
+"text.title" = "$orange"
+"text.uri" = "$cyan"
+"text.reference" = "$yellow"
+
 
 [theme.ui]
 "lapce.active_tab" = "$black"
