@@ -123,6 +123,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "508b352bb5c066aac251f6daf6b36eccd03e8a88e8081cd44959ea277a3af9a8"
 
 [[package]]
+name = "arc-swap"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "983cd8b9d4b02a6dc6ffa557262eb5858a27a0038ffffe21a0f133eaa819a164"
+
+[[package]]
 name = "arrayref"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2536,13 +2542,16 @@ dependencies = [
 name = "lapce-core"
 version = "0.2.0"
 dependencies = [
+ "arc-swap",
  "bitflags",
  "itertools",
  "lapce-rpc",
  "log 0.4.17",
  "lsp-types",
+ "once_cell",
  "serde 1.0.143",
  "serde_json",
+ "slotmap",
  "strum 0.24.1",
  "strum_macros 0.24.3",
  "thiserror",
@@ -5110,8 +5119,8 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-md"
-version = "0.0.1"
-source = "git+https://github.com/dzhou121/tree-sitter-markdown.git#134c7f870ad17b3c3e40cd90b8bbd08329ac4bbd"
+version = "0.1.1"
+source = "git+https://github.com/MDeiml/tree-sitter-markdown.git?branch=split_parser#e375ba95ff9a12418f9b9e7c190f549d08b5380a"
 dependencies = [
  "cc",
  "tree-sitter",

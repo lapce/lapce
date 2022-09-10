@@ -11,8 +11,11 @@ use crate::{
     register::{Clipboard, Register, RegisterData, RegisterKind},
     selection::{InsertDrift, SelRegion, Selection},
     syntax::{
-        has_unmatched_pair, matching_char, matching_pair_direction,
-        str_is_pair_left, str_matching_pair, Syntax,
+        util::{
+            has_unmatched_pair, matching_char, matching_pair_direction,
+            str_is_pair_left, str_matching_pair,
+        },
+        Syntax,
     },
     word::{get_word_property, WordProperty},
 };

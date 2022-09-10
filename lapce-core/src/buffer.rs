@@ -14,7 +14,8 @@ use xi_rope::{
     diff::{Diff, LineHashDiff},
     interval::IntervalBounds,
     multiset::Subset,
-    Cursor, Delta, DeltaBuilder, Interval, Rope, RopeDelta,
+    tree::{Node, NodeInfo},
+    Cursor, Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta,
 };
 
 use crate::{
@@ -1428,6 +1429,55 @@ impl<I: Iterator<Item = (usize, char)>, O: Iterator<Item = I>> Iterator
             // We didn't get anything from the main iter, so we're completely done.
             None
         }
+    }
+}
+
+pub struct DeltaValueRegion<'a, N: NodeInfo + 'a> {
+    pub old_offset: usize,
+    pub new_offset: usize,
+    pub len: usize,
+    pub node: &'a Node<N>,
+}
+
+/// Modified version of `xi_rope::delta::InsertsIter` which includes the node
+pub struct InsertsValueIter<'a, N: NodeInfo + 'a> {
+    pos: usize,
+    last_end: usize,
+    els_iter: std::slice::Iter<'a, DeltaElement<N>>,
+}
+impl<'a, N: NodeInfo + 'a> InsertsValueIter<'a, N> {
+    pub fn new(delta: &'a Delta<N>) -> InsertsValueIter<'a, N> {
+        InsertsValueIter {
+            pos: 0,
+            last_end: 0,
+            els_iter: delta.els.iter(),
+        }
+    }
+}
+impl<'a, N: NodeInfo> Iterator for InsertsValueIter<'a, N> {
+    type Item = DeltaValueRegion<'a, N>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for elem in &mut self.els_iter {
+            match *elem {
+                DeltaElement::Copy(b, e) => {
+                    self.pos += e - b;
+                    self.last_end = e;
+                }
+                DeltaElement::Insert(ref n) => {
+                    let result = Some(DeltaValueRegion {
+                        old_offset: self.last_end,
+                        new_offset: self.pos,
+                        len: n.len(),
+                        node: n,
+                    });
+                    self.pos += n.len();
+                    self.last_end += n.len();
+                    return result;
+                }
+            }
+        }
+        None
     }
 }
 

@@ -78,8 +78,9 @@ pub fn parse_markdown(text: &str, config: &Config) -> RichText {
 
                         let syntax = language.map(Syntax::from_language);
 
-                        let styles = syntax.and_then(|syntax| {
-                            syntax.parse(0, Rope::from(&last_text), None).styles
+                        let styles = syntax.and_then(|mut syntax| {
+                            syntax.parse(0, Rope::from(&last_text), None);
+                            syntax.styles
                         });
 
                         if let Some(styles) = styles {

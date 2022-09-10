@@ -4,17 +4,14 @@ use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     rc::Rc,
-    sync::{
-        atomic::{self},
-        Arc,
-    },
+    sync::Arc,
 };
 
 use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    Color, ExtEventSink, Point, SingleUse, Size, Target, Vec2, WidgetId,
+    Color, ExtEventSink, Point, Size, Target, Vec2, WidgetId,
 };
 use lapce_core::{
     buffer::{Buffer, DiffLines, InvalLines},
@@ -849,13 +846,13 @@ impl Document {
         }
     }
 
-    fn on_update(&mut self, delta: Option<&RopeDelta>) {
+    fn on_update(&mut self, deltas: Option<SmallVec<[RopeDelta; 3]>>) {
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.get_inlay_hints();
         self.get_semantic_styles();
         self.clear_style_cache();
-        self.trigger_syntax_change(delta);
+        self.trigger_syntax_change(deltas);
         self.trigger_head_change();
         self.notify_special();
     }
@@ -936,32 +933,15 @@ impl Document {
         self.text_layouts.borrow_mut().clear();
     }
 
-    pub fn trigger_syntax_change(&self, delta: Option<&RopeDelta>) {
-        if let Some(syntax) = self.syntax.clone() {
-            let content = self.content.clone();
+    pub fn trigger_syntax_change(
+        &mut self,
+        deltas: Option<SmallVec<[RopeDelta; 3]>>,
+    ) {
+        if let Some(syntax) = self.syntax.as_mut() {
             let rev = self.buffer.rev();
             let text = self.buffer.text().clone();
-            let delta = delta.cloned();
-            let atomic_rev = self.buffer.atomic_rev();
-            let event_sink = self.event_sink.clone();
-            let tab_id = self.tab_id;
-            rayon::spawn(move || {
-                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                    return;
-                }
-                let new_syntax = syntax.parse(rev, text, delta);
-                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                    return;
-                }
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSyntax {
-                        content,
-                        syntax: SingleUse::new(new_syntax),
-                    },
-                    Target::Widget(tab_id),
-                );
-            });
+
+            syntax.parse(rev, text, deltas.as_deref());
         }
     }
 
@@ -1066,12 +1046,11 @@ impl Document {
             }
         }
 
-        let delta = if deltas.len() == 1 {
-            Some(&deltas[0].0)
-        } else {
-            None
-        };
-        self.on_update(delta);
+        // TODO(minor): We could avoid this potential allocation since most apply_delta callers are actually using a Vec
+        // which we could reuse.
+        // We use a smallvec because there is unlikely to be more than a couple of deltas
+        let deltas_iter = deltas.iter().map(|(delta, _)| delta.clone()).collect();
+        self.on_update(Some(deltas_iter));
     }
 
     pub fn do_insert(
