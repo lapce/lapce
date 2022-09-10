@@ -218,7 +218,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "php" | "phtml" | "pht" | "phps" => "php",
                     "ps1" | "ps1xml" | "psc1" | "psm1" | "psd1" | "pssc"
                     | "psrc" => "powershell",
-                    "py" => "python",
+                    "py" | "pyi" | "pyc" | "pyd" | "pyw" => "python",
                     "r" => "r",
                     "rb" => "ruby",
                     "rs" => "rust",

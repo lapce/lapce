@@ -268,7 +268,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             ],
             &["source_file", "import_statement", "import_from_statement"],
         ),
-        extensions: &["py"],
+        extensions: &["py", "pyi", "pyc", "pyd", "pyw"],
     },
     #[cfg(feature = "lang-toml")]
     SyntaxProperties {
@@ -741,7 +741,7 @@ mod test {
     #[test]
     #[cfg(feature = "lang-python")]
     fn test_python_lang() {
-        assert_language(LapceLanguage::Python, &["py"]);
+        assert_language(LapceLanguage::Python, &["py", "pyi", "pyc", "pyd", "pyw"]);
     }
 
     #[test]
