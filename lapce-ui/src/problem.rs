@@ -92,7 +92,7 @@ impl ProblemContent {
                 // Total file lines and header with file name
                 diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1 /* file name header */
             };
-            let line_range = line_cursor..=(line_cursor + diag_lines);
+            let line_range = line_cursor..(line_cursor + diag_lines);
 
             // did we reached clicked section?
             if line_range.contains(&click_line) {
@@ -130,10 +130,13 @@ impl ProblemContent {
             return;
         }
 
+        // Skip header
+        line_cursor += 1;
+
         // Skip to clicked diagnostic
         let mut clicked_file_diagnostic = None;
         for file_diagnostic in diagnostics.into_iter() {
-            let line_range = line_cursor..=(line_cursor + file_diagnostic.lines);
+            let line_range = line_cursor..(line_cursor + file_diagnostic.lines);
 
             // Is current diagnostic the clicked one?
             if line_range.contains(&click_line) {
@@ -189,8 +192,8 @@ impl ProblemContent {
 
         let mut clicked_related = None;
         for related in it {
-            let lines = related.message.lines().count() + 1 /*related info will have own file name header with msg location*/;
-            let item_line_range = line_cursor..=(line_cursor + lines);
+            let lines = related.message.lines().count();
+            let item_line_range = line_cursor..(line_cursor + lines);
 
             // is current line the clicked one?
             if item_line_range.contains(&click_line) {
