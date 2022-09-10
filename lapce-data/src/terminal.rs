@@ -781,7 +781,7 @@ impl LapceTerminalData {
                 }
             }
             Key::Backspace => {
-                Some(if key.mods.ctrl() {
+                Some(if key.mods.ctrl() || key.mods.alt() {
                     "\x08" // backspace
                 } else {
                     "\x7f" // DEL
