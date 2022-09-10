@@ -125,7 +125,7 @@ impl ProblemContent {
 
         assert!(
             !is_collapsed(data, path),
-            "File is collapsed. Can't click any element. This shouldn't happen, please report a bug."
+            "Can't click any element because the file is collapsed. This shouldn't happen, please report a bug."
         );
 
         // Skip header.
@@ -148,7 +148,7 @@ impl ProblemContent {
         }
 
         // Handle current diagnostic.
-        let file_diagnostic = clicked_file_diagnostic.expect("Editor diagnostic not found. We should find here file diagnostic but nothing left in the array. Please report a bug");
+        let file_diagnostic = clicked_file_diagnostic.expect("Editor diagnostic not found. We should have found something, please report a bug");
 
         assert!(
             line_cursor <= click_line,
