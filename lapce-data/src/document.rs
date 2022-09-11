@@ -321,21 +321,17 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
             text = Cow::Owned(text.into_owned().trim_end().to_string());
         }
 
+        let mut otext = text.into_owned();
         for entry in self.end_text.iter() {
-            let mut otext = text.into_owned();
-
             // TODO: allow customization of padding. Remember to update end_offset_size_iter
             otext.push_str("    ");
-
-            for part in itertools::intersperse(entry.diagnostic.message.lines(), " ")
-            {
-                otext.push_str(part);
-            }
-
-            text = Cow::Owned(otext);
+            otext.extend(itertools::intersperse(
+                entry.diagnostic.message.lines(),
+                " ",
+            ));
         }
 
-        text
+        Cow::Owned(otext)
     }
 
     /// Iterator over (col_shift, size, hint, pre_column)
