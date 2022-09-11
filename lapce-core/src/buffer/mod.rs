@@ -28,10 +28,9 @@ use crate::{
     word::WordCursor,
 };
 
-mod rope_text;
+pub mod rope_text;
 
-// TODO(dbuga): don't be lazy here
-pub use rope_text::*;
+use rope_text::*;
 
 #[derive(Clone)]
 enum Contents {

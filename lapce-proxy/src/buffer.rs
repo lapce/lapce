@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use lapce_core::buffer::CharIndicesJoin;
+use lapce_core::buffer::rope_text::CharIndicesJoin;
 use lapce_core::encoding::offset_utf8_to_utf16;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::*;
