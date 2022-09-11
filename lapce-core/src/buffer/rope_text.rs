@@ -28,11 +28,7 @@ impl<'a> RopeText<'a> {
 
     pub fn offset_of_line(&self, line: usize) -> usize {
         let last_line = self.last_line();
-        let line = if line > last_line + 1 {
-            last_line + 1
-        } else {
-            line
-        };
+        let line = line.min(last_line + 1);
         self.text.offset_of_line(line)
     }
 
