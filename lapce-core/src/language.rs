@@ -638,7 +638,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Dart,
         language: tree_sitter_dart::language,
-        highlight: "",
+        highlight: tree_sitter_dart::HIGHLIGHTS_QUERY,
         injection: None,
         comment: "//",
         indent: "  ",

@@ -57,7 +57,7 @@ tree-sitter-wgsl = { git = "https://github.com/szebniok/tree-sitter-wgsl", branc
 tree-sitter-dockerfile = { git = "https://github.com/panekj/tree-sitter-dockerfile", branch = "queries", optional = true }
 tree-sitter-c-sharp = { git = "https://github.com/tree-sitter/tree-sitter-c-sharp", branch = "master", optional = true }
 tree-sitter-nix = { git = "https://github.com/panekj/tree-sitter-nix", branch = "master", optional = true }
-tree-sitter-dart = { git = "https://github.com/franklinblanco/tree-sitter-dart", branch = "master", optional = true }
+tree-sitter-dart = { git = "https://github.com/syntacti/tree-sitter-dart", branch = "master", optional = true }
 
 [features]
 default = []
