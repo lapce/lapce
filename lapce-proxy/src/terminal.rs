@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+use std::process::Command;
 use std::{
     borrow::Cow,
     collections::VecDeque,
@@ -55,12 +57,12 @@ impl Terminal {
                 BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
             };
         let shell = shell.trim();
-        let inside_flatpak = is_inside_flatpak();
+        let flatpak_use_host_terminal = flatpak_should_use_host_terminal();
 
-        if !shell.is_empty() || inside_flatpak {
+        if !shell.is_empty() || flatpak_use_host_terminal {
             let mut parts = shell.split(' ');
 
-            if inside_flatpak {
+            if flatpak_use_host_terminal {
                 let flatpak_spawn_path = "/usr/bin/flatpak-spawn".to_string();
                 let host_shell = flatpak_get_default_host_shell();
 
@@ -332,6 +334,7 @@ fn set_locale_environment() {
     std::env::set_var("LC_ALL", locale + ".UTF-8");
 }
 
+#[inline]
 #[cfg(not(target_os = "linux"))]
 fn flatpak_get_default_host_shell() -> String {
     panic!(
@@ -340,10 +343,9 @@ fn flatpak_get_default_host_shell() -> String {
     );
 }
 
+#[inline]
 #[cfg(target_os = "linux")]
 fn flatpak_get_default_host_shell() -> String {
-    use std::process::Command;
-
     let env_string = Command::new("flatpak-spawn")
         .arg("--host")
         .arg("printenv")
@@ -365,18 +367,27 @@ fn flatpak_get_default_host_shell() -> String {
     "/bin/sh".to_string()
 }
 
+#[inline]
 #[cfg(not(target_os = "linux"))]
-fn is_inside_flatpak() -> bool {
+fn flatpak_should_use_host_terminal() -> bool {
     false // Flatpak is only available on Linux
 }
 
+#[inline]
 #[cfg(target_os = "linux")]
-fn is_inside_flatpak() -> bool {
+fn flatpak_should_use_host_terminal() -> bool {
     use std::path::Path;
 
     const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
 
+    // Ensure flatpak-spawn --host can execute a basic command
+    let host_available = Command::new("flatpak-spawn")
+        .arg("--host")
+        .arg("true")
+        .status()
+        .unwrap();
+
     /* The de-facto way of checking whether one is inside of a Flatpak container is by checking for
     the presence of /.flatpak-info in the filesystem */
-    Path::new(FLATPAK_INFO_PATH).exists()
+    Path::new(FLATPAK_INFO_PATH).exists() && host_available.success()
 }
