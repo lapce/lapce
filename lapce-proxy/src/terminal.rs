@@ -387,11 +387,10 @@ fn flatpak_should_use_host_terminal() -> bool {
     }
 
     // Ensure flatpak-spawn --host can execute a basic command
-    let host_available = Command::new("flatpak-spawn")
+    Command::new("flatpak-spawn")
         .arg("--host")
         .arg("true")
         .status()
-        .unwrap();
-
-    host_available.success()
+        .map(|status| status.success())
+        .unwrap_or(false)
 }
