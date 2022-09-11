@@ -371,20 +371,21 @@ impl Buffer {
     }
 
     fn calculate_undo_group(&mut self) -> usize {
-        let has_undos = !self.live_undos.is_empty();
-        let is_unbroken_group =
-            !self.this_edit_type.breaks_undo_group(self.last_edit_type);
-
-        if has_undos && is_unbroken_group {
-            *self.live_undos.last().unwrap()
-        } else {
-            let undo_group = self.undo_group_id;
-            self.live_undos.truncate(self.cur_undo);
-            self.live_undos.push(undo_group);
-            self.cur_undo += 1;
-            self.undo_group_id += 1;
-            undo_group
+        if let Some(last_undo) = self.live_undos.last() {
+            let is_unbroken_group =
+                !self.this_edit_type.breaks_undo_group(self.last_edit_type);
+            if is_unbroken_group {
+                return *last_undo;
+            }
         }
+
+        let undo_group = self.undo_group_id;
+        self.live_undos.truncate(self.cur_undo);
+        self.live_undos.push(undo_group);
+        self.cur_undo += 1;
+        self.undo_group_id += 1;
+
+        undo_group
     }
 
     fn mk_new_rev(
