@@ -511,6 +511,7 @@ pub enum LapceUICommand {
     },
     OpenFile(PathBuf, bool),
     OpenFileDiff(PathBuf, String),
+    RevealInFileExplorer(PathBuf),
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
     UpdateCompletion(usize, String, CompletionResponse, PluginId),

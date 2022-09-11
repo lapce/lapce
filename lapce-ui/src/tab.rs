@@ -1316,6 +1316,24 @@ impl LapceTab {
                         );
                         ctx.set_handled();
                     }
+                    LapceUICommand::RevealInFileExplorer(path) => {
+                        // TODO: replace with proper implementation from druid that
+                        // highlights items in file explorer
+                        let path = if path.is_file() {
+                            path.parent().unwrap_or_else(|| std::path::Path::new(""))
+                        } else {
+                            path
+                        };
+                        let path = path.to_str().unwrap_or("");
+                        if !path.is_empty() {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::OpenURI(path.to_string()),
+                                Target::Auto,
+                            ));
+                        }
+                        ctx.set_handled();
+                    }
                     LapceUICommand::GoToLocation(
                         editor_view_id,
                         location,

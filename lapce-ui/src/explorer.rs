@@ -637,6 +637,19 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         // Separator between non destructive and destructive actions
                         menu = menu.separator();
 
+                        if !data.workspace.kind.is_remote() {
+                            let item =
+                                druid::MenuItem::new("Reveal in file explorer")
+                                    .command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::RevealInFileExplorer(
+                                            node.path_buf.clone(),
+                                        ),
+                                        Target::Auto,
+                                    ));
+                            menu = menu.entry(item);
+                        }
+
                         // Don't allow us to rename or delete the current workspace
                         if !is_workspace {
                             let item = druid::MenuItem::new("Rename").command(
