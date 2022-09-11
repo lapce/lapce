@@ -806,6 +806,11 @@ pub fn download_volt(volt: VoltInfo, wasm: bool) -> Result<VoltMetadata> {
         let url = url.join(wasm)?;
         {
             let mut resp = reqwest::blocking::get(url)?;
+            if let Some(path) = path.join(&wasm).parent() {
+                if !path.exists() {
+                    fs::DirBuilder::new().recursive(true).create(path)?;
+                }
+            }
             let mut file = fs::OpenOptions::new()
                 .create(true)
                 .truncate(true)
