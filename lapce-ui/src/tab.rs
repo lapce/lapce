@@ -1372,6 +1372,14 @@ impl LapceTab {
                         );
                         ctx.set_handled();
                     }
+                    LapceUICommand::ToggleProblem(path) => {
+                        let problem = Arc::make_mut(&mut data.problem);
+                        let state = problem
+                            .collapsed
+                            .entry(path.to_owned())
+                            .or_insert(false);
+                        *state = !*state;
+                    }
                     LapceUICommand::JumpToLineLocation(editor_view_id, location) => {
                         data.main_split.jump_to_location(
                             ctx,

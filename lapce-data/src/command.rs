@@ -645,6 +645,7 @@ pub enum LapceUICommand {
     JumpToLspLocation(Option<WidgetId>, EditorLocation<Position>, bool),
     JumpToLineLocation(Option<WidgetId>, EditorLocation<Line>),
     JumpToLineColLocation(Option<WidgetId>, EditorLocation<LineCol>, bool),
+    ToggleProblem(PathBuf),
     TerminalJumpToLine(i32),
     GoToLocation(Option<WidgetId>, EditorLocation, bool),
     GotoDefinition {
