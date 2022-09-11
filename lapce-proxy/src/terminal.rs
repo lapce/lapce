@@ -381,13 +381,15 @@ fn flatpak_should_use_host_terminal() -> bool {
     const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
 
     // Ensure flatpak-spawn --host can execute a basic command
-    let host_available = Command::new("flatpak-spawn")
+    let host_available = match Command::new("flatpak-spawn")
         .arg("--host")
         .arg("true")
-        .status()
-        .unwrap();
+        .status() {
+            Ok(status) => status.success(),
+            Err(_) => false
+        };
 
     /* The de-facto way of checking whether one is inside of a Flatpak container is by checking for
     the presence of /.flatpak-info in the filesystem */
-    Path::new(FLATPAK_INFO_PATH).exists() && host_available.success()
+    Path::new(FLATPAK_INFO_PATH).exists() && host_available
 }
