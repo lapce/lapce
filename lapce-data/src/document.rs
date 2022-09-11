@@ -808,9 +808,9 @@ impl Document {
         if let BufferContent::File(path) = self.content() {
             let tab_id = self.tab_id;
             let path = path.clone();
-            let rev = self.rev();
-            let len = self.buffer().len();
             let buffer = self.buffer().clone();
+            let rev = buffer.rev();
+            let len = buffer.len();
             let event_sink = self.event_sink.clone();
             self.proxy
                 .proxy_rpc
@@ -831,7 +831,7 @@ impl Document {
                                 let offset = offset.min(len);
                                 hints_span.add_span(
                                     Interval::new(offset, (offset + 1).min(len)),
-                                    hint.clone(),
+                                    hint,
                                 );
                             }
                         }
