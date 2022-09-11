@@ -424,7 +424,7 @@ impl Buffer {
             &new_deletes_from_union,
         );
 
-        let head_rev = &self.revs.last().unwrap();
+        let head_rev = self.revs.last().unwrap();
         self.atomic_rev
             .store(self.rev_counter, atomic::Ordering::Release);
         (
