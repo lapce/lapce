@@ -56,13 +56,19 @@ use crate::{
 
 pub struct SystemClipboard {}
 
+impl SystemClipboard {
+    fn clipboard() -> druid::Clipboard {
+        druid::Application::global().clipboard()
+    }
+}
+
 impl Clipboard for SystemClipboard {
     fn get_string(&self) -> Option<String> {
-        druid::Application::global().clipboard().get_string()
+        Self::clipboard().get_string()
     }
 
     fn put_string(&mut self, s: impl AsRef<str>) {
-        druid::Application::global().clipboard().put_string(s)
+        Self::clipboard().put_string(s)
     }
 }
 
