@@ -164,7 +164,7 @@ impl<'a> RopeText<'a> {
         new_offset
     }
 
-    pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<str> {
+    pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<'a, str> {
         self.text
             .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
     }
@@ -174,7 +174,7 @@ impl<'a> RopeText<'a> {
     pub fn char_indices_iter<T: IntervalBounds>(
         &self,
         range: T,
-    ) -> impl Iterator<Item = (usize, char)> + '_ {
+    ) -> impl Iterator<Item = (usize, char)> + 'a {
         CharIndicesJoin::new(self.text.iter_chunks(range).map(str::char_indices))
     }
 
