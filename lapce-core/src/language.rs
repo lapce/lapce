@@ -959,7 +959,7 @@ mod test {
         assert_language(LapceLanguage::Nix, &["nix"]);
     }
     #[cfg(feature = "lang-dart")]
-    fn test_nix_lang() {
+    fn test_dart_lang() {
         assert_language(LapceLanguage::Dart, &["dart"]);
     }
 }
