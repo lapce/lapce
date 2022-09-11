@@ -371,18 +371,20 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
         &self,
         pre_text: &str,
     ) -> impl Iterator<Item = (usize, usize, &'diag EditorDiagnostic)> + '_ {
+        const PADDING: usize = 4;
+
         // Trim because the text would be trimmed for any end text that existed
         let column = pre_text.trim_end().len();
         // Move the column to be after the shifts by any of the ordered texts
         let mut column = self.col_at(column);
+
         self.end_text.iter().map(move |entry| {
-            let padding_size = 4;
-            let text_size: usize = itertools::intersperse(
+            let text_size = itertools::intersperse(
                 entry.diagnostic.message.lines().map(str::len),
                 1,
             )
-            .sum();
-            let size = padding_size + text_size;
+            .sum::<usize>();
+            let size = PADDING + text_size;
 
             let column_pre = column;
 
