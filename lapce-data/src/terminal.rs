@@ -458,7 +458,8 @@ impl KeyPressFocus for LapceTerminalViewData {
                 }
                 FocusCommand::TerminalPasteSelection => {
                     if self.terminal.mode == Mode::Terminal {
-                        if let Some(s) = Application::global().clipboard().get_string() {
+                        if let Some(s) = 
+                            Application::global().clipboard().get_string() {
                             self.receive_char(ctx, &s);
                         }
                     }
