@@ -23,11 +23,7 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new(id: BufferId, path: PathBuf) -> Buffer {
-        let rope = if let Ok(rope) = load_rope(&path) {
-            rope
-        } else {
-            Rope::from("")
-        };
+        let rope = Rope::from(load_file(&path).unwrap_or_default());
         let rev = if rope.is_empty() { 0 } else { 1 };
         let language_id = language_id_from_path(&path).unwrap_or("");
         let mod_time = get_mod_time(&path);
@@ -147,10 +143,6 @@ impl Buffer {
 
 pub fn load_file(path: &Path) -> Result<String> {
     Ok(read_path_to_string_lossy(path)?)
-}
-
-fn load_rope(path: &Path) -> Result<Rope> {
-    Ok(Rope::from(read_path_to_string_lossy(path)?))
 }
 
 pub fn read_path_to_string_lossy<P: AsRef<Path>>(
