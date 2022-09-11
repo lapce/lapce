@@ -12,7 +12,7 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
 use jsonrpc_lite::{JsonRpc, Params};
-use lapce_core::{buffer::RopeText, encoding::offset_utf16_to_utf8};
+use lapce_core::{buffer::rope_text::RopeText, encoding::offset_utf16_to_utf8};
 use lapce_rpc::{
     plugin::PluginId,
     style::{LineStyle, Style},

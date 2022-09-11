@@ -1527,7 +1527,7 @@ impl LapceTabData {
                     .local_docs
                     .get_mut(&LocalBufferKind::SourceControl)
                     .unwrap();
-                let message = doc.buffer().text().to_string();
+                let message = doc.buffer().to_string();
                 let message = message.trim();
                 if message.is_empty() {
                     return;
@@ -3246,7 +3246,7 @@ impl LapceMainSplitData {
                     doc.id(),
                     path.to_path_buf(),
                     doc.rev(),
-                    doc.buffer().text().to_string(),
+                    doc.buffer().to_string(),
                     Box::new(move |result| {
                         if let Ok(_r) = result {
                             let _ = event_sink.submit_command(
@@ -3842,7 +3842,7 @@ impl LapceEditorData {
     pub fn editor_info(&self, data: &LapceTabData) -> EditorInfo {
         let unsaved = if let BufferContent::Scratch(id, _) = &self.content {
             let doc = data.main_split.scratch_docs.get(id).unwrap();
-            Some(doc.buffer().text().to_string())
+            Some(doc.buffer().to_string())
         } else {
             None
         };
