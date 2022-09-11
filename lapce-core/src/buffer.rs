@@ -282,7 +282,7 @@ impl Buffer {
     }
 
     pub fn reset_edit_type(&mut self) {
-        self.last_edit_type = EditType::Other
+        self.last_edit_type = EditType::Other;
     }
 
     pub fn edit(
