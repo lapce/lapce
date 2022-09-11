@@ -648,31 +648,33 @@ impl Buffer {
     pub fn do_undo(
         &mut self,
     ) -> Option<(RopeDelta, InvalLines, Option<CursorMode>)> {
-        if self.cur_undo > 1 {
-            self.cur_undo -= 1;
-            self.undos.insert(self.live_undos[self.cur_undo]);
-            self.last_edit_type = EditType::Undo;
-            let (delta, inval_lines, cursor_before, _cursor_after) =
-                self.undo(self.undos.clone());
-            Some((delta, inval_lines, cursor_before))
-        } else {
-            None
+        if self.cur_undo <= 1 {
+            return None;
         }
+
+        self.cur_undo -= 1;
+        self.undos.insert(self.live_undos[self.cur_undo]);
+        self.last_edit_type = EditType::Undo;
+        let (delta, inval_lines, cursor_before, _cursor_after) =
+            self.undo(self.undos.clone());
+
+        Some((delta, inval_lines, cursor_before))
     }
 
     pub fn do_redo(
         &mut self,
     ) -> Option<(RopeDelta, InvalLines, Option<CursorMode>)> {
-        if self.cur_undo < self.live_undos.len() {
-            self.undos.remove(&self.live_undos[self.cur_undo]);
-            self.cur_undo += 1;
-            self.last_edit_type = EditType::Redo;
-            let (delta, inval_lines, _cursor_before, cursor_after) =
-                self.undo(self.undos.clone());
-            Some((delta, inval_lines, cursor_after))
-        } else {
-            None
+        if self.cur_undo >= self.live_undos.len() {
+            return None;
         }
+
+        self.undos.remove(&self.live_undos[self.cur_undo]);
+        self.cur_undo += 1;
+        self.last_edit_type = EditType::Redo;
+        let (delta, inval_lines, _cursor_before, cursor_after) =
+            self.undo(self.undos.clone());
+
+        Some((delta, inval_lines, cursor_after))
     }
 
     pub fn last_line(&self) -> usize {
