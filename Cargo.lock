@@ -2535,6 +2535,7 @@ dependencies = [
  "tree-sitter-c-sharp",
  "tree-sitter-cpp",
  "tree-sitter-css",
+ "tree-sitter-dart",
  "tree-sitter-dockerfile",
  "tree-sitter-elixir",
  "tree-sitter-elm",
@@ -4954,6 +4955,15 @@ dependencies = [
 name = "tree-sitter-css"
 version = "0.19.0"
 source = "git+https://github.com/syntacti/tree-sitter-css?branch=master#397aa132b9982fcdd2d473ed69343762a557f10a"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-dart"
+version = "0.0.1"
+source = "git+https://github.com/syntacti/tree-sitter-dart?branch=master#78cad4503571d72666f78d5ba8ed6c1417653063"
 dependencies = [
  "cc",
  "tree-sitter",

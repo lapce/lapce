@@ -184,6 +184,8 @@ pub enum LapceLanguage {
     Csharp,
     #[cfg(feature = "lang-nix")]
     Nix,
+    #[cfg(feature = "lang-dart")]
+    Dart,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -632,6 +634,17 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["nix"],
     },
+    #[cfg(feature = "lang-dart")]
+    SyntaxProperties {
+        id: LapceLanguage::Dart,
+        language: tree_sitter_dart::language,
+        highlight: tree_sitter_dart::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["dart"],
+    },
 ];
 
 impl LapceLanguage {
@@ -944,5 +957,9 @@ mod test {
     #[cfg(feature = "lang-nix")]
     fn test_nix_lang() {
         assert_language(LapceLanguage::Nix, &["nix"]);
+    }
+    #[cfg(feature = "lang-dart")]
+    fn test_dart_lang() {
+        assert_language(LapceLanguage::Dart, &["dart"]);
     }
 }
