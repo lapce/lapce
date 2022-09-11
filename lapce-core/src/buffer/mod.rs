@@ -21,7 +21,6 @@ use xi_rope::{
 use crate::{
     cursor::CursorMode,
     editor::EditType,
-    encoding::{offset_utf16_to_utf8, offset_utf8_to_utf16},
     indent::{auto_detect_indent_style, IndentStyle},
     mode::Mode,
     selection::Selection,
@@ -191,7 +190,7 @@ impl Buffer {
     }
 
     pub fn num_lines(&self) -> usize {
-        self.line_of_offset(self.len()) + 1
+        RopeText::new(&self.text).num_lines()
     }
 
     fn get_max_line_len(&self) -> (usize, usize) {
@@ -243,8 +242,8 @@ impl Buffer {
         self.max_len
     }
 
-    fn line_len(&self, line: usize) -> usize {
-        self.offset_of_line(line + 1) - self.offset_of_line(line)
+    pub fn line_len(&self, line: usize) -> usize {
+        RopeText::new(&self.text).line_len(line)
     }
 
     pub fn init_content(&mut self, content: Rope) {
@@ -683,107 +682,47 @@ impl Buffer {
     }
 
     pub fn last_line(&self) -> usize {
-        self.line_of_offset(self.len())
+        RopeText::new(&self.text).last_line()
     }
 
     pub fn offset_of_line(&self, line: usize) -> usize {
-        let last_line = self.last_line();
-        let line = if line > last_line + 1 {
-            last_line + 1
-        } else {
-            line
-        };
-        self.text.offset_of_line(line)
+        RopeText::new(&self.text).offset_of_line(line)
     }
 
     pub fn offset_line_end(&self, offset: usize, caret: bool) -> usize {
-        let line = self.line_of_offset(offset);
-        self.line_end_offset(line, caret)
+        RopeText::new(&self.text).offset_line_end(offset, caret)
     }
 
     pub fn line_of_offset(&self, offset: usize) -> usize {
-        let offset = offset.min(self.len());
-        let offset = self
-            .text
-            .at_or_prev_codepoint_boundary(offset)
-            .unwrap_or(offset);
-
-        self.text.line_of_offset(offset)
+        RopeText::new(&self.text).line_of_offset(offset)
     }
 
-    /// Converts a UTF8 offset to a UTF16 LSP position  
+    /// Converts a UTF8 offset to a UTF16 LSP position
     /// Returns None if it is not a valid UTF16 offset
     pub fn offset_to_position(&self, offset: usize) -> Option<Position> {
-        let (line, col) = self.offset_to_line_col(offset);
-        let line_offset = self.offset_of_line(line);
-
-        let utf16_col =
-            offset_utf8_to_utf16(self.char_indices_iter(line_offset..), col)?;
-
-        Some(Position {
-            line: line as u32,
-            character: utf16_col as u32,
-        })
+        RopeText::new(&self.text).offset_to_position(offset)
     }
 
     /// Returns None if the UTF16 Position can't be converted to a UTF8 offset
     pub fn offset_of_position(&self, pos: &Position) -> Option<usize> {
-        let (line, column) = self.position_to_line_col(pos);
-        let column = column?;
-        Some(self.offset_of_line_col(line, column))
+        RopeText::new(&self.text).offset_of_position(pos)
     }
 
     /// Returns None if the UTF16 Position can't be converted to a UTF8 offset
     pub fn position_to_line_col(&self, pos: &Position) -> (usize, Option<usize>) {
-        let line = pos.line as usize;
-        let line_offset = self.offset_of_line(line);
-
-        let column = offset_utf16_to_utf8(
-            self.char_indices_iter(line_offset..),
-            pos.character as usize,
-        );
-
-        (line, column)
+        RopeText::new(&self.text).position_to_line_col(pos)
     }
 
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
-        let max = self.len();
-        let offset = if offset > max { max } else { offset };
-        let line = self.line_of_offset(offset);
-        let line_start = self.offset_of_line(line);
-        if offset == line_start {
-            return (line, 0);
-        }
-
-        let col = offset - line_start;
-        (line, col)
+        RopeText::new(&self.text).offset_to_line_col(offset)
     }
 
     pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
-        let mut pos = 0;
-        let mut offset = self.offset_of_line(line);
-        for c in self
-            .slice_to_cow(offset..self.offset_of_line(line + 1))
-            .chars()
-        {
-            if c == '\n' {
-                return offset;
-            }
-
-            let char_len = c.len_utf8();
-            if pos + char_len > col {
-                return offset;
-            }
-            pos += char_len;
-            offset += char_len;
-        }
-        offset
+        RopeText::new(&self.text).offset_of_line_col(line, col)
     }
 
     pub fn line_end_col(&self, line: usize, caret: bool) -> usize {
-        let line_start = self.offset_of_line(line);
-        let offset = self.line_end_offset(line, caret);
-        offset - line_start
+        RopeText::new(&self.text).line_end_col(line, caret)
     }
 
     pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
@@ -806,24 +745,11 @@ impl Buffer {
     }
 
     pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
-        let mut offset = self.offset_of_line(line + 1);
-        let mut line_content: &str = &self.line_content(line);
-        if line_content.ends_with("\r\n") {
-            offset -= 2;
-            line_content = &line_content[..line_content.len() - 2];
-        } else if line_content.ends_with('\n') {
-            offset -= 1;
-            line_content = &line_content[..line_content.len() - 1];
-        }
-        if !caret && !line_content.is_empty() {
-            offset = self.prev_grapheme_offset(offset, 1, 0);
-        }
-        offset
+        RopeText::new(&self.text).line_end_offset(line, caret)
     }
 
     pub fn line_content(&self, line: usize) -> Cow<str> {
-        self.text
-            .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
+        RopeText::new(&self.text).line_content(line)
     }
 
     pub fn prev_grapheme_offset(
@@ -832,20 +758,7 @@ impl Buffer {
         count: usize,
         limit: usize,
     ) -> usize {
-        let mut cursor = Cursor::new(&self.text, offset);
-        let mut new_offset = offset;
-        for _i in 0..count {
-            if let Some(prev_offset) = cursor.prev_grapheme() {
-                if prev_offset < limit {
-                    return new_offset;
-                }
-                new_offset = prev_offset;
-                cursor.set(prev_offset);
-            } else {
-                return new_offset;
-            }
-        }
-        new_offset
+        RopeText::new(&self.text).prev_grapheme_offset(offset, count, limit)
     }
 
     pub fn prev_code_boundary(&self, offset: usize) -> usize {

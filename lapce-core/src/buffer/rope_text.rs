@@ -1,7 +1,7 @@
 use std::{borrow::Cow, ops::Range};
 
 use lsp_types::Position;
-use xi_rope::{interval::IntervalBounds, Rope};
+use xi_rope::{interval::IntervalBounds, Cursor, Rope};
 
 use crate::encoding::{offset_utf16_to_utf8, offset_utf8_to_utf16};
 
@@ -30,6 +30,11 @@ impl<'a> RopeText<'a> {
         let last_line = self.last_line();
         let line = line.min(last_line + 1);
         self.text.offset_of_line(line)
+    }
+
+    pub fn offset_line_end(&self, offset: usize, caret: bool) -> usize {
+        let line = self.line_of_offset(offset);
+        self.line_end_offset(line, caret)
     }
 
     pub fn line_of_offset(&self, offset: usize) -> usize {
@@ -110,6 +115,55 @@ impl<'a> RopeText<'a> {
         offset
     }
 
+    pub fn line_end_col(&self, line: usize, caret: bool) -> usize {
+        let line_start = self.offset_of_line(line);
+        let offset = self.line_end_offset(line, caret);
+        offset - line_start
+    }
+
+    pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
+        let mut offset = self.offset_of_line(line + 1);
+        let mut line_content: &str = &self.line_content(line);
+        if line_content.ends_with("\r\n") {
+            offset -= 2;
+            line_content = &line_content[..line_content.len() - 2];
+        } else if line_content.ends_with('\n') {
+            offset -= 1;
+            line_content = &line_content[..line_content.len() - 1];
+        }
+        if !caret && !line_content.is_empty() {
+            offset = self.prev_grapheme_offset(offset, 1, 0);
+        }
+        offset
+    }
+
+    pub fn line_content(&self, line: usize) -> Cow<'a, str> {
+        self.text
+            .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
+    }
+
+    pub fn prev_grapheme_offset(
+        &self,
+        offset: usize,
+        count: usize,
+        limit: usize,
+    ) -> usize {
+        let mut cursor = Cursor::new(&self.text, offset);
+        let mut new_offset = offset;
+        for _i in 0..count {
+            if let Some(prev_offset) = cursor.prev_grapheme() {
+                if prev_offset < limit {
+                    return new_offset;
+                }
+                new_offset = prev_offset;
+                cursor.set(prev_offset);
+            } else {
+                return new_offset;
+            }
+        }
+        new_offset
+    }
+
     pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<str> {
         self.text
             .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
@@ -122,6 +176,14 @@ impl<'a> RopeText<'a> {
         range: T,
     ) -> impl Iterator<Item = (usize, char)> + '_ {
         CharIndicesJoin::new(self.text.iter_chunks(range).map(str::char_indices))
+    }
+
+    pub fn num_lines(&self) -> usize {
+        self.last_line() + 1
+    }
+
+    pub fn line_len(&self, line: usize) -> usize {
+        self.offset_of_line(line + 1) - self.offset_of_line(line)
     }
 }
 
