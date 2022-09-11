@@ -384,10 +384,13 @@ fn flatpak_should_use_host_terminal() -> bool {
     let host_available = Command::new("flatpak-spawn")
         .arg("--host")
         .arg("true")
-        .status()
-        .unwrap();
+        .status();
 
-    /* The de-facto way of checking whether one is inside of a Flatpak container is by checking for
-    the presence of /.flatpak-info in the filesystem */
-    Path::new(FLATPAK_INFO_PATH).exists() && host_available.success()
+    // Make sure flatpak-spawn is found in $PATH
+    match host_available {
+        /* The de-facto way of checking whether one is inside of a Flatpak container is by checking for
+        the presence of /.flatpak-info in the filesystem */
+        Ok(status) => Path::new(FLATPAK_INFO_PATH).exists() && status.success(),
+        Err(_) => false,
+    }
 }
