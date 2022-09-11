@@ -31,6 +31,16 @@ command = "open_keyboard_shortcuts"
 # key = "meta+q"
 # command = "quit"
 
+# --------------------------------- Terminal copy/paste ---------------------------------
+
+[[keymaps]]
+key = "meta+shift+c"
+command = "terminal_copy_selection"
+
+[[keymaps]]
+key = "meta+shift+v"
+command = "terminal_paste_selection"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]

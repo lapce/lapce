@@ -27,6 +27,16 @@ command = "open_settings"
 key = "ctrl+k ctrl+s"
 command = "open_keyboard_shortcuts"
 
+# --------------------------------- Terminal copy/paste ---------------------------------
+
+[[keymaps]]
+key = "ctrl+shift+c"
+command = "terminal_copy_selection"
+
+[[keymaps]]
+key = "ctrl+shift+v"
+command = "terminal_paste_selection"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]

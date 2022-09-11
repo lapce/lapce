@@ -447,6 +447,22 @@ impl KeyPressFocus for LapceTerminalViewData {
                         );
                     }
                 }
+                FocusCommand::TerminalCopySelection => {
+                    if self.terminal.mode == Mode::Terminal {
+                        let mut raw = self.terminal.raw.lock();
+                        let term = &mut raw.term;
+                        if let Some(content) = term.selection_to_string() {
+                            Application::global().clipboard().put_string(content);
+                        }
+                    }
+                }
+                FocusCommand::TerminalPasteSelection => {
+                    if self.terminal.mode == Mode::Terminal {
+                        if let Some(s) = Application::global().clipboard().get_string() {
+                            self.receive_char(ctx, &s);
+                        }
+                    }
+                }
                 _ => return CommandExecuted::No,
             },
             _ => return CommandExecuted::No,
