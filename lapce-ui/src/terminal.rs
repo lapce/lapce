@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use alacritty_terminal::{
     grid::Dimensions,
-    index::{Direction, Side},
-    term::{cell::Flags, search::RegexSearch},
+    index::{Direction, Side, Column, Line},
+    term::{cell::Flags, search::RegexSearch, Term}, 
+    selection::{Selection, SelectionType},
 };
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
@@ -17,7 +18,7 @@ use lapce_data::{
     config::LapceTheme,
     data::{FocusArea, LapceTabData},
     panel::PanelKind,
-    terminal::{LapceTerminalData, LapceTerminalViewData},
+    terminal::{LapceTerminalData, LapceTerminalViewData, EventProxy},
 };
 use lapce_rpc::terminal::TermId;
 use unicode_width::UnicodeWidthChar;
@@ -470,6 +471,7 @@ struct LapceTerminal {
     widget_id: WidgetId,
     width: f64,
     height: f64,
+    mouse_down: bool
 }
 
 impl LapceTerminal {
@@ -479,6 +481,7 @@ impl LapceTerminal {
             widget_id: data.widget_id,
             width: 0.0,
             height: 0.0,
+            mouse_down: false
         }
     }
 
@@ -496,6 +499,26 @@ impl LapceTerminal {
                 style.active = index;
             }
             panel.active = position;
+        }
+    }
+
+    fn select(&self, term: &mut Term<EventProxy>, mouse_event: &MouseEvent) {
+        let row_size = self.height / term.screen_lines() as f64;
+        let col_size = self.width / term.columns() as f64;
+        let offset = term.grid().display_offset();
+        let column = Column((mouse_event.pos.x / col_size) as usize);
+        let line = Line((mouse_event.pos.y / row_size) as i32 - offset as i32);
+        match &mut term.selection {
+            Some(selection) => {
+                selection.update(alacritty_terminal::index::Point { line, column }, Direction::Left)
+            }
+            None => {
+                term.selection = Some(Selection::new(
+                    SelectionType::Simple,
+                    alacritty_terminal::index::Point { line, column },
+                    Direction::Left
+                ));
+            }
         }
     }
 }
@@ -520,8 +543,22 @@ impl Widget<LapceTabData> for LapceTerminal {
             find: data.find.clone(),
         };
         match event {
-            Event::MouseDown(_mouse_event) => {
+            Event::MouseDown(mouse_event) => {
                 self.request_focus(ctx, data);
+                self.mouse_down = true;
+                let term = &mut data.terminal.terminals.get(&self.term_id).unwrap().raw.lock().term;
+                term.selection = None;
+                self.select(term, mouse_event);
+            }
+            Event::MouseUp(_mouse_event) => {
+                self.mouse_down = false;
+            }
+            Event::MouseMove(mouse_event) => {
+                if self.mouse_down {
+                    let term = &mut data.terminal.terminals.get(&self.term_id).unwrap().raw.lock().term;
+                    self.select(term, mouse_event);
+                    ctx.request_paint();
+                }
             }
             Event::Wheel(wheel_event) => {
                 data.terminal
