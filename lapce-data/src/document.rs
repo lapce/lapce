@@ -135,7 +135,7 @@ pub enum BufferContent {
 
 impl BufferContent {
     pub fn path(&self) -> Option<&Path> {
-        if let BufferContent::File(p) = &self {
+        if let BufferContent::File(p) = self {
             Some(p)
         } else {
             None
@@ -147,7 +147,7 @@ impl BufferContent {
     }
 
     pub fn is_special(&self) -> bool {
-        match &self {
+        match self {
             BufferContent::File(_) => false,
             BufferContent::Local(local) => match local {
                 LocalBufferKind::Search
@@ -166,7 +166,7 @@ impl BufferContent {
     }
 
     pub fn is_input(&self) -> bool {
-        match &self {
+        match self {
             BufferContent::File(_) => false,
             BufferContent::Local(local) => match local {
                 LocalBufferKind::Search
@@ -184,7 +184,7 @@ impl BufferContent {
     }
 
     pub fn is_palette(&self) -> bool {
-        match &self {
+        match self {
             BufferContent::File(_) => false,
             BufferContent::SettingsValue(..) => false,
             BufferContent::Scratch(..) => false,
@@ -193,7 +193,7 @@ impl BufferContent {
     }
 
     pub fn is_search(&self) -> bool {
-        match &self {
+        match self {
             BufferContent::File(_) => false,
             BufferContent::SettingsValue(..) => false,
             BufferContent::Scratch(..) => false,
@@ -202,7 +202,7 @@ impl BufferContent {
     }
 
     pub fn is_settings(&self) -> bool {
-        match &self {
+        match self {
             BufferContent::File(_) => false,
             BufferContent::SettingsValue(..) => true,
             BufferContent::Local(_) => false,
