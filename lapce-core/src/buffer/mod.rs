@@ -549,16 +549,11 @@ impl Buffer {
                 ..
             } = rev.edit
             {
-                if groups.contains(undo_group) {
-                    if !inserts.is_empty() {
-                        deletes_from_union =
-                            deletes_from_union.transform_union(inserts);
-                    }
-                } else {
-                    if !inserts.is_empty() {
-                        deletes_from_union =
-                            deletes_from_union.transform_expand(inserts);
-                    }
+                if !inserts.is_empty() {
+                    deletes_from_union = deletes_from_union.transform_union(inserts);
+                }
+
+                if !groups.contains(undo_group) {
                     if !deletes.is_empty() {
                         deletes_from_union = deletes_from_union.union(deletes);
                     }
