@@ -768,8 +768,9 @@ impl Document {
             let tab_id = self.tab_id;
             let path = path.clone();
             let buffer_id = self.id();
-            let rev = self.rev();
-            let len = self.buffer().len();
+            let buffer = self.buffer();
+            let rev = buffer.rev();
+            let len = buffer.len();
             let event_sink = self.event_sink.clone();
             self.proxy
                 .proxy_rpc
