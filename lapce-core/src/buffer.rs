@@ -181,6 +181,10 @@ impl Buffer {
         &self.text
     }
 
+    pub fn to_string(&self) -> String {
+        self.text().to_string()
+    }
+
     pub fn num_lines(&self) -> usize {
         self.line_of_offset(self.text.len()) + 1
     }

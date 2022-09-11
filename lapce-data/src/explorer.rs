@@ -291,7 +291,7 @@ impl FileExplorerData {
             .local_docs
             .get(&LocalBufferKind::PathName)
             .unwrap();
-        let target_name = doc.buffer().text().to_string();
+        let target_name = doc.buffer().to_string();
         // If the name is empty, then we just ignore it
         if target_name.is_empty() {
             self.cancel_naming();

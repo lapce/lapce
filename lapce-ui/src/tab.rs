@@ -802,7 +802,7 @@ impl LapceTab {
                             .local_docs
                             .get_mut(&LocalBufferKind::Search)
                             .unwrap();
-                        if &doc.buffer().text().to_string() != pattern {
+                        if &doc.buffer().to_string() != pattern {
                             Arc::make_mut(doc).reload(Rope::from(pattern), true);
                         }
                     }

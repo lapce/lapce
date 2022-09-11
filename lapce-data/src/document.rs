@@ -867,7 +867,7 @@ impl Document {
             BufferContent::File(_) => {}
             BufferContent::Scratch(..) => {}
             BufferContent::Local(local) => {
-                let s = self.buffer.text().to_string();
+                let s = self.buffer.to_string();
                 match local {
                     LocalBufferKind::Search => {
                         let _ = self.event_sink.submit_command(
