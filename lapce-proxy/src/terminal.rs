@@ -387,7 +387,7 @@ fn flatpak_should_use_host_terminal() -> bool {
         .status()
         .unwrap();
 
-    /* The de-facto way of checking whether one is inside of a Flatpak container is by checking for
-    the presence of /.flatpak-info in the filesystem */
+    // The de-facto way of checking whether one is inside of a Flatpak container is by checking for
+    // the presence of /.flatpak-info in the filesystem
     Path::new(FLATPAK_INFO_PATH).exists() && host_available.success()
 }
