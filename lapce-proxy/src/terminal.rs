@@ -334,6 +334,7 @@ fn set_locale_environment() {
     std::env::set_var("LC_ALL", locale + ".UTF-8");
 }
 
+#[inline]
 #[cfg(not(target_os = "linux"))]
 fn flatpak_get_default_host_shell() -> String {
     panic!(
@@ -342,6 +343,7 @@ fn flatpak_get_default_host_shell() -> String {
     );
 }
 
+#[inline]
 #[cfg(target_os = "linux")]
 fn flatpak_get_default_host_shell() -> String {
     let env_string = Command::new("flatpak-spawn")
@@ -365,11 +367,13 @@ fn flatpak_get_default_host_shell() -> String {
     "/bin/sh".to_string()
 }
 
+#[inline]
 #[cfg(not(target_os = "linux"))]
 fn flatpak_should_use_host_terminal() -> bool {
     false // Flatpak is only available on Linux
 }
 
+#[inline]
 #[cfg(target_os = "linux")]
 fn flatpak_should_use_host_terminal() -> bool {
     use std::path::Path;
