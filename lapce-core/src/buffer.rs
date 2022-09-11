@@ -575,7 +575,7 @@ impl Buffer {
                 Contents::Undo { .. } => None,
             })
             .and_then(|group| {
-                let mut cursor: Option<&CursorMode> = None;
+                let mut cursor = None;
                 for rev in &self.revs[first_candidate..] {
                     if let Contents::Edit { ref undo_group, .. } = rev.edit {
                         if group == undo_group {
