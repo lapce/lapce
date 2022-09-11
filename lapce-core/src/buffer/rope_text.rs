@@ -60,8 +60,8 @@ impl<'a> RopeText<'a> {
     /// Returns None if the UTF16 Position can't be converted to a UTF8 offset
     pub fn offset_of_position(&self, pos: &Position) -> Option<usize> {
         let (line, column) = self.position_to_line_col(pos);
-        let column = column?;
-        Some(self.offset_of_line_col(line, column))
+
+        column.map(|column| self.offset_of_line_col(line, column))
     }
 
     /// Returns None if the UTF16 Position can't be converted to a UTF8 offset
