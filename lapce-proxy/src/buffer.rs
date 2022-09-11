@@ -254,8 +254,6 @@ fn get_document_content_changes(
 
     // TODO: Handle more trivial cases like typing when there's a selection or transpose
     if let Some(node) = delta.as_simple_insert() {
-        let text = String::from(node);
-
         let (start, end) = interval.start_end();
         let start = if let Some(start) = buffer.offset_to_position(start) {
             start
@@ -271,13 +269,11 @@ fn get_document_content_changes(
             return None;
         };
 
-        let text_document_content_change_event = TextDocumentContentChangeEvent {
+        Some(TextDocumentContentChangeEvent {
             range: Some(Range { start, end }),
             range_length: None,
-            text,
-        };
-
-        return Some(text_document_content_change_event);
+            text: String::from(node),
+        })
     }
     // Or a simple delete
     else if delta.is_simple_delete() {
@@ -295,19 +291,17 @@ fn get_document_content_changes(
             return None;
         };
 
-        let text_document_content_change_event = TextDocumentContentChangeEvent {
+        Some(TextDocumentContentChangeEvent {
             range: Some(Range {
                 start,
                 end: end_position,
             }),
             range_length: None,
             text: String::new(),
-        };
-
-        return Some(text_document_content_change_event);
+        })
+    } else {
+        None
     }
-
-    None
 }
 
 /// Returns the modification timestamp for the file at a given path,
