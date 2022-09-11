@@ -637,7 +637,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     #[cfg(feature = "lang-dart")]
     SyntaxProperties {
         id: LapceLanguage::Dart,
-        language: (tree_sitter_dart::language as fn() -> tree_sitter::Language),
+        language: tree_sitter_dart::language,
         highlight: "",
         injection: None,
         comment: "//",
