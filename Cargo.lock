@@ -2559,6 +2559,7 @@ dependencies = [
  "tree-sitter-ruby",
  "tree-sitter-rust",
  "tree-sitter-scss",
+ "tree-sitter-svelte",
  "tree-sitter-swift",
  "tree-sitter-toml",
  "tree-sitter-typescript",
@@ -5178,6 +5179,15 @@ dependencies = [
 name = "tree-sitter-scss"
 version = "0.0.1"
 source = "git+https://github.com/VixieTSQ/tree-sitter-scss?branch=patch-1#3aac3391ede5098edbf4cc8a9f6d0cfdfe28e5dc"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-svelte"
+version = "0.10.2"
+source = "git+https://github.com/Himujjal/tree-sitter-svelte?branch=master#52e122ae68b316d3aa960a0a422d3645ba717f42"
 dependencies = [
  "cc",
  "tree-sitter",

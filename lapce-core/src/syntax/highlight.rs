@@ -92,6 +92,7 @@ declare_language_highlights!(
     Csharp: "lang-csharp",
     Nix: "lang-nix",
     Dart: "lang-dart",
+    Svelte: "lang-svelte",
 );
 
 /// Indicates which highlight should be applied to a region of source code.

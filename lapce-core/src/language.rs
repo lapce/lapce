@@ -186,6 +186,8 @@ pub enum LapceLanguage {
     Nix,
     #[cfg(feature = "lang-dart")]
     Dart,
+    #[cfg(feature = "lang-svelte")]
+    Svelte,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -645,6 +647,17 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["dart"],
     },
+    #[cfg(feature = "lang-svelte")]
+    SyntaxProperties {
+        id: LapceLanguage::Svelte,
+        language: tree_sitter_svelte::language,
+        highlight: tree_sitter_svelte::HIGHLIGHT_QUERY,
+        injection: Some(tree_sitter_svelte::INJECTION_QUERY),
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["svelte"],
+    },
 ];
 
 impl LapceLanguage {
@@ -961,5 +974,9 @@ mod test {
     #[cfg(feature = "lang-dart")]
     fn test_dart_lang() {
         assert_language(LapceLanguage::Dart, &["dart"]);
+    }
+    #[cfg(feature = "lang-svelte")]
+    fn test_svelte_lang() {
+        assert_language(LapceLanguage::Svelte, &["svelte"]);
     }
 }
