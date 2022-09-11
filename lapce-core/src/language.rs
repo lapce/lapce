@@ -166,6 +166,8 @@ pub enum LapceLanguage {
     Julia,
     #[cfg(feature = "lang-wgsl")]
     Wgsl,
+    #[cfg(feature = "lang-d")]
+    D,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -534,6 +536,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["wgsl"],
     },
+    #[cfg(feature = "lang-d")]
+    SyntaxProperties {
+        id: LapceLanguage::Wgsl,
+        language: tree_sitter_d::language,
+        highlight: tree_sitter_d::HIGHLIGHTS_QUERY,
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["d", "di", "dlang"],
+    },
 ];
 
 impl LapceLanguage {
@@ -838,5 +850,9 @@ mod test {
     #[cfg(feature = "lang-wgsl")]
     fn test_wgsl_lang() {
         assert_language(LapceLanguage::Wgsl, &["wgsl"]);
+    }
+    #[cfg(feature = "lang-d")]
+    fn test_d_lang() {
+        assert_language(LapceLanguage::D, &["d", "di", "dlang"]);
     }
 }

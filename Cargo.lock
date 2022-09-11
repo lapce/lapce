@@ -2551,6 +2551,7 @@ dependencies = [
  "tree-sitter-c",
  "tree-sitter-cpp",
  "tree-sitter-css",
+ "tree-sitter-d",
  "tree-sitter-elixir",
  "tree-sitter-elm",
  "tree-sitter-glimmer",
@@ -4959,6 +4960,15 @@ dependencies = [
 name = "tree-sitter-css"
 version = "0.19.0"
 source = "git+https://github.com/syntacti/tree-sitter-css?branch=master#b5018f23290618d70c7483cd60a06a05d54832e1"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-d"
+version = "0.0.1"
+source = "git+https://github.com/syntacti/tree-sitter-d?branch=master#c0ed562f95358a2b2466b1ac9454b76f60187787"
 dependencies = [
  "cc",
  "tree-sitter",
