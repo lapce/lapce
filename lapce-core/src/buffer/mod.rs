@@ -721,22 +721,11 @@ impl Buffer {
     }
 
     pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
-        let last_line = self.last_line();
-        let line = if line > last_line + 1 {
-            last_line
-        } else {
-            line
-        };
-        let line_start_offset = self.text.offset_of_line(line);
-        WordCursor::new(&self.text, line_start_offset).next_non_blank_char()
+        RopeText::new(&self.text).first_non_blank_character_on_line(line)
     }
 
     pub fn indent_on_line(&self, line: usize) -> String {
-        let line_start_offset = self.text.offset_of_line(line);
-        let word_boundary =
-            WordCursor::new(&self.text, line_start_offset).next_non_blank_char();
-        let indent = self.text.slice_to_cow(line_start_offset..word_boundary);
-        indent.to_string()
+        RopeText::new(&self.text).indent_on_line(line)
     }
 
     pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
