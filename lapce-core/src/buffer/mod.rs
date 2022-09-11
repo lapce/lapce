@@ -97,6 +97,12 @@ pub struct Buffer {
     max_len_line: usize,
 }
 
+impl ToString for Buffer {
+    fn to_string(&self) -> String {
+        self.text().to_string()
+    }
+}
+
 impl Buffer {
     pub fn new(text: &str) -> Self {
         Self {
@@ -183,10 +189,6 @@ impl Buffer {
 
     pub fn text(&self) -> &Rope {
         &self.text
-    }
-
-    pub fn to_string(&self) -> String {
-        self.text().to_string()
     }
 
     pub fn num_lines(&self) -> usize {
@@ -553,10 +555,8 @@ impl Buffer {
                     deletes_from_union = deletes_from_union.transform_union(inserts);
                 }
 
-                if !groups.contains(undo_group) {
-                    if !deletes.is_empty() {
-                        deletes_from_union = deletes_from_union.union(deletes);
-                    }
+                if !groups.contains(undo_group) && !deletes.is_empty() {
+                    deletes_from_union = deletes_from_union.union(deletes);
                 }
             }
         }

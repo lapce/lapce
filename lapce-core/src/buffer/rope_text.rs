@@ -151,7 +151,7 @@ impl<'a> RopeText<'a> {
         count: usize,
         limit: usize,
     ) -> usize {
-        let mut cursor = Cursor::new(&self.text, offset);
+        let mut cursor = Cursor::new(self.text, offset);
         let mut new_offset = offset;
         for _i in 0..count {
             if let Some(prev_offset) = cursor.prev_grapheme() {
@@ -175,13 +175,13 @@ impl<'a> RopeText<'a> {
             line
         };
         let line_start_offset = self.text.offset_of_line(line);
-        WordCursor::new(&self.text, line_start_offset).next_non_blank_char()
+        WordCursor::new(self.text, line_start_offset).next_non_blank_char()
     }
 
     pub fn indent_on_line(&self, line: usize) -> String {
         let line_start_offset = self.text.offset_of_line(line);
         let word_boundary =
-            WordCursor::new(&self.text, line_start_offset).next_non_blank_char();
+            WordCursor::new(self.text, line_start_offset).next_non_blank_char();
         let indent = self.text.slice_to_cow(line_start_offset..word_boundary);
         indent.to_string()
     }
