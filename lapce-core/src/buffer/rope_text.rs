@@ -78,8 +78,7 @@ impl<'a> RopeText<'a> {
     }
 
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
-        let max = self.len();
-        let offset = if offset > max { max } else { offset };
+        let offset = offset.min(self.len());
         let line = self.line_of_offset(offset);
         let line_start = self.offset_of_line(line);
         if offset == line_start {
