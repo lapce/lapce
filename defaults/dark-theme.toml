@@ -25,7 +25,6 @@ cyan = "#56B6C2"
 magenta = "#C678DD"
 
 [theme.syntax]
-"tag" = "$blue"
 "comment" = "#5C6370"
 "constant" = "$yellow"
 "type" = "$yellow"
@@ -58,6 +57,7 @@ magenta = "#C678DD"
 "text.reference" = "$yellow"
 "variable" = "$red"
 "variable.other.member" = "$green"
+"tag" = "$blue"
 
 [theme.ui]
 "lapce.active_tab" = "$black"
