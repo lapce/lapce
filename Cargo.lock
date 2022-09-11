@@ -2550,6 +2550,7 @@ dependencies = [
  "tree-sitter-javascript",
  "tree-sitter-json",
  "tree-sitter-julia",
+ "tree-sitter-latex",
  "tree-sitter-md",
  "tree-sitter-nix",
  "tree-sitter-ocaml",
@@ -5096,6 +5097,15 @@ dependencies = [
 name = "tree-sitter-julia"
 version = "0.19.0"
 source = "git+https://github.com/varlad/tree-sitter-julia?branch=master#eff3e0f57512ecb2e72024732d66dba64bdeaecf"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-latex"
+version = "0.2.0"
+source = "git+https://github.com/latex-lsp/tree-sitter-latex?branch=master#b3b2cf27f33e71438ebe46934900b1153901c6f2"
 dependencies = [
  "cc",
  "tree-sitter",

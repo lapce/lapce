@@ -99,6 +99,7 @@ all-languages = [
     "lang-nix",
     "lang-dart",
     "lang-svelte",
+    "lang-latex",
 ]
 
 lang-rust = ["lapce-core/lang-rust"]
@@ -137,3 +138,4 @@ lang-csharp = ["lapce-core/lang-csharp"]
 lang-nix = ["lapce-core/lang-nix"]
 lang-dart = ["lapce-core/lang-dart"]
 lang-svelte = ["lapce-core/lang-svelte"]
+lang-latex = ["lapce-core/lang-latex"]

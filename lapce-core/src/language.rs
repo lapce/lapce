@@ -188,6 +188,8 @@ pub enum LapceLanguage {
     Dart,
     #[cfg(feature = "lang-svelte")]
     Svelte,
+    #[cfg(feature = "lang-latex")]
+    Latex,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -658,6 +660,17 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["svelte"],
     },
+    #[cfg(feature = "lang-latex")]
+    SyntaxProperties {
+        id: LapceLanguage::Latex,
+        language: tree_sitter_latex::language,
+        highlight: include_str!("../queries/latex/highlights.scm"),
+        injection: Some(include_str!("../queries/latex/injections.scm")),
+        comment: "%",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["tex"],
+    },
 ];
 
 impl LapceLanguage {
@@ -978,5 +991,9 @@ mod test {
     #[cfg(feature = "lang-svelte")]
     fn test_svelte_lang() {
         assert_language(LapceLanguage::Svelte, &["svelte"]);
+    }
+    #[cfg(feature = "lang-latex")]
+    fn test_latex_lang() {
+        assert_language(LapceLanguage::Latex, &["tex"]);
     }
 }
