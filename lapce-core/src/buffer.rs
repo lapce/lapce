@@ -193,7 +193,7 @@ impl Buffer {
         let mut pre_offset = 0;
         let mut max_len = 0;
         let mut max_len_line = 0;
-        for line in 0..self.num_lines() + 1 {
+        for line in 0..=self.num_lines() {
             let offset = self.offset_of_line(line);
             let line_len = offset - pre_offset;
             pre_offset = offset;
