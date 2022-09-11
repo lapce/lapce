@@ -186,7 +186,7 @@ impl Buffer {
     }
 
     pub fn num_lines(&self) -> usize {
-        self.line_of_offset(self.text.len()) + 1
+        self.line_of_offset(self.len()) + 1
     }
 
     fn get_max_line_len(&self) -> (usize, usize) {
@@ -678,7 +678,7 @@ impl Buffer {
     }
 
     pub fn last_line(&self) -> usize {
-        self.line_of_offset(self.text.len())
+        self.line_of_offset(self.len())
     }
 
     pub fn offset_of_line(&self, line: usize) -> usize {
@@ -1025,7 +1025,7 @@ impl<'a> RopeText<'a> {
     }
 
     pub fn last_line(&self) -> usize {
-        self.line_of_offset(self.text.len())
+        self.line_of_offset(self.len())
     }
 
     pub fn offset_of_line(&self, line: usize) -> usize {
