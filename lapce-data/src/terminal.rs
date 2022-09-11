@@ -11,14 +11,15 @@ use alacritty_terminal::{
     Term,
 };
 use druid::{
-    keyboard_types::Key, Application, Color, Command, Env, EventCtx, ExtEventSink,
-    KeyEvent, Modifiers, Target, WidgetId,
+    keyboard_types::Key, Color, Command, Env, EventCtx, ExtEventSink, KeyEvent,
+    Modifiers, Target, WidgetId,
 };
 use hashbrown::HashMap;
 use lapce_core::{
     command::{EditCommand, FocusCommand},
     mode::{Mode, VisualMode},
     movement::{LinePosition, Movement},
+    register::Clipboard,
 };
 use lapce_rpc::terminal::TermId;
 use parking_lot::Mutex;
@@ -29,6 +30,7 @@ use crate::{
     },
     config::{Config, LapceTheme},
     data::LapceWorkspace,
+    document::SystemClipboard,
     find::Find,
     keypress::KeyPressFocus,
     proxy::LapceProxy,
@@ -263,6 +265,7 @@ impl KeyPressFocus for LapceTerminalViewData {
         _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
+        let mut clipboard = SystemClipboard {};
         ctx.request_paint();
         match &command.kind {
             CommandKind::Move(cmd) => {
@@ -357,12 +360,12 @@ impl KeyPressFocus for LapceTerminalViewData {
                     let mut raw = self.terminal.raw.lock();
                     let term = &mut raw.term;
                     if let Some(content) = term.selection_to_string() {
-                        Application::global().clipboard().put_string(content);
+                        clipboard.put_string(content);
                     }
                     self.terminal.clear_selection(term);
                 }
                 EditCommand::ClipboardPaste => {
-                    if let Some(s) = Application::global().clipboard().get_string() {
+                    if let Some(s) = clipboard.get_string() {
                         self.receive_char(ctx, &s);
                     }
                 }
@@ -452,14 +455,13 @@ impl KeyPressFocus for LapceTerminalViewData {
                         let mut raw = self.terminal.raw.lock();
                         let term = &mut raw.term;
                         if let Some(content) = term.selection_to_string() {
-                            Application::global().clipboard().put_string(content);
+                            clipboard.put_string(content);
                         }
                     }
                 }
                 FocusCommand::TerminalPasteSelection => {
                     if self.terminal.mode == Mode::Terminal {
-                        if let Some(s) = 
-                            Application::global().clipboard().get_string() {
+                        if let Some(s) = clipboard.get_string() {
                             self.receive_char(ctx, &s);
                         }
                     }

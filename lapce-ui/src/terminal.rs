@@ -4,7 +4,7 @@ use alacritty_terminal::{
     grid::Dimensions,
     index::{Column, Direction, Line, Side},
     selection::{Selection, SelectionType},
-    term::{cell::Flags, search::RegexSearch, Term}, 
+    term::{cell::Flags, search::RegexSearch, Term},
 };
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
@@ -510,8 +510,8 @@ impl LapceTerminal {
         let line = Line((mouse_event.pos.y / row_size) as i32 - offset as i32);
         match &mut term.selection {
             Some(selection) => selection.update(
-                alacritty_terminal::index::Point { line, column }, 
-                Direction::Left
+                alacritty_terminal::index::Point { line, column },
+                Direction::Left,
             ),
             None => {
                 term.selection = Some(Selection::new(
