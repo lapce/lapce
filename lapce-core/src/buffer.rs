@@ -134,7 +134,7 @@ impl Buffer {
     }
 
     pub fn set_pristine(&mut self) {
-        self.pristine_rev_id = self.rev()
+        self.pristine_rev_id = self.rev();
     }
 
     pub fn is_pristine(&self) -> bool {
