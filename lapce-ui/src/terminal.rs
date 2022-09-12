@@ -8,9 +8,9 @@ use alacritty_terminal::{
 };
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontWeight, LayoutCtx,
-    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontWeight,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_core::mode::Mode;
 use lapce_data::{
@@ -543,6 +543,7 @@ impl Widget<LapceTabData> for LapceTerminal {
             config: data.config.clone(),
             find: data.find.clone(),
         };
+        ctx.set_cursor(&Cursor::IBeam);
         match event {
             Event::MouseDown(mouse_event) => {
                 self.request_focus(ctx, data);
