@@ -2518,7 +2518,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let tab_rect = ctx.size().to_rect();
 
-        if ctx.is_hot() {
+        if ctx.is_hot() || self.drag_start.is_some() {
             // Currenlty, we only paint background for the hot tab to prevent showing
             // overlapped content on drag. In the future, we might want to:
             // - introduce a tab background color
@@ -2588,7 +2588,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
         let y = text_layout.y_offset(size.height);
         ctx.draw_text(&text_layout, Point::new(x, y));
 
-        if ctx.is_hot() {
+        if ctx.is_hot() || self.drag_start.is_some() {
             let svg = get_svg("close.svg").unwrap();
             ctx.draw_svg(
                 &svg,
