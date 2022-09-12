@@ -25,7 +25,7 @@ pub struct LapceWindow {
             LensWrap<LapceWindowData, LapceTabData, LapceTabLens, LapceTabHeader>,
         >,
     >,
-    pub dragable_area: Region,
+    pub draggable_area: Region,
     pub tab_header_cmds: Vec<(Rect, Command)>,
     pub mouse_down_cmd: Option<(Rect, Command)>,
     #[cfg(not(target_os = "macos"))]
@@ -54,7 +54,7 @@ impl LapceWindow {
             .collect();
         Self {
             mouse_pos: Point::ZERO,
-            dragable_area: Region::EMPTY,
+            draggable_area: Region::EMPTY,
             tabs,
             tab_headers,
             tab_header_cmds: Vec::new(),
@@ -237,7 +237,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                 #[cfg(target_os = "windows")]
                 if data.tabs.len() > 1
                     && self
-                        .dragable_area
+                        .draggable_area
                         .rects()
                         .iter()
                         .any(|r| r.contains(mouse_event.pos))
@@ -264,7 +264,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                 if data.tabs.len() > 1
                     && mouse_event.count == 2
                     && self
-                        .dragable_area
+                        .draggable_area
                         .rects()
                         .iter()
                         .any(|r| r.contains(mouse_event.pos))
@@ -607,24 +607,30 @@ impl Widget<LapceWindowData> for LapceWindow {
                 x += size.width;
             }
 
-            // Area right of tabs, but left of the window control buttons
-            self.dragable_area = Region::from(
-                Size::new(
-                    self_size.width - x - right_buttons_width,
-                    TAB_HEADER_HEIGHT,
-                )
-                .to_rect()
-                .with_origin(Point::new(x, 0.0)),
-            );
-
-            // Area left of the tabs
-            self.dragable_area.add_rect(
-                Size::new(left_padding, 36.0)
+            self.draggable_area = if data.config.lapce.custom_titlebar {
+                // Area right of tabs, but left of the window control buttons
+                let mut draggable_area = Region::from(
+                    Size::new(
+                        self_size.width - x - right_buttons_width,
+                        TAB_HEADER_HEIGHT,
+                    )
                     .to_rect()
-                    .with_origin(Point::ZERO),
-            );
+                    .with_origin(Point::new(x, 0.0)),
+                );
 
-            ctx.window().set_dragable_area(self.dragable_area.clone());
+                // Area left of the tabs
+                draggable_area.add_rect(
+                    Size::new(left_padding, 36.0)
+                        .to_rect()
+                        .with_origin(Point::ZERO),
+                );
+
+                draggable_area
+            } else {
+                Region::EMPTY
+            };
+
+            ctx.window().set_dragable_area(self.draggable_area.clone());
 
             if let Some((index, mouse_pos)) = drag {
                 for (i, tab_header) in self.tab_headers.iter().enumerate() {
