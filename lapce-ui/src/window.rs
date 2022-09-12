@@ -597,7 +597,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                 let origin = header.origin();
 
                 if origin.is_some() {
-                    drag = Some((i, header.mouse_pos));
+                    drag = Some(i);
                 }
 
                 let origin_x = origin.map_or(x, |origin| origin.x);
@@ -632,19 +632,25 @@ impl Widget<LapceWindowData> for LapceWindow {
 
             ctx.window().set_dragable_area(self.draggable_area.clone());
 
-            if let Some((index, mouse_pos)) = drag {
-                for (i, tab_header) in self.tab_headers.iter().enumerate() {
-                    if i != index {
-                        let rect = tab_header.layout_rect();
-                        if rect.x0 <= mouse_pos.x && rect.x1 >= mouse_pos.x {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::SwapTab(i),
-                                Target::Auto,
-                            ));
-                            break;
-                        }
-                    }
+            if let Some(dragged_tab_idx) = drag {
+                // Because tab is opaque, use the tab's center point instead of the mouse position.
+                let dragged_tab_center =
+                    self.tab_headers[dragged_tab_idx].layout_rect().center();
+
+                if let Some((swapped_idx, _)) = self
+                    .tab_headers
+                    .iter()
+                    .enumerate()
+                    .find(|&(idx, tab_header)| {
+                        idx != dragged_tab_idx
+                            && tab_header.layout_rect().contains(dragged_tab_center)
+                    })
+                {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SwapTab(swapped_idx),
+                        Target::Auto,
+                    ));
                 }
             }
 
