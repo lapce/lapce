@@ -611,7 +611,6 @@ impl Widget<LapceWindowData> for LapceWindow {
                 tab_header.set_origin(ctx, data, env, origin);
                 x += size.width;
             }
-            x += TAB_HEADER_HEIGHT;
 
             // Area right of tabs, but left of the window control buttons
             self.dragable_area = Region::from(
