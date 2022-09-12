@@ -558,11 +558,6 @@ impl Widget<LapceWindowData> for LapceWindow {
     ) -> Size {
         let self_size = bc.max();
 
-        const TAB_HEADER_HEIGHT: f64 = 36.0;
-        const TAB_HEADER_PADDING: f64 = 0.0;
-        const RIGHT_PADDING: f64 = 100.0;
-        const WINDOW_CONTROL_BUTTON_WIDTH: f64 = 36.0;
-
         let (tab_size, tab_origin) = if self.tabs.len() > 1 {
             let tab_size = Size::new(
                 self_size.width,
@@ -672,10 +667,9 @@ impl Widget<LapceWindowData> for LapceWindow {
 
         // let title_height = self.title.layout_rect().height();
 
-        let tab_height = 36.0;
         let size = ctx.size();
         if self.tabs.len() > 1 {
-            let rect = Size::new(size.width, tab_height).to_rect();
+            let rect = Size::new(size.width, TAB_HEADER_HEIGHT).to_rect();
             ctx.fill(
                 rect,
                 data.config
@@ -735,8 +729,8 @@ impl Widget<LapceWindowData> for LapceWindow {
                 let (cmds, svgs) = window_controls(
                     data.window_id,
                     &ctx.window().get_window_state(),
-                    size.width - 36.0 * 3.0,
-                    36.0,
+                    size.width - WINDOW_CONTROL_BUTTON_WIDTH * 3.0,
+                    WINDOW_CONTROL_BUTTON_WIDTH,
                     &data.config,
                 );
                 self.tab_header_cmds = cmds;
@@ -894,3 +888,9 @@ pub fn window_controls(
 
     (commands, svgs)
 }
+
+// TODO(dbuga): find a better place for these
+const TAB_HEADER_HEIGHT: f64 = 36.0;
+const TAB_HEADER_PADDING: f64 = 0.0;
+const RIGHT_PADDING: f64 = 100.0;
+const WINDOW_CONTROL_BUTTON_WIDTH: f64 = 36.0;
