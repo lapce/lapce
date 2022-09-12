@@ -16,7 +16,6 @@ use lapce_data::{
     data::{EditorTabChild, LapceTabData},
     document::BufferContent,
 };
-use lapce_core::meta;
 
 use crate::{
     editor::tab_header_content::LapceEditorTabHeaderContent, scroll::LapceScroll,

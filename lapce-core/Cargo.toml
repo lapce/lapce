@@ -5,7 +5,8 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-directories = "4.0.1"
+libloading = "0.7"
+directories = "4.0"
 thiserror = "1.0"
 itertools = "0.10.3"
 log = "0.4.14"
@@ -22,6 +23,8 @@ lapce-rpc = { path = "../lapce-rpc" }
 
 tree-sitter = "0.20.7"
 
+# plaintext grammar, not optional
+tree-sitter-plaintext = { git = "https://github.com/panekj/tree-sitter-plaintext", rev = "38c37a098fea0eec26c6b0aeaa9feaec8bbe93fe" }
 # please keep below dependencies and features sorted just like LANGUAGES in language.rs
 
 tree-sitter-bash = { git = "https://github.com/tree-sitter/tree-sitter-bash", branch = "master", optional = true }
@@ -80,57 +83,57 @@ tree-sitter-yaml = { git = "https://github.com/panekj/tree-sitter-yaml", branch 
 tree-sitter-zig = { git = "https://github.com/maxxnino/tree-sitter-zig", branch = "main", optional = true }
 
 [features]
-default = []
-# See lapce-ui/Cargo.toml for how to choose the languages.  See also
-# src/language.rs for how to add new languages.  The feature names should follow
-# the tree-sitter crate names.
-lang-bash = ["dep:tree-sitter-bash"]
-lang-c = ["dep:tree-sitter-c"]
-lang-cmake = ["dep:tree-sitter-cmake"]
-lang-cpp = ["dep:tree-sitter-cpp"]
-lang-csharp = ["dep:tree-sitter-c-sharp"]
-lang-css = ["dep:tree-sitter-css"]
-lang-d = ["dep:tree-sitter-d"]
-lang-dart = ["dep:tree-sitter-dart"]
-lang-dockerfile = ["dep:tree-sitter-dockerfile"]
-lang-elixir = ["dep:tree-sitter-elixir"]
-lang-elm = ["dep:tree-sitter-elm"]
-lang-erlang = ["dep:tree-sitter-erlang"]
-lang-glimmer = ["dep:tree-sitter-glimmer"]
-lang-glsl = ["dep:tree-sitter-glsl"]
-lang-go = ["dep:tree-sitter-go"]
-lang-hare = ["dep:tree-sitter-hare"]
-lang-haskell = ["dep:tree-sitter-haskell"]
-lang-haxe = ["dep:tree-sitter-haxe"]
-lang-hcl = ["dep:tree-sitter-hcl"]
-lang-html = ["dep:tree-sitter-html"]
-lang-java = ["dep:tree-sitter-java"]
-lang-javascript = ["dep:tree-sitter-javascript"]
-lang-json = ["dep:tree-sitter-json"]
-lang-julia = ["dep:tree-sitter-julia"]
-lang-kotlin = ["dep:tree-sitter-kotlin"]
-lang-latex = ["dep:tree-sitter-latex"]
-lang-lua = ["dep:tree-sitter-lua"]
-lang-markdown = ["dep:tree-sitter-md"]
-lang-nix = ["dep:tree-sitter-nix"]
-lang-ocaml = ["dep:tree-sitter-ocaml"]
-lang-php = ["dep:tree-sitter-php"]
-lang-prisma = ["dep:tree-sitter-prisma-io"]
-lang-protobuf = ["dep:tree-sitter-protobuf"]
-lang-python = ["dep:tree-sitter-python"]
-lang-ql = ["dep:tree-sitter-ql"]
-lang-r = ["dep:tree-sitter-r"]
-lang-ruby = ["dep:tree-sitter-ruby"]
-lang-rust = ["dep:tree-sitter-rust"]
-lang-scheme = ["dep:tree-sitter-scheme"]
-lang-scss = ["dep:tree-sitter-scss"]
-lang-sql = ["dep:tree-sitter-sql"]
-lang-svelte = ["dep:tree-sitter-svelte"]
-lang-swift = ["dep:tree-sitter-swift"]
-lang-toml = ["dep:tree-sitter-toml"]
-lang-typescript = ["dep:tree-sitter-typescript"]
-lang-vue = ["dep:tree-sitter-vue"]
-lang-wgsl = ["dep:tree-sitter-wgsl"]
-lang-yaml = ["dep:tree-sitter-yaml"]
-lang-xml = ["dep:tree-sitter-xml"]
-lang-zig = ["dep:tree-sitter-zig"]
+default = ["compile-grammars"]
+compile-grammars = [
+    "dep:tree-sitter-bash",
+    "dep:tree-sitter-c",
+    "dep:tree-sitter-cmake",
+    "dep:tree-sitter-cpp",
+    "dep:tree-sitter-c-sharp",
+    "dep:tree-sitter-css",
+    "dep:tree-sitter-d",
+    "dep:tree-sitter-dart",
+    "dep:tree-sitter-dockerfile",
+    "dep:tree-sitter-elixir",
+    "dep:tree-sitter-elm",
+    "dep:tree-sitter-erlang",
+    "dep:tree-sitter-glimmer",
+    "dep:tree-sitter-glsl",
+    "dep:tree-sitter-go",
+    "dep:tree-sitter-hare",
+    "dep:tree-sitter-haskell",
+    "dep:tree-sitter-haxe",
+    "dep:tree-sitter-hcl",
+    "dep:tree-sitter-html",
+    "dep:tree-sitter-java",
+    "dep:tree-sitter-javascript",
+    "dep:tree-sitter-json",
+    "dep:tree-sitter-julia",
+    "dep:tree-sitter-kotlin",
+    "dep:tree-sitter-latex",
+    "dep:tree-sitter-lua",
+    "dep:tree-sitter-md",
+    "dep:tree-sitter-nix",
+    "dep:tree-sitter-ocaml",
+    "dep:tree-sitter-php",
+    "dep:tree-sitter-prisma-io",
+    "dep:tree-sitter-protobuf",
+    "dep:tree-sitter-python",
+    "dep:tree-sitter-ql",
+    "dep:tree-sitter-r",
+    "dep:tree-sitter-ruby",
+    "dep:tree-sitter-rust",
+    "dep:tree-sitter-scheme",
+    "dep:tree-sitter-scss",
+    "dep:tree-sitter-sql",
+    "dep:tree-sitter-svelte",
+    "dep:tree-sitter-swift",
+    "dep:tree-sitter-toml",
+    "dep:tree-sitter-typescript",
+    "dep:tree-sitter-vue",
+    "dep:tree-sitter-wgsl",
+    "dep:tree-sitter-yaml",
+    "dep:tree-sitter-xml",
+    "dep:tree-sitter-zig",
+    "dep:tree-sitter-sql",
+]

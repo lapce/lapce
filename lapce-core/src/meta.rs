@@ -1,8 +1,8 @@
 use once_cell::sync::Lazy;
 
-pub static NAME: Lazy<&str> = Lazy::new(application_name);
+pub static NAME: Lazy<&str> = Lazy::new(name);
 
-fn application_name() -> &'static str {
+fn name() -> &'static str {
     if cfg!(debug_assertions) {
         "Lapce-Debug"
     } else if option_env!("RELEASE_TAG_NAME")

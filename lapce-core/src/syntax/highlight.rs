@@ -24,9 +24,10 @@ use super::{util::RopeProvider, PARSER};
 use crate::{language::LapceLanguage, style::SCOPES};
 
 macro_rules! declare_language_highlights {
-    ($($name:ident: $feature_name:expr),* $(,)?) => {
+    ($($name:ident),* $(,)?) => {
         mod highlights {
             // We allow non upper case globals to make the macro definition simpler.
+            #![allow(unused_imports)]
             #![allow(non_upper_case_globals)]
             use once_cell::sync::Lazy;
             use crate::language::LapceLanguage;
@@ -35,7 +36,7 @@ macro_rules! declare_language_highlights {
 
             // We use Arcs because in the future we may want to load highlight configurations at runtime
             $(
-                #[cfg(feature = $feature_name)]
+                #[cfg(feature = "compile-grammars")]
                 pub static $name: Lazy<Result<Arc<HighlightConfiguration>, HighlightIssue>> = Lazy::new(|| {
                     LapceLanguage::$name.new_highlight_config().map(Arc::new)
                 });
@@ -45,7 +46,7 @@ macro_rules! declare_language_highlights {
         pub(crate) fn get_highlight_config(lang: LapceLanguage) -> Result<Arc<HighlightConfiguration>, HighlightIssue> {
             match lang {
                 $(
-                    #[cfg(feature = $feature_name)]
+                    #[cfg(feature = "compile-grammars")]
                     LapceLanguage::$name => highlights::$name.clone()
                 ),*
             }
@@ -54,60 +55,62 @@ macro_rules! declare_language_highlights {
 }
 
 declare_language_highlights!(
-    Bash: "lang-bash",
-    C: "lang-c",
-    Cmake: "lang-cmake",
-    Cpp: "lang-cpp",
-    Csharp: "lang-csharp",
-    Css: "lang-css",
-    D: "lang-d",
-    Dart: "lang-dart",
-    Dockerfile: "lang-dockerfile",
-    Elixir: "lang-elixir",
-    Elm: "lang-elm",
-    Erlang: "lang-erlang",
-    Glimmer: "lang-glimmer",
-    Glsl: "lang-glsl",
-    Go: "lang-go",
-    Hare: "lang-hare",
-    Haskell: "lang-haskell",
-    Haxe: "lang-haxe",
-    Hcl: "lang-hcl",
-    Html: "lang-html",
-    Java: "lang-java",
-    Javascript: "lang-javascript",
-    Json: "lang-json",
-    Jsx: "lang-javascript",
-    Julia: "lang-julia",
-    Kotlin: "lang-kotlin",
-    Latex: "lang-latex",
-    Lua: "lang-lua",
-    Markdown: "lang-markdown",
-    MarkdownInline: "lang-markdown",
-    Nix: "lang-nix",
-    Ocaml: "lang-ocaml",
-    OcamlInterface: "lang-ocaml",
-    Php: "lang-php",
-    Prisma: "lang-prisma",
-    ProtoBuf: "lang-protobuf",
-    Python: "lang-python",
-    Ql: "lang-ql",
-    R: "lang-r",
-    Ruby: "lang-ruby",
-    Rust: "lang-rust",
-    Scheme: "lang-scheme",
-    Scss: "lang-scss",
-    Sql: "lang-sql",
-    Svelte: "lang-svelte",
-    Swift: "lang-swift",
-    Toml: "lang-toml",
-    Tsx: "lang-typescript",
-    Typescript: "lang-typescript",
-    Vue: "lang-vue",
-    Wgsl: "lang-wgsl",
-    Xml: "lang-xml",
-    Yaml: "lang-yaml",
-    Zig: "lang-zig",
+    Plaintext,
+    Bash,
+    C,
+    Cmake,
+    Cpp,
+    Csharp,
+    Css,
+    D,
+    Dart,
+    Dockerfile,
+    Elixir,
+    Elm,
+    Erlang,
+    Glimmer,
+    Glsl,
+    Go,
+    Hare,
+    Haskell,
+    Haxe,
+    Hcl,
+    Html,
+    Java,
+    Javascript,
+    Json,
+    Jsx,
+    Julia,
+    Kotlin,
+    Latex,
+    Lua,
+    Markdown,
+    MarkdownInline,
+    Nix,
+    Ocaml,
+    OcamlInterface,
+    Php,
+    Prisma,
+    ProtoBuf,
+    Python,
+    Ql,
+    R,
+    Ruby,
+    Rust,
+    Scheme,
+    Scss,
+    Sh,
+    Sql,
+    Svelte,
+    Swift,
+    Toml,
+    Tsx,
+    Typescript,
+    Vue,
+    Wgsl,
+    Xml,
+    Yaml,
+    Zig,
 );
 
 /// Indicates which highlight should be applied to a region of source code.

@@ -1,8 +1,8 @@
 pub mod buffer;
-pub mod directory;
 pub mod chars;
 pub mod command;
 pub mod cursor;
+pub mod directory;
 pub mod directory;
 pub mod editor;
 pub mod encoding;

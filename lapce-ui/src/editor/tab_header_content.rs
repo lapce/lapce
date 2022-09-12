@@ -29,7 +29,6 @@ use lapce_data::{
     document::BufferContent,
     editor::TabRect,
 };
-use lapce_core::meta;
 
 use crate::editor::tab::TabRectRenderer;
 
