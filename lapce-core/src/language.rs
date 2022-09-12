@@ -100,6 +100,9 @@ struct SyntaxProperties {
     code_lens: (&'static [&'static str], &'static [&'static str]),
     /// the tree sitter tag names that can be put in sticky headers
     sticky_headers: &'static [&'static str],
+    /// Filenames that belong to this language
+    /// `["Dockerfile"]` for Dockerfile
+    files: &'static [&'static str],
     /// File name extensions to determine the language.  `["py"]` for python,
     /// `["rs"]` for rust, for example.
     extensions: &'static [&'static str],
@@ -655,6 +658,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         // markdown inline is only used as an injection by the Markdown language
+        files: &[],
         extensions: &[],
     },
     #[cfg(feature = "lang-nix")]
@@ -990,11 +994,14 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
 impl LapceLanguage {
     pub fn from_path(path: &Path) -> Option<LapceLanguage> {
+        let filename = path.file_stem()?.to_str()?.to_lowercase();
         let extension = path.extension()?.to_str()?.to_lowercase();
         // NOTE: This is a linear search.  It is assumed that this function
         // isn't called in any tight loop.
         for properties in LANGUAGES {
-            if properties.extensions.contains(&extension.as_str()) {
+            if properties.files.contains(&filename.as_str())
+                || properties.extensions.contains(&extension.as_str())
+            {
                 return Some(properties.id);
             }
         }
