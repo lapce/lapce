@@ -32,10 +32,12 @@ command = "open_keyboard_shortcuts"
 [[keymaps]]
 key = "ctrl+shift+c"
 command = "clipboard_copy"
+mode = "t"
 
 [[keymaps]]
 key = "ctrl+shift+v"
 command = "clipboard_paste"
+mode = "t"
 
 # --------------------------------- Basic editing ---------------------------------------
 
