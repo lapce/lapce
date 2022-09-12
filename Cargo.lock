@@ -2550,6 +2550,7 @@ dependencies = [
  "tree-sitter-javascript",
  "tree-sitter-json",
  "tree-sitter-julia",
+ "tree-sitter-latex",
  "tree-sitter-md",
  "tree-sitter-nix",
  "tree-sitter-ocaml",
@@ -2559,6 +2560,7 @@ dependencies = [
  "tree-sitter-ruby",
  "tree-sitter-rust",
  "tree-sitter-scss",
+ "tree-sitter-svelte",
  "tree-sitter-swift",
  "tree-sitter-toml",
  "tree-sitter-typescript",
@@ -5101,6 +5103,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-latex"
+version = "0.2.0"
+source = "git+https://github.com/latex-lsp/tree-sitter-latex?branch=master#b3b2cf27f33e71438ebe46934900b1153901c6f2"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-md"
 version = "0.1.1"
 source = "git+https://github.com/MDeiml/tree-sitter-markdown.git?branch=split_parser#e375ba95ff9a12418f9b9e7c190f549d08b5380a"
@@ -5178,6 +5189,15 @@ dependencies = [
 name = "tree-sitter-scss"
 version = "0.0.1"
 source = "git+https://github.com/VixieTSQ/tree-sitter-scss?branch=patch-1#3aac3391ede5098edbf4cc8a9f6d0cfdfe28e5dc"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-svelte"
+version = "0.10.2"
+source = "git+https://github.com/Himujjal/tree-sitter-svelte?branch=master#52e122ae68b316d3aa960a0a422d3645ba717f42"
 dependencies = [
  "cc",
  "tree-sitter",
