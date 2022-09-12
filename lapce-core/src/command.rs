@@ -298,11 +298,6 @@ pub enum FocusCommand {
     Rename,
     #[strum(serialize = "confirm_rename")]
     ConfirmRename,
-    /// Terminal selection commands
-    #[strum(serialize = "terminal_copy_selection")]
-    TerminalCopySelection,
-    #[strum(serialize = "terminal_paste_selection")]
-    TerminalPasteSelection,
 }
 
 #[derive(

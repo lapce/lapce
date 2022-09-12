@@ -31,11 +31,11 @@ command = "open_keyboard_shortcuts"
 
 [[keymaps]]
 key = "ctrl+shift+c"
-command = "terminal_copy_selection"
+command = "clipboard_copy"
 
 [[keymaps]]
 key = "ctrl+shift+v"
-command = "terminal_paste_selection"
+command = "clipboard_paste"
 
 # --------------------------------- Basic editing ---------------------------------------
 

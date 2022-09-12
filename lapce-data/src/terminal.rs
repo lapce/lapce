@@ -362,9 +362,16 @@ impl KeyPressFocus for LapceTerminalViewData {
                     if let Some(content) = term.selection_to_string() {
                         clipboard.put_string(content);
                     }
-                    self.terminal.clear_selection(term);
+                    if self.terminal.mode != Mode::Terminal {
+                        self.terminal.clear_selection(term);
+                    }
                 }
                 EditCommand::ClipboardPaste => {
+                    if self.terminal.mode == Mode::Terminal {
+                        let mut raw = self.terminal.raw.lock();
+                        let term = &mut raw.term;
+                        self.terminal.clear_selection(term);
+                    }
                     if let Some(s) = clipboard.get_string() {
                         self.receive_char(ctx, &s);
                     }
@@ -448,22 +455,6 @@ impl KeyPressFocus for LapceTerminalViewData {
                             search_string,
                             Direction::Left,
                         );
-                    }
-                }
-                FocusCommand::TerminalCopySelection => {
-                    if self.terminal.mode == Mode::Terminal {
-                        let mut raw = self.terminal.raw.lock();
-                        let term = &mut raw.term;
-                        if let Some(content) = term.selection_to_string() {
-                            clipboard.put_string(content);
-                        }
-                    }
-                }
-                FocusCommand::TerminalPasteSelection => {
-                    if self.terminal.mode == Mode::Terminal {
-                        if let Some(s) = clipboard.get_string() {
-                            self.receive_char(ctx, &s);
-                        }
                     }
                 }
                 _ => return CommandExecuted::No,
