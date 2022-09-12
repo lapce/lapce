@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use alacritty_terminal::{
     grid::Dimensions,
@@ -30,6 +30,8 @@ use crate::{
     svg::get_svg,
     tab::LapceIcon,
 };
+
+const DOUBLE_CLICK_TIMEOUT: u128 = 500; // In ms
 
 pub type TermConfig = alacritty_terminal::config::Config;
 
@@ -471,7 +473,7 @@ struct LapceTerminal {
     widget_id: WidgetId,
     width: f64,
     height: f64,
-    mouse_down: bool,
+    prev_click: Option<Instant>,
 }
 
 impl LapceTerminal {
@@ -481,7 +483,7 @@ impl LapceTerminal {
             widget_id: data.widget_id,
             width: 0.0,
             height: 0.0,
-            mouse_down: false,
+            prev_click: None,
         }
     }
 
@@ -502,7 +504,12 @@ impl LapceTerminal {
         }
     }
 
-    fn select(&self, term: &mut Term<EventProxy>, mouse_event: &MouseEvent) {
+    fn select(
+        &self,
+        term: &mut Term<EventProxy>,
+        mouse_event: &MouseEvent,
+        ty: SelectionType,
+    ) {
         let row_size = self.height / term.screen_lines() as f64;
         let col_size = self.width / term.columns() as f64;
         let offset = term.grid().display_offset();
@@ -515,7 +522,7 @@ impl LapceTerminal {
             ),
             None => {
                 term.selection = Some(Selection::new(
-                    SelectionType::Simple,
+                    ty,
                     alacritty_terminal::index::Point { line, column },
                     Direction::Left,
                 ));
@@ -546,8 +553,8 @@ impl Widget<LapceTabData> for LapceTerminal {
         ctx.set_cursor(&Cursor::IBeam);
         match event {
             Event::MouseDown(mouse_event) => {
+                let now = Instant::now();
                 self.request_focus(ctx, data);
-                self.mouse_down = true;
                 let term = &mut data
                     .terminal
                     .terminals
@@ -557,13 +564,16 @@ impl Widget<LapceTabData> for LapceTerminal {
                     .lock()
                     .term;
                 term.selection = None;
-                self.select(term, mouse_event);
-            }
-            Event::MouseUp(_mouse_event) => {
-                self.mouse_down = false;
+                if self.prev_click != None
+                    && (now - self.prev_click.unwrap()).as_millis()
+                        < DOUBLE_CLICK_TIMEOUT
+                {
+                    self.select(term, mouse_event, SelectionType::Semantic);
+                }
+                self.prev_click = Some(now);
             }
             Event::MouseMove(mouse_event) => {
-                if self.mouse_down {
+                if mouse_event.buttons.has_left() {
                     let term = &mut data
                         .terminal
                         .terminals
@@ -572,7 +582,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                         .raw
                         .lock()
                         .term;
-                    self.select(term, mouse_event);
+                    self.select(term, mouse_event, SelectionType::Simple);
                     ctx.request_paint();
                 }
             }
