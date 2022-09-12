@@ -2515,18 +2515,39 @@ impl Widget<LapceTabData> for LapceTabHeader {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+        let tab_rect = ctx.size().to_rect();
+
         if ctx.is_hot() {
             // Currenlty, we only paint background for the hot tab to prevent showing
             // overlapped content on drag. In the future, we might want to:
             // - introduce a tab background color
             // - introduce a hover color
-            let tab_rect = ctx.size().to_rect();
             ctx.fill(
                 tab_rect,
                 data.config
                     .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
             );
         }
+
+        const BORDER_PADDING: f64 = 8.0;
+
+        ctx.stroke(
+            Line::new(
+                Point::new(tab_rect.x0, tab_rect.y0 + BORDER_PADDING),
+                Point::new(tab_rect.x0, tab_rect.y1 - BORDER_PADDING),
+            ),
+            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+            1.0,
+        );
+
+        ctx.stroke(
+            Line::new(
+                Point::new(tab_rect.x1, tab_rect.y0 + BORDER_PADDING),
+                Point::new(tab_rect.x1, tab_rect.y1 - BORDER_PADDING),
+            ),
+            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+            1.0,
+        );
 
         let dir = data
             .workspace

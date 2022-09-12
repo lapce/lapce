@@ -682,42 +682,6 @@ impl Widget<LapceWindowData> for LapceWindow {
                     .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
             );
 
-            fn draw_tab_header<W: Widget<LapceWindowData>>(
-                tab_header: &mut WidgetPod<LapceWindowData, W>,
-                ctx: &mut PaintCtx,
-                data: &LapceWindowData,
-                env: &Env,
-                left_border: bool,
-                right_border: bool,
-            ) {
-                const BORDER_PADDING: f64 = 8.0;
-
-                tab_header.paint(ctx, data, env);
-                let rect = tab_header.layout_rect();
-
-                if left_border {
-                    ctx.stroke(
-                        Line::new(
-                            Point::new(rect.x0, rect.y0 + BORDER_PADDING),
-                            Point::new(rect.x0, rect.y1 - BORDER_PADDING),
-                        ),
-                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                        1.0,
-                    );
-                }
-
-                if right_border {
-                    ctx.stroke(
-                        Line::new(
-                            Point::new(rect.x1, rect.y0 + BORDER_PADDING),
-                            Point::new(rect.x1, rect.y1 - BORDER_PADDING),
-                        ),
-                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                        1.0,
-                    );
-                }
-            }
-
             let mut dragged = None;
             for (i, tab_header) in self.tab_headers.iter_mut().enumerate() {
                 // Store index and skip if tab is being dragged.
@@ -726,28 +690,14 @@ impl Widget<LapceWindowData> for LapceWindow {
                     continue;
                 }
 
-                draw_tab_header(
-                    tab_header,
-                    ctx,
-                    data,
-                    env,
-                    i > 0 && dragged == Some(i - 1),
-                    true,
-                );
+                tab_header.paint(ctx, data, env);
             }
 
             // Draw the dragged tab last, above the others
             if let Some(dragged_tab_idx) = dragged {
                 let tab_header = &mut self.tab_headers[dragged_tab_idx];
 
-                // Prevent overlapped tab contents showing
-                ctx.fill(
-                    tab_header.layout_rect(),
-                    data.config
-                        .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
-                );
-
-                draw_tab_header(tab_header, ctx, data, env, true, true);
+                tab_header.paint(ctx, data, env);
             }
 
             let shadow_width = data.config.ui.drop_shadow_width() as f64;
