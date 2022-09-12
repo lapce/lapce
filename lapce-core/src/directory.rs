@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use directories::{BaseDirs, ProjectDirs};
 
 use crate::meta::NAME;
+
 pub struct Directory {}
 
 impl Directory {
