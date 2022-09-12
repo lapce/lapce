@@ -1,3 +1,7 @@
+; source: https://github.com/helix-editor/helix/blob/master/runtime/queries/cpp/highlights.scm
+; licence: https://github.com/helix-editor/helix/blob/master/LICENSE
+; spdx: MPL-2.0
+
 (storage_class_specifier) @keyword.storage
 
 "goto" @keyword
