@@ -42,7 +42,9 @@ impl SvgStore {
     pub fn get_default_svg(&mut self, name: &str) -> Svg {
         if !self.svgs.contains_key(name) {
             let file = if name == "lapce_remote.svg" {
-                LAPCE_ICONS_DIR.get_file(name).unwrap()
+                LAPCE_ICONS_DIR
+                    .get_file(name)
+                    .unwrap_or_else(|| panic!("Failed to unwrap {name}"))
             } else {
                 CODICONS_ICONS_DIR
                     .get_file(name)

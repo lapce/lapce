@@ -1119,10 +1119,14 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                 (label(move || {
                     if let Some(editor) = editor.get() {
                         if let Some(syn) = editor.get().doc.get().syntax() {
-                            return syn.language.to_string();
+                            if let Some(lang) =
+                                strum::EnumMessage::get_message(&syn.language)
+                            {
+                                return lang.to_string();
+                            }
                         }
                     }
-                    String::from("Plain Text")
+                    "Plain Text".to_string() // FIXME: remove
                 })
                 .on_click(move |_| {
                     palette.run(cx.scope, PaletteKind::Language);

@@ -27,12 +27,16 @@ macro_rules! declare_language_highlights {
     ($($name:ident: $feature_name:expr),* $(,)?) => {
         mod highlights {
             // We allow non upper case globals to make the macro definition simpler.
+            #![allow(unused_imports)]
             #![allow(non_upper_case_globals)]
             use once_cell::sync::Lazy;
             use crate::language::LapceLanguage;
             use std::sync::Arc;
             use super::{HighlightConfiguration, HighlightIssue};
 
+            pub static Plaintext: Lazy<Result<Arc<HighlightConfiguration>, HighlightIssue>> = Lazy::new(|| {
+                LapceLanguage::Plaintext.new_highlight_config().map(Arc::new)
+            });
             // We use Arcs because in the future we may want to load highlight configurations at runtime
             $(
                 #[cfg(feature = $feature_name)]
@@ -47,7 +51,8 @@ macro_rules! declare_language_highlights {
                 $(
                     #[cfg(feature = $feature_name)]
                     LapceLanguage::$name => highlights::$name.clone()
-                ),*
+                ),*,
+                _ => highlights::Plaintext.clone(),
             }
         }
     };
@@ -98,6 +103,7 @@ declare_language_highlights!(
     Rust: "lang-rust",
     Scheme: "lang-scheme",
     Scss: "lang-scss",
+    Sh: "lang-bash",
     Sql: "lang-sql",
     Svelte: "lang-svelte",
     Swift: "lang-swift",
