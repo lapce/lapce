@@ -24,9 +24,10 @@ use super::{util::RopeProvider, PARSER};
 use crate::{language::LapceLanguage, style::SCOPES};
 
 macro_rules! declare_language_highlights {
-    ($($name:ident: $feature_name:expr),* $(,)?) => {
+    ($($name:ident),* $(,)?) => {
         mod highlights {
             // We allow non upper case globals to make the macro definition simpler.
+            #![allow(unused_imports)]
             #![allow(non_upper_case_globals)]
             use once_cell::sync::Lazy;
             use crate::language::LapceLanguage;
@@ -45,7 +46,7 @@ macro_rules! declare_language_highlights {
         pub(crate) fn get_highlight_config(lang: LapceLanguage) -> Result<Arc<HighlightConfiguration>, HighlightIssue> {
             match lang {
                 $(
-                    #[cfg(feature = $feature_name)]
+                    #[cfg(feature = "compile-grammars")]
                     LapceLanguage::$name => highlights::$name.clone()
                 ),*
             }

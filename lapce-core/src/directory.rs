@@ -143,4 +143,30 @@ impl Directory {
             None
         }
     }
+
+    pub fn queries_directory() -> Option<PathBuf> {
+        if let Some(dir) = Self::config_directory() {
+            let dir = dir.join("queries");
+            if !dir.exists() {
+                let _ = std::fs::create_dir(&dir);
+            }
+
+            Some(dir)
+        } else {
+            None
+        }
+    }
+
+    pub fn grammars_directory() -> Option<PathBuf> {
+        if let Some(dir) = Self::config_directory() {
+            let dir = dir.join("grammars");
+            if !dir.exists() {
+                let _ = std::fs::create_dir(&dir);
+            }
+
+            Some(dir)
+        } else {
+            None
+        }
+    }
 }
