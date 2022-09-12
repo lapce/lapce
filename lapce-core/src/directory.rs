@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use directories::{ProjectDirs, BaseDirs};
+use directories::{BaseDirs, ProjectDirs};
 
 use crate::meta::NAME;
 pub struct Directory {}

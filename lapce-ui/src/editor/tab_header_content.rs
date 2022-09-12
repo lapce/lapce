@@ -16,6 +16,7 @@ use druid::{
     Target, UpdateCtx, Widget, WidgetId,
 };
 use im::HashMap;
+use lapce_core::meta;
 use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
