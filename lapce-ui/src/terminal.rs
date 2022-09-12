@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Instant};
 
 use alacritty_terminal::{
-    grid::Dimensions,
+    grid::{Dimensions, Scroll},
     index::{Column, Direction, Line, Side},
     selection::{Selection, SelectionType},
     term::{cell::Flags, search::RegexSearch, Term},
@@ -12,11 +12,12 @@ use druid::{
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
-use lapce_core::mode::Mode;
+use lapce_core::{mode::Mode, register::Clipboard};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData},
+    document::SystemClipboard,
     panel::PanelKind,
     terminal::{EventProxy, LapceTerminalData, LapceTerminalViewData},
 };
@@ -555,22 +556,36 @@ impl Widget<LapceTabData> for LapceTerminal {
             Event::MouseDown(mouse_event) => {
                 let now = Instant::now();
                 self.request_focus(ctx, data);
-                let term = &mut data
-                    .terminal
-                    .terminals
-                    .get(&self.term_id)
-                    .unwrap()
-                    .raw
-                    .lock()
-                    .term;
-                term.selection = None;
-                if self.prev_click != None
-                    && (now - self.prev_click.unwrap()).as_millis()
-                        < DOUBLE_CLICK_TIMEOUT
-                {
-                    self.select(term, mouse_event, SelectionType::Semantic);
+                let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
+                let term = &mut terminal.raw.lock().term;
+                if mouse_event.button.is_right() {
+                    let mut clipboard = SystemClipboard {};
+                    match term.selection_to_string() {
+                        Some(selection) => {
+                            clipboard.put_string(selection);
+                            term.selection = None;
+                        }
+                        None => match clipboard.get_string() {
+                            Some(string) => {
+                                terminal.proxy.proxy_rpc.terminal_write(
+                                    terminal.term_id,
+                                    string.as_str(),
+                                );
+                                term.scroll_display(Scroll::Bottom);
+                            }
+                            None => {}
+                        },
+                    }
+                } else {
+                    term.selection = None;
+                    if self.prev_click != None
+                        && (now - self.prev_click.unwrap()).as_millis()
+                            < DOUBLE_CLICK_TIMEOUT
+                    {
+                        self.select(term, mouse_event, SelectionType::Semantic);
+                    }
+                    self.prev_click = Some(now);
                 }
-                self.prev_click = Some(now);
             }
             Event::MouseMove(mouse_event) => {
                 if mouse_event.buttons.has_left() {
