@@ -574,7 +574,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                 } else if mouse_event.button.is_left() {
                     match mouse_event.count {
                         2 => self.select(term, mouse_event, SelectionType::Semantic),
-                        3 | _ => {
+                        _ => {
                             term.selection = None;
                             if mouse_event.count == 3 {
                                 self.select(term, mouse_event, SelectionType::Lines);
