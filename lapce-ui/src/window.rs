@@ -620,7 +620,7 @@ impl Widget<LapceWindowData> for LapceWindow {
 
                 // Area left of the tabs
                 draggable_area.add_rect(
-                    Size::new(left_padding, 36.0)
+                    Size::new(left_padding, TAB_HEADER_HEIGHT)
                         .to_rect()
                         .with_origin(Point::ZERO),
                 );
