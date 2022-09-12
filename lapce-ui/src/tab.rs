@@ -2467,6 +2467,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
                     self.holding_click_rect = None;
                     ctx.set_active(false);
                     self.drag_start = None;
+                    ctx.request_layout();
                 }
             }
             _ => {}
