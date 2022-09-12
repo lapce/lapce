@@ -558,14 +558,17 @@ impl Widget<LapceWindowData> for LapceWindow {
     ) -> Size {
         let self_size = bc.max();
 
+        const TAB_HEADER_HEIGHT: f64 = 36.0;
+        const TAB_HEADER_PADDING: f64 = 0.0;
+        const RIGHT_PADDING: f64 = 100.0;
+        const WINDOW_CONTROL_BUTTON_WIDTH: f64 = 36.0;
+
         let (tab_size, tab_origin) = if self.tabs.len() > 1 {
-            let tab_header_height = 36.0;
-            let tab_header_padding = 0.0;
             let tab_size = Size::new(
                 self_size.width,
-                self_size.height - tab_header_height - tab_header_padding,
+                self_size.height - TAB_HEADER_HEIGHT - TAB_HEADER_PADDING,
             );
-            let tab_origin = Point::new(0.0, tab_header_height + tab_header_padding);
+            let tab_origin = Point::new(0.0, TAB_HEADER_HEIGHT + TAB_HEADER_PADDING);
 
             #[cfg(not(target_os = "macos"))]
             let left_padding = 0.0;
@@ -578,11 +581,12 @@ impl Widget<LapceWindowData> for LapceWindow {
                 78.0
             };
 
-            let right_padding = if cfg!(target_os = "macos") {
-                100.0
+            let right_buttons_width = if cfg!(target_os = "macos") {
+                0.0
             } else {
-                100.0 + 36.0 * 3.0
+                WINDOW_CONTROL_BUTTON_WIDTH * 3.0
             };
+            let right_padding = RIGHT_PADDING + right_buttons_width;
 
             let total_width = self_size.width - left_padding - right_padding;
             let width =
@@ -590,46 +594,43 @@ impl Widget<LapceWindowData> for LapceWindow {
 
             let mut x = left_padding;
             let mut drag = None;
-            let bc = BoxConstraints::tight(Size::new(width, tab_header_height));
+            let bc = BoxConstraints::tight(Size::new(width, TAB_HEADER_HEIGHT));
             for (i, tab_header) in self.tab_headers.iter_mut().enumerate() {
                 let size = tab_header.layout(ctx, &bc, data, env);
-                let mut origin = Point::new(x, tab_header_padding);
                 let header = tab_header.widget().child();
-                if let Some(o) = header.origin() {
-                    origin = Point::new(o.x, tab_header_padding);
+
+                let origin = header.origin();
+
+                if origin.is_some() {
                     drag = Some((i, header.mouse_pos));
                 }
+
+                let origin_x = origin.map_or(x, |origin| origin.x);
+                let origin = Point::new(origin_x, TAB_HEADER_PADDING);
+
                 tab_header.set_origin(ctx, data, env, origin);
                 x += size.width;
             }
-            x += 36.0;
+            x += TAB_HEADER_HEIGHT;
 
-            let mut region = Region::EMPTY;
-            region.add_rect(
+            // Area right of tabs, but left of the window control buttons
+            self.dragable_area = Region::from(
                 Size::new(
-                    self_size.width
-                        - x
-                        - if cfg!(target_os = "macos") {
-                            0.0
-                        } else {
-                            36.0 * 3.0
-                        },
-                    36.0,
+                    self_size.width - x - right_buttons_width,
+                    TAB_HEADER_HEIGHT,
                 )
                 .to_rect()
                 .with_origin(Point::new(x, 0.0)),
             );
-            if left_padding > 0.0 {
-                region.add_rect(
-                    Size::new(left_padding, 36.0)
-                        .to_rect()
-                        .with_origin(Point::new(0.0, 0.0)),
-                );
-            }
 
-            self.dragable_area.clear();
-            ctx.window().set_dragable_area(region.clone());
-            self.dragable_area = region;
+            // Area left of the tabs
+            self.dragable_area.add_rect(
+                Size::new(left_padding, 36.0)
+                    .to_rect()
+                    .with_origin(Point::ZERO),
+            );
+
+            ctx.window().set_dragable_area(self.dragable_area.clone());
 
             if let Some((index, mouse_pos)) = drag {
                 for (i, tab_header) in self.tab_headers.iter().enumerate() {
@@ -649,10 +650,10 @@ impl Widget<LapceWindowData> for LapceWindow {
 
             (tab_size, tab_origin)
         } else {
-            for (_i, tab_header) in self.tab_headers.iter_mut().enumerate() {
+            for tab_header in self.tab_headers.iter_mut() {
                 let bc = BoxConstraints::tight(Size::new(self_size.width, 0.0));
                 tab_header.layout(ctx, &bc, data, env);
-                tab_header.set_origin(ctx, data, env, Point::new(0.0, 0.0));
+                tab_header.set_origin(ctx, data, env, Point::ZERO);
             }
             let tab_size = self_size;
 
