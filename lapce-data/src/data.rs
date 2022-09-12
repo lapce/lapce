@@ -1213,6 +1213,22 @@ impl LapceTabData {
                     }
                 }
             }
+            LapceWorkbenchCommand::RevealActiveFileInFileExplorer => {
+                let path = if let Some(editor) = self.main_split.active_editor() {
+                    match &editor.content {
+                        BufferContent::File(path) => path,
+                        _ => return,
+                    }
+                } else {
+                    return;
+                };
+
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RevealInFileExplorer(path.to_owned()),
+                    Target::Auto,
+                ))
+            }
             LapceWorkbenchCommand::EnableModal => {
                 let config = Arc::make_mut(&mut self.config);
                 config.lapce.modal = true;

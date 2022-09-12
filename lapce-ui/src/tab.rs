@@ -1319,16 +1319,16 @@ impl LapceTab {
                     LapceUICommand::RevealInFileExplorer(path) => {
                         // TODO: replace with proper implementation from druid that
                         // highlights items in file explorer
-                        let path = if path.is_file() {
-                            path.parent().unwrap_or_else(|| std::path::Path::new(""))
-                        } else {
-                            path
+                        let path = match path.parent() {
+                            Some(p) => p,
+                            None => path,
                         };
-                        let path = path.to_str().unwrap_or("");
-                        if !path.is_empty() {
+                        if path.exists() {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::OpenURI(path.to_string()),
+                                LapceUICommand::OpenURI(
+                                    path.to_str().unwrap().to_string(),
+                                ),
                                 Target::Auto,
                             ));
                         }
