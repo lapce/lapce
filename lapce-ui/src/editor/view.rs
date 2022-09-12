@@ -599,7 +599,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                 if let BufferContent::SettingsValue(_, kind, parent, key) =
                     &editor_data.editor.content
                 {
-                    let content = editor_data.doc.buffer().text().to_string();
+                    let content = editor_data.doc.buffer().to_string();
                     let new_value = match kind {
                         SettingsValueKind::String => {
                             Some(serde_json::json!(content))

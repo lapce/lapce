@@ -91,6 +91,7 @@ declare_language_highlights!(
     Dockerfile: "lang-dockerfile",
     Csharp: "lang-csharp",
     Nix: "lang-nix",
+    Dart: "lang-dart",
 );
 
 /// Indicates which highlight should be applied to a region of source code.

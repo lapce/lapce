@@ -56,13 +56,19 @@ use crate::{
 
 pub struct SystemClipboard {}
 
+impl SystemClipboard {
+    fn clipboard() -> druid::Clipboard {
+        druid::Application::global().clipboard()
+    }
+}
+
 impl Clipboard for SystemClipboard {
     fn get_string(&self) -> Option<String> {
-        druid::Application::global().clipboard().get_string()
+        Self::clipboard().get_string()
     }
 
     fn put_string(&mut self, s: impl AsRef<str>) {
-        druid::Application::global().clipboard().put_string(s)
+        Self::clipboard().put_string(s)
     }
 }
 
@@ -129,7 +135,7 @@ pub enum BufferContent {
 
 impl BufferContent {
     pub fn path(&self) -> Option<&Path> {
-        if let BufferContent::File(p) = &self {
+        if let BufferContent::File(p) = self {
             Some(p)
         } else {
             None
@@ -141,7 +147,7 @@ impl BufferContent {
     }
 
     pub fn is_special(&self) -> bool {
-        match &self {
+        match self {
             BufferContent::File(_) => false,
             BufferContent::Local(local) => match local {
                 LocalBufferKind::Search
@@ -160,7 +166,7 @@ impl BufferContent {
     }
 
     pub fn is_input(&self) -> bool {
-        match &self {
+        match self {
             BufferContent::File(_) => false,
             BufferContent::Local(local) => match local {
                 LocalBufferKind::Search
@@ -178,7 +184,7 @@ impl BufferContent {
     }
 
     pub fn is_palette(&self) -> bool {
-        match &self {
+        match self {
             BufferContent::File(_) => false,
             BufferContent::SettingsValue(..) => false,
             BufferContent::Scratch(..) => false,
@@ -187,7 +193,7 @@ impl BufferContent {
     }
 
     pub fn is_search(&self) -> bool {
-        match &self {
+        match self {
             BufferContent::File(_) => false,
             BufferContent::SettingsValue(..) => false,
             BufferContent::Scratch(..) => false,
@@ -196,7 +202,7 @@ impl BufferContent {
     }
 
     pub fn is_settings(&self) -> bool {
-        match &self {
+        match self {
             BufferContent::File(_) => false,
             BufferContent::SettingsValue(..) => true,
             BufferContent::Local(_) => false,
@@ -315,21 +321,17 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
             text = Cow::Owned(text.into_owned().trim_end().to_string());
         }
 
+        let mut otext = text.into_owned();
         for entry in self.end_text.iter() {
-            let mut otext = text.into_owned();
-
             // TODO: allow customization of padding. Remember to update end_offset_size_iter
             otext.push_str("    ");
-
-            for part in itertools::intersperse(entry.diagnostic.message.lines(), " ")
-            {
-                otext.push_str(part);
-            }
-
-            text = Cow::Owned(otext);
+            otext.extend(itertools::intersperse(
+                entry.diagnostic.message.lines(),
+                " ",
+            ));
         }
 
-        text
+        Cow::Owned(otext)
     }
 
     /// Iterator over (col_shift, size, hint, pre_column)
@@ -369,18 +371,20 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
         &self,
         pre_text: &str,
     ) -> impl Iterator<Item = (usize, usize, &'diag EditorDiagnostic)> + '_ {
+        const PADDING: usize = 4;
+
         // Trim because the text would be trimmed for any end text that existed
         let column = pre_text.trim_end().len();
         // Move the column to be after the shifts by any of the ordered texts
         let mut column = self.col_at(column);
+
         self.end_text.iter().map(move |entry| {
-            let padding_size = 4;
-            let text_size: usize = itertools::intersperse(
+            let text_size = itertools::intersperse(
                 entry.diagnostic.message.lines().map(str::len),
                 1,
             )
-            .sum();
-            let size = padding_size + text_size;
+            .sum::<usize>();
+            let size = PADDING + text_size;
 
             let column_pre = column;
 
@@ -764,8 +768,9 @@ impl Document {
             let tab_id = self.tab_id;
             let path = path.clone();
             let buffer_id = self.id();
-            let rev = self.rev();
-            let len = self.buffer().len();
+            let buffer = self.buffer();
+            let rev = buffer.rev();
+            let len = buffer.len();
             let event_sink = self.event_sink.clone();
             self.proxy
                 .proxy_rpc
@@ -808,9 +813,9 @@ impl Document {
         if let BufferContent::File(path) = self.content() {
             let tab_id = self.tab_id;
             let path = path.clone();
-            let rev = self.rev();
-            let len = self.buffer().len();
             let buffer = self.buffer().clone();
+            let rev = buffer.rev();
+            let len = buffer.len();
             let event_sink = self.event_sink.clone();
             self.proxy
                 .proxy_rpc
@@ -831,7 +836,7 @@ impl Document {
                                 let offset = offset.min(len);
                                 hints_span.add_span(
                                     Interval::new(offset, (offset + 1).min(len)),
-                                    hint.clone(),
+                                    hint,
                                 );
                             }
                         }
@@ -862,7 +867,7 @@ impl Document {
             BufferContent::File(_) => {}
             BufferContent::Scratch(..) => {}
             BufferContent::Local(local) => {
-                let s = self.buffer.text().to_string();
+                let s = self.buffer.to_string();
                 match local {
                     LocalBufferKind::Search => {
                         let _ = self.event_sink.submit_command(

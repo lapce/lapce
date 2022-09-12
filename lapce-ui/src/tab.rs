@@ -802,7 +802,7 @@ impl LapceTab {
                             .local_docs
                             .get_mut(&LocalBufferKind::Search)
                             .unwrap();
-                        if &doc.buffer().text().to_string() != pattern {
+                        if &doc.buffer().to_string() != pattern {
                             Arc::make_mut(doc).reload(Rope::from(pattern), true);
                         }
                     }
@@ -1371,6 +1371,14 @@ impl LapceTab {
                             &data.config,
                         );
                         ctx.set_handled();
+                    }
+                    LapceUICommand::ToggleProblem(path) => {
+                        let problem = Arc::make_mut(&mut data.problem);
+                        let state = problem
+                            .collapsed
+                            .entry(path.to_owned())
+                            .or_insert(false);
+                        *state = !*state;
                     }
                     LapceUICommand::JumpToLineLocation(editor_view_id, location) => {
                         data.main_split.jump_to_location(

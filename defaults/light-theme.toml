@@ -26,7 +26,6 @@ magenta = "#A626A4"
 
 [theme.syntax]
 "comment" = "#A0A1A7"
-
 "constant" = "$yellow"
 "type" = "$yellow"
 "typeAlias" = "$yellow"
@@ -49,7 +48,6 @@ magenta = "#A626A4"
 "property" = "$red"
 "enumMember" = "$red"
 "enum-member" = "$red"
-"variable.other.member" = "$red"
 
 "string" = "$green"
 "string.escape" = "$cyan"
@@ -63,6 +61,9 @@ magenta = "#A626A4"
 "text.title" = "$orange"
 "text.uri" = "$cyan"
 "text.reference" = "$yellow"
+"variable" = "$red"
+"variable.other.member" = "$green"
+"tag" = "$blue"
 
 [theme.ui]
 "lapce.active_tab" = "$white"
