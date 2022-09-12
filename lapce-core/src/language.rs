@@ -229,7 +229,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Javascript,
         language: tree_sitter_javascript::language,
-        highlight: tree_sitter_javascript::HIGHLIGHT_QUERY,
+        highlight: include_str!("../queries/javascript/highlights.scm"),
         injection: Some(tree_sitter_javascript::INJECTION_QUERY),
         comment: "//",
         indent: "  ",
@@ -252,7 +252,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Typescript,
         language: tree_sitter_typescript::language_typescript,
-        highlight: tree_sitter_typescript::HIGHLIGHT_QUERY,
+        highlight: include_str!("../queries/typescript/highlights.scm"),
         injection: None,
         comment: "//",
         indent: "    ",
@@ -329,7 +329,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::C,
         language: tree_sitter_c::language,
-        highlight: tree_sitter_c::HIGHLIGHT_QUERY,
+        highlight: include_str!("../queries/c/highlights.scm"),
         injection: None,
         comment: "//",
         indent: "    ",
@@ -340,7 +340,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Cpp,
         language: tree_sitter_cpp::language,
-        highlight: tree_sitter_cpp::HIGHLIGHT_QUERY,
+        highlight: include_str!("../queries/cpp/highlights.scm"),
         injection: None,
         comment: "//",
         indent: "    ",
@@ -539,7 +539,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Css,
         language: tree_sitter_css::language,
-        highlight: tree_sitter_css::HIGHLIGHTS_QUERY,
+        highlight: include_str!("../queries/css/highlights.scm"),
         injection: None,
         comment: "/*",
         indent: "  ",
@@ -550,7 +550,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Zig,
         language: tree_sitter_zig::language,
-        highlight: tree_sitter_zig::HIGHLIGHTS_QUERY,
+        highlight: include_str!("../queries/zig/highlights.scm"),
         injection: Some(tree_sitter_zig::INJECTIONS_QUERY),
         comment: "//",
         indent: "    ",
@@ -561,7 +561,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Bash,
         language: tree_sitter_bash::language,
-        highlight: tree_sitter_bash::HIGHLIGHTS_QUERY,
+        highlight: include_str!("../queries/bash/highlights.scm"),
         injection: None,
         comment: "#",
         indent: "  ",
