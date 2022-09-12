@@ -1,23 +1,25 @@
 use std::sync::Arc;
 
 use alacritty_terminal::{
-    grid::Dimensions,
-    index::{Direction, Side},
-    term::{cell::Flags, search::RegexSearch},
+    grid::{Dimensions, Scroll},
+    index::{Column, Direction, Line, Side},
+    selection::{Selection, SelectionType},
+    term::{cell::Flags, search::RegexSearch, Term},
 };
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontWeight, LayoutCtx,
-    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontWeight,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
-use lapce_core::mode::Mode;
+use lapce_core::{mode::Mode, register::Clipboard};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData},
+    document::SystemClipboard,
     panel::PanelKind,
-    terminal::{LapceTerminalData, LapceTerminalViewData},
+    terminal::{EventProxy, LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;
 use unicode_width::UnicodeWidthChar;
@@ -498,6 +500,32 @@ impl LapceTerminal {
             panel.active = position;
         }
     }
+
+    fn select(
+        &self,
+        term: &mut Term<EventProxy>,
+        mouse_event: &MouseEvent,
+        ty: SelectionType,
+    ) {
+        let row_size = self.height / term.screen_lines() as f64;
+        let col_size = self.width / term.columns() as f64;
+        let offset = term.grid().display_offset();
+        let column = Column((mouse_event.pos.x / col_size) as usize);
+        let line = Line((mouse_event.pos.y / row_size) as i32 - offset as i32);
+        match &mut term.selection {
+            Some(selection) => selection.update(
+                alacritty_terminal::index::Point { line, column },
+                Direction::Left,
+            ),
+            None => {
+                term.selection = Some(Selection::new(
+                    ty,
+                    alacritty_terminal::index::Point { line, column },
+                    Direction::Left,
+                ));
+            }
+        }
+    }
 }
 
 impl Widget<LapceTabData> for LapceTerminal {
@@ -519,9 +547,55 @@ impl Widget<LapceTabData> for LapceTerminal {
             config: data.config.clone(),
             find: data.find.clone(),
         };
+        ctx.set_cursor(&Cursor::IBeam);
         match event {
-            Event::MouseDown(_mouse_event) => {
+            Event::MouseDown(mouse_event) => {
                 self.request_focus(ctx, data);
+                let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
+                let term = &mut terminal.raw.lock().term;
+                if mouse_event.button.is_right() {
+                    let mut clipboard = SystemClipboard {};
+                    match term.selection_to_string() {
+                        Some(selection) => {
+                            clipboard.put_string(selection);
+                            term.selection = None;
+                        }
+                        None => match clipboard.get_string() {
+                            Some(string) => {
+                                terminal.proxy.proxy_rpc.terminal_write(
+                                    terminal.term_id,
+                                    string.as_str(),
+                                );
+                                term.scroll_display(Scroll::Bottom);
+                            }
+                            None => {}
+                        },
+                    }
+                } else if mouse_event.button.is_left() {
+                    match mouse_event.count {
+                        2 => self.select(term, mouse_event, SelectionType::Semantic),
+                        _ => {
+                            term.selection = None;
+                            if mouse_event.count == 3 {
+                                self.select(term, mouse_event, SelectionType::Lines);
+                            }
+                        }
+                    }
+                }
+            }
+            Event::MouseMove(mouse_event) => {
+                if mouse_event.buttons.has_left() {
+                    let term = &mut data
+                        .terminal
+                        .terminals
+                        .get(&self.term_id)
+                        .unwrap()
+                        .raw
+                        .lock()
+                        .term;
+                    self.select(term, mouse_event, SelectionType::Simple);
+                    ctx.request_paint();
+                }
             }
             Event::Wheel(wheel_event) => {
                 data.terminal
