@@ -474,7 +474,7 @@ struct LapceTerminal {
     widget_id: WidgetId,
     width: f64,
     height: f64,
-    prev_click: Option<Instant>,
+    prev_left_click: Option<Instant>,
 }
 
 impl LapceTerminal {
@@ -484,7 +484,7 @@ impl LapceTerminal {
             widget_id: data.widget_id,
             width: 0.0,
             height: 0.0,
-            prev_click: None,
+            prev_left_click: None,
         }
     }
 
@@ -576,15 +576,15 @@ impl Widget<LapceTabData> for LapceTerminal {
                             None => {}
                         },
                     }
-                } else {
+                } else if mouse_event.button.is_left() {
                     term.selection = None;
-                    if self.prev_click != None
-                        && (now - self.prev_click.unwrap()).as_millis()
+                    if self.prev_left_click != None
+                        && (now - self.prev_left_click.unwrap()).as_millis()
                             < DOUBLE_CLICK_TIMEOUT
                     {
                         self.select(term, mouse_event, SelectionType::Semantic);
                     }
-                    self.prev_click = Some(now);
+                    self.prev_left_click = Some(now);
                 }
             }
             Event::MouseMove(mouse_event) => {
