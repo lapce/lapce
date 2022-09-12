@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 use alacritty_terminal::{
     grid::{Dimensions, Scroll},
@@ -31,8 +31,6 @@ use crate::{
     svg::get_svg,
     tab::LapceIcon,
 };
-
-const DOUBLE_CLICK_TIMEOUT: u128 = 500; // In ms
 
 pub type TermConfig = alacritty_terminal::config::Config;
 
@@ -474,7 +472,6 @@ struct LapceTerminal {
     widget_id: WidgetId,
     width: f64,
     height: f64,
-    prev_left_click: Option<Instant>,
 }
 
 impl LapceTerminal {
@@ -484,7 +481,6 @@ impl LapceTerminal {
             widget_id: data.widget_id,
             width: 0.0,
             height: 0.0,
-            prev_left_click: None,
         }
     }
 
@@ -554,7 +550,6 @@ impl Widget<LapceTabData> for LapceTerminal {
         ctx.set_cursor(&Cursor::IBeam);
         match event {
             Event::MouseDown(mouse_event) => {
-                let now = Instant::now();
                 self.request_focus(ctx, data);
                 let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
                 let term = &mut terminal.raw.lock().term;
@@ -577,14 +572,15 @@ impl Widget<LapceTabData> for LapceTerminal {
                         },
                     }
                 } else if mouse_event.button.is_left() {
-                    term.selection = None;
-                    if self.prev_left_click != None
-                        && (now - self.prev_left_click.unwrap()).as_millis()
-                            < DOUBLE_CLICK_TIMEOUT
-                    {
-                        self.select(term, mouse_event, SelectionType::Semantic);
+                    match mouse_event.count {
+                        2 => self.select(term, mouse_event, SelectionType::Semantic),
+                        3 | _ => {
+                            term.selection = None;
+                            if mouse_event.count == 3 {
+                                self.select(term, mouse_event, SelectionType::Lines);
+                            }
+                        }
                     }
-                    self.prev_left_click = Some(now);
                 }
             }
             Event::MouseMove(mouse_event) => {
