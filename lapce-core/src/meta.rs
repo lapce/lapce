@@ -1,8 +1,10 @@
 use once_cell::sync::Lazy;
 
-pub static NAME: Lazy<&str> = Lazy::new(application_name);
+pub static NAME: Lazy<&str> = Lazy::new(name);
+pub static CHANNEL: Lazy<&str> = Lazy::new(channel);
+pub static VERSION: Lazy<&str> = Lazy::new(version);
 
-fn application_name() -> &'static str {
+fn name() -> &'static str {
     if cfg!(debug_assertions) {
         "Lapce-Debug"
     } else if option_env!("RELEASE_TAG_NAME")
@@ -15,7 +17,18 @@ fn application_name() -> &'static str {
     }
 }
 
-pub static VERSION: Lazy<&str> = Lazy::new(version);
+fn channel() -> &'static str {
+    if cfg!(debug_assertions) {
+        "Debug"
+    } else if option_env!("RELEASE_TAG_NAME")
+        .unwrap_or("")
+        .starts_with("nightly")
+    {
+        "Nightly"
+    } else {
+        "Stable"
+    }
+}
 
 fn version() -> &'static str {
     if cfg!(debug_assertions) {
