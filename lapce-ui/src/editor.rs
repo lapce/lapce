@@ -10,7 +10,6 @@ use druid::{
     Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
 };
 use druid::{Modifiers, TimerToken};
-use itertools::Itertools;
 use lapce_core::buffer::DiffLines;
 use lapce_core::command::EditCommand;
 use lapce_core::{
@@ -825,12 +824,7 @@ impl LapceEditor {
         Self::paint_text(ctx, data, &screen_lines, env);
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
-        Self::paint_sticky_headers(
-            ctx,
-            data,
-            screen_lines.lines.first().copied().unwrap_or(0),
-            env,
-        );
+        Self::paint_sticky_headers(ctx, data, env);
 
         if let Some(placeholder) = self.placeholder.as_ref() {
             if data.doc.buffer().is_empty() {
@@ -1384,7 +1378,6 @@ impl LapceEditor {
     fn paint_sticky_headers(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
-        start_line: usize,
         env: &Env,
     ) {
         let line_height = Self::line_height(data, env);
@@ -1392,37 +1385,88 @@ impl LapceEditor {
         let rect = ctx.region().bounding_box();
         let x0 = rect.x0;
         let y0 = rect.y0;
-        let mut i = 0;
-        if let Some(offsets) = data.doc.sticky_headers(start_line) {
-            for offset in offsets.iter().sorted() {
-                let line = data.doc.buffer().line_of_offset(*offset);
-                if line as f64 * line_height < y0 + i as f64 * line_height {
-                    ctx.fill(
-                        Size::new(size.width, line_height).to_rect().with_origin(
-                            Point::new(0.0, y0 + line_height * i as f64),
-                        ),
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-                    );
-                    let text_layout = data.doc.get_text_layout(
-                        ctx.text(),
-                        line,
-                        data.config.editor.font_size,
-                        &data.config,
-                    );
-                    let y = y0
-                        + line_height * i as f64
-                        + text_layout.text.y_offset(line_height);
-                    ctx.draw_text(&text_layout.text, Point::new(x0, y));
-                    i += 1;
+        let start_line = (rect.y0 / line_height).floor() as usize;
+        let y_diff = y0 - start_line as f64 * line_height;
+        let mut last_sticky_should_scroll = false;
+
+        let mut sticky_lines = Vec::new();
+        if let Some(lines) = data.doc.sticky_headers(start_line) {
+            let total_lines = lines.len();
+            if total_lines > 0 {
+                let line = start_line + total_lines;
+                if let Some(new_lines) = data.doc.sticky_headers(line) {
+                    if new_lines.len() > total_lines {
+                        sticky_lines = new_lines;
+                    } else {
+                        sticky_lines = lines;
+                        last_sticky_should_scroll = new_lines.len() < total_lines;
+                        if new_lines.len() < total_lines {
+                            if let Some(new_new_lines) =
+                                data.doc.sticky_headers(start_line + total_lines - 1)
+                            {
+                                if new_new_lines.len() < total_lines {
+                                    sticky_lines.pop();
+                                    last_sticky_should_scroll = false;
+                                }
+                            } else {
+                                sticky_lines.pop();
+                                last_sticky_should_scroll = false;
+                            }
+                        }
+                    }
+                } else {
+                    sticky_lines = lines;
+                    last_sticky_should_scroll = true;
                 }
             }
         }
+
+        let mut i = 0;
+        let total_stickly_lines = sticky_lines.len();
+        for line in sticky_lines {
+            let y_diff = if last_sticky_should_scroll && i == total_stickly_lines - 1
+            {
+                y_diff
+            } else {
+                0.0
+            };
+            let rect = Size::new(size.width, line_height - y_diff)
+                .to_rect()
+                .with_origin(Point::new(0.0, y0 + line_height * i as f64));
+            ctx.with_save(|ctx| {
+                ctx.clip(rect);
+                ctx.fill(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                );
+                let text_layout = data.doc.get_text_layout(
+                    ctx.text(),
+                    line,
+                    data.config.editor.font_size,
+                    &data.config,
+                );
+                let y = y0
+                    + line_height * i as f64
+                    + text_layout.text.y_offset(line_height)
+                    - y_diff;
+                ctx.draw_text(&text_layout.text, Point::new(x0, y));
+            });
+            i += 1;
+        }
+
         if i > 0 {
             ctx.blurred_rect(
                 Size::new(size.width, i as f64 * line_height)
                     .to_rect()
-                    .with_origin(Point::new(0.0, y0)),
+                    .with_origin(Point::new(
+                        0.0,
+                        y0 - if last_sticky_should_scroll {
+                            y_diff
+                        } else {
+                            0.0
+                        },
+                    )),
                 3.0,
                 data.config
                     .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),

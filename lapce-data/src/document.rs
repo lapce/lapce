@@ -2539,12 +2539,20 @@ impl Document {
     }
 
     pub fn sticky_headers(&self, line: usize) -> Option<Vec<usize>> {
-        let offset = self.buffer.offset_of_line(line);
+        let offset = self.buffer.offset_of_line(line + 1);
         self.syntax.as_ref()?.sticky_headers(offset).map(|offsets| {
             offsets
                 .iter()
-                .map(|offset| self.buffer.line_of_offset(*offset))
+                .filter_map(|offset| {
+                    let l = self.buffer.line_of_offset(*offset);
+                    if l <= line {
+                        Some(l)
+                    } else {
+                        None
+                    }
+                })
                 .dedup()
+                .sorted()
                 .collect()
         })
     }

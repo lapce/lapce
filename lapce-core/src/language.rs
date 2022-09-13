@@ -209,7 +209,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             &["source_file", "impl_item", "trait_item", "declaration_list"],
             &["source_file", "use_declaration", "line_comment"],
         ),
-        sticky_headers: &["function_item", "impl_item"],
+        sticky_headers: &["struct_item", "function_item", "impl_item"],
         extensions: &["rs"],
     },
     #[cfg(feature = "lang-go")]
