@@ -94,6 +94,12 @@ all-languages = [
     "lang-yaml",
     "lang-julia",
     "lang-wgsl",
+    "lang-dockerfile",
+    "lang-csharp",
+    "lang-nix",
+    "lang-dart",
+    "lang-svelte",
+    "lang-latex",
 ]
 
 lang-rust = ["lapce-core/lang-rust"]
@@ -127,3 +133,9 @@ lang-bash = ["lapce-core/lang-bash"]
 lang-yaml = ["lapce-core/lang-yaml"]
 lang-julia = ["lapce-core/lang-julia"]
 lang-wgsl = ["lapce-core/lang-wgsl"]
+lang-dockerfile = ["lapce-core/lang-dockerfile"]
+lang-csharp = ["lapce-core/lang-csharp"]
+lang-nix = ["lapce-core/lang-nix"]
+lang-dart = ["lapce-core/lang-dart"]
+lang-svelte = ["lapce-core/lang-svelte"]
+lang-latex = ["lapce-core/lang-latex"]

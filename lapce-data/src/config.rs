@@ -267,11 +267,11 @@ impl EditorConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct UIConfig {
     #[field_names(
-        desc = "Set the ui font family. If empty, it uses system default."
+        desc = "Set the UI font family. If empty, it uses system default."
     )]
     font_family: String,
 
-    #[field_names(desc = "Set the ui base font size")]
+    #[field_names(desc = "Set the UI base font size")]
     font_size: usize,
 
     #[field_names(

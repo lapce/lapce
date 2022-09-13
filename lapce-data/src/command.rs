@@ -205,6 +205,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open File")]
     OpenFile,
 
+    #[strum(serialize = "reveal_active_file_in_file_explorer")]
+    #[strum(message = "Reveal Active File in File Explorer")]
+    RevealActiveFileInFileExplorer,
+
     #[strum(serialize = "change_theme")]
     #[strum(message = "Change Theme")]
     ChangeTheme,
@@ -441,6 +445,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Save All Files")]
     #[strum(serialize = "save_all")]
     SaveAll,
+
+    #[strum(serialize = "quit")]
+    #[strum(message = "Quit Editor")]
+    Quit,
 }
 
 #[derive(Debug)]
@@ -507,6 +515,7 @@ pub enum LapceUICommand {
     },
     OpenFile(PathBuf, bool),
     OpenFileDiff(PathBuf, String),
+    RevealInFileExplorer(PathBuf),
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
     UpdateCompletion(usize, String, CompletionResponse, PluginId),
@@ -641,6 +650,7 @@ pub enum LapceUICommand {
     JumpToLspLocation(Option<WidgetId>, EditorLocation<Position>, bool),
     JumpToLineLocation(Option<WidgetId>, EditorLocation<Line>),
     JumpToLineColLocation(Option<WidgetId>, EditorLocation<LineCol>, bool),
+    ToggleProblem(PathBuf),
     TerminalJumpToLine(i32),
     GoToLocation(Option<WidgetId>, EditorLocation, bool),
     GotoDefinition {

@@ -9,6 +9,9 @@ thiserror = "1.0"
 itertools = "0.10.3"
 log = "0.4.14"
 bitflags = "1.3.2"
+once_cell = "1.13.0"
+slotmap = "1.0"
+arc-swap = "1.5.1"
 strum = "0.24.0"
 strum_macros = "0.24"
 serde = "1.0"
@@ -29,8 +32,10 @@ tree-sitter-php = { git = "https://github.com/tree-sitter/tree-sitter-php.git", 
 tree-sitter-ruby = { git = "https://github.com/tree-sitter/tree-sitter-ruby.git", rev = "656abef", optional = true  }
 tree-sitter-c = { version = "0.20.1", optional = true }
 tree-sitter-cpp = { version = "0.20.0", optional = true }
-tree-sitter-json = { version = "0.19.0", optional = true }
-tree-sitter-md = { git = "https://github.com/dzhou121/tree-sitter-markdown.git", version = "0.0.1", optional = true  }
+# new version cannot be published on crates.io - https://github.com/tree-sitter/tree-sitter-json/issues/21
+# tree-sitter-json = { version = "0.19.0", optional = true }
+tree-sitter-json = { git = "https://github.com/tree-sitter/tree-sitter-json.git", rev = "11e2cc12d9b267766fb11a06e52952792fd8e3f0", optional = true }
+tree-sitter-md = { git = "https://github.com/MDeiml/tree-sitter-markdown.git", branch = "split_parser", optional = true }
 tree-sitter-html = { version = "0.19.0", optional = true }
 tree-sitter-java = { git = "https://github.com/tree-sitter/tree-sitter-java.git", version = "0.20.0", optional = true  }
 tree-sitter-elm = { version = "5.6.0", optional = true }
@@ -51,6 +56,12 @@ tree-sitter-bash = { git = "https://github.com/syntacti/tree-sitter-bash", branc
 tree-sitter-yaml = { git = "https://github.com/panekj/tree-sitter-yaml", branch = "master", optional = true }
 tree-sitter-julia = { git = "https://github.com/varlad/tree-sitter-julia", branch = "master", optional = true }
 tree-sitter-wgsl = { git = "https://github.com/szebniok/tree-sitter-wgsl", branch = "master", optional = true }
+tree-sitter-dockerfile = { git = "https://github.com/panekj/tree-sitter-dockerfile", branch = "queries", optional = true }
+tree-sitter-c-sharp = { git = "https://github.com/tree-sitter/tree-sitter-c-sharp", branch = "master", optional = true }
+tree-sitter-nix = { git = "https://github.com/panekj/tree-sitter-nix", branch = "master", optional = true }
+tree-sitter-dart = { git = "https://github.com/syntacti/tree-sitter-dart", branch = "master", optional = true }
+tree-sitter-svelte = { git = "https://github.com/Himujjal/tree-sitter-svelte", branch = "master", optional = true }
+tree-sitter-latex = { git = "https://github.com/latex-lsp/tree-sitter-latex", branch = "master", optional = true }
 
 [features]
 default = []
@@ -88,3 +99,9 @@ lang-bash = ["dep:tree-sitter-bash"]
 lang-yaml = ["dep:tree-sitter-yaml"]
 lang-julia = ["dep:tree-sitter-julia"]
 lang-wgsl = ["dep:tree-sitter-wgsl"]
+lang-dockerfile = ["dep:tree-sitter-dockerfile"]
+lang-csharp = ["dep:tree-sitter-c-sharp"]
+lang-nix = ["dep:tree-sitter-nix"]
+lang-dart = ["dep:tree-sitter-dart"]
+lang-svelte = ["dep:tree-sitter-svelte"]
+lang-latex = ["dep:tree-sitter-latex"]

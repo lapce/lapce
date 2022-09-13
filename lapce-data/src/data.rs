@@ -550,6 +550,8 @@ impl LapceWindowData {
 pub struct EditorDiagnostic {
     pub range: (usize, usize),
     pub diagnostic: Diagnostic,
+    /// Line counter for the editor diagnostic.
+    /// Contains the total number of message lines and related information lines
     pub lines: usize,
 }
 
@@ -1211,6 +1213,22 @@ impl LapceTabData {
                     }
                 }
             }
+            LapceWorkbenchCommand::RevealActiveFileInFileExplorer => {
+                let path = if let Some(editor) = self.main_split.active_editor() {
+                    match &editor.content {
+                        BufferContent::File(path) => path,
+                        _ => return,
+                    }
+                } else {
+                    return;
+                };
+
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RevealInFileExplorer(path.to_owned()),
+                    Target::Auto,
+                ))
+            }
             LapceWorkbenchCommand::EnableModal => {
                 let config = Arc::make_mut(&mut self.config);
                 config.lapce.modal = true;
@@ -1527,7 +1545,7 @@ impl LapceTabData {
                     .local_docs
                     .get_mut(&LocalBufferKind::SourceControl)
                     .unwrap();
-                let message = doc.buffer().text().to_string();
+                let message = doc.buffer().to_string();
                 let message = message.trim();
                 if message.is_empty() {
                     return;
@@ -1660,6 +1678,9 @@ impl LapceTabData {
                         }
                     }
                 }
+            }
+            LapceWorkbenchCommand::Quit => {
+                ctx.submit_command(druid::commands::QUIT_APP);
             }
         }
     }
@@ -3243,7 +3264,7 @@ impl LapceMainSplitData {
                     doc.id(),
                     path.to_path_buf(),
                     doc.rev(),
-                    doc.buffer().text().to_string(),
+                    doc.buffer().to_string(),
                     Box::new(move |result| {
                         if let Ok(_r) = result {
                             let _ = event_sink.submit_command(
@@ -3839,7 +3860,7 @@ impl LapceEditorData {
     pub fn editor_info(&self, data: &LapceTabData) -> EditorInfo {
         let unsaved = if let BufferContent::Scratch(id, _) = &self.content {
             let doc = data.main_split.scratch_docs.get(id).unwrap();
-            Some(doc.buffer().text().to_string())
+            Some(doc.buffer().to_string())
         } else {
             None
         };

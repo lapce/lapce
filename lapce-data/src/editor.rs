@@ -1599,7 +1599,7 @@ impl LapceEditorBufferData {
             }
             GlobalSearchRefresh => {
                 let tab_id = *self.main_split.tab_id;
-                let pattern = self.doc.buffer().text().to_string();
+                let pattern = self.doc.buffer().to_string();
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateSearch(pattern),

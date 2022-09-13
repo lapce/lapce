@@ -464,9 +464,6 @@ impl Widget<LapceTabData> for LapceEditorTab {
             }
             _ => (),
         }
-        if ctx.is_handled() {
-            return;
-        }
         self.header.event(ctx, event, data, env);
         if event.should_propagate_to_hidden() {
             for child in self.children.iter_mut() {

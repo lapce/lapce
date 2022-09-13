@@ -266,9 +266,8 @@ impl DocumentHistory {
 
             let content = self.buffer.as_ref().unwrap().text().clone();
             rayon::spawn(move || {
-                if let Some(syntax) =
-                    Syntax::init(&path).map(|s| s.parse(0, content, None))
-                {
+                if let Some(mut syntax) = Syntax::init(&path) {
+                    syntax.parse(0, content, None);
                     if let Some(styles) = syntax.styles {
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,

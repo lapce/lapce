@@ -433,9 +433,9 @@ impl Title {
             MenuKind::Item(MenuItem {
                 desc: Some(
                     if latest_version.is_some() && latest_version != Some(*VERSION) {
-                        format!("Restart to Update ({})", latest_version.unwrap())
+                        format!("Restart to update ({})", latest_version.unwrap())
                     } else {
-                        "Restart to Update".to_string()
+                        "No update available".to_string()
                     },
                 ),
                 command: LapceCommand {

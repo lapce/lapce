@@ -871,7 +871,6 @@ impl Widget<PaletteViewData> for PaletteContent {
         match event {
             Event::MouseMove(_mouse_event) => {
                 ctx.set_cursor(&druid::Cursor::Pointer);
-                ctx.set_handled();
             }
             Event::MouseDown(mouse_event) => {
                 let line = (mouse_event.pos.y / self.line_height).floor() as usize;

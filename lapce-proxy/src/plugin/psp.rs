@@ -12,7 +12,7 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
 use jsonrpc_lite::{JsonRpc, Params};
-use lapce_core::{buffer::RopeText, encoding::offset_utf16_to_utf8};
+use lapce_core::{buffer::rope_text::RopeText, encoding::offset_utf16_to_utf8};
 use lapce_rpc::{
     plugin::PluginId,
     style::{LineStyle, Style},
@@ -1019,7 +1019,7 @@ fn format_semantic_styles(
         } else {
             // Bad semantic token offsets
             log::error!("Bad semantic token starty {semantic_token:?}");
-            break;
+            continue;
         };
 
         let sub_text = text.char_indices_iter(start..);
@@ -1029,7 +1029,7 @@ fn format_semantic_styles(
             start + utf8_length
         } else {
             log::error!("Bad semantic token end {semantic_token:?}");
-            break;
+            continue;
         };
 
         let kind = semantic_legends.token_types[semantic_token.token_type as usize]
