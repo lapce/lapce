@@ -82,6 +82,15 @@ impl Editor {
                     let offset = region.end;
                     let cursor_char = buffer.char_at_offset(offset);
 
+                    if (c == '"' || c == '\'') && cursor_char == Some(c) {
+                        // Skip the closing character
+                        let new_offset =
+                            buffer.next_grapheme_offset(offset, 1, buffer.len());
+
+                        *region = SelRegion::caret(new_offset);
+                        continue;
+                    }
+
                     if matching_pair_type == Some(false) {
                         if cursor_char == Some(c) {
                             // Skip the closing character
@@ -119,7 +128,7 @@ impl Editor {
                         }
                     }
 
-                    if matching_pair_type == Some(true) {
+                    if matching_pair_type == Some(true) || c == '"' || c == '\'' {
                         // Create a late edit to insert the closing pair, if allowed.
                         let is_whitespace_or_punct = cursor_char
                             .map(|c| {
@@ -131,7 +140,11 @@ impl Editor {
                             .unwrap_or(true);
 
                         if is_whitespace_or_punct {
-                            let insert_after = matching_char(c).unwrap();
+                            let insert_after = match c {
+                                '"' => '"',
+                                '\'' => '\'',
+                                _ => matching_char(c).unwrap(),
+                            };
                             edits_after.push((idx, insert_after));
                         }
                     };
@@ -1005,8 +1018,16 @@ impl Editor {
                                     selection.min_offset()..selection.max_offset(),
                                 )
                                 .to_string();
-                            if str_is_pair_left(&delete_str) {
-                                if let Some(c) = str_matching_pair(&delete_str) {
+                            if str_is_pair_left(&delete_str)
+                                || delete_str == "\""
+                                || delete_str == "'"
+                            {
+                                let matching_char = match delete_str.as_str() {
+                                    "\"" => Some('"'),
+                                    "'" => Some('\''),
+                                    _ => str_matching_pair(&delete_str),
+                                };
+                                if let Some(c) = matching_char {
                                     let offset = selection.max_offset();
                                     let line = buffer.line_of_offset(offset);
                                     let line_end =
