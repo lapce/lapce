@@ -10,6 +10,7 @@ use druid::{
     Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
 };
 use druid::{Modifiers, TimerToken};
+use itertools::Itertools;
 use lapce_core::buffer::DiffLines;
 use lapce_core::command::EditCommand;
 use lapce_core::{
@@ -824,6 +825,12 @@ impl LapceEditor {
         Self::paint_text(ctx, data, &screen_lines, env);
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
+        Self::paint_sticky_headers(
+            ctx,
+            data,
+            screen_lines.lines.first().copied().unwrap_or(0),
+            env,
+        );
 
         if let Some(placeholder) = self.placeholder.as_ref() {
             if data.doc.buffer().is_empty() {
@@ -1371,6 +1378,55 @@ impl LapceEditor {
                     );
                 }
             }
+        }
+    }
+
+    fn paint_sticky_headers(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        start_line: usize,
+        env: &Env,
+    ) {
+        let line_height = Self::line_height(data, env);
+        let size = ctx.size();
+        let rect = ctx.region().bounding_box();
+        let x0 = rect.x0;
+        let y0 = rect.y0;
+        let mut i = 0;
+        if let Some(offsets) = data.doc.sticky_headers(start_line) {
+            for offset in offsets.iter().sorted() {
+                let line = data.doc.buffer().line_of_offset(*offset);
+                if line as f64 * line_height < y0 + i as f64 * line_height {
+                    ctx.fill(
+                        Size::new(size.width, line_height).to_rect().with_origin(
+                            Point::new(0.0, y0 + line_height * i as f64),
+                        ),
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                    );
+                    let text_layout = data.doc.get_text_layout(
+                        ctx.text(),
+                        line,
+                        data.config.editor.font_size,
+                        &data.config,
+                    );
+                    let y = y0
+                        + line_height * i as f64
+                        + text_layout.text.y_offset(line_height);
+                    ctx.draw_text(&text_layout.text, Point::new(x0, y));
+                    i += 1;
+                }
+            }
+        }
+        if i > 0 {
+            ctx.blurred_rect(
+                Size::new(size.width, i as f64 * line_height)
+                    .to_rect()
+                    .with_origin(Point::new(0.0, y0)),
+                3.0,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
         }
     }
 

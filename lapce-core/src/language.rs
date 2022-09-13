@@ -91,6 +91,8 @@ struct SyntaxProperties {
     /// `walk_tree`. If unsure, use `DEFAULT_CODE_LENS_LIST` and
     /// `DEFAULT_CODE_LENS_IGNORE_LIST`.
     code_lens: (&'static [&'static str], &'static [&'static str]),
+    /// the tree sitter tag names that can be put in sticky headers
+    sticky_headers: &'static [&'static str],
     /// File name extensions to determine the language.  `["py"]` for python,
     /// `["rs"]` for rust, for example.
     extensions: &'static [&'static str],
@@ -207,6 +209,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             &["source_file", "impl_item", "trait_item", "declaration_list"],
             &["source_file", "use_declaration", "line_comment"],
         ),
+        sticky_headers: &["function_item", "impl_item"],
         extensions: &["rs"],
     },
     #[cfg(feature = "lang-go")]
@@ -227,6 +230,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             ],
             &["source_file", "comment", "line_comment"],
         ),
+        sticky_headers: &[],
         extensions: &["go"],
     },
     #[cfg(feature = "lang-javascript")]
@@ -238,6 +242,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "  ",
         code_lens: (&["source_file", "program"], &["source_file"]),
+        sticky_headers: &[],
         extensions: &["js", "cjs", "mjs"],
     },
     #[cfg(feature = "lang-javascript")]
@@ -250,6 +255,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "  ",
         code_lens: (&["source_file", "program"], &["source_file"]),
+        sticky_headers: &[],
         extensions: &["jsx"],
     },
     #[cfg(feature = "lang-typescript")]
@@ -261,6 +267,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (&["source_file", "program"], &["source_file"]),
+        sticky_headers: &[],
         extensions: &["ts", "cts", "mts"],
     },
     #[cfg(feature = "lang-typescript")]
@@ -272,6 +279,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (&["source_file", "program"], &["source_file"]),
+        sticky_headers: &[],
         extensions: &["tsx"],
     },
     #[cfg(feature = "lang-python")]
@@ -294,6 +302,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             ],
             &["source_file", "import_statement", "import_from_statement"],
         ),
+        sticky_headers: &[],
         extensions: &["py", "pyi", "pyc", "pyd", "pyw"],
     },
     #[cfg(feature = "lang-toml")]
@@ -305,6 +314,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["toml"],
     },
     #[cfg(feature = "lang-php")]
@@ -316,6 +326,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["php"],
     },
     #[cfg(feature = "lang-elixir")]
@@ -327,6 +338,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["ex", "exs", "eex", "heex", "sface"],
     },
     #[cfg(feature = "lang-c")]
@@ -338,6 +350,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["c", "h"],
     },
     #[cfg(feature = "lang-cpp")]
@@ -349,6 +362,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["cpp", "cxx", "cc", "c++", "hpp", "hxx", "hh", "h++"],
     },
     #[cfg(feature = "lang-json")]
@@ -360,6 +374,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["json"],
     },
     #[cfg(feature = "lang-markdown")]
@@ -371,6 +386,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["md"],
     },
     #[cfg(feature = "lang-markdown")]
@@ -382,6 +398,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         // markdown inline is only used as an injection by the Markdown language
         extensions: &[],
     },
@@ -394,6 +411,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["rb"],
     },
     #[cfg(feature = "lang-html")]
@@ -405,6 +423,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["html", "htm"],
     },
     #[cfg(feature = "lang-java")]
@@ -416,6 +435,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["java"],
     },
     #[cfg(feature = "lang-elm")]
@@ -427,6 +447,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["elm"],
     },
     #[cfg(feature = "lang-swift")]
@@ -438,6 +459,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["swift"],
     },
     #[cfg(feature = "lang-ql")]
@@ -449,6 +471,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["ql"],
     },
     #[cfg(feature = "lang-haskell")]
@@ -460,6 +483,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "--",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["hs"],
     },
     #[cfg(feature = "lang-glimmer")]
@@ -471,6 +495,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "{{!",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["hbs"],
     },
     #[cfg(feature = "lang-haxe")]
@@ -482,6 +507,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["hx"],
     },
     #[cfg(feature = "lang-hcl")]
@@ -493,6 +519,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["hcl"],
     },
     #[cfg(feature = "lang-ocaml")]
@@ -504,6 +531,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "(*",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["ml"],
     },
     #[cfg(feature = "lang-ocaml")]
@@ -515,6 +543,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "(*",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["mli"],
     },
     #[cfg(feature = "lang-scss")]
@@ -526,6 +555,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["scss"],
     },
     #[cfg(feature = "lang-hare")]
@@ -537,6 +567,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "        ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["ha"],
     },
     #[cfg(feature = "lang-css")]
@@ -548,6 +579,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "/*",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["css"],
     },
     #[cfg(feature = "lang-zig")]
@@ -559,6 +591,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["zig"],
     },
     #[cfg(feature = "lang-bash")]
@@ -570,6 +603,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["sh", "bash"],
     },
     #[cfg(feature = "lang-yaml")]
@@ -581,6 +615,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["yml", "yaml"],
     },
     #[cfg(feature = "lang-julia")]
@@ -592,6 +627,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["julia", "jl"],
     },
     #[cfg(feature = "lang-wgsl")]
@@ -603,6 +639,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["wgsl"],
     },
     #[cfg(feature = "lang-dockerfile")]
@@ -614,6 +651,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["dockerfile"],
     },
     #[cfg(feature = "lang-csharp")]
@@ -625,6 +663,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["cs", "csx"],
     },
     #[cfg(feature = "lang-nix")]
@@ -636,6 +675,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["nix"],
     },
     #[cfg(feature = "lang-dart")]
@@ -647,6 +687,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["dart"],
     },
     #[cfg(feature = "lang-svelte")]
@@ -717,6 +758,10 @@ impl LapceLanguage {
             self
         );
         l
+    }
+
+    pub fn sticky_header_tags(&self) -> &[&'static str] {
+        self.properties().sticky_headers
     }
 
     pub fn comment_token(&self) -> &str {

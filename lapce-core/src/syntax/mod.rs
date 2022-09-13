@@ -766,6 +766,26 @@ impl Syntax {
         }
         None
     }
+
+    pub fn sticky_headers(&self, offset: usize) -> Option<Vec<usize>> {
+        let tree = self.layers.try_tree()?;
+        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
+        let mut offsets = Vec::new();
+        let sticky_header_tags = self.language.sticky_header_tags();
+        loop {
+            if sticky_header_tags.iter().any(|t| *t == node.kind()) {
+                offsets.push(node.start_byte());
+            } else {
+                println!("kind {}", node.kind());
+            }
+            if let Some(p) = node.parent() {
+                node = p;
+            } else {
+                break;
+            }
+        }
+        Some(offsets)
+    }
 }
 
 #[cfg(test)]

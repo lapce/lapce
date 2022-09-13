@@ -13,6 +13,7 @@ use druid::{
     },
     Color, ExtEventSink, Point, Size, Target, Vec2, WidgetId,
 };
+use itertools::Itertools;
 use lapce_core::{
     buffer::{Buffer, DiffLines, InvalLines},
     command::{EditCommand, MultiSelectionCommand},
@@ -2535,5 +2536,16 @@ impl Document {
                 }
             }
         }
+    }
+
+    pub fn sticky_headers(&self, line: usize) -> Option<Vec<usize>> {
+        let offset = self.buffer.offset_of_line(line);
+        self.syntax.as_ref()?.sticky_headers(offset).map(|offsets| {
+            offsets
+                .iter()
+                .map(|offset| self.buffer.line_of_offset(*offset))
+                .dedup()
+                .collect()
+        })
     }
 }
