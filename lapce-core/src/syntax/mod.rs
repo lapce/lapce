@@ -775,8 +775,6 @@ impl Syntax {
         loop {
             if sticky_header_tags.iter().any(|t| *t == node.kind()) {
                 offsets.push(node.start_byte());
-            } else {
-                println!("kind {}", node.kind());
             }
             if let Some(p) = node.parent() {
                 node = p;

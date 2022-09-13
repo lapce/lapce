@@ -699,6 +699,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["svelte"],
     },
     #[cfg(feature = "lang-latex")]
@@ -710,6 +711,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "%",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
         extensions: &["tex"],
     },
 ];
