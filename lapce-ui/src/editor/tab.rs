@@ -635,9 +635,11 @@ impl TabRectRenderer for TabRect {
             let color = if data.focus_area == FocusArea::Editor
                 && Some(widget_id) == *data.main_split.active_tab
             {
-                data.config.get_color_unchecked(LapceTheme::EDITOR_CARET)
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB)
             } else {
-                data.config.get_color_unchecked(LapceTheme::EDITOR_DIM)
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_INACTIVE_TAB)
             };
             ctx.stroke(
                 Line::new(
