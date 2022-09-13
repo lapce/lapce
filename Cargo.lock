@@ -5169,7 +5169,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-ruby"
 version = "0.19.0"
-source = "git+https://github.com/Liberatys/tree-sitter-ruby.git?branch=chore/allow-range-of-tree-sitter#26086eeb072266abf51273af631a2cb62d0fd1e8"
+source = "git+https://github.com/tree-sitter/tree-sitter-ruby.git?rev=656abef#656abef0645caea793e33c1c773570722463e1d8"
 dependencies = [
  "cc",
  "tree-sitter",
