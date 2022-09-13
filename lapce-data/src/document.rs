@@ -406,6 +406,7 @@ pub struct Document {
     line_styles: Rc<RefCell<LineStyles>>,
     semantic_styles: Option<Arc<Spans<Style>>>,
     pub text_layouts: Rc<RefCell<TextLayoutCache>>,
+    pub sticky_headers: Rc<RefCell<HashMap<usize, Option<Vec<usize>>>>>,
     load_started: Rc<RefCell<bool>>,
     loaded: bool,
     histories: im::HashMap<String, DocumentHistory>,
@@ -446,6 +447,7 @@ impl Document {
             syntax,
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
             load_started: Rc::new(RefCell::new(false)),
             histories: im::HashMap::new(),
@@ -858,6 +860,7 @@ impl Document {
         self.get_inlay_hints();
         self.get_semantic_styles();
         self.clear_style_cache();
+        self.clear_sticky_headers_cache();
         self.trigger_syntax_change(deltas);
         self.trigger_head_change();
         self.notify_special();
@@ -923,6 +926,11 @@ impl Document {
         if self.semantic_styles.is_none() {
             self.clear_style_cache();
         }
+        self.clear_sticky_headers_cache();
+    }
+
+    fn clear_sticky_headers_cache(&self) {
+        self.sticky_headers.borrow_mut().clear();
     }
 
     pub fn set_semantic_styles(&mut self, styles: Option<Arc<Spans<Style>>>) {
@@ -2539,8 +2547,11 @@ impl Document {
     }
 
     pub fn sticky_headers(&self, line: usize) -> Option<Vec<usize>> {
+        if let Some(lines) = self.sticky_headers.borrow().get(&line) {
+            return lines.clone();
+        }
         let offset = self.buffer.offset_of_line(line + 1);
-        self.syntax.as_ref()?.sticky_headers(offset).map(|offsets| {
+        let lines = self.syntax.as_ref()?.sticky_headers(offset).map(|offsets| {
             offsets
                 .iter()
                 .filter_map(|offset| {
@@ -2554,6 +2565,8 @@ impl Document {
                 .dedup()
                 .sorted()
                 .collect()
-        })
+        });
+        self.sticky_headers.borrow_mut().insert(line, lines.clone());
+        lines
     }
 }
