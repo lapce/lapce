@@ -374,12 +374,12 @@ impl LapceSplit {
             // TODO: provide information about which child widget this is, so that we can actually resize it!
             if self.direction == SplitDirection::Vertical {
                 let x = child.layout_rect.x0;
-                if mouse_pos.x >= x - 5.0 && mouse_pos.x <= x + 5.0 {
+                if mouse_pos.x >= x - 2.0 && mouse_pos.x <= x + 2.0 {
                     return Some(child);
                 }
             } else {
                 let y = child.layout_rect.y0;
-                if mouse_pos.y >= y - 5.0 && mouse_pos.y <= y + 5.0 {
+                if mouse_pos.y >= y - 2.0 && mouse_pos.y <= y + 2.0 {
                     return Some(child);
                 }
             }
@@ -1074,44 +1074,9 @@ impl Widget<LapceTabData> for LapceSplit {
         env: &Env,
     ) {
         match event {
-            Event::MouseMove(mouse_event) => {
-                if self.children.is_empty() {
-                    ctx.clear_cursor();
-                    for (_, _, rect, _) in &self.commands {
-                        if rect.contains(mouse_event.pos) {
-                            ctx.set_cursor(&druid::Cursor::Pointer);
-                            break;
-                        }
-                    }
-                } else if ctx.is_active() {
-                    // If we're active then we're probably being dragged
-                    self.update_resize_point(mouse_event.pos);
-                    ctx.request_layout();
-                    ctx.set_handled();
-                } else if data.drag.is_none() {
-                    // TODO: We probably want to make so you don't get highlighting for more than one editor
-                    // resize bar at once, and so that you don't get highlighting/dragging for an editor resize bar
-                    // and a panel resize bar! That means we need the tab to know.
-                    if let Some(child) = self.resize_bar_hit_test(mouse_event.pos) {
-                        self.bar_hovered = Some(child.widget.id());
-
-                        ctx.set_cursor(match self.direction {
-                            SplitDirection::Vertical => {
-                                &druid::Cursor::ResizeLeftRight
-                            }
-                            SplitDirection::Horizontal => {
-                                &druid::Cursor::ResizeUpDown
-                            }
-                        });
-
-                        ctx.set_handled();
-                    } else {
-                        if self.bar_hovered.is_some() {
-                            self.bar_hovered = None;
-                            ctx.request_paint();
-                        }
-                        ctx.clear_cursor();
-                    }
+            Event::MouseUp(mouse_event) => {
+                if mouse_event.button.is_left() && ctx.is_active() {
+                    ctx.set_active(false);
                 }
             }
             Event::MouseDown(mouse_event) => {
@@ -1135,11 +1100,6 @@ impl Widget<LapceTabData> for LapceSplit {
                             return;
                         }
                     }
-                }
-            }
-            Event::MouseUp(mouse_event) => {
-                if mouse_event.button.is_left() && ctx.is_active() {
-                    ctx.set_active(false);
                 }
             }
             Event::KeyDown(key_event) => {
@@ -1248,8 +1208,55 @@ impl Widget<LapceTabData> for LapceSplit {
             }
             _ => (),
         }
+
         for child in self.children.iter_mut() {
             child.widget.event(ctx, event, data, env);
+        }
+
+        if let Event::MouseMove(mouse_event) = event {
+            if self.children.is_empty() {
+                ctx.clear_cursor();
+                for (_, _, rect, _) in &self.commands {
+                    if rect.contains(mouse_event.pos) {
+                        ctx.set_cursor(&druid::Cursor::Pointer);
+                        break;
+                    }
+                }
+            } else if ctx.is_active() {
+                // If we're active then we're probably being dragged
+                self.update_resize_point(mouse_event.pos);
+                ctx.request_layout();
+                ctx.set_handled();
+            } else if data.drag.is_none() {
+                let has_active =
+                    self.children.iter().any(|child| child.widget.has_active());
+                if has_active {
+                    self.bar_hovered = None;
+                    ctx.clear_cursor();
+                } else {
+                    // TODO: We probably want to make so you don't get highlighting for more than one editor
+                    // resize bar at once, and so that you don't get highlighting/dragging for an editor resize bar
+                    // and a panel resize bar! That means we need the tab to know.
+                    if let Some(child) = self.resize_bar_hit_test(mouse_event.pos) {
+                        self.bar_hovered = Some(child.widget.id());
+
+                        ctx.set_cursor(match self.direction {
+                            SplitDirection::Vertical => {
+                                &druid::Cursor::ResizeLeftRight
+                            }
+                            SplitDirection::Horizontal => {
+                                &druid::Cursor::ResizeUpDown
+                            }
+                        });
+                    } else {
+                        if self.bar_hovered.is_some() {
+                            self.bar_hovered = None;
+                            ctx.request_paint();
+                        }
+                        ctx.clear_cursor();
+                    }
+                }
+            }
         }
     }
 

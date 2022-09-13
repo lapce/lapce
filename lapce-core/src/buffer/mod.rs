@@ -376,21 +376,20 @@ impl Buffer {
     }
 
     fn calculate_undo_group(&mut self) -> usize {
-        if let Some(last_undo) = self.live_undos.last() {
-            let is_unbroken_group =
-                !self.this_edit_type.breaks_undo_group(self.last_edit_type);
-            if is_unbroken_group {
-                return *last_undo;
-            }
+        let has_undos = !self.live_undos.is_empty();
+        let is_unbroken_group =
+            !self.this_edit_type.breaks_undo_group(self.last_edit_type);
+
+        if has_undos && is_unbroken_group {
+            *self.live_undos.last().unwrap()
+        } else {
+            let undo_group = self.undo_group_id;
+            self.live_undos.truncate(self.cur_undo);
+            self.live_undos.push(undo_group);
+            self.cur_undo += 1;
+            self.undo_group_id += 1;
+            undo_group
         }
-
-        let undo_group = self.undo_group_id;
-        self.live_undos.truncate(self.cur_undo);
-        self.live_undos.push(undo_group);
-        self.cur_undo += 1;
-        self.undo_group_id += 1;
-
-        undo_group
     }
 
     fn mk_new_rev(
@@ -550,12 +549,19 @@ impl Buffer {
                 ..
             } = rev.edit
             {
-                if !inserts.is_empty() {
-                    deletes_from_union = deletes_from_union.transform_union(inserts);
-                }
-
-                if !groups.contains(undo_group) && !deletes.is_empty() {
-                    deletes_from_union = deletes_from_union.union(deletes);
+                if groups.contains(undo_group) {
+                    if !inserts.is_empty() {
+                        deletes_from_union =
+                            deletes_from_union.transform_union(inserts);
+                    }
+                } else {
+                    if !inserts.is_empty() {
+                        deletes_from_union =
+                            deletes_from_union.transform_expand(inserts);
+                    }
+                    if !deletes.is_empty() {
+                        deletes_from_union = deletes_from_union.union(deletes);
+                    }
                 }
             }
         }
