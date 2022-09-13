@@ -1699,7 +1699,6 @@ impl Widget<LapceTabData> for LapceEditor {
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
-                ctx.set_handled();
                 ctx.set_cursor(&druid::Cursor::IBeam);
                 let doc = data.main_split.editor_doc(self.view_id);
                 let editor =
@@ -1713,6 +1712,9 @@ impl Widget<LapceTabData> for LapceEditor {
                     &data.config,
                 );
                 data.update_from_editor_buffer_data(editor_data, &editor, &doc);
+                if ctx.is_active() {
+                    ctx.set_handled();
+                }
             }
             Event::MouseUp(_mouse_event) => {
                 self.mouse_mods = Modifiers::empty();

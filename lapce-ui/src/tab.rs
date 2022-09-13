@@ -338,18 +338,18 @@ impl LapceTab {
         let right = rect.x1;
         let bottom = rect.y1;
 
-        if mouse_pos.x >= left - 5.0 && mouse_pos.x <= left + 5.0 {
+        if mouse_pos.x >= left - 2.0 && mouse_pos.x <= left + 2.0 {
             return Some(PanelResizePosition::Left);
         }
 
-        if mouse_pos.x >= right - 5.0 && mouse_pos.x <= right + 5.0 {
+        if mouse_pos.x >= right - 2.0 && mouse_pos.x <= right + 2.0 {
             return Some(PanelResizePosition::Right);
         }
 
         if mouse_pos.x > left
             && mouse_pos.x < right
-            && mouse_pos.y >= bottom - 5.0
-            && mouse_pos.y <= bottom + 5.0
+            && mouse_pos.y >= bottom - 2.0
+            && mouse_pos.y <= bottom + 2.0
         {
             return Some(PanelResizePosition::Bottom);
         }
@@ -610,16 +610,16 @@ impl LapceTab {
         }
     }
 
-    fn handle_event(
+    fn handle_mouse_event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         match event {
             Event::MouseDown(mouse) => {
-                if mouse.button.is_left() {
+                if !ctx.is_handled() && mouse.button.is_left() {
                     if let Some(position) = self.bar_hit_test(mouse.pos) {
                         self.current_bar_hover = Some(position);
                         ctx.set_active(true);
@@ -631,46 +631,23 @@ impl LapceTab {
                 if mouse.button.is_left() && ctx.is_active() {
                     ctx.set_active(false);
                 }
-            }
-            Event::MouseMove(mouse) => {
-                self.mouse_pos = mouse.pos;
-                if ctx.is_active() {
-                    self.update_split_point(ctx, data, mouse.pos);
-                    ctx.request_layout();
-                    ctx.set_handled();
-                } else if data.drag.is_none() {
-                    match self.bar_hit_test(mouse.pos) {
-                        Some(position) => {
-                            if self.current_bar_hover.as_ref() != Some(&position) {
-                                self.current_bar_hover = Some(position.clone());
-                                ctx.request_paint();
-                            }
-                            match position {
-                                PanelResizePosition::Left => {
-                                    ctx.set_cursor(&druid::Cursor::ResizeLeftRight);
-                                }
-                                PanelResizePosition::Right => {
-                                    ctx.set_cursor(&druid::Cursor::ResizeLeftRight);
-                                }
-                                PanelResizePosition::LeftSplit => {
-                                    ctx.set_cursor(&druid::Cursor::ResizeUpDown);
-                                }
-                                PanelResizePosition::Bottom => {
-                                    ctx.set_cursor(&druid::Cursor::ResizeUpDown)
-                                }
-                            }
-                            ctx.set_handled();
-                        }
-                        None => {
-                            if self.current_bar_hover.is_some() {
-                                self.current_bar_hover = None;
-                                ctx.request_paint();
-                            }
-                            ctx.clear_cursor();
-                        }
-                    }
+                if data.drag.is_some() {
+                    self.handle_panel_drop(ctx, data);
+                    *Arc::make_mut(&mut data.drag) = None;
                 }
             }
+            _ => {}
+        }
+    }
+
+    fn handle_command_event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        match event {
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_COMMAND);
                 data.run_command(ctx, command, None, env);
@@ -1830,9 +1807,7 @@ impl Widget<LapceTabData> for LapceTab {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        if event.should_propagate_to_hidden() {
-            self.handle_event(ctx, event, data, env);
-        }
+        self.handle_command_event(ctx, event, data, env);
 
         if data.about.active || event.should_propagate_to_hidden() {
             self.about.event(ctx, event, data, env);
@@ -1858,9 +1833,7 @@ impl Widget<LapceTabData> for LapceTab {
             self.rename.event(ctx, event, data, env);
         }
 
-        if !event.should_propagate_to_hidden() && !ctx.is_handled() {
-            self.handle_event(ctx, event, data, env);
-        }
+        self.handle_mouse_event(ctx, event, data, env);
 
         self.main_split.event(ctx, event, data, env);
         self.status.event(ctx, event, data, env);
@@ -1885,15 +1858,46 @@ impl Widget<LapceTabData> for LapceTab {
         }
 
         match event {
-            Event::MouseUp(_) => {
-                if data.drag.is_some() {
-                    self.handle_panel_drop(ctx, data);
-                    *Arc::make_mut(&mut data.drag) = None;
-                }
-            }
-            Event::MouseMove(_) => {
-                if data.drag.is_some() {
+            Event::MouseMove(mouse) => {
+                self.mouse_pos = mouse.pos;
+                if ctx.is_active() {
+                    self.update_split_point(ctx, data, mouse.pos);
+                    ctx.request_layout();
+                    ctx.set_handled();
+                } else if data.drag.is_some() {
                     ctx.request_paint();
+                } else if ctx.has_active() {
+                    ctx.clear_cursor();
+                } else {
+                    match self.bar_hit_test(mouse.pos) {
+                        Some(position) => {
+                            if self.current_bar_hover.as_ref() != Some(&position) {
+                                self.current_bar_hover = Some(position.clone());
+                                ctx.request_paint();
+                            }
+                            match position {
+                                PanelResizePosition::Left => {
+                                    ctx.set_cursor(&druid::Cursor::ResizeLeftRight);
+                                }
+                                PanelResizePosition::Right => {
+                                    ctx.set_cursor(&druid::Cursor::ResizeLeftRight);
+                                }
+                                PanelResizePosition::LeftSplit => {
+                                    ctx.set_cursor(&druid::Cursor::ResizeUpDown);
+                                }
+                                PanelResizePosition::Bottom => {
+                                    ctx.set_cursor(&druid::Cursor::ResizeUpDown)
+                                }
+                            }
+                        }
+                        None => {
+                            if self.current_bar_hover.is_some() {
+                                self.current_bar_hover = None;
+                                ctx.request_paint();
+                            }
+                            ctx.clear_cursor();
+                        }
+                    }
                 }
             }
             Event::MouseDown(_) => {
@@ -2384,7 +2388,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
                 if self.close_icon_rect.contains(mouse_event.pos) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
                 } else {
-                    ctx.set_cursor(&druid::Cursor::Arrow);
+                    ctx.clear_cursor();
                 }
             }
             Event::MouseDown(mouse_event) => {

@@ -123,7 +123,6 @@ impl Widget<LapceTabData> for SourceControlFileList {
         match event {
             Event::MouseMove(_mouse_event) => {
                 ctx.set_cursor(&druid::Cursor::Pointer);
-                ctx.set_handled();
             }
             Event::MouseUp(mouse_event) => {
                 let y = mouse_event.pos.y;
