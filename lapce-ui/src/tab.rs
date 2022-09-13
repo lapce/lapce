@@ -2486,6 +2486,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
                     self.holding_click_rect = None;
                     ctx.set_active(false);
                     self.drag_start = None;
+                    ctx.request_layout();
                 }
             }
             _ => {}
@@ -2534,6 +2535,40 @@ impl Widget<LapceTabData> for LapceTabHeader {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+        let tab_rect = ctx.size().to_rect();
+
+        if ctx.is_hot() || self.drag_start.is_some() {
+            // Currenlty, we only paint background for the hot tab to prevent showing
+            // overlapped content on drag. In the future, we might want to:
+            // - introduce a tab background color
+            // - introduce a hover color
+            ctx.fill(
+                tab_rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+            );
+        }
+
+        const BORDER_PADDING: f64 = 8.0;
+
+        ctx.stroke(
+            Line::new(
+                Point::new(tab_rect.x0, tab_rect.y0 + BORDER_PADDING),
+                Point::new(tab_rect.x0, tab_rect.y1 - BORDER_PADDING),
+            ),
+            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+            1.0,
+        );
+
+        ctx.stroke(
+            Line::new(
+                Point::new(tab_rect.x1, tab_rect.y0 + BORDER_PADDING),
+                Point::new(tab_rect.x1, tab_rect.y1 - BORDER_PADDING),
+            ),
+            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+            1.0,
+        );
+
         let dir = data
             .workspace
             .path
@@ -2572,7 +2607,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
         let y = text_layout.y_offset(size.height);
         ctx.draw_text(&text_layout, Point::new(x, y));
 
-        if ctx.is_hot() {
+        if ctx.is_hot() || self.drag_start.is_some() {
             let svg = get_svg("close.svg").unwrap();
             ctx.draw_svg(
                 &svg,
