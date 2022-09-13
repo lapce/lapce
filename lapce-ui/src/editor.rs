@@ -21,6 +21,7 @@ use lapce_data::command::CommandKind;
 use lapce_data::data::{EditorView, LapceData};
 use lapce_data::document::{BufferContent, LocalBufferKind};
 use lapce_data::history::DocumentHistory;
+use lapce_data::hover::HoverStatus;
 use lapce_data::keypress::KeyPressFocus;
 use lapce_data::menu::MenuKind;
 use lapce_data::palette::PaletteStatus;
@@ -1698,6 +1699,11 @@ impl Widget<LapceTabData> for LapceEditor {
         _env: &Env,
     ) {
         match event {
+            Event::Wheel(_) => {
+                if data.hover.status != HoverStatus::Inactive {
+                    Arc::make_mut(&mut data.hover).cancel();
+                }
+            }
             Event::MouseMove(mouse_event) => {
                 ctx.set_cursor(&druid::Cursor::IBeam);
                 let doc = data.main_split.editor_doc(self.view_id);

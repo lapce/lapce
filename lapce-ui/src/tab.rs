@@ -1857,6 +1857,21 @@ impl Widget<LapceTabData> for LapceTab {
             self.panel_bottom.event(ctx, event, data, env);
         }
 
+        if data.hover.status != HoverStatus::Inactive {
+            if let Event::MouseMove(mouse_event) = &event {
+                if !self.hover.layout_rect().contains(mouse_event.pos)
+                    && !self.main_split.layout_rect().contains(mouse_event.pos)
+                {
+                    Arc::make_mut(&mut data.hover).cancel();
+                }
+            }
+            if !data.main_split.editor_tabs.iter().any(|(_, tab)| {
+                tab.active_child().widget_id() == data.hover.editor_view_id
+            }) {
+                Arc::make_mut(&mut data.hover).cancel();
+            }
+        }
+
         match event {
             Event::MouseMove(mouse) => {
                 self.mouse_pos = mouse.pos;
