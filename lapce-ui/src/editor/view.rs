@@ -420,7 +420,10 @@ impl LapceEditorView {
         let editor_size = *data.editor.size.borrow();
         let size = LapceEditor::get_size(data, ctx.text(), editor_size, panel, env);
 
+        let sticky_header_height = data.editor.sticky_header.borrow().height;
         let rect = Self::cursor_region(data, ctx.text());
+        let rect =
+            Rect::new(rect.x0, rect.y0 - sticky_header_height, rect.x1, rect.y1);
         let scroll_id = self.editor.widget().scroll_id;
         let scroll = self.editor.widget_mut().editor.widget_mut().inner_mut();
         scroll.set_child_size(size);

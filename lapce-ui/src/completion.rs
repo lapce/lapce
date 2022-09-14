@@ -260,6 +260,10 @@ impl CompletionContainer {
     }
 
     fn update_documentation(&mut self, data: &LapceTabData) {
+        if data.completion.status == CompletionStatus::Inactive {
+            return;
+        }
+
         let documentation = if data.config.editor.completion_show_documentation {
             let current_item = (!data.completion.is_empty())
                 .then(|| data.completion.current_item());

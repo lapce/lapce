@@ -439,20 +439,18 @@ impl Widget<LapceTabData> for PanelContainer {
                 data.panel.active_panel_at_position(&self.position.first())
             {
                 if shown {
-                    self.panels
-                        .get_mut(&panel)
-                        .unwrap()
-                        .event(ctx, event, data, env);
+                    if let Some(panel) = self.panels.get_mut(&panel) {
+                        panel.event(ctx, event, data, env);
+                    }
                 }
             }
             if let Some((panel, shown)) =
                 data.panel.active_panel_at_position(&self.position.second())
             {
                 if shown {
-                    self.panels
-                        .get_mut(&panel)
-                        .unwrap()
-                        .event(ctx, event, data, env);
+                    if let Some(panel) = self.panels.get_mut(&panel) {
+                        panel.event(ctx, event, data, env);
+                    }
                 }
             }
         }
