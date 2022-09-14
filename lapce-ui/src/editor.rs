@@ -1471,6 +1471,12 @@ impl LapceEditor {
                 data.config
                     .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
             );
+            *data.editor.sticky_header.borrow_mut() = i as f64 * line_height
+                - if last_sticky_should_scroll {
+                    y_diff
+                } else {
+                    0.0
+                };
         }
     }
 
