@@ -144,22 +144,24 @@ impl Widget<LapceTabData> for LapceEditorContainer {
             self.gutter.paint(ctx, data, env);
         }
 
-        let data = data.editor_view_content(self.view_id);
-        let info = data.editor.sticky_header.borrow();
-        let size = ctx.size();
-        if info.height > 0.0 {
-            ctx.with_save(|ctx| {
-                let rect = Size::new(size.width, info.height)
-                    .to_rect()
-                    .with_origin(Point::ZERO);
-                ctx.clip(rect.inset((0.0, 0.0, 0.0, info.height)));
-                ctx.blurred_rect(
-                    rect.inflate(50.0, 0.0),
-                    3.0,
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-                );
-            });
+        if data.config.editor.sticky_header {
+            let data = data.editor_view_content(self.view_id);
+            let info = data.editor.sticky_header.borrow();
+            let size = ctx.size();
+            if info.height > 0.0 {
+                ctx.with_save(|ctx| {
+                    let rect = Size::new(size.width, info.height)
+                        .to_rect()
+                        .with_origin(Point::ZERO);
+                    ctx.clip(rect.inset((0.0, 0.0, 0.0, info.height)));
+                    ctx.blurred_rect(
+                        rect.inflate(50.0, 0.0),
+                        3.0,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                });
+            }
         }
     }
 }

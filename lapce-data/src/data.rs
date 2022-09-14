@@ -3752,6 +3752,12 @@ pub enum EditorView {
     Lens,
 }
 
+impl EditorView {
+    pub fn is_normal(&self) -> bool {
+        matches!(self, EditorView::Normal)
+    }
+}
+
 #[derive(Debug)]
 pub struct StickyHeaderInfo {
     pub height: f64,

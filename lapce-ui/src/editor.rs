@@ -1380,6 +1380,23 @@ impl LapceEditor {
         data: &LapceEditorBufferData,
         env: &Env,
     ) {
+        if !data.config.editor.sticky_header {
+            return;
+        }
+
+        if !data.editor.content.is_file() {
+            return;
+        }
+
+        let mut info = data.editor.sticky_header.borrow_mut();
+        info.lines.clear();
+        info.height = 0.0;
+        info.last_y_diff = 0.0;
+
+        if !data.editor.view.is_normal() {
+            return;
+        }
+
         let line_height = Self::line_height(data, env);
         let size = ctx.size();
         let rect = ctx.region().bounding_box();
@@ -1423,7 +1440,6 @@ impl LapceEditor {
 
         let mut i = 0;
         let total_stickly_lines = sticky_lines.len();
-        let mut info = data.editor.sticky_header.borrow_mut();
         if last_sticky_should_scroll {
             info.last_y_diff = y_diff;
         } else {

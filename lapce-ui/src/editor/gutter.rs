@@ -522,6 +522,10 @@ impl LapceEditorGutter {
         data: &LapceEditorBufferData,
         line_label_length: f64,
     ) {
+        if !data.config.editor.sticky_header {
+            return;
+        }
+
         let size = ctx.size();
         let line_height = data.config.editor.line_height as f64;
 
