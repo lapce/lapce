@@ -516,6 +516,57 @@ impl LapceEditorGutter {
         }
     }
 
+    fn paint_sticky_header(
+        &self,
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        line_label_length: f64,
+    ) {
+        let size = ctx.size();
+        let line_height = data.config.editor.line_height as f64;
+
+        let info = data.editor.sticky_header.borrow();
+
+        let total_lines = info.lines.len();
+        for (i, line) in info.lines.iter().enumerate() {
+            let y_diff = if i == total_lines - 1 {
+                info.last_y_diff
+            } else {
+                0.0
+            };
+
+            let rect = Size::new(size.width, line_height - y_diff)
+                .to_rect()
+                .with_origin(Point::new(0.0, line_height * i as f64));
+            ctx.with_save(|ctx| {
+                ctx.clip(rect);
+                ctx.fill(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                );
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout((line + 1).to_string())
+                    .font(
+                        data.config.editor.font_family(),
+                        data.config.editor.font_size as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                let x = line_label_length - text_layout.size().width;
+                let y = line_height * i as f64 + text_layout.y_offset(line_height)
+                    - y_diff;
+                ctx.draw_text(&text_layout, Point::new(x, y));
+            });
+        }
+    }
+
     fn paint_gutter(&self, data: &LapceEditorBufferData, ctx: &mut PaintCtx) {
         let rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {
@@ -678,6 +729,8 @@ impl LapceEditorGutter {
             if *data.main_split.active == Some(self.view_id) {
                 self.paint_code_actions_hint(data, ctx);
             }
+
+            self.paint_sticky_header(ctx, data, line_label_length);
         });
     }
 }

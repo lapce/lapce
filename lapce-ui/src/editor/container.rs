@@ -1,8 +1,8 @@
 use druid::{
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
-    PaintCtx, Point, Size, UpdateCtx, Widget, WidgetId, WidgetPod,
+    PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
-use lapce_data::data::LapceTabData;
+use lapce_data::{config::LapceTheme, data::LapceTabData};
 
 use crate::{
     editor::{gutter::LapceEditorGutter, LapceEditor},
@@ -142,6 +142,24 @@ impl Widget<LapceTabData> for LapceEditorContainer {
         self.editor.paint(ctx, data, env);
         if self.display_gutter {
             self.gutter.paint(ctx, data, env);
+        }
+
+        let data = data.editor_view_content(self.view_id);
+        let info = data.editor.sticky_header.borrow();
+        let size = ctx.size();
+        if info.height > 0.0 {
+            ctx.with_save(|ctx| {
+                let rect = Size::new(size.width, info.height)
+                    .to_rect()
+                    .with_origin(Point::ZERO);
+                ctx.clip(rect.inset((0.0, 0.0, 0.0, info.height)));
+                ctx.blurred_rect(
+                    rect.inflate(50.0, 0.0),
+                    3.0,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            });
         }
     }
 }

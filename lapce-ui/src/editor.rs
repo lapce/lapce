@@ -1423,6 +1423,14 @@ impl LapceEditor {
 
         let mut i = 0;
         let total_stickly_lines = sticky_lines.len();
+        let mut info = data.editor.sticky_header.borrow_mut();
+        if last_sticky_should_scroll {
+            info.last_y_diff = y_diff;
+        } else {
+            info.last_y_diff = 0.0;
+        }
+        info.lines = sticky_lines.clone();
+        info.height = 0.0;
         for line in sticky_lines {
             let y_diff = if last_sticky_should_scroll && i == total_stickly_lines - 1
             {
@@ -1471,7 +1479,7 @@ impl LapceEditor {
                 data.config
                     .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
             );
-            *data.editor.sticky_header.borrow_mut() = i as f64 * line_height
+            info.height = i as f64 * line_height
                 - if last_sticky_should_scroll {
                     y_diff
                 } else {
