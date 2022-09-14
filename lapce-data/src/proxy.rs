@@ -376,23 +376,26 @@ impl LapceProxy {
             let local_proxy_file = Directory::proxy_directory()
                 .ok_or_else(|| anyhow!("can't find proxy directory"))?
                 .join(&proxy_filename);
-            if !local_proxy_file.exists() {
-                let url = format!("https://github.com/lapce/lapce/releases/download/{}/{proxy_filename}.gz", match *VERSION {
-                    "debug" => "nightly".to_string(),
-                    s if s.starts_with("nightly") => "nightly".to_string(),
-                    _ => format!("v{}", *VERSION),
-                });
-                log::debug!(target: "lapce_data::proxy::start_remote", "proxy download URI: {url}");
-                let mut resp = reqwest::blocking::get(url).expect("request failed");
-                if resp.status().is_success() {
-                    let mut out = std::fs::File::create(&local_proxy_file)
-                        .expect("failed to create file");
-                    let mut gz = GzDecoder::new(&mut resp);
-                    std::io::copy(&mut gz, &mut out)
-                        .expect("failed to copy content");
-                } else {
-                    log::error!(target: "lapce_data::proxy::start_remote", "proxy download failed with: {}", resp.status());
-                }
+            // remove possibly outdated proxy
+            if local_proxy_file.exists() {
+                // TODO: add proper proxy version detection and update proxy
+                // when needed
+                std::fs::remove_file(&local_proxy_file)?;
+            }
+            let url = format!("https://github.com/lapce/lapce/releases/download/{}/{proxy_filename}.gz", match *VERSION {
+                "debug" => "nightly".to_string(),
+                s if s.starts_with("nightly") => "nightly".to_string(),
+                _ => format!("v{}", *VERSION),
+            });
+            log::debug!(target: "lapce_data::proxy::start_remote", "proxy download URI: {url}");
+            let mut resp = reqwest::blocking::get(url).expect("request failed");
+            if resp.status().is_success() {
+                let mut out = std::fs::File::create(&local_proxy_file)
+                    .expect("failed to create file");
+                let mut gz = GzDecoder::new(&mut resp);
+                std::io::copy(&mut gz, &mut out).expect("failed to copy content");
+            } else {
+                log::error!(target: "lapce_data::proxy::start_remote", "proxy download failed with: {}", resp.status());
             }
 
             if platform == Windows {
