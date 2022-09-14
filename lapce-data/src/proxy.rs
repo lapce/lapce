@@ -332,13 +332,8 @@ impl LapceProxy {
         // also print ssh debug output when used with LAPCE_DEBUG env
         match remote.command_builder().arg("lapce-no-command").output() {
             Ok(cmd) => {
-                let stderr = String::from_utf8_lossy(&cmd.stderr).to_lowercase();
-                let stderr = stderr.trim();
-                log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", &stderr);
-
-                let stdout = String::from_utf8_lossy(&cmd.stdout).to_lowercase();
-                let stdout = stdout.trim();
-                log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", &stdout);
+                log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stderr));
+                log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stdout));
             }
             Err(err) => {
                 log::error!(target: "lapce_data::proxy::start_remote::first_try", "{err}");
