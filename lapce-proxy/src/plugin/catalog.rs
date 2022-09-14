@@ -61,6 +61,7 @@ impl PluginCatalog {
         plugin
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn handle_server_request(
         &mut self,
         plugin_id: Option<PluginId>,
@@ -68,6 +69,7 @@ impl PluginCatalog {
         method: &'static str,
         params: Value,
         language_id: Option<String>,
+        path: Option<PathBuf>,
         f: Box<dyn ClonableCallback>,
     ) {
         if let Some(plugin_id) = plugin_id {
@@ -76,6 +78,7 @@ impl PluginCatalog {
                     method,
                     params,
                     language_id,
+                    path,
                     true,
                     move |result| {
                         f(plugin_id, result);
@@ -103,6 +106,7 @@ impl PluginCatalog {
                 method,
                 params.clone(),
                 language_id.clone(),
+                path.clone(),
                 true,
                 move |result| {
                     f(plugin_id, result);
@@ -116,12 +120,14 @@ impl PluginCatalog {
         method: &'static str,
         params: Value,
         language_id: Option<String>,
+        path: Option<PathBuf>,
     ) {
         for (_, plugin) in self.new_plugins.iter() {
             plugin.server_notification(
                 method,
                 params.clone(),
                 language_id.clone(),
+                path.clone(),
                 true,
             );
         }
@@ -196,12 +202,14 @@ impl PluginCatalog {
                 {
                     for item in items {
                         let language_id = Some(item.language_id.clone());
+                        let path = item.uri.to_file_path().ok();
                         plugin.server_notification(
                             DidOpenTextDocument::METHOD,
                             DidOpenTextDocumentParams {
                                 text_document: item,
                             },
                             language_id,
+                            path,
                             true,
                         );
                     }

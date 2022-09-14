@@ -2,7 +2,7 @@
 use std::os::windows::process::CommandExt;
 use std::{
     io::{BufRead, BufReader, BufWriter, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{self, Child, Command, Stdio},
     sync::Arc,
     thread,
@@ -64,8 +64,12 @@ impl PluginServerHandler for LspClient {
         self.host.method_registered(method)
     }
 
-    fn language_supported(&mut self, lanaguage_id: Option<&str>) -> bool {
-        self.host.language_supported(lanaguage_id)
+    fn document_supported(
+        &mut self,
+        lanaguage_id: Option<&str>,
+        path: Option<&Path>,
+    ) -> bool {
+        self.host.document_supported(lanaguage_id, path)
     }
 
     fn handle_handler_notification(
@@ -144,7 +148,7 @@ impl LspClient {
     #[allow(clippy::too_many_arguments)]
     fn new(
         plugin_rpc: PluginCatalogRpcHandler,
-        laguage_id: String,
+        document_selector: DocumentSelector,
         workspace: Option<PathBuf>,
         volt_id: String,
         pwd: Option<PathBuf>,
@@ -231,7 +235,7 @@ impl LspClient {
             workspace.clone(),
             pwd,
             volt_id,
-            Some(laguage_id),
+            document_selector,
             server_rpc.clone(),
             plugin_rpc.clone(),
         );
@@ -249,7 +253,7 @@ impl LspClient {
     #[allow(clippy::too_many_arguments)]
     pub fn start(
         plugin_rpc: PluginCatalogRpcHandler,
-        laguage_id: String,
+        document_selector: DocumentSelector,
         workspace: Option<PathBuf>,
         volt_id: String,
         pwd: Option<PathBuf>,
@@ -258,7 +262,13 @@ impl LspClient {
         options: Option<Value>,
     ) -> Result<()> {
         let mut lsp = Self::new(
-            plugin_rpc, laguage_id, workspace, volt_id, pwd, server_uri, args,
+            plugin_rpc,
+            document_selector,
+            workspace,
+            volt_id,
+            pwd,
+            server_uri,
+            args,
             options,
         )?;
         let rpc = lsp.server_rpc.clone();
@@ -376,15 +386,19 @@ impl LspClient {
             locale: None,
             root_path: None,
         };
-        if let Ok(value) =
-            self.server_rpc
-                .server_request(Initialize::METHOD, params, None, false)
-        {
+        if let Ok(value) = self.server_rpc.server_request(
+            Initialize::METHOD,
+            params,
+            None,
+            None,
+            false,
+        ) {
             let result: InitializeResult = serde_json::from_value(value).unwrap();
             self.host.server_capabilities = result.capabilities;
             self.server_rpc.server_notification(
                 Initialized::METHOD,
                 InitializedParams {},
+                None,
                 None,
                 false,
             );

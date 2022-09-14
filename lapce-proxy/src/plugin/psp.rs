@@ -31,10 +31,11 @@ use lsp_types::{
         WorkDoneProgressCreate, WorkspaceSymbol,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
-    DidSaveTextDocumentParams, HoverProviderCapability, OneOf, ProgressParams,
-    PublishDiagnosticsParams, Range, Registration, RegistrationParams,
-    SemanticTokens, SemanticTokensLegend, SemanticTokensServerCapabilities,
-    ServerCapabilities, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability, OneOf,
+    ProgressParams, PublishDiagnosticsParams, Range, Registration,
+    RegistrationParams, SemanticTokens, SemanticTokensLegend,
+    SemanticTokensServerCapabilities, ServerCapabilities,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncSaveOptions,
     VersionedTextDocumentIdentifier,
@@ -101,12 +102,14 @@ pub enum PluginServerRpc {
         method: &'static str,
         params: Params,
         language_id: Option<String>,
+        path: Option<PathBuf>,
         rh: ResponseHandler<Value, RpcError>,
     },
     ServerNotification {
         method: &'static str,
         params: Params,
         language_id: Option<String>,
+        path: Option<PathBuf>,
     },
     HostRequest {
         id: u64,
@@ -155,7 +158,11 @@ pub struct PluginServerRpcHandler {
 }
 
 pub trait PluginServerHandler {
-    fn language_supported(&mut self, language_id: Option<&str>) -> bool;
+    fn document_supported(
+        &mut self,
+        language_id: Option<&str>,
+        path: Option<&Path>,
+    ) -> bool;
     fn method_registered(&mut self, method: &'static str) -> bool;
     fn handle_host_notification(&mut self, method: String, params: Params);
     fn handle_host_request(&mut self, id: u64, method: String, params: Params);
@@ -279,6 +286,7 @@ impl PluginServerRpcHandler {
         method: &'static str,
         params: P,
         language_id: Option<String>,
+        path: Option<PathBuf>,
         check: bool,
     ) {
         let params = Params::from(serde_json::to_value(params).unwrap());
@@ -288,6 +296,7 @@ impl PluginServerRpcHandler {
                 method,
                 params,
                 language_id,
+                path,
             });
         } else {
             self.send_server_notification(method, params);
@@ -303,6 +312,7 @@ impl PluginServerRpcHandler {
         method: &'static str,
         params: P,
         language_id: Option<String>,
+        path: Option<PathBuf>,
         check: bool,
     ) -> Result<Value, RpcError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
@@ -310,6 +320,7 @@ impl PluginServerRpcHandler {
             method,
             params,
             language_id,
+            path,
             check,
             ResponseHandler::Chan(tx),
         );
@@ -326,6 +337,7 @@ impl PluginServerRpcHandler {
         method: &'static str,
         params: P,
         language_id: Option<String>,
+        path: Option<PathBuf>,
         check: bool,
         f: impl RpcCallback<Value, RpcError> + 'static,
     ) {
@@ -333,6 +345,7 @@ impl PluginServerRpcHandler {
             method,
             params,
             language_id,
+            path,
             check,
             ResponseHandler::Callback(Box::new(f)),
         );
@@ -343,6 +356,7 @@ impl PluginServerRpcHandler {
         method: &'static str,
         params: P,
         language_id: Option<String>,
+        path: Option<PathBuf>,
         check: bool,
         rh: ResponseHandler<Value, RpcError>,
     ) {
@@ -354,6 +368,7 @@ impl PluginServerRpcHandler {
                 method,
                 params,
                 language_id,
+                path,
                 rh,
             });
         } else {
@@ -385,9 +400,11 @@ impl PluginServerRpcHandler {
                     method,
                     params,
                     language_id,
+                    path,
                     rh,
                 } => {
-                    if handler.language_supported(language_id.as_deref())
+                    if handler
+                        .document_supported(language_id.as_deref(), path.as_deref())
                         && handler.method_registered(method)
                     {
                         self.send_server_request(id, method, params, rh);
@@ -402,8 +419,10 @@ impl PluginServerRpcHandler {
                     method,
                     params,
                     language_id,
+                    path,
                 } => {
-                    if handler.language_supported(language_id.as_deref())
+                    if handler
+                        .document_supported(language_id.as_deref(), path.as_deref())
                         && handler.method_registered(method)
                     {
                         self.send_server_notification(method, params);
@@ -516,7 +535,7 @@ pub struct PluginHostHandler {
     volt_id: String,
     pwd: Option<PathBuf>,
     pub(crate) workspace: Option<PathBuf>,
-    lanaguage_id: Option<String>,
+    document_selector: Vec<DocumentFilter>,
     catalog_rpc: PluginCatalogRpcHandler,
     pub server_rpc: PluginServerRpcHandler,
     pub server_capabilities: ServerCapabilities,
@@ -528,15 +547,19 @@ impl PluginHostHandler {
         workspace: Option<PathBuf>,
         pwd: Option<PathBuf>,
         volt_id: String,
-        lanaguage_id: Option<String>,
+        document_selector: DocumentSelector,
         server_rpc: PluginServerRpcHandler,
         catalog_rpc: PluginCatalogRpcHandler,
     ) -> Self {
+        let document_selector = document_selector
+            .iter()
+            .map(DocumentFilter::from_lsp_filter_loose)
+            .collect();
         Self {
             pwd,
             workspace,
             volt_id,
-            lanaguage_id,
+            document_selector,
             catalog_rpc,
             server_rpc,
             server_capabilities: ServerCapabilities::default(),
@@ -544,12 +567,29 @@ impl PluginHostHandler {
         }
     }
 
-    pub fn language_supported(&mut self, language_id: Option<&str>) -> bool {
+    pub fn document_supported(
+        &self,
+        language_id: Option<&str>,
+        path: Option<&Path>,
+    ) -> bool {
         match language_id {
-            Some(language_id) => match self.lanaguage_id.as_ref() {
-                Some(l) => l.as_str() == language_id,
-                None => true,
-            },
+            Some(language_id) => {
+                for filter in self.document_selector.iter() {
+                    if (filter.language_id.is_none()
+                        || filter.language_id.as_deref() == Some(language_id))
+                        && (path.is_none()
+                            || filter.pattern.is_none()
+                            || filter
+                                .pattern
+                                .as_ref()
+                                .unwrap()
+                                .is_match(path.as_ref().unwrap()))
+                    {
+                        return true;
+                    }
+                }
+                false
+            }
             None => true,
         }
     }
@@ -664,9 +704,7 @@ impl PluginHostHandler {
     }
 
     fn check_save_capability(&self, language_id: &str, path: &Path) -> (bool, bool) {
-        if self.lanaguage_id.is_none()
-            || self.lanaguage_id.as_deref() == Some(language_id)
-        {
+        if self.document_supported(Some(language_id), Some(path)) {
             let (should_send, include_text) = self
                 .server_capabilities
                 .text_document_sync
@@ -784,7 +822,7 @@ impl PluginHostHandler {
                 thread::spawn(move || {
                     let _ = LspClient::start(
                         catalog_rpc,
-                        params.language_id,
+                        params.document_selector,
                         workspace,
                         volt_id,
                         pwd,
@@ -835,6 +873,7 @@ impl PluginHostHandler {
             DidSaveTextDocument::METHOD,
             params,
             Some(language_id),
+            Some(path),
             false,
         );
     }
@@ -894,6 +933,8 @@ impl PluginHostHandler {
             _ => return,
         };
 
+        let path = document.uri.to_file_path().ok();
+
         let params = DidChangeTextDocumentParams {
             text_document: document,
             content_changes: vec![change],
@@ -903,6 +944,7 @@ impl PluginHostHandler {
             DidChangeTextDocument::METHOD,
             params,
             Some(lanaguage_id),
+            path,
             false,
         );
     }
