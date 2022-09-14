@@ -327,6 +327,25 @@ impl LapceProxy {
     }
 
     fn start_remote(&self, remote: impl Remote) -> Result<()> {
+        // start ssh CM connection in case where it doesn't handle
+        // executing command properly on remote host
+        // also print ssh debug output when used with LAPCE_DEBUG env
+        match remote.command_builder().arg("lapce-no-command").output() {
+            Ok(cmd) => {
+                let stderr = String::from_utf8_lossy(&cmd.stderr).to_lowercase();
+                let stderr = stderr.trim();
+                log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", &stderr);
+
+                let stdout = String::from_utf8_lossy(&cmd.stdout).to_lowercase();
+                let stdout = stdout.trim();
+                log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", &stdout);
+            }
+            Err(err) => {
+                log::error!(target: "lapce_data::proxy::start_remote::first_try", "{err}");
+                return Err(anyhow!(err));
+            }
+        }
+
         use HostPlatform::*;
         let (platform, architecture) = self.host_specification(&remote).unwrap();
 
@@ -376,23 +395,26 @@ impl LapceProxy {
             let local_proxy_file = Directory::proxy_directory()
                 .ok_or_else(|| anyhow!("can't find proxy directory"))?
                 .join(&proxy_filename);
-            if !local_proxy_file.exists() {
-                let url = format!("https://github.com/lapce/lapce/releases/download/{}/{proxy_filename}.gz", match *VERSION {
-                    "debug" => "nightly".to_string(),
-                    s if s.starts_with("nightly") => "nightly".to_string(),
-                    _ => format!("v{}", *VERSION),
-                });
-                log::debug!(target: "lapce_data::proxy::start_remote", "proxy download URI: {url}");
-                let mut resp = reqwest::blocking::get(url).expect("request failed");
-                if resp.status().is_success() {
-                    let mut out = std::fs::File::create(&local_proxy_file)
-                        .expect("failed to create file");
-                    let mut gz = GzDecoder::new(&mut resp);
-                    std::io::copy(&mut gz, &mut out)
-                        .expect("failed to copy content");
-                } else {
-                    log::error!(target: "lapce_data::proxy::start_remote", "proxy download failed with: {}", resp.status());
-                }
+            // remove possibly outdated proxy
+            if local_proxy_file.exists() {
+                // TODO: add proper proxy version detection and update proxy
+                // when needed
+                std::fs::remove_file(&local_proxy_file)?;
+            }
+            let url = format!("https://github.com/lapce/lapce/releases/download/{}/{proxy_filename}.gz", match *VERSION {
+                "debug" => "nightly".to_string(),
+                s if s.starts_with("nightly") => "nightly".to_string(),
+                _ => format!("v{}", *VERSION),
+            });
+            log::debug!(target: "lapce_data::proxy::start_remote", "proxy download URI: {url}");
+            let mut resp = reqwest::blocking::get(url).expect("request failed");
+            if resp.status().is_success() {
+                let mut out = std::fs::File::create(&local_proxy_file)
+                    .expect("failed to create file");
+                let mut gz = GzDecoder::new(&mut resp);
+                std::io::copy(&mut gz, &mut out).expect("failed to copy content");
+            } else {
+                log::error!(target: "lapce_data::proxy::start_remote", "proxy download failed with: {}", resp.status());
             }
 
             if platform == Windows {
@@ -513,6 +535,8 @@ impl LapceProxy {
                 let stdout = stdout.trim();
                 log::debug!(target: "lapce_data::proxy::host_platform", "{}", &stdout);
                 match stdout {
+                    // If empty, then we probably deal with Windows and not Unix
+                    // or something went wrong with command output
                     "" => {
                         let cmd = remote
                             .command_builder()
@@ -621,6 +645,11 @@ impl SshRemote {
     fn command_builder(user: &str, host: &str) -> Command {
         let mut cmd = new_command("ssh");
         cmd.arg(format!("{}@{}", user, host)).args(Self::SSH_ARGS);
+
+        if !std::env::var("LAPCE_DEBUG").unwrap_or_default().is_empty() {
+            cmd.arg("-v");
+        }
+
         cmd
     }
 }
@@ -754,12 +783,7 @@ fn parse_os(os: &str) -> HostPlatform {
         "linux" => Linux,
         "darwin" => Darwin,
         "windows_nt" => Windows,
-        v => {
-            if v.ends_with("bsd") {
-                Bsd
-            } else {
-                UnknownOS
-            }
-        }
+        v if v.ends_with("bsd") => Bsd,
+        _ => UnknownOS,
     }
 }
