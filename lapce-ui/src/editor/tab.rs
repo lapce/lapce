@@ -50,26 +50,18 @@ impl LapceEditorTab {
         self
     }
 
-    fn clear_child(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
-        self.children.clear();
-        ctx.children_changed();
-
+    fn close_all_children(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
-        for child in editor_tab.children.iter() {
-            match child {
-                EditorTabChild::Editor(view_id, _, _) => {
-                    data.main_split.editors.remove(view_id);
-                }
-                EditorTabChild::Settings { .. } => {}
-            }
+        for child in editor_tab.children.iter().rev() {
+            ctx.submit_command(Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Focus(FocusCommand::SplitClose),
+                    data: None,
+                },
+                Target::Widget(child.widget_id()),
+            ));
         }
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::SplitRemove(SplitContent::EditorTab(
-                editor_tab.widget_id,
-            )),
-            Target::Widget(editor_tab.split),
-        ));
     }
 
     pub fn remove_child(
@@ -361,7 +353,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
                         return;
                     }
                     LapceUICommand::SplitClose => {
-                        self.clear_child(ctx, data);
+                        self.close_all_children(ctx, data);
                         return;
                     }
                     LapceUICommand::Focus => {
