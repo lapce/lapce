@@ -37,6 +37,7 @@ use lapce_data::{
 };
 use lsp_types::{CodeActionOrCommand, DiagnosticSeverity};
 
+pub mod bread_crumb;
 pub mod container;
 pub mod gutter;
 pub mod header;
@@ -824,6 +825,7 @@ impl LapceEditor {
         Self::paint_text(ctx, data, &screen_lines, env);
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
+        Self::paint_sticky_headers(ctx, data, env);
 
         if let Some(placeholder) = self.placeholder.as_ref() {
             if data.doc.buffer().is_empty() {
@@ -1371,6 +1373,135 @@ impl LapceEditor {
                     );
                 }
             }
+        }
+    }
+
+    fn paint_sticky_headers(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        env: &Env,
+    ) {
+        if !data.config.editor.sticky_header {
+            return;
+        }
+
+        if !data.editor.content.is_file() {
+            return;
+        }
+
+        let mut info = data.editor.sticky_header.borrow_mut();
+        info.lines.clear();
+        info.height = 0.0;
+        info.last_y_diff = 0.0;
+
+        if !data.editor.view.is_normal() {
+            return;
+        }
+
+        let line_height = Self::line_height(data, env);
+        let size = ctx.size();
+        let rect = ctx.region().bounding_box();
+        let x0 = rect.x0;
+        let y0 = rect.y0;
+        let start_line = (rect.y0 / line_height).floor() as usize;
+        let y_diff = y0 - start_line as f64 * line_height;
+        let mut last_sticky_should_scroll = false;
+
+        let mut sticky_lines = Vec::new();
+        if let Some(lines) = data.doc.sticky_headers(start_line) {
+            let total_lines = lines.len();
+            if total_lines > 0 {
+                let line = start_line + total_lines;
+                if let Some(new_lines) = data.doc.sticky_headers(line) {
+                    if new_lines.len() > total_lines {
+                        sticky_lines = new_lines;
+                    } else {
+                        sticky_lines = lines;
+                        last_sticky_should_scroll = new_lines.len() < total_lines;
+                        if new_lines.len() < total_lines {
+                            if let Some(new_new_lines) =
+                                data.doc.sticky_headers(start_line + total_lines - 1)
+                            {
+                                if new_new_lines.len() < total_lines {
+                                    sticky_lines.pop();
+                                    last_sticky_should_scroll = false;
+                                }
+                            } else {
+                                sticky_lines.pop();
+                                last_sticky_should_scroll = false;
+                            }
+                        }
+                    }
+                } else {
+                    sticky_lines = lines;
+                    last_sticky_should_scroll = true;
+                }
+            }
+        }
+
+        let mut i = 0;
+        let total_stickly_lines = sticky_lines.len();
+        if last_sticky_should_scroll {
+            info.last_y_diff = y_diff;
+        } else {
+            info.last_y_diff = 0.0;
+        }
+        info.lines = sticky_lines.clone();
+        info.height = 0.0;
+        for line in sticky_lines {
+            let y_diff = if last_sticky_should_scroll && i == total_stickly_lines - 1
+            {
+                y_diff
+            } else {
+                0.0
+            };
+            let rect = Size::new(size.width, line_height - y_diff)
+                .to_rect()
+                .with_origin(Point::new(0.0, y0 + line_height * i as f64));
+            ctx.with_save(|ctx| {
+                ctx.clip(rect);
+                ctx.fill(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                );
+                let text_layout = data.doc.get_text_layout(
+                    ctx.text(),
+                    line,
+                    data.config.editor.font_size,
+                    &data.config,
+                );
+                let y = y0
+                    + line_height * i as f64
+                    + text_layout.text.y_offset(line_height)
+                    - y_diff;
+                ctx.draw_text(&text_layout.text, Point::new(x0, y));
+            });
+            i += 1;
+        }
+
+        if i > 0 {
+            ctx.blurred_rect(
+                Size::new(size.width, i as f64 * line_height)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        0.0,
+                        y0 - if last_sticky_should_scroll {
+                            y_diff
+                        } else {
+                            0.0
+                        },
+                    )),
+                3.0,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
+            info.height = i as f64 * line_height
+                - if last_sticky_should_scroll {
+                    y_diff
+                } else {
+                    0.0
+                };
         }
     }
 

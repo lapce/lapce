@@ -3752,6 +3752,19 @@ pub enum EditorView {
     Lens,
 }
 
+impl EditorView {
+    pub fn is_normal(&self) -> bool {
+        matches!(self, EditorView::Normal)
+    }
+}
+
+#[derive(Debug)]
+pub struct StickyHeaderInfo {
+    pub height: f64,
+    pub lines: Vec<usize>,
+    pub last_y_diff: f64,
+}
+
 #[derive(Clone, Debug)]
 pub struct LapceEditorData {
     pub tab_id: Option<WidgetId>,
@@ -3766,6 +3779,7 @@ pub struct LapceEditorData {
     pub cursor: Cursor,
     pub last_cursor_instant: Rc<RefCell<Instant>>,
     pub size: Rc<RefCell<Size>>,
+    pub sticky_header: Rc<RefCell<StickyHeaderInfo>>,
     pub window_origin: Rc<RefCell<Point>>,
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
     pub last_movement_new: Movement,
@@ -3804,6 +3818,11 @@ impl LapceEditorData {
             last_cursor_instant: Rc::new(RefCell::new(Instant::now())),
             content,
             size: Rc::new(RefCell::new(Size::ZERO)),
+            sticky_header: Rc::new(RefCell::new(StickyHeaderInfo {
+                height: 0.0,
+                lines: Vec::new(),
+                last_y_diff: 0.0,
+            })),
             compare: None,
             window_origin: Rc::new(RefCell::new(Point::ZERO)),
             snippet: None,
