@@ -171,8 +171,14 @@ pub struct EditorConfig {
     pub tab_width: usize,
     #[field_names(desc = "If opened editors are shown in a tab")]
     pub show_tab: bool,
+    #[field_names(desc = "If navigation breadcrumbs are shown for the file")]
+    pub show_bread_crumbs: bool,
     #[field_names(desc = "If the editor can scroll beyond the last line")]
     pub scroll_beyond_last_line: bool,
+    #[field_names(
+        desc = "Show code context like functions and classes at the top of editor when scroll"
+    )]
+    pub sticky_header: bool,
     #[field_names(
         desc = "If the editor should show the documentation of the current completion item"
     )]

@@ -61,12 +61,14 @@ pub enum PluginCatalogRpc {
         method: &'static str,
         params: Value,
         language_id: Option<String>,
+        path: Option<PathBuf>,
         f: Box<dyn ClonableCallback>,
     },
     ServerNotification {
         method: &'static str,
         params: Value,
         language_id: Option<String>,
+        path: Option<PathBuf>,
     },
     FormatSemanticTokens {
         plugin_id: PluginId,
@@ -141,6 +143,7 @@ impl PluginCatalogRpcHandler {
                     method,
                     params,
                     language_id,
+                    path,
                     f,
                 } => {
                     plugin.handle_server_request(
@@ -149,6 +152,7 @@ impl PluginCatalogRpcHandler {
                         method,
                         params,
                         language_id,
+                        path,
                         f,
                     );
                 }
@@ -156,8 +160,14 @@ impl PluginCatalogRpcHandler {
                     method,
                     params,
                     language_id,
+                    path,
                 } => {
-                    plugin.handle_server_notification(method, params, language_id);
+                    plugin.handle_server_notification(
+                        method,
+                        params,
+                        language_id,
+                        path,
+                    );
                 }
                 PluginCatalogRpc::Handler(notification) => {
                     plugin.handle_notification(notification);
@@ -225,12 +235,14 @@ impl PluginCatalogRpcHandler {
         method: &'static str,
         params: P,
         language_id: Option<String>,
+        path: Option<PathBuf>,
     ) {
         let params = serde_json::to_value(params).unwrap();
         let rpc = PluginCatalogRpc::ServerNotification {
             method,
             params,
             language_id,
+            path,
         };
         let _ = self.plugin_tx.send(rpc);
     }
@@ -240,6 +252,7 @@ impl PluginCatalogRpcHandler {
         method: &'static str,
         params: P,
         language_id: Option<String>,
+        path: Option<PathBuf>,
         cb: impl FnOnce(PluginId, Result<Resp, RpcError>) + Clone + Send + 'static,
     ) where
         P: Serialize,
@@ -254,6 +267,7 @@ impl PluginCatalogRpcHandler {
             method,
             params,
             language_id,
+            path,
             move |plugin_id, result| {
                 if got_success.load(Ordering::Acquire) {
                     return;
@@ -284,6 +298,7 @@ impl PluginCatalogRpcHandler {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn send_request<P: Serialize>(
         &self,
         plugin_id: Option<PluginId>,
@@ -291,6 +306,7 @@ impl PluginCatalogRpcHandler {
         method: &'static str,
         params: P,
         language_id: Option<String>,
+        path: Option<PathBuf>,
         f: impl FnOnce(PluginId, Result<Value, RpcError>) + Send + DynClone + 'static,
     ) {
         let params = serde_json::to_value(params).unwrap();
@@ -300,6 +316,7 @@ impl PluginCatalogRpcHandler {
             method,
             params,
             language_id,
+            path,
             f: Box::new(f),
         };
         let _ = self.plugin_tx.send(rpc);
@@ -378,7 +395,13 @@ impl PluginCatalogRpcHandler {
 
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
-        self.send_request_to_all_plugins(method, params, language_id, cb);
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
     }
 
     pub fn get_type_definition(
@@ -403,7 +426,13 @@ impl PluginCatalogRpcHandler {
 
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
-        self.send_request_to_all_plugins(method, params, language_id, cb);
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
     }
 
     pub fn get_references(
@@ -431,7 +460,13 @@ impl PluginCatalogRpcHandler {
 
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
-        self.send_request_to_all_plugins(method, params, language_id, cb);
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
     }
 
     pub fn get_code_actions(
@@ -457,7 +492,13 @@ impl PluginCatalogRpcHandler {
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
-        self.send_request_to_all_plugins(method, params, language_id, cb);
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
     }
 
     pub fn get_inlay_hints(
@@ -478,7 +519,13 @@ impl PluginCatalogRpcHandler {
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
-        self.send_request_to_all_plugins(method, params, language_id, cb);
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
     }
 
     pub fn get_document_symbols(
@@ -498,7 +545,13 @@ impl PluginCatalogRpcHandler {
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
-        self.send_request_to_all_plugins(method, params, language_id, cb);
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
     }
 
     pub fn get_workspace_symbols(
@@ -515,7 +568,7 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         };
-        self.send_request_to_all_plugins(method, params, None, cb);
+        self.send_request_to_all_plugins(method, params, None, None, cb);
     }
 
     pub fn get_document_formatting(
@@ -539,7 +592,13 @@ impl PluginCatalogRpcHandler {
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
-        self.send_request_to_all_plugins(method, params, language_id, cb);
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
     }
 
     pub fn prepare_rename(
@@ -559,7 +618,13 @@ impl PluginCatalogRpcHandler {
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
-        self.send_request_to_all_plugins(method, params, language_id, cb);
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
     }
 
     pub fn rename(
@@ -584,7 +649,13 @@ impl PluginCatalogRpcHandler {
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
-        self.send_request_to_all_plugins(method, params, language_id, cb);
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
     }
 
     pub fn get_semantic_tokens(
@@ -604,7 +675,13 @@ impl PluginCatalogRpcHandler {
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
-        self.send_request_to_all_plugins(method, params, language_id, cb);
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
     }
 
     pub fn hover(
@@ -624,7 +701,13 @@ impl PluginCatalogRpcHandler {
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
-        self.send_request_to_all_plugins(method, params, language_id, cb);
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
     }
 
     pub fn completion(
@@ -655,6 +738,7 @@ impl PluginCatalogRpcHandler {
             method,
             params,
             language_id,
+            Some(path.to_path_buf()),
             move |plugin_id, result| {
                 if let Ok(value) = result {
                     if let Ok(resp) =
@@ -680,6 +764,7 @@ impl PluginCatalogRpcHandler {
             None,
             method,
             item,
+            None,
             None,
             move |_, result| {
                 let result = match result {
@@ -719,7 +804,12 @@ impl PluginCatalogRpcHandler {
                 text,
             ),
         };
-        self.server_notification(method, params, Some(language_id));
+        self.server_notification(
+            method,
+            params,
+            Some(language_id),
+            Some(path.to_path_buf()),
+        );
     }
 
     pub fn plugin_server_loaded(

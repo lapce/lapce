@@ -3725,7 +3725,7 @@ dependencies = [
 [[package]]
 name = "psp-types"
 version = "0.1.0"
-source = "git+https://github.com/lapce/psp-types#e7305b0bda539208dd133732178c3e197f95ca5f"
+source = "git+https://github.com/lapce/psp-types#b7680c844e8faa1b79c800210b4d5526771e7de0"
 dependencies = [
  "lsp-types",
  "serde 1.0.144",

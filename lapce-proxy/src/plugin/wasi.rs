@@ -89,8 +89,12 @@ impl PluginServerHandler for Plugin {
         self.host.method_registered(method)
     }
 
-    fn language_supported(&mut self, language_id: Option<&str>) -> bool {
-        self.host.language_supported(language_id)
+    fn document_supported(
+        &mut self,
+        language_id: Option<&str>,
+        path: Option<&Path>,
+    ) -> bool {
+        self.host.document_supported(language_id, path)
     }
 
     fn handle_handler_notification(
@@ -186,6 +190,7 @@ impl Plugin {
                     initialization_options: configurations,
                     workspace_folders: None,
                 },
+                None,
                 None,
                 false,
             );
@@ -404,7 +409,7 @@ pub fn start_volt(
             workspace,
             meta.dir.clone(),
             meta.id(),
-            None,
+            Vec::new(),
             rpc.clone(),
             plugin_rpc.clone(),
         ),

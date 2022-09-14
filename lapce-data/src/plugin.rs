@@ -156,7 +156,7 @@ impl PluginData {
 
     fn load_volts() -> Result<Vec<VoltInfo>> {
         let volts: Vec<VoltInfo> =
-            reqwest::blocking::get("https://lapce.dev/volts")?.json()?;
+            reqwest::blocking::get("https://lapce.dev/volts2")?.json()?;
         Ok(volts)
     }
 
