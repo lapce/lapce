@@ -307,7 +307,6 @@ impl Widget<LapceTabData> for LapceEditorHeader {
         if !self.display {
             return;
         }
-        println!("paint header");
         self.paint_buffer(
             ctx,
             &data.editor_view_content(self.view_id),
