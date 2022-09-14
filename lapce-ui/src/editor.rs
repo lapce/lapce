@@ -37,6 +37,7 @@ use lapce_data::{
 };
 use lsp_types::{CodeActionOrCommand, DiagnosticSeverity};
 
+pub mod bread_crumb;
 pub mod container;
 pub mod gutter;
 pub mod header;
