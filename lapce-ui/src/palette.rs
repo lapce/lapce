@@ -255,13 +255,13 @@ impl PaletteContainer {
         }
     }
 
-    fn ensure_item_visible(
+    fn ensure_item_visible<F: FnOnce(Command)>(
         &mut self,
-        ctx: &mut UpdateCtx,
         data: &LapceTabData,
         env: &Env,
+        width: f64,
+        submit_command: F,
     ) {
-        let width = ctx.size().width;
         let rect =
             Size::new(width, self.line_height)
                 .to_rect()
@@ -275,7 +275,7 @@ impl PaletteContainer {
             .inner_mut()
             .scroll_to_visible(rect, env)
         {
-            ctx.submit_command(Command::new(
+            submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ResetFade,
                 Target::Widget(data.palette.scroll_id),
@@ -307,6 +307,11 @@ impl Widget<LapceTabData> for PaletteContainer {
         self.input.lifecycle(ctx, event, data, env);
         self.content.lifecycle(ctx, event, data, env);
         self.preview.lifecycle(ctx, event, data, env);
+        if data.palette.has_nonzero_default_index {
+            self.ensure_item_visible(data, env, ctx.size().width, |cmd| {
+                ctx.submit_command(cmd)
+            });
+        }
     }
 
     fn update(
@@ -319,7 +324,9 @@ impl Widget<LapceTabData> for PaletteContainer {
         if old_data.palette.input != data.palette.input
             || old_data.palette.index != data.palette.index
         {
-            self.ensure_item_visible(ctx, data, env);
+            self.ensure_item_visible(data, env, ctx.size().width, |cmd| {
+                ctx.submit_command(cmd)
+            });
         }
         self.input.update(ctx, data, env);
         self.content.update(ctx, data, env);
