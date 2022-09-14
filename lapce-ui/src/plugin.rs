@@ -155,14 +155,14 @@ impl Plugin {
         let size = ctx.size();
         let padding = 10.0;
 
-        let text = if status == PluginStatus::Install {
+        let button_text = if status == PluginStatus::Install {
             status.to_string()
         } else {
             format!("{} ▼", status)
         };
         let text_layout = ctx
             .text()
-            .new_text_layout(text)
+            .new_text_layout(button_text)
             .font(config.ui.font_family(), config.ui.font_size() as f64)
             .text_color(
                 config
@@ -171,18 +171,24 @@ impl Plugin {
             )
             .build()
             .unwrap();
+
+        let button_padding = 8.0;
         let text_size = text_layout.size();
-        let text_padding = 5.0;
-        let x = size.width - text_size.width - text_padding * 2.0 - padding;
+
+        let x = size.width - text_size.width - button_padding * 2.0 - padding;
         let y = y + self.line_height * 2.0;
-        let color = Color::rgb8(80, 161, 79);
-        let rect = Size::new(text_size.width + text_padding * 2.0, self.line_height)
-            .to_rect()
-            .with_origin(Point::new(x, y));
-        ctx.fill(rect, &color);
+        let rect =
+            Size::new(text_size.width + button_padding * 2.0, self.line_height)
+                .to_rect()
+                .with_origin(Point::new(x, y));
+
+        ctx.fill(rect, &Color::rgb8(80, 161, 79));
         ctx.draw_text(
             &text_layout,
-            Point::new(x + text_padding, y + text_layout.y_offset(self.line_height)),
+            Point::new(
+                x + button_padding,
+                y + text_layout.y_offset(self.line_height),
+            ),
         );
         rect
     }
