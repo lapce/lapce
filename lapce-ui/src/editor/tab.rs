@@ -605,7 +605,7 @@ pub trait TabRectRenderer {
         ctx: &mut PaintCtx,
         data: &LapceTabData,
         widget_id: WidgetId,
-        i: usize,
+        tab_idx: usize,
         size: Size,
         mouse_pos: Point,
     );
@@ -617,7 +617,7 @@ impl TabRectRenderer for TabRect {
         ctx: &mut PaintCtx,
         data: &LapceTabData,
         widget_id: WidgetId,
-        i: usize,
+        tab_idx: usize,
         size: Size,
         mouse_pos: Point,
     ) {
@@ -631,7 +631,9 @@ impl TabRectRenderer for TabRect {
             self.rect.x0 + (size.height - width) / 2.0,
             (size.height - height) / 2.0,
         ));
-        if i == editor_tab.active {
+
+        let is_active_tab = tab_idx == editor_tab.active;
+        if is_active_tab {
             let color = if data.focus_area == FocusArea::Editor
                 && Some(widget_id) == *data.main_split.active_tab
             {
@@ -663,49 +665,41 @@ impl TabRectRenderer for TabRect {
             1.0,
         );
 
-        if ctx.is_hot() {
-            if self.close_rect.contains(mouse_pos) {
-                ctx.fill(
-                    &self.close_rect,
+        // Only show background of close button on hover
+        if self.close_rect.contains(mouse_pos) {
+            ctx.fill(
+                &self.close_rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+            );
+        }
+
+        // See if any of the children have unsaved changes
+        let is_pristine = match &editor_tab.children[tab_idx] {
+            EditorTabChild::Editor(editor_id, _, _) => {
+                let doc = data.main_split.editor_doc(*editor_id);
+                doc.buffer().is_pristine()
+            }
+            EditorTabChild::Settings { .. } => true,
+        };
+
+        let mut draw_icon = |name: &'static str| {
+            ctx.draw_svg(
+                &get_svg(name).unwrap(),
+                self.close_rect.inflate(-padding, -padding),
+                Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
-                );
-            }
-            if self.rect.contains(mouse_pos) {
-                let svg = get_svg("close.svg").unwrap();
-                ctx.draw_svg(
-                    &svg,
-                    self.close_rect.inflate(-padding, -padding),
-                    Some(
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                    ),
-                );
-            }
-        }
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                ),
+            );
+        };
 
-        // Only display dirty icon if focus is not on tab bar, so that the close svg can be shown
-        if !(ctx.is_hot() && self.rect.contains(mouse_pos)) {
-            // See if any of the children are dirty
-            let is_pristine = match &editor_tab.children[i] {
-                EditorTabChild::Editor(editor_id, _, _) => {
-                    let doc = data.main_split.editor_doc(*editor_id);
-                    doc.buffer().is_pristine()
-                }
-                EditorTabChild::Settings { .. } => true,
-            };
-
-            if !is_pristine {
-                let svg = get_svg("unsaved.svg").unwrap();
-                ctx.draw_svg(
-                    &svg,
-                    self.close_rect.inflate(-padding, -padding),
-                    Some(
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                    ),
-                )
+        if is_pristine || self.close_rect.contains(mouse_pos) {
+            if self.rect.contains(mouse_pos) || is_active_tab {
+                draw_icon("close.svg")
             }
-        }
+        } else {
+            draw_icon("unsaved.svg")
+        };
     }
 }
