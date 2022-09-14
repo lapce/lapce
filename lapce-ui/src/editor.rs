@@ -1481,21 +1481,6 @@ impl LapceEditor {
         }
 
         if i > 0 {
-            ctx.blurred_rect(
-                Size::new(size.width, i as f64 * line_height)
-                    .to_rect()
-                    .with_origin(Point::new(
-                        0.0,
-                        y0 - if last_sticky_should_scroll {
-                            y_diff
-                        } else {
-                            0.0
-                        },
-                    )),
-                3.0,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
             info.height = i as f64 * line_height
                 - if last_sticky_should_scroll {
                     y_diff
