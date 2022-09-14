@@ -1,9 +1,9 @@
 use crate::{panel::PanelSizing, scroll::LapceScroll};
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Cursor, Env, Event, EventCtx, FontWeight,
-    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
+    BoxConstraints, Command, Cursor, Env, Event, EventCtx, FontWeight, LayoutCtx,
+    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
+    Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -59,6 +59,7 @@ impl Plugin {
     fn paint_plugin(
         &mut self,
         ctx: &mut PaintCtx,
+        data: &LapceTabData,
         i: usize,
         display_name: &str,
         description: &str,
@@ -182,7 +183,10 @@ impl Plugin {
                 .to_rect()
                 .with_origin(Point::new(x, y));
 
-        ctx.fill(rect, &Color::rgb8(80, 161, 79));
+        ctx.fill(
+            rect,
+            data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
+        );
         ctx.draw_text(
             &text_layout,
             Point::new(
@@ -199,6 +203,7 @@ impl Plugin {
             let status = data.plugin.plugin_status(id);
             let rect = self.paint_plugin(
                 ctx,
+                data,
                 i,
                 &volt.display_name,
                 &volt.description,
@@ -263,6 +268,7 @@ impl Plugin {
                     let status = data.plugin.plugin_status(id);
                     let rect = self.paint_plugin(
                         ctx,
+                        data,
                         i,
                         &volt.display_name,
                         &volt.description,
