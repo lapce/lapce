@@ -60,8 +60,8 @@ magenta = "#C678DD"
 "tag" = "$blue"
 
 [theme.ui]
-"lapce.active_tab" = "$black"
-"lapce.inactive_tab" = "$grey"
+"lapce.active_tab" = "#528BFF"
+"lapce.inactive_tab" = "#5C6370"
 "lapce.error" = "$red"
 "lapce.warn" = "$yellow"
 "lapce.dropdown_shadow" = "#000000"
