@@ -71,7 +71,8 @@ pub fn editor_tab_child_widget(
             editor_tab_id,
             volt_id,
             ..
-        } => PluginInfo::new(*widget_id, *editor_tab_id, volt_id.clone()).boxed(),
+        } => PluginInfo::new_scroll(*widget_id, *editor_tab_id, volt_id.clone())
+            .boxed(),
     }
 }
 

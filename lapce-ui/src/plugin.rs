@@ -1,6 +1,7 @@
 use crate::{panel::PanelSizing, scroll::LapceScroll, svg::logo_svg};
 use druid::{
-    piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
+    kurbo::Line,
+    piet::{PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Command, Cursor, Env, Event, EventCtx, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
@@ -599,19 +600,40 @@ pub struct PluginInfo {
     widget_id: WidgetId,
     editor_tab_id: WidgetId,
     volt_id: String,
+
+    padding: f64,
+    gap: f64,
+    name_text_layout: Option<PietTextLayout>,
+    desc_text_layout: Option<PietTextLayout>,
+    author_text_layout: Option<PietTextLayout>,
+    button_text_layout: Option<PietTextLayout>,
+    icon_width: f64,
+    title_width: f64,
 }
 
 impl PluginInfo {
-    pub fn new(
-        widget_id: WidgetId,
-        editor_tab_id: WidgetId,
-        volt_id: String,
-    ) -> Self {
+    fn new(widget_id: WidgetId, editor_tab_id: WidgetId, volt_id: String) -> Self {
         Self {
             widget_id,
             editor_tab_id,
             volt_id,
+            padding: 50.0,
+            gap: 30.0,
+            name_text_layout: None,
+            desc_text_layout: None,
+            author_text_layout: None,
+            button_text_layout: None,
+            icon_width: 0.0,
+            title_width: 0.0,
         }
+    }
+
+    pub fn new_scroll(
+        widget_id: WidgetId,
+        editor_tab_id: WidgetId,
+        volt_id: String,
+    ) -> LapceScroll<LapceTabData, PluginInfo> {
+        LapceScroll::new(PluginInfo::new(widget_id, editor_tab_id, volt_id))
     }
 }
 
@@ -662,13 +684,184 @@ impl Widget<LapceTabData> for PluginInfo {
 
     fn layout(
         &mut self,
-        _ctx: &mut LayoutCtx,
+        ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        _data: &LapceTabData,
+        data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        bc.max()
+        let width = if let Some(volt) = data.plugin.volts.volts.get(&self.volt_id) {
+            self.name_text_layout = Some(
+                ctx.text()
+                    .new_text_layout(volt.display_name.clone())
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64 * 1.5,
+                    )
+                    .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOCUS)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap(),
+            );
+            self.desc_text_layout = Some(
+                ctx.text()
+                    .new_text_layout(volt.description.clone())
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap(),
+            );
+            self.author_text_layout = Some(
+                ctx.text()
+                    .new_text_layout(volt.author.clone())
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap(),
+            );
+            let status = data.plugin.plugin_status(&self.volt_id);
+            let text = if status == PluginStatus::Install {
+                status.to_string()
+            } else {
+                format!("{} ▼", status)
+            };
+            self.button_text_layout = Some(
+                ctx.text()
+                    .new_text_layout(text)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap(),
+            );
+
+            self.icon_width = self.name_text_layout.as_ref().unwrap().size().height
+                * 2.0
+                + self.desc_text_layout.as_ref().unwrap().size().height * 2.0 * 3.0;
+            self.title_width = self
+                .name_text_layout
+                .as_ref()
+                .unwrap()
+                .size()
+                .width
+                .max(self.desc_text_layout.as_ref().unwrap().size().width);
+            self.padding * 4.0 + self.icon_width + self.title_width
+        } else {
+            0.0
+        };
+        Size::new(bc.max().width.max(width), bc.max().height)
     }
 
-    fn paint(&mut self, _ctx: &mut PaintCtx, _data: &LapceTabData, _env: &Env) {}
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+        if let Some(name_text_layout) = self.name_text_layout.as_ref() {
+            let width = self.icon_width + self.title_width + self.padding * 4.0;
+            let width = width.max(740.0);
+            let width = width.min(ctx.size().width - self.padding * 2.0);
+            let padding = (ctx.size().width - width) / 2.0;
+
+            let mut y = 30.0;
+            let size = name_text_layout.size();
+            let name_y = y;
+            y += size.height * 2.0;
+
+            let desc_text_layout = self.desc_text_layout.as_ref().unwrap();
+            let size = desc_text_layout.size();
+            let desc_y = y;
+            y += size.height * 2.0;
+
+            let author_text_layout = self.author_text_layout.as_ref().unwrap();
+            let size = author_text_layout.size();
+            let author_y = y;
+            y += size.height * 2.0;
+
+            let button_text_layout = self.button_text_layout.as_ref().unwrap();
+            let size = button_text_layout.size();
+            let button_y = y;
+
+            let icon_rect = Rect::ZERO
+                .with_origin(Point::new(
+                    padding + self.padding + self.icon_width / 2.0,
+                    name_y + self.icon_width / 2.0,
+                ))
+                .inflate(self.icon_width / 2.0 * 0.8, self.icon_width / 2.0 * 0.8);
+            ctx.draw_svg(
+                &logo_svg(),
+                icon_rect,
+                Some(data.config.get_color_unchecked(LapceTheme::EDITOR_DIM)),
+            );
+
+            ctx.draw_text(
+                name_text_layout,
+                Point::new(
+                    padding + self.padding + self.icon_width,
+                    name_y + name_text_layout.y_offset(size.height * 2.0),
+                ),
+            );
+            ctx.draw_text(
+                desc_text_layout,
+                Point::new(
+                    padding + self.padding + self.icon_width,
+                    desc_y + desc_text_layout.y_offset(size.height * 2.0),
+                ),
+            );
+            ctx.draw_text(
+                author_text_layout,
+                Point::new(
+                    padding + self.padding + self.icon_width,
+                    author_y + author_text_layout.y_offset(size.height * 2.0),
+                ),
+            );
+            let rect = Size::new(size.width + 5.0 * 2.0, 0.0)
+                .to_rect()
+                .with_origin(Point::new(
+                    padding + self.padding + self.icon_width,
+                    button_y + size.height,
+                ))
+                .inflate(0.0, size.height);
+            ctx.fill(rect, &Color::rgb8(80, 161, 79));
+            ctx.draw_text(
+                button_text_layout,
+                Point::new(
+                    padding + self.padding + 5.0 + self.icon_width,
+                    button_y + button_text_layout.y_offset(size.height * 2.0),
+                ),
+            );
+
+            y += size.height * 2.0;
+            y += 30.0;
+
+            let line = Line::new(
+                Point::new(padding, y + 0.5),
+                Point::new(ctx.size().width - padding, y + 0.5),
+            );
+            ctx.stroke(
+                line,
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            )
+        }
+    }
 }
