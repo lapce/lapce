@@ -627,6 +627,7 @@ pub enum LapceUICommand {
     WorkspaceFileChange,
     ProxyUpdateStatus(ProxyStatus),
     CloseTerminal(TermId),
+    OpenPluginInfo(VoltInfo),
     SplitTerminal(bool, WidgetId),
     SplitTerminalClose(TermId, WidgetId),
     SplitEditor(bool, WidgetId),

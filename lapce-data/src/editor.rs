@@ -1497,7 +1497,7 @@ impl LapceEditorBufferData {
             SplitVertical => {
                 self.main_split.split_editor(
                     ctx,
-                    Arc::make_mut(&mut self.editor),
+                    self.editor.view_id,
                     SplitDirection::Vertical,
                     &self.config,
                 );
@@ -1505,7 +1505,7 @@ impl LapceEditorBufferData {
             SplitHorizontal => {
                 self.main_split.split_editor(
                     ctx,
-                    Arc::make_mut(&mut self.editor),
+                    self.editor.view_id,
                     SplitDirection::Horizontal,
                     &self.config,
                 );

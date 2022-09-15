@@ -133,7 +133,7 @@ impl KeyPressFocus for LapceSettingsFocusData {
                     );
                 }
                 FocusCommand::SplitClose => {
-                    self.main_split.settings_close(
+                    self.main_split.widget_close(
                         ctx,
                         self.widget_id,
                         self.editor_tab_id,

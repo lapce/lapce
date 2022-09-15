@@ -1,12 +1,13 @@
-use crate::{panel::PanelSizing, scroll::LapceScroll, svg::get_svg};
+use crate::{panel::PanelSizing, scroll::LapceScroll, svg::logo_svg};
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Command, Cursor, Env, Event, EventCtx, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
+use lapce_core::command::FocusCommand;
 use lapce_data::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    command::{CommandKind, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     data::{LapceData, LapceTabData},
     panel::PanelKind,
@@ -20,6 +21,8 @@ pub struct Plugin {
     width: f64,
     installed: bool,
     rects: Vec<(usize, Rect, PluginStatus)>,
+    gap: f64,
+    height: f64,
 }
 
 impl Plugin {
@@ -27,8 +30,10 @@ impl Plugin {
         Self {
             line_height: 25.0,
             width: 0.0,
+            height: 0.0,
             installed,
             rects: Vec::new(),
+            gap: 10.0,
         }
     }
 
@@ -73,9 +78,18 @@ impl Plugin {
         status: PluginStatus,
         config: &Config,
     ) -> Rect {
-        // display title [plugin name]
-        let y = self.plugin_y_mod() * i as f64;
-        let x = 0.5 * self.line_height;
+        let y = (3.0 * self.line_height + self.gap) * i as f64 + self.gap / 2.0;
+        let x = 3.0 * self.line_height;
+
+        let svg = logo_svg();
+        ctx.draw_svg(
+            &svg,
+            Rect::ZERO
+                .with_origin(Point::new(x / 2.0, y + self.line_height))
+                .inflate(self.line_height * 0.75, self.line_height * 0.75),
+            Some(config.get_color_unchecked(LapceTheme::EDITOR_DIM)),
+        );
+
         let text_layout = ctx
             .text()
             .new_text_layout(display_name.to_string())
@@ -345,7 +359,8 @@ impl Plugin {
         &'a self,
         mouse_event: &MouseEvent,
     ) -> Option<(usize, &'a PluginStatus)> {
-        let index = (mouse_event.pos.y / self.plugin_y_mod()) as usize;
+        let index =
+            (mouse_event.pos.y / (self.line_height * 3.0 + self.gap)) as usize;
         let (i, rect, status) = self.rects.get(index)?;
         if rect.contains(mouse_event.pos) {
             Some((*i, status))
@@ -371,7 +386,7 @@ impl Widget<LapceTabData> for Plugin {
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
-                if self.hit_test(mouse_event).is_some() {
+                if mouse_event.pos.y <= self.height {
                     ctx.set_cursor(&Cursor::Pointer);
                 } else {
                     ctx.clear_cursor();
@@ -492,6 +507,37 @@ impl Widget<LapceTabData> for Plugin {
                                 ctx.to_window(mouse_event.pos),
                             )
                         }
+                    } else if mouse_event.pos.y <= self.height {
+                        let index = (mouse_event.pos.y
+                            / (self.line_height * 3.0 + self.gap))
+                            as usize;
+                        if self.installed {
+                            if let Some((_, volt)) =
+                                data.plugin.installed.get_index(index)
+                            {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::OpenPluginInfo(volt.info()),
+                                    Target::Widget(data.id),
+                                ));
+                            }
+                        } else {
+                            let mut i = 0;
+                            for (id, volt) in data.plugin.volts.volts.iter() {
+                                if data.plugin.installed.contains_key(id) {
+                                    continue;
+                                }
+                                if i == index {
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::OpenPluginInfo(volt.clone()),
+                                        Target::Widget(data.id),
+                                    ));
+                                    break;
+                                }
+                                i += 1;
+                            }
+                        }
                     }
                 }
             }
@@ -535,10 +581,9 @@ impl Widget<LapceTabData> for Plugin {
                 .count()
         };
 
-        let height = self.plugin_y_mod() * len as f64;
-        let height = height.max(bc.max().height);
+        self.height = (3.0 * self.line_height + self.gap) * len as f64;
         self.width = bc.max().width;
-        Size::new(bc.max().width, height)
+        Size::new(bc.max().width, bc.max().height.max(self.height))
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
@@ -548,4 +593,82 @@ impl Widget<LapceTabData> for Plugin {
             self.paint_available(ctx, data);
         }
     }
+}
+
+pub struct PluginInfo {
+    widget_id: WidgetId,
+    editor_tab_id: WidgetId,
+    volt_id: String,
+}
+
+impl PluginInfo {
+    pub fn new(
+        widget_id: WidgetId,
+        editor_tab_id: WidgetId,
+        volt_id: String,
+    ) -> Self {
+        Self {
+            widget_id,
+            editor_tab_id,
+            volt_id,
+        }
+    }
+}
+
+impl Widget<LapceTabData> for PluginInfo {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.widget_id)
+    }
+
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        _env: &Env,
+    ) {
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
+                let cmd = cmd.get_unchecked(LAPCE_COMMAND);
+                if let CommandKind::Focus(FocusCommand::SplitClose) = &cmd.kind {
+                    data.main_split.widget_close(
+                        ctx,
+                        self.widget_id,
+                        self.editor_tab_id,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        _ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) -> Size {
+        bc.max()
+    }
+
+    fn paint(&mut self, _ctx: &mut PaintCtx, _data: &LapceTabData, _env: &Env) {}
 }
