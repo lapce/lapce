@@ -68,8 +68,8 @@ pub fn file_svg(path: &Path) -> (Svg, Option<&Color>) {
                 (&["lua"], "file_type_lua.svg", None),
                 (&["html", "htm"], "file_type_html.svg", None),
                 (&["zip"], "file_type_zip.svg", None),
-                (&["js"], "file_type_js.svg", None),
-                (&["ts"], "file_type_ts.svg", None),
+                (&["js", "cjs", "mjs", "jsx"], "file_type_js.svg", None),
+                (&["ts", "cts", "mts", "tsx"], "file_type_ts.svg", None),
                 (&["css"], "file_type_css.svg", None),
             ];
 
