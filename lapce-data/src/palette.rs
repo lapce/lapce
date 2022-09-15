@@ -345,6 +345,7 @@ pub struct PaletteData {
     pub input: String,
     pub cursor: usize,
     pub index: usize,
+    pub has_nonzero_default_index: bool,
     pub items: Vec<PaletteItem>,
     pub filtered_items: Vec<PaletteItem>,
     pub preview_editor: WidgetId,
@@ -462,6 +463,7 @@ impl PaletteData {
             input: "".to_string(),
             cursor: 0,
             index: 0,
+            has_nonzero_default_index: false,
             items: Vec::new(),
             filtered_items: Vec::new(),
             preview_editor,
@@ -638,9 +640,17 @@ impl PaletteViewData {
             PaletteType::Theme => {
                 let config = self.config.clone();
                 self.get_themes(ctx, &config);
+                self.preselect_matching(ctx, &config.theme.name);
             }
             PaletteType::Language => {
                 self.get_languages(ctx);
+                if let Some(editor) = self.main_split.active_editor() {
+                    let doc = self.main_split.content_doc(&editor.content);
+                    if let Some(syntax) = doc.syntax() {
+                        let lang_name = format!("{}", syntax.language);
+                        self.preselect_matching(ctx, &lang_name);
+                    }
+                }
             }
         }
     }
@@ -722,6 +732,20 @@ impl PaletteViewData {
         palette.preview(ctx);
     }
 
+    fn preselect_matching(&mut self, ctx: &mut EventCtx, matching: &str) {
+        let palette = Arc::make_mut(&mut self.palette);
+        if let Some((id, _)) = palette
+            .items
+            .iter()
+            .enumerate()
+            .find(|(_, item)| item.filter_text == matching)
+        {
+            palette.index = id;
+            palette.has_nonzero_default_index = true;
+            palette.preview(ctx);
+        }
+    }
+
     pub fn select(&mut self, ctx: &mut EventCtx) {
         if self.palette.palette_type == PaletteType::Line {
             let pattern = self.palette.get_input().to_string();
@@ -784,7 +808,11 @@ impl PaletteViewData {
 
     pub fn update_palette(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
-        palette.index = 0;
+
+        if !palette.has_nonzero_default_index {
+            palette.index = 0;
+        }
+        palette.has_nonzero_default_index = false;
 
         let palette_type = PaletteType::get_palette_type(
             &self.palette.palette_type,
