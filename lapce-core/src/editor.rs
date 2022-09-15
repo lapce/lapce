@@ -820,11 +820,15 @@ impl Editor {
             Undo => {
                 if let Some((delta, inval_lines, cursor_mode)) = buffer.do_undo() {
                     if let Some(cursor_mode) = cursor_mode {
-                        if modal {
-                            cursor.mode = CursorMode::Normal(cursor_mode.offset());
+                        cursor.mode = if modal {
+                            CursorMode::Normal(cursor_mode.offset())
+                        } else if cursor.is_insert() {
+                            cursor_mode
                         } else {
-                            cursor.mode = cursor_mode;
-                        }
+                            CursorMode::Insert(Selection::caret(
+                                cursor_mode.offset(),
+                            ))
+                        };
                     } else if let Some(new_cursor) =
                         get_first_selection_after(cursor, buffer, &delta)
                     {
@@ -840,11 +844,15 @@ impl Editor {
             Redo => {
                 if let Some((delta, inval_lines, cursor_mode)) = buffer.do_redo() {
                     if let Some(cursor_mode) = cursor_mode {
-                        if modal {
-                            cursor.mode = CursorMode::Normal(cursor_mode.offset());
+                        cursor.mode = if modal {
+                            CursorMode::Normal(cursor_mode.offset())
+                        } else if cursor.is_insert() {
+                            cursor_mode
                         } else {
-                            cursor.mode = cursor_mode;
-                        }
+                            CursorMode::Insert(Selection::caret(
+                                cursor_mode.offset(),
+                            ))
+                        };
                     } else if let Some(new_cursor) =
                         get_first_selection_after(cursor, buffer, &delta)
                     {
