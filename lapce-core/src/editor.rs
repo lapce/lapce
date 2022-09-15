@@ -261,8 +261,7 @@ impl Editor {
         cursor: &mut Cursor,
         selection: Selection,
     ) -> Vec<(RopeDelta, InvalLines)> {
-        let mut deltas = Vec::new();
-        let mut edits = Vec::new();
+        let mut edits = Vec::with_capacity(selection.regions().len());
         let mut extra_edits = Vec::new();
         let mut shift = 0i32;
         for region in selection.regions() {
@@ -271,46 +270,47 @@ impl Editor {
             let line_start = buffer.offset_of_line(line);
             let line_end = buffer.line_end_offset(line, true);
             let line_indent = buffer.indent_on_line(line);
-            let first_half = buffer.slice_to_cow(line_start..offset).to_string();
-            let second_half = buffer.slice_to_cow(offset..line_end).to_string();
+            let first_half = buffer.slice_to_cow(line_start..offset);
+            let second_half = buffer.slice_to_cow(offset..line_end);
+            let second_half = second_half.trim();
 
-            let indent = if has_unmatched_pair(&first_half) {
-                format!("{}{}", line_indent, buffer.indent_unit())
-            } else if second_half.trim().is_empty() {
-                let next_line_indent = buffer.indent_on_line(line + 1);
-                if next_line_indent.len() > line_indent.len() {
-                    next_line_indent
+            let new_line_content = {
+                let indent_storage;
+                let indent = if has_unmatched_pair(&first_half) {
+                    indent_storage =
+                        format!("{}{}", line_indent, buffer.indent_unit());
+                    &indent_storage
+                } else if second_half.is_empty() {
+                    indent_storage = buffer.indent_on_line(line + 1);
+                    if indent_storage.len() > line_indent.len() {
+                        &indent_storage
+                    } else {
+                        &line_indent
+                    }
                 } else {
-                    line_indent.clone()
-                }
-            } else {
-                line_indent.clone()
+                    &line_indent
+                };
+                format!("\n{indent}")
             };
 
             let selection = Selection::region(region.min(), region.max());
-            let content = format!("{}{}", "\n", indent);
 
             shift -= (region.max() - region.min()) as i32;
-            shift += content.len() as i32;
+            shift += new_line_content.len() as i32;
 
-            edits.push((selection, content));
+            edits.push((selection, new_line_content));
 
-            for c in first_half.chars().rev() {
-                if c != ' ' {
-                    if let Some(pair_start) = matching_pair_direction(c) {
-                        if pair_start {
-                            if let Some(c) = matching_char(c) {
-                                if second_half.trim().starts_with(&c.to_string()) {
-                                    let selection = Selection::caret(
-                                        (region.max() as i32 + shift) as usize,
-                                    );
-                                    let content = format!("{}{}", "\n", line_indent);
-                                    extra_edits.push((selection.clone(), content));
-                                }
-                            }
+            if let Some(c) = first_half.chars().rev().find(|&c| c != ' ') {
+                if let Some(true) = matching_pair_direction(c) {
+                    if let Some(c) = matching_char(c) {
+                        if second_half.starts_with(c) {
+                            let selection = Selection::caret(
+                                (region.max() as i32 + shift) as usize,
+                            );
+                            let content = format!("\n{line_indent}");
+                            extra_edits.push((selection, content));
                         }
                     }
-                    break;
                 }
             }
         }
@@ -318,17 +318,18 @@ impl Editor {
         let edits = edits
             .iter()
             .map(|(selection, s)| (selection, s.as_str()))
-            .collect::<Vec<(&Selection, &str)>>();
+            .collect::<Vec<_>>();
         let (delta, inval_lines) = buffer.edit(&edits, EditType::InsertNewline);
         let mut selection =
             selection.apply_delta(&delta, true, InsertDrift::Default);
-        deltas.push((delta, inval_lines));
+
+        let mut deltas = vec![(delta, inval_lines)];
 
         if !extra_edits.is_empty() {
             let edits = extra_edits
                 .iter()
                 .map(|(selection, s)| (selection, s.as_str()))
-                .collect::<Vec<(&Selection, &str)>>();
+                .collect::<Vec<_>>();
             let (delta, inval_lines) = buffer.edit(&edits, EditType::InsertNewline);
             selection = selection.apply_delta(&delta, false, InsertDrift::Default);
             deltas.push((delta, inval_lines));
