@@ -1250,7 +1250,9 @@ impl Editor {
                 vec![]
             }
             Append => {
-                let offset = buffer.move_right(cursor.offset(), Mode::Insert, 1);
+                let count = (buffer.line_len(buffer.line_of_offset(cursor.offset()))
+                    > 1) as usize;
+                let offset = buffer.move_right(cursor.offset(), Mode::Insert, count);
                 cursor.mode = CursorMode::Insert(Selection::caret(offset));
                 vec![]
             }
