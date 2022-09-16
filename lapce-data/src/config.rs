@@ -230,7 +230,7 @@ pub struct EditorConfig {
     #[field_names(
         desc = "Whether the multiple cursor selection only selects whole words."
     )]
-    pub multicursor_whole_words: bool
+    pub multicursor_whole_words: bool,
 }
 
 impl EditorConfig {
