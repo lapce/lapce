@@ -318,6 +318,7 @@ impl Widget<LapceTabData> for PaletteContainer {
     ) {
         if old_data.palette.input != data.palette.input
             || old_data.palette.index != data.palette.index
+            || old_data.palette.run_id != data.palette.run_id
         {
             self.ensure_item_visible(ctx, data, env);
         }
