@@ -607,8 +607,11 @@ impl Widget<LapceTabData> for LapceEditorView {
                         SettingsValueKind::String => {
                             Some(serde_json::json!(content))
                         }
-                        SettingsValueKind::Number => {
+                        SettingsValueKind::Integer => {
                             content.parse::<i64>().ok().map(|n| serde_json::json!(n))
+                        }
+                        SettingsValueKind::Float => {
+                            content.parse::<f64>().ok().map(|n| serde_json::json!(n))
                         }
                         SettingsValueKind::Bool => None,
                     };

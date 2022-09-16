@@ -166,9 +166,9 @@ pub struct EditorConfig {
     #[field_names(desc = "Set the font size in the code lens")]
     pub code_lens_font_size: usize,
     #[field_names(
-        desc = "Set the editor line height. If 0, line height will be calculated automatically"
+        desc = "Set the editor line height. If less than 5.0, line height will be a multiple of the font size."
     )]
-    line_height: usize,
+    line_height: f64,
     #[field_names(desc = "Set the tab width")]
     pub tab_width: usize,
     #[field_names(desc = "If opened editors are shown in a tab")]
@@ -229,12 +229,16 @@ pub struct EditorConfig {
 
 impl EditorConfig {
     pub fn line_height(&self) -> usize {
-        if self.line_height == 0 {
-            (self.font_size as f64 * 1.35).ceil() as usize
+        const SCALE_OR_SIZE_LIMIT: f64 = 5.0;
+
+        let line_height = if self.line_height < SCALE_OR_SIZE_LIMIT {
+            self.line_height * self.font_size as f64
         } else {
-            // Prevent overlapping lines
-            self.line_height.max(self.font_size)
-        }
+            self.line_height
+        };
+
+        // Prevent overlapping lines
+        (line_height.round() as usize).max(self.font_size)
     }
 
     pub fn font_family(&self) -> FontFamily {

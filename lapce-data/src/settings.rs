@@ -18,7 +18,8 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SettingsValueKind {
     String,
-    Number,
+    Integer,
+    Float,
     Bool,
 }
 
