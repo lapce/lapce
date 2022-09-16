@@ -232,7 +232,8 @@ impl EditorConfig {
         if self.line_height == 0 {
             (self.font_size as f64 * 1.35).ceil() as usize
         } else {
-            self.line_height
+            // Prevent overlapping lines
+            self.line_height.max(self.font_size)
         }
     }
 
