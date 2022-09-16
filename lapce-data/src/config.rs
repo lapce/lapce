@@ -223,6 +223,14 @@ pub struct EditorConfig {
         desc = "Set the cursor blink interval (in milliseconds). Set to 0 to completely disable."
     )]
     pub blink_interval: u64, // TODO: change to u128 when upgrading config-rs to >0.11
+    #[field_names(
+        desc = "Whether the multiple cursor selection is case sensitive."
+    )]
+    pub multicursor_case_sensitive: bool,
+    #[field_names(
+        desc = "Whether the multiple cursor selection only selects whole words."
+    )]
+    pub multicursor_whole_words: bool
 }
 
 impl EditorConfig {
