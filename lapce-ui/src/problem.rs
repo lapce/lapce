@@ -296,14 +296,14 @@ impl Widget<LapceTabData> for ProblemContent {
                 }
             })
             .sum::<usize>();
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         self.content_height = line_height * lines as f64;
 
         Size::new(bc.max().width, self.content_height.max(bc.max().height))
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         let padding = (line_height - 14.0) / 2.0;
         let size = ctx.size();
         let mouse_line = (self.mouse_pos.y / line_height).floor() as usize;

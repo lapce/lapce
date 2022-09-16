@@ -166,7 +166,7 @@ pub struct EditorConfig {
     #[field_names(desc = "Set the font size in the code lens")]
     pub code_lens_font_size: usize,
     #[field_names(desc = "Set the editor line height")]
-    pub line_height: usize,
+    line_height: usize,
     #[field_names(desc = "Set the tab width")]
     pub tab_width: usize,
     #[field_names(desc = "If opened editors are shown in a tab")]
@@ -226,6 +226,10 @@ pub struct EditorConfig {
 }
 
 impl EditorConfig {
+    pub fn line_height(&self) -> usize {
+        self.line_height
+    }
+
     pub fn font_family(&self) -> FontFamily {
         if self.font_family.is_empty() {
             FontFamily::SYSTEM_UI

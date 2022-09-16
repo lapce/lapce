@@ -1392,7 +1392,7 @@ impl Document {
         let (line, font_size) = match view {
             EditorView::Diff(version) => {
                 if let Some(history) = self.get_history(version) {
-                    let line_height = config.editor.line_height;
+                    let line_height = config.editor.line_height();
                     let mut line = 0;
                     let mut lines = 0;
                     for change in history.changes().iter() {
@@ -1435,7 +1435,7 @@ impl Document {
                     let line = lens.line_of_height(point.y.round() as usize);
                     let line_height =
                         lens.height_of_line(line + 1) - lens.height_of_line(line);
-                    let font_size = if line_height < config.editor.line_height {
+                    let font_size = if line_height < config.editor.line_height() {
                         config.editor.code_lens_font_size
                     } else {
                         config.editor.font_size
@@ -1443,14 +1443,14 @@ impl Document {
                     (line, font_size)
                 } else {
                     (
-                        (point.y / config.editor.line_height as f64).floor()
+                        (point.y / config.editor.line_height() as f64).floor()
                             as usize,
                         config.editor.font_size,
                     )
                 }
             }
             EditorView::Normal => (
-                (point.y / config.editor.line_height as f64).floor() as usize,
+                (point.y / config.editor.line_height() as f64).floor() as usize,
                 config.editor.font_size,
             ),
         };
@@ -1530,7 +1530,7 @@ impl Document {
         let (y, line_height, font_size) = match view {
             EditorView::Diff(version) => {
                 if let Some(history) = self.get_history(version) {
-                    let line_height = config.editor.line_height;
+                    let line_height = config.editor.line_height();
                     let mut current_line = 0;
                     let mut y = 0;
                     for change in history.changes().iter() {
@@ -1555,9 +1555,9 @@ impl Document {
                             }
                         }
                     }
-                    (y, config.editor.line_height, config.editor.font_size)
+                    (y, config.editor.line_height(), config.editor.font_size)
                 } else {
-                    (0, config.editor.line_height, config.editor.font_size)
+                    (0, config.editor.line_height(), config.editor.font_size)
                 }
             }
             EditorView::Lens => {
@@ -1566,7 +1566,7 @@ impl Document {
                     let height = lens.height_of_line(line);
                     let line_height =
                         lens.height_of_line(line + 1) - lens.height_of_line(line);
-                    let font_size = if line_height < config.editor.line_height {
+                    let font_size = if line_height < config.editor.line_height() {
                         config.editor.code_lens_font_size
                     } else {
                         config.editor.font_size
@@ -1574,15 +1574,15 @@ impl Document {
                     (height, line_height, font_size)
                 } else {
                     (
-                        config.editor.line_height * line,
-                        config.editor.line_height,
+                        config.editor.line_height() * line,
+                        config.editor.line_height(),
                         config.editor.font_size,
                     )
                 }
             }
             EditorView::Normal => (
-                config.editor.line_height * line,
-                config.editor.line_height,
+                config.editor.line_height() * line,
+                config.editor.line_height(),
                 config.editor.font_size,
             ),
         };
@@ -2147,7 +2147,7 @@ impl Document {
 
                                     let line_height = lens.height_of_line(line + 1)
                                         - lens.height_of_line(line);
-                                    if line_height == config.editor.line_height {
+                                    if line_height == config.editor.line_height() {
                                         break;
                                     }
                                     line -= 1;
@@ -2159,7 +2159,7 @@ impl Document {
                             let line_height = lens.height_of_line(line + 1)
                                 - lens.height_of_line(line);
                             let font_size =
-                                if line_height == config.editor.line_height {
+                                if line_height == config.editor.line_height() {
                                     config.editor.font_size
                                 } else {
                                     config.editor.code_lens_font_size
@@ -2220,7 +2220,7 @@ impl Document {
 
                                     let line_height = lens.height_of_line(line + 1)
                                         - lens.height_of_line(line);
-                                    if line_height == config.editor.line_height {
+                                    if line_height == config.editor.line_height() {
                                         break;
                                     }
                                     line += 1;
@@ -2232,7 +2232,7 @@ impl Document {
                             let line_height = lens.height_of_line(line + 1)
                                 - lens.height_of_line(line);
                             let font_size =
-                                if line_height == config.editor.line_height {
+                                if line_height == config.editor.line_height() {
                                     config.editor.font_size
                                 } else {
                                     config.editor.code_lens_font_size
@@ -2321,7 +2321,7 @@ impl Document {
                         let line_height = lens.height_of_line(line + 1)
                             - lens.height_of_line(line);
 
-                        if line_height == config.editor.line_height {
+                        if line_height == config.editor.line_height() {
                             config.editor.font_size
                         } else {
                             config.editor.code_lens_font_size
@@ -2448,7 +2448,7 @@ impl Document {
                 width = line_width;
             }
         }
-        let line_height = config.editor.line_height as f64;
+        let line_height = config.editor.line_height() as f64;
         Size::new(width, code_actions.len() as f64 * line_height)
     }
 

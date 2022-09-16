@@ -64,7 +64,7 @@ impl Widget<LapceTabData> for LapceEditorBreadCrumb {
         self.text_layouts.clear();
         self.svgs.clear();
 
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
 
         let font_size = data.config.ui.font_size() as f64;
 

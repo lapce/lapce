@@ -1009,7 +1009,7 @@ impl LapceEditorBufferData {
     }
 
     fn page_move(&mut self, ctx: &mut EventCtx, down: bool, mods: Modifiers) {
-        let line_height = self.config.editor.line_height as f64;
+        let line_height = self.config.editor.line_height() as f64;
         let lines =
             (self.editor.size.borrow().height / line_height / 2.0).round() as usize;
         let distance = (lines as f64) * line_height;
@@ -1043,7 +1043,7 @@ impl LapceEditorBufferData {
         count: usize,
         mods: Modifiers,
     ) {
-        let line_height = self.config.editor.line_height as f64;
+        let line_height = self.config.editor.line_height() as f64;
         let diff = line_height * count as f64;
         let diff = if down { diff } else { -diff };
 
@@ -1115,7 +1115,7 @@ impl LapceEditorBufferData {
                 let line_height = syntax.lens.height_of_line(line + 1)
                     - syntax.lens.height_of_line(line);
 
-                let font_size = if line_height < config.editor.line_height {
+                let font_size = if line_height < config.editor.line_height() {
                     config.editor.code_lens_font_size
                 } else {
                     config.editor.font_size
@@ -1132,11 +1132,11 @@ impl LapceEditorBufferData {
 
             (line, config.char_width(text, font_size as f64))
         } else if let Some(compare) = self.editor.compare.as_ref() {
-            let line = (pos.y / config.editor.line_height as f64).floor() as usize;
+            let line = (pos.y / config.editor.line_height() as f64).floor() as usize;
             let line = self.doc.history_actual_line_from_visual(compare, line);
             (line, config.editor_char_width(text))
         } else {
-            let line = (pos.y / config.editor.line_height as f64).floor() as usize;
+            let line = (pos.y / config.editor.line_height() as f64).floor() as usize;
             (line, config.editor_char_width(text))
         };
 
@@ -1624,12 +1624,12 @@ impl LapceEditorBufferData {
             }
             SearchInView => {
                 let start_line = ((self.editor.scroll_offset.y
-                    / self.config.editor.line_height as f64)
+                    / self.config.editor.line_height() as f64)
                     .ceil() as usize)
                     .max(self.doc.buffer().last_line());
                 let end_line = ((self.editor.scroll_offset.y
                     + self.editor.size.borrow().height
-                        / self.config.editor.line_height as f64)
+                        / self.config.editor.line_height() as f64)
                     .ceil() as usize)
                     .max(self.doc.buffer().last_line());
                 let end_offset = self.doc.buffer().offset_of_line(end_line + 1);
@@ -1746,7 +1746,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.next_page(self.config.editor.line_height);
+                    completion.next_page(self.config.editor.line_height());
                 }
             }
             ListPrevious => {
@@ -1776,7 +1776,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.previous_page(self.config.editor.line_height);
+                    completion.previous_page(self.config.editor.line_height());
                 }
             }
             JumpToNextSnippetPlaceholder => {
