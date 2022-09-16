@@ -165,7 +165,9 @@ pub struct EditorConfig {
     pub font_size: usize,
     #[field_names(desc = "Set the font size in the code lens")]
     pub code_lens_font_size: usize,
-    #[field_names(desc = "Set the editor line height")]
+    #[field_names(
+        desc = "Set the editor line height. If 0, line height will be calculated automatically"
+    )]
     line_height: usize,
     #[field_names(desc = "Set the tab width")]
     pub tab_width: usize,
@@ -227,7 +229,11 @@ pub struct EditorConfig {
 
 impl EditorConfig {
     pub fn line_height(&self) -> usize {
-        self.line_height
+        if self.line_height == 0 {
+            (self.font_size as f64 * 1.35).ceil() as usize
+        } else {
+            self.line_height
+        }
     }
 
     pub fn font_family(&self) -> FontFamily {
@@ -1002,7 +1008,7 @@ impl Config {
         if self.terminal.line_height > 0 {
             self.terminal.line_height
         } else {
-            self.editor.line_height
+            self.editor.line_height()
         }
     }
 
