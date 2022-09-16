@@ -905,7 +905,7 @@ impl LapceEditorBufferData {
             let (path, offset) =
                 next_in_file_diff_offset(offset, buffer_path, &diff_files);
             let location = EditorLocation {
-                path,
+                path: path.to_path_buf(),
                 position: Some(offset),
                 scroll_offset: None,
                 history: Some("head".to_string()),
@@ -2433,24 +2433,24 @@ pub struct HighlightTextLayout {
     pub highlights: Vec<(usize, usize, String)>,
 }
 
-fn next_in_file_diff_offset(
+fn next_in_file_diff_offset<'a>(
     offset: usize,
     path: &Path,
-    file_diffs: &[(PathBuf, Vec<usize>)],
-) -> (PathBuf, usize) {
+    file_diffs: &'a [(PathBuf, Vec<usize>)],
+) -> (&'a Path, usize) {
     for (current_path, offsets) in file_diffs {
         if path == current_path {
             for diff_offset in offsets {
                 if *diff_offset > offset {
-                    return ((*current_path).clone(), *diff_offset);
+                    return (current_path.as_ref(), *diff_offset);
                 }
             }
         }
         if current_path > path {
-            return ((*current_path).clone(), offsets[0]);
+            return (current_path.as_ref(), offsets[0]);
         }
     }
-    ((file_diffs[0].0).clone(), file_diffs[0].1[0])
+    (file_diffs[0].0.as_ref(), file_diffs[0].1[0])
 }
 
 fn next_in_file_errors_offset(

@@ -53,10 +53,7 @@ impl Lens {
     }
 
     pub fn height_of_line(&self, line: usize) -> usize {
-        let max_line = self.0.len();
-        if line >= max_line {
-            return self.0.count::<LensMetric>(self.0.len());
-        }
+        let line = self.0.len().min(line);
         self.0.count::<LensMetric>(line)
     }
 
