@@ -51,7 +51,6 @@ fn is_collapsed(data: &LapceTabData, path: &Path) -> bool {
 struct ProblemContent {
     severity: DiagnosticSeverity,
     mouse_pos: Point,
-    line_height: f64,
     content_height: f64,
 }
 
@@ -60,7 +59,6 @@ impl ProblemContent {
         Self {
             severity,
             mouse_pos: Point::ZERO,
-            line_height: 25.0,
             content_height: 0.0,
         }
     }
@@ -76,7 +74,8 @@ impl ProblemContent {
             return;
         }
 
-        let click_line = (mouse_event.pos.y / self.line_height).floor() as usize;
+        let line_height = data.config.editor.line_height() as f64;
+        let click_line = (mouse_event.pos.y / line_height).floor() as usize;
 
         let items = data.main_split.diagnostics_items(self.severity);
 
