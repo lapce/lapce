@@ -108,7 +108,7 @@ impl LapceEditor {
             return false;
         }
 
-        let line_height = config.editor.line_height as f64;
+        let line_height = config.editor.line_height() as f64;
         let scroll_offset = editor_data.editor.scroll_offset;
         let size = *editor_data.editor.size.borrow();
 
@@ -354,7 +354,7 @@ impl LapceEditor {
         panel: &PanelData,
         env: &Env,
     ) -> Size {
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         let width = data.config.editor_char_width(text);
         match &data.editor.content {
             BufferContent::File(_)
@@ -494,7 +494,7 @@ impl LapceEditor {
     ) -> ScreenLines {
         let empty_lens = Syntax::lens_from_normal_lines(
             data.doc.buffer().len(),
-            data.config.editor.line_height,
+            data.config.editor.line_height(),
             data.config.editor.code_lens_font_size,
             &[],
         );
@@ -512,7 +512,9 @@ impl LapceEditor {
         let start_line =
             lens.line_of_height(rect.y0.floor() as usize).min(last_line);
         let end_line = lens
-            .line_of_height(rect.y1.ceil() as usize + data.config.editor.line_height)
+            .line_of_height(
+                rect.y1.ceil() as usize + data.config.editor.line_height(),
+            )
             .min(last_line);
         let start_offset = data.doc.buffer().offset_of_line(start_line);
         let end_offset = data.doc.buffer().offset_of_line(end_line + 1);
@@ -524,7 +526,7 @@ impl LapceEditor {
         let mut info = HashMap::new();
         for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {
             if let Some(line_content) = lines_iter.next() {
-                let is_small = line_height < data.config.editor.line_height;
+                let is_small = line_height < data.config.editor.line_height();
                 let mut x = 0.0;
 
                 if is_small {
@@ -847,7 +849,8 @@ impl LapceEditor {
                     &text_layout,
                     Point::new(
                         0.0,
-                        text_layout.y_offset(data.config.editor.line_height as f64),
+                        text_layout
+                            .y_offset(data.config.editor.line_height() as f64),
                     ),
                 );
             }
@@ -1763,7 +1766,7 @@ impl LapceEditor {
         } else if data.editor.content.is_input() {
             env.get(LapceTheme::INPUT_LINE_HEIGHT)
         } else {
-            data.config.editor.line_height as f64
+            data.config.editor.line_height() as f64
         }
     }
 
@@ -1930,7 +1933,8 @@ impl Widget<LapceTabData> for LapceEditor {
                                         &editor_data.config,
                                     )
                                     .x;
-                                let y = editor_data.config.editor.line_height as f64
+                                let y = editor_data.config.editor.line_height()
+                                    as f64
                                     * (line + 1) as f64;
                                 ctx.to_window(Point::new(x, y))
                             });

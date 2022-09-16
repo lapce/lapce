@@ -255,7 +255,7 @@ impl Widget<LapceTabData> for FilePickerPwd {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         let input_bc = BoxConstraints::tight(Size::new(
             bc.max().width - 20.0 - line_height - 30.0,
             bc.max().height,
