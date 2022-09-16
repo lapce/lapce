@@ -24,10 +24,7 @@ use lapce_data::{
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
-    data::{
-        EditorTabChild, FocusArea, LapceEditorData, LapceTabData, SplitContent,
-        SplitData,
-    },
+    data::{FocusArea, LapceEditorData, LapceTabData, SplitContent, SplitData},
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap},
     panel::PanelKind,
     split::{SplitDirection, SplitMoveDirection},

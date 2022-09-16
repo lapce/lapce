@@ -607,6 +607,7 @@ pub struct PluginInfo {
     desc_text_layout: Option<PietTextLayout>,
     author_text_layout: Option<PietTextLayout>,
     button_text_layout: Option<PietTextLayout>,
+    line_height: f64,
     icon_width: f64,
     title_width: f64,
 }
@@ -619,6 +620,7 @@ impl PluginInfo {
             volt_id,
             padding: 50.0,
             gap: 30.0,
+            line_height: 25.0,
             name_text_layout: None,
             desc_text_layout: None,
             author_text_layout: None,
@@ -760,7 +762,7 @@ impl Widget<LapceTabData> for PluginInfo {
 
             self.icon_width = self.name_text_layout.as_ref().unwrap().size().height
                 * 2.0
-                + self.desc_text_layout.as_ref().unwrap().size().height * 2.0 * 3.0;
+                + self.line_height * 3.0;
             self.title_width = self
                 .name_text_layout
                 .as_ref()
@@ -782,20 +784,18 @@ impl Widget<LapceTabData> for PluginInfo {
             let width = width.min(ctx.size().width - self.padding * 2.0);
             let padding = (ctx.size().width - width) / 2.0;
 
-            let mut y = 30.0;
+            let mut y = self.gap;
             let size = name_text_layout.size();
             let name_y = y;
             y += size.height * 2.0;
 
             let desc_text_layout = self.desc_text_layout.as_ref().unwrap();
-            let size = desc_text_layout.size();
             let desc_y = y;
-            y += size.height * 2.0;
+            y += self.line_height;
 
             let author_text_layout = self.author_text_layout.as_ref().unwrap();
-            let size = author_text_layout.size();
             let author_y = y;
-            y += size.height * 2.0;
+            y += self.line_height;
 
             let button_text_layout = self.button_text_layout.as_ref().unwrap();
             let size = button_text_layout.size();
@@ -813,45 +813,47 @@ impl Widget<LapceTabData> for PluginInfo {
                 Some(data.config.get_color_unchecked(LapceTheme::EDITOR_DIM)),
             );
 
+            let name_y_offset =
+                name_text_layout.y_offset(name_text_layout.size().height * 2.0);
             ctx.draw_text(
                 name_text_layout,
                 Point::new(
                     padding + self.padding + self.icon_width,
-                    name_y + name_text_layout.y_offset(size.height * 2.0),
+                    name_y + name_y_offset,
                 ),
             );
             ctx.draw_text(
                 desc_text_layout,
                 Point::new(
                     padding + self.padding + self.icon_width,
-                    desc_y + desc_text_layout.y_offset(size.height * 2.0),
+                    desc_y + desc_text_layout.y_offset(self.line_height),
                 ),
             );
             ctx.draw_text(
                 author_text_layout,
                 Point::new(
                     padding + self.padding + self.icon_width,
-                    author_y + author_text_layout.y_offset(size.height * 2.0),
+                    author_y + author_text_layout.y_offset(self.line_height),
                 ),
             );
             let rect = Size::new(size.width + 5.0 * 2.0, 0.0)
                 .to_rect()
                 .with_origin(Point::new(
                     padding + self.padding + self.icon_width,
-                    button_y + size.height,
+                    button_y + self.line_height / 2.0,
                 ))
-                .inflate(0.0, size.height);
+                .inflate(0.0, self.line_height / 2.0);
             ctx.fill(rect, &Color::rgb8(80, 161, 79));
             ctx.draw_text(
                 button_text_layout,
                 Point::new(
                     padding + self.padding + 5.0 + self.icon_width,
-                    button_y + button_text_layout.y_offset(size.height * 2.0),
+                    button_y + button_text_layout.y_offset(self.line_height),
                 ),
             );
 
-            y += size.height * 2.0;
-            y += 30.0;
+            y += self.line_height;
+            y += self.gap;
 
             let line = Line::new(
                 Point::new(padding, y + 0.5),

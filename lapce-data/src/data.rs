@@ -3821,14 +3821,19 @@ impl EditorTabChild {
         }
     }
 
-    pub fn child_info(&self, data: &LapceTabData) -> Option<EditorTabChildInfo> {
+    pub fn child_info(&self, data: &LapceTabData) -> EditorTabChildInfo {
         match &self {
             EditorTabChild::Editor(view_id, _, _) => {
                 let editor_data = data.main_split.editors.get(view_id).unwrap();
-                Some(EditorTabChildInfo::Editor(editor_data.editor_info(data)))
+                EditorTabChildInfo::Editor(editor_data.editor_info(data))
             }
-            EditorTabChild::Settings { .. } => Some(EditorTabChildInfo::Settings),
-            EditorTabChild::Plugin { .. } => None,
+            EditorTabChild::Settings { .. } => EditorTabChildInfo::Settings,
+            EditorTabChild::Plugin {
+                volt_id, volt_name, ..
+            } => EditorTabChildInfo::Plugin {
+                volt_id: volt_id.to_string(),
+                volt_name: volt_name.to_string(),
+            },
         }
     }
 
@@ -3872,7 +3877,7 @@ impl LapceEditorTabData {
             children: self
                 .children
                 .iter()
-                .filter_map(|child| child.child_info(data))
+                .map(|child| child.child_info(data))
                 .collect(),
         };
         info
