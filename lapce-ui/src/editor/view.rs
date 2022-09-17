@@ -238,7 +238,7 @@ impl LapceEditorView {
                         .scroll_by(Vec2::new(
                             0.0,
                             (new_line as f64 - line as f64)
-                                * data.config.editor.line_height as f64,
+                                * data.config.editor.line_height() as f64,
                         ));
                 }
             }
@@ -328,7 +328,7 @@ impl LapceEditorView {
     ) -> Rect {
         // TODO: scroll margin (in number of lines) should be configurable.
         const MARGIN_LINES: usize = 1;
-        let line_height = editor_config.line_height;
+        let line_height = editor_config.line_height();
 
         // The origin of a rect is its top-left corner.  Inflating a point
         // creates a rect that centers at the point.
@@ -416,7 +416,7 @@ impl LapceEditorView {
         position: Option<&EnsureVisiblePosition>,
         env: &Env,
     ) {
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         let editor_size = *data.editor.size.borrow();
         let size = LapceEditor::get_size(data, ctx.text(), editor_size, panel, env);
 
@@ -469,7 +469,7 @@ impl LapceEditorView {
                 &data.config,
             )
             .x;
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
 
         let y = if data.editor.is_code_lens() {
             let empty_vec = Vec::new();
@@ -607,8 +607,11 @@ impl Widget<LapceTabData> for LapceEditorView {
                         SettingsValueKind::String => {
                             Some(serde_json::json!(content))
                         }
-                        SettingsValueKind::Number => {
+                        SettingsValueKind::Integer => {
                             content.parse::<i64>().ok().map(|n| serde_json::json!(n))
+                        }
+                        SettingsValueKind::Float => {
+                            content.parse::<f64>().ok().map(|n| serde_json::json!(n))
                         }
                         SettingsValueKind::Bool => None,
                     };
@@ -876,14 +879,14 @@ impl Widget<LapceTabData> for LapceEditorView {
         }
 
         if let Some(syntax) = editor_data.doc.syntax() {
-            if syntax.line_height != data.config.editor.line_height
+            if syntax.line_height != data.config.editor.line_height()
                 || syntax.lens_height != data.config.editor.code_lens_font_size
             {
                 let content = editor_data.doc.content().clone();
                 let tab_id = data.id;
                 let event_sink = ctx.get_external_handle();
                 let mut syntax = syntax.clone();
-                let line_height = data.config.editor.line_height;
+                let line_height = data.config.editor.line_height();
                 let lens_height = data.config.editor.code_lens_font_size;
                 rayon::spawn(move || {
                     syntax.update_lens_height(line_height, lens_height);

@@ -622,15 +622,15 @@ struct SshRemote {
 }
 
 impl SshRemote {
-    #[cfg(target_os = "windows")]
+    #[cfg(windows)]
     const SSH_ARGS: &'static [&'static str] = &["-o", "ConnectTimeout=15"];
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(unix)]
     const SSH_ARGS: &'static [&'static str] = &[
         "-o",
         "ControlMaster=auto",
         "-o",
-        "ControlPath=~/.ssh/cm-%r@%h:%p",
+        "ControlPath=~/.ssh/cm_%C",
         "-o",
         "ControlPersist=30m",
         "-o",

@@ -220,7 +220,7 @@ impl CompletionContainer {
         env: &Env,
     ) {
         let width = ctx.size().width;
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         let rect = Size::new(width, line_height)
             .to_rect()
             .with_origin(Point::new(
@@ -248,7 +248,7 @@ impl CompletionContainer {
         ctx: &mut EventCtx,
         data: &LapceTabData,
     ) {
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         let point = Point::new(0.0, data.completion.index as f64 * line_height);
         if self.completion.widget_mut().inner_mut().scroll_to(point) {
             ctx.submit_command(Command::new(
@@ -503,7 +503,7 @@ impl Widget<LapceTabData> for Completion {
         data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         let height = data.completion.len();
         let height = height as f64 * line_height;
         Size::new(bc.max().width, height)
@@ -513,7 +513,7 @@ impl Widget<LapceTabData> for Completion {
         if data.completion.status == CompletionStatus::Inactive {
             return;
         }
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         let rect = ctx.region().bounding_box();
         let size = ctx.size();
 

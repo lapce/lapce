@@ -323,7 +323,7 @@ impl Widget<LapceTabData> for Hover {
                 self.active_diagnostic_layout.layout_metrics();
 
             diagnostic_text_metrics.size.height
-                + data.config.editor.line_height as f64
+                + data.config.editor.line_height() as f64
         };
 
         Size::new(
@@ -356,7 +356,7 @@ impl Widget<LapceTabData> for Hover {
 
             let side_margin =
                 env.get(theme::SCROLLBAR_WIDTH) + env.get(theme::SCROLLBAR_PAD);
-            let line_height = data.config.editor.line_height as f64;
+            let line_height = data.config.editor.line_height() as f64;
 
             // Create a separating line
             let line = {

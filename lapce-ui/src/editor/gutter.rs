@@ -49,7 +49,8 @@ impl Widget<LapceTabData> for LapceEditorGutter {
                         if rect.contains(self.mouse_down_pos)
                             && rect.contains(mouse_event.pos)
                         {
-                            let line_height = data.config.editor.line_height as f64;
+                            let line_height =
+                                data.config.editor.line_height() as f64;
                             let offset = data.editor.cursor.offset();
                             let (line, _) =
                                 data.doc.buffer().offset_to_line_col(offset);
@@ -153,7 +154,7 @@ impl LapceEditorGutter {
         let history = data.doc.get_history(version).unwrap();
         let self_size = ctx.size();
         let rect = self_size.to_rect();
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         let scroll_offset = data.editor.scroll_offset;
         let start_line = (scroll_offset.y / line_height).floor() as usize;
         let end_line =
@@ -401,7 +402,7 @@ impl LapceEditorGutter {
         let scroll_offset = data.editor.scroll_offset;
         let empty_lens = Syntax::lens_from_normal_lines(
             data.doc.buffer().len(),
-            data.config.editor.line_height,
+            data.config.editor.line_height(),
             data.config.editor.code_lens_font_size,
             &[],
         );
@@ -421,7 +422,7 @@ impl LapceEditorGutter {
         let end_line = lens
             .line_of_height(
                 (scroll_offset.y + rect.height()).ceil() as usize
-                    + data.config.editor.line_height,
+                    + data.config.editor.line_height(),
             )
             .min(last_line);
         let char_width = data.config.editor_char_width(ctx.text());
@@ -440,7 +441,7 @@ impl LapceEditorGutter {
                 cursor_line - line
             };
             let content = content.to_string();
-            let is_small = line_height < data.config.editor.line_height;
+            let is_small = line_height < data.config.editor.line_height();
             let text_layout = ctx
                 .text()
                 .new_text_layout(content.clone())
@@ -484,7 +485,7 @@ impl LapceEditorGutter {
         text: &mut PietText,
         data: &LapceEditorBufferData,
     ) -> Rect {
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         let offset = data.editor.cursor.offset();
         let (line, _) = data.doc.buffer().offset_to_line_col(offset);
 
@@ -527,7 +528,7 @@ impl LapceEditorGutter {
         }
 
         let size = ctx.size();
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
 
         let info = data.editor.sticky_header.borrow();
 
@@ -584,7 +585,7 @@ impl LapceEditorGutter {
                 self.paint_gutter_code_lens(data, ctx);
                 return;
             }
-            let line_height = data.config.editor.line_height as f64;
+            let line_height = data.config.editor.line_height() as f64;
             let scroll_offset = data.editor.scroll_offset;
             let start_line = (scroll_offset.y / line_height).floor() as usize;
             let num_lines = (ctx.size().height / line_height).floor() as usize;

@@ -554,7 +554,11 @@ impl LapceSettingsItem {
     ) -> Self {
         let input = match &value {
             serde_json::Value::Number(n) => {
-                Some((n.to_string(), SettingsValueKind::Number))
+                if n.is_f64() {
+                    Some((n.to_string(), SettingsValueKind::Float))
+                } else {
+                    Some((n.to_string(), SettingsValueKind::Integer))
+                }
             }
             serde_json::Value::String(s) => {
                 Some((s.to_string(), SettingsValueKind::String))
