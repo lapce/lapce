@@ -13,6 +13,7 @@ pub mod find;
 pub mod history;
 pub mod hover;
 pub mod keypress;
+pub mod list;
 pub mod markdown;
 pub mod menu;
 pub mod palette;

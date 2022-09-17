@@ -9,7 +9,6 @@ use itertools::Itertools;
 use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_core::language::LapceLanguage;
 use lapce_core::mode::Mode;
-use lapce_core::movement::Movement;
 use lapce_rpc::proxy::ProxyResponse;
 use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
 use std::cmp::Ordering;
@@ -22,6 +21,7 @@ use crate::command::CommandKind;
 use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::document::BufferContent;
 use crate::editor::EditorLocation;
+use crate::list::ListData;
 use crate::panel::PanelKind;
 use crate::proxy::path_from_url;
 use crate::{
@@ -119,7 +119,7 @@ pub enum PaletteStatus {
     Done,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PaletteItemContent {
     File(PathBuf, PathBuf),
     Line(usize, String),
@@ -284,7 +284,7 @@ impl PaletteItemContent {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PaletteItem {
     pub content: PaletteItemContent,
     pub filter_text: String,
@@ -332,22 +332,31 @@ impl Lens<LapceTabData, PaletteViewData> for PaletteViewLens {
     }
 }
 
+/// Data to be held by the palette list
+#[derive(Data, Clone)]
+pub struct PaletteListData {
+    /// Should only be `None` when it hasn't been updated initially  
+    /// We need this just for some rendering, and not editing it.
+    pub workspace: Option<Arc<LapceWorkspace>>,
+}
+
 #[derive(Clone)]
 pub struct PaletteData {
     pub widget_id: WidgetId,
     pub scroll_id: WidgetId,
     pub status: PaletteStatus,
+    /// Holds information about the list, including the filtered items
+    pub list_data: ListData<PaletteItem, PaletteListData>,
     pub proxy: Arc<LapceProxy>,
     pub palette_type: PaletteType,
-    pub sender: Sender<(String, String, Vec<PaletteItem>)>,
-    pub receiver: Option<Receiver<(String, String, Vec<PaletteItem>)>>,
+    pub sender: Sender<(String, String, im::Vector<PaletteItem>)>,
+    pub receiver: Option<Receiver<(String, String, im::Vector<PaletteItem>)>>,
     pub run_id: String,
     pub input: String,
     pub cursor: usize,
-    pub index: usize,
     pub has_nonzero_default_index: bool,
-    pub items: Vec<PaletteItem>,
-    pub filtered_items: Vec<PaletteItem>,
+    /// The unfiltered items list
+    pub total_items: im::Vector<PaletteItem>,
     pub preview_editor: WidgetId,
     pub input_editor: WidgetId,
 }
@@ -360,38 +369,6 @@ impl KeyPressFocus for PaletteViewData {
     fn check_condition(&self, condition: &str) -> bool {
         matches!(condition, "list_focus" | "palette_focus" | "modal_focus")
     }
-
-    // fn run_command(
-    //     &mut self,
-    //     ctx: &mut EventCtx,
-    //     command: &LapceCommand,
-    //     _count: Option<usize>,
-    //     _mods: Modifiers,
-    //     _env: &Env,
-    // ) -> CommandExecuted {
-    //     match command {
-    //         LapceCommand::ModalClose => {
-    //             self.cancel(ctx);
-    //         }
-    //         LapceCommand::DeleteBackward => {
-    //             self.delete_backward(ctx);
-    //         }
-    //         LapceCommand::DeleteToBeginningOfLine => {
-    //             self.delete_to_beginning_of_line(ctx);
-    //         }
-    //         LapceCommand::ListNext => {
-    //             self.next(ctx);
-    //         }
-    //         LapceCommand::ListPrevious => {
-    //             self.previous(ctx);
-    //         }
-    //         LapceCommand::ListSelect => {
-    //             self.select(ctx);
-    //         }
-    //         _ => return CommandExecuted::No,
-    //     }
-    //     CommandExecuted::Yes
-    // }
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         let palette = Arc::make_mut(&mut self.palette);
@@ -408,28 +385,22 @@ impl KeyPressFocus for PaletteViewData {
         _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
+        let selected_index = self.palette.list_data.selected_index;
+
+        // Pass any commands, like list movement, to the selector list
+        Arc::make_mut(&mut self.palette)
+            .list_data
+            .run_command(ctx, command);
+
+        // If the selection changed, then update the preview
+        if selected_index != self.palette.list_data.selected_index {
+            self.palette.preview(ctx);
+        }
+
         match &command.kind {
-            CommandKind::Focus(cmd) => match cmd {
-                FocusCommand::ModalClose => {
-                    self.cancel(ctx);
-                }
-                FocusCommand::ListNext => {
-                    self.next(ctx);
-                }
-                FocusCommand::ListNextPage => {
-                    self.next_page(ctx);
-                }
-                FocusCommand::ListPrevious => {
-                    self.previous(ctx);
-                }
-                FocusCommand::ListPreviousPage => {
-                    self.previous_page(ctx);
-                }
-                FocusCommand::ListSelect => {
-                    self.select(ctx);
-                }
-                _ => return CommandExecuted::No,
-            },
+            CommandKind::Focus(FocusCommand::ModalClose) => {
+                self.cancel(ctx);
+            }
             CommandKind::Edit(cmd) => match cmd {
                 EditCommand::DeleteBackward => {
                     self.delete_backward(ctx);
@@ -446,15 +417,21 @@ impl KeyPressFocus for PaletteViewData {
 }
 
 impl PaletteData {
-    pub fn new(proxy: Arc<LapceProxy>) -> Self {
+    pub fn new(config: Arc<Config>, proxy: Arc<LapceProxy>) -> Self {
         let (sender, receiver) = unbounded();
         let widget_id = WidgetId::next();
         let scroll_id = WidgetId::next();
         let preview_editor = WidgetId::next();
+        let mut list_data =
+            ListData::new(config, widget_id, PaletteListData { workspace: None });
+        // TODO: Make these configurable
+        list_data.line_height = Some(25);
+        list_data.max_displayed_items = 15;
         Self {
             widget_id,
             scroll_id,
             status: PaletteStatus::Inactive,
+            list_data,
             proxy,
             palette_type: PaletteType::File,
             sender,
@@ -462,10 +439,8 @@ impl PaletteData {
             run_id: Uuid::new_v4().to_string(),
             input: "".to_string(),
             cursor: 0,
-            index: 0,
             has_nonzero_default_index: false,
-            items: Vec::new(),
-            filtered_items: Vec::new(),
+            total_items: im::Vector::new(),
             preview_editor,
             input_editor: WidgetId::next(),
         }
@@ -479,26 +454,18 @@ impl PaletteData {
         self.len() == 0
     }
 
-    pub fn current_items(&self) -> &Vec<PaletteItem> {
+    pub fn current_items(&self) -> &im::Vector<PaletteItem> {
         if self.get_input() == "" {
-            &self.items
+            &self.total_items
         } else {
-            &self.filtered_items
+            &self.list_data.items
         }
     }
 
     pub fn preview(&self, ctx: &mut EventCtx) {
-        if let Some(item) = self.get_item() {
+        if let Some(item) = self.list_data.current_selected_item() {
             item.content.select(ctx, true, self.preview_editor);
         }
-    }
-
-    pub fn get_item(&self) -> Option<&PaletteItem> {
-        let items = self.current_items();
-        if items.is_empty() {
-            return None;
-        }
-        Some(&items[self.index])
     }
 
     pub fn get_input(&self) -> &str {
@@ -518,19 +485,15 @@ impl PaletteData {
     }
 }
 
-// TODO: Make this configurable
-/// The maximum number of palette items to display per 'page'
-pub const MAX_PALETTE_ITEMS: usize = 15;
 impl PaletteViewData {
     pub fn cancel(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.status = PaletteStatus::Inactive;
         palette.input = "".to_string();
         palette.cursor = 0;
-        palette.index = 0;
         palette.palette_type = PaletteType::File;
-        palette.items.clear();
-        palette.filtered_items.clear();
+        palette.total_items.clear();
+        palette.list_data.clear_items();
         if let Some(active) = *self.main_split.active_tab {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
@@ -552,7 +515,7 @@ impl PaletteViewData {
         locations: &[EditorLocation<Position>],
     ) {
         self.run(ctx, Some(PaletteType::Reference), None);
-        let items: Vec<PaletteItem> = locations
+        let items = locations
             .iter()
             .map(|l| {
                 let full_path = l.path.clone();
@@ -573,8 +536,9 @@ impl PaletteViewData {
             })
             .collect();
         let palette = Arc::make_mut(&mut self.palette);
-        palette.items = items;
+        palette.total_items = items;
         palette.preview(ctx);
+        self.fill_list();
     }
 
     pub fn run(
@@ -592,11 +556,10 @@ impl PaletteViewData {
             LapceUICommand::InitPaletteInput(palette.input.clone()),
             Target::Widget(*self.main_split.tab_id),
         ));
-        palette.items = Vec::new();
-        palette.filtered_items = Vec::new();
+        palette.total_items.clear();
+        palette.list_data.clear_items();
         palette.run_id = Uuid::new_v4().to_string();
         palette.cursor = palette.input.len();
-        palette.index = 0;
 
         if let Some(active_editor_content) =
             self.main_split.active_editor().map(|e| e.content.clone())
@@ -653,6 +616,16 @@ impl PaletteViewData {
                 }
             }
         }
+
+        self.fill_list();
+    }
+
+    /// Fill the list with the stored unfiltered total items
+    fn fill_list(&mut self) {
+        if self.palette.input.is_empty() {
+            Arc::make_mut(&mut self.palette).list_data.items =
+                self.palette.total_items.clone();
+        }
     }
 
     fn delete_backward(&mut self, ctx: &mut EventCtx) {
@@ -696,51 +669,16 @@ impl PaletteViewData {
         self.update_palette(ctx);
     }
 
-    pub fn next(&mut self, ctx: &mut EventCtx) {
-        let palette = Arc::make_mut(&mut self.palette);
-        palette.index =
-            Movement::Down.update_index(palette.index, palette.len(), 1, true);
-        palette.preview(ctx);
-    }
-
-    pub fn next_page(&mut self, ctx: &mut EventCtx) {
-        let palette = Arc::make_mut(&mut self.palette);
-        palette.index = Movement::Down.update_index(
-            palette.index,
-            palette.len(),
-            MAX_PALETTE_ITEMS - 1,
-            false,
-        );
-        palette.preview(ctx);
-    }
-
-    pub fn previous(&mut self, ctx: &mut EventCtx) {
-        let palette = Arc::make_mut(&mut self.palette);
-        palette.index =
-            Movement::Up.update_index(palette.index, palette.len(), 1, true);
-        palette.preview(ctx);
-    }
-
-    pub fn previous_page(&mut self, ctx: &mut EventCtx) {
-        let palette = Arc::make_mut(&mut self.palette);
-        palette.index = Movement::Up.update_index(
-            palette.index,
-            palette.len(),
-            MAX_PALETTE_ITEMS - 1,
-            false,
-        );
-        palette.preview(ctx);
-    }
-
+    // TODO: This is a bit weird, its wanting to iterate over items, but it could be called before we fill the list!
     fn preselect_matching(&mut self, ctx: &mut EventCtx, matching: &str) {
         let palette = Arc::make_mut(&mut self.palette);
         if let Some((id, _)) = palette
-            .items
+            .total_items
             .iter()
             .enumerate()
             .find(|(_, item)| item.filter_text == matching)
         {
-            palette.index = id;
+            palette.list_data.selected_index = id;
             palette.has_nonzero_default_index = true;
             palette.preview(ctx);
         }
@@ -759,7 +697,7 @@ impl PaletteViewData {
             ));
         }
         let palette = Arc::make_mut(&mut self.palette);
-        if let Some(item) = palette.get_item() {
+        if let Some(item) = palette.list_data.current_selected_item() {
             if item.content.select(ctx, false, palette.preview_editor) {
                 self.cancel(ctx);
             }
@@ -803,14 +741,13 @@ impl PaletteViewData {
         // Update the current input
         palette.input = input;
 
-        self.update_palette(ctx)
+        self.update_palette(ctx);
     }
 
     pub fn update_palette(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
-
         if !palette.has_nonzero_default_index {
-            palette.index = 0;
+            palette.list_data.selected_index = 0;
         }
         palette.has_nonzero_default_index = false;
 
@@ -823,14 +760,17 @@ impl PaletteViewData {
             return;
         }
 
-        if self.palette.get_input() != "" {
+        if self.palette.get_input() == "" {
+            self.palette.preview(ctx);
+            Arc::make_mut(&mut self.palette).list_data.items =
+                self.palette.total_items.clone();
+        } else {
+            // Update the filtering with the input
             let _ = self.palette.sender.send((
                 self.palette.run_id.clone(),
                 self.palette.get_input().to_string(),
-                self.palette.items.clone(),
+                self.palette.total_items.clone(),
             ));
-        } else {
-            self.palette.preview(ctx);
         }
     }
 
@@ -841,7 +781,7 @@ impl PaletteViewData {
         let event_sink = ctx.get_external_handle();
         self.palette.proxy.proxy_rpc.get_files(move |result| {
             if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
-                let items: Vec<PaletteItem> = items
+                let items: im::Vector<PaletteItem> = items
                     .iter()
                     .enumerate()
                     .map(|(_index, path)| {
@@ -882,7 +822,7 @@ impl PaletteViewData {
         }
 
         let palette = Arc::make_mut(&mut self.palette);
-        palette.items = hosts
+        palette.total_items = hosts
             .iter()
             .map(|(user, host)| PaletteItem {
                 content: PaletteItemContent::SshHost(
@@ -899,7 +839,7 @@ impl PaletteViewData {
     fn get_workspaces(&mut self, _ctx: &mut EventCtx) {
         let workspaces = Config::recent_workspaces().unwrap_or_default();
         let palette = Arc::make_mut(&mut self.palette);
-        palette.items = workspaces
+        palette.total_items = workspaces
             .into_iter()
             .map(|w| {
                 let text = w
@@ -930,7 +870,7 @@ impl PaletteViewData {
 
     fn get_themes(&mut self, _ctx: &mut EventCtx, config: &Config) {
         let palette = Arc::make_mut(&mut self.palette);
-        palette.items = config
+        palette.total_items = config
             .available_themes
             .values()
             .sorted_by_key(|(n, _)| n)
@@ -947,7 +887,7 @@ impl PaletteViewData {
         let palette = Arc::make_mut(&mut self.palette);
         let mut langs = LapceLanguage::languages();
         langs.push("Plain Text".to_string());
-        palette.items = langs
+        palette.total_items = langs
             .iter()
             .sorted()
             .map(|n| PaletteItem {
@@ -963,7 +903,7 @@ impl PaletteViewData {
         const EXCLUDED_ITEMS: &[&str] = &["palette.command"];
 
         let palette = Arc::make_mut(&mut self.palette);
-        palette.items = self
+        palette.total_items = self
             .keypress
             .commands
             .iter()
@@ -989,7 +929,7 @@ impl PaletteViewData {
             {
                 let raw = terminal.raw.lock();
                 let term = &raw.term;
-                let mut items = Vec::new();
+                let mut items = im::Vector::new();
                 let mut last_row: Option<String> = None;
                 let mut current_line = term.topmost_line().0;
                 for line in term.topmost_line().0..term.bottommost_line().0 {
@@ -1020,11 +960,11 @@ impl PaletteViewData {
                             score: 0,
                             indices: vec![],
                         };
-                        items.push(item);
+                        items.push_back(item);
                     }
                 }
                 let palette = Arc::make_mut(&mut self.palette);
-                palette.items = items;
+                palette.total_items = items;
             }
             return;
         }
@@ -1038,7 +978,7 @@ impl PaletteViewData {
         let last_line_number = doc.buffer().last_line() + 1;
         let last_line_number_len = last_line_number.to_string().len();
         let palette = Arc::make_mut(&mut self.palette);
-        palette.items = doc
+        palette.total_items = doc
             .buffer()
             .text()
             .lines(0..doc.buffer().len())
@@ -1083,7 +1023,7 @@ impl PaletteViewData {
                 .proxy_rpc
                 .get_document_symbols(path, move |result| {
                     if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
-                        let items: Vec<PaletteItem> = match resp {
+                        let items: im::Vector<PaletteItem> = match resp {
                             DocumentSymbolResponse::Flat(symbols) => symbols
                                 .iter()
                                 .map(|s| {
@@ -1156,7 +1096,7 @@ impl PaletteViewData {
                     if let Ok(ProxyResponse::GetWorkspaceSymbols { symbols }) =
                         result
                     {
-                        let items: Vec<PaletteItem> = symbols
+                        let items: im::Vector<PaletteItem> = symbols
                             .iter()
                             .map(|s| {
                                 // TODO: Should we be using filter text?
@@ -1196,13 +1136,13 @@ impl PaletteViewData {
     }
 
     pub fn update_process(
-        receiver: Receiver<(String, String, Vec<PaletteItem>)>,
+        receiver: Receiver<(String, String, im::Vector<PaletteItem>)>,
         widget_id: WidgetId,
         event_sink: ExtEventSink,
     ) {
         fn receive_batch(
-            receiver: &Receiver<(String, String, Vec<PaletteItem>)>,
-        ) -> Result<(String, String, Vec<PaletteItem>)> {
+            receiver: &Receiver<(String, String, im::Vector<PaletteItem>)>,
+        ) -> Result<(String, String, im::Vector<PaletteItem>)> {
             let (mut run_id, mut input, mut items) = receiver.recv()?;
             loop {
                 match receiver.try_recv() {
@@ -1242,10 +1182,10 @@ impl PaletteViewData {
     fn filter_items(
         _run_id: &str,
         input: &str,
-        items: Vec<PaletteItem>,
+        items: im::Vector<PaletteItem>,
         matcher: &SkimMatcherV2,
-    ) -> Vec<PaletteItem> {
-        let mut items: Vec<PaletteItem> = items
+    ) -> im::Vector<PaletteItem> {
+        let mut items: im::Vector<PaletteItem> = items
             .iter()
             .filter_map(|i| {
                 if let Some((score, indices)) =

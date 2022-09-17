@@ -50,13 +50,13 @@ pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.new-comma
 pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
     Selector::new("lapce.ui_command");
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LapceCommand {
     pub kind: CommandKind,
     pub data: Option<Value>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommandKind {
     Workbench(LapceWorkbenchCommand),
     Edit(EditCommand),
@@ -544,8 +544,8 @@ pub enum LapceUICommand {
     RunPaletteReferences(Vec<EditorLocation<Position>>),
     InitPaletteInput(String),
     UpdatePaletteInput(String),
-    UpdatePaletteItems(String, Vec<PaletteItem>),
-    FilterPaletteItems(String, String, Vec<PaletteItem>),
+    UpdatePaletteItems(String, im::Vector<PaletteItem>),
+    FilterPaletteItems(String, String, im::Vector<PaletteItem>),
     UpdateKeymapsFilter(String),
     ResetSettingsFile(String, String),
     UpdateSettingsFile(String, String, Value),
@@ -712,6 +712,10 @@ pub enum LapceUICommand {
     },
     FileExplorerRefresh,
     SetLanguage(String),
+
+    /// An item in a list was chosen  
+    /// This is typically targeted at the widget which contains the list
+    ListItemSelected,
 }
 
 /// This can't be an `FnOnce` because we only ever get a reference to
