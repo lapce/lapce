@@ -89,11 +89,16 @@ impl Plugin {
             .new_text_layout(format!("v{version}"))
             .font(config.ui.font_family(), config.ui.font_size() as f64)
             .default_attribute(TextAttribute::Weight(FontWeight::NORMAL))
-            .text_color(config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND).clone())
-            .build().unwrap();
+            .text_color(
+                config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
         ctx.draw_text(
-            &text_layout, 
-            Point::new(version_x, y + text_layout.y_offset(self.line_height))
+            &text_layout,
+            Point::new(version_x, y + text_layout.y_offset(self.line_height)),
         );
 
         // display description
