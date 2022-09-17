@@ -186,6 +186,35 @@ impl Plugin {
             );
             rect
         } else {
+
+            let color = match status {
+                PluginStatus::Installed => LapceTheme::EDITOR_FOCUS,
+                PluginStatus::Install => LapceTheme::EDITOR_FOREGROUND,
+                PluginStatus::Upgrade(_) => LapceTheme::LAPCE_WARN,
+                PluginStatus::Disabled => LapceTheme::EDITOR_DIM,
+            };
+
+            let status_x = text_layout.size().width + 20.0;
+            let text_layout = ctx
+                .text()
+                .new_text_layout(format!("[ {status} ]"))
+                .font(config.ui.font_family(), config.ui.font_size() as f64)
+                .text_color(
+                    config
+                        .get_color_unchecked(color)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    status_x,
+                    y + self.line_height * 2.0
+                        + text_layout.y_offset(self.line_height),
+                ),
+            );
+            // if status is [installed, disabled, upgrade(x)], display the settings.svg
             let x = self.width - 24.0;
             let y = y + self.line_height * 2.2;
             let rect = Size::new(15.0, 15.0)
