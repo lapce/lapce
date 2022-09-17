@@ -211,8 +211,7 @@ impl Plugin {
             let color = match status {
                 PluginStatus::Installed => LapceTheme::EDITOR_FOCUS,
                 PluginStatus::Upgrade(_) => LapceTheme::LAPCE_WARN,
-                PluginStatus::Disabled => LapceTheme::EDITOR_DIM,
-                _ => LapceTheme::EDITOR_FOREGROUND,
+                _ => LapceTheme::EDITOR_DIM,
             };
 
             let status_x = text_layout.size().width + 20.0;
