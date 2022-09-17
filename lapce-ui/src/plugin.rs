@@ -186,7 +186,6 @@ impl Plugin {
             );
             rect
         } else {
-
             let color = match status {
                 PluginStatus::Installed => LapceTheme::EDITOR_FOCUS,
                 PluginStatus::Install => LapceTheme::EDITOR_FOREGROUND,
@@ -199,11 +198,7 @@ impl Plugin {
                 .text()
                 .new_text_layout(format!("[ {status} ]"))
                 .font(config.ui.font_family(), config.ui.font_size() as f64)
-                .text_color(
-                    config
-                        .get_color_unchecked(color)
-                        .clone(),
-                )
+                .text_color(config.get_color_unchecked(color).clone())
                 .build()
                 .unwrap();
             ctx.draw_text(
