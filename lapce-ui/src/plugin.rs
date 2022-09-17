@@ -210,9 +210,9 @@ impl Plugin {
         } else {
             let color = match status {
                 PluginStatus::Installed => LapceTheme::EDITOR_FOCUS,
-                PluginStatus::Install => LapceTheme::EDITOR_FOREGROUND,
                 PluginStatus::Upgrade(_) => LapceTheme::LAPCE_WARN,
                 PluginStatus::Disabled => LapceTheme::EDITOR_DIM,
+                _ => LapceTheme::EDITOR_FOREGROUND,
             };
 
             let status_x = text_layout.size().width + 20.0;
