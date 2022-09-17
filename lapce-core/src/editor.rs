@@ -935,6 +935,16 @@ impl Editor {
                 let data = register.unnamed.clone();
                 Self::do_paste(cursor, buffer, &data)
             }
+            PasteBefore => {
+                let offset = cursor.offset();
+                let line = buffer.line_of_offset(offset);
+                let line_offset = buffer.offset_of_line(line);
+                let data = register.unnamed.clone();
+                if offset > line_offset {
+                    cursor.set_offset(offset - 1, false, false);
+                }
+                Self::do_paste(cursor, buffer, &data)
+            }
             NewLineAbove => {
                 let offset = cursor.offset();
                 let line = buffer.line_of_offset(offset);

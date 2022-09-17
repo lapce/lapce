@@ -67,6 +67,8 @@ pub enum EditCommand {
     Yank,
     #[strum(serialize = "paste")]
     Paste,
+    #[strum(serialize = "paste_before")]
+    PasteBefore,
 
     #[strum(serialize = "normal_mode")]
     NormalMode,
