@@ -1,4 +1,4 @@
-use crate::{panel::PanelSizing, scroll::LapceScroll};
+use crate::{panel::PanelSizing, scroll::LapceScroll, svg::get_svg};
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Command, Cursor, Env, Event, EventCtx, FontWeight,
@@ -155,36 +155,53 @@ impl Plugin {
         let size = ctx.size();
         let padding = 10.0;
 
-        let text = if status == PluginStatus::Install {
-            status.to_string()
+        if status == PluginStatus::Install {
+            let text_layout = ctx
+                .text()
+                .new_text_layout(status.to_string())
+                .font(config.ui.font_family(), config.ui.font_size() as f64)
+                .text_color(
+                    config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            let text_size = text_layout.size();
+            let text_padding = 5.0;
+            let x = size.width - text_size.width - text_padding * 2.0 - padding;
+            let y = y + self.line_height * 2.0;
+            let color = Color::rgb8(80, 161, 79);
+            let rect =
+                Size::new(text_size.width + text_padding * 2.0, self.line_height)
+                    .to_rect()
+                    .with_origin(Point::new(x, y));
+            ctx.fill(rect, &color);
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    x + text_padding,
+                    y + text_layout.y_offset(self.line_height),
+                ),
+            );
+            rect
         } else {
-            format!("{} ▼", status)
-        };
-        let text_layout = ctx
-            .text()
-            .new_text_layout(text)
-            .font(config.ui.font_family(), config.ui.font_size() as f64)
-            .text_color(
-                config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                    .clone(),
-            )
-            .build()
-            .unwrap();
-        let text_size = text_layout.size();
-        let text_padding = 5.0;
-        let x = size.width - text_size.width - text_padding * 2.0 - padding;
-        let y = y + self.line_height * 2.0;
-        let color = Color::rgb8(80, 161, 79);
-        let rect = Size::new(text_size.width + text_padding * 2.0, self.line_height)
-            .to_rect()
-            .with_origin(Point::new(x, y));
-        ctx.fill(rect, &color);
-        ctx.draw_text(
-            &text_layout,
-            Point::new(x + text_padding, y + text_layout.y_offset(self.line_height)),
-        );
-        rect
+            let x = self.width - 24.0;
+            let y = y + self.line_height * 2.2;
+            let rect = Size::new(15.0, 15.0)
+                .to_rect()
+                .with_origin(Point::new(x, y));
+            ctx.draw_svg(
+                &get_svg("settings.svg").unwrap(),
+                rect,
+                Some(
+                    &config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                ),
+            );
+            rect
+        }
     }
 
     fn paint_installed(&mut self, ctx: &mut PaintCtx, data: &LapceTabData) {
