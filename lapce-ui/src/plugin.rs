@@ -66,8 +66,8 @@ impl Plugin {
         status: PluginStatus,
         config: &Config,
     ) -> Rect {
-        let y = 3.0 * self.line_height * i as f64;
-        let x = 3.0 * self.line_height;
+        let y = 3.5 * self.line_height * i as f64;
+        let x = 0.5 * self.line_height;
         let text_layout = ctx
             .text()
             .new_text_layout(display_name.to_string())
