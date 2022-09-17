@@ -63,9 +63,11 @@ impl Plugin {
         display_name: &str,
         description: &str,
         author: &str,
+        version: &str,
         status: PluginStatus,
         config: &Config,
     ) -> Rect {
+        // display title [plugin name]
         let y = 3.5 * self.line_height * i as f64;
         let x = 0.5 * self.line_height;
         let text_layout = ctx
@@ -80,6 +82,21 @@ impl Plugin {
             &text_layout,
             Point::new(x, y + text_layout.y_offset(self.line_height)),
         );
+
+        let version_x = x + text_layout.size().width + 8.0;
+        let text_layout = ctx
+            .text()
+            .new_text_layout(format!("v{version}"))
+            .font(config.ui.font_family(), config.ui.font_size() as f64)
+            .default_attribute(TextAttribute::Weight(FontWeight::NORMAL))
+            .text_color(config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND).clone())
+            .build().unwrap();
+        ctx.draw_text(
+            &text_layout, 
+            Point::new(version_x, y + text_layout.y_offset(self.line_height))
+        );
+
+        // display description
         let text_layout = ctx
             .text()
             .new_text_layout(description.to_string())
@@ -238,6 +255,7 @@ impl Plugin {
                 &volt.display_name,
                 &volt.description,
                 &volt.author,
+                &volt.version,
                 status.clone(),
                 &data.config,
             );
@@ -302,6 +320,7 @@ impl Plugin {
                         &volt.display_name,
                         &volt.description,
                         &volt.author,
+                        &volt.version,
                         status.clone(),
                         &data.config,
                     );
