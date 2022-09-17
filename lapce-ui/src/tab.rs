@@ -614,7 +614,7 @@ impl LapceTab {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceTabData,
+        _data: &mut LapceTabData,
         _env: &Env,
     ) {
         match event {
@@ -630,10 +630,6 @@ impl LapceTab {
             Event::MouseUp(mouse) => {
                 if mouse.button.is_left() && ctx.is_active() {
                     ctx.set_active(false);
-                }
-                if data.drag.is_some() {
-                    self.handle_panel_drop(ctx, data);
-                    *Arc::make_mut(&mut data.drag) = None;
                 }
             }
             _ => {}
@@ -1854,6 +1850,7 @@ impl Widget<LapceTabData> for LapceTab {
         self.handle_mouse_event(ctx, event, data, env);
 
         self.main_split.event(ctx, event, data, env);
+
         self.status.event(ctx, event, data, env);
         if data.panel.is_container_shown(&PanelContainerPosition::Left)
             || event.should_propagate_to_hidden()
@@ -1891,6 +1888,12 @@ impl Widget<LapceTabData> for LapceTab {
         }
 
         match event {
+            Event::MouseUp(_) => {
+                if data.drag.is_some() {
+                    self.handle_panel_drop(ctx, data);
+                    *Arc::make_mut(&mut data.drag) = None;
+                }
+            }
             Event::MouseMove(mouse) => {
                 self.mouse_pos = mouse.pos;
                 if ctx.is_active() {
