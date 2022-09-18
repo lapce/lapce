@@ -99,8 +99,7 @@ impl PluginCatalog {
         if let Some(request_sent) = request_sent {
             // if there are no plugins installed the callback of the client is not called
             // so check if plugins list is empty
-            if self.new_plugins.len() == 0 {
-
+            if self.new_plugins.is_empty() {
                 // Add a request
                 request_sent.fetch_add(1, Ordering::Relaxed);
 
