@@ -28,6 +28,7 @@ impl WordBoundary {
         *self == WordBoundary::End || *self == WordBoundary::Both
     }
 
+    #[allow(unused)]
     fn is_boundary(&self) -> bool {
         *self != WordBoundary::Interior
     }
@@ -189,72 +190,6 @@ impl<'a> WordCursor<'a> {
         let start = self.prev_code_boundary();
         (start, end)
     }
-
-    /// Return the selection for the word containing the current cursor. The
-    /// cursor is moved to the end of that selection.
-    pub fn select_word_old(&mut self) -> (usize, usize) {
-        let initial = self.inner.pos();
-        let init_prop_after = self.inner.next_codepoint().map(get_word_property);
-        self.inner.set(initial);
-        let init_prop_before = self.inner.prev_codepoint().map(get_word_property);
-        let mut start = initial;
-        let init_boundary =
-            if let (Some(pb), Some(pa)) = (init_prop_before, init_prop_after) {
-                classify_boundary_initial(pb, pa)
-            } else {
-                WordBoundary::Both
-            };
-        let mut prop_after = init_prop_after;
-        let mut prop_before = init_prop_before;
-        if prop_after.is_none() {
-            start = self.inner.pos();
-            prop_after = prop_before;
-            prop_before = self.inner.prev_codepoint().map(get_word_property);
-        }
-        while let (Some(pb), Some(pa)) = (prop_before, prop_after) {
-            if start == initial {
-                if init_boundary.is_start() {
-                    break;
-                }
-            } else if !init_boundary.is_boundary() {
-                if classify_boundary(pb, pa).is_boundary() {
-                    break;
-                }
-            } else if classify_boundary(pb, pa).is_start() {
-                break;
-            }
-            start = self.inner.pos();
-            prop_after = prop_before;
-            prop_before = self.inner.prev_codepoint().map(get_word_property);
-        }
-        self.inner.set(initial);
-        let mut end = initial;
-        prop_after = init_prop_after;
-        prop_before = init_prop_before;
-        if prop_before.is_none() {
-            prop_before = self.inner.next_codepoint().map(get_word_property);
-            end = self.inner.pos();
-            prop_after = self.inner.next_codepoint().map(get_word_property);
-        }
-        while let (Some(pb), Some(pa)) = (prop_before, prop_after) {
-            if end == initial {
-                if init_boundary.is_end() {
-                    break;
-                }
-            } else if !init_boundary.is_boundary() {
-                if classify_boundary(pb, pa).is_boundary() {
-                    break;
-                }
-            } else if classify_boundary(pb, pa).is_end() {
-                break;
-            }
-            end = self.inner.pos();
-            prop_before = prop_after;
-            prop_after = self.inner.next_codepoint().map(get_word_property);
-        }
-        self.inner.set(end);
-        (start, end)
-    }
 }
 
 pub fn get_word_property(codepoint: char) -> WordProperty {
@@ -277,24 +212,6 @@ pub fn get_word_property(codepoint: char) -> WordProperty {
         }
     }
     WordProperty::Other
-}
-
-fn classify_boundary_initial(
-    prev: WordProperty,
-    next: WordProperty,
-) -> WordBoundary {
-    #[allow(clippy::match_single_binding)]
-    match (prev, next) {
-        // (Lf, Other) => Start,
-        // (Other, Lf) => End,
-        // (Lf, Space) => Interior,
-        // (Lf, Punctuation) => Interior,
-        // (Space, Lf) => Interior,
-        // (Punctuation, Lf) => Interior,
-        // (Space, Punctuation) => Interior,
-        // (Punctuation, Space) => Interior,
-        _ => classify_boundary(prev, next),
-    }
 }
 
 fn classify_boundary(prev: WordProperty, next: WordProperty) -> WordBoundary {
