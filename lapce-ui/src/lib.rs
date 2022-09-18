@@ -8,6 +8,7 @@ pub mod explorer;
 pub mod find;
 pub mod hover;
 pub mod keymap;
+pub mod list;
 mod logging;
 pub mod palette;
 pub mod panel;

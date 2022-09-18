@@ -76,7 +76,7 @@ pub struct LapceTab {
     id: WidgetId,
     pub title: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     main_split: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
-    completion: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    completion: WidgetPod<LapceTabData, CompletionContainer>,
     hover: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     rename: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
@@ -179,7 +179,7 @@ impl LapceTab {
             id: data.id,
             title,
             main_split: WidgetPod::new(main_split.boxed()),
-            completion: WidgetPod::new(completion.boxed()),
+            completion: WidgetPod::new(completion),
             hover: WidgetPod::new(hover.boxed()),
             rename: WidgetPod::new(rename.boxed()),
             picker: WidgetPod::new(picker.boxed()),
@@ -2213,9 +2213,13 @@ impl Widget<LapceTabData> for LapceTab {
             .set_origin(ctx, data, env, main_split_origin);
 
         if data.completion.status != CompletionStatus::Inactive {
-            let completion_origin =
-                data.completion_origin(ctx.text(), self_size, &data.config);
-            self.completion.layout(ctx, bc, data, env);
+            let completion_size = self.completion.layout(ctx, bc, data, env);
+            let completion_origin = data.completion_origin(
+                ctx.text(),
+                self_size,
+                completion_size,
+                &data.config,
+            );
             self.completion
                 .set_origin(ctx, data, env, completion_origin);
         }

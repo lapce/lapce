@@ -664,8 +664,8 @@ impl LapceTabData {
             term_sender.clone(),
             event_sink.clone(),
         ));
-        let palette = Arc::new(PaletteData::new(proxy.clone()));
-        let completion = Arc::new(CompletionData::new());
+        let palette = Arc::new(PaletteData::new(config.clone(), proxy.clone()));
+        let completion = Arc::new(CompletionData::new(config.clone()));
         let hover = Arc::new(HoverData::new());
         let rename = Arc::new(RenameData::new());
         let source_control = Arc::new(SourceControlData::new());
@@ -958,6 +958,7 @@ impl LapceTabData {
         &self,
         text: &mut PietText,
         tab_size: Size,
+        completion_size: Size,
         config: &Config,
     ) -> Point {
         let line_height = self.config.editor.line_height() as f64;
@@ -986,10 +987,8 @@ impl LapceTabData {
                 let mut origin = *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
                     + Vec2::new(point_below.x - line_height - 5.0, point_below.y);
-                if origin.y + self.completion.size.height + 1.0 > tab_size.height {
-                    let height = self
-                        .completion
-                        .size
+                if origin.y + completion_size.height + 1.0 > tab_size.height {
+                    let height = completion_size
                         .height
                         .min(self.completion.len() as f64 * line_height);
                     origin.y = editor.window_origin.borrow().y
@@ -997,8 +996,8 @@ impl LapceTabData {
                         + point_above.y
                         - height;
                 }
-                if origin.x + self.completion.size.width + 1.0 > tab_size.width {
-                    origin.x = tab_size.width - self.completion.size.width - 1.0;
+                if origin.x + completion_size.width + 1.0 > tab_size.width {
+                    origin.x = tab_size.width - completion_size.width - 1.0;
                 }
                 if origin.x <= 0.0 {
                     origin.x = 0.0;
