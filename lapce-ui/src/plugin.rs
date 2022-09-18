@@ -1,4 +1,4 @@
-use crate::{panel::PanelSizing, scroll::LapceScroll};
+use crate::{panel::PanelSizing, scroll::LapceScroll, svg::get_svg};
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Command, Cursor, Env, Event, EventCtx, FontWeight,
@@ -63,11 +63,13 @@ impl Plugin {
         display_name: &str,
         description: &str,
         author: &str,
+        version: &str,
         status: PluginStatus,
         config: &Config,
     ) -> Rect {
-        let y = 3.0 * self.line_height * i as f64;
-        let x = 3.0 * self.line_height;
+        // display title [plugin name]
+        let y = 3.5 * self.line_height * i as f64;
+        let x = 0.5 * self.line_height;
         let text_layout = ctx
             .text()
             .new_text_layout(display_name.to_string())
@@ -80,6 +82,26 @@ impl Plugin {
             &text_layout,
             Point::new(x, y + text_layout.y_offset(self.line_height)),
         );
+
+        let version_x = x + text_layout.size().width + 8.0;
+        let text_layout = ctx
+            .text()
+            .new_text_layout(format!("v{version}"))
+            .font(config.ui.font_family(), config.ui.font_size() as f64)
+            .default_attribute(TextAttribute::Weight(FontWeight::NORMAL))
+            .text_color(
+                config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        ctx.draw_text(
+            &text_layout,
+            Point::new(version_x, y + text_layout.y_offset(self.line_height)),
+        );
+
+        // display description
         let text_layout = ctx
             .text()
             .new_text_layout(description.to_string())
@@ -155,36 +177,76 @@ impl Plugin {
         let size = ctx.size();
         let padding = 10.0;
 
-        let text = if status == PluginStatus::Install {
-            status.to_string()
+        if status == PluginStatus::Install {
+            let text_layout = ctx
+                .text()
+                .new_text_layout(status.to_string())
+                .font(config.ui.font_family(), config.ui.font_size() as f64)
+                .text_color(
+                    config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            let text_size = text_layout.size();
+            let text_padding = 5.0;
+            let x = size.width - text_size.width - text_padding * 2.0 - padding;
+            let y = y + self.line_height * 2.0;
+            let color = Color::rgb8(80, 161, 79);
+            let rect =
+                Size::new(text_size.width + text_padding * 2.0, self.line_height)
+                    .to_rect()
+                    .with_origin(Point::new(x, y));
+            ctx.fill(rect, &color);
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    x + text_padding,
+                    y + text_layout.y_offset(self.line_height),
+                ),
+            );
+            rect
         } else {
-            format!("{} ▼", status)
-        };
-        let text_layout = ctx
-            .text()
-            .new_text_layout(text)
-            .font(config.ui.font_family(), config.ui.font_size() as f64)
-            .text_color(
-                config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                    .clone(),
-            )
-            .build()
-            .unwrap();
-        let text_size = text_layout.size();
-        let text_padding = 5.0;
-        let x = size.width - text_size.width - text_padding * 2.0 - padding;
-        let y = y + self.line_height * 2.0;
-        let color = Color::rgb8(80, 161, 79);
-        let rect = Size::new(text_size.width + text_padding * 2.0, self.line_height)
-            .to_rect()
-            .with_origin(Point::new(x, y));
-        ctx.fill(rect, &color);
-        ctx.draw_text(
-            &text_layout,
-            Point::new(x + text_padding, y + text_layout.y_offset(self.line_height)),
-        );
-        rect
+            let color = match status {
+                PluginStatus::Installed => LapceTheme::EDITOR_FOCUS,
+                PluginStatus::Upgrade(_) => LapceTheme::LAPCE_WARN,
+                _ => LapceTheme::EDITOR_DIM,
+            };
+
+            let status_x = text_layout.size().width + 20.0;
+            let text_layout = ctx
+                .text()
+                .new_text_layout(format!("[ {status} ]"))
+                .font(config.ui.font_family(), config.ui.font_size() as f64)
+                .text_color(config.get_color_unchecked(color).clone())
+                .build()
+                .unwrap();
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    status_x,
+                    y + self.line_height * 2.0
+                        + text_layout.y_offset(self.line_height),
+                ),
+            );
+            // if status is [installed, disabled, upgrade(x)], display the settings.svg
+            let x = self.width - 24.0;
+            let y = y + self.line_height * 2.2;
+            let rect = Size::new(15.0, 15.0)
+                .to_rect()
+                .with_origin(Point::new(x, y));
+            ctx.draw_svg(
+                &get_svg("settings.svg").unwrap(),
+                rect,
+                Some(
+                    &config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                ),
+            );
+            rect
+        }
     }
 
     fn paint_installed(&mut self, ctx: &mut PaintCtx, data: &LapceTabData) {
@@ -197,6 +259,7 @@ impl Plugin {
                 &volt.display_name,
                 &volt.description,
                 &volt.author,
+                &volt.version,
                 status.clone(),
                 &data.config,
             );
@@ -261,6 +324,7 @@ impl Plugin {
                         &volt.display_name,
                         &volt.description,
                         &volt.author,
+                        &volt.version,
                         status.clone(),
                         &data.config,
                     );
