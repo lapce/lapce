@@ -275,6 +275,7 @@ impl LapceEditorTab {
                                 ));
                             }
                         }
+                        *Arc::make_mut(&mut data.drag) = None;
                     }
                 }
                 DragContent::Panel(..) => {}

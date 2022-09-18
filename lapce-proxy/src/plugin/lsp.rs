@@ -359,7 +359,7 @@ impl LspClient {
                 symbol: Some(WorkspaceSymbolClientCapabilities {
                     ..Default::default()
                 }),
-                configuration: Some(true),
+                configuration: Some(false),
                 ..Default::default()
             }),
 
