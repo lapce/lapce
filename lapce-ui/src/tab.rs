@@ -631,7 +631,7 @@ impl LapceTab {
                 if mouse.button.is_left() && ctx.is_active() {
                     ctx.set_active(false);
                 }
-                if data.drag.is_some() {
+                if let Some((_, _, DragContent::Panel(_, _))) = data.drag.as_ref() {
                     self.handle_panel_drop(ctx, data);
                     *Arc::make_mut(&mut data.drag) = None;
                 }
@@ -1854,6 +1854,7 @@ impl Widget<LapceTabData> for LapceTab {
         self.handle_mouse_event(ctx, event, data, env);
 
         self.main_split.event(ctx, event, data, env);
+
         self.status.event(ctx, event, data, env);
         if data.panel.is_container_shown(&PanelContainerPosition::Left)
             || event.should_propagate_to_hidden()
