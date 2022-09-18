@@ -235,8 +235,6 @@ impl LapceEditorTab {
                                     LapceUICommand::Focus,
                                     Target::Widget(child.widget_id()),
                                 ));
-
-                                *Arc::make_mut(&mut data.drag) = None;
                             }
                             None => {
                                 if from_id == &self.widget_id {
@@ -277,6 +275,7 @@ impl LapceEditorTab {
                                 ));
                             }
                         }
+                        *Arc::make_mut(&mut data.drag) = None;
                     }
                 }
                 DragContent::Panel(..) => {}
