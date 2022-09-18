@@ -1212,8 +1212,7 @@ impl Document {
                 }
             }
             SelectAllCurrent => {
-                if let CursorMode::Insert(selection) = cursor.mode.clone() {
-                    let mut new_selection = Selection::new();
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
                     if !selection.is_empty() {
                         let first = selection.first().unwrap();
                         let (start, end) = if first.is_caret() {
@@ -1222,15 +1221,23 @@ impl Document {
                             (first.min(), first.max())
                         };
                         let search_str = self.buffer.slice_to_cow(start..end);
+                        let search_case_sensitive =
+                            config.editor.multicursor_case_sensitive;
+                        let search_whole_word =
+                            config.editor.multicursor_whole_words;
                         let mut find = Find::new(0);
-                        find.set_find(&search_str, false, false, false);
+                        find.set_find(
+                            &search_str,
+                            search_case_sensitive,
+                            false,
+                            search_whole_word,
+                        );
                         let mut offset = 0;
                         while let Some((start, end)) =
                             find.next(self.buffer.text(), offset, false, false)
                         {
                             offset = end;
-                            new_selection
-                                .add_region(SelRegion::new(start, end, None));
+                            selection.add_region(SelRegion::new(start, end, None));
                         }
                     }
                     cursor.set_insert(selection);
@@ -1253,8 +1260,17 @@ impl Document {
                             let r = selection.last_inserted().unwrap();
                             let search_str =
                                 self.buffer.slice_to_cow(r.min()..r.max());
+                            let search_case_sensitive =
+                                config.editor.multicursor_case_sensitive;
+                            let search_whole_word =
+                                config.editor.multicursor_whole_words;
                             let mut find = Find::new(0);
-                            find.set_find(&search_str, false, false, false);
+                            find.set_find(
+                                &search_str,
+                                search_case_sensitive,
+                                false,
+                                search_whole_word,
+                            );
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) =

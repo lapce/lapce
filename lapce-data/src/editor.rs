@@ -196,7 +196,7 @@ impl EditorPosition for Position {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EditorLocation<P: EditorPosition = usize> {
     pub path: PathBuf,
     pub position: Option<P>,
@@ -629,6 +629,52 @@ impl LapceEditorBufferData {
                     Target::Widget(*self.main_split.split_id),
                 ));
             }
+        }
+    }
+
+    pub fn completion_item_select(&mut self, ctx: &mut EventCtx) {
+        let item = if let Some(item) = self.completion.current_item() {
+            item.to_owned()
+        } else {
+            // There was no selected item, this may be due to a bug in failing to ensure that the index was valid.
+            return;
+        };
+
+        self.cancel_completion();
+        if item.item.data.is_some() {
+            let view_id = self.editor.view_id;
+            let buffer_id = self.doc.id();
+            let rev = self.doc.rev();
+            let offset = self.editor.cursor.offset();
+            let event_sink = ctx.get_external_handle();
+            self.proxy.proxy_rpc.completion_resolve(
+                item.plugin_id,
+                item.item.clone(),
+                move |result| {
+                    // let item = result.unwrap_or_else(|_| item.clone());
+                    let item =
+                        if let Ok(ProxyResponse::CompletionResolveResponse {
+                            item,
+                        }) = result
+                        {
+                            *item
+                        } else {
+                            item.item.clone()
+                        };
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::ResolveCompletion(
+                            buffer_id,
+                            rev,
+                            offset,
+                            Box::new(item),
+                        ),
+                        Target::Widget(view_id),
+                    );
+                },
+            );
+        } else {
+            let _ = self.apply_completion_item(&item.item);
         }
     }
 
@@ -1679,44 +1725,8 @@ impl LapceEditorBufferData {
                         Target::Widget(self.palette.widget_id),
                     ));
                 } else {
-                    let item = self.completion.current_item().to_owned();
-                    self.cancel_completion();
-                    if item.item.data.is_some() {
-                        let view_id = self.editor.view_id;
-                        let buffer_id = self.doc.id();
-                        let rev = self.doc.rev();
-                        let offset = self.editor.cursor.offset();
-                        let event_sink = ctx.get_external_handle();
-                        self.proxy.proxy_rpc.completion_resolve(
-                            item.plugin_id,
-                            item.item.clone(),
-                            move |result| {
-                                // let item = result.unwrap_or_else(|_| item.clone());
-                                let item = if let Ok(
-                                    ProxyResponse::CompletionResolveResponse {
-                                        item,
-                                    },
-                                ) = result
-                                {
-                                    *item
-                                } else {
-                                    item.item.clone()
-                                };
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::ResolveCompletion(
-                                        buffer_id,
-                                        rev,
-                                        offset,
-                                        Box::new(item),
-                                    ),
-                                    Target::Widget(view_id),
-                                );
-                            },
-                        );
-                    } else {
-                        let _ = self.apply_completion_item(&item.item);
-                    }
+                    let completion = Arc::make_mut(&mut self.completion);
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             ListNext => {
@@ -1731,7 +1741,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.next();
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             ListNextPage => {
@@ -1746,7 +1756,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.next_page(self.config.editor.line_height());
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             ListPrevious => {
@@ -1761,7 +1771,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.previous();
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             ListPreviousPage => {
@@ -1776,7 +1786,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.previous_page(self.config.editor.line_height());
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             JumpToNextSnippetPlaceholder => {
