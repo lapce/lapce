@@ -399,6 +399,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
                                         ));
                                     }
                                     EditorTabChildInfo::Settings => {}
+                                    EditorTabChildInfo::Plugin { .. } => {}
                                 }
                                 return;
                             }
