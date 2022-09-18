@@ -1806,20 +1806,12 @@ impl LapceTab {
                         }
                     }
                     LapceUICommand::CopyAbsolutePath(absolute_path) => {
-                        use clipboard::{ClipboardContext, ClipboardProvider};
-
-                        let mut ctx: ClipboardContext =
-                            ClipboardProvider::new().unwrap();
-                        ctx.set_contents(absolute_path.to_str().unwrap().to_owned())
-                            .unwrap();
+                        let mut clipboard = druid::Application::global().clipboard();
+                        clipboard.put_string(absolute_path.to_str().unwrap())
                     }
                     LapceUICommand::CopyRelativePath(relative_path) => {
-                        use clipboard::{ClipboardContext, ClipboardProvider};
-
-                        let mut ctx: ClipboardContext =
-                            ClipboardProvider::new().unwrap();
-                        ctx.set_contents(relative_path.to_str().unwrap().to_owned())
-                            .unwrap();
+                        let mut clipboard = druid::Application::global().clipboard();
+                        clipboard.put_string(relative_path.to_str().unwrap());
                     }
                     _ => (),
                 }
