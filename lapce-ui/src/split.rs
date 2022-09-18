@@ -3,7 +3,6 @@ use crate::{
         tab::LapceEditorTab,
         view::{editor_tab_child_widget, LapceEditorView},
     },
-    settings::LapceSettingsPanel,
     terminal::LapceTerminalView,
 };
 use std::sync::Arc;
