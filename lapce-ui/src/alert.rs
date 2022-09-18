@@ -12,7 +12,7 @@ use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::LapceTabData,
 };
 
@@ -365,7 +365,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
                 .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
         );
 
-        let svg = get_svg("warning.svg").unwrap();
+        let svg = get_svg(LapceIcons::WARNING, &data.config).unwrap();
         ctx.draw_svg(
             &svg,
             self.svg_rect,

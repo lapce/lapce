@@ -22,7 +22,7 @@ use lapce_data::{
         LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
-    config::{LapceConfig, LapceTheme},
+    config::{LapceConfig, LapceIcons, LapceTheme},
     data::{
         DragContent, EditorDiagnostic, EditorTabChild, FocusArea, LapceData,
         LapceTabData, LapceWindowData, LapceWorkspace, LapceWorkspaceType,
@@ -506,7 +506,7 @@ impl LapceTab {
                     rect,
                     &data
                         .config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
                         .clone()
                         .with_alpha(0.8),
                 );
@@ -601,13 +601,13 @@ impl LapceTab {
                             .clone()
                             .with_alpha(0.8),
                     );
-                    let svg = get_svg(kind.svg_name()).unwrap();
+                    let svg = get_svg(kind.svg_name(), &data.config).unwrap();
                     ctx.draw_svg(
                         &svg,
                         icon_rect,
                         Some(
                             data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                         ),
                     );
                 }
@@ -2799,7 +2799,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
         ctx.draw_text(&text_layout, Point::new(x, y));
 
         if ctx.is_hot() || self.drag_start.is_some() {
-            let svg = get_svg("close.svg").unwrap();
+            let svg = get_svg(LapceIcons::CLOSE, &data.config).unwrap();
             ctx.draw_svg(
                 &svg,
                 self.close_icon_rect,

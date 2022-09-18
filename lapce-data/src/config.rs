@@ -28,6 +28,8 @@ pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
 const DEFAULT_LIGHT_THEME: &str = include_str!("../../defaults/light-theme.toml");
 const DEFAULT_DARK_THEME: &str = include_str!("../../defaults/dark-theme.toml");
+const DEFAULT_ICON_THEME: &str = include_str!("../../defaults/icon-theme.toml");
+
 static DEFAULT_CONFIG: Lazy<config::Config> = Lazy::new(LapceConfig::default_config);
 static DEFAULT_LAPCE_CONFIG: Lazy<LapceConfig> =
     Lazy::new(LapceConfig::default_lapce_config);
@@ -42,6 +44,13 @@ impl LapceTheme {
     pub const LAPCE_DROPDOWN_SHADOW: &str = "lapce.dropdown_shadow";
     pub const LAPCE_BORDER: &str = "lapce.border";
     pub const LAPCE_SCROLL_BAR: &str = "lapce.scroll_bar";
+    pub const LAPCE_ICON_ACTIVE: &str = "lapce.icon_active";
+    pub const LAPCE_ICON_INACTIVE: &str = "lapce.icon_inactive";
+
+    pub const LAPCE_REMOTE_LOCAL: &str = "lapce.remote.local";
+    pub const LAPCE_REMOTE_CONNECTED: &str = "lapce.remote.connected";
+    pub const LAPCE_REMOTE_CONNECTING: &str = "lapce.remote.connecting";
+    pub const LAPCE_REMOTE_DISCONNECTED: &str = "lapce.remote.disconnected";
 
     pub const EDITOR_BACKGROUND: &str = "editor.background";
     pub const EDITOR_FOREGROUND: &str = "editor.foreground";
@@ -137,6 +146,123 @@ pub enum LoadThemeError {
     Read(std::io::Error),
 }
 
+pub struct LapceIcons {}
+
+impl LapceIcons {
+    pub const WINDOW_CLOSE: &str = "window.close";
+    pub const WINDOW_RESTORE: &str = "window.restore";
+    pub const WINDOW_MAXIMISE: &str = "window.maximize";
+    pub const WINDOW_MINIMISE: &str = "window.minimize";
+
+    pub const LOGO: &str = "logo";
+    pub const LINK: &str = "link";
+    pub const ERROR: &str = "error";
+    pub const CLOSE: &str = "close";
+    pub const REMOTE: &str = "remote";
+    pub const PROBLEM: &str = "error";
+    pub const UNSAVED: &str = "unsaved";
+    pub const WARNING: &str = "warning";
+    pub const TERMINAL: &str = "terminal";
+    pub const SETTINGS: &str = "settings";
+    pub const LIGHTBULB: &str = "lightbulb";
+    pub const EXTENSIONS: &str = "extensions";
+    pub const BREADCRUMB_SEPARATOR: &str = "breadcrumb_separator";
+
+    pub const FILE: &str = "file";
+    pub const FILE_EXPLORER: &str = "file_explorer";
+    pub const FILE_PICKER_UP: &str = "file_picker_up";
+
+    pub const SCM: &str = "scm.icon";
+    pub const SCM_DIFF_MODIFIED: &str = "scm.diff.modified";
+    pub const SCM_DIFF_ADDED: &str = "scm.diff.added";
+    pub const SCM_DIFF_REMOVED: &str = "scm.diff.removed";
+    pub const SCM_DIFF_RENAMED: &str = "scm.diff.renamed";
+
+    pub const PALETTE_PREVIOUS: &str = "palette.previous";
+    pub const PALETTE_NEXT: &str = "palette.next";
+    pub const PALETTE_MENU: &str = "palette.menu";
+
+    pub const LOCATION_BACKWARD: &str = "location.backward";
+    pub const LOCATION_FORWARD: &str = "location.forward";
+
+    pub const ITEM_OPENED: &str = "item.opened";
+    pub const ITEM_CLOSED: &str = "item.closed";
+
+    pub const DIRECTORY_CLOSED: &str = "directory.closed";
+    pub const DIRECTORY_OPENED: &str = "directory.opened";
+
+    pub const PANEL_RESTORE: &str = "panel.restore";
+    pub const PANEL_MAXIMISE: &str = "panel.maximise";
+
+    pub const SPLIT_HORIZONTAL: &str = "split.horizontal";
+
+    pub const TAB_PREVIOUS: &str = "tab.previous";
+    pub const TAB_NEXT: &str = "tab.next";
+
+    pub const SIDEBAR_LEFT: &str = "sidebar.left.on";
+    pub const SIDEBAR_LEFT_OFF: &str = "sidebar.left.off";
+    pub const SIDEBAR_RIGHT: &str = "sidebar.right.on";
+    pub const SIDEBAR_RIGHT_OFF: &str = "sidebar.right.off";
+
+    pub const LAYOUT_PANEL: &str = "layout.panel.on";
+    pub const LAYOUT_PANEL_OFF: &str = "layout.panel.off";
+
+    pub const SEARCH: &'static str = "search.icon";
+    pub const SEARCH_CLEAR: &'static str = "search.clear";
+    pub const SEARCH_FORWARD: &'static str = "search.forward";
+    pub const SEARCH_BACKWARD: &'static str = "search.backward";
+    pub const SEARCH_CASE_SENSITIVE: &'static str = "search.case_sensitive";
+
+    pub const FILE_TYPE_CODE: &str = "file-code";
+    pub const FILE_TYPE_MEDIA: &str = "file-media";
+    pub const FILE_TYPE_BINARY: &str = "file-binary";
+    pub const FILE_TYPE_ARCHIVE: &str = "file-zip";
+    pub const FILE_TYPE_SUBMODULE: &str = "file-submodule";
+    pub const FILE_TYPE_SYMLINK_FILE: &str = "file-symlink-file";
+    pub const FILE_TYPE_SYMLINK_DIRECTORY: &str = "file-symlink-directory";
+
+    pub const SYMBOL_KIND_ARRAY: &str = "symbol_kind.array";
+    pub const SYMBOL_KIND_BOOLEAN: &str = "symbol_kind.boolean";
+    pub const SYMBOL_KIND_CLASS: &str = "symbol_kind.class";
+    pub const SYMBOL_KIND_CONSTANT: &str = "symbol_kind.constant";
+    pub const SYMBOL_KIND_ENUM_MEMBER: &str = "symbol_kind.enum_member";
+    pub const SYMBOL_KIND_ENUM: &str = "symbol_kind.enum";
+    pub const SYMBOL_KIND_EVENT: &str = "symbol_kind.event";
+    pub const SYMBOL_KIND_FIELD: &str = "symbol_kind.field";
+    pub const SYMBOL_KIND_FILE: &str = "symbol_kind.file";
+    pub const SYMBOL_KIND_FUNCTION: &str = "symbol_kind.function";
+    pub const SYMBOL_KIND_INTERFACE: &str = "symbol_kind.interface";
+    pub const SYMBOL_KIND_KEY: &str = "symbol_kind.key";
+    pub const SYMBOL_KIND_METHOD: &str = "symbol_kind.method";
+    pub const SYMBOL_KIND_NAMESPACE: &str = "symbol_kind.namespace";
+    pub const SYMBOL_KIND_NUMBER: &str = "symbol_kind.number";
+    pub const SYMBOL_KIND_OBJECT: &str = "symbol_kind.namespace";
+    pub const SYMBOL_KIND_OPERATOR: &str = "symbol_kind.operator";
+    pub const SYMBOL_KIND_PROPERTY: &str = "symbol_kind.property";
+    pub const SYMBOL_KIND_STRING: &str = "symbol_kind.string";
+    pub const SYMBOL_KIND_STRUCT: &str = "symbol_kind.struct";
+    pub const SYMBOL_KIND_TYPE_PARAMETER: &str = "symbol_kind.type_parameter";
+    pub const SYMBOL_KIND_VARIABLE: &str = "symbol_kind.variable";
+
+    pub const COMPLETION_ITEM_KIND_CLASS: &str = "completion_item_kind.class";
+    pub const COMPLETION_ITEM_KIND_CONSTANT: &str = "completion_item_kind.constant";
+    pub const COMPLETION_ITEM_KIND_ENUM_MEMBER: &str =
+        "completion_item_kind.enum_member";
+    pub const COMPLETION_ITEM_KIND_ENUM: &str = "completion_item_kind.enum";
+    pub const COMPLETION_ITEM_KIND_FIELD: &str = "completion_item_kind.field";
+    pub const COMPLETION_ITEM_KIND_FUNCTION: &str = "completion_item_kind.function";
+    pub const COMPLETION_ITEM_KIND_INTERFACE: &str =
+        "completion_item_kind.interface";
+    pub const COMPLETION_ITEM_KIND_KEYWORD: &str = "completion_item_kind.keyword";
+    pub const COMPLETION_ITEM_KIND_METHOD: &str = "completion_item_kind.method";
+    pub const COMPLETION_ITEM_KIND_MODULE: &str = "completion_item_kind.module";
+    pub const COMPLETION_ITEM_KIND_PROPERTY: &str = "completion_item_kind.property";
+    pub const COMPLETION_ITEM_KIND_SNIPPET: &str = "completion_item_kind.snippet";
+    pub const COMPLETION_ITEM_KIND_STRING: &str = "completion_item_kind.string";
+    pub const COMPLETION_ITEM_KIND_STRUCT: &str = "completion_item_kind.struct";
+    pub const COMPLETION_ITEM_KIND_VARIABLE: &str = "completion_item_kind.variable";
+}
+
 pub trait GetConfig {
     fn get_config(&self) -> &LapceConfig;
 }
@@ -148,6 +274,8 @@ pub struct CoreConfig {
     pub modal: bool,
     #[field_names(desc = "Set the color theme of Lapce")]
     pub color_theme: String,
+    #[field_names(desc = "Set the icon theme of Lapce")]
+    pub icon_theme: String,
     #[field_names(
         desc = "Enable customised titlebar and disable OS native one (Linux, BSD, Windows)"
     )]
@@ -434,16 +562,18 @@ pub struct TerminalConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct ThemeConfig {
+#[serde(rename_all = "kebab-case")]
+pub struct ColorThemeConfig {
     #[serde(skip)]
     pub path: PathBuf,
     pub name: String,
+    pub color_preference: String,
     pub base: ThemeBaseConfig,
     pub syntax: IndexMap<String, String>,
     pub ui: IndexMap<String, String>,
 }
 
-impl ThemeConfig {
+impl ColorThemeConfig {
     fn resolve_color(
         colors: &IndexMap<String, String>,
         base: &ThemeBaseColor,
@@ -537,8 +667,70 @@ impl ThemeBaseConfig {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct IconThemeConfig {
+    #[serde(skip)]
+    pub path: PathBuf,
+    pub name: String,
+    pub ui: IndexMap<String, String>,
+    pub filename: IndexMap<String, String>,
+    pub extension: IndexMap<String, String>,
+}
+
+impl IconThemeConfig {
+    pub fn resolve_ui_icon(&self, icon: &str) -> (Option<String>, Option<PathBuf>) {
+        if let Some(icon_or_path) = self.ui.get(icon) {
+            let path = self.path.join(icon_or_path);
+            if path.extension().unwrap_or_default().is_empty() {
+                (Some(icon_or_path.to_owned()), None)
+            } else {
+                (None, Some(path))
+            }
+        } else {
+            (Some("blank".to_string()), None)
+        }
+    }
+
+    pub fn resolve_path_to_icon(&self, path: &Path) -> Option<PathBuf> {
+        if let Some((_, icon)) = self.filename.get_key_value(
+            path.file_stem()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default(),
+        ) {
+            Some(self.path.join(icon))
+        } else if let Some((_, icon)) = self.filename.get_key_value(
+            path.file_name()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default(),
+        ) {
+            Some(self.path.join(icon))
+        } else if let Some((_, icon)) = self.extension.get_key_value(
+            path.extension()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default(),
+        ) {
+            Some(self.path.join(icon))
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum ThemeColorPreference {
+    #[default]
+    Light,
+    Dark,
+    HighContrastDark,
+    HighContrastLight,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ThemeColor {
+    pub color_preference: ThemeColorPreference,
     pub base: ThemeBaseColor,
     pub syntax: HashMap<String, Color>,
     pub ui: HashMap<String, Color>,
@@ -604,6 +796,7 @@ impl ThemeBaseColor {
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
 pub struct LapceConfig {
     #[serde(skip)]
     pub id: u64,
@@ -611,15 +804,21 @@ pub struct LapceConfig {
     pub ui: UIConfig,
     pub editor: EditorConfig,
     pub terminal: TerminalConfig,
-    pub theme: ThemeConfig,
+    pub color_theme: ColorThemeConfig,
+    pub icon_theme: IconThemeConfig,
     #[serde(flatten)]
     pub plugins: HashMap<String, HashMap<String, serde_json::Value>>,
     #[serde(skip)]
-    pub default_theme: ThemeConfig,
+    pub default_color_theme: ColorThemeConfig,
+    #[serde(skip)]
+    pub default_icon_theme: IconThemeConfig,
     #[serde(skip)]
     pub color: ThemeColor,
     #[serde(skip)]
-    pub available_themes: HashMap<String, (String, config::Config)>,
+    pub available_color_themes: HashMap<String, (String, config::Config)>,
+    #[serde(skip)]
+    pub available_icon_themes:
+        HashMap<String, (String, config::Config, Option<PathBuf>)>,
     #[serde(skip)]
     tab_layout_info: Arc<RwLock<HashMap<(FontFamily, usize), f64>>>,
 }
@@ -667,54 +866,92 @@ impl notify::EventHandler for ConfigWatcher {
 
 impl LapceConfig {
     pub fn load(workspace: &LapceWorkspace, disabled_volts: &[String]) -> Self {
-        let config = Self::merge_config(workspace, None);
+        let config = Self::merge_config(workspace, None, None);
         let mut lapce_config: LapceConfig = config
             .try_deserialize()
             .unwrap_or_else(|_| DEFAULT_LAPCE_CONFIG.clone());
-        let available_themes = Self::load_themes(disabled_volts);
-        lapce_config.available_themes = available_themes;
+
+        lapce_config.available_color_themes =
+            Self::load_color_themes(disabled_volts);
+        lapce_config.available_icon_themes = Self::load_icon_themes(disabled_volts);
         lapce_config.resolve_theme(workspace);
         lapce_config
     }
 
     fn resolve_theme(&mut self, workspace: &LapceWorkspace) {
         let mut default_lapce_config = DEFAULT_LAPCE_CONFIG.clone();
-        if let Some((_, theme_config)) = self
-            .available_themes
+        if let Some((_, color_theme_config)) = self
+            .available_color_themes
             .get(&self.core.color_theme.to_lowercase())
         {
             if let Ok(mut theme_lapce_config) = config::Config::builder()
                 .add_source(DEFAULT_CONFIG.clone())
-                .add_source(theme_config.clone())
+                .add_source(color_theme_config.clone())
                 .build()
                 .and_then(|theme| theme.try_deserialize::<LapceConfig>())
             {
                 theme_lapce_config.resolve_colors(Some(&default_lapce_config));
                 default_lapce_config = theme_lapce_config;
             }
-            if let Ok(new) =
-                Self::merge_config(workspace, Some(theme_config.clone()))
-                    .try_deserialize::<LapceConfig>()
+        }
+
+        let color_theme_config = self
+            .available_color_themes
+            .get(&self.core.color_theme.to_lowercase())
+            .map(|(_, config)| config);
+
+        let icon_theme_config = self
+            .available_icon_themes
+            .get(&self.core.icon_theme.to_lowercase())
+            .map(|(_, config, _)| config);
+
+        let icon_theme_path = self
+            .available_icon_themes
+            .get(&self.core.icon_theme.to_lowercase())
+            .map(|(_, _, path)| path);
+
+        if color_theme_config.is_some() || icon_theme_config.is_some() {
+            if let Ok(new) = Self::merge_config(
+                workspace,
+                color_theme_config.cloned(),
+                icon_theme_config.cloned(),
+            )
+            .try_deserialize::<LapceConfig>()
             {
                 self.core = new.core;
                 self.ui = new.ui;
                 self.editor = new.editor;
                 self.terminal = new.terminal;
-                self.theme = new.theme;
+                self.color_theme = new.color_theme;
+                self.icon_theme = new.icon_theme;
+                if let Some(icon_theme_path) = icon_theme_path {
+                    self.icon_theme.path =
+                        icon_theme_path.clone().unwrap_or_default();
+                }
                 self.plugins = new.plugins;
             }
         }
         self.resolve_colors(Some(&default_lapce_config));
-        self.default_theme = default_lapce_config.theme.clone();
+        self.default_color_theme = default_lapce_config.color_theme.clone();
+        self.default_icon_theme = default_lapce_config.icon_theme.clone();
         self.update_id();
     }
 
     fn merge_config(
         workspace: &LapceWorkspace,
-        theme_config: Option<config::Config>,
+        color_theme_config: Option<config::Config>,
+        icon_theme_config: Option<config::Config>,
     ) -> config::Config {
         let mut config = DEFAULT_CONFIG.clone();
-        if let Some(theme) = theme_config {
+        if let Some(theme) = color_theme_config {
+            config = config::Config::builder()
+                .add_source(config.clone())
+                .add_source(theme)
+                .build()
+                .unwrap_or_else(|_| config.clone());
+        }
+
+        if let Some(theme) = icon_theme_config {
             config = config::Config::builder()
                 .add_source(config.clone())
                 .add_source(theme)
@@ -752,32 +989,64 @@ impl LapceConfig {
 
     fn resolve_colors(&mut self, default_config: Option<&LapceConfig>) {
         self.color.base = self
-            .theme
+            .color_theme
             .base
             .resolve(default_config.map(|c| &c.color.base));
         self.color.ui = self
-            .theme
+            .color_theme
             .resolve_ui_color(&self.color.base, default_config.map(|c| &c.color.ui));
-        self.color.syntax = self.theme.resolve_syntax_color(
+        self.color.syntax = self.color_theme.resolve_syntax_color(
             &self.color.base,
             default_config.map(|c| &c.color.syntax),
         );
+
+        #[allow(clippy::wildcard_in_or_patterns)]
+        {
+            self.color.color_preference =
+                match self.color_theme.color_preference.to_lowercase().as_str() {
+                    "highcontrastdark" => ThemeColorPreference::HighContrastDark,
+                    "highcontrastlight" => ThemeColorPreference::HighContrastLight,
+                    "light" => ThemeColorPreference::Light,
+                    "dark" | _ => ThemeColorPreference::Dark,
+                };
+        }
     }
 
-    fn load_themes(
+    fn load_color_themes(
         disabled_volts: &[String],
     ) -> HashMap<String, (String, config::Config)> {
         let mut themes = Self::load_local_themes().unwrap_or_default();
-        if let Some(plugin_themes) = Self::load_plugin_themes(disabled_volts) {
-            for (key, theme) in plugin_themes.into_iter() {
-                themes.insert(key, theme);
-            }
+
+        for (key, theme) in Self::load_plugin_color_themes(disabled_volts) {
+            themes.insert(key, theme);
         }
 
-        let (name, theme) = Self::load_theme_from_str(DEFAULT_LIGHT_THEME).unwrap();
+        let (name, theme) =
+            Self::load_color_theme_from_str(DEFAULT_LIGHT_THEME).unwrap();
         themes.insert(name.to_lowercase(), (name, theme));
-        let (name, theme) = Self::load_theme_from_str(DEFAULT_DARK_THEME).unwrap();
+        let (name, theme) =
+            Self::load_color_theme_from_str(DEFAULT_DARK_THEME).unwrap();
         themes.insert(name.to_lowercase(), (name, theme));
+
+        themes
+    }
+
+    fn load_icon_themes(
+        disabled_volts: &[String],
+    ) -> HashMap<String, (String, config::Config, Option<PathBuf>)> {
+        let mut themes = HashMap::new();
+
+        for (key, (name, theme, path)) in
+            Self::load_plugin_icon_themes(disabled_volts)
+        {
+            themes.insert(key, (name, theme, Some(path)));
+        }
+
+        let (name, theme) =
+            Self::load_icon_theme_from_str(DEFAULT_ICON_THEME).unwrap();
+        themes.insert(name.to_lowercase(), (name, theme, None));
+
+        log::debug!("{themes:?}");
 
         themes
     }
@@ -788,44 +1057,78 @@ impl LapceConfig {
             std::fs::read_dir(themes_folder)
                 .ok()?
                 .filter_map(|entry| {
-                    entry.ok().and_then(|entry| Self::load_theme(&entry.path()))
+                    entry
+                        .ok()
+                        .and_then(|entry| Self::load_color_theme(&entry.path()))
                 })
                 .collect();
         Some(themes)
     }
 
-    fn load_plugin_themes(
+    fn load_plugin_color_themes(
         disabled_volts: &[String],
-    ) -> Option<HashMap<String, (String, config::Config)>> {
+    ) -> HashMap<String, (String, config::Config)> {
         let mut themes: HashMap<String, (String, config::Config)> = HashMap::new();
         for meta in find_all_volts() {
             if disabled_volts.contains(&meta.id()) {
                 continue;
             }
-            if let Some(plugin_themes) = meta.themes.as_ref() {
+            if let Some(plugin_themes) = meta.color_themes.as_ref() {
                 for theme_path in plugin_themes {
                     if let Some((key, theme)) =
-                        Self::load_theme(&PathBuf::from(theme_path))
+                        Self::load_color_theme(&PathBuf::from(theme_path))
                     {
                         themes.insert(key, theme);
                     }
                 }
             }
         }
-        Some(themes)
+        themes
     }
 
-    fn load_theme_from_str(s: &str) -> Option<(String, config::Config)> {
+    fn load_plugin_icon_themes(
+        disabled_volts: &[String],
+    ) -> HashMap<String, (String, config::Config, PathBuf)> {
+        let mut themes: HashMap<String, (String, config::Config, PathBuf)> =
+            HashMap::new();
+        for meta in find_all_volts() {
+            if disabled_volts.contains(&meta.id()) {
+                continue;
+            }
+            if let Some(plugin_themes) = meta.icon_themes.as_ref() {
+                for theme_path in plugin_themes {
+                    if let Some((key, theme)) =
+                        Self::load_icon_theme(&PathBuf::from(theme_path))
+                    {
+                        themes.insert(key, theme);
+                    }
+                }
+            }
+        }
+        themes
+    }
+
+    fn load_color_theme_from_str(s: &str) -> Option<(String, config::Config)> {
         let config = config::Config::builder()
             .add_source(config::File::from_str(s, config::FileFormat::Toml))
             .build()
             .ok()?;
-        let table = config.get_table("theme").ok()?;
+        let table = config.get_table("color-theme").ok()?;
         let name = table.get("name")?.to_string();
         Some((name, config))
     }
 
-    fn load_theme(path: &Path) -> Option<(String, (String, config::Config))> {
+    fn load_icon_theme_from_str(s: &str) -> Option<(String, config::Config)> {
+        let config = config::Config::builder()
+            .add_source(config::File::from_str(s, config::FileFormat::Toml))
+            .build()
+            .ok()?;
+        let table = config.get_table("icon-theme").ok()?;
+        let name = table.get("name")?.to_string();
+        Some((name, config))
+    }
+
+    fn load_color_theme(path: &Path) -> Option<(String, (String, config::Config))> {
         if !path.is_file() {
             return None;
         }
@@ -833,9 +1136,27 @@ impl LapceConfig {
             .add_source(config::File::from(path))
             .build()
             .ok()?;
-        let table = config.get_table("theme").ok()?;
+        let table = config.get_table("color-theme").ok()?;
         let name = table.get("name")?.to_string();
         Some((name.to_lowercase(), (name, config)))
+    }
+
+    fn load_icon_theme(
+        path: &Path,
+    ) -> Option<(String, (String, config::Config, PathBuf))> {
+        if !path.is_file() {
+            return None;
+        }
+        let config = config::Config::builder()
+            .add_source(config::File::from(path))
+            .build()
+            .ok()?;
+        let table = config.get_table("icon-theme").ok()?;
+        let name = table.get("name")?.to_string();
+        Some((
+            name.to_lowercase(),
+            (name, config, path.parent().unwrap().to_path_buf()),
+        ))
     }
 
     fn default_config() -> config::Config {
@@ -857,11 +1178,14 @@ impl LapceConfig {
 
     pub fn export_theme(&self) -> String {
         let mut table = toml::value::Table::new();
-        let mut theme = self.theme.clone();
+        let mut theme = self.color_theme.clone();
         theme.name = "".to_string();
         theme.syntax.sort_keys();
         theme.ui.sort_keys();
-        table.insert("theme".to_string(), toml::Value::try_from(&theme).unwrap());
+        table.insert(
+            "color-theme".to_string(),
+            toml::Value::try_from(&theme).unwrap(),
+        );
         table.insert("ui".to_string(), toml::Value::try_from(&self.ui).unwrap());
         let value = toml::Value::Table(table);
         toml::to_string_pretty(&value).unwrap()
@@ -977,7 +1301,7 @@ impl LapceConfig {
             .unwrap_or(0);
     }
 
-    pub fn set_theme(
+    pub fn set_color_theme(
         &mut self,
         workspace: &LapceWorkspace,
         theme: &str,
@@ -994,6 +1318,23 @@ impl LapceConfig {
         }
     }
 
+    pub fn set_icon_theme(
+        &mut self,
+        workspace: &LapceWorkspace,
+        theme: &str,
+        preview: bool,
+    ) {
+        self.core.icon_theme = theme.to_string();
+        self.resolve_theme(workspace);
+        if !preview {
+            LapceConfig::update_file(
+                "core",
+                "icon-theme",
+                toml_edit::Value::from(theme),
+            );
+        }
+    }
+
     /// Get the color by the name from the current theme if it exists
     /// Otherwise, get the color from the base them
     /// # Panics
@@ -1004,6 +1345,27 @@ impl LapceConfig {
             .ui
             .get(name)
             .unwrap_or_else(|| panic!("Key not found: {name}"))
+    }
+
+    pub fn get_hover_color(&self, color: &Color) -> Color {
+        let (r, g, b, a) = color.as_rgba();
+        let shift = 0.05;
+        match self.color.color_preference {
+            ThemeColorPreference::Dark => {
+                Color::rgba(r + -shift, g + -shift, b + -shift, a)
+            }
+            ThemeColorPreference::Light => {
+                Color::rgba(r + shift, g + shift, b + shift, a)
+            }
+            ThemeColorPreference::HighContrastDark => {
+                let shift = shift * 2.0;
+                Color::rgba(r + -shift, g + -shift, b + -shift, a)
+            }
+            ThemeColorPreference::HighContrastLight => {
+                let shift = shift * 2.0;
+                Color::rgba(r + shift, g + shift, b + shift, a)
+            }
+        }
     }
 
     /// Retrieve a color value whose key starts with "style."
@@ -1277,5 +1639,13 @@ impl LapceConfig {
             .write()
             .insert((font_family, font_size), width);
         self.editor.tab_width as f64 * width
+    }
+
+    pub fn resolve_ui_icon(&self, icon: &str) -> (Option<String>, Option<PathBuf>) {
+        self.icon_theme.resolve_ui_icon(icon)
+    }
+
+    pub fn resolve_file_icon(&self, path: &Path) -> Option<PathBuf> {
+        self.icon_theme.resolve_path_to_icon(path)
     }
 }

@@ -1282,10 +1282,17 @@ impl LapceTabData {
                     toml_edit::Value::from(false),
                 );
             }
-            LapceWorkbenchCommand::ChangeTheme => {
+            LapceWorkbenchCommand::ChangeColorTheme => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::RunPalette(Some(PaletteType::Theme)),
+                    LapceUICommand::RunPalette(Some(PaletteType::ColorTheme)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
+            LapceWorkbenchCommand::ChangeIconTheme => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::IconTheme)),
                     Target::Widget(self.palette.widget_id),
                 ));
             }
@@ -1992,6 +1999,7 @@ impl Lens<LapceWindowData, LapceTabData> for LapceTabLens {
         let mut tab = data.tabs.get(&self.0).unwrap().clone();
         tab.keypress = data.keypress.clone();
         tab.latest_release = data.latest_release.clone();
+        tab.log_file = data.log_file.clone();
         tab.update_in_progress = data.update_in_progress;
         tab.log_file = data.log_file.clone();
         tab.multiple_tab = data.tabs.len() > 1;

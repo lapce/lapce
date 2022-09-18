@@ -1,5 +1,6 @@
-[theme]
+[color-theme]
 name = "Lapce Dark"
+color-preference = "dark"
 
 [ui]
 font-family = ""
@@ -11,7 +12,7 @@ activity-width = 50
 scroll-width = 10
 drop-shadow-width = 0
 
-[theme.base]
+[color-theme.base]
 white = "#ABB2BF"
 black = "#282C34"
 grey = "#3E4451"
@@ -24,7 +25,7 @@ purple = "#C678DD"
 cyan = "#56B6C2"
 magenta = "#C678DD"
 
-[theme.syntax]
+[color-theme.syntax]
 "comment" = "#5C6370"
 "constant" = "$yellow"
 "type" = "$yellow"
@@ -59,7 +60,7 @@ magenta = "#C678DD"
 "variable.other.member" = "$green"
 "tag" = "$blue"
 
-[theme.ui]
+[color-theme.ui]
 "lapce.active_tab" = "#528BFF"
 "lapce.inactive_tab" = "#5C6370"
 "lapce.error" = "$red"
@@ -68,6 +69,13 @@ magenta = "#C678DD"
 "lapce.border" = "#000000"
 "lapce.scroll_bar" = "$grey"
 
+"lapce.icon_active" = "$white"
+"lapce.icon_inactive" = "$grey"
+
+"lapce.remote.local" = "#4078F2"
+"lapce.remote.connected" = "#50A14F"
+"lapce.remote.connecting" = "#C18401"
+"lapce.remote.discconnected" = "#E45649"
 
 "editor.background" = "$black"
 "editor.foreground" = "$white"

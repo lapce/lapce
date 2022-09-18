@@ -250,7 +250,7 @@ pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
                 .to_string(),
         )
     });
-    meta.themes = meta.themes.as_ref().map(|themes| {
+    meta.color_themes = meta.color_themes.as_ref().map(|themes| {
         themes
             .iter()
             .filter_map(|theme| {
@@ -265,6 +265,22 @@ pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
             })
             .collect()
     });
+    meta.icon_themes = meta.icon_themes.as_ref().map(|themes| {
+        themes
+            .iter()
+            .filter_map(|theme| {
+                Some(
+                    path.parent()?
+                        .join(theme)
+                        .canonicalize()
+                        .ok()?
+                        .to_str()?
+                        .to_string(),
+                )
+            })
+            .collect()
+    });
+
     Ok(meta)
 }
 

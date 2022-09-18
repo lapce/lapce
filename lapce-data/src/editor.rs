@@ -26,8 +26,7 @@ use lapce_core::{
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
-use lapce_rpc::plugin::PluginId;
-use lapce_rpc::proxy::ProxyResponse;
+use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionOrCommand,
     CodeActionResponse, CompletionItem, CompletionTextEdit, DiagnosticSeverity,

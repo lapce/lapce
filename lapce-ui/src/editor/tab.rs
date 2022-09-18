@@ -10,7 +10,7 @@ use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{
         DragContent, EditorTabChild, FocusArea, LapceEditorTabData, LapceTabData,
         SplitContent,
@@ -663,7 +663,14 @@ impl TabRectRenderer for TabRect {
                 2.0,
             );
         }
-        ctx.draw_svg(&self.svg, rect, None);
+        ctx.draw_svg(
+            &self.svg,
+            rect,
+            Some(
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+            ),
+        );
         ctx.draw_text(
             &self.text_layout,
             Point::new(rect.x1 + 5.0, self.text_layout.y_offset(size.height)),
@@ -722,11 +729,11 @@ impl TabRectRenderer for TabRect {
 
         let mut draw_icon = |name: &'static str| {
             ctx.draw_svg(
-                &get_svg(name).unwrap(),
+                &get_svg(name, &data.config).unwrap(),
                 self.close_rect.inflate(-padding, -padding),
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                 ),
             );
         };
@@ -735,10 +742,10 @@ impl TabRectRenderer for TabRect {
             if mouse_pos.map(|s| self.rect.contains(s)).unwrap_or(false)
                 || is_active_tab
             {
-                draw_icon("close.svg")
+                draw_icon(LapceIcons::CLOSE)
             }
         } else {
-            draw_icon("unsaved.svg")
+            draw_icon(LapceIcons::UNSAVED)
         };
     }
 }

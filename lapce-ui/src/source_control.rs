@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 use druid::{
     kurbo::BezPath,
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
     WidgetExt, WidgetId,
 };
@@ -12,7 +12,7 @@ use lapce_data::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{FocusArea, LapceTabData},
     panel::PanelKind,
 };
@@ -273,24 +273,41 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     (self.line_height - height) / 2.0 + y,
                 );
                 let rect = Size::new(width, height).to_rect().with_origin(origin);
-                ctx.stroke(rect, &Color::rgb8(0, 0, 0), 1.0);
+                ctx.stroke(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                    1.0,
+                );
 
                 if checked {
                     let mut path = BezPath::new();
                     path.move_to((origin.x + 3.0, origin.y + 7.0));
                     path.line_to((origin.x + 6.0, origin.y + 9.5));
                     path.line_to((origin.x + 10.0, origin.y + 3.0));
-                    ctx.stroke(path, &Color::rgb8(0, 0, 0), 2.0);
+                    ctx.stroke(
+                        path,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                        2.0,
+                    );
                 }
             }
-            let (svg, svg_color) = file_svg(&path);
+            let (svg, _svg_color) = file_svg(&path, &data.config);
             let width = 13.0;
             let height = 13.0;
             let rect = Size::new(width, height).to_rect().with_origin(Point::new(
                 (self.line_height - width) / 2.0 + self.line_height,
                 (self.line_height - height) / 2.0 + y,
             ));
-            ctx.draw_svg(&svg, rect, svg_color);
+            ctx.draw_svg(
+                &svg,
+                rect,
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                ),
+            );
 
             let file_name = path
                 .file_name()
@@ -352,27 +369,27 @@ impl Widget<LapceTabData> for SourceControlFileList {
 
             let (svg, color) = match diff {
                 FileDiff::Modified(_) => (
-                    "diff-modified.svg",
+                    LapceIcons::SCM_DIFF_MODIFIED,
                     data.config
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_MODIFIED),
                 ),
                 FileDiff::Added(_) => (
-                    "diff-added.svg",
+                    LapceIcons::SCM_DIFF_ADDED,
                     data.config
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_ADDED),
                 ),
                 FileDiff::Deleted(_) => (
-                    "diff-removed.svg",
+                    LapceIcons::SCM_DIFF_REMOVED,
                     data.config
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_REMOVED),
                 ),
                 FileDiff::Renamed(_, _) => (
-                    "diff-renamed.svg",
+                    LapceIcons::SCM_DIFF_RENAMED,
                     data.config
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_MODIFIED),
                 ),
             };
-            let svg = get_svg(svg).unwrap();
+            let svg = get_svg(svg, &data.config).unwrap();
 
             let svg_size = 15.0;
             let rect =

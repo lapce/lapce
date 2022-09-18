@@ -9,7 +9,7 @@ use druid::{
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{CommandKind, LapceCommand, LAPCE_COMMAND},
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{LapceTabData, LapceWorkspace},
     document::BufferContent,
     editor::LapceEditorBufferData,
@@ -53,7 +53,7 @@ impl LapceEditorHeader {
         let x =
             self_size.width - ((icons.len() + 1) as f64) * (gap + self.icon_size);
         let icon = LapceIcon {
-            icon: "close.svg",
+            icon: LapceIcons::CLOSE,
             rect: Size::new(self.icon_size, self.icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
@@ -71,7 +71,7 @@ impl LapceEditorHeader {
         let x =
             self_size.width - ((icons.len() + 1) as f64) * (gap + self.icon_size);
         let icon = LapceIcon {
-            icon: "split-horizontal.svg",
+            icon: LapceIcons::SPLIT_HORIZONTAL,
             rect: Size::new(self.icon_size, self.icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
@@ -148,7 +148,7 @@ impl LapceEditorHeader {
 
             ctx.with_save(|ctx| {
                 ctx.clip(clip_rect);
-                let (svg, svg_color) = file_svg(&path);
+                let (svg, _svg_color) = file_svg(&path, &data.config);
 
                 let font_size = data.config.ui.font_size() as f64;
 
@@ -159,7 +159,14 @@ impl LapceEditorHeader {
                         (size.height - width) / 2.0,
                         (size.height - height) / 2.0,
                     ));
-                ctx.draw_svg(&svg, rect, svg_color);
+                ctx.draw_svg(
+                    &svg,
+                    rect,
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                    ),
+                );
 
                 let mut file_name = path
                     .file_name()
@@ -223,7 +230,7 @@ impl LapceEditorHeader {
                             .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
                     );
                 }
-                if let Some(svg) = get_svg(icon.icon) {
+                if let Some(svg) = get_svg(icon.icon, &data.config) {
                     ctx.draw_svg(
                         &svg,
                         icon.rect.inflate(-self.svg_padding, -self.svg_padding),

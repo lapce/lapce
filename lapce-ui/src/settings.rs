@@ -1219,9 +1219,9 @@ pub enum ThemeKind {
 impl Display for ThemeKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            ThemeKind::Base => "theme.base",
-            ThemeKind::UI => "theme.ui",
-            ThemeKind::Syntax => "theme.syntax",
+            ThemeKind::Base => "color-theme.base",
+            ThemeKind::UI => "color-theme.ui",
+            ThemeKind::Syntax => "color-theme.syntax",
         })
     }
 }
@@ -1327,10 +1327,12 @@ impl ThemeSettings {
             );
             doc.reload(
                 Rope::from(match self.kind {
-                    ThemeKind::Base => data.config.theme.base.get(color).unwrap(),
-                    ThemeKind::UI => data.config.theme.ui.get(color).unwrap(),
+                    ThemeKind::Base => {
+                        data.config.color_theme.base.get(color).unwrap()
+                    }
+                    ThemeKind::UI => data.config.color_theme.ui.get(color).unwrap(),
                     ThemeKind::Syntax => {
-                        data.config.theme.syntax.get(color).unwrap()
+                        data.config.color_theme.syntax.get(color).unwrap()
                     }
                 }),
                 true,
@@ -1515,22 +1517,24 @@ impl Widget<LapceTabData> for ThemeSettings {
                 ThemeKind::Base => {
                     let default = data
                         .config
-                        .default_theme
+                        .default_color_theme
                         .base
                         .get(&self.keys[i])
                         .unwrap()
                         .to_string();
                     (
-                        data.config.theme.base.get(&self.keys[i]) != Some(&default),
+                        data.config.color_theme.base.get(&self.keys[i])
+                            != Some(&default),
                         default,
                     )
                 }
                 ThemeKind::UI => {
                     if let Some(default) =
-                        data.config.default_theme.ui.get(&self.keys[i])
+                        data.config.default_color_theme.ui.get(&self.keys[i])
                     {
                         (
-                            data.config.theme.ui.get(&self.keys[i]) != Some(default),
+                            data.config.color_theme.ui.get(&self.keys[i])
+                                != Some(default),
                             default.to_string(),
                         )
                     } else {
@@ -1540,13 +1544,13 @@ impl Widget<LapceTabData> for ThemeSettings {
                 ThemeKind::Syntax => {
                     let default = data
                         .config
-                        .default_theme
+                        .default_color_theme
                         .syntax
                         .get(&self.keys[i])
                         .cloned()
                         .unwrap_or_else(|| "".to_string());
                     (
-                        data.config.theme.syntax.get(&self.keys[i])
+                        data.config.color_theme.syntax.get(&self.keys[i])
                             != Some(&default),
                         default,
                     )
