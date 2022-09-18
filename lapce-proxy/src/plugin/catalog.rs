@@ -97,7 +97,24 @@ impl PluginCatalog {
         }
 
         if let Some(request_sent) = request_sent {
-            request_sent.fetch_add(self.new_plugins.len(), Ordering::Relaxed);
+            // if there are no plugins installed the callback of the client is not called
+            // so check if plugins list is empty
+            if self.new_plugins.is_empty() {
+                // Add a request
+                request_sent.fetch_add(1, Ordering::Relaxed);
+
+                // make a direct callback with an "error"
+                f(
+                    lapce_rpc::plugin::PluginId(0),
+                    Err(RpcError {
+                        code: 0,
+                        message: "no available plugin could make a callback, because the plugins list is empty".to_string(),
+                    }),
+                );
+                return;
+            } else {
+                request_sent.fetch_add(self.new_plugins.len(), Ordering::Relaxed);
+            }
         }
         for (plugin_id, plugin) in self.new_plugins.iter() {
             let f = dyn_clone::clone_box(&*f);
