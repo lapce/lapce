@@ -374,35 +374,39 @@ impl Widget<LapceTabData> for LapceEditorTab {
                         if let Some(tab) =
                             data.main_split.editor_tabs.get(&self.widget_id)
                         {
-                            let active = &tab.children[tab.active];
-                            match active.child_info(data) {
-                                EditorTabChildInfo::Editor(info) => {
-                                    if info.content
-                                        == BufferContent::Local(
-                                            LocalBufferKind::Empty,
-                                        )
-                                    {
-                                        // File has not yet been loaded, most likely.
-                                        return;
-                                    }
+                            if let Some(active) = tab.children.get(tab.active) {
+                                match active.child_info(data) {
+                                    EditorTabChildInfo::Editor(info) => {
+                                        if info.content
+                                            == BufferContent::Local(
+                                                LocalBufferKind::Empty,
+                                            )
+                                        {
+                                            // File has not yet been loaded, most likely.
+                                            return;
+                                        }
 
-                                    ctx.submit_command(Command::new(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::ActiveFileChanged {
-                                            path: if let BufferContent::File(path) =
-                                                info.content
-                                            {
-                                                Some(path)
-                                            } else {
-                                                None
+                                        ctx.submit_command(Command::new(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::ActiveFileChanged {
+                                                path: if let BufferContent::File(
+                                                    path,
+                                                ) = info.content
+                                                {
+                                                    Some(path)
+                                                } else {
+                                                    None
+                                                },
                                             },
-                                        },
-                                        Target::Widget(data.file_explorer.widget_id),
-                                    ));
+                                            Target::Widget(
+                                                data.file_explorer.widget_id,
+                                            ),
+                                        ));
+                                    }
+                                    EditorTabChildInfo::Settings => {}
                                 }
-                                EditorTabChildInfo::Settings => {}
+                                return;
                             }
-                            return;
                         }
                     }
                     LapceUICommand::NextEditorTab => {
