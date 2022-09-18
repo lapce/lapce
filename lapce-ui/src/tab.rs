@@ -1805,6 +1805,22 @@ impl LapceTab {
                             file_explorer.cancel_naming();
                         }
                     }
+                    LapceUICommand::CopyAbsolutePath(absolute_path) => {
+                        use clipboard::{ClipboardContext, ClipboardProvider};
+
+                        let mut ctx: ClipboardContext =
+                            ClipboardProvider::new().unwrap();
+                        ctx.set_contents(absolute_path.to_str().unwrap().to_owned())
+                            .unwrap();
+                    }
+                    LapceUICommand::CopyRelativePath(relative_path) => {
+                        use clipboard::{ClipboardContext, ClipboardProvider};
+
+                        let mut ctx: ClipboardContext =
+                            ClipboardProvider::new().unwrap();
+                        ctx.set_contents(relative_path.to_str().unwrap().to_owned())
+                            .unwrap();
+                    }
                     _ => (),
                 }
             }
