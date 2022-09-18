@@ -55,6 +55,12 @@ impl Plugin {
         )
     }
 
+    /// Return the modifier that should be multiplied by the plugin number
+    /// to get its initial y position
+    fn plugin_y_mod(&self) -> f64 {
+        3.5 * self.line_height
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn paint_plugin(
         &mut self,
@@ -68,7 +74,7 @@ impl Plugin {
         config: &Config,
     ) -> Rect {
         // display title [plugin name]
-        let y = 3.5 * self.line_height * i as f64;
+        let y = self.plugin_y_mod() * i as f64;
         let x = 0.5 * self.line_height;
         let text_layout = ctx
             .text()
@@ -339,7 +345,7 @@ impl Plugin {
         &'a self,
         mouse_event: &MouseEvent,
     ) -> Option<(usize, &'a PluginStatus)> {
-        let index = (mouse_event.pos.y / (self.line_height * 3.0)) as usize;
+        let index = (mouse_event.pos.y / self.plugin_y_mod()) as usize;
         let (i, rect, status) = self.rects.get(index)?;
         if rect.contains(mouse_event.pos) {
             Some((*i, status))
@@ -529,7 +535,7 @@ impl Widget<LapceTabData> for Plugin {
                 .count()
         };
 
-        let height = 3.0 * self.line_height * len as f64;
+        let height = self.plugin_y_mod() * len as f64;
         let height = height.max(bc.max().height);
         self.width = bc.max().width;
         Size::new(bc.max().width, height)
