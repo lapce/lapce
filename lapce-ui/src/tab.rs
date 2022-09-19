@@ -1805,7 +1805,7 @@ impl LapceTab {
                             file_explorer.cancel_naming();
                         }
                     }
-                    LapceUICommand::CopyAbsolutePath(absolute_path) => {
+                    LapceUICommand::CopyPath(absolute_path) => {
                         let mut clipboard = druid::Application::global().clipboard();
                         clipboard.put_string(absolute_path.to_str().unwrap())
                     }

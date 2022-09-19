@@ -711,7 +711,7 @@ pub enum LapceUICommand {
         apply_naming: bool,
     },
     FileExplorerRefresh,
-    CopyAbsolutePath(PathBuf),
+    CopyPath(PathBuf),
     CopyRelativePath(PathBuf),
     SetLanguage(String),
 
