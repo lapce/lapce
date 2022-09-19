@@ -1951,7 +1951,7 @@ impl Document {
         let whitespace = Self::new_layout_whitespace(
             &layout_text,
             &line_content,
-            &config,
+            config,
             tab_width,
             text,
             font_size,
@@ -2014,9 +2014,8 @@ impl Document {
                     let start = layout_text.hit_test_text_position(ii).point.x;
                     let end = layout_text.hit_test_text_position(ii + 1).point.x;
                     let spaces = ((end - start) / space) as usize;
-                    for _ in 0..(spaces - 1) {
-                        whitespace_buffer.push(' ');
-                    }
+                    let buffer_len = whitespace_buffer.len() + (spaces - 1);
+                    whitespace_buffer.resize(buffer_len, ' ');
                 }
             } else if c == ' ' {
                 whitespace_buffer.push('·');
