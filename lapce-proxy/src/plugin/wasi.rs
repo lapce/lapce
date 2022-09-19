@@ -9,7 +9,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use jsonrpc_lite::Params;
+use jsonrpc_lite::{Id, Params};
 use lapce_rpc::{
     plugin::{PluginId, VoltInfo, VoltMetadata},
     style::LineStyle,
@@ -116,7 +116,7 @@ impl PluginServerHandler for Plugin {
         let _ = self.host.handle_notification(method, params);
     }
 
-    fn handle_host_request(&mut self, id: u64, method: String, params: Params) {
+    fn handle_host_request(&mut self, id: Id, method: String, params: Params) {
         let _ = self.host.handle_request(id, method, params);
     }
 

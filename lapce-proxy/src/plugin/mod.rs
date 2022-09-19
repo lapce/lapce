@@ -6,7 +6,6 @@ pub mod wasi;
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
-use jsonrpc_lite::Id;
 use lapce_rpc::core::CoreRpcHandler;
 use lapce_rpc::plugin::{PluginId, VoltInfo, VoltMetadata};
 use lapce_rpc::proxy::ProxyRpcHandler;
@@ -854,16 +853,6 @@ pub enum PluginNotification {
     MakeFileExecutable {
         path: PathBuf,
     },
-}
-
-fn number_from_id(id: &Id) -> u64 {
-    match *id {
-        Id::Num(n) => n as u64,
-        Id::Str(ref s) => s
-            .parse::<u64>()
-            .expect("failed to convert string id to u64"),
-        _ => panic!("unexpected value for id: None"),
-    }
 }
 
 pub fn download_volt(volt: VoltInfo, wasm: bool) -> Result<VoltMetadata> {

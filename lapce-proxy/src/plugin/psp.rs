@@ -11,7 +11,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
-use jsonrpc_lite::{JsonRpc, Params};
+use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::{buffer::rope_text::RopeText, encoding::offset_utf16_to_utf8};
 use lapce_rpc::{
     plugin::PluginId,
@@ -48,7 +48,7 @@ use xi_rope::{Rope, RopeDelta};
 
 use super::{
     lsp::{DocumentFilter, LspClient},
-    number_from_id, PluginCatalogRpcHandler,
+    PluginCatalogRpcHandler,
 };
 
 pub enum ResponseHandler<Resp, Error> {
@@ -98,7 +98,7 @@ pub enum PluginServerRpc {
     Shutdown,
     Handler(PluginHandlerNotification),
     ServerRequest {
-        id: u64,
+        id: Id,
         method: &'static str,
         params: Params,
         language_id: Option<String>,
@@ -112,7 +112,7 @@ pub enum PluginServerRpc {
         path: Option<PathBuf>,
     },
     HostRequest {
-        id: u64,
+        id: Id,
         method: String,
         params: Params,
     },
@@ -154,7 +154,7 @@ pub struct PluginServerRpcHandler {
     rpc_rx: Receiver<PluginServerRpc>,
     io_tx: Sender<String>,
     id: Arc<AtomicU64>,
-    server_pending: Arc<Mutex<HashMap<u64, ResponseHandler<Value, RpcError>>>>,
+    server_pending: Arc<Mutex<HashMap<Id, ResponseHandler<Value, RpcError>>>>,
 }
 
 pub trait PluginServerHandler {
@@ -165,7 +165,7 @@ pub trait PluginServerHandler {
     ) -> bool;
     fn method_registered(&mut self, method: &'static str) -> bool;
     fn handle_host_notification(&mut self, method: String, params: Params);
-    fn handle_host_request(&mut self, id: u64, method: String, params: Params);
+    fn handle_host_request(&mut self, id: Id, method: String, params: Params);
     fn handle_handler_notification(
         &mut self,
         notification: PluginHandlerNotification,
@@ -225,16 +225,16 @@ impl PluginServerRpcHandler {
 
     fn send_server_request(
         &self,
-        id: u64,
+        id: Id,
         method: &str,
         params: Params,
         rh: ResponseHandler<Value, RpcError>,
     ) {
         {
             let mut pending = self.server_pending.lock();
-            pending.insert(id, rh);
+            pending.insert(id.clone(), rh);
         }
-        let msg = JsonRpc::request_with_params(id as i64, method, params);
+        let msg = JsonRpc::request_with_params(id, method, params);
         let msg = serde_json::to_string(&msg).unwrap();
         self.send_server_rpc(msg);
     }
@@ -245,23 +245,19 @@ impl PluginServerRpcHandler {
         self.send_server_rpc(msg);
     }
 
-    fn send_host_error(&self, id: u64, err: RpcError) {
+    fn send_host_error(&self, id: Id, err: RpcError) {
         self.send_host_response::<Value>(id, Err(err));
     }
 
-    fn send_host_success<V: Serialize>(&self, id: u64, v: V) {
+    fn send_host_success<V: Serialize>(&self, id: Id, v: V) {
         self.send_host_response(id, Ok(v));
     }
 
-    fn send_host_response<V: Serialize>(
-        &self,
-        id: u64,
-        result: Result<V, RpcError>,
-    ) {
+    fn send_host_response<V: Serialize>(&self, id: Id, result: Result<V, RpcError>) {
         let msg = match result {
-            Ok(v) => JsonRpc::success(id as i64, &serde_json::to_value(v).unwrap()),
+            Ok(v) => JsonRpc::success(id, &serde_json::to_value(v).unwrap()),
             Err(e) => JsonRpc::error(
-                id as i64,
+                id,
                 jsonrpc_lite::Error {
                     code: e.code,
                     message: e.message,
@@ -364,7 +360,7 @@ impl PluginServerRpcHandler {
         let params = Params::from(serde_json::to_value(params).unwrap());
         if check {
             let _ = self.rpc_tx.send(PluginServerRpc::ServerRequest {
-                id,
+                id: Id::Num(id as i64),
                 method,
                 params,
                 language_id,
@@ -372,11 +368,11 @@ impl PluginServerRpcHandler {
                 rh,
             });
         } else {
-            self.send_server_request(id, method, params, rh);
+            self.send_server_request(Id::Num(id as i64), method, params, rh);
         }
     }
 
-    pub fn handle_server_response(&self, id: u64, result: Result<Value, RpcError>) {
+    pub fn handle_server_response(&self, id: Id, result: Result<Value, RpcError>) {
         if let Some(handler) = { self.server_pending.lock().remove(&id) } {
             handler.invoke(result);
         }
@@ -484,9 +480,8 @@ pub fn handle_plugin_server_message(
 ) {
     match JsonRpc::parse(message) {
         Ok(value @ JsonRpc::Request(_)) => {
-            let id = number_from_id(&value.get_id().unwrap());
             let rpc = PluginServerRpc::HostRequest {
-                id,
+                id: value.get_id().unwrap(),
                 method: value.get_method().unwrap().to_string(),
                 params: value.get_params().unwrap(),
             };
@@ -500,15 +495,13 @@ pub fn handle_plugin_server_message(
             server_rpc.handle_rpc(rpc);
         }
         Ok(value @ JsonRpc::Success(_)) => {
-            let id = number_from_id(&value.get_id().unwrap());
             let result = value.get_result().unwrap().clone();
-            server_rpc.handle_server_response(id, Ok(result));
+            server_rpc.handle_server_response(value.get_id().unwrap(), Ok(result));
         }
         Ok(value @ JsonRpc::Error(_)) => {
-            let id = number_from_id(&value.get_id().unwrap());
             let error = value.get_error().unwrap();
             server_rpc.handle_server_response(
-                id,
+                value.get_id().unwrap(),
                 Err(RpcError {
                     code: error.code,
                     message: error.message.clone(),
@@ -780,7 +773,7 @@ impl PluginHostHandler {
 
     pub fn handle_request(
         &mut self,
-        id: u64,
+        id: Id,
         method: String,
         params: Params,
     ) -> Result<()> {
