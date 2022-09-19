@@ -692,8 +692,8 @@ impl Widget<LapceTabData> for FileExplorerFileList {
 
                         menu = menu.separator();
                         let path_to_file = node.path_buf.clone();
-                        let item = druid::MenuItem::new("Copy Path")
-                            .command(Command::new(
+                        let item =
+                            druid::MenuItem::new("Copy Path").command(Command::new(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::CopyPath(path_to_file),
                                 Target::Auto,
