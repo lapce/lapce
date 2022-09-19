@@ -866,9 +866,11 @@ fn number_from_id(id: &Id) -> u64 {
     }
 }
 
-pub fn download_volt(volt: VoltInfo, wasm: bool) -> Result<VoltMetadata> {
+pub fn download_volt(volt: VoltInfo, wasm: bool, progress_function: &dyn Fn(&VoltMetadata, f32)) -> Result<VoltMetadata> {
     let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
     let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
+    // Call the progress function with 0%
+    progress_function(&meta, 0.0);
 
     if meta.wasm.is_some() != wasm {
         return Err(anyhow!("plugin type not fit"));
@@ -925,6 +927,7 @@ pub fn download_volt(volt: VoltInfo, wasm: bool) -> Result<VoltMetadata> {
     }
 
     let meta = load_volt(&meta_path)?;
+    progress_function(&meta, 100.0);
     Ok(meta)
 }
 
@@ -934,15 +937,21 @@ pub fn install_volt(
     configurations: Option<serde_json::Value>,
     volt: VoltInfo,
 ) -> Result<()> {
-    let meta = download_volt(volt, true)?;
+    // The whole installation function should spawn a thread, since it can be a complex call and will block the GUI lifecycle otherwise.
+    thread::spawn(move || -> Result<()>{
+    let progress_function = | int_meta: &VoltMetadata, progress|  {
+        let internal_meta = int_meta.clone();
+        catalog_rpc.core_rpc.volt_installing(internal_meta, progress);
+    };
+
+    let meta = download_volt(volt, true, &progress_function)?;
     let local_catalog_rpc = catalog_rpc.clone();
     let local_meta = meta.clone();
-    thread::spawn(move || {
-        let _ = start_volt(workspace, configurations, local_catalog_rpc, local_meta);
-    });
 
+    let _ = start_volt(workspace, configurations, local_catalog_rpc, local_meta);
     catalog_rpc.core_rpc.volt_installed(meta);
-
+    Ok(())
+    });
     Ok(())
 }
 

@@ -557,6 +557,7 @@ pub enum LapceUICommand {
     LoadPlugins(Vec<VoltInfo>),
     LoadPluginsFailed,
     VoltInstalled(VoltMetadata),
+    VoltInstalling(VoltMetadata, f32),
     VoltRemoved(VoltInfo),
     EnableVolt(VoltInfo),
     DisableVolt(VoltInfo),

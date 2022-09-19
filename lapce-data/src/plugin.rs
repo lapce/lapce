@@ -1,3 +1,5 @@
+pub mod plugin_install_status;
+
 use std::{collections::HashSet, sync::Arc};
 
 use anyhow::Result;
@@ -6,6 +8,8 @@ use indexmap::IndexMap;
 use lapce_proxy::plugin::{download_volt, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
 use strum_macros::Display;
+
+use plugin_install_status::{PluginInstallStatus};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -67,6 +71,7 @@ pub struct PluginData {
     pub uninstalled_id: WidgetId,
 
     pub volts: VoltsList,
+    pub installing: IndexMap<String, PluginInstallStatus>,
     pub installed: IndexMap<String, VoltMetadata>,
     pub disabled: HashSet<String>,
     pub workspace_disabled: HashSet<String>,
@@ -95,6 +100,7 @@ impl PluginData {
             installed_id: WidgetId::next(),
             uninstalled_id: WidgetId::next(),
             volts: VoltsList::new(),
+            installing: IndexMap::new(),
             installed: IndexMap::new(),
             disabled: HashSet::from_iter(disabled.into_iter()),
             workspace_disabled: HashSet::from_iter(workspace_disabled.into_iter()),
@@ -167,7 +173,11 @@ impl PluginData {
             proxy.proxy_rpc.install_volt(volt);
         } else {
             std::thread::spawn(move || -> Result<()> {
-                let meta = download_volt(volt, false)?;
+                let progress_function = | int_meta: &VoltMetadata, progress|  {
+                    let internal_meta = int_meta.clone();
+                    proxy.core_rpc.volt_installing(internal_meta, progress);
+                };
+                let meta = download_volt(volt, false, &progress_function)?;
                 proxy.core_rpc.volt_installed(meta);
                 Ok(())
             });

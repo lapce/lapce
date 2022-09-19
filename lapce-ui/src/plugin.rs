@@ -536,6 +536,7 @@ impl Widget<LapceTabData> for Plugin {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+        println!("INSTALLING VALUES: {}", data.plugin.installing.len());
         if self.installed {
             self.paint_installed(ctx, data);
         } else {
