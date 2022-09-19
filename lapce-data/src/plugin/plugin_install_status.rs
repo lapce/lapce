@@ -1,4 +1,4 @@
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PluginInstallType {
     INSTALLATION,
     UNINSTALLATION,
@@ -8,7 +8,7 @@ pub enum PluginInstallType {
 pub struct PluginInstallStatus {
     progress: f32,
     plugin_name: String,
-    install_type: PluginInstallType
+    install_type: PluginInstallType,
 }
 
 impl PluginInstallStatus {

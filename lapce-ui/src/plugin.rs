@@ -10,7 +10,10 @@ use lapce_data::{
     config::{Config, LapceTheme},
     data::{LapceData, LapceTabData},
     panel::PanelKind,
-    plugin::{PluginData, PluginLoadStatus, PluginStatus, plugin_install_status::PluginInstallType},
+    plugin::{
+        plugin_install_status::PluginInstallType, PluginData, PluginLoadStatus,
+        PluginStatus,
+    },
 };
 
 use crate::panel::{LapcePanel, PanelHeaderKind};
@@ -56,56 +59,80 @@ impl Plugin {
     }
 
     fn paint_install_progress_element(
-        &mut self, 
+        &mut self,
         ctx: &mut PaintCtx,
         display_name: &str,
         install_type: &PluginInstallType,
         progress: f32,
         config: &Config,
-        i: usize) {
-            let y = 3.5 * self.line_height * i as f64;
-            let x = 0.5 * self.line_height;
+        i: usize,
+    ) {
+        let y = 3.5 * self.line_height * i as f64;
+        let x = 0.0; //0.5 * self.line_height;
 
-            let text_layout = ctx
-                .text()
-                .new_text_layout(display_name.to_string())
-                .font(config.ui.font_family(), config.ui.font_size() as f64)
-                .text_color(
-                    config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            let text_size = text_layout.size();
-            let text_padding = 5.0;
-            
-            let full_percent_width = self.width;
+        let text_layout = ctx
+            .text()
+            .new_text_layout(display_name.to_string())
+            .font(config.ui.font_family(), config.ui.font_size() as f64)
+            .text_color(
+                config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
 
-            let color_background = config.get_color_unchecked(LapceTheme::ERROR_LENS_OTHER_FOREGROUND);
-            let rect_background =
-                Size::new(full_percent_width, self.line_height)
-                    .to_rect()
-                    .with_origin(Point::new(x, y));
-            ctx.fill(rect_background, color_background);
-            println!("{}",progress);
-            let color_foreground = config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
-            let width_according_to_progress = full_percent_width*(progress as f64 /100.0);
-            let rect_foreground =
-                Size::new(width_according_to_progress, self.line_height)
-                    .to_rect()
-                    .with_origin(Point::new(x, y));
-            ctx.fill(rect_foreground, color_foreground);
+        let full_percent_width = self.width;
 
-            ctx.draw_text(
-                &text_layout,
-                Point::new(
-                    x + text_padding,
-                    y + text_layout.y_offset(self.line_height),
-                ),
-            );
+        let color_background =
+            config.get_color_unchecked(LapceTheme::ERROR_LENS_OTHER_FOREGROUND);
+        let rect_background = Size::new(full_percent_width, self.line_height)
+            .to_rect()
+            .with_origin(Point::new(x, y));
+        ctx.fill(rect_background, color_background);
+        let color_foreground =
+            config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
+        let width_according_to_progress =
+            full_percent_width * (progress as f64 / 100.0);
+        let rect_foreground =
+            Size::new(width_according_to_progress, self.line_height)
+                .to_rect()
+                .with_origin(Point::new(x, y));
 
+        // [INSTALLING / UNINSTALLING]
+        let mut status_text = "Installing...";
+        if *install_type == PluginInstallType::UNINSTALLATION {
+            status_text = "Removing...";
         }
+
+        let status_text_layout = ctx
+            .text()
+            .new_text_layout(status_text.to_string())
+            .font(config.ui.font_family(), config.ui.font_size() as f64)
+            .default_attribute(TextAttribute::Style(druid::FontStyle::Italic))
+            .text_color(
+                config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        let text_size = status_text_layout.size();
+        let text_padding = 5.0;
+        let x_state_text =
+            full_percent_width - text_size.width - text_padding * 2.0 - 0.0;
+
+        ctx.fill(rect_foreground, color_foreground);
+
+        ctx.draw_text(
+            &text_layout,
+            Point::new(x + text_padding, y + text_layout.y_offset(self.line_height)),
+        );
+        ctx.draw_text(
+            &status_text_layout,
+            Point::new(x_state_text, y + text_layout.y_offset(self.line_height)),
+        );
+    }
 
     #[allow(clippy::too_many_arguments)]
     fn paint_plugin(
@@ -319,7 +346,11 @@ impl Plugin {
         }
     }
 
-    fn paint_installation_progress(&mut self, ctx: &mut PaintCtx, data: &LapceTabData) {
+    fn paint_installation_progress(
+        &mut self,
+        ctx: &mut PaintCtx,
+        data: &LapceTabData,
+    ) {
         for (i, (id, install_status)) in data.plugin.installing.iter().enumerate() {
             self.paint_install_progress_element(
                 ctx,
@@ -601,11 +632,9 @@ impl Widget<LapceTabData> for Plugin {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-
         if self.installed {
             self.paint_installed(ctx, data);
             if !data.plugin.installing.is_empty() {
-                println!("GOT SOME DATA");
                 self.paint_installation_progress(ctx, data);
             }
         } else {

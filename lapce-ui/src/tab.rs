@@ -37,7 +37,8 @@ use lapce_data::{
         PanelContainerPosition, PanelKind, PanelPosition, PanelResizePosition,
         PanelStyle,
     },
-    proxy::path_from_url, plugin::plugin_install_status::{PluginInstallStatus, PluginInstallType},
+    plugin::plugin_install_status::{PluginInstallStatus, PluginInstallType},
+    proxy::path_from_url,
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lsp_types::DiagnosticSeverity;
@@ -947,22 +948,24 @@ impl LapceTab {
                         plugin.installed.insert(volt.id(), volt.clone());
 
                         // if there is a value inside the installing map, remove it from there as soon as it is installed.
-                        if plugin.installing.contains_key(&volt.id()) {
-                            plugin.installing.remove(&volt.id());
-                        }
-                    },
+                        plugin.installing.remove(&volt.id());
+                    }
                     LapceUICommand::VoltInstalling(volt, progress) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
 
                         if plugin.installing.contains_key(&volt.id()) {
-                            println!("MODIFY NEW DATA: {}, {} with progress {}", volt.display_name, volt.id(), progress);
                             let elem = plugin.installing.get_mut(&volt.id());
                             elem.unwrap().set_progress(*progress);
                         } else {
-                            println!("GOT NEW DATA: {}, {}", volt.display_name, volt.id());
-                            plugin.installing.insert(volt.id(), PluginInstallStatus::new(PluginInstallType::INSTALLATION, &volt.display_name));
+                            plugin.installing.insert(
+                                volt.id(),
+                                PluginInstallStatus::new(
+                                    PluginInstallType::INSTALLATION,
+                                    &volt.display_name,
+                                ),
+                            );
                         }
-                    },
+                    }
                     LapceUICommand::VoltRemoved(volt) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
                         let id = volt.id();
