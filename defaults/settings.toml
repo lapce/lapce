@@ -28,6 +28,7 @@ error-lens-font-size = 0
 blink-interval = 500 # ms
 multicursor-case-sensitive = true
 multicursor-whole-words = true
+render-whitespace = "none"
 
 [terminal]
 font-family = ""

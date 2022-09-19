@@ -233,6 +233,10 @@ pub struct EditorConfig {
         desc = "Whether the multiple cursor selection only selects whole words."
     )]
     pub multicursor_whole_words: bool,
+    #[field_names(
+        desc = "How the editor should render whitespace characters.\nOptions: none, all, boundary, trailing."
+    )]
+    pub render_whitespace: String,
 }
 
 impl EditorConfig {

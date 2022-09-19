@@ -890,6 +890,11 @@ impl LapceEditor {
                     );
                 }
             }
+
+            if let Some(whitespace) = &text_layout.whitespace {
+                ctx.draw_text(whitespace, Point::new(info.x, y));
+            }
+
             ctx.draw_text(&text_layout.text, Point::new(info.x, y));
         }
     }
