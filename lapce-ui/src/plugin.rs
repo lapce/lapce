@@ -10,7 +10,7 @@ use lapce_data::{
     config::{Config, LapceTheme},
     data::{LapceData, LapceTabData},
     panel::PanelKind,
-    plugin::{PluginData, PluginLoadStatus, PluginStatus},
+    plugin::{PluginData, PluginLoadStatus, PluginStatus, plugin_install_status::PluginInstallType},
 };
 
 use crate::panel::{LapcePanel, PanelHeaderKind};
@@ -54,6 +54,58 @@ impl Plugin {
             ],
         )
     }
+
+    fn paint_install_progress_element(
+        &mut self, 
+        ctx: &mut PaintCtx,
+        display_name: &str,
+        install_type: &PluginInstallType,
+        progress: f32,
+        config: &Config,
+        i: usize) {
+            let y = 3.5 * self.line_height * i as f64;
+            let x = 0.5 * self.line_height;
+
+            let text_layout = ctx
+                .text()
+                .new_text_layout(display_name.to_string())
+                .font(config.ui.font_family(), config.ui.font_size() as f64)
+                .text_color(
+                    config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            let text_size = text_layout.size();
+            let text_padding = 5.0;
+            
+            let full_percent_width = self.width;
+
+            let color_background = config.get_color_unchecked(LapceTheme::ERROR_LENS_OTHER_FOREGROUND);
+            let rect_background =
+                Size::new(full_percent_width, self.line_height)
+                    .to_rect()
+                    .with_origin(Point::new(x, y));
+            ctx.fill(rect_background, color_background);
+            println!("{}",progress);
+            let color_foreground = config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
+            let width_according_to_progress = full_percent_width*(progress as f64 /100.0);
+            let rect_foreground =
+                Size::new(width_according_to_progress, self.line_height)
+                    .to_rect()
+                    .with_origin(Point::new(x, y));
+            ctx.fill(rect_foreground, color_foreground);
+
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    x + text_padding,
+                    y + text_layout.y_offset(self.line_height),
+                ),
+            );
+
+        }
 
     #[allow(clippy::too_many_arguments)]
     fn paint_plugin(
@@ -264,6 +316,19 @@ impl Plugin {
                 &data.config,
             );
             self.rects.push((i, rect, status));
+        }
+    }
+
+    fn paint_installation_progress(&mut self, ctx: &mut PaintCtx, data: &LapceTabData) {
+        for (i, (id, install_status)) in data.plugin.installing.iter().enumerate() {
+            self.paint_install_progress_element(
+                ctx,
+                install_status.plugin_name(),
+                install_status.install_type(),
+                install_status.progress(),
+                &data.config,
+                i,
+            );
         }
     }
 
@@ -536,9 +601,13 @@ impl Widget<LapceTabData> for Plugin {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        println!("INSTALLING VALUES: {}", data.plugin.installing.len());
+
         if self.installed {
             self.paint_installed(ctx, data);
+            if !data.plugin.installing.is_empty() {
+                println!("GOT SOME DATA");
+                self.paint_installation_progress(ctx, data);
+            }
         } else {
             self.paint_available(ctx, data);
         }

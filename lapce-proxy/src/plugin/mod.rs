@@ -892,7 +892,8 @@ pub fn download_volt(volt: VoltInfo, wasm: bool, progress_function: &dyn Fn(&Vol
             .open(&meta_path)?;
         file.write_all(meta_str.as_bytes())?;
     }
-
+    // set it testwise to 50%
+    progress_function(&meta, 50.0);
     let url = url::Url::parse(&volt.meta)?;
     if let Some(wasm) = meta.wasm.as_ref() {
         let url = url.join(wasm)?;

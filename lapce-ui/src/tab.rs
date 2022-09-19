@@ -955,10 +955,12 @@ impl LapceTab {
                         let plugin = Arc::make_mut(&mut data.plugin);
 
                         if plugin.installing.contains_key(&volt.id()) {
+                            println!("MODIFY NEW DATA: {}, {} with progress {}", volt.display_name, volt.id(), progress);
                             let elem = plugin.installing.get_mut(&volt.id());
                             elem.unwrap().set_progress(*progress);
                         } else {
-                            plugin.installing.insert(volt.id(), PluginInstallStatus::new(PluginInstallType::INSTALLATION));
+                            println!("GOT NEW DATA: {}, {}", volt.display_name, volt.id());
+                            plugin.installing.insert(volt.id(), PluginInstallStatus::new(PluginInstallType::INSTALLATION, &volt.display_name));
                         }
                     },
                     LapceUICommand::VoltRemoved(volt) => {
