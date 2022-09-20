@@ -958,10 +958,18 @@ pub fn remove_volt(
     volt: VoltMetadata
 ) -> Result<()> {
     thread::spawn(move || -> Result<()>{
-        let path = volt.dir.as_ref().ok_or_else(|| anyhow!("don't have dir"))?;
-        catalog_rpc.core_rpc.volt_removing(volt.clone(), "".to_string());
-        fs::remove_dir_all(path)?;
-        catalog_rpc.core_rpc.volt_removed(volt.info());
+        let path = volt
+        .dir
+        .as_ref()
+        .ok_or_else(|| {
+            catalog_rpc.core_rpc.volt_removing(volt.clone(), "Plugin Directory does not exist".to_string());
+            anyhow::anyhow!("don't have dir")
+        })?;
+        if let Err(_) = std::fs::remove_dir_all(path) {
+                catalog_rpc.core_rpc.volt_removing(volt.clone(), "Could not remove Plugin Directory".to_string());
+        } else {
+            catalog_rpc.core_rpc.volt_removed(volt.info());
+        }
         Ok(())
     });
     Ok(())

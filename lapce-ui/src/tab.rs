@@ -969,6 +969,7 @@ impl LapceTab {
                         }
                     },
                     LapceUICommand::VoltRemoving(volt, error) => {
+                        println!("GOT REQUEST FROM {} with error: {}", volt.display_name, error);
                         let plugin = Arc::make_mut(&mut data.plugin);
 
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {

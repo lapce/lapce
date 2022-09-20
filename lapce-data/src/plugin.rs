@@ -186,17 +186,23 @@ impl PluginData {
     }
 
     pub fn remove_volt(proxy: Arc<LapceProxy>, meta: VoltMetadata) -> Result<()> {
+        proxy.core_rpc.volt_removing(meta.clone(), "".to_string());
         if meta.wasm.is_some() {
             proxy.proxy_rpc.remove_volt(meta);
         } else {
             std::thread::spawn(move || -> Result<()> {
-                proxy.core_rpc.volt_removing(meta.clone(), "".to_string());
                 let path = meta
                     .dir
                     .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("don't have dir"))?;
-                std::fs::remove_dir_all(path)?;
-                proxy.core_rpc.volt_removed(meta.info());
+                    .ok_or_else(|| {
+                        proxy.core_rpc.volt_removing(meta.clone(), "Plugin Directory does not exist".to_string());
+                        anyhow::anyhow!("don't have dir")
+                    })?;
+                if let Err(_) = std::fs::remove_dir_all(path) {
+                        proxy.core_rpc.volt_removing(meta.clone(), "Could not remove Plugin Directory".to_string());
+                } else {
+                    proxy.core_rpc.volt_removed(meta.info());
+                }
                 Ok(())
             });
         }
