@@ -90,7 +90,7 @@ impl<Resp, Error, F: Send + FnOnce(Result<Resp, Error>)> RpcCallback<Resp, Error
 }
 
 pub enum PluginHandlerNotification {
-    Initilize,
+    Initialize,
     Shutdown,
 }
 
@@ -213,13 +213,13 @@ impl PluginServerRpcHandler {
             server_pending: Arc::new(Mutex::new(HashMap::new())),
         };
 
-        rpc.initilize();
+        rpc.Initialize();
         rpc
     }
 
-    fn initilize(&self) {
+    fn Initialize(&self) {
         self.handle_rpc(PluginServerRpc::Handler(
-            PluginHandlerNotification::Initilize,
+            PluginHandlerNotification::Initialize,
         ));
     }
 
