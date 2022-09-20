@@ -940,7 +940,7 @@ pub fn install_volt(
 
     thread::spawn(move || -> Result<()> {
         let download_volt_result = download_volt(volt, true, &meta, &meta_str);
-        if let Err(_) = download_volt_result {
+        if download_volt_result.is_err() {
             catalog_rpc.core_rpc.volt_installing(
                 meta.clone(),
                 "Could not download Volt".to_string(),
@@ -969,10 +969,9 @@ pub fn remove_volt(
 ) -> Result<()> {
     thread::spawn(move || -> Result<()> {
         let path = volt.dir.as_ref().ok_or_else(|| {
-            catalog_rpc.core_rpc.volt_removing(
-                volt.clone(),
-                "Plugin Directory not set".to_string(),
-            );
+            catalog_rpc
+                .core_rpc
+                .volt_removing(volt.clone(), "Plugin Directory not set".to_string());
             anyhow::anyhow!("don't have dir")
         })?;
         if let Err(e) = std::fs::remove_dir_all(path) {
