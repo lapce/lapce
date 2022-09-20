@@ -556,7 +556,7 @@ pub enum LapceUICommand {
     UpdateExplorerItems(PathBuf, HashMap<PathBuf, FileNodeItem>, bool),
     LoadPlugins(Vec<VoltInfo>),
     LoadPluginsFailed,
-    VoltInstalled(VoltMetadata),
+    VoltInstalled(VoltMetadata, bool),
     VoltInstalling(VoltMetadata, String),
     VoltRemoving(VoltMetadata, String),
     VoltRemoved(VoltInfo, bool),

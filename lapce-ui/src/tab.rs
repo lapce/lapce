@@ -943,12 +943,16 @@ impl LapceTab {
                         let plugin = Arc::make_mut(&mut data.plugin);
                         plugin.volts.failed();
                     }
-                    LapceUICommand::VoltInstalled(volt) => {
+                    LapceUICommand::VoltInstalled(volt, only_installing) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
-                        plugin.installed.insert(volt.id(), volt.clone());
 
                         // if there is a value inside the installing map, remove it from there as soon as it is installed.
                         plugin.installing.remove(&volt.id());
+
+                        if *only_installing == false {
+                            plugin.installed.insert(volt.id(), volt.clone());
+                        }
+
                     }
                     LapceUICommand::VoltInstalling(volt, error) => {
                         let plugin = Arc::make_mut(&mut data.plugin);

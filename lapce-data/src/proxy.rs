@@ -176,10 +176,10 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            VoltInstalled { volt } => {
+            VoltInstalled { volt , only_installing} => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::VoltInstalled(volt),
+                    LapceUICommand::VoltInstalled(volt, only_installing),
                     Target::Widget(self.tab_id),
                 );
             },

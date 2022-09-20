@@ -112,7 +112,7 @@ impl PluginData {
             if meta.wasm.is_none() {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::VoltInstalled(meta),
+                    LapceUICommand::VoltInstalled(meta, false),
                     Target::Widget(tab_id),
                 );
             }
@@ -169,16 +169,25 @@ impl PluginData {
     pub fn install_volt(proxy: Arc<LapceProxy>, volt: VoltInfo) -> Result<()> {
         let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
         let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
+
+        proxy.core_rpc.volt_installing(meta.clone(), "".to_string());
+
         if meta.wasm.is_some() {
             proxy.proxy_rpc.install_volt(volt);
         } else {
             std::thread::spawn(move || -> Result<()> {
-                let progress_function = | int_meta: &VoltMetadata, progress: &str|  {
-                    let internal_meta = int_meta.clone();
-                    proxy.core_rpc.volt_installing(internal_meta, progress.to_string());
-                };
-                let meta = download_volt(volt, false, &progress_function)?;
-                proxy.core_rpc.volt_installed(meta);
+                let download_volt_result = download_volt(volt, true, &meta, &meta_str);
+                if let Err(_) = download_volt_result {
+                    proxy.core_rpc.volt_installing(meta.clone(), "Could not download Volt".to_string());
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_secs(3));
+                        proxy.core_rpc.volt_installed(meta, true);
+                    });
+                    return Ok(());
+                }
+        
+                let meta = download_volt_result?;
+                proxy.core_rpc.volt_installed(meta, false);
                 Ok(())
             });
         }
