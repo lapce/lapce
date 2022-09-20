@@ -1139,7 +1139,7 @@ impl Editor {
                         let selection = cursor.edit_selection(buffer);
 
                         for region in selection.regions() {
-                            let end = buffer.move_word_backward(region.end);
+                            let end = buffer.move_word_backward_deletion(region.end);
                             let new_region = SelRegion::new(region.start, end, None);
                             new_selection.add_region(new_region);
                         }

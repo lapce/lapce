@@ -912,6 +912,10 @@ impl Buffer {
     pub fn move_n_words_backward(&self, offset: usize, count: usize) -> usize {
         self.find_nth_word(offset, count, |cursor| cursor.prev_boundary())
     }
+
+    pub fn move_word_backward_deletion(&self, offset: usize) -> usize {
+        self.find_nth_word(offset, 1, |cursor| cursor.prev_deletion_boundary())
+    }
 }
 
 fn shuffle_tombstones(
