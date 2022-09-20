@@ -971,12 +971,12 @@ pub fn remove_volt(
         let path = volt.dir.as_ref().ok_or_else(|| {
             catalog_rpc.core_rpc.volt_removing(
                 volt.clone(),
-                "Plugin Directory does not exist".to_string(),
+                "Plugin Directory not set".to_string(),
             );
             anyhow::anyhow!("don't have dir")
         })?;
         if let Err(e) = std::fs::remove_dir_all(path) {
-            println!("Could not delete plugin folder: {}", e.to_string());
+            eprintln!("Could not delete plugin folder: {}", e);
             catalog_rpc.core_rpc.volt_removing(
                 volt.clone(),
                 "Could not remove Plugin Directory".to_string(),

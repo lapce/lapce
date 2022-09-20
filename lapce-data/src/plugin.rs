@@ -178,7 +178,7 @@ impl PluginData {
             std::thread::spawn(move || -> Result<()> {
                 let download_volt_result =
                     download_volt(volt, true, &meta, &meta_str);
-                if let Err(_) = download_volt_result {
+                if download_volt_result.is_err() {
                     proxy.core_rpc.volt_installing(
                         meta.clone(),
                         "Could not download Volt".to_string(),
@@ -211,7 +211,7 @@ impl PluginData {
                     );
                     anyhow::anyhow!("don't have dir")
                 })?;
-                if let Err(_) = std::fs::remove_dir_all(path) {
+                if std::fs::remove_dir_all(path).is_err() {
                     proxy.core_rpc.volt_removing(
                         meta.clone(),
                         "Could not remove Plugin Directory".to_string(),
