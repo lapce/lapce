@@ -344,7 +344,7 @@ impl Plugin {
         ctx: &mut PaintCtx,
         data: &LapceTabData,
     ) {
-        for (i, (id, install_status)) in data.plugin.installing.iter().enumerate() {
+        for (i, (_, install_status)) in data.plugin.installing.iter().enumerate() {
             self.paint_install_progress_element(
                 ctx,
                 install_status.plugin_name(),

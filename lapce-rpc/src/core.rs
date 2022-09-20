@@ -21,7 +21,7 @@ use crate::{
 
 pub enum CoreRpc {
     Request(RequestId, CoreRequest),
-    Notification(CoreNotification),
+    Notification(Box<CoreNotification>), // Box it since clippy complains
     Shutdown,
 }
 
@@ -141,7 +141,7 @@ impl CoreRpcHandler {
                     handler.handle_request(id, rpc);
                 }
                 CoreRpc::Notification(rpc) => {
-                    handler.handle_notification(rpc);
+                    handler.handle_notification(*rpc);
                 }
                 CoreRpc::Shutdown => {
                     return;
@@ -186,7 +186,7 @@ impl CoreRpcHandler {
     }
 
     pub fn notification(&self, notification: CoreNotification) {
-        let _ = self.tx.send(CoreRpc::Notification(notification));
+        let _ = self.tx.send(CoreRpc::Notification(Box::new(notification)));
     }
 
     pub fn proxy_connected(&self) {
