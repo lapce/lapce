@@ -94,6 +94,7 @@ declare_language_highlights!(
     Dart: "lang-dart",
     Svelte: "lang-svelte",
     Latex: "lang-latex",
+    Kotlin: "lang-kotlin",
 );
 
 /// Indicates which highlight should be applied to a region of source code.
