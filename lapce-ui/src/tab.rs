@@ -952,14 +952,13 @@ impl LapceTab {
                         if *only_installing == false {
                             plugin.installed.insert(volt.id(), volt.clone());
                         }
-
                     }
                     LapceUICommand::VoltInstalling(volt, error) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
-                        
+
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
                             if !error.is_empty() {
-                                elem.set_error(&error); 
+                                elem.set_error(&error);
                             }
                         } else {
                             plugin.installing.insert(
@@ -971,13 +970,13 @@ impl LapceTab {
                                 ),
                             );
                         }
-                    },
+                    }
                     LapceUICommand::VoltRemoving(volt, error) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
 
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
                             if !error.is_empty() {
-                                elem.set_error(&error); 
+                                elem.set_error(&error);
                             }
                         } else {
                             plugin.installing.insert(

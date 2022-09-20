@@ -12,7 +12,11 @@ pub struct PluginInstallStatus {
 }
 
 impl PluginInstallStatus {
-    pub fn new(install_type: PluginInstallType, plugin_name: &str, error: String) -> Self {
+    pub fn new(
+        install_type: PluginInstallType,
+        plugin_name: &str,
+        error: String,
+    ) -> Self {
         Self {
             error,
             plugin_name: plugin_name.to_string(),

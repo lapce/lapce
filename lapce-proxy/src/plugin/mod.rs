@@ -866,7 +866,12 @@ fn number_from_id(id: &Id) -> u64 {
     }
 }
 
-pub fn download_volt(volt: VoltInfo, wasm: bool, meta: &VoltMetadata, meta_str: &String) -> Result<VoltMetadata> {
+pub fn download_volt(
+    volt: VoltInfo,
+    wasm: bool,
+    meta: &VoltMetadata,
+    meta_str: &String,
+) -> Result<VoltMetadata> {
     if meta.wasm.is_some() != wasm {
         return Err(anyhow!("plugin type not fit"));
     }
@@ -933,10 +938,13 @@ pub fn install_volt(
     let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
     let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
 
-    thread::spawn(move || -> Result<()>{
-    let download_volt_result = download_volt(volt, true, &meta, &meta_str);
+    thread::spawn(move || -> Result<()> {
+        let download_volt_result = download_volt(volt, true, &meta, &meta_str);
         if let Err(_) = download_volt_result {
-            catalog_rpc.core_rpc.volt_installing(meta.clone(), "Could not download Volt".to_string());
+            catalog_rpc.core_rpc.volt_installing(
+                meta.clone(),
+                "Could not download Volt".to_string(),
+            );
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(3));
                 catalog_rpc.core_rpc.volt_installed(meta, true);
@@ -944,36 +952,39 @@ pub fn install_volt(
             return Ok(());
         }
 
-    let meta = download_volt_result?;
-    let local_catalog_rpc = catalog_rpc.clone();
-    let local_meta = meta.clone();
+        let meta = download_volt_result?;
+        let local_catalog_rpc = catalog_rpc.clone();
+        let local_meta = meta.clone();
 
-    let _ = start_volt(workspace, configurations, local_catalog_rpc, local_meta);
-    catalog_rpc.core_rpc.volt_installed(meta, false);
-    Ok(())
+        let _ = start_volt(workspace, configurations, local_catalog_rpc, local_meta);
+        catalog_rpc.core_rpc.volt_installed(meta, false);
+        Ok(())
     });
     Ok(())
 }
 
 pub fn remove_volt(
     catalog_rpc: PluginCatalogRpcHandler,
-    volt: VoltMetadata
+    volt: VoltMetadata,
 ) -> Result<()> {
-    thread::spawn(move || -> Result<()>{
-        let path = volt
-        .dir
-        .as_ref()
-        .ok_or_else(|| {
-            catalog_rpc.core_rpc.volt_removing(volt.clone(), "Plugin Directory does not exist".to_string());
+    thread::spawn(move || -> Result<()> {
+        let path = volt.dir.as_ref().ok_or_else(|| {
+            catalog_rpc.core_rpc.volt_removing(
+                volt.clone(),
+                "Plugin Directory does not exist".to_string(),
+            );
             anyhow::anyhow!("don't have dir")
         })?;
         if let Err(e) = std::fs::remove_dir_all(path) {
-                println!("Could not delete plugin folder: {}", e.to_string());
-                catalog_rpc.core_rpc.volt_removing(volt.clone(), "Could not remove Plugin Directory".to_string());
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_secs(3));
-                    catalog_rpc.core_rpc.volt_removed(volt.info(), true);
-                });
+            println!("Could not delete plugin folder: {}", e.to_string());
+            catalog_rpc.core_rpc.volt_removing(
+                volt.clone(),
+                "Could not remove Plugin Directory".to_string(),
+            );
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                catalog_rpc.core_rpc.volt_removed(volt.info(), true);
+            });
         } else {
             catalog_rpc.core_rpc.volt_removed(volt.info(), false);
         }

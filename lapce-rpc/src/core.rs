@@ -221,7 +221,10 @@ impl CoreRpcHandler {
     }
 
     pub fn volt_installed(&self, volt: VoltMetadata, only_installing: bool) {
-        self.notification(CoreNotification::VoltInstalled { volt, only_installing });
+        self.notification(CoreNotification::VoltInstalled {
+            volt,
+            only_installing,
+        });
     }
 
     pub fn volt_installing(&self, volt: VoltMetadata, error: String) {
@@ -233,7 +236,10 @@ impl CoreRpcHandler {
     }
 
     pub fn volt_removed(&self, volt: VoltInfo, only_installing: bool) {
-        self.notification(CoreNotification::VoltRemoved { volt , only_installing});
+        self.notification(CoreNotification::VoltRemoved {
+            volt,
+            only_installing,
+        });
     }
 
     pub fn log(&self, level: log::Level, message: String) {

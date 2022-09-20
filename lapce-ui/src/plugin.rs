@@ -99,7 +99,6 @@ impl Plugin {
             status_text = "Removing...";
         }
 
-
         let status_text_layout = ctx
             .text()
             .new_text_layout(status_text.to_string())
@@ -345,7 +344,7 @@ impl Plugin {
         ctx: &mut PaintCtx,
         data: &LapceTabData,
     ) {
-        for (i, (id, install_status)) in data.plugin.installing.iter().enumerate() {  
+        for (i, (id, install_status)) in data.plugin.installing.iter().enumerate() {
             self.paint_install_progress_element(
                 ctx,
                 install_status.plugin_name(),

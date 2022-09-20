@@ -9,7 +9,7 @@ use lapce_proxy::plugin::{download_volt, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
 use strum_macros::Display;
 
-use plugin_install_status::{PluginInstallStatus};
+use plugin_install_status::PluginInstallStatus;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -176,16 +176,20 @@ impl PluginData {
             proxy.proxy_rpc.install_volt(volt);
         } else {
             std::thread::spawn(move || -> Result<()> {
-                let download_volt_result = download_volt(volt, true, &meta, &meta_str);
+                let download_volt_result =
+                    download_volt(volt, true, &meta, &meta_str);
                 if let Err(_) = download_volt_result {
-                    proxy.core_rpc.volt_installing(meta.clone(), "Could not download Volt".to_string());
+                    proxy.core_rpc.volt_installing(
+                        meta.clone(),
+                        "Could not download Volt".to_string(),
+                    );
                     std::thread::spawn(move || {
                         std::thread::sleep(std::time::Duration::from_secs(3));
                         proxy.core_rpc.volt_installed(meta, true);
                     });
                     return Ok(());
                 }
-        
+
                 let meta = download_volt_result?;
                 proxy.core_rpc.volt_installed(meta, false);
                 Ok(())
@@ -200,19 +204,22 @@ impl PluginData {
             proxy.proxy_rpc.remove_volt(meta);
         } else {
             std::thread::spawn(move || -> Result<()> {
-                let path = meta
-                    .dir
-                    .as_ref()
-                    .ok_or_else(|| {
-                        proxy.core_rpc.volt_removing(meta.clone(), "Plugin Directory does not exist".to_string());
-                        anyhow::anyhow!("don't have dir")
-                    })?;
+                let path = meta.dir.as_ref().ok_or_else(|| {
+                    proxy.core_rpc.volt_removing(
+                        meta.clone(),
+                        "Plugin Directory does not exist".to_string(),
+                    );
+                    anyhow::anyhow!("don't have dir")
+                })?;
                 if let Err(_) = std::fs::remove_dir_all(path) {
-                        proxy.core_rpc.volt_removing(meta.clone(), "Could not remove Plugin Directory".to_string());
-                        std::thread::spawn(move || {
-                            std::thread::sleep(std::time::Duration::from_secs(3));
-                            proxy.core_rpc.volt_removed(meta.info(), true);
-                        });
+                    proxy.core_rpc.volt_removing(
+                        meta.clone(),
+                        "Could not remove Plugin Directory".to_string(),
+                    );
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_secs(3));
+                        proxy.core_rpc.volt_removed(meta.info(), true);
+                    });
                 } else {
                     proxy.core_rpc.volt_removed(meta.info(), false);
                 }
