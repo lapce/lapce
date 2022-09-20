@@ -6,28 +6,26 @@ pub enum PluginInstallType {
 
 #[derive(Clone, Debug)]
 pub struct PluginInstallStatus {
-    progress: f32,
+    error: String,
     plugin_name: String,
     install_type: PluginInstallType,
 }
 
 impl PluginInstallStatus {
-    pub fn new(install_type: PluginInstallType, plugin_name: &str) -> Self {
+    pub fn new(install_type: PluginInstallType, plugin_name: &str, error: String) -> Self {
         Self {
-            progress: 0.0,
+            error,
             plugin_name: plugin_name.to_string(),
             install_type,
         }
     }
 
-    pub fn set_progress(&mut self, val: f32) {
-        if val > 0.0 && val <= 100.0 {
-            self.progress = val;
-        }
+    pub fn set_error(&mut self, error_string: &str) {
+        self.error = error_string.to_string();
     }
 
-    pub fn progress(&self) -> f32 {
-        self.progress
+    pub fn error_string(&self) -> &str {
+        &self.error
     }
 
     pub fn install_type(&self) -> &PluginInstallType {

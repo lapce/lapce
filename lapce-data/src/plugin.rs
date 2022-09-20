@@ -173,9 +173,9 @@ impl PluginData {
             proxy.proxy_rpc.install_volt(volt);
         } else {
             std::thread::spawn(move || -> Result<()> {
-                let progress_function = | int_meta: &VoltMetadata, progress|  {
+                let progress_function = | int_meta: &VoltMetadata, progress: &str|  {
                     let internal_meta = int_meta.clone();
-                    proxy.core_rpc.volt_installing(internal_meta, progress);
+                    proxy.core_rpc.volt_installing(internal_meta, progress.to_string());
                 };
                 let meta = download_volt(volt, false, &progress_function)?;
                 proxy.core_rpc.volt_installed(meta);
@@ -190,13 +190,12 @@ impl PluginData {
             proxy.proxy_rpc.remove_volt(meta);
         } else {
             std::thread::spawn(move || -> Result<()> {
-                proxy.core_rpc.volt_removing(meta.clone(), 0.0);
+                proxy.core_rpc.volt_removing(meta.clone(), "".to_string());
                 let path = meta
                     .dir
                     .as_ref()
                     .ok_or_else(|| anyhow::anyhow!("don't have dir"))?;
                 std::fs::remove_dir_all(path)?;
-                proxy.core_rpc.volt_removing(meta.clone(), 100.0);
                 proxy.core_rpc.volt_removed(meta.info());
                 Ok(())
             });

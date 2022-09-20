@@ -950,32 +950,38 @@ impl LapceTab {
                         // if there is a value inside the installing map, remove it from there as soon as it is installed.
                         plugin.installing.remove(&volt.id());
                     }
-                    LapceUICommand::VoltInstalling(volt, progress) => {
+                    LapceUICommand::VoltInstalling(volt, error) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
 
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
-                            elem.set_progress(*progress); 
+                            if !error.is_empty() {
+                                elem.set_error(&error); 
+                            }
                         } else {
                             plugin.installing.insert(
                                 volt.id(),
                                 PluginInstallStatus::new(
                                     PluginInstallType::INSTALLATION,
                                     &volt.display_name,
+                                    error.to_string(),
                                 ),
                             );
                         }
                     },
-                    LapceUICommand::VoltRemoving(volt, progress) => {
+                    LapceUICommand::VoltRemoving(volt, error) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
 
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
-                            elem.set_progress(*progress); 
+                            if !error.is_empty() {
+                                elem.set_error(&error); 
+                            }
                         } else {
                             plugin.installing.insert(
                                 volt.id(),
                                 PluginInstallStatus::new(
                                     PluginInstallType::UNINSTALLATION,
                                     &volt.display_name,
+                                    error.to_string(),
                                 ),
                             );
                         }

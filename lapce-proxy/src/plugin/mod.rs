@@ -866,11 +866,11 @@ fn number_from_id(id: &Id) -> u64 {
     }
 }
 
-pub fn download_volt(volt: VoltInfo, wasm: bool, progress_function: &dyn Fn(&VoltMetadata, f32)) -> Result<VoltMetadata> {
+pub fn download_volt(volt: VoltInfo, wasm: bool, progress_function: &dyn Fn(&VoltMetadata, &str)) -> Result<VoltMetadata> {
     let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
     let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
     // Call the progress function with 0%
-    progress_function(&meta, 0.0);
+    progress_function(&meta, &"".to_string());
 
     if meta.wasm.is_some() != wasm {
         return Err(anyhow!("plugin type not fit"));
@@ -892,8 +892,6 @@ pub fn download_volt(volt: VoltInfo, wasm: bool, progress_function: &dyn Fn(&Vol
             .open(&meta_path)?;
         file.write_all(meta_str.as_bytes())?;
     }
-    // set it testwise to 50%
-    progress_function(&meta, 50.0);
     let url = url::Url::parse(&volt.meta)?;
     if let Some(wasm) = meta.wasm.as_ref() {
         let url = url.join(wasm)?;
@@ -928,7 +926,6 @@ pub fn download_volt(volt: VoltInfo, wasm: bool, progress_function: &dyn Fn(&Vol
     }
 
     let meta = load_volt(&meta_path)?;
-    progress_function(&meta, 100.0);
     Ok(meta)
 }
 
@@ -940,9 +937,9 @@ pub fn install_volt(
 ) -> Result<()> {
     // The whole installation function should spawn a thread, since it can be a complex call and will block the GUI lifecycle otherwise.
     thread::spawn(move || -> Result<()>{
-    let progress_function = | int_meta: &VoltMetadata, progress|  {
+    let progress_function = | int_meta: &VoltMetadata, error: &str|  {
         let internal_meta = int_meta.clone();
-        catalog_rpc.core_rpc.volt_installing(internal_meta, progress);
+        catalog_rpc.core_rpc.volt_installing(internal_meta, error.to_string());
     };
 
     let meta = download_volt(volt, true, &progress_function)?;
@@ -962,7 +959,7 @@ pub fn remove_volt(
 ) -> Result<()> {
     thread::spawn(move || -> Result<()>{
         let path = volt.dir.as_ref().ok_or_else(|| anyhow!("don't have dir"))?;
-        catalog_rpc.core_rpc.volt_removing(volt.clone(), 0.0);
+        catalog_rpc.core_rpc.volt_removing(volt.clone(), "".to_string());
         fs::remove_dir_all(path)?;
         catalog_rpc.core_rpc.volt_removed(volt.info());
         Ok(())

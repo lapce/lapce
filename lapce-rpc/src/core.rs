@@ -65,11 +65,11 @@ pub enum CoreNotification {
     },
     VoltInstalling {
         volt: VoltMetadata,
-        progress: f32,
+        error: String,
     },
     VoltRemoving {
         volt: VoltMetadata,
-        progress: f32,
+        error: String,
     },
     VoltRemoved {
         volt: VoltInfo,
@@ -222,12 +222,12 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::VoltInstalled { volt });
     }
 
-    pub fn volt_installing(&self, volt: VoltMetadata, progress: f32) {
-        self.notification(CoreNotification::VoltInstalling { volt, progress });
+    pub fn volt_installing(&self, volt: VoltMetadata, error: String) {
+        self.notification(CoreNotification::VoltInstalling { volt, error });
     }
 
-    pub fn volt_removing(&self, volt: VoltMetadata, progress: f32) {
-        self.notification(CoreNotification::VoltRemoving { volt, progress });
+    pub fn volt_removing(&self, volt: VoltMetadata, error: String) {
+        self.notification(CoreNotification::VoltRemoving { volt, error });
     }
 
     pub fn volt_removed(&self, volt: VoltInfo) {

@@ -63,7 +63,7 @@ impl Plugin {
         ctx: &mut PaintCtx,
         display_name: &str,
         install_type: &PluginInstallType,
-        progress: f32,
+        error_string: &str,
         config: &Config,
         i: usize,
     ) {
@@ -85,23 +85,17 @@ impl Plugin {
         let full_percent_width = self.width;
 
         let color_background =
-            config.get_color_unchecked(LapceTheme::ERROR_LENS_OTHER_FOREGROUND);
+            config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
         let rect_background = Size::new(full_percent_width, self.line_height)
             .to_rect()
             .with_origin(Point::new(x, y));
         ctx.fill(rect_background, color_background);
-        let color_foreground =
-            config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
-        let width_according_to_progress =
-            full_percent_width * (progress as f64 / 100.0);
-        let rect_foreground =
-            Size::new(width_according_to_progress, self.line_height)
-                .to_rect()
-                .with_origin(Point::new(x, y));
 
         // [INSTALLING / UNINSTALLING]
         let mut status_text = "Installing...";
-        if *install_type == PluginInstallType::UNINSTALLATION {
+        if !error_string.is_empty() {
+            status_text = error_string;
+        } else if *install_type == PluginInstallType::UNINSTALLATION {
             status_text = "Removing...";
         }
 
@@ -121,8 +115,6 @@ impl Plugin {
         let text_padding = 5.0;
         let x_state_text =
             full_percent_width - text_size.width - text_padding * 2.0 - 0.0;
-
-        ctx.fill(rect_foreground, color_foreground);
 
         ctx.draw_text(
             &text_layout,
@@ -356,7 +348,7 @@ impl Plugin {
                 ctx,
                 install_status.plugin_name(),
                 install_status.install_type(),
-                install_status.progress(),
+                install_status.error_string(),
                 &data.config,
                 i,
             );
