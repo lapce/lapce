@@ -958,10 +958,14 @@ pub fn install_volt(
 
 pub fn remove_volt(
     catalog_rpc: PluginCatalogRpcHandler,
-    volt: VoltMetadata,
+    volt: VoltMetadata
 ) -> Result<()> {
-    let path = volt.dir.as_ref().ok_or_else(|| anyhow!("don't have dir"))?;
-    fs::remove_dir_all(path)?;
-    catalog_rpc.core_rpc.volt_removed(volt.info());
+    thread::spawn(move || -> Result<()>{
+        let path = volt.dir.as_ref().ok_or_else(|| anyhow!("don't have dir"))?;
+        catalog_rpc.core_rpc.volt_removing(volt.clone(), 0.0);
+        fs::remove_dir_all(path)?;
+        catalog_rpc.core_rpc.volt_removed(volt.info());
+        Ok(())
+    });
     Ok(())
 }

@@ -190,11 +190,13 @@ impl PluginData {
             proxy.proxy_rpc.remove_volt(meta);
         } else {
             std::thread::spawn(move || -> Result<()> {
+                proxy.core_rpc.volt_removing(meta.clone(), 0.0);
                 let path = meta
                     .dir
                     .as_ref()
                     .ok_or_else(|| anyhow::anyhow!("don't have dir"))?;
                 std::fs::remove_dir_all(path)?;
+                proxy.core_rpc.volt_removing(meta.clone(), 100.0);
                 proxy.core_rpc.volt_removed(meta.info());
                 Ok(())
             });

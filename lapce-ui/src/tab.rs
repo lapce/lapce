@@ -964,11 +964,31 @@ impl LapceTab {
                                 ),
                             );
                         }
+                    },
+                    LapceUICommand::VoltRemoving(volt, progress) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+
+                        if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
+                            elem.set_progress(*progress); 
+                        } else {
+                            plugin.installing.insert(
+                                volt.id(),
+                                PluginInstallStatus::new(
+                                    PluginInstallType::UNINSTALLATION,
+                                    &volt.display_name,
+                                ),
+                            );
+                        }
                     }
                     LapceUICommand::VoltRemoved(volt) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
                         let id = volt.id();
+
                         plugin.installed.remove(&id);
+
+                        // if there is a value inside the installing map, remove it from there as soon as it is installed.
+                        plugin.installing.remove(&volt.id());
+
                         if plugin.disabled.contains(&id) {
                             plugin.disabled.remove(&id);
                             let _ = data.db.save_disabled_volts(

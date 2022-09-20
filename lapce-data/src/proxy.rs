@@ -189,7 +189,14 @@ impl CoreHandler for LapceProxy {
                     LapceUICommand::VoltInstalling(volt, progress),
                     Target::Widget(self.tab_id),
                 );
-            }
+            },
+            VoltRemoving { volt, progress } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::VoltRemoving(volt, progress),
+                    Target::Widget(self.tab_id),
+                );
+            },
             VoltRemoved { volt } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
