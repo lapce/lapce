@@ -93,11 +93,14 @@ impl Plugin {
 
         // [INSTALLING / UNINSTALLING]
         let mut status_text = "Installing...";
+        let mut status_text_theme_name = LapceTheme::EDITOR_BACKGROUND;
         if !error_string.is_empty() {
             status_text = error_string;
+            status_text_theme_name = LapceTheme::LAPCE_ERROR;
         } else if *install_type == PluginInstallType::UNINSTALLATION {
             status_text = "Removing...";
         }
+
 
         let status_text_layout = ctx
             .text()
@@ -106,7 +109,7 @@ impl Plugin {
             .default_attribute(TextAttribute::Style(druid::FontStyle::Italic))
             .text_color(
                 config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                    .get_color_unchecked(status_text_theme_name)
                     .clone(),
             )
             .build()
