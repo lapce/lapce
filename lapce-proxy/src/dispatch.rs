@@ -64,7 +64,7 @@ impl ProxyHandler for Dispatcher {
                 self.window_id = window_id;
                 self.tab_id = tab_id;
                 self.workspace = workspace;
-                self.file_watcher.notify(FileWatchNotifer::new(
+                self.file_watcher.notify(FileWatchNotifier::new(
                     self.workspace.clone(),
                     self.core_rpc.clone(),
                     self.proxy_rpc.clone(),
@@ -732,7 +732,7 @@ impl Dispatcher {
     }
 }
 
-struct FileWatchNotifer {
+struct FileWatchNotifier {
     core_rpc: CoreRpcHandler,
     proxy_rpc: ProxyRpcHandler,
     workspace: Option<PathBuf>,
@@ -740,13 +740,13 @@ struct FileWatchNotifer {
     last_diff: Arc<Mutex<DiffInfo>>,
 }
 
-impl Notify for FileWatchNotifer {
+impl Notify for FileWatchNotifier {
     fn notify(&self, events: Vec<(WatchToken, notify::Event)>) {
         self.handle_fs_events(events);
     }
 }
 
-impl FileWatchNotifer {
+impl FileWatchNotifier {
     fn new(
         workspace: Option<PathBuf>,
         core_rpc: CoreRpcHandler,
