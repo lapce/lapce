@@ -67,7 +67,7 @@ impl Plugin {
         config: &Config,
         i: usize,
     ) {
-        let y = 3.5 * self.line_height * i as f64;
+        let y = self.line_height * i as f64;
         let x = 0.0; //0.5 * self.line_height;
 
         let text_layout = ctx
