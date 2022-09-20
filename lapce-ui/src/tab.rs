@@ -949,7 +949,7 @@ impl LapceTab {
                         // if there is a value inside the installing map, remove it from there as soon as it is installed.
                         plugin.installing.remove(&volt.id());
 
-                        if *only_installing == false {
+                        if !(*only_installing) {
                             plugin.installed.insert(volt.id(), volt.clone());
                         }
                     }
@@ -958,7 +958,7 @@ impl LapceTab {
 
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
                             if !error.is_empty() {
-                                elem.set_error(&error);
+                                elem.set_error(error);
                             }
                         } else {
                             plugin.installing.insert(
@@ -976,7 +976,7 @@ impl LapceTab {
 
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
                             if !error.is_empty() {
-                                elem.set_error(&error);
+                                elem.set_error(error);
                             }
                         } else {
                             plugin.installing.insert(
@@ -996,7 +996,7 @@ impl LapceTab {
                         // if there is a value inside the installing map, remove it from there as soon as it is installed.
                         plugin.installing.remove(&volt.id());
 
-                        if *only_installing == false {
+                        if !(*only_installing) {
                             plugin.installed.remove(&id);
 
                             if plugin.disabled.contains(&id) {
