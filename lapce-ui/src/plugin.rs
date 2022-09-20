@@ -84,19 +84,17 @@ impl Plugin {
 
         let full_percent_width = self.width;
 
-        let color_background =
+        let mut color_background =
             config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
         let rect_background = Size::new(full_percent_width, self.line_height)
             .to_rect()
             .with_origin(Point::new(x, y));
-        ctx.fill(rect_background, color_background);
 
         // [INSTALLING / UNINSTALLING]
         let mut status_text = "Installing...";
-        let mut status_text_theme_name = LapceTheme::EDITOR_BACKGROUND;
         if !error_string.is_empty() {
             status_text = error_string;
-            status_text_theme_name = LapceTheme::LAPCE_ERROR;
+            color_background = config.get_color_unchecked(LapceTheme::LAPCE_ERROR);
         } else if *install_type == PluginInstallType::UNINSTALLATION {
             status_text = "Removing...";
         }
@@ -109,7 +107,7 @@ impl Plugin {
             .default_attribute(TextAttribute::Style(druid::FontStyle::Italic))
             .text_color(
                 config
-                    .get_color_unchecked(status_text_theme_name)
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
                     .clone(),
             )
             .build()
@@ -119,6 +117,7 @@ impl Plugin {
         let x_state_text =
             full_percent_width - text_size.width - text_padding * 2.0 - 0.0;
 
+        ctx.fill(rect_background, color_background);
         ctx.draw_text(
             &text_layout,
             Point::new(x + text_padding, y + text_layout.y_offset(self.line_height)),
@@ -346,7 +345,7 @@ impl Plugin {
         ctx: &mut PaintCtx,
         data: &LapceTabData,
     ) {
-        for (i, (id, install_status)) in data.plugin.installing.iter().enumerate() {
+        for (i, (id, install_status)) in data.plugin.installing.iter().enumerate() {  
             self.paint_install_progress_element(
                 ctx,
                 install_status.plugin_name(),

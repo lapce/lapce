@@ -559,7 +559,7 @@ pub enum LapceUICommand {
     VoltInstalled(VoltMetadata),
     VoltInstalling(VoltMetadata, String),
     VoltRemoving(VoltMetadata, String),
-    VoltRemoved(VoltInfo),
+    VoltRemoved(VoltInfo, bool),
     EnableVolt(VoltInfo),
     DisableVolt(VoltInfo),
     EnableVoltWorkspace(VoltInfo),

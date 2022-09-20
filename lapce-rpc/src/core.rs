@@ -73,6 +73,7 @@ pub enum CoreNotification {
     },
     VoltRemoved {
         volt: VoltInfo,
+        only_installing: bool,
     },
     ListDir {
         items: Vec<FileNodeItem>,
@@ -230,8 +231,8 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::VoltRemoving { volt, error });
     }
 
-    pub fn volt_removed(&self, volt: VoltInfo) {
-        self.notification(CoreNotification::VoltRemoved { volt });
+    pub fn volt_removed(&self, volt: VoltInfo, only_installing: bool) {
+        self.notification(CoreNotification::VoltRemoved { volt , only_installing});
     }
 
     pub fn log(&self, level: log::Level, message: String) {

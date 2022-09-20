@@ -200,8 +200,12 @@ impl PluginData {
                     })?;
                 if let Err(_) = std::fs::remove_dir_all(path) {
                         proxy.core_rpc.volt_removing(meta.clone(), "Could not remove Plugin Directory".to_string());
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_secs(3));
+                            proxy.core_rpc.volt_removed(meta.info(), true);
+                        });
                 } else {
-                    proxy.core_rpc.volt_removed(meta.info());
+                    proxy.core_rpc.volt_removed(meta.info(), false);
                 }
                 Ok(())
             });

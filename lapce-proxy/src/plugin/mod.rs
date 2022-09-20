@@ -967,8 +967,12 @@ pub fn remove_volt(
         })?;
         if let Err(_) = std::fs::remove_dir_all(path) {
                 catalog_rpc.core_rpc.volt_removing(volt.clone(), "Could not remove Plugin Directory".to_string());
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                    catalog_rpc.core_rpc.volt_removed(volt.info(), true);
+                });
         } else {
-            catalog_rpc.core_rpc.volt_removed(volt.info());
+            catalog_rpc.core_rpc.volt_removed(volt.info(), false);
         }
         Ok(())
     });

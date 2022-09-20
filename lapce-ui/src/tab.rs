@@ -952,7 +952,7 @@ impl LapceTab {
                     }
                     LapceUICommand::VoltInstalling(volt, error) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
-
+                        
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
                             if !error.is_empty() {
                                 elem.set_error(&error); 
@@ -969,7 +969,6 @@ impl LapceTab {
                         }
                     },
                     LapceUICommand::VoltRemoving(volt, error) => {
-                        println!("GOT REQUEST FROM {} with error: {}", volt.display_name, error);
                         let plugin = Arc::make_mut(&mut data.plugin);
 
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
@@ -987,26 +986,28 @@ impl LapceTab {
                             );
                         }
                     }
-                    LapceUICommand::VoltRemoved(volt) => {
+                    LapceUICommand::VoltRemoved(volt, only_installing) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
                         let id = volt.id();
-
-                        plugin.installed.remove(&id);
 
                         // if there is a value inside the installing map, remove it from there as soon as it is installed.
                         plugin.installing.remove(&volt.id());
 
-                        if plugin.disabled.contains(&id) {
-                            plugin.disabled.remove(&id);
-                            let _ = data.db.save_disabled_volts(
-                                plugin.disabled.iter().collect(),
-                            );
-                        }
-                        if plugin.workspace_disabled.contains(&id) {
-                            plugin.workspace_disabled.remove(&id);
-                            let _ = data.db.save_disabled_volts(
-                                plugin.workspace_disabled.iter().collect(),
-                            );
+                        if *only_installing == false {
+                            plugin.installed.remove(&id);
+
+                            if plugin.disabled.contains(&id) {
+                                plugin.disabled.remove(&id);
+                                let _ = data.db.save_disabled_volts(
+                                    plugin.disabled.iter().collect(),
+                                );
+                            }
+                            if plugin.workspace_disabled.contains(&id) {
+                                plugin.workspace_disabled.remove(&id);
+                                let _ = data.db.save_disabled_volts(
+                                    plugin.workspace_disabled.iter().collect(),
+                                );
+                            }
                         }
                     }
                     LapceUICommand::DisableVoltWorkspace(volt) => {
