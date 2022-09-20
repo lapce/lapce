@@ -2024,11 +2024,10 @@ impl Document {
                     || (char_found && render_boundary && whitespace_buffer.len() > 1)
                     || (!char_found && render_leading)
                 {
-                    for c in whitespace_buffer.iter() {
-                        rendered_whitespaces.push(*c);
-                    }
+                    rendered_whitespaces.extend(whitespace_buffer.iter());
                 } else {
-                    for _ in whitespace_buffer.iter() {
+                    // Replace all the unused whitespaces with empty spaces
+                    for _ in 0..whitespace_buffer.len() {
                         rendered_whitespaces.push(' ');
                     }
                 }
@@ -2040,9 +2039,7 @@ impl Document {
         }
 
         // Finally add all the trailing spaces if there are spaces left
-        whitespace_buffer
-            .iter()
-            .for_each(|c| rendered_whitespaces.push(*c));
+        rendered_whitespaces.extend(whitespace_buffer.iter());
 
         // TODO: theme option for whitespace color
         let whitespace_color = config
