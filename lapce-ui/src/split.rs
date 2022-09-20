@@ -1328,7 +1328,7 @@ impl Widget<LapceTabData> for LapceSplit {
                     )
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .get_color_unchecked(LapceTheme::EDITOR_LINK)
                             .clone(),
                     )
                     .build()
