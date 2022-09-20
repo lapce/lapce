@@ -213,11 +213,11 @@ impl PluginServerRpcHandler {
             server_pending: Arc::new(Mutex::new(HashMap::new())),
         };
 
-        rpc.Initialize();
+        rpc.initialize();
         rpc
     }
 
-    fn Initialize(&self) {
+    fn initialize(&self) {
         self.handle_rpc(PluginServerRpc::Handler(
             PluginHandlerNotification::Initialize,
         ));
