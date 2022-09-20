@@ -953,9 +953,8 @@ impl LapceTab {
                     LapceUICommand::VoltInstalling(volt, progress) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
 
-                        if plugin.installing.contains_key(&volt.id()) {
-                            let elem = plugin.installing.get_mut(&volt.id());
-                            elem.unwrap().set_progress(*progress);
+                        if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
+                            elem.set_progress(*progress); 
                         } else {
                             plugin.installing.insert(
                                 volt.id(),
