@@ -103,7 +103,7 @@ impl PluginServerHandler for Plugin {
     ) {
         use PluginHandlerNotification::*;
         match notification {
-            Initilize => {
+            Initialize => {
                 self.initialize();
             }
             Shutdown => {

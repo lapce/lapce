@@ -78,7 +78,7 @@ impl PluginServerHandler for LspClient {
     ) {
         use PluginHandlerNotification::*;
         match notification {
-            Initilize => {
+            Initialize => {
                 self.initialize();
             }
             Shutdown => {
@@ -416,7 +416,7 @@ impl LspClient {
         //             let result: InitializeResult =
         //                 serde_json::from_value(value).unwrap();
         //             server_rpc.handle_rpc(PluginServerRpc::Handler(
-        //                 PluginHandlerNotification::InitilizeDone(result),
+        //                 PluginHandlerNotification::InitializeDone(result),
         //             ));
         //         }
         //     },
