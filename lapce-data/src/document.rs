@@ -83,6 +83,7 @@ pub struct TextLayoutLine {
     /// (x0, x1 or line display end, style)
     pub extra_style: Vec<(f64, Option<f64>, LineExtraStyle)>,
     pub text: PietTextLayout,
+    pub whitespace: Option<PietTextLayout>,
 }
 
 #[derive(Clone, Default)]
@@ -1877,13 +1878,13 @@ impl Document {
         // TODO: error lens background colors
         // We could provide an option for whether they should just be around the diagnostic or over the entire line?
 
-        let text = layout_builder.build().unwrap();
+        let layout_text = layout_builder.build().unwrap();
         let mut extra_style = Vec::new();
         for (offset, size, _, col) in phantom_text.offset_size_iter() {
             let start = col + offset;
             let end = start + size;
-            let x0 = text.hit_test_text_position(start).point.x;
-            let x1 = text.hit_test_text_position(end).point.x;
+            let x0 = layout_text.hit_test_text_position(start).point.x;
+            let x1 = layout_text.hit_test_text_position(end).point.x;
             extra_style.push((
                 x0,
                 Some(x1),
@@ -1934,7 +1935,8 @@ impl Document {
 
             // Use the end of the diagnostics if end column exists (which it only will if the config setting is false)
             // otherwise None, which is the end of the line in the view
-            let x1 = end_column.map(|col| text.hit_test_text_position(col).point.x);
+            let x1 = end_column
+                .map(|col| layout_text.hit_test_text_position(col).point.x);
 
             extra_style.push((
                 0.0,
@@ -1946,7 +1948,114 @@ impl Document {
             ));
         }
 
-        TextLayoutLine { text, extra_style }
+        let whitespace = Self::new_layout_whitespace(
+            &layout_text,
+            &line_content,
+            config,
+            tab_width,
+            text,
+            font_size,
+        );
+
+        TextLayoutLine {
+            text: layout_text,
+            extra_style,
+            whitespace,
+        }
+    }
+
+    /// Create rendable whitespace layout by creating a new text layout
+    /// with invicible spaces and special utf8 characters that display
+    /// the different white space characters.
+    fn new_layout_whitespace(
+        layout_text: &PietTextLayout,
+        line_content: &str,
+        config: &Config,
+        tab_width: f64,
+        text: &mut PietText,
+        font_size: usize,
+    ) -> Option<PietTextLayout> {
+        if config.editor.render_whitespace == "none" {
+            return None;
+        }
+
+        let mut render_leading = false;
+        let mut render_boundary = false;
+        let mut render_between = false;
+
+        // TODO: render whitespaces only on highlighted text
+        match config.editor.render_whitespace.as_str() {
+            "all" => {
+                render_leading = true;
+                render_boundary = true;
+                render_between = true;
+            }
+            "boundary" => {
+                render_leading = true;
+                render_boundary = true;
+            }
+            "trailing" => {} // All configs include rendering trailing whitespace
+            _ => return None,
+        }
+
+        // Create new line, replacing whitespaces with visible characters
+        // and replacing visible characters with spaces.
+        let line_count = line_content.chars().count();
+        let space = tab_width / config.editor.tab_width as f64;
+        let mut whitespace_buffer: Vec<char> = Vec::new();
+        let mut rendered_whitespaces = String::new();
+        let mut char_found = false;
+        for (ii, c) in line_content.chars().enumerate() {
+            if c == '\t' {
+                whitespace_buffer.push('→');
+                if ii < line_count - 1 {
+                    // Make sure that tab spaces are rendered the same way
+                    // as the source code layout
+                    let start = layout_text.hit_test_text_position(ii).point.x;
+                    let end = layout_text.hit_test_text_position(ii + 1).point.x;
+                    let spaces = ((end - start) / space) as usize;
+                    let buffer_len = whitespace_buffer.len() + (spaces - 1);
+                    whitespace_buffer.resize(buffer_len, ' ');
+                }
+            } else if c == ' ' {
+                whitespace_buffer.push('·');
+            } else if c != '\n' && c != '\r' {
+                if (char_found && render_between)
+                    || (char_found && render_boundary && whitespace_buffer.len() > 1)
+                    || (!char_found && render_leading)
+                {
+                    rendered_whitespaces.extend(whitespace_buffer.iter());
+                } else {
+                    // Replace all the unused whitespaces with empty spaces
+                    for _ in 0..whitespace_buffer.len() {
+                        rendered_whitespaces.push(' ');
+                    }
+                }
+
+                rendered_whitespaces.push(' ');
+                char_found = true;
+                whitespace_buffer.clear();
+            }
+        }
+
+        // Finally add all the trailing spaces if there are spaces left
+        rendered_whitespaces.extend(whitespace_buffer.iter());
+
+        // TODO: theme option for whitespace color
+        let whitespace_color = config
+            .get_style_color("comment")
+            .unwrap_or(&Color::rgb8(0x5c, 0x63, 0x70)) // dark theme comment color
+            .clone();
+        let whitespace_color = whitespace_color.with_alpha(0.5);
+
+        let whitespace = text
+            .new_text_layout(rendered_whitespaces)
+            .font(config.editor.font_family(), font_size as f64)
+            .text_color(whitespace_color)
+            .build()
+            .unwrap();
+
+        Some(whitespace)
     }
 
     pub fn line_horiz_col(
