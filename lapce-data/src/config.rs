@@ -840,7 +840,7 @@ impl Config {
         table.insert("theme".to_string(), toml::Value::try_from(&theme).unwrap());
         table.insert("ui".to_string(), toml::Value::try_from(&self.ui).unwrap());
         let value = toml::Value::Table(table);
-        toml::to_string(&value).unwrap()
+        toml::to_string_pretty(&value).unwrap()
     }
 
     pub fn keymaps_file() -> Option<PathBuf> {
