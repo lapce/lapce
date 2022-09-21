@@ -756,7 +756,8 @@ pub fn path_from_url(url: &Url) -> PathBuf {
 
 #[cfg(not(windows))]
 pub fn path_from_url(url: &Url) -> PathBuf {
-    PathBuf::from(url.path())
+    url.to_file_path()
+        .unwrap_or_else(|_| PathBuf::from(url.path()))
 }
 
 fn parse_arch(arch: &str) -> HostArchitecture {
