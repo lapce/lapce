@@ -49,7 +49,7 @@ use crate::buffer::language_id_from_path;
 use crate::directory::Directory;
 
 use self::catalog::PluginCatalog;
-use self::psp::{ClosableCallback, PluginServerRpcHandler, RpcCallback};
+use self::psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback};
 use self::wasi::{load_volt, start_volt};
 
 pub type PluginName = String;
@@ -62,7 +62,7 @@ pub enum PluginCatalogRpc {
         params: Value,
         language_id: Option<String>,
         path: Option<PathBuf>,
-        f: Box<dyn ClosableCallback>,
+        f: Box<dyn ClonableCallback>,
     },
     ServerNotification {
         method: &'static str,

@@ -23,7 +23,7 @@ use xi_rope::{Rope, RopeDelta};
 use crate::plugin::{install_volt, wasi::start_volt_from_info};
 
 use super::{
-    psp::{ClosableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
+    psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
     wasi::load_all_volts,
     PluginCatalogNotification, PluginCatalogRpcHandler,
 };
@@ -70,7 +70,7 @@ impl PluginCatalog {
         params: Value,
         language_id: Option<String>,
         path: Option<PathBuf>,
-        f: Box<dyn ClosableCallback>,
+        f: Box<dyn ClonableCallback>,
     ) {
         if let Some(plugin_id) = plugin_id {
             if let Some(plugin) = self.new_plugins.get(&plugin_id) {

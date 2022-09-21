@@ -67,12 +67,12 @@ impl<Resp, Error> ResponseHandler<Resp, Error> {
     }
 }
 
-pub trait ClosableCallback:
+pub trait ClonableCallback:
     FnOnce(PluginId, Result<Value, RpcError>) + Send + DynClone
 {
 }
 
-impl<F: Send + FnOnce(PluginId, Result<Value, RpcError>) + DynClone> ClosableCallback
+impl<F: Send + FnOnce(PluginId, Result<Value, RpcError>) + DynClone> ClonableCallback
     for F
 {
 }
