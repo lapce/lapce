@@ -63,6 +63,53 @@ impl<'a> WordCursor<'a> {
         None
     }
 
+    pub fn prev_deletion_boundary(&mut self) -> Option<usize> {
+        if let Some(ch) = self.inner.prev_codepoint() {
+            let mut prop = get_word_property(ch);
+            let mut candidate = self.inner.pos();
+
+            // Flag, determines if the word should be deleted or not
+            // If not, erase only whitespace characters.
+            let mut keep_word = false;
+            while let Some(prev) = self.inner.prev_codepoint() {
+                let prop_prev = get_word_property(prev);
+
+                // Stop if line beginning reached, without any non-whitespace characters
+                if prop_prev == WordProperty::Lf && prop == WordProperty::Space {
+                    break;
+                }
+
+                // More than a single whitespace: keep word, remove only whitespaces
+                if prop == WordProperty::Space && prop_prev == WordProperty::Space {
+                    keep_word = true;
+                }
+
+                // Line break found: keep words, delete line break & trailing whitespaces
+                if prop == WordProperty::Lf || prop == WordProperty::Cr {
+                    keep_word = true;
+                }
+
+                // Skip word deletion if above conditions were met
+                if keep_word
+                    && (prop_prev == WordProperty::Punctuation
+                        || prop_prev == WordProperty::Other)
+                {
+                    break;
+                }
+
+                // Default deletion
+                if classify_boundary(prop_prev, prop).is_start() {
+                    break;
+                }
+                prop = prop_prev;
+                candidate = self.inner.pos();
+            }
+            self.inner.set(candidate);
+            return Some(candidate);
+        }
+        None
+    }
+
     pub fn next_non_blank_char(&mut self) -> usize {
         let mut candidate = self.inner.pos();
         while let Some(next) = self.inner.next_codepoint() {
