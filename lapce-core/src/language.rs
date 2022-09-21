@@ -729,7 +729,7 @@ impl LapceLanguage {
         None
     }
 
-    pub fn from_name(name: String) -> Option<LapceLanguage> {
+    pub fn from_name(name: &str) -> Option<LapceLanguage> {
         match LapceLanguage::from_str(name.to_lowercase().as_str()) {
             Ok(v) => Some(v),
             Err(e) => {

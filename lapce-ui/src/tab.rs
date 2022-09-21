@@ -1635,11 +1635,10 @@ impl LapceTab {
                         if name.is_empty() || name.to_lowercase().eq("plain text") {
                             doc.set_syntax(None);
                         } else {
-                            let lang =
-                                match LapceLanguage::from_name(name.to_string()) {
-                                    Some(v) => v,
-                                    None => return,
-                                };
+                            let lang = match LapceLanguage::from_name(name) {
+                                Some(v) => v,
+                                None => return,
+                            };
 
                             doc.set_language(lang);
                         }

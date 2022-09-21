@@ -166,7 +166,7 @@ impl SyntaxLayers {
         queue.push_back(self.root);
 
         let injection_callback = |language: &str| {
-            LapceLanguage::from_name(language.to_string()).map(get_highlight_config)
+            LapceLanguage::from_name(language).map(get_highlight_config)
         };
 
         let mut edits = Vec::new();
