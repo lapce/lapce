@@ -455,7 +455,7 @@ impl LapceDb {
             Err(err) => return Err(anyhow!(err)),
         };
 
-        let res = String::from_utf8((&res).to_vec())
+        let res = String::from_utf8(res.to_vec())
             .expect("invalid utf-8 sequence retrieving unsaved buffer");
 
         let res: Vec<String> = serde_json::from_str(&res)?;
