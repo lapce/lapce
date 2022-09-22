@@ -1,4 +1,8 @@
-use crate::{panel::PanelSizing, scroll::LapceScroll, svg::logo_svg};
+use crate::{
+    panel::PanelSizing,
+    scroll::LapceScroll,
+    svg::{get_svg, logo_svg},
+};
 use druid::{
     kurbo::Line,
     piet::{PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder},
