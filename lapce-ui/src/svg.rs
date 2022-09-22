@@ -2,16 +2,14 @@ use std::{collections::HashMap, ffi::OsStr, path::Path, str::FromStr};
 
 use druid::{piet::Svg, Color};
 use include_dir::{include_dir, Dir};
-use lazy_static::lazy_static;
 use lsp_types::{CompletionItemKind, SymbolKind};
+use once_cell::sync::Lazy;
 
 use lapce_data::config::{Config, LOGO};
 
 const ICONS_DIR: Dir = include_dir!("../icons");
 
-lazy_static! {
-    static ref SVG_STORE: SvgStore = SvgStore::new();
-}
+static SVG_STORE: Lazy<SvgStore> = Lazy::new(SvgStore::new);
 
 struct SvgStore {
     svgs: HashMap<&'static str, Option<Svg>>,
