@@ -1375,7 +1375,7 @@ impl Widget<LapceTabData> for LapceSplit {
         let flex_sum = self
             .children
             .iter()
-            .filter_map(|child| child.flex.then(|| child.params))
+            .filter_map(|child| child.flex.then_some(child.params))
             .sum::<f64>();
 
         self.total_size = self.direction.main_size(my_size);

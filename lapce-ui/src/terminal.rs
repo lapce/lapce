@@ -560,16 +560,15 @@ impl Widget<LapceTabData> for LapceTerminal {
                             clipboard.put_string(selection);
                             term.selection = None;
                         }
-                        None => match clipboard.get_string() {
-                            Some(string) => {
+                        None => {
+                            if let Some(string) = clipboard.get_string() {
                                 terminal.proxy.proxy_rpc.terminal_write(
                                     terminal.term_id,
                                     string.as_str(),
                                 );
                                 term.scroll_display(Scroll::Bottom);
                             }
-                            None => {}
-                        },
+                        }
                     }
                 } else if mouse_event.button.is_left() {
                     match mouse_event.count {
