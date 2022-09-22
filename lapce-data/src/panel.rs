@@ -146,9 +146,8 @@ impl PanelData {
     ) -> Option<(usize, PanelPosition)> {
         for (pos, panels) in self.order.iter() {
             let index = panels.iter().position(|k| k == kind);
-            match index {
-                Some(index) => return Some((index, *pos)),
-                None => (),
+            if let Some(index) = index {
+                return Some((index, *pos));
             }
         }
         None
