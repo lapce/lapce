@@ -104,7 +104,7 @@ impl KeyMap {
         let x_shift = match align {
             Alignment::Left => 0.0,
             Alignment::Center => (origin.x - old_origin.x) / 2.0,
-            Alignment::Right => (origin.x - old_origin.x),
+            Alignment::Right => origin.x - old_origin.x,
         };
 
         for (rect, text_layout, text_layout_pos) in items {
