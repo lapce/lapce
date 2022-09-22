@@ -5,10 +5,13 @@ use druid::{ExtEventSink, Target, WidgetId};
 use indexmap::IndexMap;
 use lapce_proxy::plugin::{download_volt, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
+use lsp_types::Url;
 use strum_macros::Display;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::Config,
+    markdown::parse_markdown,
     proxy::LapceProxy,
 };
 
@@ -72,7 +75,7 @@ pub struct PluginData {
     pub workspace_disabled: HashSet<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum PluginLoadStatus {
     Loading,
     Failed,
@@ -158,6 +161,24 @@ impl PluginData {
         let volts: Vec<VoltInfo> =
             reqwest::blocking::get("https://lapce.dev/volts2")?.json()?;
         Ok(volts)
+    }
+
+    pub fn download_readme(
+        widget_id: WidgetId,
+        volt: &VoltInfo,
+        config: &Config,
+        event_sink: ExtEventSink,
+    ) -> Result<()> {
+        let url = Url::parse(&volt.meta)?;
+        let url = url.join("./README.md")?;
+        let text = reqwest::blocking::get(url)?.text()?;
+        let text = parse_markdown(&text, config);
+        let _ = event_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::UpdateVoltReadme(text),
+            Target::Widget(widget_id),
+        );
+        Ok(())
     }
 
     pub fn install_volt(proxy: Arc<LapceProxy>, volt: VoltInfo) -> Result<()> {

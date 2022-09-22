@@ -374,6 +374,9 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 EditorTabChild::Settings { .. } => {
                     text = format!("Settings (ver. {})", *VERSION);
                 }
+                EditorTabChild::Plugin { volt_name, .. } => {
+                    text = format!("Plugin: {volt_name}");
+                }
             }
             let font_size = data.config.ui.font_size() as f64;
             let text_layout = ctx

@@ -190,12 +190,13 @@ impl Widget<LapceTabData> for LapceEditorContainer {
             self.gutter.paint(ctx, data, env);
         }
 
+        let mut bread_crumbs_height = 0.0;
         if data.config.editor.sticky_header {
             let data = data.editor_view_content(self.view_id);
             let info = data.editor.sticky_header.borrow();
             let size = ctx.size();
             if info.height > 0.0 {
-                let bread_crumbs_height = if show_bread_crumbs {
+                bread_crumbs_height = if show_bread_crumbs {
                     self.bread_crumb.layout_rect().height()
                 } else {
                     0.0
@@ -217,27 +218,30 @@ impl Widget<LapceTabData> for LapceEditorContainer {
         }
 
         if show_bread_crumbs {
-            let rect = self.bread_crumb.layout_rect();
-            let shadow_width = data.config.ui.drop_shadow_width() as f64;
-            if shadow_width > 0.0 {
-                ctx.with_save(|ctx| {
-                    ctx.clip(rect.inset((0.0, 0.0, 0.0, rect.height())));
-                    ctx.blurred_rect(
-                        rect,
-                        shadow_width,
-                        data.config
-                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            if bread_crumbs_height == 0.0 {
+                let rect = self.bread_crumb.layout_rect();
+                let shadow_width = data.config.ui.drop_shadow_width() as f64;
+                if shadow_width > 0.0 {
+                    ctx.with_save(|ctx| {
+                        ctx.clip(rect.inset((0.0, 0.0, 0.0, rect.height())));
+                        ctx.blurred_rect(
+                            rect,
+                            shadow_width,
+                            data.config.get_color_unchecked(
+                                LapceTheme::LAPCE_DROPDOWN_SHADOW,
+                            ),
+                        );
+                    });
+                } else {
+                    ctx.stroke(
+                        Line::new(
+                            Point::new(rect.x0, rect.y1 - 0.5),
+                            Point::new(rect.x1, rect.y1 - 0.5),
+                        ),
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                        1.0,
                     );
-                });
-            } else {
-                ctx.stroke(
-                    Line::new(
-                        Point::new(rect.x0, rect.y1 - 0.5),
-                        Point::new(rect.x1, rect.y1 - 0.5),
-                    ),
-                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                    1.0,
-                );
+                }
             }
             self.bread_crumb.paint(ctx, data, env);
         }

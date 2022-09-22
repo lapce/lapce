@@ -3564,12 +3564,13 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu?branch=shell_opengl#94a8f01262d59ac2546111beb4a57cbdd654f3d6"
+source = "git+https://github.com/lapce/piet-wgpu?branch=shell_opengl#7bfb732931cd551ce4ec1abab4e8c927c4f5cf8a"
 dependencies = [
  "bytemuck",
  "glam",
  "glow",
  "hashbrown 0.11.2",
+ "image",
  "include_dir",
  "linked-hash-map",
  "log 0.4.17",

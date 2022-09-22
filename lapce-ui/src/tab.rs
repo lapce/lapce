@@ -832,6 +832,9 @@ impl LapceTab {
                             )
                         }
                     }
+                    LapceUICommand::OpenPluginInfo(volt) => {
+                        data.main_split.open_plugin_info(ctx, volt);
+                    }
                     LapceUICommand::GlobalSearchResult(pattern, matches) => {
                         let doc = data
                             .main_split
