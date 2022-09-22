@@ -384,6 +384,11 @@ command = "paste"
 mode = "nv"
 
 [[keymaps]]
+key = "shift+p"
+command = "paste_before"
+mode = "nv"
+
+[[keymaps]]
 key = "shift+j"
 command = "join_lines"
 mode = "n"
