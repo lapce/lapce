@@ -75,7 +75,7 @@ pub struct PluginData {
     pub workspace_disabled: HashSet<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum PluginLoadStatus {
     Loading,
     Failed,

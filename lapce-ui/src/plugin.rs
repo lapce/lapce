@@ -70,12 +70,6 @@ impl Plugin {
         )
     }
 
-    /// Return the modifier that should be multiplied by the plugin number
-    /// to get its initial y position
-    fn plugin_y_mod(&self) -> f64 {
-        3.5 * self.line_height
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn paint_plugin(
         &mut self,
@@ -111,24 +105,6 @@ impl Plugin {
         ctx.draw_text(
             &text_layout,
             Point::new(x, y + text_layout.y_offset(self.line_height)),
-        );
-
-        let version_x = x + text_layout.size().width + 8.0;
-        let text_layout = ctx
-            .text()
-            .new_text_layout(format!("v{version}"))
-            .font(config.ui.font_family(), config.ui.font_size() as f64)
-            .default_attribute(TextAttribute::Weight(FontWeight::NORMAL))
-            .text_color(
-                config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            )
-            .build()
-            .unwrap();
-        ctx.draw_text(
-            &text_layout,
-            Point::new(version_x, y + text_layout.y_offset(self.line_height)),
         );
 
         // display description
@@ -238,34 +214,11 @@ impl Plugin {
             );
             rect
         } else {
-            let color = match status {
-                PluginStatus::Installed => LapceTheme::EDITOR_FOCUS,
-                PluginStatus::Upgrade(_) => LapceTheme::LAPCE_WARN,
-                _ => LapceTheme::EDITOR_DIM,
-            };
-
-            let status_x = text_layout.size().width + 20.0;
-            let text_layout = ctx
-                .text()
-                .new_text_layout(format!("[ {status} ]"))
-                .font(config.ui.font_family(), config.ui.font_size() as f64)
-                .text_color(config.get_color_unchecked(color).clone())
-                .build()
-                .unwrap();
-            ctx.draw_text(
-                &text_layout,
-                Point::new(
-                    status_x,
-                    y + self.line_height * 2.0
-                        + text_layout.y_offset(self.line_height),
-                ),
-            );
             // if status is [installed, disabled, upgrade(x)], display the settings.svg
-            let x = self.width - 24.0;
-            let y = y + self.line_height * 2.2;
-            let rect = Size::new(15.0, 15.0)
-                .to_rect()
-                .with_origin(Point::new(x, y));
+            let rect = Size::new(15.0, 15.0).to_rect().with_origin(Point::new(
+                self.width - 24.0,
+                y + self.line_height * 2.2,
+            ));
             ctx.draw_svg(
                 &get_svg("settings.svg").unwrap(),
                 rect,
@@ -275,6 +228,35 @@ impl Plugin {
                         .clone(),
                 ),
             );
+
+            let color = match status {
+                PluginStatus::Installed => LapceTheme::EDITOR_FOCUS,
+                PluginStatus::Upgrade(_) => LapceTheme::LAPCE_WARN,
+                _ => LapceTheme::EDITOR_DIM,
+            };
+
+            let text_layout = ctx
+                .text()
+                .new_text_layout(if status == PluginStatus::Installed {
+                    format!("v{version}")
+                } else {
+                    format!("{status}")
+                })
+                .font(config.ui.font_family(), config.ui.font_size() as f64)
+                .text_color(config.get_color_unchecked(color).clone())
+                .build()
+                .unwrap();
+            let size = text_layout.size();
+            let status_x = rect.x0 - size.width - 10.0;
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    status_x,
+                    y + self.line_height * 2.0
+                        + text_layout.y_offset(self.line_height),
+                ),
+            );
+
             rect
         }
     }
@@ -404,118 +386,17 @@ impl Widget<LapceTabData> for Plugin {
             }
             Event::MouseDown(mouse_event) => {
                 if mouse_event.button.is_left() {
-                    if let Some((index, status)) = self.hit_test(mouse_event) {
+                    if let Some((index, _)) = self.hit_test(mouse_event) {
                         if !self.installed {
-                            if let Some((_, volt)) =
+                            if let Some((id, _)) =
                                 data.plugin.volts.volts.get_index(index)
                             {
-                                let _ = PluginData::install_volt(
-                                    data.proxy.clone(),
-                                    volt.clone(),
-                                );
+                                status_on_click(ctx, data, id, mouse_event.pos);
                             }
-                        } else if let Some((id, meta)) =
+                        } else if let Some((id, _)) =
                             data.plugin.installed.get_index(index)
                         {
-                            let mut menu = druid::Menu::<LapceData>::new("Plugin");
-
-                            if let PluginStatus::Upgrade(meta_link) = status {
-                                let mut info = meta.info();
-                                info.meta = meta_link.clone();
-                                let proxy = data.proxy.clone();
-                                let item = druid::MenuItem::new("Upgrade Plugin")
-                                    .on_activate(move |_ctx, _data, _env| {
-                                        let _ = PluginData::install_volt(
-                                            proxy.clone(),
-                                            info.clone(),
-                                        );
-                                    });
-                                menu = menu.entry(item);
-                                menu = menu.separator();
-                            }
-
-                            let local_volt = meta.info();
-                            let tab_id = data.id;
-                            let item = druid::MenuItem::new("Enable")
-                                .on_activate(move |ctx, _data, _env| {
-                                    ctx.submit_command(Command::new(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::EnableVolt(
-                                            local_volt.clone(),
-                                        ),
-                                        Target::Widget(tab_id),
-                                    ));
-                                })
-                                .enabled(data.plugin.disabled.contains(id));
-                            menu = menu.entry(item);
-
-                            let local_volt = meta.info();
-                            let tab_id = data.id;
-                            let item = druid::MenuItem::new("Disable")
-                                .on_activate(move |ctx, _data, _env| {
-                                    ctx.submit_command(Command::new(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::DisableVolt(
-                                            local_volt.clone(),
-                                        ),
-                                        Target::Widget(tab_id),
-                                    ));
-                                })
-                                .enabled(!data.plugin.disabled.contains(id));
-                            menu = menu.entry(item);
-
-                            menu = menu.separator();
-
-                            let local_volt = meta.info();
-                            let tab_id = data.id;
-                            let item = druid::MenuItem::new("Enable For Workspace")
-                                .on_activate(move |ctx, _data, _env| {
-                                    ctx.submit_command(Command::new(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::EnableVoltWorkspace(
-                                            local_volt.clone(),
-                                        ),
-                                        Target::Widget(tab_id),
-                                    ));
-                                })
-                                .enabled(
-                                    data.plugin.workspace_disabled.contains(id),
-                                );
-                            menu = menu.entry(item);
-
-                            let local_volt = meta.info();
-                            let tab_id = data.id;
-                            let item = druid::MenuItem::new("Disable For Workspace")
-                                .on_activate(move |ctx, _data, _env| {
-                                    ctx.submit_command(Command::new(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::DisableVoltWorkspace(
-                                            local_volt.clone(),
-                                        ),
-                                        Target::Widget(tab_id),
-                                    ));
-                                })
-                                .enabled(
-                                    !data.plugin.workspace_disabled.contains(id),
-                                );
-                            menu = menu.entry(item);
-
-                            let local_meta = meta.clone();
-                            let proxy = data.proxy.clone();
-                            let item = druid::MenuItem::new("Uninstall")
-                                .on_activate(
-                                    move |_ctx, _data: &mut LapceData, _env| {
-                                        let _ = PluginData::remove_volt(
-                                            proxy.clone(),
-                                            local_meta.clone(),
-                                        );
-                                    },
-                                );
-                            menu = menu.separator().entry(item);
-                            ctx.show_context_menu::<LapceData>(
-                                menu,
-                                ctx.to_window(mouse_event.pos),
-                            )
+                            status_on_click(ctx, data, id, mouse_event.pos);
                         }
                     } else if mouse_event.pos.y <= self.height {
                         let index = (mouse_event.pos.y
@@ -615,12 +496,12 @@ pub struct PluginInfo {
     name_text_layout: Option<PietTextLayout>,
     desc_text_layout: Option<PietTextLayout>,
     author_text_layout: Option<PietTextLayout>,
-    button_text_layout: Option<PietTextLayout>,
+    version_text_layout: Option<PietTextLayout>,
     line_height: f64,
     icon_width: f64,
     title_width: f64,
-    readme: Option<RichText>,
     readme_layout: TextLayout<RichText>,
+    status_rect: Rect,
 }
 
 impl PluginInfo {
@@ -637,11 +518,11 @@ impl PluginInfo {
             name_text_layout: None,
             desc_text_layout: None,
             author_text_layout: None,
-            button_text_layout: None,
+            version_text_layout: None,
             icon_width: 0.0,
             title_width: 0.0,
-            readme: None,
             readme_layout,
+            status_rect: Rect::ZERO,
         }
     }
 
@@ -675,6 +556,16 @@ impl Widget<LapceTabData> for PluginInfo {
         _env: &Env,
     ) {
         match event {
+            Event::MouseMove(mouse_event) => {
+                if self.status_rect.contains(mouse_event.pos) {
+                    ctx.set_cursor(&Cursor::Pointer);
+                } else {
+                    ctx.clear_cursor();
+                }
+            }
+            Event::MouseDown(mouse_event) => {
+                status_on_click(ctx, data, &self.volt_id, mouse_event.pos);
+            }
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 let cmd = cmd.get_unchecked(LAPCE_COMMAND);
                 if let CommandKind::Focus(FocusCommand::SplitClose) = &cmd.kind {
@@ -720,11 +611,26 @@ impl Widget<LapceTabData> for PluginInfo {
 
     fn update(
         &mut self,
-        _ctx: &mut UpdateCtx,
-        _old_data: &LapceTabData,
-        _data: &LapceTabData,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
         _env: &Env,
     ) {
+        if old_data.plugin.volts.status == PluginLoadStatus::Loading
+            && data.plugin.volts.status == PluginLoadStatus::Success
+        {
+            if let Some(volt) = data.plugin.volts.volts.get(&self.volt_id) {
+                let volt = volt.clone();
+                let event_sink = ctx.get_external_handle();
+                let widget_id = self.widget_id;
+                let config = data.config.clone();
+                std::thread::spawn(move || {
+                    let _ = PluginData::download_readme(
+                        widget_id, &volt, &config, event_sink,
+                    );
+                });
+            }
+        }
     }
 
     fn layout(
@@ -783,22 +689,16 @@ impl Widget<LapceTabData> for PluginInfo {
                     .build()
                     .unwrap(),
             );
-            let status = data.plugin.plugin_status(&self.volt_id);
-            let text = if status == PluginStatus::Install {
-                status.to_string()
-            } else {
-                format!("{} ▼", status)
-            };
-            self.button_text_layout = Some(
+            self.version_text_layout = Some(
                 ctx.text()
-                    .new_text_layout(text)
+                    .new_text_layout(format!("v{}", volt.version))
                     .font(
                         data.config.ui.font_family(),
                         data.config.ui.font_size() as f64,
                     )
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                             .clone(),
                     )
                     .build()
@@ -868,8 +768,7 @@ impl Widget<LapceTabData> for PluginInfo {
             let author_y = y;
             y += self.line_height;
 
-            let button_text_layout = self.button_text_layout.as_ref().unwrap();
-            let size = button_text_layout.size();
+            let version_text_layout = self.version_text_layout.as_ref().unwrap();
             let button_y = y;
 
             let icon_rect = Rect::ZERO
@@ -907,18 +806,53 @@ impl Widget<LapceTabData> for PluginInfo {
                     author_y + author_text_layout.y_offset(self.line_height),
                 ),
             );
+
+            ctx.draw_text(
+                version_text_layout,
+                Point::new(
+                    padding + self.padding + self.icon_width,
+                    button_y + version_text_layout.y_offset(self.line_height),
+                ),
+            );
+
+            let status = data.plugin.plugin_status(&self.volt_id);
+            let text = if status == PluginStatus::Install {
+                status.to_string()
+            } else {
+                format!("{} ▼", status)
+            };
+            let button_text_layout = ctx
+                .text()
+                .new_text_layout(text)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            let size = button_text_layout.size();
             let rect = Size::new(size.width + 5.0 * 2.0, 0.0)
                 .to_rect()
                 .with_origin(Point::new(
-                    padding + self.padding + self.icon_width,
+                    padding
+                        + self.padding
+                        + self.icon_width
+                        + version_text_layout.size().width
+                        + 10.0,
                     button_y + self.line_height / 2.0,
                 ))
                 .inflate(0.0, self.line_height / 2.0);
             ctx.fill(rect, &Color::rgb8(80, 161, 79));
+            self.status_rect = rect;
             ctx.draw_text(
-                button_text_layout,
+                &button_text_layout,
                 Point::new(
-                    padding + self.padding + 5.0 + self.icon_width,
+                    rect.x0 + 5.0,
                     button_y + button_text_layout.y_offset(self.line_height),
                 ),
             );
@@ -940,5 +874,91 @@ impl Widget<LapceTabData> for PluginInfo {
             self.readme_layout
                 .draw(ctx, Point::new(padding + self.padding, y));
         }
+    }
+}
+
+fn status_on_click(ctx: &mut EventCtx, data: &LapceTabData, id: &str, pos: Point) {
+    let status = data.plugin.plugin_status(id);
+    if let Some(meta) = data.plugin.installed.get(id) {
+        let mut menu = druid::Menu::<LapceData>::new("Plugin");
+
+        if let PluginStatus::Upgrade(meta_link) = status {
+            let mut info = meta.info();
+            info.meta = meta_link;
+            let proxy = data.proxy.clone();
+            let item = druid::MenuItem::new("Upgrade Plugin").on_activate(
+                move |_ctx, _data, _env| {
+                    let _ = PluginData::install_volt(proxy.clone(), info.clone());
+                },
+            );
+            menu = menu.entry(item);
+            menu = menu.separator();
+        }
+
+        let local_volt = meta.info();
+        let tab_id = data.id;
+        let item = druid::MenuItem::new("Enable")
+            .on_activate(move |ctx, _data, _env| {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EnableVolt(local_volt.clone()),
+                    Target::Widget(tab_id),
+                ));
+            })
+            .enabled(data.plugin.disabled.contains(id));
+        menu = menu.entry(item);
+
+        let local_volt = meta.info();
+        let tab_id = data.id;
+        let item = druid::MenuItem::new("Disable")
+            .on_activate(move |ctx, _data, _env| {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::DisableVolt(local_volt.clone()),
+                    Target::Widget(tab_id),
+                ));
+            })
+            .enabled(!data.plugin.disabled.contains(id));
+        menu = menu.entry(item);
+
+        menu = menu.separator();
+
+        let local_volt = meta.info();
+        let tab_id = data.id;
+        let item = druid::MenuItem::new("Enable For Workspace")
+            .on_activate(move |ctx, _data, _env| {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EnableVoltWorkspace(local_volt.clone()),
+                    Target::Widget(tab_id),
+                ));
+            })
+            .enabled(data.plugin.workspace_disabled.contains(id));
+        menu = menu.entry(item);
+
+        let local_volt = meta.info();
+        let tab_id = data.id;
+        let item = druid::MenuItem::new("Disable For Workspace")
+            .on_activate(move |ctx, _data, _env| {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::DisableVoltWorkspace(local_volt.clone()),
+                    Target::Widget(tab_id),
+                ));
+            })
+            .enabled(!data.plugin.workspace_disabled.contains(id));
+        menu = menu.entry(item);
+
+        let local_meta = meta.clone();
+        let proxy = data.proxy.clone();
+        let item = druid::MenuItem::new("Uninstall").on_activate(
+            move |_ctx, _data: &mut LapceData, _env| {
+                let _ = PluginData::remove_volt(proxy.clone(), local_meta.clone());
+            },
+        );
+        menu = menu.separator().entry(item);
+        ctx.show_context_menu::<LapceData>(menu, ctx.to_window(pos))
+    } else if let Some(volt) = data.plugin.volts.volts.get(id) {
+        let _ = PluginData::install_volt(data.proxy.clone(), volt.clone());
     }
 }
