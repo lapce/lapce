@@ -5,10 +5,14 @@ use crate::{
 };
 use druid::{
     kurbo::Line,
-    piet::{PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Cursor, Env, Event, EventCtx, FontWeight,
-    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
+    piet::{
+        PietTextLayout, Text, TextAttribute, TextLayout as TextLayoutTrait,
+        TextLayoutBuilder,
+    },
+    ArcStr, BoxConstraints, Color, Command, Cursor, Env, Event, EventCtx,
+    FontDescriptor, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
+    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx,
+    Widget, WidgetExt, WidgetId,
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
@@ -17,6 +21,7 @@ use lapce_data::{
     data::{LapceData, LapceTabData},
     panel::PanelKind,
     plugin::{PluginData, PluginLoadStatus, PluginStatus},
+    rich_text::RichText,
 };
 
 use crate::panel::{LapcePanel, PanelHeaderKind};
@@ -614,10 +619,14 @@ pub struct PluginInfo {
     line_height: f64,
     icon_width: f64,
     title_width: f64,
+    readme: Option<RichText>,
+    readme_layout: TextLayout<RichText>,
 }
 
 impl PluginInfo {
     fn new(widget_id: WidgetId, editor_tab_id: WidgetId, volt_id: String) -> Self {
+        let mut readme_layout = TextLayout::new();
+        readme_layout.set_text(RichText::new(ArcStr::from("")));
         Self {
             widget_id,
             editor_tab_id,
@@ -631,6 +640,8 @@ impl PluginInfo {
             button_text_layout: None,
             icon_width: 0.0,
             title_width: 0.0,
+            readme: None,
+            readme_layout,
         }
     }
 
@@ -640,6 +651,14 @@ impl PluginInfo {
         volt_id: String,
     ) -> LapceScroll<LapceTabData, PluginInfo> {
         LapceScroll::new(PluginInfo::new(widget_id, editor_tab_id, volt_id))
+    }
+
+    fn get_margin(&self, actual_width: f64) -> f64 {
+        let width = self.icon_width + self.title_width + self.padding * 4.0;
+        let width = width.max(740.0);
+        let width = width.min(actual_width - self.padding * 2.0);
+
+        (actual_width - width) / 2.0
     }
 }
 
@@ -666,17 +685,37 @@ impl Widget<LapceTabData> for PluginInfo {
                     );
                 }
             }
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let cmd = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                if let LapceUICommand::UpdateVoltReadme(text) = cmd {
+                    self.readme_layout.set_text(text.clone());
+                    ctx.request_layout();
+                }
+            }
             _ => {}
         }
     }
 
     fn lifecycle(
         &mut self,
-        _ctx: &mut LifeCycleCtx,
-        _event: &LifeCycle,
-        _data: &LapceTabData,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
         _env: &Env,
     ) {
+        if let LifeCycle::WidgetAdded = event {
+            if let Some(volt) = data.plugin.volts.volts.get(&self.volt_id) {
+                let volt = volt.clone();
+                let event_sink = ctx.get_external_handle();
+                let widget_id = self.widget_id;
+                let config = data.config.clone();
+                std::thread::spawn(move || {
+                    let _ = PluginData::download_readme(
+                        widget_id, &volt, &config, event_sink,
+                    );
+                });
+            }
+        }
     }
 
     fn update(
@@ -693,9 +732,11 @@ impl Widget<LapceTabData> for PluginInfo {
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        _env: &Env,
+        env: &Env,
     ) -> Size {
-        let width = if let Some(volt) = data.plugin.volts.volts.get(&self.volt_id) {
+        let (width, height) = if let Some(volt) =
+            data.plugin.volts.volts.get(&self.volt_id)
+        {
             self.name_text_layout = Some(
                 ctx.text()
                     .new_text_layout(volt.display_name.clone())
@@ -774,19 +815,45 @@ impl Widget<LapceTabData> for PluginInfo {
                 .size()
                 .width
                 .max(self.desc_text_layout.as_ref().unwrap().size().width);
-            self.padding * 4.0 + self.icon_width + self.title_width
+
+            self.readme_layout.set_font(
+                FontDescriptor::new(data.config.ui.font_family())
+                    .with_size(data.config.ui.font_size() as f64),
+            );
+            self.readme_layout.set_text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            );
+
+            let info_width = self.padding * 4.0 + self.icon_width + self.title_width;
+
+            let actual_width = bc.max().width.max(info_width);
+
+            let margin = self.get_margin(actual_width);
+
+            let readme_width = actual_width - margin * 2.0 - self.padding * 2.0;
+
+            self.readme_layout.set_wrap_width(readme_width);
+            self.readme_layout.rebuild_if_needed(ctx.text(), env);
+
+            let height = self.gap
+                + self.icon_width
+                + self.gap
+                + self.gap
+                + self.readme_layout.size().height
+                + self.gap;
+
+            (info_width, height)
         } else {
-            0.0
+            (0.0, 0.0)
         };
-        Size::new(bc.max().width.max(width), bc.max().height)
+        Size::new(bc.max().width.max(width), bc.max().height.max(height))
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         if let Some(name_text_layout) = self.name_text_layout.as_ref() {
-            let width = self.icon_width + self.title_width + self.padding * 4.0;
-            let width = width.max(740.0);
-            let width = width.min(ctx.size().width - self.padding * 2.0);
-            let padding = (ctx.size().width - width) / 2.0;
+            let padding = self.get_margin(ctx.size().width);
 
             let mut y = self.gap;
             let size = name_text_layout.size();
@@ -867,7 +934,11 @@ impl Widget<LapceTabData> for PluginInfo {
                 line,
                 data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
                 1.0,
-            )
+            );
+
+            y += self.gap;
+            self.readme_layout
+                .draw(ctx, Point::new(padding + self.padding, y));
         }
     }
 }

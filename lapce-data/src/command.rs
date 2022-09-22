@@ -520,6 +520,7 @@ pub enum LapceUICommand {
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
     UpdateCompletion(usize, String, CompletionResponse, PluginId),
     UpdateHover(usize, Arc<Vec<RichText>>),
+    UpdateVoltReadme(RichText),
     UpdateInlayHints {
         path: PathBuf,
         rev: u64,
