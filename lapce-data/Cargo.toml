@@ -36,7 +36,6 @@ thiserror = "1.0"
 anyhow = "1.0.32"
 strum = "0.24.0"
 strum_macros = "0.24"
-lazy_static = "1.4.0"
 serde = "1.0"
 serde_json = "1.0"
 notify = { version = "5.0.0-pre.13", features = ["serde"] }

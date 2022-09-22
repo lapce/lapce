@@ -2597,7 +2597,6 @@ dependencies = [
  "lapce-core",
  "lapce-proxy",
  "lapce-rpc",
- "lazy_static",
  "log 0.4.17",
  "lsp-types",
  "notify",
@@ -2713,10 +2712,10 @@ dependencies = [
  "lapce-core",
  "lapce-data",
  "lapce-rpc",
- "lazy_static",
  "log 0.4.17",
  "lsp-types",
  "notify",
+ "once_cell",
  "open",
  "parking_lot 0.11.2",
  "rayon",
@@ -3316,9 +3315,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.14.0"
+version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f7254b99e31cad77da24b08ebf628882739a608578bb1bcdfc1f9c21260d7c0"
+checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
 
 [[package]]
 name = "opaque-debug"
