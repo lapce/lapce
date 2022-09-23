@@ -82,6 +82,10 @@ pub enum CoreNotification {
     CloseTerminal {
         term_id: TermId,
     },
+    Log {
+        level: String,
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -212,6 +216,13 @@ impl CoreRpcHandler {
 
     pub fn volt_removed(&self, volt: VoltInfo) {
         self.notification(CoreNotification::VoltRemoved { volt });
+    }
+
+    pub fn log(&self, level: log::Level, message: String) {
+        self.notification(CoreNotification::Log {
+            level: level.as_str().to_string(),
+            message,
+        });
     }
 
     pub fn publish_diagnostics(&self, diagnostics: PublishDiagnosticsParams) {

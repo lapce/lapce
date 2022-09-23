@@ -4,6 +4,10 @@
 key = "F1"
 command = "palette.command"
 
+# [[keymaps]]
+# key = "ctrl+q"
+# command = "quit"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
@@ -80,6 +84,10 @@ key = "ctrl+shift+tab"
 command = "previous_editor_tab"
 
 # --------------------------------- Rich Language Editing ----------------------------
+
+[[keymaps]]
+key = "F2"
+command = "rename_symbol"
 
 [[keymaps]]
 key = "F12"
@@ -253,6 +261,12 @@ when = "global_search_focus"
 mode = "i"
 
 [[keymaps]]
+key = "enter"
+command = "confirm_rename"
+when = "rename_focus"
+mode = "i"
+
+[[keymaps]]
 key = "tab"
 command = "insert_tab"
 when = "!in_snippet && !completion_focus"
@@ -367,6 +381,11 @@ mode = "n"
 [[keymaps]]
 key = "p"
 command = "paste"
+mode = "nv"
+
+[[keymaps]]
+key = "shift+p"
+command = "paste_before"
 mode = "nv"
 
 [[keymaps]]

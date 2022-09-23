@@ -21,7 +21,7 @@ use crate::{
         LapceMainSplitData, LapceTabData, LapceWindowData, LapceWorkspace,
         SplitContent, SplitData,
     },
-    document::{BufferContent, Document},
+    document::{BufferContent, Document, LocalBufferKind},
     editor::EditorLocation,
     panel::{PanelData, PanelOrder},
     split::SplitDirection,
@@ -137,6 +137,7 @@ impl EditorTabInfo {
 pub enum EditorTabChildInfo {
     Editor(EditorInfo),
     Settings,
+    Plugin { volt_id: String, volt_name: String },
 }
 
 impl EditorTabChildInfo {
@@ -166,7 +167,29 @@ impl EditorTabChildInfo {
                 )
             }
             EditorTabChildInfo::Settings => {
-                EditorTabChild::Settings(WidgetId::next(), editor_tab_id)
+                let editor = LapceEditorData::new(
+                    None,
+                    None,
+                    None,
+                    BufferContent::Local(LocalBufferKind::Keymap),
+                    config,
+                );
+                let keymap_input_view_id = editor.view_id;
+                data.editors.insert(editor.view_id, Arc::new(editor));
+
+                EditorTabChild::Settings {
+                    settings_widget_id: WidgetId::next(),
+                    editor_tab_id,
+                    keymap_input_view_id,
+                }
+            }
+            EditorTabChildInfo::Plugin { volt_id, volt_name } => {
+                EditorTabChild::Plugin {
+                    widget_id: WidgetId::next(),
+                    volt_id: volt_id.to_string(),
+                    volt_name: volt_name.to_string(),
+                    editor_tab_id,
+                }
             }
         }
     }
@@ -441,7 +464,7 @@ impl LapceDb {
             Err(err) => return Err(anyhow!(err)),
         };
 
-        let res = String::from_utf8((&res).to_vec())
+        let res = String::from_utf8(res.to_vec())
             .expect("invalid utf-8 sequence retrieving unsaved buffer");
 
         let res: Vec<String> = serde_json::from_str(&res)?;
@@ -608,7 +631,7 @@ impl LapceDb {
         for (path, doc) in &main_split.open_docs {
             if !doc.buffer().is_pristine() && doc.content().is_file() {
                 let path_str = path.to_str().unwrap();
-                let buf_text = doc.buffer().text().to_string();
+                let buf_text = doc.buffer().to_string();
                 unsaved_buffers.push(path_str.to_string());
                 unsaved_buffers.push(buf_text);
             }
@@ -661,7 +684,7 @@ impl LapceDb {
             .enumerate()
             .map(|(i, w)| {
                 let tab = data.tabs.get(w).unwrap();
-                if tab.id == data.active_id {
+                if tab.id == *data.active_id {
                     active_tab = i;
                 }
                 (*tab.workspace).clone()

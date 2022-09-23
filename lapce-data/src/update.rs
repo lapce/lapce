@@ -130,6 +130,8 @@ pub fn restart(path: &Path) -> Result<()> {
     std::process::Command::new("open")
         .arg("-n")
         .arg(path)
+        .arg("--args")
+        .arg("-n")
         .exec();
     Ok(())
 }
@@ -137,7 +139,7 @@ pub fn restart(path: &Path) -> Result<()> {
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::unix::process::CommandExt;
-    std::process::Command::new(path).exec();
+    std::process::Command::new(path).arg("-n").exec();
     Ok(())
 }
 
@@ -151,7 +153,7 @@ pub fn restart(path: &Path) -> Result<()> {
         .ok_or_else(|| anyhow!("can't get path to str"))?;
     std::process::Command::new("cmd")
         .arg("/C")
-        .arg(format!("taskkill /PID {} & start {}", process_id, path))
+        .arg(format!("taskkill /PID {} & start {} -n", process_id, path))
         .creation_flags(DETACHED_PROCESS)
         .spawn()?;
     Ok(())

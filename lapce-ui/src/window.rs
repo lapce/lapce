@@ -25,7 +25,7 @@ pub struct LapceWindow {
             LensWrap<LapceWindowData, LapceTabData, LapceTabLens, LapceTabHeader>,
         >,
     >,
-    pub dragable_area: Region,
+    pub draggable_area: Region,
     pub tab_header_cmds: Vec<(Rect, Command)>,
     pub mouse_down_cmd: Option<(Rect, Command)>,
     #[cfg(not(target_os = "macos"))]
@@ -54,7 +54,7 @@ impl LapceWindow {
             .collect();
         Self {
             mouse_pos: Point::ZERO,
-            dragable_area: Region::EMPTY,
+            draggable_area: Region::EMPTY,
             tabs,
             tab_headers,
             tab_header_cmds: Vec::new(),
@@ -95,19 +95,19 @@ impl LapceWindow {
             if let Some(tab) = data.tabs.remove(&data.active_id) {
                 tab.proxy.stop();
             }
-            data.active_id = tab_id;
+            data.active_id = Arc::new(tab_id);
         } else {
             self.tabs
                 .insert(data.active + 1, WidgetPod::new(tab.boxed()));
             self.tab_headers
                 .insert(data.active + 1, WidgetPod::new(tab_header));
             data.active += 1;
-            data.active_id = tab_id;
+            data.active_id = Arc::new(tab_id);
         }
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::Focus,
-            Target::Widget(data.active_id),
+            Target::Widget(*data.active_id),
         ));
         data.tabs_order = Arc::new(self.tabs.iter().map(|t| t.id()).collect());
         let _ = data.db.save_tabs_async(data);
@@ -148,11 +148,11 @@ impl LapceWindow {
                 if data.active >= self.tabs.len() {
                     data.active = self.tabs.len() - 1;
                 }
-                data.active_id = self.tabs[data.active].id();
+                data.active_id = Arc::new(self.tabs[data.active].id());
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
-                    Target::Widget(data.active_id),
+                    Target::Widget(*data.active_id),
                 ));
             }
             _ => (),
@@ -212,7 +212,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
-                    Target::Widget(data.active_id),
+                    Target::Widget(*data.active_id),
                 ));
             }
             Event::Internal(InternalEvent::MouseLeave) => {
@@ -237,7 +237,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                 #[cfg(target_os = "windows")]
                 if data.tabs.len() > 1
                     && self
-                        .dragable_area
+                        .draggable_area
                         .rects()
                         .iter()
                         .any(|r| r.contains(mouse_event.pos))
@@ -264,7 +264,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                 if data.tabs.len() > 1
                     && mouse_event.count == 2
                     && self
-                        .dragable_area
+                        .draggable_area
                         .rects()
                         .iter()
                         .any(|r| r.contains(mouse_event.pos))
@@ -312,7 +312,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::Focus,
-                            Target::Widget(data.active_id),
+                            Target::Widget(*data.active_id),
                         ));
                         ctx.set_handled();
                     }
@@ -412,12 +412,12 @@ impl Widget<LapceWindowData> for LapceWindow {
                             if tab_id == &tab.id() {
                                 if i != data.active {
                                     data.active = i;
-                                    data.active_id = tab.id();
+                                    data.active_id = Arc::new(tab.id());
                                     let _ = data.db.save_tabs_async(data);
                                     ctx.submit_command(Command::new(
                                         LAPCE_UI_COMMAND,
                                         LapceUICommand::Focus,
-                                        Target::Widget(data.active_id),
+                                        Target::Widget(*data.active_id),
                                     ));
                                 }
                                 return;
@@ -444,12 +444,12 @@ impl Widget<LapceWindowData> for LapceWindow {
                             data.tabs.get(&data.active_id).unwrap(),
                         );
                         data.active = new_index;
-                        data.active_id = self.tabs[new_index].id();
+                        data.active_id = Arc::new(self.tabs[new_index].id());
                         let _ = data.db.save_tabs_async(data);
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::Focus,
-                            Target::Widget(data.active_id),
+                            Target::Widget(*data.active_id),
                         ));
                         ctx.request_layout();
                         ctx.set_handled();
@@ -464,12 +464,12 @@ impl Widget<LapceWindowData> for LapceWindow {
                             data.tabs.get(&data.active_id).unwrap(),
                         );
                         data.active = new_index;
-                        data.active_id = self.tabs[new_index].id();
+                        data.active_id = Arc::new(self.tabs[new_index].id());
                         let _ = data.db.save_tabs_async(data);
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::Focus,
-                            Target::Widget(data.active_id),
+                            Target::Widget(*data.active_id),
                         ));
                         ctx.request_layout();
                         ctx.set_handled();
@@ -559,13 +559,11 @@ impl Widget<LapceWindowData> for LapceWindow {
         let self_size = bc.max();
 
         let (tab_size, tab_origin) = if self.tabs.len() > 1 {
-            let tab_header_height = 36.0;
-            let tab_header_padding = 0.0;
             let tab_size = Size::new(
                 self_size.width,
-                self_size.height - tab_header_height - tab_header_padding,
+                self_size.height - TAB_HEADER_HEIGHT - TAB_HEADER_PADDING,
             );
-            let tab_origin = Point::new(0.0, tab_header_height + tab_header_padding);
+            let tab_origin = Point::new(0.0, TAB_HEADER_HEIGHT + TAB_HEADER_PADDING);
 
             #[cfg(not(target_os = "macos"))]
             let left_padding = 0.0;
@@ -578,11 +576,12 @@ impl Widget<LapceWindowData> for LapceWindow {
                 78.0
             };
 
-            let right_padding = if cfg!(target_os = "macos") {
-                100.0
+            let right_buttons_width = if cfg!(target_os = "macos") {
+                0.0
             } else {
-                100.0 + 36.0 * 3.0
+                WINDOW_CONTROL_BUTTON_WIDTH * 3.0
             };
+            let right_padding = RIGHT_PADDING + right_buttons_width;
 
             let total_width = self_size.width - left_padding - right_padding;
             let width =
@@ -590,69 +589,77 @@ impl Widget<LapceWindowData> for LapceWindow {
 
             let mut x = left_padding;
             let mut drag = None;
-            let bc = BoxConstraints::tight(Size::new(width, tab_header_height));
+            let bc = BoxConstraints::tight(Size::new(width, TAB_HEADER_HEIGHT));
             for (i, tab_header) in self.tab_headers.iter_mut().enumerate() {
                 let size = tab_header.layout(ctx, &bc, data, env);
-                let mut origin = Point::new(x, tab_header_padding);
                 let header = tab_header.widget().child();
-                if let Some(o) = header.origin() {
-                    origin = Point::new(o.x, tab_header_padding);
-                    drag = Some((i, header.mouse_pos));
+
+                let origin = header.origin();
+
+                if origin.is_some() {
+                    drag = Some(i);
                 }
+
+                let origin_x = origin.map_or(x, |origin| origin.x);
+                let origin = Point::new(origin_x, TAB_HEADER_PADDING);
+
                 tab_header.set_origin(ctx, data, env, origin);
                 x += size.width;
             }
-            x += 36.0;
 
-            let mut region = Region::EMPTY;
-            region.add_rect(
-                Size::new(
-                    self_size.width
-                        - x
-                        - if cfg!(target_os = "macos") {
-                            0.0
-                        } else {
-                            36.0 * 3.0
-                        },
-                    36.0,
-                )
-                .to_rect()
-                .with_origin(Point::new(x, 0.0)),
-            );
-            if left_padding > 0.0 {
-                region.add_rect(
-                    Size::new(left_padding, 36.0)
-                        .to_rect()
-                        .with_origin(Point::new(0.0, 0.0)),
+            self.draggable_area = if data.config.lapce.custom_titlebar {
+                // Area right of tabs, but left of the window control buttons
+                let mut draggable_area = Region::from(
+                    Size::new(
+                        self_size.width - x - right_buttons_width,
+                        TAB_HEADER_HEIGHT,
+                    )
+                    .to_rect()
+                    .with_origin(Point::new(x, 0.0)),
                 );
-            }
 
-            self.dragable_area.clear();
-            ctx.window().set_dragable_area(region.clone());
-            self.dragable_area = region;
+                // Area left of the tabs
+                draggable_area.add_rect(
+                    Size::new(left_padding, TAB_HEADER_HEIGHT)
+                        .to_rect()
+                        .with_origin(Point::ZERO),
+                );
 
-            if let Some((index, mouse_pos)) = drag {
-                for (i, tab_header) in self.tab_headers.iter().enumerate() {
-                    if i != index {
-                        let rect = tab_header.layout_rect();
-                        if rect.x0 <= mouse_pos.x && rect.x1 >= mouse_pos.x {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::SwapTab(i),
-                                Target::Auto,
-                            ));
-                            break;
-                        }
-                    }
+                draggable_area
+            } else {
+                Region::EMPTY
+            };
+
+            ctx.window().set_dragable_area(self.draggable_area.clone());
+
+            if let Some(dragged_tab_idx) = drag {
+                // Because tab is opaque, use the tab's center point instead of the mouse position.
+                let dragged_tab_center =
+                    self.tab_headers[dragged_tab_idx].layout_rect().center();
+
+                if let Some((swapped_idx, _)) = self
+                    .tab_headers
+                    .iter()
+                    .enumerate()
+                    .find(|&(idx, tab_header)| {
+                        idx != dragged_tab_idx
+                            && tab_header.layout_rect().contains(dragged_tab_center)
+                    })
+                {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SwapTab(swapped_idx),
+                        Target::Auto,
+                    ));
                 }
             }
 
             (tab_size, tab_origin)
         } else {
-            for (_i, tab_header) in self.tab_headers.iter_mut().enumerate() {
+            for tab_header in self.tab_headers.iter_mut() {
                 let bc = BoxConstraints::tight(Size::new(self_size.width, 0.0));
                 tab_header.layout(ctx, &bc, data, env);
-                tab_header.set_origin(ctx, data, env, Point::new(0.0, 0.0));
+                tab_header.set_origin(ctx, data, env, Point::ZERO);
             }
             let tab_size = self_size;
 
@@ -672,37 +679,33 @@ impl Widget<LapceWindowData> for LapceWindow {
 
         // let title_height = self.title.layout_rect().height();
 
-        let tab_height = 36.0;
         let size = ctx.size();
         if self.tabs.len() > 1 {
-            let rect = Size::new(size.width, tab_height).to_rect();
+            let rect = Size::new(size.width, TAB_HEADER_HEIGHT).to_rect();
             ctx.fill(
                 rect,
                 data.config
                     .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
             );
+
+            let mut dragged = None;
             for (i, tab_header) in self.tab_headers.iter_mut().enumerate() {
-                tab_header.paint(ctx, data, env);
-                let rect = tab_header.layout_rect();
-                if i == 0 {
-                    ctx.stroke(
-                        Line::new(
-                            Point::new(rect.x0, rect.y0 + 8.0),
-                            Point::new(rect.x0, rect.y1 - 8.0),
-                        ),
-                        data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                        1.0,
-                    );
+                // Store index and skip if tab is being dragged.
+                if tab_header.widget().child().origin().is_some() {
+                    dragged = Some(i);
+                    continue;
                 }
-                ctx.stroke(
-                    Line::new(
-                        Point::new(rect.x1, rect.y0 + 8.0),
-                        Point::new(rect.x1, rect.y1 - 8.0),
-                    ),
-                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                    1.0,
-                );
+
+                tab_header.paint(ctx, data, env);
             }
+
+            // Draw the dragged tab last, above the others
+            if let Some(dragged_tab_idx) = dragged {
+                let tab_header = &mut self.tab_headers[dragged_tab_idx];
+
+                tab_header.paint(ctx, data, env);
+            }
+
             let shadow_width = data.config.ui.drop_shadow_width() as f64;
             if shadow_width > 0.0 {
                 ctx.blurred_rect(
@@ -735,8 +738,8 @@ impl Widget<LapceWindowData> for LapceWindow {
                 let (cmds, svgs) = window_controls(
                     data.window_id,
                     &ctx.window().get_window_state(),
-                    size.width - 36.0 * 3.0,
-                    36.0,
+                    size.width - WINDOW_CONTROL_BUTTON_WIDTH * 3.0,
+                    WINDOW_CONTROL_BUTTON_WIDTH,
                     &data.config,
                 );
                 self.tab_header_cmds = cmds;
@@ -829,7 +832,11 @@ pub fn window_controls(
 
     commands.push((
         close_rect,
-        Command::new(druid::commands::QUIT_APP, (), Target::Global),
+        Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::CloseWindow(window_id),
+            Target::Auto,
+        ),
     ));
 
     let hover_color = {
@@ -890,3 +897,9 @@ pub fn window_controls(
 
     (commands, svgs)
 }
+
+// TODO(dbuga): find a better place for these
+const TAB_HEADER_HEIGHT: f64 = 36.0;
+const TAB_HEADER_PADDING: f64 = 0.0;
+const RIGHT_PADDING: f64 = 100.0;
+const WINDOW_CONTROL_BUTTON_WIDTH: f64 = 36.0;

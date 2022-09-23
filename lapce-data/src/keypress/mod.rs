@@ -61,7 +61,7 @@ pub fn paint_key(
         .build()
         .unwrap();
     let text_size = text_layout.size();
-    let text_layout_point = origin + (5.0, -(text_size.height / 2.0));
+    let text_layout_point = origin + (5.0, -text_layout.cap_center());
     let rect = Size::new(text_size.width, 0.0)
         .to_rect()
         .with_origin(origin + (5.0, 0.0))
@@ -104,7 +104,7 @@ impl KeyMap {
         let x_shift = match align {
             Alignment::Left => 0.0,
             Alignment::Center => (origin.x - old_origin.x) / 2.0,
-            Alignment::Right => (origin.x - old_origin.x),
+            Alignment::Right => origin.x - old_origin.x,
         };
 
         for (rect, text_layout, text_layout_pos) in items {
@@ -318,7 +318,7 @@ impl KeyPressData {
         focus: &mut T,
         env: &Env,
     ) -> bool {
-        log::info!("Keypress: {key_event:?}");
+        log::info!(target: "lapce_data::keypress::key_down", "{key_event:?}");
 
         // We are removing Shift modifier since the character is already upper case.
         let mods = Self::get_key_modifiers(key_event);

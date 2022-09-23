@@ -34,7 +34,7 @@ pub enum Mode {
 
 bitflags! {
     pub struct Modes: u32 {
-        const NORMAL = 0x01;
+        const NORMAL = 0x1;
         const INSERT = 0x2;
         const VISUAL = 0x4;
         const TERMINAL = 0x8;

@@ -104,7 +104,7 @@ impl SourceControlFileList {
         let source_control = Arc::make_mut(&mut data.source_control);
         source_control.active = self.widget_id;
         data.focus_area = FocusArea::Panel(PanelKind::SourceControl);
-        data.focus = self.widget_id;
+        data.focus = Arc::new(self.widget_id);
     }
 }
 
@@ -123,7 +123,6 @@ impl Widget<LapceTabData> for SourceControlFileList {
         match event {
             Event::MouseMove(_mouse_event) => {
                 ctx.set_cursor(&druid::Cursor::Pointer);
-                ctx.set_handled();
             }
             Event::MouseUp(mouse_event) => {
                 let y = mouse_event.pos.y;
@@ -317,7 +316,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 &text_layout,
                 Point::new(
                     self.line_height * 2.0,
-                    y + (self.line_height - text_layout.size().height) / 2.0,
+                    y + text_layout.y_offset(self.line_height),
                 ),
             );
             let folder = path
@@ -346,7 +345,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     &text_layout,
                     Point::new(
                         self.line_height * 2.0 + x + 5.0,
-                        y + (self.line_height - text_layout.size().height) / 2.0,
+                        y + text_layout.y_offset(self.line_height),
                     ),
                 );
             }

@@ -67,6 +67,8 @@ pub enum EditCommand {
     Yank,
     #[strum(serialize = "paste")]
     Paste,
+    #[strum(serialize = "paste_before")]
+    PasteBefore,
 
     #[strum(serialize = "normal_mode")]
     NormalMode,
@@ -293,6 +295,11 @@ pub enum FocusCommand {
     SaveAndExit,
     #[strum(serialize = "force_exit")]
     ForceExit,
+    #[strum(serialize = "rename_symbol")]
+    #[strum(message = "Rename Symbol")]
+    Rename,
+    #[strum(serialize = "confirm_rename")]
+    ConfirmRename,
 }
 
 #[derive(

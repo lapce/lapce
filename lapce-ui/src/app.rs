@@ -31,6 +31,8 @@ const LOGO_ICO: &[u8] = include_bytes!("../../extra/windows/lapce.ico");
 #[clap(name = "Lapce")]
 #[clap(version=*VERSION)]
 struct Cli {
+    #[clap(short, long, action)]
+    new: bool,
     paths: Vec<PathBuf>,
 }
 
@@ -42,7 +44,7 @@ pub fn launch() {
     let cli = Cli::parse();
     let pwd = std::env::current_dir().unwrap_or_default();
     let paths: Vec<PathBuf> = cli.paths.iter().map(|p| pwd.join(p)).collect();
-    if LapceData::check_local_socket(&paths).is_ok() {
+    if !cli.new && LapceData::check_local_socket(&paths).is_ok() {
         return;
     }
 
@@ -71,13 +73,13 @@ pub fn launch() {
         log_dispatch = log_dispatch.chain(
             fern::Dispatch::new()
                 .level(log::LevelFilter::Debug)
-                .level_for("lapce_data::keypress", log::LevelFilter::Off)
+                .level_for("lapce_data::keypress::key_down", log::LevelFilter::Off)
                 .level_for("sled", log::LevelFilter::Off)
                 .level_for("tracing", log::LevelFilter::Off)
                 .level_for("druid::core", log::LevelFilter::Off)
                 .level_for("druid::box_constraints", log::LevelFilter::Off)
                 .level_for("cranelift_codegen", log::LevelFilter::Off)
-                .level_for("wasmer_compiler_cranelift", log::LevelFilter::Off)
+                .level_for("wasmtime_cranelift", log::LevelFilter::Off)
                 .level_for("regalloc", log::LevelFilter::Off)
                 .level_for("hyper::proto", log::LevelFilter::Off)
                 .chain(log_file),
@@ -127,12 +129,20 @@ where
         let screens = druid::Screen::get_monitors();
         let mut screens = screens.iter().filter(|f| f.is_primary());
         // Get actual workspace rectangle excluding taskbars/menus
-        let screen_pos = screens.next().unwrap().virtual_work_rect().center();
-        // Position our window centered, not in center point
-        Point::new(
-            screen_pos.x - size.width / 2.0,
-            screen_pos.y - size.height / 2.0,
-        )
+        match screens.next() {
+            Some(screen) => {
+                let screen_center_pos = screen.virtual_work_rect().center();
+                // Position our window centered, not in center point
+                Point::new(
+                    screen_center_pos.x - size.width / 2.0,
+                    screen_center_pos.y - size.height / 2.0,
+                )
+            }
+            None => {
+                log::error!("No primary display found. Are you running lapce in console-only/SSH/WSL?");
+                pos
+            }
+        }
     } else {
         pos
     };
@@ -191,10 +201,23 @@ fn window_icon() -> Option<druid::Icon> {
 
 #[cfg(target_os = "macos")]
 fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
+    use lapce_data::command::{
+        CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND,
+    };
+
     desc.menu(|_, _, _| {
         Menu::new("Lapce").entry(
             Menu::new("")
-                .entry(MenuItem::new("About Lapce"))
+                .entry(MenuItem::new("About Lapce").command(Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::ShowAbout,
+                        ),
+                        data: None,
+                    },
+                    Target::Auto,
+                )))
                 .separator()
                 .entry(
                     MenuItem::new("Hide Lapce")
@@ -229,7 +252,7 @@ impl Default for LapceAppDelegate {
 impl AppDelegate<LapceData> for LapceAppDelegate {
     fn event(
         &mut self,
-        _ctx: &mut druid::DelegateCtx,
+        ctx: &mut druid::DelegateCtx,
         _window_id: WindowId,
         event: druid::Event,
         data: &mut LapceData,
@@ -238,6 +261,16 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         match event {
             Event::ApplicationWillTerminate => {
                 let _ = data.db.save_app(data);
+                return None;
+            }
+            Event::ApplicationShouldHandleReopen(has_visible_windows) => {
+                if !has_visible_windows {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::NewWindow(WindowId::next()),
+                        Target::Global,
+                    ));
+                }
                 return None;
             }
             Event::WindowGotFocus(window_id) => {
@@ -300,11 +333,11 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                 );
 
                 let mut tab = meta.data;
-                tab.window_id = window_data.window_id;
+                tab.window_id = Arc::new(window_data.window_id);
 
                 let tab_id = tab.id;
                 window_data.tabs_order = Arc::new(vec![tab_id]);
-                window_data.active_id = tab_id;
+                window_data.active_id = Arc::new(tab_id);
                 window_data.tabs.clear();
                 window_data.tabs.insert(tab_id, tab);
 
@@ -319,7 +352,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                             WidgetPod::new(tab_header)
                         })
                         .collect(),
-                    dragable_area: Region::EMPTY,
+                    draggable_area: Region::EMPTY,
                     tab_header_cmds: Vec::new(),
                     mouse_down_cmd: None,
                     #[cfg(not(target_os = "macos"))]
@@ -395,6 +428,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                                             LAPCE_UI_COMMAND,
                                             LapceUICommand::OpenFile(
                                                 file.to_path_buf(),
+                                                false,
                                             ),
                                             Target::Widget(*tab_id),
                                         ));
@@ -424,7 +458,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                         for file in files {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::OpenFile(file.to_path_buf()),
+                                LapceUICommand::OpenFile(file.to_path_buf(), false),
                                 Target::Window(*data.active_window),
                             ));
                         }
@@ -437,10 +471,17 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                             // If maximised, use default dimensions instead
                             .filter(|win| !win.maximised)
                             .map(|win| (win.size, win.pos + (50.0, 50.0)))
-                            .unwrap_or((
-                                Size::new(800.0, 600.0),
-                                Point::new(0.0, 0.0),
-                            ));
+                            .unwrap_or_else(|| {
+                                data.db
+                                    .get_last_window_info()
+                                    .map(|i| (i.size, i.pos))
+                                    .unwrap_or_else(|_| {
+                                        (
+                                            Size::new(800.0, 600.0),
+                                            Point::new(0.0, 0.0),
+                                        )
+                                    })
+                            });
                         let info = WindowInfo {
                             size,
                             pos,
@@ -470,6 +511,15 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                             &window_data.config,
                         );
                         ctx.new_window(desc);
+                        return druid::Handled::Yes;
+                    }
+                    LapceUICommand::CloseWindow(window_id) => {
+                        ctx.submit_command(Command::new(
+                            druid::commands::CLOSE_WINDOW,
+                            (),
+                            Target::Window(*window_id),
+                        ));
+                        let _ = data.db.save_app(data);
                         return druid::Handled::Yes;
                     }
                     _ => (),

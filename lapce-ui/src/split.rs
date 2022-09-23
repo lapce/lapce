@@ -1,6 +1,8 @@
 use crate::{
-    editor::{tab::LapceEditorTab, view::LapceEditorView},
-    settings::LapceSettingsPanel,
+    editor::{
+        tab::LapceEditorTab,
+        view::{editor_tab_child_widget, LapceEditorView},
+    },
     terminal::LapceTerminalView,
 };
 use std::sync::Arc;
@@ -21,10 +23,7 @@ use lapce_data::{
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
-    data::{
-        EditorTabChild, FocusArea, LapceEditorData, LapceTabData, SplitContent,
-        SplitData,
-    },
+    data::{FocusArea, LapceEditorData, LapceTabData, SplitContent, SplitData},
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap},
     panel::PanelKind,
     split::{SplitDirection, SplitMoveDirection},
@@ -57,26 +56,8 @@ pub fn split_content_widget(
                 data.main_split.editor_tabs.get(widget_id).unwrap();
             let mut editor_tab = LapceEditorTab::new(editor_tab_data.widget_id);
             for child in editor_tab_data.children.iter() {
-                match child {
-                    EditorTabChild::Editor(view_id, editor_id, find_view_id) => {
-                        let editor = LapceEditorView::new(
-                            *view_id,
-                            *editor_id,
-                            *find_view_id,
-                        )
-                        .boxed();
-                        editor_tab = editor_tab.with_child(editor);
-                    }
-                    EditorTabChild::Settings(widget_id, editor_tab_id) => {
-                        let settings = LapceSettingsPanel::new(
-                            data,
-                            *widget_id,
-                            *editor_tab_id,
-                        )
-                        .boxed();
-                        editor_tab = editor_tab.with_child(settings);
-                    }
-                }
+                let child = editor_tab_child_widget(child, data);
+                editor_tab = editor_tab.with_child(child);
             }
             editor_tab.boxed()
         }
@@ -369,12 +350,12 @@ impl LapceSplit {
             // TODO: provide information about which child widget this is, so that we can actually resize it!
             if self.direction == SplitDirection::Vertical {
                 let x = child.layout_rect.x0;
-                if mouse_pos.x >= x - 5.0 && mouse_pos.x <= x + 5.0 {
+                if mouse_pos.x >= x - 2.0 && mouse_pos.x <= x + 2.0 {
                     return Some(child);
                 }
             } else {
                 let y = child.layout_rect.y0;
-                if mouse_pos.y >= y - 5.0 && mouse_pos.y <= y + 5.0 {
+                if mouse_pos.y >= y - 2.0 && mouse_pos.y <= y + 2.0 {
                     return Some(child);
                 }
             }
@@ -1028,7 +1009,6 @@ impl LapceSplit {
             &data.config,
         );
         editor_data.cursor = from_editor.cursor.clone();
-        editor_data.locations = from_editor.locations.clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::ForceScrollTo(
@@ -1070,51 +1050,9 @@ impl Widget<LapceTabData> for LapceSplit {
         env: &Env,
     ) {
         match event {
-            Event::MouseMove(mouse_event) => {
-                if self.children.is_empty() {
-                    let mut on_command = false;
-                    for (_, _, rect, _) in &self.commands {
-                        if rect.contains(mouse_event.pos) {
-                            on_command = true;
-                            break;
-                        }
-                    }
-                    if on_command {
-                        ctx.set_cursor(&druid::Cursor::Pointer);
-                    } else {
-                        ctx.clear_cursor();
-                    }
-                }
-
-                if ctx.is_active() {
-                    // If we're active then we're probably being dragged
-                    self.update_resize_point(mouse_event.pos);
-                    ctx.request_layout();
-                    ctx.set_handled();
-                } else if data.drag.is_none() {
-                    // TODO: We probably want to make so you don't get highlighting for more than one editor
-                    // resize bar at once, and so that you don't get highlighting/dragging for an editor resize bar
-                    // and a panel resize bar! That means we need the tab to know.
-                    if let Some(child) = self.resize_bar_hit_test(mouse_event.pos) {
-                        self.bar_hovered = Some(child.widget.id());
-
-                        ctx.set_cursor(match self.direction {
-                            SplitDirection::Vertical => {
-                                &druid::Cursor::ResizeLeftRight
-                            }
-                            SplitDirection::Horizontal => {
-                                &druid::Cursor::ResizeUpDown
-                            }
-                        });
-
-                        ctx.set_handled();
-                    } else {
-                        if self.bar_hovered.is_some() {
-                            self.bar_hovered = None;
-                            ctx.request_paint();
-                        }
-                        ctx.clear_cursor();
-                    }
+            Event::MouseUp(mouse_event) => {
+                if mouse_event.button.is_left() && ctx.is_active() {
+                    ctx.set_active(false);
                 }
             }
             Event::MouseDown(mouse_event) => {
@@ -1138,11 +1076,6 @@ impl Widget<LapceTabData> for LapceSplit {
                             return;
                         }
                     }
-                }
-            }
-            Event::MouseUp(mouse_event) => {
-                if mouse_event.button.is_left() && ctx.is_active() {
-                    ctx.set_active(false);
                 }
             }
             Event::KeyDown(key_event) => {
@@ -1174,7 +1107,7 @@ impl Widget<LapceTabData> for LapceSplit {
                                 ));
                             } else {
                                 ctx.request_focus();
-                                data.focus = self.split_id;
+                                data.focus = Arc::new(self.split_id);
                                 data.focus_area = FocusArea::Editor;
                             }
                         }
@@ -1251,8 +1184,55 @@ impl Widget<LapceTabData> for LapceSplit {
             }
             _ => (),
         }
+
         for child in self.children.iter_mut() {
             child.widget.event(ctx, event, data, env);
+        }
+
+        if let Event::MouseMove(mouse_event) = event {
+            if self.children.is_empty() {
+                ctx.clear_cursor();
+                for (_, _, rect, _) in &self.commands {
+                    if rect.contains(mouse_event.pos) {
+                        ctx.set_cursor(&druid::Cursor::Pointer);
+                        break;
+                    }
+                }
+            } else if ctx.is_active() {
+                // If we're active then we're probably being dragged
+                self.update_resize_point(mouse_event.pos);
+                ctx.request_layout();
+                ctx.set_handled();
+            } else if data.drag.is_none() {
+                let has_active =
+                    self.children.iter().any(|child| child.widget.has_active());
+                if has_active {
+                    self.bar_hovered = None;
+                    ctx.clear_cursor();
+                } else {
+                    // TODO: We probably want to make so you don't get highlighting for more than one editor
+                    // resize bar at once, and so that you don't get highlighting/dragging for an editor resize bar
+                    // and a panel resize bar! That means we need the tab to know.
+                    if let Some(child) = self.resize_bar_hit_test(mouse_event.pos) {
+                        self.bar_hovered = Some(child.widget.id());
+
+                        ctx.set_cursor(match self.direction {
+                            SplitDirection::Vertical => {
+                                &druid::Cursor::ResizeLeftRight
+                            }
+                            SplitDirection::Horizontal => {
+                                &druid::Cursor::ResizeUpDown
+                            }
+                        });
+                    } else {
+                        if self.bar_hovered.is_some() {
+                            self.bar_hovered = None;
+                            ctx.request_paint();
+                        }
+                        ctx.clear_cursor();
+                    }
+                }
+            }
         }
     }
 
@@ -1324,7 +1304,7 @@ impl Widget<LapceTabData> for LapceSplit {
                     )
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .get_color_unchecked(LapceTheme::EDITOR_LINK)
                             .clone(),
                     )
                     .build()
@@ -1371,7 +1351,7 @@ impl Widget<LapceTabData> for LapceSplit {
         let flex_sum = self
             .children
             .iter()
-            .filter_map(|child| child.flex.then(|| child.params))
+            .filter_map(|child| child.flex.then_some(child.params))
             .sum::<f64>();
 
         self.total_size = self.direction.main_size(my_size);

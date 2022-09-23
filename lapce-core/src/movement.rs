@@ -76,7 +76,7 @@ impl Movement {
 
             // Selects the previous entry/line
             Movement::Up if wrapping => (index + (len.saturating_sub(count))) % len,
-            Movement::Up => (index.saturating_sub(count)),
+            Movement::Up => index.saturating_sub(count),
 
             Movement::Line(position) => match position {
                 // Selects the nth line

@@ -6,6 +6,7 @@ use crate::command::{CommandExecuted, CommandKind};
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::Config;
 use crate::data::EditorView;
+use crate::data::FocusArea;
 use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     SplitContent,
@@ -19,6 +20,7 @@ use crate::keypress::KeyMap;
 use crate::keypress::KeyPressFocus;
 use crate::palette::PaletteData;
 use crate::proxy::path_from_url;
+use crate::rename::RenameData;
 use crate::{
     command::{
         EnsureVisiblePosition, InitBufferContent, LapceUICommand, LAPCE_UI_COMMAND,
@@ -55,6 +57,7 @@ use lsp_types::CompletionTextEdit;
 use lsp_types::DocumentChangeOperation;
 use lsp_types::DocumentChanges;
 use lsp_types::OneOf;
+use lsp_types::ResourceOp;
 use lsp_types::TextEdit;
 use lsp_types::Url;
 use lsp_types::WorkspaceEdit;
@@ -194,13 +197,14 @@ impl EditorPosition for Position {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EditorLocation<P: EditorPosition = usize> {
     pub path: PathBuf,
     pub position: Option<P>,
     pub scroll_offset: Option<Vec2>,
     pub history: Option<String>,
 }
+
 impl<P: EditorPosition> EditorLocation<P> {
     pub fn into_utf8_location(self, buffer: &Buffer) -> EditorLocation<usize> {
         EditorLocation {
@@ -218,7 +222,9 @@ pub struct LapceEditorBufferData {
     pub doc: Arc<Document>,
     pub completion: Arc<CompletionData>,
     pub hover: Arc<HoverData>,
+    pub rename: Arc<RenameData>,
     pub main_split: LapceMainSplitData,
+    pub focus_area: FocusArea,
     pub source_control: Arc<SourceControlData>,
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
@@ -342,6 +348,10 @@ impl LapceEditorBufferData {
         self.editor.content == BufferContent::Local(LocalBufferKind::Palette)
     }
 
+    fn is_rename(&self) -> bool {
+        self.editor.content == BufferContent::Local(LocalBufferKind::Rename)
+    }
+
     /// Check if there are completions that are being rendered
     fn has_completions(&self) -> bool {
         self.completion.status != CompletionStatus::Inactive
@@ -352,46 +362,48 @@ impl LapceEditorBufferData {
         self.hover.status != HoverStatus::Inactive && !self.hover.is_empty()
     }
 
-    pub fn run_code_action(
+    fn has_rename(&self) -> bool {
+        self.rename.active
+    }
+
+    pub fn apply_workspace_edit(
         &mut self,
         ctx: &mut EventCtx,
-        action: &CodeActionOrCommand,
+        edit: &WorkspaceEdit,
     ) {
+        if let Some(DocumentChanges::Operations(op)) = edit.document_changes.as_ref()
+        {
+            op.iter()
+                .flat_map(|op| match op {
+                    DocumentChangeOperation::Op(op) => Some(op),
+                    _ => None,
+                })
+                .flat_map(workspace_operation)
+                .map(|cmd| Command::new(LAPCE_UI_COMMAND, cmd, Target::Auto))
+                .for_each(|cmd| ctx.submit_command(cmd));
+        }
         if let BufferContent::File(path) = &self.editor.content {
-            match action {
-                CodeActionOrCommand::Command(_cmd) => {}
-                CodeActionOrCommand::CodeAction(action) => {
-                    if let Some(edit) = action.edit.as_ref() {
-                        if let Some(edits) = workspace_edits(edit) {
-                            for (url, edits) in edits {
-                                if url_matches_path(path, &url) {
-                                    let path = path.clone();
-                                    let doc = self
-                                        .main_split
-                                        .open_docs
-                                        .get(&path)
-                                        .unwrap()
-                                        .clone();
-                                    apply_code_action(
-                                        &doc,
-                                        &mut self.main_split,
-                                        &path,
-                                        &edits,
-                                    );
-                                } else if let Ok(url_path) = url.to_file_path() {
-                                    // If it is not for the file we have open then we assume that
-                                    // we may have to load it
-                                    // So we jump to the location that the edits were at.
-                                    // TODO: url_matches_path checks if the url path 'goes back' to the original url
-                                    // Should we do that here?
+            if let Some(edits) = workspace_edits(edit) {
+                for (url, edits) in edits {
+                    if url_matches_path(path, &url) {
+                        let path = path.clone();
+                        let doc =
+                            self.main_split.open_docs.get(&path).unwrap().clone();
+                        apply_edit(&doc, &mut self.main_split, &path, &edits);
+                    } else if let Ok(url_path) = url.to_file_path() {
+                        // If it is not for the file we have open then we assume that
+                        // we may have to load it
+                        // So we jump to the location that the edits were at.
+                        // TODO: url_matches_path checks if the url path 'goes back' to the original url
+                        // Should we do that here?
 
-                                    // We choose to just jump to the start of the first edit. The edit function will jump
-                                    // appropriately when we actually apply the edits.
-                                    let position =
-                                        edits.get(0).map(|edit| edit.range.start);
-                                    self.main_split.jump_to_location_cb(
+                        // We choose to just jump to the start of the first edit. The edit function will jump
+                        // appropriately when we actually apply the edits.
+                        let position = edits.get(0).map(|edit| edit.range.start);
+                        self.main_split.jump_to_location_cb(
                                         ctx,
                                         None,
+                                        false,
                                         EditorLocation {
                                             path: url_path.clone(),
                                             position,
@@ -410,15 +422,27 @@ impl LapceEditorBufferData {
                                                 return;
                                             };
 
-                                            apply_code_action(&doc, main_split, &url_path, &edits);
+                                            apply_edit(&doc, main_split, &url_path, &edits);
                                         }),
                                     );
-                                } else {
-                                    log::warn!("Text edits failed to apply to URL {url:?} because it was not found");
-                                }
-                            }
-                        }
+                    } else {
+                        log::warn!("Text edits failed to apply to URL {url:?} because it was not found");
                     }
+                }
+            }
+        }
+    }
+
+    pub fn run_code_action(
+        &mut self,
+        ctx: &mut EventCtx,
+        action: &CodeActionOrCommand,
+    ) {
+        match action {
+            CodeActionOrCommand::Command(_cmd) => {}
+            CodeActionOrCommand::CodeAction(action) => {
+                if let Some(edit) = action.edit.as_ref() {
+                    self.apply_workspace_edit(ctx, edit);
                 }
             }
         }
@@ -600,6 +624,72 @@ impl LapceEditorBufferData {
         hover.cancel();
     }
 
+    pub fn cancel_rename(&mut self, ctx: &mut EventCtx) {
+        let rename = Arc::make_mut(&mut self.rename);
+        rename.cancel();
+        if self.focus_area == FocusArea::Rename {
+            if let Some(active) = *self.main_split.active_tab {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(active),
+                ));
+            } else {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(*self.main_split.split_id),
+                ));
+            }
+        }
+    }
+
+    pub fn completion_item_select(&mut self, ctx: &mut EventCtx) {
+        let item = if let Some(item) = self.completion.current_item() {
+            item.to_owned()
+        } else {
+            // There was no selected item, this may be due to a bug in failing to ensure that the index was valid.
+            return;
+        };
+
+        self.cancel_completion();
+        if item.item.data.is_some() {
+            let view_id = self.editor.view_id;
+            let buffer_id = self.doc.id();
+            let rev = self.doc.rev();
+            let offset = self.editor.cursor.offset();
+            let event_sink = ctx.get_external_handle();
+            self.proxy.proxy_rpc.completion_resolve(
+                item.plugin_id,
+                item.item.clone(),
+                move |result| {
+                    // let item = result.unwrap_or_else(|_| item.clone());
+                    let item =
+                        if let Ok(ProxyResponse::CompletionResolveResponse {
+                            item,
+                        }) = result
+                        {
+                            *item
+                        } else {
+                            item.item.clone()
+                        };
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::ResolveCompletion(
+                            buffer_id,
+                            rev,
+                            offset,
+                            Box::new(item),
+                        ),
+                        Target::Widget(view_id),
+                    );
+                },
+            );
+        } else {
+            let _ = self.apply_completion_item(&item.item);
+        }
+    }
+
     /// Update the displayed autocompletion box
     /// Sends a request to the LSP for completion information
     fn update_completion(
@@ -716,19 +806,21 @@ impl LapceEditorBufferData {
         is_inside: bool,
         within_scroll: bool,
     ) -> bool {
-        let hover = Arc::make_mut(&mut self.hover);
-
-        if hover.status != HoverStatus::Inactive {
+        if self.hover.status != HoverStatus::Inactive {
             if !is_inside || !within_scroll {
+                let hover = Arc::make_mut(&mut self.hover);
                 hover.cancel();
                 return false;
             }
 
             let start_offset = self.doc.buffer().prev_code_boundary(offset);
-            if self.doc.id() == hover.buffer_id && start_offset == hover.offset {
+            if self.doc.id() == self.hover.buffer_id
+                && start_offset == self.hover.offset
+            {
                 return true;
             }
 
+            let hover = Arc::make_mut(&mut self.hover);
             hover.cancel();
             return false;
         }
@@ -871,14 +963,14 @@ impl LapceEditorBufferData {
             let (path, offset) =
                 next_in_file_diff_offset(offset, buffer_path, &diff_files);
             let location = EditorLocation {
-                path,
+                path: path.to_path_buf(),
                 position: Some(offset),
                 scroll_offset: None,
                 history: Some("head".to_string()),
             };
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::JumpToLocation(None, location),
+                LapceUICommand::JumpToLocation(None, location, true),
                 Target::Widget(*self.main_split.tab_id),
             ));
         }
@@ -914,7 +1006,7 @@ impl LapceEditorBufferData {
                 };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToLspLocation(None, location),
+                    LapceUICommand::JumpToLspLocation(None, location, true),
                     Target::Auto,
                 ));
             } else {
@@ -924,45 +1016,58 @@ impl LapceEditorBufferData {
     }
 
     fn jump_location_forward(&mut self, ctx: &mut EventCtx) -> Option<()> {
-        if self.editor.locations.is_empty() {
+        if self.main_split.locations.is_empty() {
             return None;
         }
-        if self.editor.current_location >= self.editor.locations.len() - 1 {
+        if self.main_split.current_location >= self.main_split.locations.len() - 1 {
             return None;
         }
-        let editor = Arc::make_mut(&mut self.editor);
-        editor.current_location += 1;
-        let location = editor.locations[editor.current_location].clone();
+        self.main_split.current_location += 1;
+        let location =
+            self.main_split.locations[self.main_split.current_location].clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::GoToLocationNew(editor.view_id, location),
+            LapceUICommand::GoToLocation(
+                None,
+                location,
+                !self.config.editor.show_tab,
+            ),
             Target::Auto,
         ));
         None
     }
 
     fn jump_location_backward(&mut self, ctx: &mut EventCtx) -> Option<()> {
-        if self.editor.current_location < 1 {
+        if self.main_split.current_location < 1 {
             return None;
         }
-        if self.editor.current_location >= self.editor.locations.len() {
-            let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(&self.doc);
-            editor.current_location -= 1;
+        if self.main_split.current_location >= self.main_split.locations.len() {
+            if let BufferContent::File(path) = &self.editor.content {
+                self.main_split.save_jump_location(
+                    path.to_path_buf(),
+                    self.editor.cursor.offset(),
+                    self.editor.scroll_offset,
+                );
+            }
+            self.main_split.current_location -= 1;
         }
-        let editor = Arc::make_mut(&mut self.editor);
-        editor.current_location -= 1;
-        let location = editor.locations[editor.current_location].clone();
+        self.main_split.current_location -= 1;
+        let location =
+            self.main_split.locations[self.main_split.current_location].clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::GoToLocationNew(editor.view_id, location),
+            LapceUICommand::GoToLocation(
+                None,
+                location,
+                !self.config.editor.show_tab,
+            ),
             Target::Auto,
         ));
         None
     }
 
     fn page_move(&mut self, ctx: &mut EventCtx, down: bool, mods: Modifiers) {
-        let line_height = self.config.editor.line_height as f64;
+        let line_height = self.config.editor.line_height() as f64;
         let lines =
             (self.editor.size.borrow().height / line_height / 2.0).round() as usize;
         let distance = (lines as f64) * line_height;
@@ -996,7 +1101,7 @@ impl LapceEditorBufferData {
         count: usize,
         mods: Modifiers,
     ) {
-        let line_height = self.config.editor.line_height as f64;
+        let line_height = self.config.editor.line_height() as f64;
         let diff = line_height * count as f64;
         let diff = if down { diff } else { -diff };
 
@@ -1068,7 +1173,7 @@ impl LapceEditorBufferData {
                 let line_height = syntax.lens.height_of_line(line + 1)
                     - syntax.lens.height_of_line(line);
 
-                let font_size = if line_height < config.editor.line_height {
+                let font_size = if line_height < config.editor.line_height() {
                     config.editor.code_lens_font_size
                 } else {
                     config.editor.font_size
@@ -1085,11 +1190,11 @@ impl LapceEditorBufferData {
 
             (line, config.char_width(text, font_size as f64))
         } else if let Some(compare) = self.editor.compare.as_ref() {
-            let line = (pos.y / config.editor.line_height as f64).floor() as usize;
+            let line = (pos.y / config.editor.line_height() as f64).floor() as usize;
             let line = self.doc.history_actual_line_from_visual(compare, line);
             (line, config.editor_char_width(text))
         } else {
-            let line = (pos.y / config.editor.line_height as f64).floor() as usize;
+            let line = (pos.y / config.editor.line_height() as f64).floor() as usize;
             (line, config.editor_char_width(text))
         };
 
@@ -1295,7 +1400,13 @@ impl LapceEditorBufferData {
         mods: Modifiers,
     ) -> CommandExecuted {
         if movement.is_jump() && movement != &self.editor.last_movement_new {
-            Arc::make_mut(&mut self.editor).save_jump_location(&self.doc);
+            if let BufferContent::File(path) = &self.editor.content {
+                self.main_split.save_jump_location(
+                    path.to_path_buf(),
+                    self.editor.cursor.offset(),
+                    self.editor.scroll_offset,
+                );
+            }
         }
         Arc::make_mut(&mut self.editor).last_movement_new = movement.clone();
 
@@ -1391,11 +1502,14 @@ impl LapceEditorBufferData {
                 if self.has_hover() {
                     self.cancel_hover();
                 }
+                if self.is_rename() {
+                    self.cancel_rename(ctx);
+                }
             }
             SplitVertical => {
                 self.main_split.split_editor(
                     ctx,
-                    Arc::make_mut(&mut self.editor),
+                    self.editor.view_id,
                     SplitDirection::Vertical,
                     &self.config,
                 );
@@ -1403,7 +1517,7 @@ impl LapceEditorBufferData {
             SplitHorizontal => {
                 self.main_split.split_editor(
                     ctx,
-                    Arc::make_mut(&mut self.editor),
+                    self.editor.view_id,
                     SplitDirection::Horizontal,
                     &self.config,
                 );
@@ -1543,7 +1657,7 @@ impl LapceEditorBufferData {
             }
             GlobalSearchRefresh => {
                 let tab_id = *self.main_split.tab_id;
-                let pattern = self.doc.buffer().text().to_string();
+                let pattern = self.doc.buffer().to_string();
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateSearch(pattern),
@@ -1568,12 +1682,12 @@ impl LapceEditorBufferData {
             }
             SearchInView => {
                 let start_line = ((self.editor.scroll_offset.y
-                    / self.config.editor.line_height as f64)
+                    / self.config.editor.line_height() as f64)
                     .ceil() as usize)
                     .max(self.doc.buffer().last_line());
                 let end_line = ((self.editor.scroll_offset.y
                     + self.editor.size.borrow().height
-                        / self.config.editor.line_height as f64)
+                        / self.config.editor.line_height() as f64)
                     .ceil() as usize)
                     .max(self.doc.buffer().last_line());
                 let end_offset = self.doc.buffer().offset_of_line(end_line + 1);
@@ -1623,44 +1737,8 @@ impl LapceEditorBufferData {
                         Target::Widget(self.palette.widget_id),
                     ));
                 } else {
-                    let item = self.completion.current_item().to_owned();
-                    self.cancel_completion();
-                    if item.item.data.is_some() {
-                        let view_id = self.editor.view_id;
-                        let buffer_id = self.doc.id();
-                        let rev = self.doc.rev();
-                        let offset = self.editor.cursor.offset();
-                        let event_sink = ctx.get_external_handle();
-                        self.proxy.proxy_rpc.completion_resolve(
-                            item.plugin_id,
-                            item.item.clone(),
-                            move |result| {
-                                // let item = result.unwrap_or_else(|_| item.clone());
-                                let item = if let Ok(
-                                    ProxyResponse::CompletionResolveResponse {
-                                        item,
-                                    },
-                                ) = result
-                                {
-                                    *item
-                                } else {
-                                    item.item.clone()
-                                };
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::ResolveCompletion(
-                                        buffer_id,
-                                        rev,
-                                        offset,
-                                        Box::new(item),
-                                    ),
-                                    Target::Widget(view_id),
-                                );
-                            },
-                        );
-                    } else {
-                        let _ = self.apply_completion_item(&item.item);
-                    }
+                    let completion = Arc::make_mut(&mut self.completion);
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             ListNext => {
@@ -1675,7 +1753,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.next();
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             ListNextPage => {
@@ -1690,7 +1768,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.next_page(self.config.editor.line_height);
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             ListPrevious => {
@@ -1705,7 +1783,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.previous();
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             ListPreviousPage => {
@@ -1720,7 +1798,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.previous_page(self.config.editor.line_height);
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             JumpToNextSnippetPlaceholder => {
@@ -2144,6 +2222,79 @@ impl LapceEditorBufferData {
             Save => {
                 self.save(ctx, false);
             }
+            Rename => {
+                if let BufferContent::File(path) = self.doc.content() {
+                    let offset = self.editor.cursor.offset();
+                    let buffer = self.doc.buffer().clone();
+                    let rev = self.doc.rev();
+                    let path = path.to_path_buf();
+                    let tab_id = *self.main_split.tab_id;
+                    let event_sink = ctx.get_external_handle();
+
+                    if let Some(position) =
+                        self.doc.buffer().offset_to_position(offset)
+                    {
+                        Arc::make_mut(&mut self.rename).update(
+                            path.clone(),
+                            rev,
+                            offset,
+                            position,
+                            self.editor.view_id,
+                        );
+                        self.proxy.proxy_rpc.prepare_rename(
+                            path.clone(),
+                            position,
+                            move |result| {
+                                if let Ok(ProxyResponse::PrepareRename { resp }) =
+                                    result
+                                {
+                                    RenameData::prepare_rename(
+                                        tab_id, path, offset, rev, buffer, resp,
+                                        event_sink,
+                                    );
+                                }
+                            },
+                        );
+                    }
+                }
+            }
+            ConfirmRename => {
+                let new_name = self
+                    .main_split
+                    .local_docs
+                    .get(&LocalBufferKind::Rename)
+                    .unwrap()
+                    .buffer()
+                    .text()
+                    .to_string();
+                let new_name = new_name.trim();
+                if !new_name.is_empty() {
+                    let event_sink = ctx.get_external_handle();
+                    let view_id = self.rename.from_editor;
+                    self.proxy.proxy_rpc.rename(
+                        self.rename.path.clone(),
+                        self.rename.position,
+                        new_name.to_string(),
+                        move |result| {
+                            if let Ok(ProxyResponse::Rename { edit }) = result {
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::ApplyWorkspaceEdit(edit),
+                                    Target::Widget(view_id),
+                                );
+                            }
+                        },
+                    );
+                }
+                ctx.submit_command(Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::ModalClose),
+                        data: None,
+                    },
+                    Target::Widget(self.rename.view_id),
+                ));
+            }
             _ => return CommandExecuted::No,
         }
         CommandExecuted::Yes
@@ -2220,10 +2371,12 @@ impl KeyPressFocus for LapceEditorBufferData {
             "completion_focus" => self.has_completions(),
             "hover_focus" => self.has_hover(),
             "list_focus" => self.has_completions() || self.is_palette(),
+            "rename_focus" => self.has_rename(),
             "modal_focus" => {
                 (self.has_completions() && !self.config.lapce.modal)
                     || self.has_hover()
                     || self.is_palette()
+                    || self.has_rename()
             }
             _ => false,
         }
@@ -2302,24 +2455,24 @@ pub struct HighlightTextLayout {
     pub highlights: Vec<(usize, usize, String)>,
 }
 
-fn next_in_file_diff_offset(
+fn next_in_file_diff_offset<'a>(
     offset: usize,
     path: &Path,
-    file_diffs: &[(PathBuf, Vec<usize>)],
-) -> (PathBuf, usize) {
+    file_diffs: &'a [(PathBuf, Vec<usize>)],
+) -> (&'a Path, usize) {
     for (current_path, offsets) in file_diffs {
         if path == current_path {
             for diff_offset in offsets {
                 if *diff_offset > offset {
-                    return ((*current_path).clone(), *diff_offset);
+                    return (current_path.as_ref(), *diff_offset);
                 }
             }
         }
         if current_path > path {
-            return ((*current_path).clone(), offsets[0]);
+            return (current_path.as_ref(), offsets[0]);
         }
     }
-    ((file_diffs[0].0).clone(), file_diffs[0].1[0])
+    (file_diffs[0].0.as_ref(), file_diffs[0].1[0])
 }
 
 fn next_in_file_errors_offset(
@@ -2366,6 +2519,7 @@ fn process_get_references(
                     scroll_offset: None,
                     history: None,
                 },
+                true,
             ),
             Target::Auto,
         );
@@ -2420,6 +2574,21 @@ fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> 
     Some(edits)
 }
 
+fn workspace_operation(op: &ResourceOp) -> Option<LapceUICommand> {
+    Some(match op {
+        ResourceOp::Create(p) => LapceUICommand::CreateFileOpen {
+            path: p.uri.to_file_path().ok()?,
+        },
+        ResourceOp::Rename(p) => LapceUICommand::RenamePath {
+            from: p.old_uri.to_file_path().ok()?,
+            to: p.new_uri.to_file_path().ok()?,
+        },
+        ResourceOp::Delete(p) => LapceUICommand::TrashPath {
+            path: p.uri.to_file_path().ok()?,
+        },
+    })
+}
+
 /// Check if a [`Url`] matches the path
 fn url_matches_path(path: &Path, url: &Url) -> bool {
     // TODO: Neither of these methods work for paths
@@ -2438,7 +2607,7 @@ fn url_matches_path(path: &Path, url: &Url) -> bool {
     matches
 }
 
-fn apply_code_action(
+fn apply_edit(
     doc: &Document,
     main_split: &mut LapceMainSplitData,
     path: &Path,

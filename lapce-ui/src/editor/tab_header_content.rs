@@ -58,6 +58,9 @@ impl LapceEditorTabHeaderContent {
     }
 
     fn cancel_pending_drag(&mut self, data: &mut LapceTabData) {
+        if data.drag.is_none() {
+            return;
+        }
         *Arc::make_mut(&mut data.drag) = None;
     }
 
@@ -133,7 +136,6 @@ impl LapceEditorTabHeaderContent {
         } else {
             ctx.clear_cursor();
         }
-        ctx.request_paint();
 
         if !mouse_event.buttons.contains(MouseButton::Left) {
             // If drag data exists, mouse was released outside of the view.
@@ -369,8 +371,11 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                         text = editor.content.file_name().to_string();
                     }
                 }
-                EditorTabChild::Settings(_, _) => {
+                EditorTabChild::Settings { .. } => {
                     text = format!("Settings (ver. {})", *VERSION);
+                }
+                EditorTabChild::Plugin { volt_name, .. } => {
+                    text = format!("Plugin: {volt_name}");
                 }
             }
             let font_size = data.config.ui.font_size() as f64;
@@ -412,8 +417,8 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let size = ctx.size();
 
-        for (i, tab_rect) in self.rects.iter().enumerate() {
-            tab_rect.paint(ctx, data, self.widget_id, i, size, self.mouse_pos);
+        for (tab_idx, tab_rect) in self.rects.iter().enumerate() {
+            tab_rect.paint(ctx, data, self.widget_id, tab_idx, size, self.mouse_pos);
         }
 
         if ctx.is_hot() && data.is_drag_editor() {

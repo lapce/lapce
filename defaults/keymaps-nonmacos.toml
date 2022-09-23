@@ -1,3 +1,9 @@
+# --------------------------------- Window ---------------------------------------------
+
+[[keymaps]]
+command = "close_window"
+key = "Alt+F4"
+
 # --------------------------------- General --------------------------------------------
 
 [[keymaps]]
@@ -20,6 +26,18 @@ command = "open_settings"
 [[keymaps]]
 key = "ctrl+k ctrl+s"
 command = "open_keyboard_shortcuts"
+
+# --------------------------------- Terminal copy/paste ---------------------------------
+
+[[keymaps]]
+key = "ctrl+shift+c"
+command = "clipboard_copy"
+mode = "t"
+
+[[keymaps]]
+key = "ctrl+shift+v"
+command = "clipboard_paste"
+mode = "t"
 
 # --------------------------------- Basic editing ---------------------------------------
 

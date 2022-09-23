@@ -18,7 +18,7 @@ use lapce_rpc::{
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     InlayHint, Location, Position, ProgressParams, PublishDiagnosticsParams,
-    TextEdit,
+    TextEdit, WorkspaceEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
@@ -50,13 +50,13 @@ pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.new-comma
 pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
     Selector::new("lapce.ui_command");
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LapceCommand {
     pub kind: CommandKind,
     pub data: Option<Value>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommandKind {
     Workbench(LapceWorkbenchCommand),
     Edit(EditCommand),
@@ -205,6 +205,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open File")]
     OpenFile,
 
+    #[strum(serialize = "reveal_active_file_in_file_explorer")]
+    #[strum(message = "Reveal Active File in File Explorer")]
+    RevealActiveFileInFileExplorer,
+
     #[strum(serialize = "change_theme")]
     #[strum(message = "Change Theme")]
     ChangeTheme,
@@ -272,6 +276,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "New Window")]
     #[strum(serialize = "new_window")]
     NewWindow,
+
+    #[strum(message = "Close Window")]
+    #[strum(serialize = "close_window")]
+    CloseWindow,
 
     #[strum(message = "New File")]
     #[strum(serialize = "new_file")]
@@ -431,8 +439,16 @@ pub enum LapceWorkbenchCommand {
     RestartToUpdate,
 
     #[strum(serialize = "show_about")]
-    #[strum(message = "About")]
+    #[strum(message = "About Lapce")]
     ShowAbout,
+
+    #[strum(message = "Save All Files")]
+    #[strum(serialize = "save_all")]
+    SaveAll,
+
+    #[strum(serialize = "quit")]
+    #[strum(message = "Quit Editor")]
+    Quit,
 }
 
 #[derive(Debug)]
@@ -497,12 +513,14 @@ pub enum LapceUICommand {
         folders: Vec<PathBuf>,
         files: Vec<PathBuf>,
     },
-    OpenFile(PathBuf),
+    OpenFile(PathBuf, bool),
     OpenFileDiff(PathBuf, String),
+    RevealInFileExplorer(PathBuf),
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
     UpdateCompletion(usize, String, CompletionResponse, PluginId),
     UpdateHover(usize, Arc<Vec<RichText>>),
+    UpdateVoltReadme(RichText),
     UpdateInlayHints {
         path: PathBuf,
         rev: u64,
@@ -511,6 +529,7 @@ pub enum LapceUICommand {
     UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,
     RunCodeAction(CodeActionOrCommand),
+    ApplyWorkspaceEdit(WorkspaceEdit),
     ShowCodeActions(Option<Point>),
     Hide,
     ResignFocus,
@@ -526,8 +545,8 @@ pub enum LapceUICommand {
     RunPaletteReferences(Vec<EditorLocation<Position>>),
     InitPaletteInput(String),
     UpdatePaletteInput(String),
-    UpdatePaletteItems(String, Vec<PaletteItem>),
-    FilterPaletteItems(String, String, Vec<PaletteItem>),
+    UpdatePaletteItems(String, im::Vector<PaletteItem>),
+    FilterPaletteItems(String, String, im::Vector<PaletteItem>),
     UpdateKeymapsFilter(String),
     ResetSettingsFile(String, String),
     UpdateSettingsFile(String, String, Value),
@@ -561,6 +580,7 @@ pub enum LapceUICommand {
     FilterItems,
     RestartToUpdate(PathBuf, ReleaseInfo),
     NewWindow(WindowId),
+    CloseWindow(WindowId),
     ReloadWindow,
     CloseBuffers(Vec<BufferId>),
     RequestPaintRect(Rect),
@@ -608,6 +628,7 @@ pub enum LapceUICommand {
     WorkspaceFileChange,
     ProxyUpdateStatus(ProxyStatus),
     CloseTerminal(TermId),
+    OpenPluginInfo(VoltInfo),
     SplitTerminal(bool, WidgetId),
     SplitTerminalClose(TermId, WidgetId),
     SplitEditor(bool, WidgetId),
@@ -625,18 +646,27 @@ pub enum LapceUICommand {
     EditorTabAdd(usize, EditorTabChild),
     EditorTabRemove(usize, bool, bool),
     EditorTabSwap(usize, usize),
-    JumpToPosition(Option<WidgetId>, Position),
+    JumpToPosition(Option<WidgetId>, Position, bool),
     JumpToLine(Option<WidgetId>, usize),
-    JumpToLocation(Option<WidgetId>, EditorLocation),
-    JumpToLspLocation(Option<WidgetId>, EditorLocation<Position>),
+    JumpToLocation(Option<WidgetId>, EditorLocation, bool),
+    JumpToLspLocation(Option<WidgetId>, EditorLocation<Position>, bool),
     JumpToLineLocation(Option<WidgetId>, EditorLocation<Line>),
-    JumpToLineColLocation(Option<WidgetId>, EditorLocation<LineCol>),
+    JumpToLineColLocation(Option<WidgetId>, EditorLocation<LineCol>, bool),
+    ToggleProblem(PathBuf),
     TerminalJumpToLine(i32),
-    GoToLocationNew(WidgetId, EditorLocation),
+    GoToLocation(Option<WidgetId>, EditorLocation, bool),
     GotoDefinition {
         editor_view_id: WidgetId,
         offset: usize,
         location: EditorLocation<Position>,
+    },
+    PrepareRename {
+        path: PathBuf,
+        rev: u64,
+        offset: usize,
+        start: usize,
+        end: usize,
+        placeholder: String,
     },
     PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),
@@ -683,7 +713,13 @@ pub enum LapceUICommand {
         apply_naming: bool,
     },
     FileExplorerRefresh,
+    CopyPath(PathBuf),
+    CopyRelativePath(PathBuf),
     SetLanguage(String),
+
+    /// An item in a list was chosen  
+    /// This is typically targeted at the widget which contains the list
+    ListItemSelected,
 }
 
 /// This can't be an `FnOnce` because we only ever get a reference to
@@ -704,6 +740,7 @@ pub struct InitBufferContent<P: EditorPosition> {
     pub edits: Option<Rope>,
     pub cb: Option<InitBufferContentCb>,
 }
+
 impl<P: EditorPosition + Clone + Send + 'static> InitBufferContent<P> {
     pub fn execute(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         let doc = data.main_split.open_docs.get_mut(&self.path).unwrap();
@@ -723,6 +760,7 @@ impl<P: EditorPosition + Clone + Send + 'static> InitBufferContent<P> {
             data.main_split.go_to_location(
                 ctx,
                 Some(*view_id),
+                false,
                 location.clone(),
                 &data.config,
             );

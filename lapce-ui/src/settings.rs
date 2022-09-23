@@ -27,6 +27,7 @@ use lapce_data::{
     keypress::KeyPressFocus,
     settings::{LapceSettingsFocusData, SettingsValueKind},
 };
+use serde::Serialize;
 use xi_rope::Rope;
 
 use crate::{
@@ -58,6 +59,7 @@ impl LapceSettingsPanel {
         data: &LapceTabData,
         widget_id: WidgetId,
         editor_tab_id: WidgetId,
+        keymap_input_view_id: WidgetId,
     ) -> Self {
         let children = vec![
             WidgetPod::new(
@@ -73,7 +75,7 @@ impl LapceSettingsPanel {
                 LapceSettings::new_split(LapceSettingsKind::Terminal, data).boxed(),
             ),
             WidgetPod::new(ThemeSettings::new_boxed().boxed()),
-            WidgetPod::new(LapceKeymap::new_split(data).boxed()),
+            WidgetPod::new(LapceKeymap::new_split(keymap_input_view_id).boxed()),
         ];
         Self {
             widget_id,
@@ -121,7 +123,7 @@ impl LapceSettingsPanel {
         }
 
         data.main_split.active_tab = Arc::new(Some(self.editor_tab_id));
-        data.focus = self.widget_id;
+        data.focus = Arc::new(self.widget_id);
         data.focus_area = FocusArea::Editor;
         ctx.request_focus();
     }
@@ -147,6 +149,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                         widget_id: self.widget_id,
                         editor_tab_id: self.editor_tab_id,
                         main_split: data.main_split.clone(),
+                        config: data.config.clone(),
                     };
                     let mut_keypress = Arc::make_mut(&mut keypress);
                     let performed_action =
@@ -167,6 +170,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     widget_id: self.widget_id,
                     editor_tab_id: self.editor_tab_id,
                     main_split: data.main_split.clone(),
+                    config: data.config.clone(),
                 };
                 if focus.run_command(ctx, cmd, None, Modifiers::empty(), env)
                     == CommandExecuted::Yes
@@ -315,15 +319,13 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     )
                     .build()
                     .unwrap();
-                let text_size = text_layout.size();
                 ctx.draw_text(
                     &text_layout,
                     self.switcher_rect.origin()
                         + (
                             20.0,
                             i as f64 * self.switcher_line_height
-                                + (self.switcher_line_height / 2.0
-                                    - text_size.height / 2.0),
+                                + text_layout.y_offset(self.switcher_line_height),
                         ),
                 );
             }
@@ -377,74 +379,56 @@ impl LapceSettings {
     }
 
     fn update_children(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        fn into_settings_map(
+            data: &impl Serialize,
+        ) -> HashMap<String, serde_json::Value> {
+            serde_json::to_value(data)
+                .and_then(serde_json::from_value)
+                .unwrap()
+        }
+
         self.children.clear();
 
-        let (kind, fields, descs, settings) = match self.kind {
-            LapceSettingsKind::Core => {
-                let settings: HashMap<String, serde_json::Value> =
-                    serde_json::from_value(
-                        serde_json::to_value(&data.config.lapce).unwrap(),
-                    )
-                    .unwrap();
-                (
-                    "lapce".to_string(),
-                    LapceConfig::FIELDS.to_vec(),
-                    LapceConfig::DESCS.to_vec(),
-                    settings,
-                )
-            }
-            LapceSettingsKind::UI => {
-                let settings: HashMap<String, serde_json::Value> =
-                    serde_json::from_value(
-                        serde_json::to_value(&data.config.ui).unwrap(),
-                    )
-                    .unwrap();
-                (
-                    "ui".to_string(),
-                    UIConfig::FIELDS.to_vec(),
-                    UIConfig::DESCS.to_vec(),
-                    settings,
-                )
-            }
-            LapceSettingsKind::Editor => {
-                let settings: HashMap<String, serde_json::Value> =
-                    serde_json::from_value(
-                        serde_json::to_value(&data.config.editor).unwrap(),
-                    )
-                    .unwrap();
-                (
-                    "editor".to_string(),
-                    EditorConfig::FIELDS.to_vec(),
-                    EditorConfig::DESCS.to_vec(),
-                    settings,
-                )
-            }
-            LapceSettingsKind::Terminal => {
-                let settings: HashMap<String, serde_json::Value> =
-                    serde_json::from_value(
-                        serde_json::to_value(&data.config.terminal).unwrap(),
-                    )
-                    .unwrap();
-                (
-                    "terminal".to_string(),
-                    TerminalConfig::FIELDS.to_vec(),
-                    TerminalConfig::DESCS.to_vec(),
-                    settings,
-                )
-            }
+        let (kind, fields, descs, mut settings) = match self.kind {
+            LapceSettingsKind::Core => (
+                "lapce",
+                &LapceConfig::FIELDS[..],
+                &LapceConfig::DESCS[..],
+                into_settings_map(&data.config.lapce),
+            ),
+            LapceSettingsKind::UI => (
+                "ui",
+                &UIConfig::FIELDS[..],
+                &UIConfig::DESCS[..],
+                into_settings_map(&data.config.ui),
+            ),
+            LapceSettingsKind::Editor => (
+                "editor",
+                &EditorConfig::FIELDS[..],
+                &EditorConfig::DESCS[..],
+                into_settings_map(&data.config.editor),
+            ),
+            LapceSettingsKind::Terminal => (
+                "terminal",
+                &TerminalConfig::FIELDS[..],
+                &TerminalConfig::DESCS[..],
+                into_settings_map(&data.config.terminal),
+            ),
         };
 
-        for (i, field) in fields.into_iter().enumerate() {
+        for (field, desc) in fields.iter().zip(descs.iter()) {
+            // TODO(dbuga): we should generate kebab-case field names
             let field = field.replace('_', "-");
+            let value = settings.remove(&field).unwrap();
             self.children.push(WidgetPod::new(
                 LapcePadding::new(
                     (10.0, 10.0),
                     LapceSettingsItem::new(
                         data,
-                        kind.clone(),
-                        field.clone(),
-                        descs[i].to_string(),
-                        settings.get(&field).unwrap().clone(),
+                        kind.to_string(),
+                        field,
+                        desc.to_string(),
+                        value,
                         ctx.get_external_handle(),
                     ),
                 )
@@ -553,7 +537,6 @@ struct LapceSettingsItem {
     name_text: Option<PietTextLayout>,
     desc_text: Option<PietTextLayout>,
     value_text: Option<Option<PietTextLayout>>,
-    input_rect: Rect,
     input_widget: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
 }
 
@@ -571,7 +554,11 @@ impl LapceSettingsItem {
     ) -> Self {
         let input = match &value {
             serde_json::Value::Number(n) => {
-                Some((n.to_string(), SettingsValueKind::Number))
+                if n.is_f64() {
+                    Some((n.to_string(), SettingsValueKind::Float))
+                } else {
+                    Some((n.to_string(), SettingsValueKind::Integer))
+                }
             }
             serde_json::Value::String(s) => {
                 Some((s.to_string(), SettingsValueKind::String))
@@ -626,7 +613,6 @@ impl LapceSettingsItem {
             name_text: None,
             desc_text: None,
             value_text: None,
-            input_rect: Rect::ZERO,
             input_widget,
         }
     }
@@ -852,15 +838,8 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                     }
                 }
             }
-            Event::MouseMove(mouse_event) => {
+            Event::MouseMove(_) => {
                 ctx.set_handled();
-                if self.input_rect.contains(mouse_event.pos) {
-                    ctx.set_cursor(&druid::Cursor::IBeam);
-                    ctx.request_paint();
-                } else {
-                    ctx.clear_cursor();
-                    ctx.request_paint();
-                }
             }
             Event::Timer(token)
                 if self.value_changed && *token == self.last_idle_timer =>
@@ -888,6 +867,9 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if let LifeCycle::HotChanged(_) = event {
+            ctx.request_paint();
+        }
         if let Some(input) = self.input_widget.as_mut() {
             input.lifecycle(ctx, event, data, env);
         }
@@ -1387,10 +1369,7 @@ impl Widget<LapceTabData> for ThemeSettings {
             )
             .build()
             .unwrap();
-        ctx.draw_text(
-            &header_text,
-            Point::new(0.0, (30.0 - header_text.size().height) / 2.0),
-        );
+        ctx.draw_text(&header_text, Point::new(0.0, header_text.y_offset(30.0)));
 
         for (i, input) in self.inputs.iter_mut().enumerate() {
             let text_layout = &self.text_layouts.as_ref().unwrap()[i];
@@ -1399,8 +1378,7 @@ impl Widget<LapceTabData> for ThemeSettings {
                 Point::new(
                     0.0,
                     input.layout_rect().y0
-                        + (input.layout_rect().height() - text_layout.size().height)
-                            / 2.0,
+                        + text_layout.y_offset(input.layout_rect().height()),
                 ),
             );
             input.paint(ctx, data, env);
@@ -1420,7 +1398,6 @@ impl Widget<LapceTabData> for ThemeSettings {
             )
             .build()
             .unwrap();
-        let reset_size = reset_text.size();
         for (_, _, rect) in self.changed_rects.iter() {
             ctx.stroke(
                 rect.inflate(-0.5, -0.5),
@@ -1431,7 +1408,7 @@ impl Widget<LapceTabData> for ThemeSettings {
                 &reset_text,
                 Point::new(
                     rect.x0 + 10.0,
-                    rect.y0 + (rect.height() - reset_size.height) / 2.0,
+                    rect.y0 + reset_text.y_offset(rect.height()),
                 ),
             )
         }

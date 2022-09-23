@@ -165,14 +165,22 @@ pub struct EditorConfig {
     pub font_size: usize,
     #[field_names(desc = "Set the font size in the code lens")]
     pub code_lens_font_size: usize,
-    #[field_names(desc = "Set the editor line height")]
-    pub line_height: usize,
+    #[field_names(
+        desc = "Set the editor line height. If less than 5.0, line height will be a multiple of the font size."
+    )]
+    line_height: f64,
     #[field_names(desc = "Set the tab width")]
     pub tab_width: usize,
     #[field_names(desc = "If opened editors are shown in a tab")]
     pub show_tab: bool,
+    #[field_names(desc = "If navigation breadcrumbs are shown for the file")]
+    pub show_bread_crumbs: bool,
     #[field_names(desc = "If the editor can scroll beyond the last line")]
     pub scroll_beyond_last_line: bool,
+    #[field_names(
+        desc = "Show code context like functions and classes at the top of editor when scroll"
+    )]
+    pub sticky_header: bool,
     #[field_names(
         desc = "If the editor should show the documentation of the current completion item"
     )]
@@ -217,11 +225,40 @@ pub struct EditorConfig {
         desc = "Set the cursor blink interval (in milliseconds). Set to 0 to completely disable."
     )]
     pub blink_interval: u64, // TODO: change to u128 when upgrading config-rs to >0.11
+    #[field_names(
+        desc = "Whether the multiple cursor selection is case sensitive."
+    )]
+    pub multicursor_case_sensitive: bool,
+    #[field_names(
+        desc = "Whether the multiple cursor selection only selects whole words."
+    )]
+    pub multicursor_whole_words: bool,
+    #[field_names(
+        desc = "How the editor should render whitespace characters.\nOptions: none, all, boundary, trailing."
+    )]
+    pub render_whitespace: String,
 }
 
 impl EditorConfig {
+    pub fn line_height(&self) -> usize {
+        const SCALE_OR_SIZE_LIMIT: f64 = 5.0;
+
+        let line_height = if self.line_height < SCALE_OR_SIZE_LIMIT {
+            self.line_height * self.font_size as f64
+        } else {
+            self.line_height
+        };
+
+        // Prevent overlapping lines
+        (line_height.round() as usize).max(self.font_size)
+    }
+
     pub fn font_family(&self) -> FontFamily {
-        FontFamily::new_unchecked(self.font_family.clone())
+        if self.font_family.is_empty() {
+            FontFamily::SYSTEM_UI
+        } else {
+            FontFamily::new_unchecked(self.font_family.clone())
+        }
     }
 
     pub fn inlay_hint_font_family(&self) -> FontFamily {
@@ -263,11 +300,11 @@ impl EditorConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct UIConfig {
     #[field_names(
-        desc = "Set the ui font family. If empty, it uses system default."
+        desc = "Set the UI font family. If empty, it uses system default."
     )]
     font_family: String,
 
-    #[field_names(desc = "Set the ui base font size")]
+    #[field_names(desc = "Set the UI base font size")]
     font_size: usize,
 
     #[field_names(
@@ -303,7 +340,7 @@ impl UIConfig {
         if self.font_family.is_empty() {
             FontFamily::SYSTEM_UI
         } else {
-            FontFamily::new_unchecked(self.font_family.clone())
+            FontFamily::new_unchecked(self.font_family.as_str())
         }
     }
 
@@ -341,7 +378,7 @@ impl UIConfig {
         if self.hover_font_family.is_empty() {
             self.font_family()
         } else {
-            FontFamily::new_unchecked(self.hover_font_family.clone())
+            FontFamily::new_unchecked(self.hover_font_family.as_str())
         }
     }
 
@@ -807,7 +844,7 @@ impl Config {
         table.insert("theme".to_string(), toml::Value::try_from(&theme).unwrap());
         table.insert("ui".to_string(), toml::Value::try_from(&self.ui).unwrap());
         let value = toml::Value::Table(table);
-        toml::to_string(&value).unwrap()
+        toml::to_string_pretty(&value).unwrap()
     }
 
     pub fn keymaps_file() -> Option<PathBuf> {
@@ -988,7 +1025,7 @@ impl Config {
         if self.terminal.line_height > 0 {
             self.terminal.line_height
         } else {
-            self.editor.line_height
+            self.editor.line_height()
         }
     }
 

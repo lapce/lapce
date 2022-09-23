@@ -1,16 +1,16 @@
 use std::{fmt::Display, path::PathBuf, sync::Arc};
 
 use anyhow::Error;
-use druid::{Size, WidgetId};
+use druid::{EventCtx, Size, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
-use lapce_core::movement::Movement;
+use lapce_core::command::FocusCommand;
 use lapce_rpc::{buffer::BufferId, plugin::PluginId};
 use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
 use std::str::FromStr;
 
-use crate::proxy::LapceProxy;
+use crate::{config::Config, list::ListData, proxy::LapceProxy};
 
 #[derive(Debug)]
 pub struct Snippet {
@@ -240,94 +240,70 @@ pub struct CompletionData {
     pub offset: usize,
     pub buffer_id: BufferId,
     pub input: String,
-    pub index: usize,
-    pub input_items: im::HashMap<String, Arc<Vec<ScoredCompletionItem>>>,
-    empty: Arc<Vec<ScoredCompletionItem>>,
-    pub filtered_items: Arc<Vec<ScoredCompletionItem>>,
+    pub input_items: im::HashMap<String, im::Vector<ScoredCompletionItem>>,
+    empty: im::Vector<ScoredCompletionItem>,
+    pub completion_list: ListData<ScoredCompletionItem, ()>,
     pub matcher: Arc<SkimMatcherV2>,
-    /// The size of the completion list
-    pub size: Size,
     /// The size of the documentation view
     pub documentation_size: Size,
 }
 
 impl CompletionData {
-    pub fn new() -> Self {
+    pub fn new(config: Arc<Config>) -> Self {
+        let id = WidgetId::next();
+        let mut completion_list = ListData::new(config, id, ());
+        // TODO: Make this configurable
+        completion_list.max_displayed_items = 15;
         Self {
-            id: WidgetId::next(),
+            id,
             scroll_id: WidgetId::next(),
             documentation_scroll_id: WidgetId::next(),
             request_id: 0,
-            index: 0,
             offset: 0,
             status: CompletionStatus::Inactive,
             buffer_id: BufferId(0),
             input: "".to_string(),
             input_items: im::HashMap::new(),
-            filtered_items: Arc::new(Vec::new()),
+            completion_list,
             matcher: Arc::new(SkimMatcherV2::default().ignore_case()),
-            size: Size::new(400.0, 300.0),
             // TODO: Make this configurable
             documentation_size: Size::new(400.0, 300.0),
-            empty: Arc::new(Vec::new()),
+            empty: im::Vector::new(),
         }
     }
 
+    /// Return the number of entries that are displayable
     pub fn len(&self) -> usize {
-        self.current_items().len()
+        self.completion_list.items.len()
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    /// We need the line height so that we can get the number displayed as a number, since
-    /// we just render as many fit inside the `size` defined for completion.
-    fn entry_count(&self, editor_line_height: usize) -> usize {
-        ((self.size.height / editor_line_height as f64).ceil() as usize)
-            .saturating_sub(1)
-    }
-
-    pub fn next(&mut self) {
-        self.index = Movement::Down.update_index(self.index, self.len(), 1, true);
-    }
-
-    pub fn next_page(&mut self, editor_line_height: usize) {
-        let count = self.entry_count(editor_line_height);
-        self.index =
-            Movement::Down.update_index(self.index, self.len(), count, false);
-    }
-
-    pub fn previous(&mut self) {
-        self.index = Movement::Up.update_index(self.index, self.len(), 1, true);
-    }
-
-    pub fn previous_page(&mut self, editor_line_height: usize) {
-        let count = self.entry_count(editor_line_height);
-        self.index = Movement::Up.update_index(self.index, self.len(), count, false);
-    }
-
-    pub fn current_items(&self) -> &Arc<Vec<ScoredCompletionItem>> {
+    pub fn current_items(&self) -> &im::Vector<ScoredCompletionItem> {
         if self.input.is_empty() {
             self.all_items()
         } else {
-            &self.filtered_items
+            &self.completion_list.items
         }
     }
 
-    pub fn all_items(&self) -> &Arc<Vec<ScoredCompletionItem>> {
+    pub fn all_items(&self) -> &im::Vector<ScoredCompletionItem> {
         self.input_items
             .get(&self.input)
             .filter(|items| !items.is_empty())
             .unwrap_or_else(move || self.input_items.get("").unwrap_or(&self.empty))
     }
 
-    pub fn current_item(&self) -> &ScoredCompletionItem {
-        &self.current_items()[self.index]
+    pub fn current_item(&self) -> Option<&ScoredCompletionItem> {
+        self.completion_list
+            .items
+            .get(self.completion_list.selected_index)
     }
 
-    pub fn current(&self) -> &str {
-        self.current_items()[self.index].item.label.as_str()
+    pub fn current(&self) -> Option<&str> {
+        self.current_item().map(|item| item.item.label.as_str())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -351,12 +327,12 @@ impl CompletionData {
         self.status = CompletionStatus::Inactive;
         self.input = "".to_string();
         self.input_items.clear();
-        self.index = 0;
+        self.completion_list.clear_items();
     }
 
     pub fn update_input(&mut self, input: String) {
         self.input = input;
-        self.index = 0;
+        self.completion_list.selected_index = 0;
         if self.status == CompletionStatus::Inactive {
             return;
         }
@@ -379,7 +355,7 @@ impl CompletionData {
             CompletionResponse::Array(items) => items,
             CompletionResponse::List(list) => list.items,
         };
-        let items: Vec<ScoredCompletionItem> = items
+        let items: im::Vector<ScoredCompletionItem> = items
             .iter()
             .map(|i| ScoredCompletionItem {
                 item: i.to_owned(),
@@ -390,20 +366,21 @@ impl CompletionData {
             })
             .collect();
 
-        self.input_items.insert(input, Arc::new(items));
+        self.input_items.insert(input, items);
         self.filter_items();
 
-        if self.index >= self.len() {
-            self.index = 0;
+        if self.completion_list.selected_index >= self.len() {
+            self.completion_list.selected_index = 0;
         }
     }
 
     pub fn filter_items(&mut self) {
         if self.input.is_empty() {
+            self.completion_list.items = self.all_items().clone();
             return;
         }
 
-        let mut items: Vec<ScoredCompletionItem> = self
+        let mut items: im::Vector<ScoredCompletionItem> = self
             .all_items()
             .iter()
             .filter_map(|i| {
@@ -439,31 +416,15 @@ impl CompletionData {
                 .then_with(|| b.label_score.cmp(&a.label_score))
                 .then_with(|| a.item.label.len().cmp(&b.item.label.len()))
         });
-        self.filtered_items = Arc::new(items);
+        self.completion_list.items = items;
+    }
+
+    pub fn run_focus_command(&mut self, ctx: &mut EventCtx, command: &FocusCommand) {
+        self.completion_list.run_focus_command(ctx, command);
     }
 }
 
-impl Default for CompletionData {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-pub struct Completion {}
-
-impl Completion {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for Completion {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct ScoredCompletionItem {
     pub item: CompletionItem,
     pub plugin_id: PluginId,

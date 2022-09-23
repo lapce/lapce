@@ -616,6 +616,8 @@ impl ScrollComponent {
 
         if scrollbar_is_hovered || ctx.is_active() {
             ctx.set_cursor(&Cursor::Arrow);
+        } else {
+            ctx.clear_cursor();
         }
 
         if self.are_bars_held() {
@@ -680,6 +682,7 @@ impl ScrollComponent {
                     let pos = event.pos + scroll_offset;
 
                     if self.point_hits_vertical_bar(port, pos, config, env) {
+                        ctx.set_handled();
                         ctx.set_active(true);
                         self.held = BarHeldState::Vertical(
                             // The bounds must be non-empty, because the point hits the scrollbar.
@@ -688,6 +691,7 @@ impl ScrollComponent {
                         );
                     } else if self.point_hits_horizontal_bar(port, pos, config, env)
                     {
+                        ctx.set_handled();
                         ctx.set_active(true);
                         self.held = BarHeldState::Horizontal(
                             // The bounds must be non-empty, because the point hits the scrollbar.
@@ -696,8 +700,6 @@ impl ScrollComponent {
                         );
                     } else {
                     }
-
-                    ctx.set_handled();
                 }
                 // if the mouse was downed elsewhere, moved over a scroll bar and released: noop.
                 Event::MouseUp(_) => (),

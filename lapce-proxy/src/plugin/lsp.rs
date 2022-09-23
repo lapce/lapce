@@ -2,14 +2,14 @@
 use std::os::windows::process::CommandExt;
 use std::{
     io::{BufRead, BufReader, BufWriter, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{self, Child, Command, Stdio},
     sync::Arc,
     thread,
 };
 
 use anyhow::{anyhow, Result};
-use jsonrpc_lite::Params;
+use jsonrpc_lite::{Id, Params};
 use lapce_rpc::{style::LineStyle, RpcError};
 use lsp_types::{
     notification::{Initialized, Notification},
@@ -64,8 +64,12 @@ impl PluginServerHandler for LspClient {
         self.host.method_registered(method)
     }
 
-    fn language_supported(&mut self, lanaguage_id: Option<&str>) -> bool {
-        self.host.language_supported(lanaguage_id)
+    fn document_supported(
+        &mut self,
+        lanaguage_id: Option<&str>,
+        path: Option<&Path>,
+    ) -> bool {
+        self.host.document_supported(lanaguage_id, path)
     }
 
     fn handle_handler_notification(
@@ -74,7 +78,7 @@ impl PluginServerHandler for LspClient {
     ) {
         use PluginHandlerNotification::*;
         match notification {
-            Initilize => {
+            Initialize => {
                 self.initialize();
             }
             Shutdown => {
@@ -83,7 +87,7 @@ impl PluginServerHandler for LspClient {
         }
     }
 
-    fn handle_host_request(&mut self, id: u64, method: String, params: Params) {
+    fn handle_host_request(&mut self, id: Id, method: String, params: Params) {
         let _ = self.host.handle_request(id, method, params);
     }
 
@@ -144,7 +148,7 @@ impl LspClient {
     #[allow(clippy::too_many_arguments)]
     fn new(
         plugin_rpc: PluginCatalogRpcHandler,
-        laguage_id: String,
+        document_selector: DocumentSelector,
         workspace: Option<PathBuf>,
         volt_id: String,
         pwd: Option<PathBuf>,
@@ -155,6 +159,7 @@ impl LspClient {
         let server = match server_uri.scheme() {
             "file" => {
                 let path = server_uri.to_file_path().map_err(|_| anyhow!(""))?;
+                #[cfg(unix)]
                 let _ = std::process::Command::new("chmod")
                     .arg("+x")
                     .arg(&path)
@@ -168,6 +173,7 @@ impl LspClient {
         let mut process = Self::process(workspace.as_ref(), &server, &args)?;
         let stdin = process.stdin.take().unwrap();
         let stdout = process.stdout.take().unwrap();
+        let stderr = process.stderr.take().unwrap();
 
         let mut writer = Box::new(BufWriter::new(stdin));
         let (io_tx, io_rx) = crossbeam_channel::unbounded();
@@ -181,6 +187,7 @@ impl LspClient {
         });
 
         let local_server_rpc = server_rpc.clone();
+        let core_rpc = plugin_rpc.core_rpc.clone();
         thread::spawn(move || {
             let mut reader = Box::new(BufReader::new(stdout));
             loop {
@@ -192,9 +199,35 @@ impl LspClient {
                         );
                     }
                     Err(_err) => {
+                        core_rpc.log(
+                            log::Level::Error,
+                            format!("lsp server {server} stopped!"),
+                        );
                         return;
                     }
                 };
+            }
+        });
+
+        let core_rpc = plugin_rpc.core_rpc.clone();
+        thread::spawn(move || {
+            let mut reader = Box::new(BufReader::new(stderr));
+            loop {
+                let mut line = String::new();
+                match reader.read_line(&mut line) {
+                    Ok(n) => {
+                        if n == 0 {
+                            return;
+                        }
+                        core_rpc.log(
+                            log::Level::Error,
+                            format!("lsp server stderr: {}", line.trim_end()),
+                        );
+                    }
+                    Err(_) => {
+                        return;
+                    }
+                }
             }
         });
 
@@ -202,7 +235,7 @@ impl LspClient {
             workspace.clone(),
             pwd,
             volt_id,
-            Some(laguage_id),
+            document_selector,
             server_rpc.clone(),
             plugin_rpc.clone(),
         );
@@ -220,7 +253,7 @@ impl LspClient {
     #[allow(clippy::too_many_arguments)]
     pub fn start(
         plugin_rpc: PluginCatalogRpcHandler,
-        laguage_id: String,
+        document_selector: DocumentSelector,
         workspace: Option<PathBuf>,
         volt_id: String,
         pwd: Option<PathBuf>,
@@ -229,7 +262,13 @@ impl LspClient {
         options: Option<Value>,
     ) -> Result<()> {
         let mut lsp = Self::new(
-            plugin_rpc, laguage_id, workspace, volt_id, pwd, server_uri, args,
+            plugin_rpc,
+            document_selector,
+            workspace,
+            volt_id,
+            pwd,
+            server_uri,
+            args,
             options,
         )?;
         let rpc = lsp.server_rpc.clone();
@@ -320,20 +359,10 @@ impl LspClient {
                 symbol: Some(WorkspaceSymbolClientCapabilities {
                     ..Default::default()
                 }),
-                configuration: Some(true),
+                configuration: Some(false),
                 ..Default::default()
             }),
 
-            // TODO: GeneralClientCapabilities is getting a position encoding option
-            // as the standardized version of this, but it is not yet in lsp-types
-            // (and probably not as supported due to how new it is?)
-
-            // Inform the LSP that we would prefer utf8 encoding if possible
-            // Though, of course, we have to support utf16
-            // We could also inform that we support utf32 (there's technically some perf on the table there if
-            //   we do utf32 -> utf8 rather than utf32 -> utf16 -> utf8) but that is uncommon and is not even
-            // an option in the upcoming standardized version of this field.
-            offset_encoding: Some(vec!["utf-8".to_string(), "utf-16".to_string()]),
             experimental: Some(json!({
                 "serverStatusNotification": true,
             })),
@@ -357,15 +386,19 @@ impl LspClient {
             locale: None,
             root_path: None,
         };
-        if let Ok(value) =
-            self.server_rpc
-                .server_request(Initialize::METHOD, params, None, false)
-        {
+        if let Ok(value) = self.server_rpc.server_request(
+            Initialize::METHOD,
+            params,
+            None,
+            None,
+            false,
+        ) {
             let result: InitializeResult = serde_json::from_value(value).unwrap();
             self.host.server_capabilities = result.capabilities;
             self.server_rpc.server_notification(
                 Initialized::METHOD,
                 InitializedParams {},
+                None,
                 None,
                 false,
             );
@@ -383,7 +416,7 @@ impl LspClient {
         //             let result: InitializeResult =
         //                 serde_json::from_value(value).unwrap();
         //             server_rpc.handle_rpc(PluginServerRpc::Handler(
-        //                 PluginHandlerNotification::InitilizeDone(result),
+        //                 PluginHandlerNotification::InitializeDone(result),
         //             ));
         //         }
         //     },

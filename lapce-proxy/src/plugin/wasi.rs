@@ -9,7 +9,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use jsonrpc_lite::Params;
+use jsonrpc_lite::{Id, Params};
 use lapce_rpc::{
     plugin::{PluginId, VoltInfo, VoltMetadata},
     style::LineStyle,
@@ -89,8 +89,12 @@ impl PluginServerHandler for Plugin {
         self.host.method_registered(method)
     }
 
-    fn language_supported(&mut self, language_id: Option<&str>) -> bool {
-        self.host.language_supported(language_id)
+    fn document_supported(
+        &mut self,
+        language_id: Option<&str>,
+        path: Option<&Path>,
+    ) -> bool {
+        self.host.document_supported(language_id, path)
     }
 
     fn handle_handler_notification(
@@ -99,7 +103,7 @@ impl PluginServerHandler for Plugin {
     ) {
         use PluginHandlerNotification::*;
         match notification {
-            Initilize => {
+            Initialize => {
                 self.initialize();
             }
             Shutdown => {
@@ -112,7 +116,7 @@ impl PluginServerHandler for Plugin {
         let _ = self.host.handle_notification(method, params);
     }
 
-    fn handle_host_request(&mut self, id: u64, method: String, params: Params) {
+    fn handle_host_request(&mut self, id: Id, method: String, params: Params) {
         let _ = self.host.handle_request(id, method, params);
     }
 
@@ -186,6 +190,7 @@ impl Plugin {
                     initialization_options: configurations,
                     workspace_folders: None,
                 },
+                None,
                 None,
                 false,
             );
@@ -404,7 +409,7 @@ pub fn start_volt(
             workspace,
             meta.dir.clone(),
             meta.id(),
-            None,
+            Vec::new(),
             rpc.clone(),
             plugin_rpc.clone(),
         ),

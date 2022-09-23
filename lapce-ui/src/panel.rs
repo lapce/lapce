@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use druid::{
     kurbo::Line,
-    piet::{Text, TextLayout, TextLayoutBuilder, TextStorage},
+    piet::{Text, TextLayoutBuilder, TextStorage},
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
     Widget, WidgetExt, WidgetId, WidgetPod,
@@ -356,7 +356,7 @@ impl Widget<LapceTabData> for PanelSectionHeader {
                 .build()
                 .unwrap();
             let height = ctx.size().height;
-            let y = (height - text_layout.size().height) / 2.0;
+            let y = text_layout.y_offset(height);
             ctx.draw_text(&text_layout, Point::new(10.0, y));
         });
     }
@@ -439,20 +439,18 @@ impl Widget<LapceTabData> for PanelContainer {
                 data.panel.active_panel_at_position(&self.position.first())
             {
                 if shown {
-                    self.panels
-                        .get_mut(&panel)
-                        .unwrap()
-                        .event(ctx, event, data, env);
+                    if let Some(panel) = self.panels.get_mut(&panel) {
+                        panel.event(ctx, event, data, env);
+                    }
                 }
             }
             if let Some((panel, shown)) =
                 data.panel.active_panel_at_position(&self.position.second())
             {
                 if shown {
-                    self.panels
-                        .get_mut(&panel)
-                        .unwrap()
-                        .event(ctx, event, data, env);
+                    if let Some(panel) = self.panels.get_mut(&panel) {
+                        panel.event(ctx, event, data, env);
+                    }
                 }
             }
         }

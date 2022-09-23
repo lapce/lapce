@@ -28,9 +28,9 @@ pub struct LapceKeymap {
 }
 
 impl LapceKeymap {
-    pub fn new_split(data: &LapceTabData) -> LapceSplit {
+    pub fn new_split(keymap_input_view_id: WidgetId) -> LapceSplit {
         let keymap = Self {
-            widget_id: data.settings.keymap_widget_id,
+            widget_id: WidgetId::next(),
             active_keymap: None,
             line_height: 35.0,
             keymap_confirm: Rect::ZERO,
@@ -38,16 +38,13 @@ impl LapceKeymap {
         };
         let keymap = LapceScroll::new(keymap);
 
-        let input = LapceEditorView::new(
-            data.settings.keymap_view_id,
-            WidgetId::next(),
-            None,
-        )
-        .hide_header()
-        .hide_gutter()
-        .padding((15.0, 15.0));
+        let input =
+            LapceEditorView::new(keymap_input_view_id, WidgetId::next(), None)
+                .hide_header()
+                .hide_gutter()
+                .padding((15.0, 15.0));
         let header = LapceKeymapHeader::new();
-        let split = LapceSplit::new(data.settings.keymap_split_id)
+        let split = LapceSplit::new(WidgetId::next())
             .horizontal()
             .with_child(input.boxed(), None, 100.0)
             .with_child(header.boxed(), None, 100.0)
@@ -106,7 +103,7 @@ impl LapceKeymap {
     }
 
     fn request_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
-        data.focus = self.widget_id;
+        data.focus = Arc::new(self.widget_id);
         ctx.request_focus();
     }
 }
@@ -290,13 +287,12 @@ impl Widget<LapceTabData> for LapceKeymap {
                             )
                             .build()
                             .unwrap();
-                        let text_size = text_layout.size();
                         ctx.draw_text(
                             &text_layout,
                             Point::new(
                                 10.0,
                                 i as f64 * self.line_height
-                                    + (self.line_height - text_size.height) / 2.0,
+                                    + text_layout.y_offset(self.line_height),
                             ),
                         );
                     });
@@ -323,7 +319,6 @@ impl Widget<LapceTabData> for LapceKeymap {
                         )
                         .build()
                         .unwrap();
-                    let text_size = text_layout.size();
                     ctx.draw_text(
                         &text_layout,
                         Point::new(
@@ -335,7 +330,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                                     0.0
                                 },
                             i as f64 * self.line_height
-                                + (self.line_height - text_size.height) / 2.0,
+                                + text_layout.y_offset(self.line_height),
                         ),
                     )
                 }

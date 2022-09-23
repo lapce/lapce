@@ -12,6 +12,8 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, Region, RenderContext, Size,
     Target, Widget, WidgetExt, WidgetPod, WindowState,
 };
+use lapce_core::command::FocusCommand;
+use lapce_data::command::LAPCE_COMMAND;
 use lapce_data::proxy::VERSION;
 use lapce_data::{
     command::{
@@ -38,6 +40,7 @@ pub struct Title {
     circles: Vec<(Circle, Color)>,
     palette: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     dragable_area: Region,
+    hover_rect: Option<Rect>,
 }
 
 impl Title {
@@ -55,6 +58,7 @@ impl Title {
             circles: Vec::new(),
             palette: WidgetPod::new(palette.boxed()),
             dragable_area: Region::EMPTY,
+            hover_rect: None,
         }
     }
 
@@ -380,7 +384,7 @@ impl Title {
         let settings_svg = get_svg("settings.svg").unwrap();
         self.svgs.push((
             settings_svg,
-            settings_rect.inflate(-10.5, -10.5),
+            settings_rect.inflate(-10.0, -10.0),
             Some(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -429,9 +433,9 @@ impl Title {
             MenuKind::Item(MenuItem {
                 desc: Some(
                     if latest_version.is_some() && latest_version != Some(*VERSION) {
-                        format!("Restart to Update ({})", latest_version.unwrap())
+                        format!("Restart to update ({})", latest_version.unwrap())
                     } else {
-                        "Restart to Update".to_string()
+                        "No update available".to_string()
                     },
                 ),
                 command: LapceCommand {
@@ -498,7 +502,7 @@ impl Title {
         if !data.multiple_tab && data.config.lapce.custom_titlebar {
             x += size.height;
             let (window_controls, svgs) = window_controls(
-                data.window_id,
+                *data.window_id,
                 window_state,
                 x,
                 size.height,
@@ -641,14 +645,16 @@ impl Title {
         ));
     }
 
-    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+    fn icon_hit_test(&mut self, mouse_event: &MouseEvent) -> bool {
         for (rect, _) in self.menus.iter() {
             if rect.contains(mouse_event.pos) {
+                self.hover_rect = Some(*rect);
                 return true;
             }
         }
         for (rect, _) in self.window_controls.iter() {
             if rect.contains(mouse_event.pos) {
+                self.hover_rect = Some(*rect);
                 return true;
             }
         }
@@ -701,13 +707,13 @@ impl Widget<LapceTabData> for Title {
             }
             Event::MouseMove(mouse_event) => {
                 self.mouse_pos = mouse_event.pos;
+                let hover_rect = self.hover_rect;
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                     ctx.set_handled();
                 } else {
+                    self.hover_rect = None;
                     ctx.clear_cursor();
-                    ctx.request_paint();
 
                     #[cfg(target_os = "windows")]
                     // ! Currently implemented on Windows only
@@ -720,6 +726,9 @@ impl Widget<LapceTabData> for Title {
                     {
                         ctx.window().handle_titlebar(true);
                     }
+                }
+                if hover_rect != self.hover_rect {
+                    ctx.request_paint();
                 }
             }
             Event::MouseDown(mouse_event) => {
@@ -745,7 +754,7 @@ impl Widget<LapceTabData> for Title {
                     ctx.submit_command(
                         druid::commands::CONFIGURE_WINDOW
                             .with(WindowConfig::default().set_window_state(state))
-                            .to(Target::Window(data.window_id)),
+                            .to(Target::Window(*data.window_id)),
                     );
                     return;
                 }
@@ -774,10 +783,20 @@ impl Widget<LapceTabData> for Title {
     fn update(
         &mut self,
         ctx: &mut druid::UpdateCtx,
-        _old_data: &LapceTabData,
+        old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
+        if data.main_split.can_jump_location_forward()
+            != old_data.main_split.can_jump_location_forward()
+        {
+            ctx.request_layout();
+        }
+        if data.main_split.can_jump_location_backward()
+            != old_data.main_split.can_jump_location_backward()
+        {
+            ctx.request_layout();
+        }
         self.palette.update(ctx, data, env);
     }
 
@@ -799,7 +818,7 @@ impl Widget<LapceTabData> for Title {
 
         let remaining = bc.max().width
             - (remaining_rect.x0.max(bc.max().width - remaining_rect.x1)) * 2.0
-            - 80.0;
+            - 36.0 * 4.0;
 
         let min_palette_width = if data.palette.status == PaletteStatus::Inactive {
             100.0
@@ -818,12 +837,111 @@ impl Widget<LapceTabData> for Title {
         self.palette.set_origin(ctx, data, env, palette_origin);
         let palette_rect = self.palette.layout_rect();
 
+        let target = if let Some(active) = *data.main_split.active {
+            Target::Widget(active)
+        } else {
+            Target::Auto
+        };
+        let arrow_left_rect = Size::new(36.0, 36.0)
+            .to_rect()
+            .with_origin(Point::new(palette_origin.x - 36.0 - 36.0, 0.0));
+        let (arrow_left_svg_color, arrow_left_svg_hover_color) = if !data
+            .main_split
+            .can_jump_location_backward()
+        {
+            (
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .clone(),
+                ),
+                None,
+            )
+        } else {
+            self.menus.push((
+                arrow_left_rect,
+                Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::JumpLocationBackward),
+                        data: None,
+                    },
+                    target,
+                ),
+            ));
+            (
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                ),
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_CURRENT)
+                        .clone(),
+                ),
+            )
+        };
+        self.svgs.push((
+            get_svg("arrow-left.svg").unwrap(),
+            arrow_left_rect.inflate(-10.5, -10.5),
+            arrow_left_svg_color,
+            arrow_left_svg_hover_color,
+        ));
+
+        let arrow_right_rect = Size::new(36.0, 36.0)
+            .to_rect()
+            .with_origin(Point::new(palette_origin.x - 36.0, 0.0));
+        let (arrow_right_svg_color, arrow_right_svg_hover_color) = if !data
+            .main_split
+            .can_jump_location_forward()
+        {
+            (
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .clone(),
+                ),
+                None,
+            )
+        } else {
+            self.menus.push((
+                arrow_right_rect,
+                Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::JumpLocationForward),
+                        data: None,
+                    },
+                    target,
+                ),
+            ));
+            (
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                ),
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_CURRENT)
+                        .clone(),
+                ),
+            )
+        };
+        self.svgs.push((
+            get_svg("arrow-right.svg").unwrap(),
+            arrow_right_rect.inflate(-10.5, -10.5),
+            arrow_right_svg_color,
+            arrow_right_svg_hover_color,
+        ));
+
         self.dragable_area.clear();
         if !data.multiple_tab {
             self.dragable_area.add_rect(Rect::new(
                 remaining_rect.x0,
                 0.0,
-                palette_rect.x0,
+                palette_rect.x0 - 36.0 * 2.0,
                 36.0,
             ));
             self.dragable_area.add_rect(Rect::new(

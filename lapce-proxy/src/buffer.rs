@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use lapce_core::buffer::CharIndicesJoin;
+use lapce_core::buffer::rope_text::CharIndicesJoin;
 use lapce_core::encoding::offset_utf8_to_utf16;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::*;
@@ -23,11 +23,7 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new(id: BufferId, path: PathBuf) -> Buffer {
-        let rope = if let Ok(rope) = load_rope(&path) {
-            rope
-        } else {
-            Rope::from("")
-        };
+        let rope = Rope::from(load_file(&path).unwrap_or_default());
         let rev = if rope.is_empty() { 0 } else { 1 };
         let language_id = language_id_from_path(&path).unwrap_or("");
         let mod_time = get_mod_time(&path);
@@ -149,10 +145,6 @@ pub fn load_file(path: &Path) -> Result<String> {
     Ok(read_path_to_string_lossy(path)?)
 }
 
-fn load_rope(path: &Path) -> Result<Rope> {
-    Ok(Rope::from(read_path_to_string_lossy(path)?))
-}
-
 pub fn read_path_to_string_lossy<P: AsRef<Path>>(
     path: P,
 ) -> Result<String, std::io::Error> {
@@ -189,9 +181,11 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     }
                     "cs" | "csx" => "csharp",
                     "css" => "css",
+                    "d" | "di" | "dlang" => "dlang",
                     "diff" | "patch" => "diff",
                     "dart" => "dart",
                     "dockerfile" => "dockerfile",
+                    "elm" => "elm",
                     "ex" | "exs" => "elixir",
                     "erl" | "hrl" => "erlang",
                     "fs" | "fsi" | "fsx" | "fsscript" => "fsharp",
@@ -218,7 +212,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "php" | "phtml" | "pht" | "phps" => "php",
                     "ps1" | "ps1xml" | "psc1" | "psm1" | "psd1" | "pssc"
                     | "psrc" => "powershell",
-                    "py" => "python",
+                    "py" | "pyi" | "pyc" | "pyd" | "pyw" => "python",
                     "r" => "r",
                     "rb" => "ruby",
                     "rs" => "rust",
@@ -235,15 +229,20 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "xml" => "xml",
                     "xsl" => "xsl",
                     "yml" | "yaml" => "yaml",
+                    "zig" => "zig",
                     _ => return None,
                 },
             }
         }
         // Handle paths without extension
+        #[allow(clippy::match_single_binding)]
         None => match path.file_name()?.to_str()? {
-            "dockerfile" => "dockerfile",
-            "makefile" | "gnumakefile" => "makefile",
-            _ => return None,
+            // case-insensitive matching
+            filename => match filename.to_lowercase().as_str() {
+                "dockerfile" => "dockerfile",
+                "makefile" | "gnumakefile" => "makefile",
+                _ => return None,
+            },
         },
     })
 }
@@ -257,8 +256,6 @@ fn get_document_content_changes(
 
     // TODO: Handle more trivial cases like typing when there's a selection or transpose
     if let Some(node) = delta.as_simple_insert() {
-        let text = String::from(node);
-
         let (start, end) = interval.start_end();
         let start = if let Some(start) = buffer.offset_to_position(start) {
             start
@@ -274,13 +271,11 @@ fn get_document_content_changes(
             return None;
         };
 
-        let text_document_content_change_event = TextDocumentContentChangeEvent {
+        Some(TextDocumentContentChangeEvent {
             range: Some(Range { start, end }),
             range_length: None,
-            text,
-        };
-
-        return Some(text_document_content_change_event);
+            text: String::from(node),
+        })
     }
     // Or a simple delete
     else if delta.is_simple_delete() {
@@ -298,19 +293,17 @@ fn get_document_content_changes(
             return None;
         };
 
-        let text_document_content_change_event = TextDocumentContentChangeEvent {
+        Some(TextDocumentContentChangeEvent {
             range: Some(Range {
                 start,
                 end: end_position,
             }),
             range_length: None,
             text: String::new(),
-        };
-
-        return Some(text_document_content_change_event);
+        })
+    } else {
+        None
     }
-
-    None
 }
 
 /// Returns the modification timestamp for the file at a given path,

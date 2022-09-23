@@ -14,6 +14,7 @@ use lapce_data::{
     },
     config::LapceTheme,
     data::LapceTabData,
+    proxy::VERSION,
 };
 
 use crate::svg::get_svg;
@@ -194,10 +195,8 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 self.mouse_pos = mouse_event.pos;
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                 } else {
                     ctx.clear_cursor();
-                    ctx.request_paint();
                 }
                 ctx.set_handled();
             }
@@ -231,7 +230,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::Focus,
-                        Target::Widget(data.focus),
+                        Target::Widget(*data.focus),
                     ));
                     ctx.set_handled();
                 }
@@ -284,7 +283,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
             .new_text_layout("About Lapce")
             .font(
                 data.config.ui.font_family(),
-                data.config.ui.font_size() as f64,
+                (data.config.ui.font_size() as f64 * 1.2).round(),
             )
             .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
             .alignment(TextAlignment::Center)
@@ -341,7 +340,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 msg_layout.clone(),
                 Point::new(self.padding, y),
             )]);
-            y += msg_layout.size().height;
+            y += msg_layout.size().height + 5.0;
         }
 
         self.close_rect = Size::new(20.0, 20.0)
@@ -380,7 +379,28 @@ impl Widget<LapceTabData> for AboutBoxContent {
         );
 
         let mut y = self.title.as_ref().unwrap().1.y
-            + self.title.as_ref().unwrap().0.size().height;
+            + self.title.as_ref().unwrap().0.size().height
+            + 15.0;
+
+        let ver_layout = ctx
+            .text()
+            .new_text_layout(format!("Version: {}", *VERSION))
+            .set_line_height(1.2)
+            .alignment(TextAlignment::Center)
+            .max_width(self.width - self.padding * 2.0)
+            .font(
+                data.config.ui.font_family(),
+                (data.config.ui.font_size()) as f64,
+            )
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        ctx.draw_text(&ver_layout, Point::new(self.padding, y));
+        y += ver_layout.size().height + 5.0;
 
         for (msg, link) in [
             ("Website", URI_LAPCE),
@@ -426,7 +446,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
             ));
 
             ctx.draw_text(&left_item, Point::new(self.padding, y));
-            y += left_item.size().height;
+            y += left_item.size().height + 5.0;
         }
 
         if self.close_rect.contains(self.mouse_pos) {

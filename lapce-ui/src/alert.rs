@@ -176,10 +176,8 @@ impl Widget<LapceTabData> for AlertBoxContent {
             Event::MouseMove(mouse_event) => {
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                 } else {
                     ctx.clear_cursor();
-                    ctx.request_paint();
                 }
             }
             Event::MouseDown(mouse_event) => {
@@ -231,7 +229,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::Focus,
-                        Target::Widget(data.focus),
+                        Target::Widget(*data.focus),
                     ));
                     ctx.set_handled();
                 }
@@ -399,7 +397,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
                 .unwrap();
             let text_layout_size = text_layout.size();
             let point = self.buttons[i].center()
-                - (text_layout_size.width / 2.0, text_layout_size.height / 2.0);
+                - (text_layout_size.width / 2.0, text_layout.cap_center());
             ctx.draw_text(&text_layout, point);
         }
 
@@ -424,7 +422,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
             .unwrap();
         let text_layout_size = text_layout.size();
         let cancel_point = self.cancel_rect.center()
-            - (text_layout_size.width / 2.0, text_layout_size.height / 2.0);
+            - (text_layout_size.width / 2.0, text_layout.cap_center());
         ctx.draw_text(&text_layout, cancel_point);
     }
 }

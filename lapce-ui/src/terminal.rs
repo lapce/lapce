@@ -1,23 +1,25 @@
 use std::sync::Arc;
 
 use alacritty_terminal::{
-    grid::Dimensions,
-    index::{Direction, Side},
-    term::{cell::Flags, search::RegexSearch},
+    grid::{Dimensions, Scroll},
+    index::{Column, Direction, Line, Side},
+    selection::{Selection, SelectionType},
+    term::{cell::Flags, search::RegexSearch, Term},
 };
 use druid::{
-    piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontWeight, LayoutCtx,
-    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    piet::{Text, TextAttribute, TextLayoutBuilder},
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontWeight,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
-use lapce_core::mode::Mode;
+use lapce_core::{mode::Mode, register::Clipboard};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData},
+    document::SystemClipboard,
     panel::PanelKind,
-    terminal::{LapceTerminalData, LapceTerminalViewData},
+    terminal::{EventProxy, LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;
 use unicode_width::UnicodeWidthChar;
@@ -262,6 +264,7 @@ struct LapceTerminalHeader {
     icons: Vec<LapceIcon>,
     mouse_pos: Point,
     view_is_hot: bool,
+    hover_rect: Option<Rect>,
 }
 
 impl LapceTerminalHeader {
@@ -274,6 +277,7 @@ impl LapceTerminalHeader {
             icon_padding: 4.0,
             icons: Vec::new(),
             view_is_hot: false,
+            hover_rect: None,
         }
     }
 
@@ -316,9 +320,10 @@ impl LapceTerminalHeader {
         icons
     }
 
-    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+    fn icon_hit_test(&mut self, mouse_event: &MouseEvent) -> bool {
         for icon in self.icons.iter() {
             if icon.rect.contains(mouse_event.pos) {
+                self.hover_rect = Some(icon.rect);
                 return true;
             }
         }
@@ -345,11 +350,14 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
         match event {
             Event::MouseMove(mouse_event) => {
                 self.mouse_pos = mouse_event.pos;
+                let hover_rect = self.hover_rect;
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                 } else {
+                    self.hover_rect = None;
                     ctx.clear_cursor();
+                }
+                if hover_rect != self.hover_rect {
                     ctx.request_paint();
                 }
             }
@@ -431,7 +439,7 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
                 )
                 .build()
                 .unwrap();
-            let y = (self.height - text_layout.size().height) / 2.0;
+            let y = text_layout.y_offset(self.height);
             ctx.draw_text(&text_layout, Point::new(self.height, y));
         });
 
@@ -480,7 +488,7 @@ impl LapceTerminal {
         ctx.request_focus();
         Arc::make_mut(&mut data.terminal).active = self.widget_id;
         Arc::make_mut(&mut data.terminal).active_term_id = self.term_id;
-        data.focus = self.widget_id;
+        data.focus = Arc::new(self.widget_id);
         data.focus_area = FocusArea::Panel(PanelKind::Terminal);
         if let Some((index, position)) =
             data.panel.panel_position(&PanelKind::Terminal)
@@ -490,6 +498,32 @@ impl LapceTerminal {
                 style.active = index;
             }
             panel.active = position;
+        }
+    }
+
+    fn select(
+        &self,
+        term: &mut Term<EventProxy>,
+        mouse_event: &MouseEvent,
+        ty: SelectionType,
+    ) {
+        let row_size = self.height / term.screen_lines() as f64;
+        let col_size = self.width / term.columns() as f64;
+        let offset = term.grid().display_offset();
+        let column = Column((mouse_event.pos.x / col_size) as usize);
+        let line = Line((mouse_event.pos.y / row_size) as i32 - offset as i32);
+        match &mut term.selection {
+            Some(selection) => selection.update(
+                alacritty_terminal::index::Point { line, column },
+                Direction::Left,
+            ),
+            None => {
+                term.selection = Some(Selection::new(
+                    ty,
+                    alacritty_terminal::index::Point { line, column },
+                    Direction::Left,
+                ));
+            }
         }
     }
 }
@@ -513,9 +547,54 @@ impl Widget<LapceTabData> for LapceTerminal {
             config: data.config.clone(),
             find: data.find.clone(),
         };
+        ctx.set_cursor(&Cursor::IBeam);
         match event {
-            Event::MouseDown(_mouse_event) => {
+            Event::MouseDown(mouse_event) => {
                 self.request_focus(ctx, data);
+                let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
+                let term = &mut terminal.raw.lock().term;
+                if mouse_event.button.is_right() {
+                    let mut clipboard = SystemClipboard {};
+                    match term.selection_to_string() {
+                        Some(selection) => {
+                            clipboard.put_string(selection);
+                            term.selection = None;
+                        }
+                        None => {
+                            if let Some(string) = clipboard.get_string() {
+                                terminal.proxy.proxy_rpc.terminal_write(
+                                    terminal.term_id,
+                                    string.as_str(),
+                                );
+                                term.scroll_display(Scroll::Bottom);
+                            }
+                        }
+                    }
+                } else if mouse_event.button.is_left() {
+                    match mouse_event.count {
+                        2 => self.select(term, mouse_event, SelectionType::Semantic),
+                        _ => {
+                            term.selection = None;
+                            if mouse_event.count == 3 {
+                                self.select(term, mouse_event, SelectionType::Lines);
+                            }
+                        }
+                    }
+                }
+            }
+            Event::MouseMove(mouse_event) => {
+                if mouse_event.buttons.has_left() {
+                    let term = &mut data
+                        .terminal
+                        .terminals
+                        .get(&self.term_id)
+                        .unwrap()
+                        .raw
+                        .lock()
+                        .term;
+                    self.select(term, mouse_event, SelectionType::Simple);
+                    ctx.request_paint();
+                }
             }
             Event::Wheel(wheel_event) => {
                 data.terminal
@@ -607,7 +686,6 @@ impl Widget<LapceTabData> for LapceTerminal {
         let char_size = data.config.editor_text_size(ctx.text(), "W");
         let char_width = char_size.width;
         let line_height = data.config.terminal_line_height() as f64;
-        let y_shift = (line_height - char_size.height) / 2.0;
 
         let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
         let raw = terminal.raw.lock();
@@ -748,7 +826,10 @@ impl Widget<LapceTabData> for LapceTerminal {
                         .default_attribute(TextAttribute::Weight(FontWeight::BOLD));
                 }
                 let text_layout = builder.build().unwrap();
-                ctx.draw_text(&text_layout, Point::new(x, y + y_shift));
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(x, y + text_layout.y_offset(line_height)),
+                );
             }
         }
         if data.find.visual {
