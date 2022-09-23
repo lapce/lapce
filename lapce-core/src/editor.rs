@@ -967,13 +967,11 @@ impl Editor {
             }
             PasteBefore => {
                 let offset = cursor.offset();
-                let line = buffer.line_of_offset(offset);
-                let line_offset = buffer.offset_of_line(line);
                 let data = register.unnamed.clone();
-                if offset > line_offset {
-                    cursor.set_offset(offset - 1, false, false);
-                }
-                Self::do_paste(cursor, buffer, &data)
+                let mut local_cursor =
+                    Cursor::new(CursorMode::Insert(Selection::new()), None, None);
+                local_cursor.set_offset(offset, false, false);
+                Self::do_paste(&mut local_cursor, buffer, &data)
             }
             NewLineAbove => {
                 let offset = cursor.offset();
