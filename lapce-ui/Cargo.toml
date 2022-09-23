@@ -27,13 +27,13 @@ im = { version = "15.0.0", features = ["serde"] }
 crossbeam-channel = "0.5.0"
 crossbeam-utils = "0.8.4"
 regex = "1.5.6"
-jsonrpc-lite = "0.5.0"
+jsonrpc-lite = "0.6.0"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
 include_dir = "0.6.0"
 anyhow = "1.0.32"
 strum = "0.24.0"
 strum_macros = "0.24"
-lazy_static = "1.4.0"
+once_cell = "1.15"
 serde = "1.0"
 serde_json = "1.0"
 notify = "5.0.0-pre.13"
@@ -42,7 +42,7 @@ xi-unicode = "0.3.0"
 fuzzy-matcher = "0.3.7"
 lsp-types = { version = "0.93", features = ["proposed"] }
 toml_edit = { version = "0.14.4", features = ["easy"] }
-open = { version = "3.0.2", features = [] }
+open = "3.0.2"
 
 # lapce deps
 druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = [ "svg", "im", "serde", ] }
@@ -104,16 +104,16 @@ all-languages = [
 
 lang-rust = ["lapce-core/lang-rust"]
 lang-go = ["lapce-core/lang-go"]
-lang-javascript= ["lapce-core/lang-javascript"]
+lang-javascript = ["lapce-core/lang-javascript"]
 lang-typescript = ["lapce-core/lang-typescript"]
 lang-python = ["lapce-core/lang-python"]
 lang-toml = ["lapce-core/lang-toml"]
 lang-elixir = ["lapce-core/lang-elixir"]
 lang-php = ["lapce-core/lang-php"]
-lang-ruby= ["lapce-core/lang-ruby"]
+lang-ruby = ["lapce-core/lang-ruby"]
 lang-c = ["lapce-core/lang-c"]
 lang-cpp = ["lapce-core/lang-cpp"]
-lang-json= ["lapce-core/lang-json"]
+lang-json = ["lapce-core/lang-json"]
 lang-markdown = ["lapce-core/lang-markdown"]
 lang-html = ["lapce-core/lang-html"]
 lang-java = ["lapce-core/lang-java"]

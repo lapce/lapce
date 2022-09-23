@@ -2440,9 +2440,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-lite"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a98d245f26984add78277a5306ca0cf774863d4eddb4912b31d94ee3fa1a22d4"
+checksum = "bb4128aba82294c14af2998831c4df3c843940e92b5cfc41bac1229d1e63b88c"
 dependencies = [
  "serde 1.0.144",
  "serde_derive",
@@ -2597,7 +2597,6 @@ dependencies = [
  "lapce-core",
  "lapce-proxy",
  "lapce-rpc",
- "lazy_static",
  "log 0.4.17",
  "lsp-types",
  "notify",
@@ -2713,10 +2712,10 @@ dependencies = [
  "lapce-core",
  "lapce-data",
  "lapce-rpc",
- "lazy_static",
  "log 0.4.17",
  "lsp-types",
  "notify",
+ "once_cell",
  "open",
  "parking_lot 0.11.2",
  "rayon",
@@ -3316,9 +3315,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.14.0"
+version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f7254b99e31cad77da24b08ebf628882739a608578bb1bcdfc1f9c21260d7c0"
+checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
 
 [[package]]
 name = "opaque-debug"
@@ -3564,12 +3563,13 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu?branch=shell_opengl#94a8f01262d59ac2546111beb4a57cbdd654f3d6"
+source = "git+https://github.com/lapce/piet-wgpu?branch=shell_opengl#7bfb732931cd551ce4ec1abab4e8c927c4f5cf8a"
 dependencies = [
  "bytemuck",
  "glam",
  "glow",
  "hashbrown 0.11.2",
+ "image",
  "include_dir",
  "linked-hash-map",
  "log 0.4.17",
@@ -5039,8 +5039,8 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-haxe"
-version = "0.0.1"
-source = "git+https://github.com/VixieTSQ/tree-sitter-haxe#a3e23bc0f84a53371eb5d86229782ec6c21d3729"
+version = "0.2.2"
+source = "git+https://github.com/vantreeseba/tree-sitter-haxe#52e3d2b9c3955aca886bccc38b496ef99b603a09"
 dependencies = [
  "cc",
  "tree-sitter",

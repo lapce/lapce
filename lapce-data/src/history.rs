@@ -150,6 +150,7 @@ impl DocumentHistory {
         TextLayoutLine {
             text: layout_builder.build().unwrap(),
             extra_style: Vec::new(),
+            whitespace: None,
         }
     }
 

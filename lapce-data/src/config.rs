@@ -233,6 +233,10 @@ pub struct EditorConfig {
         desc = "Whether the multiple cursor selection only selects whole words."
     )]
     pub multicursor_whole_words: bool,
+    #[field_names(
+        desc = "How the editor should render whitespace characters.\nOptions: none, all, boundary, trailing."
+    )]
+    pub render_whitespace: String,
 }
 
 impl EditorConfig {
@@ -840,7 +844,7 @@ impl Config {
         table.insert("theme".to_string(), toml::Value::try_from(&theme).unwrap());
         table.insert("ui".to_string(), toml::Value::try_from(&self.ui).unwrap());
         let value = toml::Value::Table(table);
-        toml::to_string(&value).unwrap()
+        toml::to_string_pretty(&value).unwrap()
     }
 
     pub fn keymaps_file() -> Option<PathBuf> {

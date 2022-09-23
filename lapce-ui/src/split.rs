@@ -1,6 +1,8 @@
 use crate::{
-    editor::{tab::LapceEditorTab, view::LapceEditorView},
-    settings::LapceSettingsPanel,
+    editor::{
+        tab::LapceEditorTab,
+        view::{editor_tab_child_widget, LapceEditorView},
+    },
     terminal::LapceTerminalView,
 };
 use std::sync::Arc;
@@ -21,10 +23,7 @@ use lapce_data::{
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
-    data::{
-        EditorTabChild, FocusArea, LapceEditorData, LapceTabData, SplitContent,
-        SplitData,
-    },
+    data::{FocusArea, LapceEditorData, LapceTabData, SplitContent, SplitData},
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap},
     panel::PanelKind,
     split::{SplitDirection, SplitMoveDirection},
@@ -57,31 +56,8 @@ pub fn split_content_widget(
                 data.main_split.editor_tabs.get(widget_id).unwrap();
             let mut editor_tab = LapceEditorTab::new(editor_tab_data.widget_id);
             for child in editor_tab_data.children.iter() {
-                match child {
-                    EditorTabChild::Editor(view_id, editor_id, find_view_id) => {
-                        let editor = LapceEditorView::new(
-                            *view_id,
-                            *editor_id,
-                            *find_view_id,
-                        )
-                        .boxed();
-                        editor_tab = editor_tab.with_child(editor);
-                    }
-                    EditorTabChild::Settings {
-                        settings_widget_id,
-                        editor_tab_id,
-                        keymap_input_view_id,
-                    } => {
-                        let settings = LapceSettingsPanel::new(
-                            data,
-                            *settings_widget_id,
-                            *editor_tab_id,
-                            *keymap_input_view_id,
-                        )
-                        .boxed();
-                        editor_tab = editor_tab.with_child(settings);
-                    }
-                }
+                let child = editor_tab_child_widget(child, data);
+                editor_tab = editor_tab.with_child(child);
             }
             editor_tab.boxed()
         }
@@ -1328,7 +1304,7 @@ impl Widget<LapceTabData> for LapceSplit {
                     )
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .get_color_unchecked(LapceTheme::EDITOR_LINK)
                             .clone(),
                     )
                     .build()
@@ -1375,7 +1351,7 @@ impl Widget<LapceTabData> for LapceSplit {
         let flex_sum = self
             .children
             .iter()
-            .filter_map(|child| child.flex.then(|| child.params))
+            .filter_map(|child| child.flex.then_some(child.params))
             .sum::<f64>();
 
         self.total_size = self.direction.main_size(my_size);

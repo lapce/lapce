@@ -32,6 +32,7 @@ use crate::{
         container::LapceEditorContainer, header::LapceEditorHeader, LapceEditor,
     },
     find::FindBox,
+    plugin::PluginInfo,
     settings::LapceSettingsPanel,
 };
 
@@ -65,6 +66,13 @@ pub fn editor_tab_child_widget(
             *keymap_input_view_id,
         )
         .boxed(),
+        EditorTabChild::Plugin {
+            widget_id,
+            editor_tab_id,
+            volt_id,
+            ..
+        } => PluginInfo::new_scroll(*widget_id, *editor_tab_id, volt_id.clone())
+            .boxed(),
     }
 }
 

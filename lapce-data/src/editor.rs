@@ -57,6 +57,7 @@ use lsp_types::CompletionTextEdit;
 use lsp_types::DocumentChangeOperation;
 use lsp_types::DocumentChanges;
 use lsp_types::OneOf;
+use lsp_types::ResourceOp;
 use lsp_types::TextEdit;
 use lsp_types::Url;
 use lsp_types::WorkspaceEdit;
@@ -370,6 +371,17 @@ impl LapceEditorBufferData {
         ctx: &mut EventCtx,
         edit: &WorkspaceEdit,
     ) {
+        if let Some(DocumentChanges::Operations(op)) = edit.document_changes.as_ref()
+        {
+            op.iter()
+                .flat_map(|op| match op {
+                    DocumentChangeOperation::Op(op) => Some(op),
+                    _ => None,
+                })
+                .flat_map(workspace_operation)
+                .map(|cmd| Command::new(LAPCE_UI_COMMAND, cmd, Target::Auto))
+                .for_each(|cmd| ctx.submit_command(cmd));
+        }
         if let BufferContent::File(path) = &self.editor.content {
             if let Some(edits) = workspace_edits(edit) {
                 for (url, edits) in edits {
@@ -1497,7 +1509,7 @@ impl LapceEditorBufferData {
             SplitVertical => {
                 self.main_split.split_editor(
                     ctx,
-                    Arc::make_mut(&mut self.editor),
+                    self.editor.view_id,
                     SplitDirection::Vertical,
                     &self.config,
                 );
@@ -1505,7 +1517,7 @@ impl LapceEditorBufferData {
             SplitHorizontal => {
                 self.main_split.split_editor(
                     ctx,
-                    Arc::make_mut(&mut self.editor),
+                    self.editor.view_id,
                     SplitDirection::Horizontal,
                     &self.config,
                 );
@@ -2560,6 +2572,21 @@ fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> 
             .collect::<HashMap<Url, Vec<TextEdit>>>(),
     };
     Some(edits)
+}
+
+fn workspace_operation(op: &ResourceOp) -> Option<LapceUICommand> {
+    Some(match op {
+        ResourceOp::Create(p) => LapceUICommand::CreateFileOpen {
+            path: p.uri.to_file_path().ok()?,
+        },
+        ResourceOp::Rename(p) => LapceUICommand::RenamePath {
+            from: p.old_uri.to_file_path().ok()?,
+            to: p.new_uri.to_file_path().ok()?,
+        },
+        ResourceOp::Delete(p) => LapceUICommand::TrashPath {
+            path: p.uri.to_file_path().ok()?,
+        },
+    })
 }
 
 /// Check if a [`Url`] matches the path

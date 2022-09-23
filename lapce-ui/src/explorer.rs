@@ -581,8 +581,12 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         .get_node_by_index(index)
                         .or_else(|| file_explorer.workspace.as_ref().map(|x| (0, x)))
                     {
-                        let is_workspace = Some(&node.path_buf)
-                            == file_explorer.workspace.as_ref().map(|x| &x.path_buf);
+                        let workspace_path = file_explorer
+                            .workspace
+                            .as_ref()
+                            .map(|x| &x.path_buf)
+                            .unwrap();
+                        let is_workspace = &node.path_buf == workspace_path;
 
                         // The folder that it is, or is within
                         let base = if node.is_dir {
@@ -685,6 +689,29 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             );
                             menu = menu.entry(item);
                         }
+
+                        menu = menu.separator();
+                        let path_to_file = node.path_buf.clone();
+                        let item =
+                            druid::MenuItem::new("Copy Path").command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::CopyPath(path_to_file),
+                                Target::Auto,
+                            ));
+                        menu = menu.entry(item);
+
+                        let relative_path = node
+                            .path_buf
+                            .strip_prefix(workspace_path)
+                            .unwrap()
+                            .to_path_buf();
+                        let item = druid::MenuItem::new("Copy Relative Path")
+                            .command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::CopyRelativePath(relative_path),
+                                Target::Auto,
+                            ));
+                        menu = menu.entry(item);
 
                         menu = menu.separator();
                         let item =
@@ -1030,6 +1057,9 @@ impl OpenEditorList {
             EditorTabChild::Settings { .. } => {
                 text = "Settings".to_string();
                 hint = format!("ver. {}", *VERSION);
+            }
+            EditorTabChild::Plugin { volt_name, .. } => {
+                text = format!("Plugin: {volt_name}");
             }
         }
 

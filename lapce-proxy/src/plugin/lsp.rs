@@ -9,7 +9,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use jsonrpc_lite::Params;
+use jsonrpc_lite::{Id, Params};
 use lapce_rpc::{style::LineStyle, RpcError};
 use lsp_types::{
     notification::{Initialized, Notification},
@@ -78,7 +78,7 @@ impl PluginServerHandler for LspClient {
     ) {
         use PluginHandlerNotification::*;
         match notification {
-            Initilize => {
+            Initialize => {
                 self.initialize();
             }
             Shutdown => {
@@ -87,7 +87,7 @@ impl PluginServerHandler for LspClient {
         }
     }
 
-    fn handle_host_request(&mut self, id: u64, method: String, params: Params) {
+    fn handle_host_request(&mut self, id: Id, method: String, params: Params) {
         let _ = self.host.handle_request(id, method, params);
     }
 
@@ -416,7 +416,7 @@ impl LspClient {
         //             let result: InitializeResult =
         //                 serde_json::from_value(value).unwrap();
         //             server_rpc.handle_rpc(PluginServerRpc::Handler(
-        //                 PluginHandlerNotification::InitilizeDone(result),
+        //                 PluginHandlerNotification::InitializeDone(result),
         //             ));
         //         }
         //     },

@@ -185,6 +185,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "diff" | "patch" => "diff",
                     "dart" => "dart",
                     "dockerfile" => "dockerfile",
+                    "elm" => "elm",
                     "ex" | "exs" => "elixir",
                     "erl" | "hrl" => "erlang",
                     "fs" | "fsi" | "fsx" | "fsscript" => "fsharp",
@@ -228,6 +229,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "xml" => "xml",
                     "xsl" => "xsl",
                     "yml" | "yaml" => "yaml",
+                    "zig" => "zig",
                     _ => return None,
                 },
             }

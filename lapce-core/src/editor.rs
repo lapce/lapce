@@ -81,6 +81,12 @@ impl Editor {
                 for (idx, region) in selection.regions_mut().iter_mut().enumerate() {
                     let offset = region.end;
                     let cursor_char = buffer.char_at_offset(offset);
+                    let prev_offset = buffer.move_left(offset, Mode::Normal, 1);
+                    let prev_cursor_char = if prev_offset < offset {
+                        buffer.char_at_offset(prev_offset)
+                    } else {
+                        None
+                    };
 
                     if (c == '"' || c == '\'') && cursor_char == Some(c) {
                         // Skip the closing character
@@ -139,7 +145,22 @@ impl Editor {
                             })
                             .unwrap_or(true);
 
-                        if is_whitespace_or_punct {
+                        let should_insert_pair = match c {
+                            '"' | '\'' => {
+                                is_whitespace_or_punct
+                                    && prev_cursor_char
+                                        .map(|c| {
+                                            let prop = get_word_property(c);
+                                            prop == WordProperty::Lf
+                                                || prop == WordProperty::Space
+                                                || prop == WordProperty::Punctuation
+                                        })
+                                        .unwrap_or(true)
+                            }
+                            _ => is_whitespace_or_punct,
+                        };
+
+                        if should_insert_pair {
                             let insert_after = match c {
                                 '"' => '"',
                                 '\'' => '\'',
@@ -944,6 +965,16 @@ impl Editor {
                 let data = register.unnamed.clone();
                 Self::do_paste(cursor, buffer, &data)
             }
+            PasteBefore => {
+                let offset = cursor.offset();
+                let line = buffer.line_of_offset(offset);
+                let line_offset = buffer.offset_of_line(line);
+                let data = register.unnamed.clone();
+                if offset > line_offset {
+                    cursor.set_offset(offset - 1, false, false);
+                }
+                Self::do_paste(cursor, buffer, &data)
+            }
             NewLineAbove => {
                 let offset = cursor.offset();
                 let line = buffer.line_of_offset(offset);
@@ -1139,7 +1170,7 @@ impl Editor {
                         let selection = cursor.edit_selection(buffer);
 
                         for region in selection.regions() {
-                            let end = buffer.move_word_backward(region.end);
+                            let end = buffer.move_word_backward_deletion(region.end);
                             let new_region = SelRegion::new(region.start, end, None);
                             new_selection.add_region(new_region);
                         }

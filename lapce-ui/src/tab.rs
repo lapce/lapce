@@ -833,6 +833,9 @@ impl LapceTab {
                             )
                         }
                     }
+                    LapceUICommand::OpenPluginInfo(volt) => {
+                        data.main_split.open_plugin_info(ctx, volt);
+                    }
                     LapceUICommand::GlobalSearchResult(pattern, matches) => {
                         let doc = data
                             .main_split
@@ -1685,11 +1688,10 @@ impl LapceTab {
                         if name.is_empty() || name.to_lowercase().eq("plain text") {
                             doc.set_syntax(None);
                         } else {
-                            let lang =
-                                match LapceLanguage::from_name(name.to_string()) {
-                                    Some(v) => v,
-                                    None => return,
-                                };
+                            let lang = match LapceLanguage::from_name(name) {
+                                Some(v) => v,
+                                None => return,
+                            };
 
                             doc.set_language(lang);
                         }
@@ -1854,6 +1856,14 @@ impl LapceTab {
                         } else {
                             file_explorer.cancel_naming();
                         }
+                    }
+                    LapceUICommand::CopyPath(absolute_path) => {
+                        let mut clipboard = druid::Application::global().clipboard();
+                        clipboard.put_string(absolute_path.to_str().unwrap())
+                    }
+                    LapceUICommand::CopyRelativePath(relative_path) => {
+                        let mut clipboard = druid::Application::global().clipboard();
+                        clipboard.put_string(relative_path.to_str().unwrap());
                     }
                     _ => (),
                 }

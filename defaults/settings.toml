@@ -8,7 +8,7 @@ custom-titlebar = true
 font-family = "Cascadia Code"
 font-size = 13
 code-lens-font-size = 2
-line-height = 25
+line-height = 1.35
 tab-width = 4
 show-tab = true
 show-bread-crumbs = true
@@ -28,6 +28,7 @@ error-lens-font-size = 0
 blink-interval = 500 # ms
 multicursor-case-sensitive = true
 multicursor-whole-words = true
+render-whitespace = "none"
 
 [terminal]
 font-family = ""

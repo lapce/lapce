@@ -249,7 +249,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Jsx,
         language: tree_sitter_javascript::language,
-        highlight: tree_sitter_javascript::JSX_HIGHLIGHT_QUERY,
+        highlight: include_str!("../queries/jsx/highlights.scm"),
         // TODO: Does jsx use the javascript injection query too?
         injection: Some(tree_sitter_javascript::INJECTION_QUERY),
         comment: "//",
@@ -274,7 +274,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Tsx,
         language: tree_sitter_typescript::language_tsx,
-        highlight: tree_sitter_typescript::HIGHLIGHT_QUERY,
+        highlight: include_str!("../queries/typescript/highlights.scm"),
         injection: None,
         comment: "//",
         indent: "    ",
@@ -442,7 +442,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Elm,
         language: tree_sitter_elm::language,
-        highlight: tree_sitter_elm::HIGHLIGHTS_QUERY,
+        highlight: include_str!("../queries/elm/highlights.scm"),
         injection: Some(tree_sitter_elm::INJECTIONS_QUERY),
         comment: "#",
         indent: "    ",
@@ -729,7 +729,7 @@ impl LapceLanguage {
         None
     }
 
-    pub fn from_name(name: String) -> Option<LapceLanguage> {
+    pub fn from_name(name: &str) -> Option<LapceLanguage> {
         match LapceLanguage::from_str(name.to_lowercase().as_str()) {
             Ok(v) => Some(v),
             Err(e) => {
