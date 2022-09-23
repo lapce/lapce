@@ -123,11 +123,11 @@ mod tests {
         assert_eq!(offset_utf8_to_utf16_str(text, text.len() + 1), text.len());
 
         assert_eq!(offset_utf8_to_utf16_str("×", 0), 0);
-        assert_eq!(offset_utf8_to_utf16_str("×", 1), 0);
+        assert_eq!(offset_utf8_to_utf16_str("×", 1), 1);
         assert_eq!(offset_utf8_to_utf16_str("×", 2), 1);
         assert_eq!(offset_utf8_to_utf16_str("a×", 0), 0);
         assert_eq!(offset_utf8_to_utf16_str("a×", 1), 1);
-        assert_eq!(offset_utf8_to_utf16_str("a×", 2), 1);
+        assert_eq!(offset_utf8_to_utf16_str("a×", 2), 2);
         assert_eq!(offset_utf8_to_utf16_str("a×", 3), 2);
     }
 
