@@ -220,6 +220,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "sh" | "bash" | "zsh" => "shellscript",
                     "sql" => "sql",
                     "swift" => "swift",
+                    "svelte" => "svelte",
                     "toml" => "toml",
                     "ts" => "typescript",
                     "tsx" => "typescriptreact",
