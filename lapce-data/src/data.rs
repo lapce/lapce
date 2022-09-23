@@ -341,15 +341,15 @@ impl LapceData {
         Ok(())
     }
 
-    pub fn check_local_socket(paths: Vec<PathBuf>) -> Result<()> {
+    pub fn check_local_socket(paths: &[PathBuf]) -> Result<()> {
         let local_socket = Directory::local_socket()
             .ok_or_else(|| anyhow!("can't get local socket folder"))?;
         let mut socket =
             interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
         let folders: Vec<PathBuf> =
-            paths.clone().into_iter().filter(|p| p.is_dir()).collect();
+            paths.iter().filter(|p| p.is_dir()).cloned().collect();
         let files: Vec<PathBuf> =
-            paths.into_iter().filter(|p| p.is_file()).collect();
+            paths.iter().filter(|p| p.is_file()).cloned().collect();
         let msg: RpcMessage<CoreRequest, CoreNotification, CoreResponse> =
             RpcMessage::Notification(CoreNotification::OpenPaths {
                 window_tab_id: None,

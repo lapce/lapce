@@ -44,7 +44,7 @@ pub fn launch() {
     let cli = Cli::parse();
     let pwd = std::env::current_dir().unwrap_or_default();
     let paths: Vec<PathBuf> = cli.paths.iter().map(|p| pwd.join(p)).collect();
-    if !cli.new && LapceData::check_local_socket(paths.clone()).is_ok() {
+    if !cli.new && LapceData::check_local_socket(&paths).is_ok() {
         return;
     }
 
