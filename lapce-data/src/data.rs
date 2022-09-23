@@ -2391,6 +2391,13 @@ impl LapceMainSplitData {
         scratch: bool,
         config: &Config,
     ) -> &mut LapceEditorData {
+        if path.is_none() {
+            let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
+            if let EditorTabChild::Editor(id, _, _) = editor_tab.active_child() {
+                return Arc::make_mut(self.editors.get_mut(id).unwrap());
+            }
+        }
+
         let mut editor_size = Size::ZERO;
         let editor_tabs: Box<
             dyn Iterator<Item = (&WidgetId, &mut Arc<LapceEditorTabData>)>,
