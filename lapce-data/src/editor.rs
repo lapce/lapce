@@ -86,7 +86,7 @@ pub enum EditorOperator {
 
 pub trait EditorPosition: Sized {
     /// Convert the position to a utf8 offset
-    fn to_utf8_offset(&self, buffer: &Buffer) -> Option<usize>;
+    fn to_utf8_offset(&self, buffer: &Buffer) -> usize;
 
     fn init_buffer_content_cmd(
         path: PathBuf,
@@ -99,8 +99,8 @@ pub trait EditorPosition: Sized {
 
 // Usize is always a utf8 offset
 impl EditorPosition for usize {
-    fn to_utf8_offset(&self, _buffer: &Buffer) -> Option<usize> {
-        Some(*self)
+    fn to_utf8_offset(&self, _buffer: &Buffer) -> usize {
+        *self
     }
 
     fn init_buffer_content_cmd(
@@ -125,8 +125,8 @@ impl EditorPosition for usize {
 #[derive(Debug, Clone, Copy)]
 pub struct Line(pub usize);
 impl EditorPosition for Line {
-    fn to_utf8_offset(&self, buffer: &Buffer) -> Option<usize> {
-        Some(buffer.first_non_blank_character_on_line(self.0.saturating_sub(1)))
+    fn to_utf8_offset(&self, buffer: &Buffer) -> usize {
+        buffer.first_non_blank_character_on_line(self.0.saturating_sub(1))
     }
 
     fn init_buffer_content_cmd(
@@ -153,8 +153,8 @@ pub struct LineCol {
     pub column: usize,
 }
 impl EditorPosition for LineCol {
-    fn to_utf8_offset(&self, buffer: &Buffer) -> Option<usize> {
-        Some(buffer.offset_of_line_col(self.line, self.column))
+    fn to_utf8_offset(&self, buffer: &Buffer) -> usize {
+        buffer.offset_of_line_col(self.line, self.column)
     }
 
     fn init_buffer_content_cmd(
@@ -175,7 +175,7 @@ impl EditorPosition for LineCol {
 }
 
 impl EditorPosition for Position {
-    fn to_utf8_offset(&self, buffer: &Buffer) -> Option<usize> {
+    fn to_utf8_offset(&self, buffer: &Buffer) -> usize {
         buffer.offset_of_position(self)
     }
 
@@ -208,7 +208,7 @@ impl<P: EditorPosition> EditorLocation<P> {
     pub fn into_utf8_location(self, buffer: &Buffer) -> EditorLocation<usize> {
         EditorLocation {
             path: self.path,
-            position: self.position.and_then(|p| p.to_utf8_offset(buffer)),
+            position: self.position.map(|p| p.to_utf8_offset(buffer)),
             scroll_offset: self.scroll_offset,
             history: self.history,
         }
@@ -299,14 +299,7 @@ impl LapceEditorBufferData {
             let offset = self.editor.cursor.offset();
             let prev_offset = self.doc.buffer().prev_code_boundary(offset);
             if self.doc.code_actions.get(&prev_offset).is_none() {
-                let position = if let Some(position) =
-                    self.doc.buffer().offset_to_position(prev_offset)
-                {
-                    position
-                } else {
-                    log::error!("Failed to convert prev_offset: {prev_offset} to Position when getting code actions");
-                    return;
-                };
+                let position = self.doc.buffer().offset_to_position(prev_offset);
                 let rev = self.doc.rev();
                 let event_sink = ctx.get_external_handle();
                 self.proxy.proxy_rpc.get_code_actions(
@@ -437,31 +430,19 @@ impl LapceEditorBufferData {
     }
 
     pub fn apply_completion_item(&mut self, item: &CompletionItem) -> Result<()> {
-        let additional_edit: Option<Option<Vec<_>>> =
+        let additional_edit: Option<Vec<_>> =
             item.additional_text_edits.as_ref().map(|edits| {
                 edits
                     .iter()
                     .map(|edit| {
                         let selection = lapce_core::selection::Selection::region(
-                            self.doc.buffer().offset_of_position(&edit.range.start)?,
-                            self.doc.buffer().offset_of_position(&edit.range.end)?,
+                            self.doc.buffer().offset_of_position(&edit.range.start),
+                            self.doc.buffer().offset_of_position(&edit.range.end),
                         );
-                        Some((selection, edit.new_text.as_str()))
+                        (selection, edit.new_text.as_str())
                     })
-                    .collect::<Option<Vec<(lapce_core::selection::Selection, &str)>>>()
+                    .collect::<Vec<(lapce_core::selection::Selection, &str)>>()
             });
-
-        // If the inner option is empty
-        if additional_edit
-            .as_ref()
-            .map(Option::is_none)
-            .unwrap_or(false)
-        {
-            log::error!("Failed to convert completion item's additional edit Positions to offsets");
-            return Err(anyhow!("Bad additional edit position"));
-        }
-
-        let additional_edit = additional_edit.flatten();
 
         let additional_edit: Vec<_> = additional_edit
             .as_ref()
@@ -479,22 +460,10 @@ impl LapceEditorBufferData {
                     let offset = self.editor.cursor.offset();
                     let start_offset = self.doc.buffer().prev_code_boundary(offset);
                     let end_offset = self.doc.buffer().next_code_boundary(offset);
-                    let edit_start = if let Some(edit_start) =
-                        self.doc.buffer().offset_of_position(&edit.range.start)
-                    {
-                        edit_start
-                    } else {
-                        log::error!("Failed to convert completion edit start Position {:?} to offset", edit.range.start);
-                        return Err(anyhow!("bad edit start position"));
-                    };
-                    let edit_end = if let Some(edit_end) =
-                        self.doc.buffer().offset_of_position(&edit.range.end)
-                    {
-                        edit_end
-                    } else {
-                        log::error!("Failed to convert completion edit end Position {:?} to offset", edit.range.end);
-                        return Err(anyhow!("bad edit end position"));
-                    };
+                    let edit_start =
+                        self.doc.buffer().offset_of_position(&edit.range.start);
+                    let edit_end =
+                        self.doc.buffer().offset_of_position(&edit.range.end);
 
                     let selection = lapce_core::selection::Selection::region(
                         start_offset.min(edit_start),
@@ -725,34 +694,25 @@ impl LapceEditorBufferData {
             completion.update_input(input.clone());
 
             if !completion.input_items.contains_key("") {
-                if let Some(start_pos) =
-                    self.doc.buffer().offset_to_position(start_offset)
-                {
-                    completion.request(
-                        self.proxy.clone(),
-                        completion.request_id,
-                        self.doc.content().path().unwrap().into(),
-                        "".to_string(),
-                        start_pos,
-                    );
-                } else {
-                    log::error!("Failed to convert start offset: {start_offset} to Position when making completion request");
-                }
+                let start_pos = self.doc.buffer().offset_to_position(start_offset);
+                completion.request(
+                    self.proxy.clone(),
+                    completion.request_id,
+                    self.doc.content().path().unwrap().into(),
+                    "".to_string(),
+                    start_pos,
+                );
             }
 
             if !completion.input_items.contains_key(&input) {
-                if let Some(position) = self.doc.buffer().offset_to_position(offset)
-                {
-                    completion.request(
-                        self.proxy.clone(),
-                        completion.request_id,
-                        self.doc.content().path().unwrap().into(),
-                        input,
-                        position,
-                    );
-                } else {
-                    log::error!("Failed to convert offset: {offset} to Position when making completion request");
-                }
+                let position = self.doc.buffer().offset_to_position(offset);
+                completion.request(
+                    self.proxy.clone(),
+                    completion.request_id,
+                    self.doc.content().path().unwrap().into(),
+                    input,
+                    position,
+                );
             }
 
             return;
@@ -764,25 +724,24 @@ impl LapceEditorBufferData {
         completion.status = CompletionStatus::Started;
         completion.input_items.clear();
         completion.request_id += 1;
-        if let Some(start_pos) = self.doc.buffer().offset_to_position(start_offset) {
+        let start_pos = self.doc.buffer().offset_to_position(start_offset);
+        completion.request(
+            self.proxy.clone(),
+            completion.request_id,
+            self.doc.content().path().unwrap().into(),
+            "".to_string(),
+            start_pos,
+        );
+
+        if !input.is_empty() {
+            let position = self.doc.buffer().offset_to_position(offset);
             completion.request(
                 self.proxy.clone(),
                 completion.request_id,
                 self.doc.content().path().unwrap().into(),
-                "".to_string(),
-                start_pos,
+                input,
+                position,
             );
-        }
-        if !input.is_empty() {
-            if let Some(position) = self.doc.buffer().offset_to_position(offset) {
-                completion.request(
-                    self.proxy.clone(),
-                    completion.request_id,
-                    self.doc.content().path().unwrap().into(),
-                    input,
-                    position,
-                );
-            }
         }
     }
 
@@ -853,22 +812,17 @@ impl LapceEditorBufferData {
         hover.request_id += 1;
 
         let event_sink = ctx.get_external_handle();
-        if let Some(start_pos) = self.doc.buffer().offset_to_position(start_offset) {
-            hover.request(
-                self.proxy.clone(),
-                hover.request_id,
-                self.doc.clone(),
-                diagnostics,
-                start_pos,
-                hover.id,
-                event_sink,
-                self.config.clone(),
-            );
-        } else {
-            log::error!(
-                "Failed to convert offset {start_offset} to position for hover"
-            );
-        }
+        let start_pos = self.doc.buffer().offset_to_position(start_offset);
+        hover.request(
+            self.proxy.clone(),
+            hover.request_id,
+            self.doc.clone(),
+            diagnostics,
+            start_pos,
+            hover.id,
+            event_sink,
+            self.config.clone(),
+        );
     }
 
     fn update_snippet_offset(&mut self, delta: &RopeDelta) {
@@ -980,26 +934,20 @@ impl LapceEditorBufferData {
             file_diagnostics.sort_by(|a, b| a.0.cmp(b.0));
 
             let offset = self.editor.cursor.offset();
-            if let Some(position) = self.doc.buffer().offset_to_position(offset) {
-                let (path, position) = next_in_file_errors_offset(
-                    position,
-                    buffer_path,
-                    &file_diagnostics,
-                );
-                let location = EditorLocation {
-                    path,
-                    position: Some(position),
-                    scroll_offset: None,
-                    history: None,
-                };
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToLspLocation(None, location, true),
-                    Target::Auto,
-                ));
-            } else {
-                log::error!("Failed to convert cursor offset to position when getting next error");
-            }
+            let position = self.doc.buffer().offset_to_position(offset);
+            let (path, position) =
+                next_in_file_errors_offset(position, buffer_path, &file_diagnostics);
+            let location = EditorLocation {
+                path,
+                position: Some(position),
+                scroll_offset: None,
+                history: None,
+            };
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::JumpToLspLocation(None, location, true),
+                Target::Auto,
+            ));
         }
     }
 
@@ -1898,23 +1846,10 @@ impl LapceEditorBufferData {
                 if let BufferContent::File(path) = self.doc.content() {
                     let offset = self.editor.cursor.offset();
                     let start_offset = self.doc.buffer().prev_code_boundary(offset);
-                    let start_position = if let Some(start_position) =
-                        self.doc.buffer().offset_to_position(start_offset)
-                    {
-                        start_position
-                    } else {
-                        log::error!("Failed to convert offset {start_offset} to position in GotoDefinition");
-                        return CommandExecuted::Yes;
-                    };
+                    let start_position =
+                        self.doc.buffer().offset_to_position(start_offset);
                     let event_sink = ctx.get_external_handle();
-                    let position = if let Some(position) =
-                        self.doc.buffer().offset_to_position(offset)
-                    {
-                        position
-                    } else {
-                        log::error!("Failed to convert offset {offset} to position in GotoDefinition");
-                        return CommandExecuted::Yes;
-                    };
+                    let position = self.doc.buffer().offset_to_position(offset);
                     let proxy = self.proxy.clone();
                     let editor_view_id = self.editor.view_id;
                     let path = path.clone();
@@ -1985,14 +1920,7 @@ impl LapceEditorBufferData {
                 if let BufferContent::File(path) = self.doc.content() {
                     let offset = self.editor.cursor.offset();
                     let event_sink = ctx.get_external_handle();
-                    let position = if let Some(position) =
-                        self.doc.buffer().offset_to_position(offset)
-                    {
-                        position
-                    } else {
-                        log::error!("Failed to convert offset {offset} to position in GotoTypeDefinition");
-                        return CommandExecuted::Yes;
-                    };
+                    let position = self.doc.buffer().offset_to_position(offset);
                     let editor_view_id = self.editor.view_id;
                     self.proxy.proxy_rpc.get_type_definition(
                         offset,
@@ -2219,31 +2147,28 @@ impl LapceEditorBufferData {
                     let tab_id = *self.main_split.tab_id;
                     let event_sink = ctx.get_external_handle();
 
-                    if let Some(position) =
-                        self.doc.buffer().offset_to_position(offset)
-                    {
-                        Arc::make_mut(&mut self.rename).update(
-                            path.clone(),
-                            rev,
-                            offset,
-                            position,
-                            self.editor.view_id,
-                        );
-                        self.proxy.proxy_rpc.prepare_rename(
-                            path.clone(),
-                            position,
-                            move |result| {
-                                if let Ok(ProxyResponse::PrepareRename { resp }) =
-                                    result
-                                {
-                                    RenameData::prepare_rename(
-                                        tab_id, path, offset, rev, buffer, resp,
-                                        event_sink,
-                                    );
-                                }
-                            },
-                        );
-                    }
+                    let position = self.doc.buffer().offset_to_position(offset);
+
+                    Arc::make_mut(&mut self.rename).update(
+                        path.clone(),
+                        rev,
+                        offset,
+                        position,
+                        self.editor.view_id,
+                    );
+                    self.proxy.proxy_rpc.prepare_rename(
+                        path.clone(),
+                        position,
+                        move |result| {
+                            if let Ok(ProxyResponse::PrepareRename { resp }) = result
+                            {
+                                RenameData::prepare_rename(
+                                    tab_id, path, offset, rev, buffer, resp,
+                                    event_sink,
+                                );
+                            }
+                        },
+                    );
                 }
             }
             ConfirmRename => {
@@ -2590,18 +2515,14 @@ fn apply_edit(
         .iter()
         .map(|edit| {
             let selection = lapce_core::selection::Selection::region(
-                doc.buffer().offset_of_position(&edit.range.start)?,
-                doc.buffer().offset_of_position(&edit.range.end)?,
+                doc.buffer().offset_of_position(&edit.range.start),
+                doc.buffer().offset_of_position(&edit.range.end),
             );
-            Some((selection, edit.new_text.as_str()))
+            (selection, edit.new_text.as_str())
         })
-        .collect::<Option<Vec<_>>>();
+        .collect::<Vec<_>>();
 
-    if let Some(edits) = edits {
-        main_split.edit(path, &edits, lapce_core::editor::EditType::Other);
-    } else {
-        log::error!("Failed to convert code action edit Position to offset");
-    }
+    main_split.edit(path, &edits, lapce_core::editor::EditType::Other);
 }
 
 /// Checks if completion should be triggered if the received command

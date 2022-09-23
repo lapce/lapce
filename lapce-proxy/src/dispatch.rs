@@ -423,7 +423,7 @@ impl ProxyHandler for Dispatcher {
                 let buffer = self.buffers.get(&path).unwrap();
                 let range = Range {
                     start: Position::new(0, 0),
-                    end: buffer.offset_to_position(buffer.len()).unwrap(),
+                    end: buffer.offset_to_position(buffer.len()),
                 };
                 self.catalog_rpc
                     .get_inlay_hints(&path, range, move |_, result| {

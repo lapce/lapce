@@ -973,19 +973,9 @@ fn get_document_content_change(
     // TODO: Handle more trivial cases like typing when there's a selection or transpose
     if let Some(node) = delta.as_simple_insert() {
         let (start, end) = interval.start_end();
-        let start = if let Some(start) = text.offset_to_position(start) {
-            start
-        } else {
-            log::error!("Failed to convert start offset to Position in document content change insert");
-            return None;
-        };
+        let start = text.offset_to_position(start);
 
-        let end = if let Some(end) = text.offset_to_position(end) {
-            end
-        } else {
-            log::error!("Failed to convert end offset to Position in document content change insert");
-            return None;
-        };
+        let end = text.offset_to_position(end);
 
         let text = String::from(node);
         let text_document_content_change_event = TextDocumentContentChangeEvent {
@@ -998,19 +988,9 @@ fn get_document_content_change(
     }
     // Or a simple delete
     else if delta.is_simple_delete() {
-        let end_position = if let Some(end) = text.offset_to_position(end) {
-            end
-        } else {
-            log::error!("Failed to convert end offset to Position in document content change delete");
-            return None;
-        };
+        let end_position = text.offset_to_position(end);
 
-        let start = if let Some(start) = text.offset_to_position(start) {
-            start
-        } else {
-            log::error!("Failed to convert start offset to Position in document content change delete");
-            return None;
-        };
+        let start = text.offset_to_position(start);
 
         let text_document_content_change_event = TextDocumentContentChangeEvent {
             range: Some(Range {
@@ -1047,25 +1027,11 @@ fn format_semantic_styles(
         }
 
         let sub_text = text.char_indices_iter(start..);
-        if let Some(utf8_delta_start) =
-            offset_utf16_to_utf8(sub_text, semantic_token.delta_start as usize)
-        {
-            start += utf8_delta_start;
-        } else {
-            // Bad semantic token offsets
-            log::error!("Bad semantic token starty {semantic_token:?}");
-            continue;
-        };
+        start += offset_utf16_to_utf8(sub_text, semantic_token.delta_start as usize);
 
         let sub_text = text.char_indices_iter(start..);
-        let end = if let Some(utf8_length) =
-            offset_utf16_to_utf8(sub_text, semantic_token.length as usize)
-        {
-            start + utf8_length
-        } else {
-            log::error!("Bad semantic token end {semantic_token:?}");
-            continue;
-        };
+        let end =
+            start + offset_utf16_to_utf8(sub_text, semantic_token.length as usize);
 
         let kind = semantic_legends.token_types[semantic_token.token_type as usize]
             .as_str()
