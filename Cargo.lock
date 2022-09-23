@@ -2602,7 +2602,6 @@ dependencies = [
  "lsp-types",
  "notify",
  "parking_lot 0.11.2",
- "process_path",
  "pulldown-cmark",
  "rayon",
  "regex",
@@ -2654,7 +2653,6 @@ dependencies = [
  "notify",
  "once_cell",
  "parking_lot 0.11.2",
- "process_path",
  "psp-types",
  "regex",
  "reqwest",
@@ -3702,16 +3700,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a2ca2c61bc9f3d74d2886294ab7b9853abd9c1ad903a3ac7815c58989bb7bab"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "process_path"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f676f11eb0b3e2ea0fbaee218fa6b806689e2297b8c8adc5bf73df465c4f6171"
-dependencies = [
- "libc",
- "winapi 0.3.9",
 ]
 
 [[package]]

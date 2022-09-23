@@ -282,7 +282,7 @@ impl LapceData {
     }
 
     fn listen_local_socket(event_sink: ExtEventSink) -> Result<()> {
-        if let Some(path) = process_path::get_executable_path() {
+        if let Ok(path) = std::env::current_exe() {
             if let Some(path) = path.parent() {
                 if let Some(path) = path.to_str() {
                     if let Ok(current_path) = std::env::var("PATH") {
@@ -1138,9 +1138,7 @@ impl LapceTabData {
             LapceWorkbenchCommand::RestartToUpdate => {
                 if let Some(release) = (*self.latest_release).clone() {
                     if release.version != *VERSION {
-                        if let Some(process_path) =
-                            process_path::get_executable_path()
-                        {
+                        if let Ok(process_path) = std::env::current_exe() {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::RestartToUpdate(
