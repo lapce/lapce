@@ -2133,19 +2133,14 @@ impl LapceMainSplitData {
                     .iter()
                     .map(|edit| {
                         let start =
-                            doc.buffer().offset_of_position(&edit.range.start)?;
-                        let end =
-                            doc.buffer().offset_of_position(&edit.range.end)?;
+                            doc.buffer().offset_of_position(&edit.range.start);
+                        let end = doc.buffer().offset_of_position(&edit.range.end);
                         let selection = Selection::region(start, end);
-                        Some((selection, edit.new_text.as_str()))
+                        (selection, edit.new_text.as_str())
                     })
-                    .collect::<Option<Vec<(Selection, &str)>>>();
+                    .collect::<Vec<(Selection, &str)>>();
 
-                if let Some(edits) = edits {
-                    self.edit(path, &edits, EditType::Other);
-                } else {
-                    log::error!("Failed to convert LSP Position (UTF16) to a valid offset (UTF8) for document formatting");
-                }
+                self.edit(path, &edits, EditType::Other);
             }
         }
     }
@@ -2396,6 +2391,13 @@ impl LapceMainSplitData {
         scratch: bool,
         config: &Config,
     ) -> &mut LapceEditorData {
+        if path.is_none() {
+            let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
+            if let EditorTabChild::Editor(id, _, _) = editor_tab.active_child() {
+                return Arc::make_mut(self.editors.get_mut(id).unwrap());
+            }
+        }
+
         let mut editor_size = Size::ZERO;
         let editor_tabs: Box<
             dyn Iterator<Item = (&WidgetId, &mut Arc<LapceEditorTabData>)>,
@@ -2950,14 +2952,10 @@ impl LapceMainSplitData {
                     let doc = Arc::make_mut(doc);
 
                     // Convert the offset into a utf8 form for us to use
-                    let offset = if let Some(offset) =
-                        offset.to_utf8_offset(doc.buffer())
-                    {
+                    let offset = {
+                        let offset = offset.to_utf8_offset(doc.buffer());
                         doc.cursor_offset = offset;
                         offset
-                    } else {
-                        log::error!("Failed to convert position to utf8 offset for jumping to location");
-                        doc.cursor_offset
                     };
 
                     if let Some(scroll_offset) = location.scroll_offset.as_ref() {

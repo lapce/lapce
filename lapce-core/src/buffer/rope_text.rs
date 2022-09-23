@@ -52,28 +52,26 @@ impl<'a> RopeText<'a> {
 
     /// Converts a UTF8 offset to a UTF16 LSP position  
     /// Returns None if it is not a valid UTF16 offset
-    pub fn offset_to_position(&self, offset: usize) -> Option<Position> {
+    pub fn offset_to_position(&self, offset: usize) -> Position {
         let (line, col) = self.offset_to_line_col(offset);
         let line_offset = self.offset_of_line(line);
 
         let utf16_col =
-            offset_utf8_to_utf16(self.char_indices_iter(line_offset..), col)?;
+            offset_utf8_to_utf16(self.char_indices_iter(line_offset..), col);
 
-        Some(Position {
+        Position {
             line: line as u32,
             character: utf16_col as u32,
-        })
+        }
     }
 
-    /// Returns None if the UTF16 Position can't be converted to a UTF8 offset
-    pub fn offset_of_position(&self, pos: &Position) -> Option<usize> {
+    pub fn offset_of_position(&self, pos: &Position) -> usize {
         let (line, column) = self.position_to_line_col(pos);
 
-        column.map(|column| self.offset_of_line_col(line, column))
+        self.offset_of_line_col(line, column)
     }
 
-    /// Returns None if the UTF16 Position can't be converted to a UTF8 offset
-    pub fn position_to_line_col(&self, pos: &Position) -> (usize, Option<usize>) {
+    pub fn position_to_line_col(&self, pos: &Position) -> (usize, usize) {
         let line = pos.line as usize;
         let line_offset = self.offset_of_line(line);
 

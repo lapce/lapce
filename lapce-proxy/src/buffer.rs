@@ -104,19 +104,18 @@ impl Buffer {
     }
 
     /// Converts a UTF8 offset to a UTF16 LSP position  
-    /// Returns `None` if it is not a valid UTF16 offset
-    pub fn offset_to_position(&self, offset: usize) -> Option<Position> {
+    pub fn offset_to_position(&self, offset: usize) -> Position {
         let (line, col) = self.offset_to_line_col(offset);
         // Get the offset of line to make the conversion cheaper, rather than working
         // from the very start of the document to `offset`
         let line_offset = self.offset_of_line(line);
         let utf16_col =
-            offset_utf8_to_utf16(self.char_indices_iter(line_offset..), col)?;
+            offset_utf8_to_utf16(self.char_indices_iter(line_offset..), col);
 
-        Some(Position {
+        Position {
             line: line as u32,
             character: utf16_col as u32,
-        })
+        }
     }
 
     pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
@@ -257,19 +256,9 @@ fn get_document_content_changes(
     // TODO: Handle more trivial cases like typing when there's a selection or transpose
     if let Some(node) = delta.as_simple_insert() {
         let (start, end) = interval.start_end();
-        let start = if let Some(start) = buffer.offset_to_position(start) {
-            start
-        } else {
-            log::error!("Failed to convert start offset to Position in document content change insert");
-            return None;
-        };
+        let start = buffer.offset_to_position(start);
 
-        let end = if let Some(end) = buffer.offset_to_position(end) {
-            end
-        } else {
-            log::error!("Failed to convert end offset to Position in document content change insert");
-            return None;
-        };
+        let end = buffer.offset_to_position(end);
 
         Some(TextDocumentContentChangeEvent {
             range: Some(Range { start, end }),
@@ -279,19 +268,9 @@ fn get_document_content_changes(
     }
     // Or a simple delete
     else if delta.is_simple_delete() {
-        let end_position = if let Some(end) = buffer.offset_to_position(end) {
-            end
-        } else {
-            log::error!("Failed to convert end offset to Position in document content change delete");
-            return None;
-        };
+        let end_position = buffer.offset_to_position(end);
 
-        let start = if let Some(start) = buffer.offset_to_position(start) {
-            start
-        } else {
-            log::error!("Failed to convert start offset to Position in document content change delete");
-            return None;
-        };
+        let start = buffer.offset_to_position(start);
 
         Some(TextDocumentContentChangeEvent {
             range: Some(Range {
