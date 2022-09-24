@@ -62,6 +62,7 @@ tree-sitter-nix = { git = "https://github.com/panekj/tree-sitter-nix", branch = 
 tree-sitter-dart = { git = "https://github.com/syntacti/tree-sitter-dart", branch = "master", optional = true }
 tree-sitter-svelte = { git = "https://github.com/Himujjal/tree-sitter-svelte", branch = "master", optional = true }
 tree-sitter-latex = { git = "https://github.com/latex-lsp/tree-sitter-latex", branch = "master", optional = true }
+tree-sitter-kotlin = { git = "https://github.com/fwcd/tree-sitter-kotlin", branch = "main", optional = true }
 tree-sitter-d = { git = "https://github.com/syntacti/tree-sitter-d", branch = "master", optional = true }
 
 [features]
@@ -106,4 +107,5 @@ lang-nix = ["dep:tree-sitter-nix"]
 lang-dart = ["dep:tree-sitter-dart"]
 lang-svelte = ["dep:tree-sitter-svelte"]
 lang-latex = ["dep:tree-sitter-latex"]
+lang-kotlin = ["dep:tree-sitter-kotlin"]
 lang-d = ["dep:tree-sitter-d"]

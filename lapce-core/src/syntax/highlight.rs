@@ -94,6 +94,7 @@ declare_language_highlights!(
     Dart: "lang-dart",
     Svelte: "lang-svelte",
     Latex: "lang-latex",
+    Kotlin: "lang-kotlin",
     D: "lang-d",
 );
 

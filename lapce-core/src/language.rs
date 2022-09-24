@@ -192,6 +192,8 @@ pub enum LapceLanguage {
     Svelte,
     #[cfg(feature = "lang-latex")]
     Latex,
+    #[cfg(feature = "lang-kotlin")]
+    Kotlin,
     #[cfg(feature = "lang-d")]
     D,
 }
@@ -716,6 +718,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         extensions: &["tex"],
     },
+    #[cfg(feature = "lang-kotlin")]
+    SyntaxProperties {
+        id: LapceLanguage::Kotlin,
+        language: tree_sitter_kotlin::language,
+        highlight: include_str!("../queries/kotlin/highlights.scm"),
+        injection: Some(include_str!("../queries/kotlin/injections.scm")),
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["kt"],
+    },
     #[cfg(feature = "lang-d")]
     SyntaxProperties {
         id: LapceLanguage::D,
@@ -728,7 +742,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         extensions: &["d", "di", "dlang"],
     },
-];
+    ];
 
 impl LapceLanguage {
     pub fn from_path(path: &Path) -> Option<LapceLanguage> {
@@ -1056,6 +1070,10 @@ mod test {
     #[cfg(feature = "lang-latex")]
     fn test_latex_lang() {
         assert_language(LapceLanguage::Latex, &["tex"]);
+    }
+    #[cfg(feature = "lang-kotlin")]
+    fn test_kotlin_lang() {
+        assert_language(LapceLanguage::Kotlin, &["kt"]);
     }
     #[cfg(feature = "lang-d")]
     fn test_d_lang() {

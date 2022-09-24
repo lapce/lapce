@@ -130,7 +130,7 @@ pub fn mainloop() {
     std::thread::spawn(move || {
         let _ = listen_local_socket(local_proxy_rpc);
     });
-    if let Some(path) = process_path::get_executable_path() {
+    if let Ok(path) = std::env::current_exe() {
         if let Some(path) = path.parent() {
             if let Some(path) = path.to_str() {
                 if let Ok(current_path) = std::env::var("PATH") {

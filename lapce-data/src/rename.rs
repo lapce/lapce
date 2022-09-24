@@ -114,16 +114,16 @@ impl RenameData {
     ) {
         let (start, end, placeholder) = match resp {
             lsp_types::PrepareRenameResponse::Range(range) => (
-                buffer.offset_of_position(&range.start).unwrap(),
-                buffer.offset_of_position(&range.end).unwrap(),
+                buffer.offset_of_position(&range.start),
+                buffer.offset_of_position(&range.end),
                 None,
             ),
             lsp_types::PrepareRenameResponse::RangeWithPlaceholder {
                 range,
                 placeholder,
             } => (
-                buffer.offset_of_position(&range.start).unwrap(),
-                buffer.offset_of_position(&range.end).unwrap(),
+                buffer.offset_of_position(&range.start),
+                buffer.offset_of_position(&range.end),
                 Some(placeholder),
             ),
             lsp_types::PrepareRenameResponse::DefaultBehavior { .. } => (
