@@ -186,9 +186,9 @@ pub struct EditorConfig {
     )]
     pub completion_show_documentation: bool,
     #[field_names(
-        desc = "If the editor should disable all auto-close of quotes, parenthesis, brackets, etc."
+        desc = "Whether the editor should disable automatic closing of matching pairs"
     )]
-    pub auto_closing: bool,
+    pub auto_closing_matching_pairs: bool,
     #[field_names(
         desc = "How long (in ms) it should take before the hover information appears"
     )]

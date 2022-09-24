@@ -1058,7 +1058,7 @@ impl Document {
             &mut self.buffer,
             s,
             self.syntax.as_ref(),
-            config.editor.auto_closing,
+            config.editor.auto_closing_matching_pairs,
         );
         self.buffer_mut().set_cursor_before(old_cursor);
         self.buffer_mut().set_cursor_after(cursor.mode.clone());
