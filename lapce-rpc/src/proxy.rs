@@ -283,15 +283,9 @@ pub struct ReadDirResponse {
     pub items: HashMap<PathBuf, FileNodeItem>,
 }
 
-pub trait ProxyCallback: Send {
-    fn call(self: Box<Self>, result: Result<ProxyResponse, RpcError>);
-}
+pub trait ProxyCallback: Send + FnOnce(Result<ProxyResponse, RpcError>) {}
 
-impl<F: Send + FnOnce(Result<ProxyResponse, RpcError>)> ProxyCallback for F {
-    fn call(self: Box<F>, result: Result<ProxyResponse, RpcError>) {
-        (*self)(result)
-    }
-}
+impl<F: Send + FnOnce(Result<ProxyResponse, RpcError>)> ProxyCallback for F {}
 
 enum ResponseHandler {
     Callback(Box<dyn ProxyCallback>),
@@ -301,7 +295,7 @@ enum ResponseHandler {
 impl ResponseHandler {
     fn invoke(self, result: Result<ProxyResponse, RpcError>) {
         match self {
-            ResponseHandler::Callback(f) => f.call(result),
+            ResponseHandler::Callback(f) => f(result),
             ResponseHandler::Chan(tx) => {
                 let _ = tx.send(result);
             }
