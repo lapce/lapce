@@ -30,6 +30,7 @@ use serde_json::Value;
 
 pub use stdio::stdio_transport;
 
+#[derive(Debug)]
 pub enum RpcMessage<Req, Notif, Resp> {
     Request(RequestId, Req),
     Response(RequestId, Resp),

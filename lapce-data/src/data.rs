@@ -33,7 +33,7 @@ use lapce_core::{
 use lapce_proxy::{directory::Directory, VERSION};
 use lapce_rpc::{
     buffer::BufferId,
-    core::{CoreNotification, CoreRequest, CoreResponse},
+    core::{CoreMessage, CoreNotification},
     plugin::VoltInfo,
     proxy::ProxyResponse,
     source_control::FileDiff,
@@ -286,7 +286,7 @@ impl LapceData {
             if let Some(path) = path.parent() {
                 if let Some(path) = path.to_str() {
                     if let Ok(current_path) = std::env::var("PATH") {
-                        std::env::set_var("PATH", &format!("{path}:{current_path}"));
+                        std::env::set_var("PATH", format!("{path}:{current_path}"));
                     }
                 }
             }
@@ -303,12 +303,8 @@ impl LapceData {
             thread::spawn(move || -> Result<()> {
                 let mut reader = BufReader::new(stream);
                 loop {
-                    let mut reader = BufReader::new(stream);
-                    let msg: RpcMessage<
-                        CoreRequest,
-                        CoreNotification,
-                        CoreResponse,
-                    > = lapce_rpc::stdio::read_msg(&mut reader)?;
+                    let msg: CoreMessage = lapce_rpc::stdio::read_msg(&mut reader)?;
+
                     if let RpcMessage::Notification(CoreNotification::OpenPaths {
                         window_tab_id,
                         folders,
@@ -331,6 +327,8 @@ impl LapceData {
                             },
                             Target::Global,
                         );
+                    } else {
+                        log::trace!("Unhandled message: {msg:?}");
                     }
 
                     let stream_ref = reader.get_mut();
@@ -342,16 +340,14 @@ impl LapceData {
         Ok(())
     }
 
-    pub fn check_local_socket(paths: &[PathBuf]) -> Result<()> {
+    pub fn try_open_in_existing_process(paths: &[PathBuf]) -> Result<()> {
         let local_socket = Directory::local_socket()
             .ok_or_else(|| anyhow!("can't get local socket folder"))?;
         let mut socket =
             interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
-        let folders: Vec<PathBuf> =
-            paths.iter().filter(|p| p.is_dir()).cloned().collect();
-        let files: Vec<PathBuf> =
-            paths.iter().filter(|p| p.is_file()).cloned().collect();
-        let msg: RpcMessage<CoreRequest, CoreNotification, CoreResponse> =
+        let folders: Vec<_> = paths.iter().filter(|p| p.is_dir()).cloned().collect();
+        let files: Vec<_> = paths.iter().filter(|p| p.is_file()).cloned().collect();
+        let msg: CoreMessage =
             RpcMessage::Notification(CoreNotification::OpenPaths {
                 window_tab_id: None,
                 folders,

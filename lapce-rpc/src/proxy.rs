@@ -25,7 +25,7 @@ use crate::{
     source_control::FileDiff,
     style::SemanticStyles,
     terminal::TermId,
-    RequestId, RpcError,
+    RequestId, RpcError, RpcMessage,
 };
 
 pub enum ProxyRpc {
@@ -277,6 +277,8 @@ pub enum ProxyResponse {
     Success {},
     SaveResponse {},
 }
+
+pub type ProxyMessage = RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadDirResponse {

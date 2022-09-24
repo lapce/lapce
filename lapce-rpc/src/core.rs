@@ -16,7 +16,7 @@ use crate::{
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::DiffInfo,
     terminal::TermId,
-    RequestId, RpcError,
+    RequestId, RpcError, RpcMessage,
 };
 
 pub enum CoreRpc {
@@ -95,6 +95,8 @@ pub enum CoreRequest {}
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum CoreResponse {}
+
+pub type CoreMessage = RpcMessage<CoreRequest, CoreNotification, CoreResponse>;
 
 pub trait CoreHandler {
     fn handle_notification(&mut self, rpc: CoreNotification);
