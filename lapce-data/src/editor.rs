@@ -21,6 +21,7 @@ use crate::keypress::KeyPressFocus;
 use crate::palette::PaletteData;
 use crate::proxy::path_from_url;
 use crate::rename::RenameData;
+use crate::selection_range::SelectionRangeDirection;
 use crate::{
     command::{
         EnsureVisiblePosition, InitBufferContent, LapceUICommand, LAPCE_UI_COMMAND,
@@ -125,6 +126,7 @@ impl EditorPosition for usize {
 /// (If you want to jump to the very first character then use `LineCol` with column set to 0)
 #[derive(Debug, Clone, Copy)]
 pub struct Line(pub usize);
+
 impl EditorPosition for Line {
     fn to_utf8_offset(&self, buffer: &Buffer) -> usize {
         buffer.first_non_blank_character_on_line(self.0.saturating_sub(1))
@@ -153,6 +155,7 @@ pub struct LineCol {
     pub line: usize,
     pub column: usize,
 }
+
 impl EditorPosition for LineCol {
     fn to_utf8_offset(&self, buffer: &Buffer) -> usize {
         buffer.offset_of_line_col(self.line, self.column)
@@ -2213,9 +2216,75 @@ impl LapceEditorBufferData {
                     Target::Widget(self.rename.view_id),
                 ));
             }
+            SelectNextSyntaxItem => {
+                self.run_selection_range_command(ctx, SelectionRangeDirection::Next)
+            }
+            SelectPreviousSyntaxItem => self
+                .run_selection_range_command(ctx, SelectionRangeDirection::Previous),
             _ => return CommandExecuted::No,
         }
         CommandExecuted::Yes
+    }
+
+    fn run_selection_range_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        direction: SelectionRangeDirection,
+    ) {
+        let offset = self.editor.cursor.offset();
+        if let BufferContent::File(path) = self.doc.content() {
+            let rev = self.doc.buffer().rev();
+            let buffer_id = self.doc.id();
+            let event_sink = ctx.get_external_handle();
+            let current_selection = self.editor.cursor.get_selection();
+
+            match &self.doc.syntax_selection_range {
+                // If the cached selection range match current revision, no need to call the
+                // LSP server, we ca apply it right now
+                Some(selection_range)
+                    if selection_range.match_request(
+                        buffer_id,
+                        rev,
+                        current_selection,
+                    ) =>
+                {
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::ApplySelectionRange {
+                            rev,
+                            buffer_id,
+                            direction,
+                        },
+                        Target::Auto,
+                    );
+                }
+                // Otherwise, ask the LSP server for `textDocument/selectionRange`
+                _ => {
+                    let position = self.doc.buffer().offset_to_position(offset);
+                    self.proxy.proxy_rpc.get_selection_range(
+                        path.to_owned(),
+                        vec![position],
+                        move |result| {
+                            if let Ok(ProxyResponse::GetSelectionRange { ranges }) =
+                                result
+                            {
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::StoreSelectionRangeAndApply {
+                                        ranges,
+                                        rev,
+                                        buffer_id,
+                                        direction,
+                                        current_selection,
+                                    },
+                                    Target::Auto,
+                                );
+                            }
+                        },
+                    )
+                }
+            }
+        }
     }
 
     fn run_motion_mode_command(

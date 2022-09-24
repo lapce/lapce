@@ -300,6 +300,10 @@ pub enum FocusCommand {
     Rename,
     #[strum(serialize = "confirm_rename")]
     ConfirmRename,
+    #[strum(serialize = "select_next_syntax_item")]
+    SelectNextSyntaxItem,
+    #[strum(serialize = "select_previous_syntax_item")]
+    SelectPreviousSyntaxItem,
 }
 
 #[derive(
