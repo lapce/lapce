@@ -4,6 +4,10 @@
 key = "F1"
 command = "palette.command"
 
+# [[keymaps]]
+# key = "ctrl+q"
+# command = "quit"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
@@ -377,6 +381,11 @@ mode = "n"
 [[keymaps]]
 key = "p"
 command = "paste"
+mode = "nv"
+
+[[keymaps]]
+key = "shift+p"
+command = "paste_before"
 mode = "nv"
 
 [[keymaps]]

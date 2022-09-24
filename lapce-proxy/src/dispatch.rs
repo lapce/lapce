@@ -64,7 +64,7 @@ impl ProxyHandler for Dispatcher {
                 self.window_id = window_id;
                 self.tab_id = tab_id;
                 self.workspace = workspace;
-                self.file_watcher.notify(FileWatchNotifer::new(
+                self.file_watcher.notify(FileWatchNotifier::new(
                     self.workspace.clone(),
                     self.core_rpc.clone(),
                     self.proxy_rpc.clone(),
@@ -656,10 +656,15 @@ impl ProxyHandler for Dispatcher {
                 self.respond_rpc(id, result);
             }
             CreateFile { path } => {
-                let result = std::fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(path)
+                let result = path
+                    .parent()
+                    .map_or(Ok(()), std::fs::create_dir_all)
+                    .and_then(|()| {
+                        std::fs::OpenOptions::new()
+                            .write(true)
+                            .create_new(true)
+                            .open(path)
+                    })
                     .map(|_| ProxyResponse::Success {})
                     .map_err(|e| RpcError {
                         code: 0,
@@ -668,7 +673,7 @@ impl ProxyHandler for Dispatcher {
                 self.respond_rpc(id, result);
             }
             CreateDirectory { path } => {
-                let result = std::fs::create_dir(path)
+                let result = std::fs::create_dir_all(path)
                     .map(|_| ProxyResponse::Success {})
                     .map_err(|e| RpcError {
                         code: 0,
@@ -732,7 +737,7 @@ impl Dispatcher {
     }
 }
 
-struct FileWatchNotifer {
+struct FileWatchNotifier {
     core_rpc: CoreRpcHandler,
     proxy_rpc: ProxyRpcHandler,
     workspace: Option<PathBuf>,
@@ -740,13 +745,13 @@ struct FileWatchNotifer {
     last_diff: Arc<Mutex<DiffInfo>>,
 }
 
-impl Notify for FileWatchNotifer {
+impl Notify for FileWatchNotifier {
     fn notify(&self, events: Vec<(WatchToken, notify::Event)>) {
         self.handle_fs_events(events);
     }
 }
 
-impl FileWatchNotifer {
+impl FileWatchNotifier {
     fn new(
         workspace: Option<PathBuf>,
         core_rpc: CoreRpcHandler,

@@ -34,6 +34,7 @@ use lapce_proxy::{directory::Directory, VERSION};
 use lapce_rpc::{
     buffer::BufferId,
     core::{CoreNotification, CoreRequest, CoreResponse},
+    plugin::VoltInfo,
     proxy::ProxyResponse,
     source_control::FileDiff,
     terminal::TermId,
@@ -550,6 +551,8 @@ impl LapceWindowData {
 pub struct EditorDiagnostic {
     pub range: (usize, usize),
     pub diagnostic: Diagnostic,
+    /// Line counter for the editor diagnostic.
+    /// Contains the total number of message lines and related information lines
     pub lines: usize,
 }
 
@@ -662,8 +665,8 @@ impl LapceTabData {
             term_sender.clone(),
             event_sink.clone(),
         ));
-        let palette = Arc::new(PaletteData::new(proxy.clone()));
-        let completion = Arc::new(CompletionData::new());
+        let palette = Arc::new(PaletteData::new(config.clone(), proxy.clone()));
+        let completion = Arc::new(CompletionData::new(config.clone()));
         let hover = Arc::new(HoverData::new());
         let rename = Arc::new(RenameData::new());
         let source_control = Arc::new(SourceControlData::new());
@@ -956,9 +959,10 @@ impl LapceTabData {
         &self,
         text: &mut PietText,
         tab_size: Size,
+        completion_size: Size,
         config: &Config,
     ) -> Point {
-        let line_height = self.config.editor.line_height as f64;
+        let line_height = self.config.editor.line_height() as f64;
 
         let editor = self.main_split.active_editor();
         let editor = match editor {
@@ -984,10 +988,8 @@ impl LapceTabData {
                 let mut origin = *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
                     + Vec2::new(point_below.x - line_height - 5.0, point_below.y);
-                if origin.y + self.completion.size.height + 1.0 > tab_size.height {
-                    let height = self
-                        .completion
-                        .size
+                if origin.y + completion_size.height + 1.0 > tab_size.height {
+                    let height = completion_size
                         .height
                         .min(self.completion.len() as f64 * line_height);
                     origin.y = editor.window_origin.borrow().y
@@ -995,8 +997,8 @@ impl LapceTabData {
                         + point_above.y
                         - height;
                 }
-                if origin.x + self.completion.size.width + 1.0 > tab_size.width {
-                    origin.x = tab_size.width - self.completion.size.width - 1.0;
+                if origin.x + completion_size.width + 1.0 > tab_size.width {
+                    origin.x = tab_size.width - completion_size.width - 1.0;
                 }
                 if origin.x <= 0.0 {
                     origin.x = 0.0;
@@ -1062,7 +1064,7 @@ impl LapceTabData {
         tab_size: Size,
         config: &Config,
     ) -> Point {
-        let line_height = self.config.editor.line_height as f64;
+        let line_height = self.config.editor.line_height() as f64;
 
         let editor = self.main_split.editors.get(&self.hover.editor_view_id);
         let editor = match editor {
@@ -1210,6 +1212,22 @@ impl LapceTabData {
                         }
                     }
                 }
+            }
+            LapceWorkbenchCommand::RevealActiveFileInFileExplorer => {
+                let path = if let Some(editor) = self.main_split.active_editor() {
+                    match &editor.content {
+                        BufferContent::File(path) => path,
+                        _ => return,
+                    }
+                } else {
+                    return;
+                };
+
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RevealInFileExplorer(path.to_owned()),
+                    Target::Auto,
+                ))
             }
             LapceWorkbenchCommand::EnableModal => {
                 let config = Arc::make_mut(&mut self.config);
@@ -1527,7 +1545,7 @@ impl LapceTabData {
                     .local_docs
                     .get_mut(&LocalBufferKind::SourceControl)
                     .unwrap();
-                let message = doc.buffer().text().to_string();
+                let message = doc.buffer().to_string();
                 let message = message.trim();
                 if message.is_empty() {
                     return;
@@ -1660,6 +1678,9 @@ impl LapceTabData {
                         }
                     }
                 }
+            }
+            LapceWorkbenchCommand::Quit => {
+                ctx.submit_command(druid::commands::QUIT_APP);
             }
         }
     }
@@ -2542,6 +2563,56 @@ impl LapceMainSplitData {
         }
     }
 
+    pub fn open_plugin_info(&mut self, ctx: &mut EventCtx, volt: &VoltInfo) {
+        let editor_tab_id = self
+            .active_tab
+            .as_ref()
+            .map(|id| id)
+            .unwrap_or_else(|| self.new_editor_tab(ctx, *self.split_id));
+
+        let editor_tab =
+            Arc::make_mut(self.editor_tabs.get_mut(&editor_tab_id).unwrap());
+
+        let open_volt_id = volt.id();
+        let mut existing: Option<WidgetId> = None;
+        for (i, child) in editor_tab.children.iter().enumerate() {
+            if let EditorTabChild::Plugin { volt_id, .. } = child {
+                if &open_volt_id == volt_id {
+                    editor_tab.active = i;
+                    existing = Some(child.widget_id());
+                    break;
+                }
+            }
+        }
+
+        let widget_id = existing.unwrap_or_else(|| {
+            let child = EditorTabChild::Plugin {
+                widget_id: WidgetId::next(),
+                volt_id: volt.id(),
+                volt_name: volt.display_name.clone(),
+                editor_tab_id: editor_tab.widget_id,
+            };
+
+            let new_tab = editor_tab.children.is_empty();
+            let index = if new_tab { 0 } else { editor_tab.active + 1 };
+            editor_tab.children.insert(index, child.clone());
+            if !new_tab {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EditorTabAdd(index, child.clone()),
+                    Target::Widget(editor_tab.widget_id),
+                ));
+            }
+            editor_tab.active = index;
+            child.widget_id()
+        });
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(widget_id),
+        ));
+    }
+
     pub fn open_settings(
         &mut self,
         ctx: &mut EventCtx,
@@ -2757,6 +2828,7 @@ impl LapceMainSplitData {
                 }
             }
             EditorTabChild::Settings { .. } => {}
+            EditorTabChild::Plugin { .. } => {}
         }
     }
 
@@ -3243,7 +3315,7 @@ impl LapceMainSplitData {
                     doc.id(),
                     path.to_path_buf(),
                     doc.rev(),
-                    doc.buffer().text().to_string(),
+                    doc.buffer().to_string(),
                     Box::new(move |result| {
                         if let Ok(_r) = result {
                             let _ = event_sink.submit_command(
@@ -3262,7 +3334,7 @@ impl LapceMainSplitData {
         }
     }
 
-    pub fn settings_close(
+    pub fn widget_close(
         &mut self,
         ctx: &mut EventCtx,
         widget_id: WidgetId,
@@ -3524,6 +3596,53 @@ impl LapceMainSplitData {
         }
     }
 
+    fn split_plugin(
+        &mut self,
+        ctx: &mut EventCtx,
+        editor_tab_id: WidgetId,
+        volt_id: String,
+        volt_name: String,
+        direction: SplitDirection,
+        _config: &Config,
+    ) {
+        let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
+        let split_id = editor_tab.split;
+
+        let new_editor_tab_id = WidgetId::next();
+        let mut new_editor_tab = LapceEditorTabData {
+            widget_id: new_editor_tab_id,
+            split: split_id,
+            active: 0,
+            children: vec![EditorTabChild::Plugin {
+                widget_id: WidgetId::next(),
+                editor_tab_id: new_editor_tab_id,
+                volt_id,
+                volt_name,
+            }],
+            layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
+            content_is_hot: Rc::new(RefCell::new(false)),
+        };
+
+        let new_split_id = self.split(
+            ctx,
+            split_id,
+            SplitContent::EditorTab(editor_tab_id),
+            SplitContent::EditorTab(new_editor_tab.widget_id),
+            direction,
+            false,
+            false,
+        );
+
+        new_editor_tab.split = new_split_id;
+        if split_id != new_split_id {
+            let editor_tab = self.editor_tabs.get_mut(&editor_tab_id).unwrap();
+            let editor_tab = Arc::make_mut(editor_tab);
+            editor_tab.split = new_split_id;
+        }
+        self.editor_tabs
+            .insert(new_editor_tab.widget_id, Arc::new(new_editor_tab));
+    }
+
     pub fn split_settings(
         &mut self,
         ctx: &mut EventCtx,
@@ -3578,13 +3697,49 @@ impl LapceMainSplitData {
             .insert(new_editor_tab.widget_id, Arc::new(new_editor_tab));
     }
 
-    pub fn split_editor(
+    pub fn tab_split(
         &mut self,
         ctx: &mut EventCtx,
-        editor: &mut LapceEditorData,
+        editor_tab_id: WidgetId,
         direction: SplitDirection,
         config: &Config,
     ) {
+        let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
+        if let Some(active) = editor_tab.children.get(editor_tab.active) {
+            match active {
+                EditorTabChild::Editor(view_id, _, _) => {
+                    self.split_editor(ctx, *view_id, direction, config);
+                }
+                EditorTabChild::Settings { editor_tab_id, .. } => {
+                    self.split_settings(ctx, *editor_tab_id, direction, config);
+                }
+                EditorTabChild::Plugin {
+                    editor_tab_id,
+                    volt_id,
+                    volt_name,
+                    ..
+                } => {
+                    self.split_plugin(
+                        ctx,
+                        *editor_tab_id,
+                        volt_id.clone(),
+                        volt_name.clone(),
+                        direction,
+                        config,
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn split_editor(
+        &mut self,
+        ctx: &mut EventCtx,
+        view_id: WidgetId,
+        direction: SplitDirection,
+        config: &Config,
+    ) {
+        let editor = self.editors.get(&view_id).unwrap();
         if let Some(editor_tab_id) = editor.tab_id {
             let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
             let split_id = editor_tab.split;
@@ -3647,6 +3802,12 @@ pub enum EditorTabChild {
         editor_tab_id: WidgetId,
         keymap_input_view_id: WidgetId,
     },
+    Plugin {
+        widget_id: WidgetId,
+        volt_id: String,
+        volt_name: String,
+        editor_tab_id: WidgetId,
+    },
 }
 
 impl EditorTabChild {
@@ -3656,6 +3817,7 @@ impl EditorTabChild {
             EditorTabChild::Settings {
                 settings_widget_id, ..
             } => *settings_widget_id,
+            EditorTabChild::Plugin { widget_id, .. } => *widget_id,
         }
     }
 
@@ -3666,6 +3828,12 @@ impl EditorTabChild {
                 EditorTabChildInfo::Editor(editor_data.editor_info(data))
             }
             EditorTabChild::Settings { .. } => EditorTabChildInfo::Settings,
+            EditorTabChild::Plugin {
+                volt_id, volt_name, ..
+            } => EditorTabChildInfo::Plugin {
+                volt_id: volt_id.to_string(),
+                volt_name: volt_name.to_string(),
+            },
         }
     }
 
@@ -3681,6 +3849,9 @@ impl EditorTabChild {
                 editor_data.tab_id = Some(editor_tab_widget_id);
             }
             EditorTabChild::Settings { editor_tab_id, .. } => {
+                *editor_tab_id = editor_tab_widget_id;
+            }
+            EditorTabChild::Plugin { editor_tab_id, .. } => {
                 *editor_tab_id = editor_tab_widget_id;
             }
         }
@@ -3731,6 +3902,19 @@ pub enum EditorView {
     Lens,
 }
 
+impl EditorView {
+    pub fn is_normal(&self) -> bool {
+        matches!(self, EditorView::Normal)
+    }
+}
+
+#[derive(Debug)]
+pub struct StickyHeaderInfo {
+    pub height: f64,
+    pub lines: Vec<usize>,
+    pub last_y_diff: f64,
+}
+
 #[derive(Clone, Debug)]
 pub struct LapceEditorData {
     pub tab_id: Option<WidgetId>,
@@ -3745,6 +3929,7 @@ pub struct LapceEditorData {
     pub cursor: Cursor,
     pub last_cursor_instant: Rc<RefCell<Instant>>,
     pub size: Rc<RefCell<Size>>,
+    pub sticky_header: Rc<RefCell<StickyHeaderInfo>>,
     pub window_origin: Rc<RefCell<Point>>,
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
     pub last_movement_new: Movement,
@@ -3783,6 +3968,11 @@ impl LapceEditorData {
             last_cursor_instant: Rc::new(RefCell::new(Instant::now())),
             content,
             size: Rc::new(RefCell::new(Size::ZERO)),
+            sticky_header: Rc::new(RefCell::new(StickyHeaderInfo {
+                height: 0.0,
+                lines: Vec::new(),
+                last_y_diff: 0.0,
+            })),
             compare: None,
             window_origin: Rc::new(RefCell::new(Point::ZERO)),
             snippet: None,
@@ -3839,7 +4029,7 @@ impl LapceEditorData {
     pub fn editor_info(&self, data: &LapceTabData) -> EditorInfo {
         let unsaved = if let BufferContent::Scratch(id, _) = &self.content {
             let doc = data.main_split.scratch_docs.get(id).unwrap();
-            Some(doc.buffer().text().to_string())
+            Some(doc.buffer().to_string())
         } else {
             None
         };

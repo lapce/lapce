@@ -30,13 +30,12 @@ im = { version = "15.0.0", features = ["serde"] }
 crossbeam-channel = "0.5.0"
 crossbeam-utils = "0.8.4"
 regex = "1.5.6"
-jsonrpc-lite = "0.5.0"
+jsonrpc-lite = "0.6.0"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
 thiserror = "1.0"
 anyhow = "1.0.32"
 strum = "0.24.0"
 strum_macros = "0.24"
-lazy_static = "1.4.0"
 serde = "1.0"
 serde_json = "1.0"
 notify = { version = "5.0.0-pre.13", features = ["serde"] }

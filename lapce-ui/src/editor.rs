@@ -21,6 +21,7 @@ use lapce_data::command::CommandKind;
 use lapce_data::data::{EditorView, LapceData};
 use lapce_data::document::{BufferContent, LocalBufferKind};
 use lapce_data::history::DocumentHistory;
+use lapce_data::hover::HoverStatus;
 use lapce_data::keypress::KeyPressFocus;
 use lapce_data::menu::MenuKind;
 use lapce_data::palette::PaletteStatus;
@@ -36,6 +37,7 @@ use lapce_data::{
 };
 use lsp_types::{CodeActionOrCommand, DiagnosticSeverity};
 
+pub mod bread_crumb;
 pub mod container;
 pub mod gutter;
 pub mod header;
@@ -106,7 +108,7 @@ impl LapceEditor {
             return false;
         }
 
-        let line_height = config.editor.line_height as f64;
+        let line_height = config.editor.line_height() as f64;
         let scroll_offset = editor_data.editor.scroll_offset;
         let size = *editor_data.editor.size.borrow();
 
@@ -352,7 +354,7 @@ impl LapceEditor {
         panel: &PanelData,
         env: &Env,
     ) -> Size {
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         let width = data.config.editor_char_width(text);
         match &data.editor.content {
             BufferContent::File(_)
@@ -492,7 +494,7 @@ impl LapceEditor {
     ) -> ScreenLines {
         let empty_lens = Syntax::lens_from_normal_lines(
             data.doc.buffer().len(),
-            data.config.editor.line_height,
+            data.config.editor.line_height(),
             data.config.editor.code_lens_font_size,
             &[],
         );
@@ -510,7 +512,9 @@ impl LapceEditor {
         let start_line =
             lens.line_of_height(rect.y0.floor() as usize).min(last_line);
         let end_line = lens
-            .line_of_height(rect.y1.ceil() as usize + data.config.editor.line_height)
+            .line_of_height(
+                rect.y1.ceil() as usize + data.config.editor.line_height(),
+            )
             .min(last_line);
         let start_offset = data.doc.buffer().offset_of_line(start_line);
         let end_offset = data.doc.buffer().offset_of_line(end_line + 1);
@@ -522,7 +526,7 @@ impl LapceEditor {
         let mut info = HashMap::new();
         for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {
             if let Some(line_content) = lines_iter.next() {
-                let is_small = line_height < data.config.editor.line_height;
+                let is_small = line_height < data.config.editor.line_height();
                 let mut x = 0.0;
 
                 if is_small {
@@ -823,6 +827,7 @@ impl LapceEditor {
         Self::paint_text(ctx, data, &screen_lines, env);
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
+        Self::paint_sticky_headers(ctx, data, env);
 
         if let Some(placeholder) = self.placeholder.as_ref() {
             if data.doc.buffer().is_empty() {
@@ -844,7 +849,8 @@ impl LapceEditor {
                     &text_layout,
                     Point::new(
                         0.0,
-                        text_layout.y_offset(data.config.editor.line_height as f64),
+                        text_layout
+                            .y_offset(data.config.editor.line_height() as f64),
                     ),
                 );
             }
@@ -884,6 +890,11 @@ impl LapceEditor {
                     );
                 }
             }
+
+            if let Some(whitespace) = &text_layout.whitespace {
+                ctx.draw_text(whitespace, Point::new(info.x, y));
+            }
+
             ctx.draw_text(&text_layout.text, Point::new(info.x, y));
         }
     }
@@ -1373,6 +1384,120 @@ impl LapceEditor {
         }
     }
 
+    fn paint_sticky_headers(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        env: &Env,
+    ) {
+        if !data.config.editor.sticky_header {
+            return;
+        }
+
+        if !data.editor.content.is_file() {
+            return;
+        }
+
+        let mut info = data.editor.sticky_header.borrow_mut();
+        info.lines.clear();
+        info.height = 0.0;
+        info.last_y_diff = 0.0;
+
+        if !data.editor.view.is_normal() {
+            return;
+        }
+
+        let line_height = Self::line_height(data, env);
+        let size = ctx.size();
+        let rect = ctx.region().bounding_box();
+        let x0 = rect.x0;
+        let y0 = rect.y0;
+        let start_line = (rect.y0 / line_height).floor() as usize;
+        let y_diff = y0 - start_line as f64 * line_height;
+        let mut last_sticky_should_scroll = false;
+
+        let mut sticky_lines = Vec::new();
+        if let Some(lines) = data.doc.sticky_headers(start_line) {
+            let total_lines = lines.len();
+            if total_lines > 0 {
+                let line = start_line + total_lines;
+                if let Some(new_lines) = data.doc.sticky_headers(line) {
+                    if new_lines.len() > total_lines {
+                        sticky_lines = new_lines;
+                    } else {
+                        sticky_lines = lines;
+                        last_sticky_should_scroll = new_lines.len() < total_lines;
+                        if new_lines.len() < total_lines {
+                            if let Some(new_new_lines) =
+                                data.doc.sticky_headers(start_line + total_lines - 1)
+                            {
+                                if new_new_lines.len() < total_lines {
+                                    sticky_lines.pop();
+                                    last_sticky_should_scroll = false;
+                                }
+                            } else {
+                                sticky_lines.pop();
+                                last_sticky_should_scroll = false;
+                            }
+                        }
+                    }
+                } else {
+                    sticky_lines = lines;
+                    last_sticky_should_scroll = true;
+                }
+            }
+        }
+
+        let mut i = 0;
+        let total_stickly_lines = sticky_lines.len();
+        if last_sticky_should_scroll {
+            info.last_y_diff = y_diff;
+        } else {
+            info.last_y_diff = 0.0;
+        }
+        info.lines = sticky_lines.clone();
+        info.height = 0.0;
+        for line in sticky_lines {
+            let y_diff = if last_sticky_should_scroll && i == total_stickly_lines - 1
+            {
+                y_diff
+            } else {
+                0.0
+            };
+            let rect = Size::new(size.width, line_height - y_diff)
+                .to_rect()
+                .with_origin(Point::new(0.0, y0 + line_height * i as f64));
+            ctx.with_save(|ctx| {
+                ctx.clip(rect);
+                ctx.fill(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                );
+                let text_layout = data.doc.get_text_layout(
+                    ctx.text(),
+                    line,
+                    data.config.editor.font_size,
+                    &data.config,
+                );
+                let y = y0
+                    + line_height * i as f64
+                    + text_layout.text.y_offset(line_height)
+                    - y_diff;
+                ctx.draw_text(&text_layout.text, Point::new(x0, y));
+            });
+            i += 1;
+        }
+
+        if i > 0 {
+            info.height = i as f64 * line_height
+                - if last_sticky_should_scroll {
+                    y_diff
+                } else {
+                    0.0
+                };
+        }
+    }
+
     fn paint_snippet(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
@@ -1646,7 +1771,7 @@ impl LapceEditor {
         } else if data.editor.content.is_input() {
             env.get(LapceTheme::INPUT_LINE_HEIGHT)
         } else {
-            data.config.editor.line_height as f64
+            data.config.editor.line_height() as f64
         }
     }
 
@@ -1698,8 +1823,12 @@ impl Widget<LapceTabData> for LapceEditor {
         _env: &Env,
     ) {
         match event {
+            Event::Wheel(_) => {
+                if data.hover.status != HoverStatus::Inactive {
+                    Arc::make_mut(&mut data.hover).cancel();
+                }
+            }
             Event::MouseMove(mouse_event) => {
-                ctx.set_handled();
                 ctx.set_cursor(&druid::Cursor::IBeam);
                 let doc = data.main_split.editor_doc(self.view_id);
                 let editor =
@@ -1713,6 +1842,9 @@ impl Widget<LapceTabData> for LapceEditor {
                     &data.config,
                 );
                 data.update_from_editor_buffer_data(editor_data, &editor, &doc);
+                if ctx.is_active() {
+                    ctx.set_handled();
+                }
             }
             Event::MouseUp(_mouse_event) => {
                 self.mouse_mods = Modifiers::empty();
@@ -1806,7 +1938,8 @@ impl Widget<LapceTabData> for LapceEditor {
                                         &editor_data.config,
                                     )
                                     .x;
-                                let y = editor_data.config.editor.line_height as f64
+                                let y = editor_data.config.editor.line_height()
+                                    as f64
                                     * (line + 1) as f64;
                                 ctx.to_window(Point::new(x, y))
                             });

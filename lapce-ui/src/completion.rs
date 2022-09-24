@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
 use anyhow::Error;
 use druid::{
@@ -14,6 +14,7 @@ use lapce_data::{
     completion::{CompletionData, CompletionStatus, ScoredCompletionItem},
     config::{Config, LapceTheme},
     data::LapceTabData,
+    list::ListData,
     markdown::parse_markdown,
     rich_text::{RichText, RichTextBuilder},
 };
@@ -22,6 +23,7 @@ use regex::Regex;
 use std::str::FromStr;
 
 use crate::{
+    list::{List, ListPaint},
     scroll::{LapceIdentityWrapper, LapceScroll},
     svg::completion_svg,
 };
@@ -182,8 +184,8 @@ pub struct CompletionContainer {
     id: WidgetId,
     scroll_id: WidgetId,
     completion: WidgetPod<
-        LapceTabData,
-        LapceIdentityWrapper<LapceScroll<LapceTabData, Completion>>,
+        ListData<ScoredCompletionItem, ()>,
+        List<ScoredCompletionItem, ()>,
     >,
     completion_content_size: Size,
     documentation: WidgetPod<
@@ -195,10 +197,7 @@ pub struct CompletionContainer {
 
 impl CompletionContainer {
     pub fn new(data: &CompletionData) -> Self {
-        let completion = LapceIdentityWrapper::wrap(
-            LapceScroll::new(Completion::new()).vertical(),
-            data.scroll_id,
-        );
+        let completion = List::new(data.scroll_id);
         let completion_doc = LapceIdentityWrapper::wrap(
             LapceScroll::new(CompletionDocumentation::new()).vertical(),
             data.documentation_scroll_id,
@@ -220,19 +219,15 @@ impl CompletionContainer {
         env: &Env,
     ) {
         let width = ctx.size().width;
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.completion.completion_list.line_height() as f64;
+
         let rect = Size::new(width, line_height)
             .to_rect()
             .with_origin(Point::new(
                 0.0,
-                data.completion.index as f64 * line_height,
+                data.completion.completion_list.selected_index as f64 * line_height,
             ));
-        if self
-            .completion
-            .widget_mut()
-            .inner_mut()
-            .scroll_to_visible(rect, env)
-        {
+        if self.completion.widget_mut().scroll_to_visible(rect, env) {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ResetFade,
@@ -248,9 +243,12 @@ impl CompletionContainer {
         ctx: &mut EventCtx,
         data: &LapceTabData,
     ) {
-        let line_height = data.config.editor.line_height as f64;
-        let point = Point::new(0.0, data.completion.index as f64 * line_height);
-        if self.completion.widget_mut().inner_mut().scroll_to(point) {
+        let line_height = data.completion.completion_list.line_height() as f64;
+        let point = Point::new(
+            0.0,
+            data.completion.completion_list.selected_index as f64 * line_height,
+        );
+        if self.completion.widget_mut().scroll_to(point) {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ResetFade,
@@ -260,9 +258,14 @@ impl CompletionContainer {
     }
 
     fn update_documentation(&mut self, data: &LapceTabData) {
+        if data.completion.status == CompletionStatus::Inactive {
+            return;
+        }
+
         let documentation = if data.config.editor.completion_show_documentation {
             let current_item = (!data.completion.is_empty())
-                .then(|| data.completion.current_item());
+                .then(|| data.completion.current_item())
+                .flatten();
 
             current_item.and_then(|item| item.item.documentation.as_ref())
         } else {
@@ -304,7 +307,35 @@ impl Widget<LapceTabData> for CompletionContainer {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        self.completion.event(ctx, event, data, env);
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                if let LapceUICommand::ListItemSelected = command {
+                    if let Some(editor) = data
+                        .main_split
+                        .active
+                        .and_then(|active| data.main_split.editors.get(&active))
+                        .cloned()
+                    {
+                        let mut editor_data =
+                            data.editor_view_content(editor.view_id);
+                        let doc = editor_data.doc.clone();
+                        editor_data.completion_item_select(ctx);
+                        data.update_from_editor_buffer_data(
+                            editor_data,
+                            &editor,
+                            &doc,
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        let completion = Arc::make_mut(&mut data.completion);
+        completion.completion_list.update_data(data.config.clone());
+        self.completion
+            .event(ctx, event, &mut completion.completion_list, env);
         self.documentation.event(ctx, event, data, env);
     }
 
@@ -315,7 +346,15 @@ impl Widget<LapceTabData> for CompletionContainer {
         data: &LapceTabData,
         env: &Env,
     ) {
-        self.completion.lifecycle(ctx, event, data, env);
+        self.completion.lifecycle(
+            ctx,
+            event,
+            &data
+                .completion
+                .completion_list
+                .clone_with(data.config.clone()),
+            env,
+        );
         self.documentation.lifecycle(ctx, event, data, env);
     }
 
@@ -349,14 +388,8 @@ impl Widget<LapceTabData> for CompletionContainer {
             if old_data.completion.input != data.completion.input
                 || old_data.completion.request_id != data.completion.request_id
                 || old_data.completion.status != data.completion.status
-                || !old_data
-                    .completion
-                    .current_items()
-                    .same(data.completion.current_items())
-                || !old_data
-                    .completion
-                    .filtered_items
-                    .same(&data.completion.filtered_items)
+                || old_data.completion.completion_list.items
+                    != data.completion.completion_list.items
             {
                 self.update_documentation(data);
                 ctx.request_layout();
@@ -373,7 +406,9 @@ impl Widget<LapceTabData> for CompletionContainer {
                 ));
             }
 
-            if old_completion.index != completion.index {
+            if old_completion.completion_list.selected_index
+                != completion.completion_list.selected_index
+            {
                 self.ensure_item_visible(ctx, data, env);
                 self.update_documentation(data);
                 ctx.request_paint();
@@ -389,20 +424,38 @@ impl Widget<LapceTabData> for CompletionContainer {
             {
                 ctx.request_layout();
             }
+
+            self.completion.update(
+                ctx,
+                &data
+                    .completion
+                    .completion_list
+                    .clone_with(data.config.clone()),
+                env,
+            );
         }
     }
 
     fn layout(
         &mut self,
         ctx: &mut LayoutCtx,
-        _bc: &BoxConstraints,
+        bc: &BoxConstraints,
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let completion_size = data.completion.size;
-        let bc = BoxConstraints::new(Size::ZERO, completion_size);
-        self.completion_content_size = self.completion.layout(ctx, &bc, data, env);
-        self.completion.set_origin(ctx, data, env, Point::ZERO);
+        // TODO: Let this be configurable
+        let width = 400.0;
+
+        let bc = BoxConstraints::tight(Size::new(width, bc.max().height));
+
+        let completion_list = data
+            .completion
+            .completion_list
+            .clone_with(data.config.clone());
+        self.completion_content_size =
+            self.completion.layout(ctx, &bc, &completion_list, env);
+        self.completion
+            .set_origin(ctx, &completion_list, env, Point::ZERO);
 
         // Position the documentation over the current completion item to the right
         let documentation_size = data.completion.documentation_size;
@@ -419,8 +472,10 @@ impl Widget<LapceTabData> for CompletionContainer {
         ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
 
         Size::new(
-            completion_size.width + documentation_size.width,
-            completion_size.height.max(documentation_size.height),
+            self.completion_content_size.width + documentation_size.width,
+            self.completion_content_size
+                .height
+                .max(documentation_size.height),
         )
     }
 
@@ -429,6 +484,15 @@ impl Widget<LapceTabData> for CompletionContainer {
             && data.completion.len() > 0
         {
             let rect = self.completion_content_size.to_rect();
+
+            // Draw the background
+            ctx.fill(
+                rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::COMPLETION_BACKGROUND),
+            );
+
+            // Draw the shadow
             let shadow_width = data.config.ui.drop_shadow_width() as f64;
             if shadow_width > 0.0 {
                 ctx.blurred_rect(
@@ -444,160 +508,91 @@ impl Widget<LapceTabData> for CompletionContainer {
                     1.0,
                 );
             }
-            self.completion.paint(ctx, data, env);
+
+            // Draw the completion list over the background
+            self.completion.paint(
+                ctx,
+                &data
+                    .completion
+                    .completion_list
+                    .clone_with(data.config.clone()),
+                env,
+            );
+
+            // Draw the documentation to the side
             self.documentation.paint(ctx, data, env);
         }
     }
 }
 
-pub struct Completion {}
-
-impl Completion {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for Completion {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Widget<LapceTabData> for Completion {
-    fn event(
-        &mut self,
-        _ctx: &mut EventCtx,
-        _event: &Event,
-        _data: &mut LapceTabData,
+impl<D: Data> ListPaint<D> for ScoredCompletionItem {
+    fn paint(
+        &self,
+        ctx: &mut PaintCtx,
+        data: &ListData<Self, D>,
         _env: &Env,
+        line: usize,
     ) {
-    }
-
-    fn lifecycle(
-        &mut self,
-        _ctx: &mut LifeCycleCtx,
-        _event: &LifeCycle,
-        _data: &LapceTabData,
-        _env: &Env,
-    ) {
-    }
-
-    fn update(
-        &mut self,
-        _ctx: &mut UpdateCtx,
-        _old_data: &LapceTabData,
-        _data: &LapceTabData,
-        _env: &Env,
-    ) {
-    }
-
-    fn layout(
-        &mut self,
-        _ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
-        data: &LapceTabData,
-        _env: &Env,
-    ) -> Size {
-        let line_height = data.config.editor.line_height as f64;
-        let height = data.completion.len();
-        let height = height as f64 * line_height;
-        Size::new(bc.max().width, height)
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        if data.completion.status == CompletionStatus::Inactive {
-            return;
-        }
-        let line_height = data.config.editor.line_height as f64;
-        let rect = ctx.region().bounding_box();
         let size = ctx.size();
-
-        let _input = &data.completion.input;
-        let items: &Vec<ScoredCompletionItem> = data.completion.current_items();
-
-        ctx.fill(
-            rect,
-            data.config
-                .get_color_unchecked(LapceTheme::COMPLETION_BACKGROUND),
-        );
-
-        let start_line = (rect.y0 / line_height).floor() as usize;
-        let end_line = (rect.y1 / line_height).ceil() as usize;
-
-        for line in start_line..end_line {
-            if line >= items.len() {
-                break;
-            }
-
-            if line == data.completion.index {
-                ctx.fill(
-                    Rect::ZERO
-                        .with_origin(Point::new(0.0, line as f64 * line_height))
-                        .with_size(Size::new(size.width, line_height)),
-                    data.config
-                        .get_color_unchecked(LapceTheme::COMPLETION_CURRENT),
-                );
-            }
-
-            let item = &items[line];
-
-            if let Some((svg, color)) = completion_svg(item.item.kind, &data.config)
-            {
-                let color = color.unwrap_or_else(|| {
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone()
-                });
-                let rect = Size::new(line_height, line_height)
-                    .to_rect()
-                    .with_origin(Point::new(0.0, line_height * line as f64));
-                ctx.fill(rect, &color.clone().with_alpha(0.3));
-
-                let width = 16.0;
-                let height = 16.0;
-                let rect =
-                    Size::new(width, height).to_rect().with_origin(Point::new(
-                        (line_height - width) / 2.0,
-                        (line_height - height) / 2.0 + line_height * line as f64,
-                    ));
-                ctx.draw_svg(&svg, rect, Some(&color));
-            }
-
-            let focus_color =
-                data.config.get_color_unchecked(LapceTheme::EDITOR_FOCUS);
-            let content = item.item.label.as_str();
-
-            let mut text_layout = ctx
-                .text()
-                .new_text_layout(content.to_string())
-                .font(
-                    FontFamily::new_unchecked(
-                        data.config.editor.font_family.clone(),
-                    ),
-                    data.config.editor.font_size as f64,
-                )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                );
-            for i in &item.indices {
-                let i = *i;
-                text_layout = text_layout.range_attribute(
-                    i..i + 1,
-                    TextAttribute::TextColor(focus_color.clone()),
-                );
-                text_layout = text_layout.range_attribute(
-                    i..i + 1,
-                    TextAttribute::Weight(FontWeight::BOLD),
-                );
-            }
-            let text_layout = text_layout.build().unwrap();
-            let y = line_height * line as f64 + text_layout.y_offset(line_height);
-            let point = Point::new(line_height + 5.0, y);
-            ctx.draw_text(&text_layout, point);
+        let line_height = data.line_height() as f64;
+        if line == data.selected_index {
+            ctx.fill(
+                Rect::ZERO
+                    .with_origin(Point::new(0.0, line as f64 * line_height))
+                    .with_size(Size::new(size.width, line_height)),
+                data.config
+                    .get_color_unchecked(LapceTheme::COMPLETION_CURRENT),
+            );
         }
+
+        if let Some((svg, color)) = completion_svg(self.item.kind, &data.config) {
+            let color = color.unwrap_or_else(|| {
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone()
+            });
+            let rect = Size::new(line_height, line_height)
+                .to_rect()
+                .with_origin(Point::new(0.0, line_height * line as f64));
+            ctx.fill(rect, &color.clone().with_alpha(0.3));
+
+            let width = 16.0;
+            let height = 16.0;
+            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
+                (line_height - width) / 2.0,
+                (line_height - height) / 2.0 + line_height * line as f64,
+            ));
+            ctx.draw_svg(&svg, rect, Some(&color));
+        }
+
+        let focus_color = data.config.get_color_unchecked(LapceTheme::EDITOR_FOCUS);
+        let content = self.item.label.as_str();
+
+        let mut text_layout = ctx
+            .text()
+            .new_text_layout(content.to_string())
+            .font(
+                FontFamily::new_unchecked(data.config.editor.font_family.clone()),
+                data.config.editor.font_size as f64,
+            )
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            );
+        for i in &self.indices {
+            let i = *i;
+            text_layout = text_layout.range_attribute(
+                i..i + 1,
+                TextAttribute::TextColor(focus_color.clone()),
+            );
+            text_layout = text_layout
+                .range_attribute(i..i + 1, TextAttribute::Weight(FontWeight::BOLD));
+        }
+        let text_layout = text_layout.build().unwrap();
+        let y = line_height * line as f64 + text_layout.y_offset(line_height);
+        let point = Point::new(line_height + 5.0, y);
+        ctx.draw_text(&text_layout, point);
     }
 }
 

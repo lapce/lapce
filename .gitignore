@@ -4,3 +4,5 @@
 lib/
 target/
 core/languages/
+
+.DS_Store

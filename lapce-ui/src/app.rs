@@ -352,7 +352,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                             WidgetPod::new(tab_header)
                         })
                         .collect(),
-                    dragable_area: Region::EMPTY,
+                    draggable_area: Region::EMPTY,
                     tab_header_cmds: Vec::new(),
                     mouse_down_cmd: None,
                     #[cfg(not(target_os = "macos"))]

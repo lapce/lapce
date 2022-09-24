@@ -50,13 +50,13 @@ pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.new-comma
 pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
     Selector::new("lapce.ui_command");
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LapceCommand {
     pub kind: CommandKind,
     pub data: Option<Value>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommandKind {
     Workbench(LapceWorkbenchCommand),
     Edit(EditCommand),
@@ -204,6 +204,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "open_file")]
     #[strum(message = "Open File")]
     OpenFile,
+
+    #[strum(serialize = "reveal_active_file_in_file_explorer")]
+    #[strum(message = "Reveal Active File in File Explorer")]
+    RevealActiveFileInFileExplorer,
 
     #[strum(serialize = "change_theme")]
     #[strum(message = "Change Theme")]
@@ -441,6 +445,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Save All Files")]
     #[strum(serialize = "save_all")]
     SaveAll,
+
+    #[strum(serialize = "quit")]
+    #[strum(message = "Quit Editor")]
+    Quit,
 }
 
 #[derive(Debug)]
@@ -507,10 +515,12 @@ pub enum LapceUICommand {
     },
     OpenFile(PathBuf, bool),
     OpenFileDiff(PathBuf, String),
+    RevealInFileExplorer(PathBuf),
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
     UpdateCompletion(usize, String, CompletionResponse, PluginId),
     UpdateHover(usize, Arc<Vec<RichText>>),
+    UpdateVoltReadme(RichText),
     UpdateInlayHints {
         path: PathBuf,
         rev: u64,
@@ -535,8 +545,8 @@ pub enum LapceUICommand {
     RunPaletteReferences(Vec<EditorLocation<Position>>),
     InitPaletteInput(String),
     UpdatePaletteInput(String),
-    UpdatePaletteItems(String, Vec<PaletteItem>),
-    FilterPaletteItems(String, String, Vec<PaletteItem>),
+    UpdatePaletteItems(String, im::Vector<PaletteItem>),
+    FilterPaletteItems(String, String, im::Vector<PaletteItem>),
     UpdateKeymapsFilter(String),
     ResetSettingsFile(String, String),
     UpdateSettingsFile(String, String, Value),
@@ -618,6 +628,7 @@ pub enum LapceUICommand {
     WorkspaceFileChange,
     ProxyUpdateStatus(ProxyStatus),
     CloseTerminal(TermId),
+    OpenPluginInfo(VoltInfo),
     SplitTerminal(bool, WidgetId),
     SplitTerminalClose(TermId, WidgetId),
     SplitEditor(bool, WidgetId),
@@ -641,6 +652,7 @@ pub enum LapceUICommand {
     JumpToLspLocation(Option<WidgetId>, EditorLocation<Position>, bool),
     JumpToLineLocation(Option<WidgetId>, EditorLocation<Line>),
     JumpToLineColLocation(Option<WidgetId>, EditorLocation<LineCol>, bool),
+    ToggleProblem(PathBuf),
     TerminalJumpToLine(i32),
     GoToLocation(Option<WidgetId>, EditorLocation, bool),
     GotoDefinition {
@@ -701,7 +713,13 @@ pub enum LapceUICommand {
         apply_naming: bool,
     },
     FileExplorerRefresh,
+    CopyPath(PathBuf),
+    CopyRelativePath(PathBuf),
     SetLanguage(String),
+
+    /// An item in a list was chosen  
+    /// This is typically targeted at the widget which contains the list
+    ListItemSelected,
 }
 
 /// This can't be an `FnOnce` because we only ever get a reference to

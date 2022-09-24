@@ -101,7 +101,11 @@ impl KeyMapLoader {
 
         let modes = get_modes(toml_keymap);
         // If not using modal editing, remove keymaps that only make sense in modal.
-        if !modal && !modes.is_empty() && !modes.contains(Modes::INSERT) {
+        if !modal
+            && !modes.is_empty()
+            && !modes.contains(Modes::INSERT)
+            && !modes.contains(Modes::TERMINAL)
+        {
             log::debug!("Keymap ignored: {}", key);
             return Ok(None);
         }

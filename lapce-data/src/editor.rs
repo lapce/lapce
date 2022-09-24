@@ -57,6 +57,7 @@ use lsp_types::CompletionTextEdit;
 use lsp_types::DocumentChangeOperation;
 use lsp_types::DocumentChanges;
 use lsp_types::OneOf;
+use lsp_types::ResourceOp;
 use lsp_types::TextEdit;
 use lsp_types::Url;
 use lsp_types::WorkspaceEdit;
@@ -196,7 +197,7 @@ impl EditorPosition for Position {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EditorLocation<P: EditorPosition = usize> {
     pub path: PathBuf,
     pub position: Option<P>,
@@ -370,6 +371,17 @@ impl LapceEditorBufferData {
         ctx: &mut EventCtx,
         edit: &WorkspaceEdit,
     ) {
+        if let Some(DocumentChanges::Operations(op)) = edit.document_changes.as_ref()
+        {
+            op.iter()
+                .flat_map(|op| match op {
+                    DocumentChangeOperation::Op(op) => Some(op),
+                    _ => None,
+                })
+                .flat_map(workspace_operation)
+                .map(|cmd| Command::new(LAPCE_UI_COMMAND, cmd, Target::Auto))
+                .for_each(|cmd| ctx.submit_command(cmd));
+        }
         if let BufferContent::File(path) = &self.editor.content {
             if let Some(edits) = workspace_edits(edit) {
                 for (url, edits) in edits {
@@ -629,6 +641,52 @@ impl LapceEditorBufferData {
                     Target::Widget(*self.main_split.split_id),
                 ));
             }
+        }
+    }
+
+    pub fn completion_item_select(&mut self, ctx: &mut EventCtx) {
+        let item = if let Some(item) = self.completion.current_item() {
+            item.to_owned()
+        } else {
+            // There was no selected item, this may be due to a bug in failing to ensure that the index was valid.
+            return;
+        };
+
+        self.cancel_completion();
+        if item.item.data.is_some() {
+            let view_id = self.editor.view_id;
+            let buffer_id = self.doc.id();
+            let rev = self.doc.rev();
+            let offset = self.editor.cursor.offset();
+            let event_sink = ctx.get_external_handle();
+            self.proxy.proxy_rpc.completion_resolve(
+                item.plugin_id,
+                item.item.clone(),
+                move |result| {
+                    // let item = result.unwrap_or_else(|_| item.clone());
+                    let item =
+                        if let Ok(ProxyResponse::CompletionResolveResponse {
+                            item,
+                        }) = result
+                        {
+                            *item
+                        } else {
+                            item.item.clone()
+                        };
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::ResolveCompletion(
+                            buffer_id,
+                            rev,
+                            offset,
+                            Box::new(item),
+                        ),
+                        Target::Widget(view_id),
+                    );
+                },
+            );
+        } else {
+            let _ = self.apply_completion_item(&item.item);
         }
     }
 
@@ -905,7 +963,7 @@ impl LapceEditorBufferData {
             let (path, offset) =
                 next_in_file_diff_offset(offset, buffer_path, &diff_files);
             let location = EditorLocation {
-                path,
+                path: path.to_path_buf(),
                 position: Some(offset),
                 scroll_offset: None,
                 history: Some("head".to_string()),
@@ -1009,7 +1067,7 @@ impl LapceEditorBufferData {
     }
 
     fn page_move(&mut self, ctx: &mut EventCtx, down: bool, mods: Modifiers) {
-        let line_height = self.config.editor.line_height as f64;
+        let line_height = self.config.editor.line_height() as f64;
         let lines =
             (self.editor.size.borrow().height / line_height / 2.0).round() as usize;
         let distance = (lines as f64) * line_height;
@@ -1043,7 +1101,7 @@ impl LapceEditorBufferData {
         count: usize,
         mods: Modifiers,
     ) {
-        let line_height = self.config.editor.line_height as f64;
+        let line_height = self.config.editor.line_height() as f64;
         let diff = line_height * count as f64;
         let diff = if down { diff } else { -diff };
 
@@ -1115,7 +1173,7 @@ impl LapceEditorBufferData {
                 let line_height = syntax.lens.height_of_line(line + 1)
                     - syntax.lens.height_of_line(line);
 
-                let font_size = if line_height < config.editor.line_height {
+                let font_size = if line_height < config.editor.line_height() {
                     config.editor.code_lens_font_size
                 } else {
                     config.editor.font_size
@@ -1132,11 +1190,11 @@ impl LapceEditorBufferData {
 
             (line, config.char_width(text, font_size as f64))
         } else if let Some(compare) = self.editor.compare.as_ref() {
-            let line = (pos.y / config.editor.line_height as f64).floor() as usize;
+            let line = (pos.y / config.editor.line_height() as f64).floor() as usize;
             let line = self.doc.history_actual_line_from_visual(compare, line);
             (line, config.editor_char_width(text))
         } else {
-            let line = (pos.y / config.editor.line_height as f64).floor() as usize;
+            let line = (pos.y / config.editor.line_height() as f64).floor() as usize;
             (line, config.editor_char_width(text))
         };
 
@@ -1451,7 +1509,7 @@ impl LapceEditorBufferData {
             SplitVertical => {
                 self.main_split.split_editor(
                     ctx,
-                    Arc::make_mut(&mut self.editor),
+                    self.editor.view_id,
                     SplitDirection::Vertical,
                     &self.config,
                 );
@@ -1459,7 +1517,7 @@ impl LapceEditorBufferData {
             SplitHorizontal => {
                 self.main_split.split_editor(
                     ctx,
-                    Arc::make_mut(&mut self.editor),
+                    self.editor.view_id,
                     SplitDirection::Horizontal,
                     &self.config,
                 );
@@ -1599,7 +1657,7 @@ impl LapceEditorBufferData {
             }
             GlobalSearchRefresh => {
                 let tab_id = *self.main_split.tab_id;
-                let pattern = self.doc.buffer().text().to_string();
+                let pattern = self.doc.buffer().to_string();
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateSearch(pattern),
@@ -1624,12 +1682,12 @@ impl LapceEditorBufferData {
             }
             SearchInView => {
                 let start_line = ((self.editor.scroll_offset.y
-                    / self.config.editor.line_height as f64)
+                    / self.config.editor.line_height() as f64)
                     .ceil() as usize)
                     .max(self.doc.buffer().last_line());
                 let end_line = ((self.editor.scroll_offset.y
                     + self.editor.size.borrow().height
-                        / self.config.editor.line_height as f64)
+                        / self.config.editor.line_height() as f64)
                     .ceil() as usize)
                     .max(self.doc.buffer().last_line());
                 let end_offset = self.doc.buffer().offset_of_line(end_line + 1);
@@ -1679,44 +1737,8 @@ impl LapceEditorBufferData {
                         Target::Widget(self.palette.widget_id),
                     ));
                 } else {
-                    let item = self.completion.current_item().to_owned();
-                    self.cancel_completion();
-                    if item.item.data.is_some() {
-                        let view_id = self.editor.view_id;
-                        let buffer_id = self.doc.id();
-                        let rev = self.doc.rev();
-                        let offset = self.editor.cursor.offset();
-                        let event_sink = ctx.get_external_handle();
-                        self.proxy.proxy_rpc.completion_resolve(
-                            item.plugin_id,
-                            item.item.clone(),
-                            move |result| {
-                                // let item = result.unwrap_or_else(|_| item.clone());
-                                let item = if let Ok(
-                                    ProxyResponse::CompletionResolveResponse {
-                                        item,
-                                    },
-                                ) = result
-                                {
-                                    *item
-                                } else {
-                                    item.item.clone()
-                                };
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::ResolveCompletion(
-                                        buffer_id,
-                                        rev,
-                                        offset,
-                                        Box::new(item),
-                                    ),
-                                    Target::Widget(view_id),
-                                );
-                            },
-                        );
-                    } else {
-                        let _ = self.apply_completion_item(&item.item);
-                    }
+                    let completion = Arc::make_mut(&mut self.completion);
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             ListNext => {
@@ -1731,7 +1753,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.next();
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             ListNextPage => {
@@ -1746,7 +1768,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.next_page(self.config.editor.line_height);
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             ListPrevious => {
@@ -1761,7 +1783,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.previous();
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             ListPreviousPage => {
@@ -1776,7 +1798,7 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.previous_page(self.config.editor.line_height);
+                    completion.run_focus_command(ctx, cmd);
                 }
             }
             JumpToNextSnippetPlaceholder => {
@@ -2433,24 +2455,24 @@ pub struct HighlightTextLayout {
     pub highlights: Vec<(usize, usize, String)>,
 }
 
-fn next_in_file_diff_offset(
+fn next_in_file_diff_offset<'a>(
     offset: usize,
     path: &Path,
-    file_diffs: &[(PathBuf, Vec<usize>)],
-) -> (PathBuf, usize) {
+    file_diffs: &'a [(PathBuf, Vec<usize>)],
+) -> (&'a Path, usize) {
     for (current_path, offsets) in file_diffs {
         if path == current_path {
             for diff_offset in offsets {
                 if *diff_offset > offset {
-                    return ((*current_path).clone(), *diff_offset);
+                    return (current_path.as_ref(), *diff_offset);
                 }
             }
         }
         if current_path > path {
-            return ((*current_path).clone(), offsets[0]);
+            return (current_path.as_ref(), offsets[0]);
         }
     }
-    ((file_diffs[0].0).clone(), file_diffs[0].1[0])
+    (file_diffs[0].0.as_ref(), file_diffs[0].1[0])
 }
 
 fn next_in_file_errors_offset(
@@ -2550,6 +2572,21 @@ fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> 
             .collect::<HashMap<Url, Vec<TextEdit>>>(),
     };
     Some(edits)
+}
+
+fn workspace_operation(op: &ResourceOp) -> Option<LapceUICommand> {
+    Some(match op {
+        ResourceOp::Create(p) => LapceUICommand::CreateFileOpen {
+            path: p.uri.to_file_path().ok()?,
+        },
+        ResourceOp::Rename(p) => LapceUICommand::RenamePath {
+            from: p.old_uri.to_file_path().ok()?,
+            to: p.new_uri.to_file_path().ok()?,
+        },
+        ResourceOp::Delete(p) => LapceUICommand::TrashPath {
+            path: p.uri.to_file_path().ok()?,
+        },
+    })
 }
 
 /// Check if a [`Url`] matches the path
