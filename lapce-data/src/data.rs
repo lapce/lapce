@@ -298,9 +298,10 @@ impl LapceData {
         let socket =
             interprocess::local_socket::LocalSocketListener::bind(local_socket)?;
 
-        for mut stream in socket.incoming().flatten() {
+        for stream in socket.incoming().flatten() {
             let event_sink = event_sink.clone();
             thread::spawn(move || -> Result<()> {
+                let mut reader = BufReader::new(stream);
                 loop {
                     let mut reader = BufReader::new(stream);
                     let msg: RpcMessage<
@@ -332,9 +333,9 @@ impl LapceData {
                         );
                     }
 
-                    stream = reader.into_inner();
-                    let _ = stream.write_all(b"received");
-                    let _ = stream.flush();
+                    let stream_ref = reader.get_mut();
+                    let _ = stream_ref.write_all(b"received");
+                    let _ = stream_ref.flush();
                 }
             });
         }
