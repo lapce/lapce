@@ -57,6 +57,7 @@ impl Editor {
         buffer: &mut Buffer,
         s: &str,
         syntax: Option<&Syntax>,
+        auto_closing: bool,
     ) -> Vec<(RopeDelta, InvalLines)> {
         let mut deltas = Vec::new();
         if let CursorMode::Insert(selection) = &cursor.mode {
@@ -88,7 +89,9 @@ impl Editor {
                         None
                     };
 
-                    if (c == '"' || c == '\'') && cursor_char == Some(c) {
+                    if auto_closing
+                        && ((c == '"' || c == '\'') && cursor_char == Some(c))
+                    {
                         // Skip the closing character
                         let new_offset =
                             buffer.next_grapheme_offset(offset, 1, buffer.len());
@@ -97,7 +100,7 @@ impl Editor {
                         continue;
                     }
 
-                    if matching_pair_type == Some(false) {
+                    if auto_closing && (matching_pair_type == Some(false)) {
                         if cursor_char == Some(c) {
                             // Skip the closing character
                             let new_offset =
@@ -134,7 +137,11 @@ impl Editor {
                         }
                     }
 
-                    if matching_pair_type == Some(true) || c == '"' || c == '\'' {
+                    if auto_closing
+                        && (matching_pair_type == Some(true)
+                            || c == '"'
+                            || c == '\'')
+                    {
                         // Create a late edit to insert the closing pair, if allowed.
                         let is_whitespace_or_punct = cursor_char
                             .map(|c| {
