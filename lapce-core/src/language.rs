@@ -742,7 +742,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         extensions: &["d", "di", "dlang"],
     },
-    ];
+];
 
 impl LapceLanguage {
     pub fn from_path(path: &Path) -> Option<LapceLanguage> {
