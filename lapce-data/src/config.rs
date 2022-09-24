@@ -50,6 +50,8 @@ impl LapceTheme {
     pub const EDITOR_CURRENT_LINE: &'static str = "editor.current_line";
     pub const EDITOR_LINK: &'static str = "editor.link";
 
+    pub const EDITOR_VISIBLE_WHITESPACE: &str = "editor.visible_whitespace";
+
     pub const INLAY_HINT_FOREGROUND: &'static str = "inlay_hint.foreground";
     pub const INLAY_HINT_BACKGROUND: &'static str = "inlay_hint.background";
 
