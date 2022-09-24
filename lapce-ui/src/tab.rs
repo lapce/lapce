@@ -455,38 +455,35 @@ impl LapceTab {
         if let Some((_, _, DragContent::Panel(kind, _))) = data.drag.as_ref() {
             let rects = self.panel_rects();
             for (p, rect) in rects.iter() {
-                if rect.contains(self.mouse_pos) {
-                    let (_, from_position) =
-                        data.panel.panel_position(kind).unwrap();
-                    if &from_position == p {
-                        return;
-                    }
+                if !rect.contains(self.mouse_pos) {
+                    continue;
+                }
 
-                    let panel = Arc::make_mut(&mut data.panel);
-                    if let Some(order) = panel.order.get_mut(&from_position) {
-                        order.retain(|k| k != kind);
-                    }
-                    if !panel.order.contains_key(p) {
-                        panel.order.insert(*p, im::Vector::new());
-                    }
-                    let order = panel.order.get_mut(p).unwrap();
-                    order.push_back(*kind);
-                    if !panel.style.contains_key(p) {
-                        panel.style.insert(
-                            *p,
-                            PanelStyle {
-                                active: 0,
-                                shown: true,
-                                maximized: false,
-                            },
-                        );
-                    }
-                    let style = panel.style.get_mut(p).unwrap();
-                    style.active = order.len() - 1;
-                    style.shown = true;
-                    let _ = data.db.save_panel_orders(&panel.order);
+                let (_, from_position) = data.panel.panel_position(kind).unwrap();
+                if from_position == *p {
                     return;
                 }
+
+                let panel = Arc::make_mut(&mut data.panel);
+                if let Some(order) = panel.order.get_mut(&from_position) {
+                    order.retain(|k| k != kind);
+                }
+
+                let order = panel.order.entry(*p).or_insert_with(im::Vector::new);
+
+                order.push_back(*kind);
+
+                let style = panel.style.entry(*p).or_insert(PanelStyle {
+                    active: 0,
+                    shown: true,
+                    maximized: false,
+                });
+
+                style.active = order.len() - 1;
+                style.shown = true;
+                let _ = data.db.save_panel_orders(&panel.order);
+
+                return;
             }
         }
     }
@@ -495,17 +492,19 @@ impl LapceTab {
         if let Some((_, _, DragContent::Panel(_, _))) = data.drag.as_ref() {
             let rects = self.panel_rects();
             for (_, rect) in rects.iter() {
-                if rect.contains(self.mouse_pos) {
-                    ctx.fill(
-                        rect,
-                        &data
-                            .config
-                            .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
-                            .clone()
-                            .with_alpha(0.8),
-                    );
-                    break;
+                if !rect.contains(self.mouse_pos) {
+                    continue;
                 }
+
+                ctx.fill(
+                    rect,
+                    &data
+                        .config
+                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
+                        .clone()
+                        .with_alpha(0.8),
+                );
+                break;
             }
         }
     }
@@ -953,14 +952,12 @@ impl LapceTab {
                         let plugin = Arc::make_mut(&mut data.plugin);
                         let id = volt.id();
                         plugin.installed.remove(&id);
-                        if plugin.disabled.contains(&id) {
-                            plugin.disabled.remove(&id);
+                        if plugin.disabled.remove(&id) {
                             let _ = data.db.save_disabled_volts(
                                 plugin.disabled.iter().collect(),
                             );
                         }
-                        if plugin.workspace_disabled.contains(&id) {
-                            plugin.workspace_disabled.remove(&id);
+                        if plugin.workspace_disabled.remove(&id) {
                             let _ = data.db.save_disabled_volts(
                                 plugin.workspace_disabled.iter().collect(),
                             );
