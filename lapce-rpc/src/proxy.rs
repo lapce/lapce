@@ -353,10 +353,9 @@ impl ProxyRpcHandler {
 
     fn request_common(&self, request: ProxyRequest, rh: ResponseHandler) {
         let id = self.id.fetch_add(1, Ordering::Relaxed);
-        {
-            let mut pending = self.pending.lock();
-            pending.insert(id, rh);
-        }
+
+        self.pending.lock().insert(id, rh);
+
         let _ = self.tx.send(ProxyRpc::Request(id, request));
     }
 
@@ -384,8 +383,7 @@ impl ProxyRpcHandler {
         id: RequestId,
         result: Result<ProxyResponse, RpcError>,
     ) {
-        let handler = { self.pending.lock().remove(&id) };
-        if let Some(handler) = handler {
+        if let Some(handler) = self.pending.lock().remove(&id) {
             handler.invoke(result);
         }
     }
