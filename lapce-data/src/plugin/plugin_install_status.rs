@@ -1,7 +1,7 @@
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum PluginInstallType {
-    INSTALLATION,
-    UNINSTALLATION,
+    Installation,
+    Uninstallation,
 }
 
 #[derive(Clone, Debug)]

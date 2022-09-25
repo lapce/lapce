@@ -967,7 +967,7 @@ impl LapceTab {
                             plugin.installing.insert(
                                 volt.id(),
                                 PluginInstallStatus::new(
-                                    PluginInstallType::INSTALLATION,
+                                    PluginInstallType::Installation,
                                     &volt.display_name,
                                     error.to_string(),
                                 ),
@@ -985,7 +985,7 @@ impl LapceTab {
                             plugin.installing.insert(
                                 volt.id(),
                                 PluginInstallStatus::new(
-                                    PluginInstallType::UNINSTALLATION,
+                                    PluginInstallType::Uninstallation,
                                     &volt.display_name,
                                     error.to_string(),
                                 ),
@@ -1002,18 +1002,14 @@ impl LapceTab {
                         if !(*only_installing) {
                             plugin.installed.remove(&id);
 
-                            if plugin.disabled.contains(&id) {
-                                plugin.disabled.remove(&id);
-                                let _ = data.db.save_disabled_volts(
-                                    plugin.disabled.iter().collect(),
-                                );
-                            }
-                            if plugin.workspace_disabled.contains(&id) {
-                                plugin.workspace_disabled.remove(&id);
-                                let _ = data.db.save_disabled_volts(
-                                    plugin.workspace_disabled.iter().collect(),
-                                );
-                            }
+                            plugin.disabled.remove(&id);
+                            let _ = data.db.save_disabled_volts(
+                                plugin.disabled.iter().collect(),
+                            );
+                            plugin.workspace_disabled.remove(&id);
+                            let _ = data.db.save_disabled_volts(
+                                plugin.workspace_disabled.iter().collect(),
+                            );
                         }
                     }
                     LapceUICommand::DisableVoltWorkspace(volt) => {

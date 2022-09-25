@@ -110,7 +110,7 @@ impl Plugin {
         if !error_string.is_empty() {
             status_text = error_string;
             color_background = config.get_color_unchecked(LapceTheme::LAPCE_ERROR);
-        } else if *install_type == PluginInstallType::UNINSTALLATION {
+        } else if *install_type == PluginInstallType::Uninstallation {
             status_text = "Removing...";
         }
 
