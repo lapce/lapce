@@ -1473,12 +1473,10 @@ impl LapceEditor {
         };
 
         // Clear background
-        let sticky_area_rect = Size::new(
-            size.width,
-            total_sticky_lines as f64 * line_height - scroll_offset,
-        )
-        .to_rect()
-        .with_origin(Point::new(0.0, y0));
+        let area_height = total_sticky_lines as f64 * line_height - scroll_offset;
+        let sticky_area_rect = Size::new(size.width, area_height)
+            .to_rect()
+            .with_origin(Point::new(0.0, y0));
 
         ctx.fill(
             sticky_area_rect,
@@ -1516,7 +1514,7 @@ impl LapceEditor {
         }
 
         info.last_y_diff = scroll_offset;
-        info.height = total_sticky_lines as f64 * line_height - scroll_offset;
+        info.height = area_height;
         info.lines = sticky_lines;
     }
 
