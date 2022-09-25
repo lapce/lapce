@@ -1448,23 +1448,35 @@ impl LapceEditor {
         }
 
         let total_sticky_lines = sticky_lines.len();
-        for (i, line) in sticky_lines.iter().copied().enumerate() {
-            let y_diff = if last_sticky_should_scroll && i == total_sticky_lines - 1
-            {
-                y_diff
-            } else {
-                0.0
-            };
-            let rect = Size::new(size.width, line_height - y_diff)
-                .to_rect()
-                .with_origin(Point::new(0.0, y0 + line_height * i as f64));
-            ctx.with_save(|ctx| {
-                ctx.clip(rect);
-                ctx.fill(
-                    rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-                );
+
+        if total_sticky_lines > 0 {
+            // Clear background
+            let sticky_area_rect = Size::new(
+                size.width,
+                (total_sticky_lines) as f64 * line_height
+                    - if last_sticky_should_scroll {
+                        y_diff
+                    } else {
+                        0.0
+                    },
+            )
+            .to_rect()
+            .with_origin(Point::new(0.0, y0));
+
+            ctx.fill(
+                sticky_area_rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            );
+
+            // Paint lines
+            for (i, line) in sticky_lines.iter().copied().enumerate() {
+                let y_diff =
+                    if last_sticky_should_scroll && i == total_sticky_lines - 1 {
+                        y_diff
+                    } else {
+                        0.0
+                    };
                 let text_layout = data.doc.get_text_layout(
                     ctx.text(),
                     line,
@@ -1476,7 +1488,7 @@ impl LapceEditor {
                     + text_layout.text.y_offset(line_height)
                     - y_diff;
                 ctx.draw_text(&text_layout.text, Point::new(x0, y));
-            });
+            }
         }
 
         let scroll_offset = if last_sticky_should_scroll {
