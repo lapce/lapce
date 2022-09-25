@@ -22,11 +22,6 @@ use lapce_data::{
 use crate::{logging::override_log_levels, tab::LAPCE_TAB_META};
 use crate::{tab::LapceTabHeader, window::LapceWindow};
 
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
-const LOGO_PNG: &[u8] = include_bytes!("../../extra/images/logo.png");
-#[cfg(target_os = "windows")]
-const LOGO_ICO: &[u8] = include_bytes!("../../extra/windows/lapce.ico");
-
 #[derive(Parser)]
 #[clap(name = "Lapce")]
 #[clap(version=*VERSION)]
@@ -179,19 +174,15 @@ fn window_icon() -> Option<druid::Icon> {
     None
 }
 
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
+#[cfg(not(target_os = "macos"))]
 fn window_icon() -> Option<druid::Icon> {
-    let image = image::load_from_memory(LOGO_PNG)
-        .expect("Invalid Icon")
-        .into_rgba8();
-    let (width, height) = image.dimensions();
-    let rgba = image.into_raw();
-    Some(druid::Icon::from_rgba(rgba, width, height).expect("Failed to open icon"))
-}
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
+    const LOGO: &[u8] = include_bytes!("../../extra/images/logo.png");
 
-#[cfg(target_os = "windows")]
-fn window_icon() -> Option<druid::Icon> {
-    let image = image::load_from_memory(LOGO_ICO)
+    #[cfg(target_os = "windows")]
+    const LOGO: &[u8] = include_bytes!("../../extra/windows/lapce.ico");
+
+    let image = image::load_from_memory(LOGO)
         .expect("Invalid Icon")
         .into_rgba8();
     let (width, height) = image.dimensions();
