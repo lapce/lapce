@@ -45,7 +45,11 @@ toml_edit = { version = "0.14.4", features = ["easy"] }
 open = "3.0.2"
 
 # lapce deps
-druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = [ "svg", "im", "serde", ] }
+druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = [
+    "svg",
+    "im",
+    "serde",
+] }
 # druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
 lapce-core = { path = "../lapce-core" }
@@ -101,6 +105,7 @@ all-languages = [
     "lang-svelte",
     "lang-latex",
     "lang-kotlin",
+    "lang-vue",
 ]
 
 lang-rust = ["lapce-core/lang-rust"]
@@ -141,3 +146,4 @@ lang-dart = ["lapce-core/lang-dart"]
 lang-svelte = ["lapce-core/lang-svelte"]
 lang-latex = ["lapce-core/lang-latex"]
 lang-kotlin = ["lapce-core/lang-kotlin"]
+lang-vue = ["lapce-core/lang-vue"]

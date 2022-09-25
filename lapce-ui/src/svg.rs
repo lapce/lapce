@@ -69,6 +69,7 @@ pub fn file_svg(path: &Path) -> (Svg, Option<&Color>) {
                 (&["js"], "file_type_js.svg", None),
                 (&["ts"], "file_type_ts.svg", None),
                 (&["css"], "file_type_css.svg", None),
+                (&["vue"], "file_type_vue.svg", None),
             ];
 
             let (mut icon, mut color) = (None, None);
