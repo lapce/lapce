@@ -1473,7 +1473,8 @@ impl LapceEditor {
         };
 
         // Clear background
-        let area_height = total_sticky_lines as f64 * line_height - scroll_offset;
+        let area_height =
+            total_sticky_lines as f64 * line_height - scroll_offset + 1.0;
         let sticky_area_rect = Size::new(size.width, area_height)
             .to_rect()
             .with_origin(Point::new(0.0, y0));
