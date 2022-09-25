@@ -1462,55 +1462,57 @@ impl LapceEditor {
             total_sticky_lines.saturating_sub(1)
         };
 
-        let scroll_offset = if total_sticky_lines > 0 && last_sticky_should_scroll {
+        if total_sticky_lines == 0 {
+            return;
+        }
+
+        let scroll_offset = if last_sticky_should_scroll {
             y_diff
         } else {
             0.0
         };
 
-        if total_sticky_lines > 0 {
-            // Clear background
-            let sticky_area_rect = Size::new(
-                size.width,
-                total_sticky_lines as f64 * line_height - scroll_offset,
-            )
-            .to_rect()
-            .with_origin(Point::new(0.0, y0));
+        // Clear background
+        let sticky_area_rect = Size::new(
+            size.width,
+            total_sticky_lines as f64 * line_height - scroll_offset,
+        )
+        .to_rect()
+        .with_origin(Point::new(0.0, y0));
 
-            ctx.fill(
-                sticky_area_rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-            );
+        ctx.fill(
+            sticky_area_rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        );
 
-            // Paint lines
-            for (i, line) in sticky_lines.iter().copied().enumerate() {
-                let y_diff = if i == total_sticky_lines - 1 {
-                    scroll_offset
-                } else {
-                    0.0
-                };
+        // Paint lines
+        for (i, line) in sticky_lines.iter().copied().enumerate() {
+            let y_diff = if i == total_sticky_lines - 1 {
+                scroll_offset
+            } else {
+                0.0
+            };
 
-                ctx.with_save(|ctx| {
-                    let line_area_rect = Size::new(size.width, line_height - y_diff)
-                        .to_rect()
-                        .with_origin(Point::new(0.0, y0 + line_height * i as f64));
+            ctx.with_save(|ctx| {
+                let line_area_rect = Size::new(size.width, line_height - y_diff)
+                    .to_rect()
+                    .with_origin(Point::new(0.0, y0 + line_height * i as f64));
 
-                    ctx.clip(line_area_rect);
+                ctx.clip(line_area_rect);
 
-                    let text_layout = data.doc.get_text_layout(
-                        ctx.text(),
-                        line,
-                        data.config.editor.font_size,
-                        &data.config,
-                    );
-                    let y = y0
-                        + line_height * i as f64
-                        + text_layout.text.y_offset(line_height)
-                        - y_diff;
-                    ctx.draw_text(&text_layout.text, Point::new(x0, y));
-                });
-            }
+                let text_layout = data.doc.get_text_layout(
+                    ctx.text(),
+                    line,
+                    data.config.editor.font_size,
+                    &data.config,
+                );
+                let y = y0
+                    + line_height * i as f64
+                    + text_layout.text.y_offset(line_height)
+                    - y_diff;
+                ctx.draw_text(&text_layout.text, Point::new(x0, y));
+            });
         }
 
         info.last_y_diff = scroll_offset;
