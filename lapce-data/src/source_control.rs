@@ -27,7 +27,7 @@ pub struct SourceControlData {
     pub commit_button_id: WidgetId,
     pub file_diffs: Vec<(FileDiff, bool)>,
     pub branch: String,
-    pub branches: Vec<String>,
+    pub branches: im::Vector<String>,
 }
 
 impl SourceControlData {
@@ -45,7 +45,7 @@ impl SourceControlData {
             split_direction: SplitDirection::Horizontal,
             file_diffs: Vec::new(),
             branch: "".to_string(),
-            branches: Vec::new(),
+            branches: im::Vector::new(),
         }
     }
 }

@@ -81,6 +81,7 @@ use crate::{
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
     terminal::TerminalSplitData,
+    title::TitleData,
     update::ReleaseInfo,
 };
 
@@ -568,6 +569,7 @@ pub enum FocusArea {
     Rename,
     Panel(PanelKind),
     FilePicker,
+    BranchPicker,
 }
 
 #[derive(Clone)]
@@ -583,6 +585,7 @@ pub struct LapceTabData {
     pub window_id: Arc<WindowId>,
     pub multiple_tab: bool,
     pub workspace: Arc<LapceWorkspace>,
+    pub title: Arc<TitleData>,
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
     pub hover: Arc<HoverData>,
@@ -662,6 +665,7 @@ impl LapceTabData {
             term_sender.clone(),
             event_sink.clone(),
         ));
+        let title = Arc::new(TitleData::new(config.clone()));
         let palette = Arc::new(PaletteData::new(config.clone(), proxy.clone()));
         let completion = Arc::new(CompletionData::new(config.clone()));
         let hover = Arc::new(HoverData::new());
@@ -773,6 +777,7 @@ impl LapceTabData {
             window_id: Arc::new(window_id),
             workspace: Arc::new(workspace),
             focus: Arc::new(focus),
+            title,
             main_split,
             completion,
             hover,
