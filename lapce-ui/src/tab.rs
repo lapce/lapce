@@ -1002,14 +1002,16 @@ impl LapceTab {
                         if !(*only_installing) {
                             plugin.installed.remove(&id);
 
-                            plugin.disabled.remove(&id);
-                            let _ = data.db.save_disabled_volts(
-                                plugin.disabled.iter().collect(),
-                            );
-                            plugin.workspace_disabled.remove(&id);
-                            let _ = data.db.save_disabled_volts(
-                                plugin.workspace_disabled.iter().collect(),
-                            );
+                            if plugin.disabled.remove(&id) {
+                                let _ = data.db.save_disabled_volts(
+                                    plugin.disabled.iter().collect(),
+                                );
+                            }
+                            if plugin.workspace_disabled.remove(&id) {
+                                let _ = data.db.save_disabled_volts(
+                                    plugin.workspace_disabled.iter().collect(),
+                                );
+                            }
                         }
                     }
                     LapceUICommand::DisableVoltWorkspace(volt) => {
