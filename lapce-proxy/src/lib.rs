@@ -18,7 +18,7 @@ use directory::Directory;
 use dispatch::Dispatcher;
 use lapce_rpc::{
     core::{CoreRpc, CoreRpcHandler},
-    proxy::{ProxyNotification, ProxyRequest, ProxyResponse, ProxyRpcHandler},
+    proxy::{ProxyMessage, ProxyNotification, ProxyRpcHandler},
     stdio::stdio_transport,
     RpcMessage,
 };
@@ -67,8 +67,8 @@ pub fn mainloop() {
     let cli = Cli::parse();
     if !cli.proxy {
         let pwd = std::env::current_dir().unwrap_or_default();
-        let paths: Vec<PathBuf> = cli.paths.iter().map(|p| pwd.join(p)).collect();
-        let _ = check_local_socket(paths);
+        let paths: Vec<_> = cli.paths.iter().map(|p| pwd.join(p)).collect();
+        let _ = try_open_in_existing_process(&paths);
         return;
     }
     let core_rpc = CoreRpcHandler::new();
@@ -143,21 +143,20 @@ pub fn mainloop() {
     proxy_rpc.mainloop(&mut dispatcher);
 }
 
-fn check_local_socket(paths: Vec<PathBuf>) -> Result<()> {
+fn try_open_in_existing_process(paths: &[PathBuf]) -> Result<()> {
     let local_socket = Directory::local_socket()
         .ok_or_else(|| anyhow!("can't get local socket folder"))?;
     let mut socket =
         interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
-    let folders: Vec<PathBuf> =
-        paths.clone().into_iter().filter(|p| p.is_dir()).collect();
-    let files: Vec<PathBuf> = paths.into_iter().filter(|p| p.is_file()).collect();
-    let msg: RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse> =
+    let folders: Vec<_> = paths.iter().filter(|p| p.is_dir()).cloned().collect();
+    let files: Vec<_> = paths.iter().filter(|p| p.is_file()).cloned().collect();
+    let msg: ProxyMessage =
         RpcMessage::Notification(ProxyNotification::OpenPaths { folders, files });
     lapce_rpc::stdio::write_msg(&mut socket, msg)?;
     Ok(())
 }
 
-pub(crate) fn listen_local_socket(proxy_rpc: ProxyRpcHandler) -> Result<()> {
+fn listen_local_socket(proxy_rpc: ProxyRpcHandler) -> Result<()> {
     let local_socket = Directory::local_socket()
         .ok_or_else(|| anyhow!("can't get local socket folder"))?;
     let _ = std::fs::remove_file(&local_socket);
@@ -168,8 +167,7 @@ pub(crate) fn listen_local_socket(proxy_rpc: ProxyRpcHandler) -> Result<()> {
         let proxy_rpc = proxy_rpc.clone();
         thread::spawn(move || -> Result<()> {
             loop {
-                let msg: RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse> =
-                    lapce_rpc::stdio::read_msg(&mut reader)?;
+                let msg: ProxyMessage = lapce_rpc::stdio::read_msg(&mut reader)?;
                 if let RpcMessage::Notification(ProxyNotification::OpenPaths {
                     folders,
                     files,

@@ -18,6 +18,7 @@ use serde::Serialize;
 
 pub use stdio::stdio_transport;
 
+#[derive(Debug)]
 pub enum RpcMessage<Req, Notif, Resp> {
     Request(RequestId, Req),
     Response(RequestId, Resp),
