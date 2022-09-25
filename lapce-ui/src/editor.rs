@@ -1471,7 +1471,7 @@ impl LapceEditor {
             // Clear background
             let sticky_area_rect = Size::new(
                 size.width,
-                (total_sticky_lines) as f64 * line_height - scroll_offset,
+                total_sticky_lines as f64 * line_height - scroll_offset,
             )
             .to_rect()
             .with_origin(Point::new(0.0, y0));
@@ -1490,17 +1490,25 @@ impl LapceEditor {
                     0.0
                 };
 
-                let text_layout = data.doc.get_text_layout(
-                    ctx.text(),
-                    line,
-                    data.config.editor.font_size,
-                    &data.config,
-                );
-                let y = y0
-                    + line_height * i as f64
-                    + text_layout.text.y_offset(line_height)
-                    - y_diff;
-                ctx.draw_text(&text_layout.text, Point::new(x0, y));
+                ctx.with_save(|ctx| {
+                    let line_area_rect = Size::new(size.width, line_height - y_diff)
+                        .to_rect()
+                        .with_origin(Point::new(0.0, y0 + line_height * i as f64));
+
+                    ctx.clip(line_area_rect);
+
+                    let text_layout = data.doc.get_text_layout(
+                        ctx.text(),
+                        line,
+                        data.config.editor.font_size,
+                        &data.config,
+                    );
+                    let y = y0
+                        + line_height * i as f64
+                        + text_layout.text.y_offset(line_height)
+                        - y_diff;
+                    ctx.draw_text(&text_layout.text, Point::new(x0, y));
+                });
             }
         }
 
