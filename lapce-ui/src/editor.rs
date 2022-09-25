@@ -1449,16 +1449,17 @@ impl LapceEditor {
 
         let total_sticky_lines = sticky_lines.len();
 
+        let scroll_offset = if total_sticky_lines > 0 && last_sticky_should_scroll {
+            y_diff
+        } else {
+            0.0
+        };
+
         if total_sticky_lines > 0 {
             // Clear background
             let sticky_area_rect = Size::new(
                 size.width,
-                (total_sticky_lines) as f64 * line_height
-                    - if last_sticky_should_scroll {
-                        y_diff
-                    } else {
-                        0.0
-                    },
+                (total_sticky_lines) as f64 * line_height - scroll_offset,
             )
             .to_rect()
             .with_origin(Point::new(0.0, y0));
@@ -1471,12 +1472,11 @@ impl LapceEditor {
 
             // Paint lines
             for (i, line) in sticky_lines.iter().copied().enumerate() {
-                let y_diff =
-                    if last_sticky_should_scroll && i == total_sticky_lines - 1 {
-                        y_diff
-                    } else {
-                        0.0
-                    };
+                let y_diff = if i == total_sticky_lines - 1 {
+                    scroll_offset
+                } else {
+                    0.0
+                };
                 let text_layout = data.doc.get_text_layout(
                     ctx.text(),
                     line,
@@ -1491,18 +1491,8 @@ impl LapceEditor {
             }
         }
 
-        let scroll_offset = if last_sticky_should_scroll {
-            y_diff
-        } else {
-            0.0
-        };
-
         info.last_y_diff = scroll_offset;
-        info.height = if total_sticky_lines > 0 {
-            total_sticky_lines as f64 * line_height - scroll_offset
-        } else {
-            0.0
-        };
+        info.height = total_sticky_lines as f64 * line_height - scroll_offset;
         info.lines = sticky_lines;
     }
 
