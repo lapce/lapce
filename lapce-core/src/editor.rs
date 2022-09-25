@@ -610,6 +610,52 @@ impl Editor {
         buffer.edit(&edits, EditType::Outdent)
     }
 
+    fn duplicate_line(
+        cursor: &mut Cursor,
+        buffer: &mut Buffer,
+        direction: DuplicateDirection,
+    ) -> Vec<(RopeDelta, InvalLines)> {
+        // TODO other modes
+        let selection = match cursor.mode {
+            CursorMode::Insert(ref mut sel) => sel,
+            _ => return vec![],
+        };
+
+        let mut line_ranges = HashSet::new();
+        for region in selection.regions_mut() {
+            let start_line = buffer.line_of_offset(region.start);
+            let end_line = buffer.line_of_offset(region.end) + 1;
+
+            line_ranges.insert(start_line..end_line);
+        }
+
+        let mut edits = vec![];
+        for range in line_ranges {
+            let start = buffer.offset_of_line(range.start);
+            let end = buffer.offset_of_line(range.end);
+
+            let content = buffer.slice_to_cow(start..end).into_owned();
+            edits.push((
+                match direction {
+                    DuplicateDirection::Up => Selection::caret(end),
+                    DuplicateDirection::Down => Selection::caret(start),
+                },
+                content,
+            ));
+        }
+
+        let edits = edits
+            .iter()
+            .map(|(sel, content)| (sel, content.as_str()))
+            .collect::<Vec<_>>();
+
+        let (delta, inval_lines) = buffer.edit(&edits, EditType::InsertChars);
+
+        *selection = selection.apply_delta(&delta, true, InsertDrift::Default);
+
+        vec![(delta, inval_lines)]
+    }
+
     pub fn do_edit<T: Clipboard>(
         cursor: &mut Cursor,
         buffer: &mut Buffer,
@@ -1315,15 +1361,26 @@ impl Editor {
                 Self::toggle_visual(cursor, VisualMode::Blockwise, modal);
                 vec![]
             }
+            DuplicateLineUp => {
+                Self::duplicate_line(cursor, buffer, DuplicateDirection::Up)
+            }
+            DuplicateLineDown => {
+                Self::duplicate_line(cursor, buffer, DuplicateDirection::Down)
+            }
         }
     }
+}
+
+enum DuplicateDirection {
+    Up,
+    Down,
 }
 
 #[cfg(test)]
 mod test {
     use crate::buffer::Buffer;
     use crate::cursor::{Cursor, CursorMode};
-    use crate::editor::Editor;
+    use crate::editor::{DuplicateDirection, Editor};
     use crate::selection::{SelRegion, Selection};
 
     #[test]
@@ -1379,4 +1436,134 @@ mod test {
         Editor::insert(&mut cursor, &mut buffer, "}", None);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
+
+    #[test]
+    fn duplicate_down_simple() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
+
+        assert_ne!(cursor.offset(), 0);
+        assert_eq!(
+            "first line\nfirst line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_up_simple() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
+
+        assert_eq!(cursor.offset(), 0);
+        assert_eq!(
+            "first line\nfirst line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_down_multiple_cursors_in_same_line() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        selection.add_region(SelRegion::caret(1));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
+
+        assert_eq!(
+            "first line\nfirst line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_up_multiple_cursors_in_same_line() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        selection.add_region(SelRegion::caret(1));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
+
+        assert_eq!(
+            "first line\nfirst line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_down_multiple() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        selection.add_region(SelRegion::caret(15));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
+
+        assert_eq!(
+            "first line\nfirst line\nsecond line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_up_multiple() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        selection.add_region(SelRegion::caret(15));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
+
+        assert_eq!(
+            "first line\nfirst line\nsecond line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_down_multiple_with_swapped_cursor_order() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(15));
+        selection.add_region(SelRegion::caret(0));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
+
+        assert_eq!(
+            "first line\nfirst line\nsecond line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_up_multiple_with_swapped_cursor_order() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(15));
+        selection.add_region(SelRegion::caret(0));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
+
+        assert_eq!(
+            "first line\nfirst line\nsecond line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    // TODO(dbuga): add tests duplicating selections (multiple line blocks)
 }
