@@ -1400,5 +1400,4 @@ mod test {
         Editor::insert(&mut cursor, &mut buffer, "}", None, false);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
-
 }
