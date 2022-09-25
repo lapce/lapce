@@ -1009,7 +1009,8 @@ impl LapceTab {
                     LapceUICommand::UpdateDiffInfo(diff) => {
                         let source_control = Arc::make_mut(&mut data.source_control);
                         source_control.branch = diff.head.to_string();
-                        source_control.branches = diff.branches.clone();
+                        source_control.branches =
+                            diff.branches.iter().cloned().collect();
                         source_control.file_diffs = diff
                             .diffs
                             .iter()
