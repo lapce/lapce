@@ -555,17 +555,15 @@ impl Editor {
                 }
             }
             for line in start_line..=end_line {
-                if lines.contains(&line) {
-                    continue;
+                if lines.insert(line) {
+                    let line_content = buffer.line_content(line);
+                    if line_content == "\n" || line_content == "\r\n" {
+                        continue;
+                    }
+                    let nonblank = buffer.first_non_blank_character_on_line(line);
+                    let edit = crate::indent::create_edit(buffer, nonblank, indent);
+                    edits.push(edit);
                 }
-                lines.insert(line);
-                let line_content = buffer.line_content(line);
-                if line_content == "\n" || line_content == "\r\n" {
-                    continue;
-                }
-                let nonblank = buffer.first_non_blank_character_on_line(line);
-                let edit = crate::indent::create_edit(buffer, nonblank, indent);
-                edits.push(edit);
             }
         }
 
@@ -590,19 +588,17 @@ impl Editor {
                 }
             }
             for line in start_line..=end_line {
-                if lines.contains(&line) {
-                    continue;
-                }
-                lines.insert(line);
-                let line_content = buffer.line_content(line);
-                if line_content == "\n" || line_content == "\r\n" {
-                    continue;
-                }
-                let nonblank = buffer.first_non_blank_character_on_line(line);
-                if let Some(edit) =
-                    crate::indent::create_outdent(buffer, nonblank, indent)
-                {
-                    edits.push(edit);
+                if lines.insert(line) {
+                    let line_content = buffer.line_content(line);
+                    if line_content == "\n" || line_content == "\r\n" {
+                        continue;
+                    }
+                    let nonblank = buffer.first_non_blank_character_on_line(line);
+                    if let Some(edit) =
+                        crate::indent::create_outdent(buffer, nonblank, indent)
+                    {
+                        edits.push(edit);
+                    }
                 }
             }
         }
