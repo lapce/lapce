@@ -1,11 +1,16 @@
 use std::marker::PhantomData;
 
 use druid::{
-    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
-    PaintCtx, Point, Rect, RenderContext, Size, UpdateCtx, Widget, WidgetId,
-    WidgetPod,
+    piet::{Text, TextLayoutBuilder},
+    BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
+    Widget, WidgetId, WidgetPod,
 };
-use lapce_data::{config::LapceTheme, list::ListData};
+use lapce_data::{
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::LapceTheme,
+    list::ListData,
+};
 
 use crate::scroll::{LapceIdentityWrapper, LapceScroll};
 
@@ -25,6 +30,7 @@ pub struct DropdownButton<T: Clone + ListPaint<D> + PartialEq + 'static, D: Data
 /// defaults for movement and the like.  
 pub struct List<T: Clone + ListPaint<D> + PartialEq + 'static, D: Data> {
     content_rect: Rect,
+    scroll_id: WidgetId,
     // I don't see a way to break this apart that doesn't make it less clear
     #[allow(clippy::type_complexity)]
     content: WidgetPod<
@@ -40,6 +46,7 @@ impl<T: Clone + ListPaint<D> + PartialEq + 'static, D: Data> List<T, D> {
         );
         List {
             content_rect: Rect::ZERO,
+            scroll_id,
             content: WidgetPod::new(content),
         }
     }
@@ -53,6 +60,27 @@ impl<T: Clone + ListPaint<D> + PartialEq + 'static, D: Data> List<T, D> {
             .widget_mut()
             .inner_mut()
             .scroll_to_visible(rect, env)
+    }
+
+    pub fn ensure_item_visible(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        data: &ListData<T, D>,
+        env: &Env,
+    ) {
+        let width = ctx.size().width;
+        let line_height = data.line_height() as f64;
+
+        let rect = Size::new(width, line_height)
+            .to_rect()
+            .with_origin(Point::new(0.0, data.selected_index as f64 * line_height));
+        if self.scroll_to_visible(rect, env) {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.scroll_id),
+            ));
+        }
     }
 }
 impl<T: Clone + ListPaint<D> + PartialEq + 'static, D: Data> Widget<ListData<T, D>>
@@ -81,10 +109,15 @@ impl<T: Clone + ListPaint<D> + PartialEq + 'static, D: Data> Widget<ListData<T, 
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        _old_data: &ListData<T, D>,
+        old_data: &ListData<T, D>,
         data: &ListData<T, D>,
         env: &Env,
     ) {
+        if !data.same(old_data) {
+            self.ensure_item_visible(ctx, data, env);
+            ctx.request_paint();
+        }
+
         self.content.update(ctx, data, env);
     }
 
@@ -204,8 +237,8 @@ impl<T: Clone + ListPaint<D> + 'static, D: Data> Widget<ListData<T, D>>
                 if line == self.mouse_down {
                     data.selected_index = line;
                     data.select(ctx);
+                    ctx.set_handled();
                 }
-                ctx.set_handled();
             }
             _ => {}
         }
@@ -289,4 +322,39 @@ pub trait ListPaint<D: Data>: Sized + Clone {
         env: &Env,
         line: usize,
     );
+}
+
+// A simple implementation of ListPaint for entries which are just strings
+impl<D: Data> ListPaint<D> for String {
+    fn paint(
+        &self,
+        ctx: &mut PaintCtx,
+        data: &ListData<Self, D>,
+        _env: &Env,
+        line: usize,
+    ) {
+        let line_height = data.line_height() as f64;
+        let text_layout = ctx
+            .text()
+            .new_text_layout(self.clone())
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+
+        // The point for the baseline of the text
+        // This is shifted to the right a bit to provide some minor padding
+        let point = Point::new(
+            5.0,
+            line_height * line as f64 + text_layout.y_offset(line_height),
+        );
+        ctx.draw_text(&text_layout, point);
+    }
 }
