@@ -1339,7 +1339,7 @@ mod test {
         let mut cursor =
             Cursor::new(CursorMode::Insert(Selection::caret(1)), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "e", None);
+        Editor::insert(&mut cursor, &mut buffer, "e", None, true);
         assert_eq!("aebc", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1351,7 +1351,7 @@ mod test {
         selection.add_region(SelRegion::caret(5));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "i", None);
+        Editor::insert(&mut cursor, &mut buffer, "i", None, true);
         assert_eq!("aibc\neifg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1363,13 +1363,13 @@ mod test {
         selection.add_region(SelRegion::caret(5));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "i", None);
+        Editor::insert(&mut cursor, &mut buffer, "i", None, true);
         assert_eq!("aibc\neifg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "j", None);
+        Editor::insert(&mut cursor, &mut buffer, "j", None, true);
         assert_eq!("aijbc\neijfg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "{", None);
+        Editor::insert(&mut cursor, &mut buffer, "{", None, true);
         assert_eq!("aij{bc\neij{fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, " ", None);
+        Editor::insert(&mut cursor, &mut buffer, " ", None, true);
         assert_eq!("aij{ bc\neij{ fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1381,9 +1381,24 @@ mod test {
         selection.add_region(SelRegion::caret(6));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "{", None);
+        Editor::insert(&mut cursor, &mut buffer, "{", None, true);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "}", None);
+        Editor::insert(&mut cursor, &mut buffer, "}", None, true);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
+
+    #[test]
+    fn test_insert_pair_without_auto_closing() {
+        let mut buffer = Buffer::new("a bc\ne fg\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(1));
+        selection.add_region(SelRegion::caret(6));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::insert(&mut cursor, &mut buffer, "{", None, false);
+        assert_eq!("a{ bc\ne{ fg\n", buffer.slice_to_cow(0..buffer.len()));
+        Editor::insert(&mut cursor, &mut buffer, "}", None, false);
+        assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
+    }
+
 }
