@@ -283,15 +283,9 @@ pub struct ReadDirResponse {
     pub items: HashMap<PathBuf, FileNodeItem>,
 }
 
-pub trait ProxyCallback: Send {
-    fn call(self: Box<Self>, result: Result<ProxyResponse, RpcError>);
-}
+pub trait ProxyCallback: Send + FnOnce(Result<ProxyResponse, RpcError>) {}
 
-impl<F: Send + FnOnce(Result<ProxyResponse, RpcError>)> ProxyCallback for F {
-    fn call(self: Box<F>, result: Result<ProxyResponse, RpcError>) {
-        (*self)(result)
-    }
-}
+impl<F: Send + FnOnce(Result<ProxyResponse, RpcError>)> ProxyCallback for F {}
 
 enum ResponseHandler {
     Callback(Box<dyn ProxyCallback>),
@@ -301,7 +295,7 @@ enum ResponseHandler {
 impl ResponseHandler {
     fn invoke(self, result: Result<ProxyResponse, RpcError>) {
         match self {
-            ResponseHandler::Callback(f) => f.call(result),
+            ResponseHandler::Callback(f) => f(result),
             ResponseHandler::Chan(tx) => {
                 let _ = tx.send(result);
             }
@@ -359,10 +353,9 @@ impl ProxyRpcHandler {
 
     fn request_common(&self, request: ProxyRequest, rh: ResponseHandler) {
         let id = self.id.fetch_add(1, Ordering::Relaxed);
-        {
-            let mut pending = self.pending.lock();
-            pending.insert(id, rh);
-        }
+
+        self.pending.lock().insert(id, rh);
+
         let _ = self.tx.send(ProxyRpc::Request(id, request));
     }
 
@@ -390,8 +383,7 @@ impl ProxyRpcHandler {
         id: RequestId,
         result: Result<ProxyResponse, RpcError>,
     ) {
-        let handler = { self.pending.lock().remove(&id) };
-        if let Some(handler) = handler {
+        if let Some(handler) = self.pending.lock().remove(&id) {
             handler.invoke(result);
         }
     }
