@@ -379,10 +379,7 @@ impl LapceEditorBufferData {
             if let Some(edits) = workspace_edits(edit) {
                 for (url, edits) in edits {
                     if url_matches_path(path, &url) {
-                        let path = path.clone();
-                        let doc =
-                            self.main_split.open_docs.get(&path).unwrap().clone();
-                        apply_edit(&doc, &mut self.main_split, &path, &edits);
+                        apply_edit(&mut self.main_split, path, &edits);
                     } else if let Ok(url_path) = url.to_file_path() {
                         // If it is not for the file we have open then we assume that
                         // we may have to load it
@@ -393,31 +390,27 @@ impl LapceEditorBufferData {
                         // We choose to just jump to the start of the first edit. The edit function will jump
                         // appropriately when we actually apply the edits.
                         let position = edits.get(0).map(|edit| edit.range.start);
-                        self.main_split.jump_to_location_cb(
-                                        ctx,
-                                        None,
-                                        false,
-                                        EditorLocation {
-                                            path: url_path.clone(),
-                                            position,
-                                            scroll_offset: None,
-                                            history: None,
-                                        },
-                                        &self.config,
-                                        // Note: For some reason Rust is unsure about what type the arguments are if we don't specify them
-                                        // Perhaps this could be fixed by being very explicit about the lifetimes in the jump_to_location_cb fn?
-                                        Some(move |_: &mut EventCtx, main_split: &mut LapceMainSplitData| {
-                                            // The file has been loaded, so we want to apply the edits now.
-                                            let doc = if let Some(doc) = main_split.open_docs.get(&url_path) {
-                                                doc.clone()
-                                            } else {
-                                                log::warn!("Failed to load URL-path {url_path:?} properly. It was loaded but was not able to be found, which might indicate cross platform path confusion issues.");
-                                                return;
-                                            };
+                        let location = EditorLocation {
+                            path: url_path.clone(),
+                            position,
+                            scroll_offset: None,
+                            history: None,
+                        };
 
-                                            apply_edit(&doc, main_split, &url_path, &edits);
-                                        }),
-                                    );
+                        // Note: For some reason Rust is unsure about what type the arguments are if we don't specify them
+                        // Perhaps this could be fixed by being very explicit about the lifetimes in the jump_to_location_cb fn?
+                        let callback = move |_: &mut EventCtx, main_split: &mut LapceMainSplitData| {
+                            // The file has been loaded, so we want to apply the edits now.
+                            apply_edit(main_split, &url_path, &edits);
+                        };
+                        self.main_split.jump_to_location_cb(
+                            ctx,
+                            None,
+                            false,
+                            location,
+                            &self.config,
+                            Some(callback),
+                        );
                     } else {
                         log::warn!("Text edits failed to apply to URL {url:?} because it was not found");
                     }
@@ -2532,12 +2525,12 @@ fn url_matches_path(path: &Path, url: &Url) -> bool {
     matches
 }
 
-fn apply_edit(
-    doc: &Document,
-    main_split: &mut LapceMainSplitData,
-    path: &Path,
-    edits: &[TextEdit],
-) {
+fn apply_edit(main_split: &mut LapceMainSplitData, path: &Path, edits: &[TextEdit]) {
+    let doc = match main_split.open_docs.get(path) {
+        Some(doc) => doc,
+        None => return,
+    };
+
     let edits = edits
         .iter()
         .map(|edit| {
