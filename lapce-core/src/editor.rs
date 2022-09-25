@@ -57,7 +57,7 @@ impl Editor {
         buffer: &mut Buffer,
         s: &str,
         syntax: Option<&Syntax>,
-        auto_closing: bool,
+        auto_closing_matching_pairs: bool,
     ) -> Vec<(RopeDelta, InvalLines)> {
         let mut deltas = Vec::new();
         if let CursorMode::Insert(selection) = &cursor.mode {
@@ -89,19 +89,8 @@ impl Editor {
                         None
                     };
 
-                    if auto_closing
-                        && ((c == '"' || c == '\'') && cursor_char == Some(c))
-                    {
-                        // Skip the closing character
-                        let new_offset =
-                            buffer.next_grapheme_offset(offset, 1, buffer.len());
-
-                        *region = SelRegion::caret(new_offset);
-                        continue;
-                    }
-
-                    if auto_closing && (matching_pair_type == Some(false)) {
-                        if cursor_char == Some(c) {
+                    if auto_closing_matching_pairs {
+                        if (c == '"' || c == '\'') && cursor_char == Some(c) {
                             // Skip the closing character
                             let new_offset =
                                 buffer.next_grapheme_offset(offset, 1, buffer.len());
@@ -110,72 +99,86 @@ impl Editor {
                             continue;
                         }
 
-                        let line = buffer.line_of_offset(offset);
-                        let line_start = buffer.offset_of_line(line);
-                        if buffer.slice_to_cow(line_start..offset).trim() == "" {
-                            let opening_character = matching_char(c).unwrap();
-                            if let Some(previous_offset) = buffer.previous_unmatched(
-                                syntax,
-                                opening_character,
-                                offset,
-                            ) {
-                                // Auto-indent closing character to the same level as the opening.
-                                let previous_line =
-                                    buffer.line_of_offset(previous_offset);
-                                let line_indent =
-                                    buffer.indent_on_line(previous_line);
+                        if matching_pair_type == Some(false) {
+                            if cursor_char == Some(c) {
+                                // Skip the closing character
+                                let new_offset = buffer.next_grapheme_offset(
+                                    offset,
+                                    1,
+                                    buffer.len(),
+                                );
 
-                                let current_selection =
-                                    Selection::region(line_start, offset);
-
-                                edits.push((
-                                    current_selection,
-                                    format!("{line_indent}{c}"),
-                                ));
+                                *region = SelRegion::caret(new_offset);
                                 continue;
                             }
-                        }
-                    }
 
-                    if auto_closing
-                        && (matching_pair_type == Some(true)
-                            || c == '"'
-                            || c == '\'')
-                    {
-                        // Create a late edit to insert the closing pair, if allowed.
-                        let is_whitespace_or_punct = cursor_char
-                            .map(|c| {
-                                let prop = get_word_property(c);
-                                prop == WordProperty::Lf
-                                    || prop == WordProperty::Space
-                                    || prop == WordProperty::Punctuation
-                            })
-                            .unwrap_or(true);
+                            let line = buffer.line_of_offset(offset);
+                            let line_start = buffer.offset_of_line(line);
+                            if buffer.slice_to_cow(line_start..offset).trim() == "" {
+                                let opening_character = matching_char(c).unwrap();
+                                if let Some(previous_offset) = buffer
+                                    .previous_unmatched(
+                                        syntax,
+                                        opening_character,
+                                        offset,
+                                    )
+                                {
+                                    // Auto-indent closing character to the same level as the opening.
+                                    let previous_line =
+                                        buffer.line_of_offset(previous_offset);
+                                    let line_indent =
+                                        buffer.indent_on_line(previous_line);
 
-                        let should_insert_pair = match c {
-                            '"' | '\'' => {
-                                is_whitespace_or_punct
-                                    && prev_cursor_char
-                                        .map(|c| {
-                                            let prop = get_word_property(c);
-                                            prop == WordProperty::Lf
-                                                || prop == WordProperty::Space
-                                                || prop == WordProperty::Punctuation
-                                        })
-                                        .unwrap_or(true)
+                                    let current_selection =
+                                        Selection::region(line_start, offset);
+
+                                    edits.push((
+                                        current_selection,
+                                        format!("{line_indent}{c}"),
+                                    ));
+                                    continue;
+                                }
                             }
-                            _ => is_whitespace_or_punct,
-                        };
-
-                        if should_insert_pair {
-                            let insert_after = match c {
-                                '"' => '"',
-                                '\'' => '\'',
-                                _ => matching_char(c).unwrap(),
-                            };
-                            edits_after.push((idx, insert_after));
                         }
-                    };
+
+                        if matching_pair_type == Some(true) || c == '"' || c == '\''
+                        {
+                            // Create a late edit to insert the closing pair, if allowed.
+                            let is_whitespace_or_punct = cursor_char
+                                .map(|c| {
+                                    let prop = get_word_property(c);
+                                    prop == WordProperty::Lf
+                                        || prop == WordProperty::Space
+                                        || prop == WordProperty::Punctuation
+                                })
+                                .unwrap_or(true);
+
+                            let should_insert_pair = match c {
+                                '"' | '\'' => {
+                                    is_whitespace_or_punct
+                                        && prev_cursor_char
+                                            .map(|c| {
+                                                let prop = get_word_property(c);
+                                                prop == WordProperty::Lf
+                                                    || prop == WordProperty::Space
+                                                    || prop
+                                                        == WordProperty::Punctuation
+                                            })
+                                            .unwrap_or(true)
+                                }
+                                _ => is_whitespace_or_punct,
+                            };
+
+                            if should_insert_pair {
+                                let insert_after = match c {
+                                    '"' => '"',
+                                    '\'' => '\'',
+                                    _ => matching_char(c).unwrap(),
+                                };
+                                edits_after.push((idx, insert_after));
+                            }
+                        };
+                    }
 
                     let current_selection =
                         Selection::region(region.start, region.end);
