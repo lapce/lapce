@@ -1447,9 +1447,9 @@ impl LapceEditor {
             }
         }
 
-        let total_stickly_lines = sticky_lines.len();
+        let total_sticky_lines = sticky_lines.len();
         for (i, line) in sticky_lines.iter().copied().enumerate() {
-            let y_diff = if last_sticky_should_scroll && i == total_stickly_lines - 1
+            let y_diff = if last_sticky_should_scroll && i == total_sticky_lines - 1
             {
                 y_diff
             } else {
@@ -1486,8 +1486,8 @@ impl LapceEditor {
         };
 
         info.last_y_diff = scroll_offset;
-        info.height = if total_stickly_lines > 0 {
-            total_stickly_lines as f64 * line_height - scroll_offset
+        info.height = if total_sticky_lines > 0 {
+            total_sticky_lines as f64 * line_height - scroll_offset
         } else {
             0.0
         };
