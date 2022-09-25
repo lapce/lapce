@@ -1452,7 +1452,8 @@ impl LapceEditor {
         let paint_last_line = total_sticky_lines > 0
             && (last_sticky_should_scroll
                 || y_diff != 0.0
-                || start_line != *sticky_lines.last().unwrap());
+                || start_line + total_sticky_lines - 1
+                    != *sticky_lines.last().unwrap());
 
         // Fix up the line count in case we don't need to paint the last one.
         let total_sticky_lines = if paint_last_line {
