@@ -1447,16 +1447,8 @@ impl LapceEditor {
             }
         }
 
-        let mut i = 0;
         let total_stickly_lines = sticky_lines.len();
-        if last_sticky_should_scroll {
-            info.last_y_diff = y_diff;
-        } else {
-            info.last_y_diff = 0.0;
-        }
-        info.lines = sticky_lines.clone();
-        info.height = 0.0;
-        for line in sticky_lines {
+        for (i, line) in sticky_lines.iter().copied().enumerate() {
             let y_diff = if last_sticky_should_scroll && i == total_stickly_lines - 1
             {
                 y_diff
@@ -1485,17 +1477,21 @@ impl LapceEditor {
                     - y_diff;
                 ctx.draw_text(&text_layout.text, Point::new(x0, y));
             });
-            i += 1;
         }
 
-        if i > 0 {
-            info.height = i as f64 * line_height
-                - if last_sticky_should_scroll {
-                    y_diff
-                } else {
-                    0.0
-                };
-        }
+        let scroll_offset = if last_sticky_should_scroll {
+            y_diff
+        } else {
+            0.0
+        };
+
+        info.last_y_diff = scroll_offset;
+        info.height = if total_stickly_lines > 0 {
+            total_stickly_lines as f64 * line_height - scroll_offset
+        } else {
+            0.0
+        };
+        info.lines = sticky_lines;
     }
 
     fn paint_snippet(
