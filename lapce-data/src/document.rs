@@ -2019,9 +2019,8 @@ impl Document {
         // Finally add all the trailing spaces if there are spaces left
         rendered_whitespaces.extend(whitespace_buffer.iter());
 
-        // TODO: theme option for whitespace color
         let whitespace_color = config
-            .get_style_color("comment")
+            .get_style_color(LapceTheme::EDITOR_VISIBLE_WHITESPACE)
             .unwrap_or(&Color::rgb8(0x5c, 0x63, 0x70)) // dark theme comment color
             .clone();
         let whitespace_color = whitespace_color.with_alpha(0.5);
