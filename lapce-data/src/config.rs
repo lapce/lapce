@@ -477,24 +477,17 @@ impl ThemeBaseConfig {
     pub fn resolve(&self, default: Option<&ThemeBaseColor>) -> ThemeBaseColor {
         let default = default.cloned().unwrap_or_default();
         ThemeBaseColor {
-            white: Color::from_hex_str(&self.white)
-                .unwrap_or_else(|_| default.white),
-            black: Color::from_hex_str(&self.black)
-                .unwrap_or_else(|_| default.black),
-            grey: Color::from_hex_str(&self.grey).unwrap_or_else(|_| default.grey),
-            blue: Color::from_hex_str(&self.blue).unwrap_or_else(|_| default.blue),
-            red: Color::from_hex_str(&self.red).unwrap_or_else(|_| default.red),
-            yellow: Color::from_hex_str(&self.yellow)
-                .unwrap_or_else(|_| default.yellow),
-            orange: Color::from_hex_str(&self.orange)
-                .unwrap_or_else(|_| default.orange),
-            green: Color::from_hex_str(&self.green)
-                .unwrap_or_else(|_| default.green),
-            purple: Color::from_hex_str(&self.purple)
-                .unwrap_or_else(|_| default.purple),
-            cyan: Color::from_hex_str(&self.cyan).unwrap_or_else(|_| default.cyan),
-            magenta: Color::from_hex_str(&self.magenta)
-                .unwrap_or_else(|_| default.magenta),
+            white: Color::from_hex_str(&self.white).unwrap_or(default.white),
+            black: Color::from_hex_str(&self.black).unwrap_or(default.black),
+            grey: Color::from_hex_str(&self.grey).unwrap_or(default.grey),
+            blue: Color::from_hex_str(&self.blue).unwrap_or(default.blue),
+            red: Color::from_hex_str(&self.red).unwrap_or(default.red),
+            yellow: Color::from_hex_str(&self.yellow).unwrap_or(default.yellow),
+            orange: Color::from_hex_str(&self.orange).unwrap_or(default.orange),
+            green: Color::from_hex_str(&self.green).unwrap_or(default.green),
+            purple: Color::from_hex_str(&self.purple).unwrap_or(default.purple),
+            cyan: Color::from_hex_str(&self.cyan).unwrap_or(default.cyan),
+            magenta: Color::from_hex_str(&self.magenta).unwrap_or(default.magenta),
         }
     }
 
