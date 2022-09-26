@@ -1050,10 +1050,16 @@ impl Document {
         &mut self,
         cursor: &mut Cursor,
         s: &str,
+        config: &Config,
     ) -> Vec<(RopeDelta, InvalLines)> {
         let old_cursor = cursor.mode.clone();
-        let deltas =
-            Editor::insert(cursor, &mut self.buffer, s, self.syntax.as_ref());
+        let deltas = Editor::insert(
+            cursor,
+            &mut self.buffer,
+            s,
+            self.syntax.as_ref(),
+            config.editor.auto_closing_matching_pairs,
+        );
         self.buffer_mut().set_cursor_before(old_cursor);
         self.buffer_mut().set_cursor_after(cursor.mode.clone());
         self.apply_deltas(&deltas);

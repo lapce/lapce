@@ -181,6 +181,10 @@ pub struct EditorConfig {
     )]
     pub completion_show_documentation: bool,
     #[field_names(
+        desc = "Whether the editor should disable automatic closing of matching pairs"
+    )]
+    pub auto_closing_matching_pairs: bool,
+    #[field_names(
         desc = "How long (in ms) it should take before the hover information appears"
     )]
     pub hover_delay: u64,

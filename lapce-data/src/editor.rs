@@ -2304,7 +2304,7 @@ impl KeyPressFocus for LapceEditorBufferData {
         if self.get_mode() == Mode::Insert {
             let doc = Arc::make_mut(&mut self.doc);
             let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
-            let deltas = doc.do_insert(cursor, c);
+            let deltas = doc.do_insert(cursor, c, &self.config);
 
             if !c
                 .chars()
