@@ -532,6 +532,16 @@ impl LapceEditorGutter {
 
         let info = data.editor.sticky_header.borrow();
 
+        let sticky_area_rect = Size::new(size.width, info.height)
+            .to_rect()
+            .with_origin(Point::new(0.0, 0.0));
+
+        ctx.fill(
+            sticky_area_rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        );
+
         let total_lines = info.lines.len();
         for (i, line) in info.lines.iter().enumerate() {
             let y_diff = if i == total_lines - 1 {
@@ -545,11 +555,6 @@ impl LapceEditorGutter {
                 .with_origin(Point::new(0.0, line_height * i as f64));
             ctx.with_save(|ctx| {
                 ctx.clip(rect);
-                ctx.fill(
-                    rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-                );
                 let text_layout = ctx
                     .text()
                     .new_text_layout((line + 1).to_string())
