@@ -1953,6 +1953,9 @@ impl Widget<LapceTabData> for LapceTab {
                             Target::Widget(data.palette.widget_id),
                         ));
                     }
+                    if data.title.branches.active {
+                        Arc::make_mut(&mut data.title).branches.active = false;
+                    }
                     if data.focus_area == FocusArea::Rename {
                         ctx.submit_command(Command::new(
                             LAPCE_COMMAND,

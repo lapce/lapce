@@ -759,7 +759,10 @@ impl Widget<LapceTabData> for Title {
             _ => {}
         }
         self.palette.event(ctx, event, data, env);
-        self.branch_list.event(ctx, event, data, env);
+
+        if event.should_propagate_to_hidden() || data.title.branches.active {
+            self.branch_list.event(ctx, event, data, env);
+        }
     }
 
     fn lifecycle(
@@ -1084,6 +1087,9 @@ impl Widget<LapceTabData> for SourceControlBranches {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::Hide => {
+                        Arc::make_mut(&mut data.title).branches.active = false;
+                    }
                     LapceUICommand::Focus => {
                         self.request_focus(ctx, data);
                         ctx.set_handled();
@@ -1146,6 +1152,15 @@ impl Widget<LapceTabData> for SourceControlBranches {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if let LifeCycle::FocusChanged(focus) = event {
+            if !focus {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Hide,
+                    Target::Widget(self.widget_id),
+                ));
+            }
+        }
         self.list.lifecycle(
             ctx,
             event,
