@@ -1303,8 +1303,7 @@ impl Widget<LapceTabData> for ThemeSettings {
                         .unwrap()
                         .to_string();
                     (
-                        data.config.theme.base.get(&self.keys[i]).unwrap()
-                            != &default,
+                        data.config.theme.base.get(&self.keys[i]) != Some(&default),
                         default,
                     )
                 }
@@ -1317,7 +1316,7 @@ impl Widget<LapceTabData> for ThemeSettings {
                         .unwrap()
                         .to_string();
                     (
-                        data.config.theme.ui.get(&self.keys[i]).unwrap() != &default,
+                        data.config.theme.ui.get(&self.keys[i]) != Some(&default),
                         default,
                     )
                 }
@@ -1330,8 +1329,8 @@ impl Widget<LapceTabData> for ThemeSettings {
                         .cloned()
                         .unwrap_or_else(|| "".to_string());
                     (
-                        data.config.theme.syntax.get(&self.keys[i]).unwrap()
-                            != &default,
+                        data.config.theme.syntax.get(&self.keys[i])
+                            != Some(&default),
                         default,
                     )
                 }
