@@ -385,7 +385,8 @@ impl ProxyRpcHandler {
         id: RequestId,
         result: Result<ProxyResponse, RpcError>,
     ) {
-        if let Some(handler) = self.pending.lock().remove(&id) {
+        let handler = { self.pending.lock().remove(&id) };
+        if let Some(handler) = handler {
             handler.invoke(result);
         }
     }
