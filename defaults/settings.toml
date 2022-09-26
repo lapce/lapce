@@ -18,6 +18,7 @@ completion-show-documentation = true
 hover-delay = 300             # ms
 modal-mode-relative-line-numbers = true
 format-on-save = true
+autosave-interval = 0
 enable-inlay-hints = true
 inlay-hint-font-family = ""
 inlay-hint-font-size = 0

@@ -232,6 +232,10 @@ pub struct EditorConfig {
         desc = "How the editor should render whitespace characters.\nOptions: none, all, boundary, trailing."
     )]
     pub render_whitespace: String,
+    #[field_names(
+        desc = "Set the auto save delay (in milliseconds), Set to 0 to completely disable"
+    )]
+    pub autosave_interval: u64,
 }
 
 impl EditorConfig {
