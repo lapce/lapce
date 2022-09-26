@@ -194,6 +194,8 @@ pub enum LapceLanguage {
     Latex,
     #[cfg(feature = "lang-kotlin")]
     Kotlin,
+    #[cfg(feature = "lang-d")]
+    D,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -728,6 +730,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         extensions: &["kt"],
     },
+    #[cfg(feature = "lang-d")]
+    SyntaxProperties {
+        id: LapceLanguage::D,
+        language: tree_sitter_d::language,
+        highlight: tree_sitter_d::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["d", "di", "dlang"],
+    },
 ];
 
 impl LapceLanguage {
@@ -1060,5 +1074,9 @@ mod test {
     #[cfg(feature = "lang-kotlin")]
     fn test_kotlin_lang() {
         assert_language(LapceLanguage::Kotlin, &["kt"]);
+    }
+    #[cfg(feature = "lang-d")]
+    fn test_d_lang() {
+        assert_language(LapceLanguage::D, &["d", "di", "dlang"]);
     }
 }
