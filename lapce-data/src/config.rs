@@ -646,13 +646,13 @@ impl Config {
         if let Some((_, theme)) =
             available_themes.get(&config.lapce.color_theme.to_lowercase())
         {
-            if let Ok(theme_settings) =
-                default_settings.clone().with_merged(theme.clone())
+            if let Ok(mut theme_config) = default_settings
+                .clone()
+                .with_merged(theme.clone())
+                .and_then(|theme| theme.try_into::<Config>())
             {
-                if let Ok(mut theme_config) = theme_settings.try_into::<Config>() {
-                    theme_config.resolve_colors(Some(&default_config));
-                    default_config = theme_config;
-                }
+                theme_config.resolve_colors(Some(&default_config));
+                default_config = theme_config;
             }
             config = Self::merge_settings(
                 default_settings,
