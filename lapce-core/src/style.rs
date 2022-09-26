@@ -14,6 +14,7 @@ pub const SCOPES: &[&str] = &[
     "function",
     "label",
     "keyword",
+    "keyword.control",
     "string",
     "variable",
     "variable.other.member",
