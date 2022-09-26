@@ -424,27 +424,19 @@ impl ThemeConfig {
         colors
             .iter()
             .map(|(name, hex)| {
-                if let Some(stripped) = hex.strip_prefix('$') {
-                    if let Some(c) = base.get(stripped) {
-                        return (name.to_string(), c.clone());
-                    }
-                    if let Some(default) = default {
-                        if let Some(c) = default.get(name) {
-                            return (name.to_string(), c.clone());
-                        }
-                    }
-                    return (name.to_string(), Color::rgb8(0, 0, 0));
-                }
+                let color = if let Some(stripped) = hex.strip_prefix('$') {
+                    base.get(stripped).cloned()
+                } else {
+                    Color::from_hex_str(hex).ok()
+                };
 
-                if let Ok(c) = Color::from_hex_str(hex) {
-                    return (name.to_string(), c);
-                }
-                if let Some(default) = default {
-                    if let Some(c) = default.get(name) {
-                        return (name.to_string(), c.clone());
-                    }
-                }
-                (name.to_string(), Color::rgb8(0, 0, 0))
+                let color = color
+                    .or_else(|| {
+                        default.and_then(|default| default.get(name).cloned())
+                    })
+                    .unwrap_or(Color::rgb8(0, 0, 0));
+
+                (name.to_string(), color)
             })
             .collect()
     }
