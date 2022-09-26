@@ -302,11 +302,7 @@ impl Title {
                 Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::ShowGitBranches {
-                        origin: Point::new(
-                            command_rect.x0,
-                            command_rect.y1
-                                + if data.multiple_tab { 36.0 } else { 0.0 },
-                        ),
+                        origin: Point::new(command_rect.x0, command_rect.y1),
                         branches,
                     },
                     Target::Auto,
