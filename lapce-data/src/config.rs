@@ -483,62 +483,26 @@ pub struct ThemeBaseConfig {
 
 impl ThemeBaseConfig {
     pub fn resolve(&self, default: Option<&ThemeBaseColor>) -> ThemeBaseColor {
+        let default = default.cloned().unwrap_or_default();
         ThemeBaseColor {
-            white: Color::from_hex_str(&self.white).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.white.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            black: Color::from_hex_str(&self.black).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.black.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            grey: Color::from_hex_str(&self.grey).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.grey.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            blue: Color::from_hex_str(&self.blue).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.blue.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            red: Color::from_hex_str(&self.red).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.red.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            yellow: Color::from_hex_str(&self.yellow).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.yellow.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            orange: Color::from_hex_str(&self.orange).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.orange.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            green: Color::from_hex_str(&self.green).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.green.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            purple: Color::from_hex_str(&self.purple).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.purple.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            cyan: Color::from_hex_str(&self.cyan).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.cyan.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            magenta: Color::from_hex_str(&self.magenta).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.magenta.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
+            white: Color::from_hex_str(&self.white)
+                .unwrap_or_else(|_| default.white),
+            black: Color::from_hex_str(&self.black)
+                .unwrap_or_else(|_| default.black),
+            grey: Color::from_hex_str(&self.grey).unwrap_or_else(|_| default.grey),
+            blue: Color::from_hex_str(&self.blue).unwrap_or_else(|_| default.blue),
+            red: Color::from_hex_str(&self.red).unwrap_or_else(|_| default.red),
+            yellow: Color::from_hex_str(&self.yellow)
+                .unwrap_or_else(|_| default.yellow),
+            orange: Color::from_hex_str(&self.orange)
+                .unwrap_or_else(|_| default.orange),
+            green: Color::from_hex_str(&self.green)
+                .unwrap_or_else(|_| default.green),
+            purple: Color::from_hex_str(&self.purple)
+                .unwrap_or_else(|_| default.purple),
+            cyan: Color::from_hex_str(&self.cyan).unwrap_or_else(|_| default.cyan),
+            magenta: Color::from_hex_str(&self.magenta)
+                .unwrap_or_else(|_| default.magenta),
         }
     }
 
