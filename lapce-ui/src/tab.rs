@@ -988,6 +988,8 @@ impl LapceTab {
                                     &volt.display_name,
                                     error.to_string(),
                                 ),
+                            );
+                        }
                     }
                     LapceUICommand::VoltRemoved(volt, only_installing) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
