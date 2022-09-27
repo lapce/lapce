@@ -106,9 +106,7 @@ pub fn generate_edits(
 
         // We have to keep track of a shift because the deletions aren't properly moved forward
         let mut shift = insertions.inserts_len();
-        // I believe this is the correct `CountMatcher` to use for this iteration, since it is what they use
-        // for deleting a subset from a string.
-        for (start, end) in deletions.range_iter(CountMatcher::Zero) {
+        for (start, end) in deletions.range_iter(CountMatcher::NonZero) {
             edits.push(create_delete_edit(&text, start + shift, end + shift));
 
             let delete_delta = RopeDelta::simple_edit(
