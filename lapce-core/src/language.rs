@@ -354,10 +354,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[
-            "function_definition",
-            "struct_specifier",
-        ],
+        sticky_headers: &["function_definition", "struct_specifier"],
         extensions: &["c", "h"],
     },
     #[cfg(feature = "lang-cpp")]
