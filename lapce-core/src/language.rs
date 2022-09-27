@@ -817,9 +817,13 @@ impl LapceLanguage {
     }
 
     pub(crate) fn new_highlight_config(&self) -> HighlightConfiguration {
-        let language = (self.properties().language)();
-        let query = self.properties().highlight;
-        HighlightConfiguration::new(language, query, "", "").unwrap()
+        let props = self.properties();
+        let language = (props.language)();
+        let query = props.highlight;
+        let injection = props.injection;
+
+        HighlightConfiguration::new(language, query, injection.unwrap_or(""), "")
+            .unwrap()
     }
 
     pub(crate) fn walk_tree(
