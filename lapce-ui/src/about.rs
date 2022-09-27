@@ -302,13 +302,6 @@ impl Widget<LapceTabData> for AboutBoxContent {
             Point::new(self.padding, self.padding * 2.0 + self.svg_size),
         ));
 
-        // GitHub: {}\nDiscord: {}\nMatrix: {}\n\n\nThird party resources used:\n\nCodicons (CC-BY-4.0)\n{}
-        // "https://lapce.dev",
-        // "https://github.com/lapce/lapce",
-        // "https://discord.gg/n8tGJ6Rn6D",
-        // "https://matrix.to/#/#lapce-editor:matrix.org",
-        // "https://github.com/microsoft/vscode-codicons"
-
         let mut y = self.padding * 2.0
             + self.svg_size
             + title_size.height

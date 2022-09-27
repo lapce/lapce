@@ -375,16 +375,27 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                         let _ = data.db.save_app(data);
                         let process_path = process_path.clone();
                         let release = release.clone();
-                        std::thread::spawn(move || -> anyhow::Result<()> {
-                            log::info!("start to down new versoin");
-                            let src =
-                                lapce_data::update::download_release(&release)?;
-                            log::info!("start to extract");
-                            let path =
-                                lapce_data::update::extract(&src, &process_path)?;
-                            log::info!("now restart {path:?}");
-                            lapce_data::update::restart(&path)?;
-                            Ok(())
+                        std::thread::spawn(move || {
+                            let do_update = || -> anyhow::Result<()> {
+                                log::info!("start to down new versoin");
+                                let src =
+                                    lapce_data::update::download_release(&release)?;
+
+                                log::info!("start to extract");
+                                let path = lapce_data::update::extract(
+                                    &src,
+                                    &process_path,
+                                )?;
+
+                                log::info!("now restart {path:?}");
+                                lapce_data::update::restart(&path)?;
+
+                                Ok(())
+                            };
+
+                            if let Err(err) = do_update() {
+                                log::error!("Failed to update: {err}");
+                            }
                         });
                         return druid::Handled::Yes;
                     }
