@@ -654,7 +654,9 @@ impl Widget<LapceTabData> for PluginInfo {
                 }
             }
             Event::MouseDown(mouse_event) => {
-                status_on_click(ctx, data, &self.volt_id, mouse_event.pos);
+                if self.status_rect.contains(mouse_event.pos) {
+                    status_on_click(ctx, data, &self.volt_id, mouse_event.pos);
+                }
             }
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 let cmd = cmd.get_unchecked(LAPCE_COMMAND);

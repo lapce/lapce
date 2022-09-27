@@ -500,6 +500,10 @@ pub enum LapceUICommand {
     ShowAlert(AlertContentData),
     ShowMenu(Point, Arc<Vec<MenuKind>>),
     ShowWindow,
+    ShowGitBranches {
+        origin: Point,
+        branches: im::Vector<String>,
+    },
     UpdateSearchInput(String),
     UpdateSearch(String),
     GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),

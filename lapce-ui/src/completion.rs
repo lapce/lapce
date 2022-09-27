@@ -218,22 +218,14 @@ impl CompletionContainer {
         data: &LapceTabData,
         env: &Env,
     ) {
-        let width = ctx.size().width;
-        let line_height = data.completion.completion_list.line_height() as f64;
-
-        let rect = Size::new(width, line_height)
-            .to_rect()
-            .with_origin(Point::new(
-                0.0,
-                data.completion.completion_list.selected_index as f64 * line_height,
-            ));
-        if self.completion.widget_mut().scroll_to_visible(rect, env) {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::ResetFade,
-                Target::Widget(self.scroll_id),
-            ));
-        }
+        self.completion.widget_mut().ensure_item_visible(
+            ctx,
+            &data
+                .completion
+                .completion_list
+                .clone_with(data.config.clone()),
+            env,
+        );
     }
 
     /// Like [`Self::ensure_item_visible`] but instead making so that it is at the very top of the display
@@ -385,11 +377,13 @@ impl Widget<LapceTabData> for CompletionContainer {
                 ctx.request_layout();
             }
 
+            let completion_list_changed = !completion
+                .completion_list
+                .same(&old_completion.completion_list);
             if old_data.completion.input != data.completion.input
                 || old_data.completion.request_id != data.completion.request_id
                 || old_data.completion.status != data.completion.status
-                || old_data.completion.completion_list.items
-                    != data.completion.completion_list.items
+                || completion_list_changed
             {
                 self.update_documentation(data);
                 ctx.request_layout();
@@ -404,14 +398,6 @@ impl Widget<LapceTabData> for CompletionContainer {
                     LapceUICommand::ResetFade,
                     Target::Widget(self.scroll_id),
                 ));
-            }
-
-            if old_completion.completion_list.selected_index
-                != completion.completion_list.selected_index
-            {
-                self.ensure_item_visible(ctx, data, env);
-                self.update_documentation(data);
-                ctx.request_paint();
             }
 
             if self

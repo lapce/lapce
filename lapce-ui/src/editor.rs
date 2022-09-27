@@ -1447,32 +1447,59 @@ impl LapceEditor {
             }
         }
 
-        let mut i = 0;
-        let total_stickly_lines = sticky_lines.len();
-        if last_sticky_should_scroll {
-            info.last_y_diff = y_diff;
+        let total_sticky_lines = sticky_lines.len();
+
+        let paint_last_line = total_sticky_lines > 0
+            && (last_sticky_should_scroll
+                || y_diff != 0.0
+                || start_line + total_sticky_lines - 1
+                    != *sticky_lines.last().unwrap());
+
+        // Fix up the line count in case we don't need to paint the last one.
+        let total_sticky_lines = if paint_last_line {
+            total_sticky_lines
         } else {
-            info.last_y_diff = 0.0;
+            total_sticky_lines.saturating_sub(1)
+        };
+
+        if total_sticky_lines == 0 {
+            return;
         }
-        info.lines = sticky_lines.clone();
-        info.height = 0.0;
-        for line in sticky_lines {
-            let y_diff = if last_sticky_should_scroll && i == total_stickly_lines - 1
-            {
-                y_diff
+
+        let scroll_offset = if last_sticky_should_scroll {
+            y_diff
+        } else {
+            0.0
+        };
+
+        // Clear background
+        let area_height =
+            total_sticky_lines as f64 * line_height - scroll_offset + 1.0;
+        let sticky_area_rect = Size::new(size.width, area_height)
+            .to_rect()
+            .with_origin(Point::new(0.0, y0));
+
+        ctx.fill(
+            sticky_area_rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        );
+
+        // Paint lines
+        for (i, line) in sticky_lines.iter().copied().enumerate() {
+            let y_diff = if i == total_sticky_lines - 1 {
+                scroll_offset
             } else {
                 0.0
             };
-            let rect = Size::new(size.width, line_height - y_diff)
-                .to_rect()
-                .with_origin(Point::new(0.0, y0 + line_height * i as f64));
+
             ctx.with_save(|ctx| {
-                ctx.clip(rect);
-                ctx.fill(
-                    rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-                );
+                let line_area_rect = Size::new(size.width, line_height - y_diff)
+                    .to_rect()
+                    .with_origin(Point::new(0.0, y0 + line_height * i as f64));
+
+                ctx.clip(line_area_rect);
+
                 let text_layout = data.doc.get_text_layout(
                     ctx.text(),
                     line,
@@ -1485,17 +1512,11 @@ impl LapceEditor {
                     - y_diff;
                 ctx.draw_text(&text_layout.text, Point::new(x0, y));
             });
-            i += 1;
         }
 
-        if i > 0 {
-            info.height = i as f64 * line_height
-                - if last_sticky_should_scroll {
-                    y_diff
-                } else {
-                    0.0
-                };
-        }
+        info.last_y_diff = scroll_offset;
+        info.height = area_height;
+        info.lines = sticky_lines;
     }
 
     fn paint_snippet(

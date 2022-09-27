@@ -259,24 +259,11 @@ impl PaletteContainer {
         data: &LapceTabData,
         env: &Env,
     ) {
-        let width = ctx.size().width;
-        // TODO: This function could just be on List?
-        let line_height = data.palette.list_data.line_height() as f64;
-        let rect =
-            Size::new(width, line_height as f64)
-                .to_rect()
-                .with_origin(Point::new(
-                    0.0,
-                    data.palette.list_data.selected_index as f64
-                        * line_height as f64,
-                ));
-        if self.content.widget_mut().scroll_to_visible(rect, env) {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::ResetFade,
-                Target::Widget(data.palette.scroll_id),
-            ));
-        }
+        self.content.widget_mut().ensure_item_visible(
+            ctx,
+            &data.palette.list_data.clone_with(data.config.clone()),
+            env,
+        );
     }
 }
 
@@ -322,8 +309,6 @@ impl Widget<LapceTabData> for PaletteContainer {
         env: &Env,
     ) {
         if old_data.palette.input != data.palette.input
-            || old_data.palette.list_data.selected_index
-                != data.palette.list_data.selected_index
             || old_data.palette.run_id != data.palette.run_id
         {
             self.ensure_item_visible(ctx, data, env);

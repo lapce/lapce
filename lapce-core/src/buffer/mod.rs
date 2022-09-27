@@ -698,18 +698,15 @@ impl Buffer {
     }
 
     /// Converts a UTF8 offset to a UTF16 LSP position
-    /// Returns None if it is not a valid UTF16 offset
-    pub fn offset_to_position(&self, offset: usize) -> Option<Position> {
+    pub fn offset_to_position(&self, offset: usize) -> Position {
         RopeText::new(&self.text).offset_to_position(offset)
     }
 
-    /// Returns None if the UTF16 Position can't be converted to a UTF8 offset
-    pub fn offset_of_position(&self, pos: &Position) -> Option<usize> {
+    pub fn offset_of_position(&self, pos: &Position) -> usize {
         RopeText::new(&self.text).offset_of_position(pos)
     }
 
-    /// Returns None if the UTF16 Position can't be converted to a UTF8 offset
-    pub fn position_to_line_col(&self, pos: &Position) -> (usize, Option<usize>) {
+    pub fn position_to_line_col(&self, pos: &Position) -> (usize, usize) {
         RopeText::new(&self.text).position_to_line_col(pos)
     }
 

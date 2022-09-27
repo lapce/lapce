@@ -86,6 +86,10 @@ pub enum EditCommand {
     ToggleLinewiseVisualMode,
     #[strum(serialize = "toggle_blockwise_visual_mode")]
     ToggleBlockwiseVisualMode,
+    #[strum(serialize = "duplicate_line_up")]
+    DuplicateLineUp,
+    #[strum(serialize = "duplicate_line_down")]
+    DuplicateLineDown,
 }
 
 #[derive(

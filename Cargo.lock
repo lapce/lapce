@@ -1011,7 +1011,7 @@ dependencies = [
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#ae9a85d2430a53255ae05c20eac8b0241924f293"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#d8f036bc8100b19980dfcbd3067fcae600407219"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -1034,7 +1034,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#ae9a85d2430a53255ae05c20eac8b0241924f293"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#d8f036bc8100b19980dfcbd3067fcae600407219"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1044,7 +1044,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#ae9a85d2430a53255ae05c20eac8b0241924f293"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#d8f036bc8100b19980dfcbd3067fcae600407219"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -2535,6 +2535,7 @@ dependencies = [
  "tree-sitter-c-sharp",
  "tree-sitter-cpp",
  "tree-sitter-css",
+ "tree-sitter-d",
  "tree-sitter-dart",
  "tree-sitter-dockerfile",
  "tree-sitter-elixir",
@@ -2550,6 +2551,7 @@ dependencies = [
  "tree-sitter-javascript",
  "tree-sitter-json",
  "tree-sitter-julia",
+ "tree-sitter-kotlin",
  "tree-sitter-latex",
  "tree-sitter-md",
  "tree-sitter-nix",
@@ -2601,7 +2603,6 @@ dependencies = [
  "lsp-types",
  "notify",
  "parking_lot 0.11.2",
- "process_path",
  "pulldown-cmark",
  "rayon",
  "regex",
@@ -2653,7 +2654,6 @@ dependencies = [
  "notify",
  "once_cell",
  "parking_lot 0.11.2",
- "process_path",
  "psp-types",
  "regex",
  "reqwest",
@@ -3701,16 +3701,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a2ca2c61bc9f3d74d2886294ab7b9853abd9c1ad903a3ac7815c58989bb7bab"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "process_path"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f676f11eb0b3e2ea0fbaee218fa6b806689e2297b8c8adc5bf73df465c4f6171"
-dependencies = [
- "libc",
- "winapi 0.3.9",
 ]
 
 [[package]]
@@ -4963,6 +4953,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-d"
+version = "0.0.1"
+source = "git+https://github.com/syntacti/tree-sitter-d?branch=master#fdaa172d375f6c48987ce68ae01e8020acb9bc17"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-dart"
 version = "0.0.1"
 source = "git+https://github.com/syntacti/tree-sitter-dart?branch=master#78cad4503571d72666f78d5ba8ed6c1417653063"
@@ -5097,6 +5096,15 @@ dependencies = [
 name = "tree-sitter-julia"
 version = "0.19.0"
 source = "git+https://github.com/varlad/tree-sitter-julia?branch=master#eff3e0f57512ecb2e72024732d66dba64bdeaecf"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-kotlin"
+version = "0.2.11"
+source = "git+https://github.com/fwcd/tree-sitter-kotlin?branch=main#a4f71eb9b8c9b19ded3e0e9470be4b1b77c2b569"
 dependencies = [
  "cc",
  "tree-sitter",

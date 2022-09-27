@@ -278,6 +278,16 @@ command = "insert_new_line"
 when = "!list_focus"
 mode = "i"
 
+[[keymaps]]
+key = "alt+shift+up"
+command = "duplicate_line_up"
+mode = "i"
+
+[[keymaps]]
+key = "alt+shift+down"
+command = "duplicate_line_down"
+mode = "i"
+
 # ------------------------------------ Modal -----------------------------------------
 
 [[keymaps]]

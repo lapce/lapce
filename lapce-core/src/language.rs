@@ -192,6 +192,10 @@ pub enum LapceLanguage {
     Svelte,
     #[cfg(feature = "lang-latex")]
     Latex,
+    #[cfg(feature = "lang-kotlin")]
+    Kotlin,
+    #[cfg(feature = "lang-d")]
+    D,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -714,6 +718,30 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         extensions: &["tex"],
     },
+    #[cfg(feature = "lang-kotlin")]
+    SyntaxProperties {
+        id: LapceLanguage::Kotlin,
+        language: tree_sitter_kotlin::language,
+        highlight: include_str!("../queries/kotlin/highlights.scm"),
+        injection: Some(include_str!("../queries/kotlin/injections.scm")),
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["kt"],
+    },
+    #[cfg(feature = "lang-d")]
+    SyntaxProperties {
+        id: LapceLanguage::D,
+        language: tree_sitter_d::language,
+        highlight: tree_sitter_d::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["d", "di", "dlang"],
+    },
 ];
 
 impl LapceLanguage {
@@ -733,7 +761,7 @@ impl LapceLanguage {
         match LapceLanguage::from_str(name.to_lowercase().as_str()) {
             Ok(v) => Some(v),
             Err(e) => {
-                eprintln!("failed parsing LapceLanguage: {e}");
+                eprintln!("failed parsing {name} LapceLanguage: {e}");
                 None
             }
         }
@@ -1042,5 +1070,13 @@ mod test {
     #[cfg(feature = "lang-latex")]
     fn test_latex_lang() {
         assert_language(LapceLanguage::Latex, &["tex"]);
+    }
+    #[cfg(feature = "lang-kotlin")]
+    fn test_kotlin_lang() {
+        assert_language(LapceLanguage::Kotlin, &["kt"]);
+    }
+    #[cfg(feature = "lang-d")]
+    fn test_d_lang() {
+        assert_language(LapceLanguage::D, &["d", "di", "dlang"]);
     }
 }

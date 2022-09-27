@@ -30,4 +30,5 @@ pub mod signature;
 pub mod source_control;
 pub mod split;
 pub mod terminal;
+pub mod title;
 pub mod update;
