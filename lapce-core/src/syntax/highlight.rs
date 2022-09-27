@@ -98,6 +98,7 @@ declare_language_highlights!(
     Vue: "lang-vue",
     D: "lang-d",
     Lua: "lang-lua",
+    R: "lang-r",
 );
 
 /// Indicates which highlight should be applied to a region of source code.

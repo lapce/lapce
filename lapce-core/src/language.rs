@@ -200,6 +200,8 @@ pub enum LapceLanguage {
     Vue,
     #[cfg(feature = "lang-lua")]
     Lua,
+    #[cfg(feature = "lang-r")]
+    R,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -774,6 +776,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["lua"],
     },
+    #[cfg(feature = "lang-r")]
+    SyntaxProperties {
+        id: LapceLanguage::R,
+        language: tree_sitter_r::language,
+        highlight: include_str!("../queries/r/highlights.scm"),
+        injection: None,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["r"],
+    },
 ];
 
 impl LapceLanguage {
@@ -1118,5 +1132,9 @@ mod test {
     #[cfg(feature = "lang-lua")]
     fn test_lua_lang() {
         assert_language(LapceLanguage::Lua, &["lua"]);
+    }
+    #[cfg(feature = "lang-r")]
+    fn test_r_lang() {
+        assert_language(LapceLanguage::R, &["r"]);
     }
 }
