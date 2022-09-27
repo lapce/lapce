@@ -11,7 +11,7 @@ use druid::{
 };
 use indexmap::IndexMap;
 use lapce_proxy::{directory::Directory, plugin::wasi::find_all_volts};
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use structdesc::FieldNames;
@@ -606,11 +606,15 @@ pub struct Config {
 
 pub struct ConfigWatcher {
     event_sink: ExtEventSink,
+    delay_handler: Arc<Mutex<Option<()>>>,
 }
 
 impl ConfigWatcher {
     pub fn new(event_sink: ExtEventSink) -> Self {
-        Self { event_sink }
+        Self {
+            event_sink,
+            delay_handler: Arc::new(Mutex::new(None)),
+        }
     }
 }
 
@@ -621,11 +625,19 @@ impl notify::EventHandler for ConfigWatcher {
                 notify::EventKind::Create(_)
                 | notify::EventKind::Modify(_)
                 | notify::EventKind::Remove(_) => {
-                    let _ = self.event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::ReloadConfig,
-                        Target::Auto,
-                    );
+                    *self.delay_handler.lock() = Some(());
+                    let delay_handler = self.delay_handler.clone();
+                    let event_sink = self.event_sink.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                        if delay_handler.lock().take().is_some() {
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ReloadConfig,
+                                Target::Auto,
+                            );
+                        }
+                    });
                 }
                 _ => (),
             }

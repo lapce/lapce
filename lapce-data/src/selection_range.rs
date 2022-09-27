@@ -93,7 +93,6 @@ impl SyntaxSelectionRanges {
 
 #[cfg(test)]
 mod test {
-    use crate::command::CommandExecuted::No;
     use crate::selection_range::SyntaxSelectionRanges;
     use lapce_rpc::buffer::BufferId;
     use lsp_types::{Position, Range, SelectionRange};
@@ -136,11 +135,11 @@ mod test {
             rev: 0,
             last_known_selection: None,
             ranges: SelectionRange {
-                range: range_zero.clone(),
+                range: range_zero,
                 parent: Some(Box::new(SelectionRange {
-                    range: range_one.clone(),
+                    range: range_one,
                     parent: Some(Box::new(SelectionRange {
-                        range: range_two.clone(),
+                        range: range_two,
                         parent: None,
                     })),
                 })),
