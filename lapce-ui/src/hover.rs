@@ -141,10 +141,8 @@ impl Widget<LapceTabData> for HoverContainer {
             ));
         }
 
-        if old_hover.active_item_index != hover.active_item_index {
-            self.ensure_visible(ctx, data, env);
-            ctx.request_paint();
-        }
+        self.ensure_visible(ctx, data, env);
+        ctx.request_paint();
 
         self.hover.update(ctx, data, env);
     }
@@ -190,7 +188,7 @@ impl Widget<LapceTabData> for HoverContainer {
 
 #[derive(Default)]
 struct Hover {
-    active_layout: TextLayout<RichText>,
+    active_layout: Vec<TextLayout<RichText>>,
     active_diagnostic_layout: TextLayout<RichText>,
 }
 
@@ -201,8 +199,7 @@ impl Hover {
     fn new() -> Self {
         Hover {
             active_layout: {
-                let mut layout = TextLayout::new();
-                layout.set_text(RichText::new(ArcStr::from("")));
+                let layout = Vec::new();
                 layout
             },
             active_diagnostic_layout: {
@@ -246,18 +243,19 @@ impl Widget<LapceTabData> for Hover {
         // or we've gotten new diagnostic text
         // then update the layout
         if old_data.hover.request_id != data.hover.request_id
-            || old_data.hover.active_item_index != data.hover.active_item_index
-            || old_data.hover.get_current_item().is_some()
-                != data.hover.get_current_item().is_some()
+            || old_data.hover.get_current_items().is_some()
+                != data.hover.get_current_items().is_some()
             || !old_data
                 .hover
                 .diagnostic_content
                 .same(&data.hover.diagnostic_content)
         {
-            if let Some(item) = data.hover.get_current_item() {
-                self.active_layout.set_text(item.clone());
-            } else {
-                self.active_layout.set_text(RichText::new(ArcStr::from("")));
+            for (i, item) in data.hover.items.iter().enumerate() {
+                if i >= self.active_layout.len() {
+                    self.active_layout.push(TextLayout::new());
+                }
+                let layout = &mut self.active_layout[i];
+                layout.set_text(item.clone());
             }
 
             if let Some(diagnostic_content) = &data.hover.diagnostic_content {
@@ -275,19 +273,15 @@ impl Widget<LapceTabData> for Hover {
                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                 .clone();
 
-            self.active_layout.set_font(font.clone());
-            self.active_layout.set_text_color(text_color.clone());
+            for layout in self.active_layout.iter_mut() {
+                layout.set_font(font.clone());
+                layout.set_text_color(text_color.clone());
+            }
 
             self.active_diagnostic_layout.set_font(font);
             self.active_diagnostic_layout.set_text_color(text_color);
 
-            if self.active_layout.needs_rebuild_after_update(ctx)
-                || self
-                    .active_diagnostic_layout
-                    .needs_rebuild_after_update(ctx)
-            {
-                ctx.request_layout();
-            }
+            ctx.request_layout();
         }
     }
 
@@ -304,17 +298,25 @@ impl Widget<LapceTabData> for Hover {
             - env.get(theme::SCROLLBAR_WIDTH)
             - env.get(theme::SCROLLBAR_PAD);
 
-        self.active_layout.set_wrap_width(max_width);
-        self.active_layout.rebuild_if_needed(ctx.text(), env);
+        for layout in self.active_layout.iter_mut() {
+            layout.set_wrap_width(max_width);
+            layout.rebuild_if_needed(ctx.text(), env);
+        }
 
         self.active_diagnostic_layout.set_wrap_width(max_width);
         self.active_diagnostic_layout
             .rebuild_if_needed(ctx.text(), env);
 
-        let text_metrics = self.active_layout.layout_metrics();
-        ctx.set_baseline_offset(
-            text_metrics.size.height - text_metrics.first_baseline,
-        );
+        let mut height = 0.0;
+
+        for layout in self.active_layout.iter() {
+            height += layout.layout_metrics().size.height;
+        }
+
+        if self.active_layout.len() > 1 {
+            let line_height = data.config.editor.line_height() as f64;
+            height += (self.active_layout.len() - 1) as f64 * line_height
+        }
 
         let diagnostic_height = if self.active_diagnostic_layout.size().is_empty() {
             0.0
@@ -323,13 +325,10 @@ impl Widget<LapceTabData> for Hover {
                 self.active_diagnostic_layout.layout_metrics();
 
             diagnostic_text_metrics.size.height
-                + data.config.editor.line_height() as f64
+                + data.config.editor.line_height() as f64 * 1.5
         };
 
-        Size::new(
-            width,
-            text_metrics.size.height + diagnostic_height + Hover::STARTING_Y * 2.0,
-        )
+        Size::new(width, height + diagnostic_height + Hover::STARTING_Y * 2.0)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
@@ -337,8 +336,15 @@ impl Widget<LapceTabData> for Hover {
             return;
         }
 
+        let side_margin =
+            env.get(theme::SCROLLBAR_WIDTH) + env.get(theme::SCROLLBAR_PAD);
+        let line_height = data.config.editor.line_height() as f64;
+
         let rect = ctx.region().bounding_box();
-        let diagnostic_origin = Point::new(Self::STARTING_X, Self::STARTING_Y);
+        let diagnostic_origin = Point::new(
+            Self::STARTING_X,
+            Self::STARTING_Y + data.config.editor.line_height() as f64 / 2.0,
+        );
 
         ctx.fill(
             rect,
@@ -350,30 +356,22 @@ impl Widget<LapceTabData> for Hover {
         let height = if self.active_diagnostic_layout.size().is_empty() {
             0.0
         } else {
-            // let text_metrics = self.active_layout.layout_metrics();
             let diagnostic_text_metrics =
                 self.active_diagnostic_layout.layout_metrics();
 
-            let side_margin =
-                env.get(theme::SCROLLBAR_WIDTH) + env.get(theme::SCROLLBAR_PAD);
-            let line_height = data.config.editor.line_height() as f64;
-
-            // Create a separating line
             let line = {
                 let x0 = rect.x0 + side_margin;
-                let y = diagnostic_text_metrics.size.height + line_height;
+                let y = diagnostic_text_metrics.size.height + line_height * 1.5;
                 let x1 = rect.x1 - side_margin;
                 Line::new(Point::new(x0, y), Point::new(x1, y))
             };
 
-            // Draw the separator
             ctx.stroke(
                 line,
                 data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
                 1.0,
             );
 
-            // Draw the diagnostic text
             self.active_diagnostic_layout.draw(ctx, diagnostic_origin);
 
             diagnostic_text_metrics.size.height + line_height
@@ -381,6 +379,33 @@ impl Widget<LapceTabData> for Hover {
 
         let doc_origin = diagnostic_origin + (0.0, height);
 
-        self.active_layout.draw(ctx, doc_origin);
+        let mut start_height = 0.0;
+
+        let active_items_len = data.hover.items.len();
+
+        for (i, layout) in self.active_layout.iter_mut().enumerate() {
+            layout.draw(ctx, doc_origin + (0.0, start_height));
+
+            if i < active_items_len - 1 {
+                let layout_metrics = layout.layout_metrics();
+                start_height += layout_metrics.size.height;
+
+                let line = {
+                    let x0 = rect.x0 + side_margin;
+                    let y =
+                        (doc_origin + (0.0, start_height)).y + (line_height / 2.0);
+                    let x1 = rect.x1 - side_margin;
+                    Line::new(Point::new(x0, y), Point::new(x1, y))
+                };
+
+                start_height += line_height;
+
+                ctx.stroke(
+                    line,
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
+            }
+        }
     }
 }

@@ -39,11 +39,6 @@ pub struct HoverData {
     pub size: Size,
     /// Stores the actual size of the hover content
     pub content_size: Rc<RefCell<Size>>,
-
-    /// The current hover string that is active, because there can be multiple for a single entry
-    /// (such as if there is uncertainty over the exact version, such as in overloading or
-    /// scripting languages where the declaration is uncertain)
-    pub active_item_index: usize,
     /// The hover items that are currently loaded
     pub items: Arc<Vec<RichText>>,
     /// The text for the diagnostic(s) at the position
@@ -64,14 +59,17 @@ impl HoverData {
             size: Size::new(600.0, 300.0),
             content_size: Rc::new(RefCell::new(Size::ZERO)),
 
-            active_item_index: 0,
             items: Arc::new(Vec::new()),
             diagnostic_content: None,
         }
     }
 
-    pub fn get_current_item(&self) -> Option<&RichText> {
-        self.items.get(self.active_item_index)
+    pub fn get_current_items(&self) -> Option<&[RichText]> {
+        if self.items.is_empty() {
+            None
+        } else {
+            Some(&self.items)
+        }
     }
 
     /// The length of the current hover items
@@ -83,21 +81,6 @@ impl HoverData {
         self.items.is_empty()
     }
 
-    /// Move to the next hover item
-    pub fn next(&mut self) {
-        // If there is an item after the current one, then actually change
-        if self.active_item_index + 1 < self.len() {
-            self.active_item_index += 1;
-        }
-    }
-
-    /// Move to the previous hover item
-    pub fn previous(&mut self) {
-        if self.active_item_index > 0 {
-            self.active_item_index -= 1;
-        }
-    }
-
     /// Cancel the current hover information, clearing out held data
     pub fn cancel(&mut self) {
         if self.status == HoverStatus::Inactive {
@@ -106,7 +89,6 @@ impl HoverData {
 
         self.status = HoverStatus::Inactive;
         Arc::make_mut(&mut self.items).clear();
-        self.active_item_index = 0;
     }
 
     /// Send a request to update the hover at the given position and file
@@ -136,9 +118,12 @@ impl HoverData {
                     {
                         let items = parse_hover_resp(hover, &p_config);
 
+                        // reverse the order of the items so that the most relevant is at the top
+                        let items = Arc::new(items.into_iter().rev().collect());
+
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateHover(request_id, Arc::new(items)),
+                            LapceUICommand::UpdateHover(request_id, items),
                             Target::Widget(hover_widget_id),
                         );
                     }
