@@ -139,6 +139,14 @@ command = "clear_search"
 when = "search_focus"
 
 [[keymaps]]
+key = "ctrl+shift+up"
+command = "select_next_syntax_item"
+
+[[keymaps]]
+key = "ctrl+shift+down"
+command = "select_previous_syntax_item"
+
+[[keymaps]]
 key = "ctrl+m"
 command = "list.select"
 when = "list_focus"

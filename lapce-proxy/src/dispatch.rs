@@ -708,6 +708,19 @@ impl ProxyHandler for Dispatcher {
                 };
                 self.respond_rpc(id, result);
             }
+            GetSelectionRange { positions, path } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.get_selection_range(
+                    path.as_path(),
+                    positions,
+                    move |_, result| {
+                        let result = result.map(|ranges| {
+                            ProxyResponse::GetSelectionRange { ranges }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
         }
     }
 }

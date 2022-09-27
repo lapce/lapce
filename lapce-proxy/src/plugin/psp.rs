@@ -27,8 +27,8 @@ use lsp_types::{
         CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
         GotoDefinition, GotoTypeDefinition, HoverRequest, Initialize,
         InlayHintRequest, PrepareRenameRequest, References, RegisterCapability,
-        Rename, ResolveCompletionItem, SemanticTokensFullRequest,
-        WorkDoneProgressCreate, WorkspaceSymbol,
+        Rename, ResolveCompletionItem, SelectionRangeRequest,
+        SemanticTokensFullRequest, WorkDoneProgressCreate, WorkspaceSymbol,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability, OneOf,
@@ -692,6 +692,9 @@ impl PluginHostHandler {
                 self.server_capabilities.rename_provider.is_some()
             }
             Rename::METHOD => self.server_capabilities.rename_provider.is_some(),
+            SelectionRangeRequest::METHOD => {
+                self.server_capabilities.selection_range_provider.is_some()
+            }
             _ => false,
         }
     }

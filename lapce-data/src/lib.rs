@@ -25,6 +25,7 @@ pub mod proxy;
 pub mod rename;
 pub mod rich_text;
 pub mod search;
+pub mod selection_range;
 pub mod settings;
 pub mod signature;
 pub mod source_control;

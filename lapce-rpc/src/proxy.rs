@@ -11,8 +11,8 @@ use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeActionResponse, CompletionItem,
     DocumentSymbolResponse, GotoDefinitionResponse, Hover, InlayHint, Location,
-    Position, PrepareRenameResponse, SymbolInformation, TextDocumentItem, TextEdit,
-    WorkspaceEdit,
+    Position, PrepareRenameResponse, SelectionRange, SymbolInformation,
+    TextDocumentItem, TextEdit, WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -60,6 +60,10 @@ pub enum ProxyRequest {
     GetSignature {
         buffer_id: BufferId,
         position: Position,
+    },
+    GetSelectionRange {
+        path: PathBuf,
+        positions: Vec<Position>,
     },
     GetReferences {
         path: PathBuf,
@@ -254,6 +258,9 @@ pub enum ProxyResponse {
     },
     GetWorkspaceSymbols {
         symbols: Vec<SymbolInformation>,
+    },
+    GetSelectionRange {
+        ranges: Vec<SelectionRange>,
     },
     GetInlayHints {
         hints: Vec<InlayHint>,
@@ -731,6 +738,15 @@ impl ProxyRpcHandler {
 
     pub fn git_discard_workspace_changes(&self) {
         self.notification(ProxyNotification::GitDiscardWorkspaceChanges {});
+    }
+
+    pub fn get_selection_range(
+        &self,
+        path: PathBuf,
+        positions: Vec<Position>,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::GetSelectionRange { path, positions }, f);
     }
 }
 

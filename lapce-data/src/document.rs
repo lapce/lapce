@@ -44,6 +44,7 @@ use xi_rope::{
     Interval, Rope, RopeDelta, Transformer,
 };
 
+use crate::selection_range::SelectionRangeDirection;
 use crate::{
     command::{InitBufferContentCb, LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
@@ -52,6 +53,7 @@ use crate::{
     find::{Find, FindProgress},
     history::DocumentHistory,
     proxy::LapceProxy,
+    selection_range::SyntaxSelectionRanges,
     settings::SettingsValueKind,
 };
 
@@ -416,6 +418,7 @@ pub struct Document {
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
     pub inlay_hints: Option<Spans<InlayHint>>,
     pub diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
+    pub syntax_selection_range: Option<SyntaxSelectionRanges>,
     pub find: Rc<RefCell<Find>>,
     find_progress: Rc<RefCell<FindProgress>>,
     pub event_sink: ExtEventSink,
@@ -462,6 +465,7 @@ impl Document {
             find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             event_sink,
             proxy,
+            syntax_selection_range: None,
         }
     }
 
@@ -2676,5 +2680,25 @@ impl Document {
         });
         self.sticky_headers.borrow_mut().insert(line, lines.clone());
         lines
+    }
+
+    pub fn change_syntax_selection(
+        &mut self,
+        direction: SelectionRangeDirection,
+    ) -> Option<Selection> {
+        if let Some(selections) = self.syntax_selection_range.as_mut() {
+            match direction {
+                SelectionRangeDirection::Next => selections.next_range(),
+                SelectionRangeDirection::Previous => selections.previous_range(),
+            }
+            .map(|range| {
+                let start = self.buffer.offset_of_position(&range.start);
+                let end = self.buffer.offset_of_position(&range.end);
+                selections.last_known_selection = Some((start, end));
+                Selection::region(start, end)
+            })
+        } else {
+            None
+        }
     }
 }
