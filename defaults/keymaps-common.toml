@@ -292,7 +292,7 @@ mode = "i"
 
 [[keymaps]]
 key = "esc"
-command = "normal_mode"
+command = "clear_search"
 mode = "niv"
 when = "!search_focus && !modal_focus"
 
