@@ -354,7 +354,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        sticky_headers: &["function_definition", "struct_specifier"],
         extensions: &["c", "h"],
     },
     #[cfg(feature = "lang-cpp")]
@@ -366,7 +366,11 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        sticky_headers: &[
+            "function_definition",
+            "class_specifier",
+            "struct_specifier",
+        ],
         extensions: &["cpp", "cxx", "cc", "c++", "hpp", "hxx", "hh", "h++"],
     },
     #[cfg(feature = "lang-json")]
