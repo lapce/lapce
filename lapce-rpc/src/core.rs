@@ -21,7 +21,7 @@ use crate::{
 
 pub enum CoreRpc {
     Request(RequestId, CoreRequest),
-    Notification(CoreNotification),
+    Notification(Box<CoreNotification>), // Box it since clippy complains
     Shutdown,
 }
 
@@ -62,9 +62,19 @@ pub enum CoreNotification {
     },
     VoltInstalled {
         volt: VoltMetadata,
+        only_installing: bool,
+    },
+    VoltInstalling {
+        volt: VoltMetadata,
+        error: String,
+    },
+    VoltRemoving {
+        volt: VoltMetadata,
+        error: String,
     },
     VoltRemoved {
         volt: VoltInfo,
+        only_installing: bool,
     },
     ListDir {
         items: Vec<FileNodeItem>,
@@ -133,7 +143,7 @@ impl CoreRpcHandler {
                     handler.handle_request(id, rpc);
                 }
                 CoreRpc::Notification(rpc) => {
-                    handler.handle_notification(rpc);
+                    handler.handle_notification(*rpc);
                 }
                 CoreRpc::Shutdown => {
                     return;
@@ -178,7 +188,7 @@ impl CoreRpcHandler {
     }
 
     pub fn notification(&self, notification: CoreNotification) {
-        let _ = self.tx.send(CoreRpc::Notification(notification));
+        let _ = self.tx.send(CoreRpc::Notification(Box::new(notification)));
     }
 
     pub fn proxy_connected(&self) {
@@ -212,12 +222,26 @@ impl CoreRpcHandler {
         });
     }
 
-    pub fn volt_installed(&self, volt: VoltMetadata) {
-        self.notification(CoreNotification::VoltInstalled { volt });
+    pub fn volt_installed(&self, volt: VoltMetadata, only_installing: bool) {
+        self.notification(CoreNotification::VoltInstalled {
+            volt,
+            only_installing,
+        });
     }
 
-    pub fn volt_removed(&self, volt: VoltInfo) {
-        self.notification(CoreNotification::VoltRemoved { volt });
+    pub fn volt_installing(&self, volt: VoltMetadata, error: String) {
+        self.notification(CoreNotification::VoltInstalling { volt, error });
+    }
+
+    pub fn volt_removing(&self, volt: VoltMetadata, error: String) {
+        self.notification(CoreNotification::VoltRemoving { volt, error });
+    }
+
+    pub fn volt_removed(&self, volt: VoltInfo, only_installing: bool) {
+        self.notification(CoreNotification::VoltRemoved {
+            volt,
+            only_installing,
+        });
     }
 
     pub fn log(&self, level: log::Level, message: String) {

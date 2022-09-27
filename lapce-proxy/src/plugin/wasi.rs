@@ -211,7 +211,7 @@ pub fn load_all_volts(
         if meta.wasm.is_none() {
             continue;
         }
-        plugin_rpc.core_rpc.volt_installed(meta.clone());
+        plugin_rpc.core_rpc.volt_installed(meta.clone(), false);
         if disabled_volts.contains(&meta.id()) {
             continue;
         }

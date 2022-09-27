@@ -1,3 +1,5 @@
+pub mod plugin_install_status;
+
 use std::{collections::HashSet, sync::Arc};
 
 use anyhow::Result;
@@ -7,6 +9,8 @@ use lapce_proxy::plugin::{download_volt, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
 use lsp_types::Url;
 use strum_macros::Display;
+
+use plugin_install_status::PluginInstallStatus;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -70,6 +74,7 @@ pub struct PluginData {
     pub uninstalled_id: WidgetId,
 
     pub volts: VoltsList,
+    pub installing: IndexMap<String, PluginInstallStatus>,
     pub installed: IndexMap<String, VoltMetadata>,
     pub disabled: HashSet<String>,
     pub workspace_disabled: HashSet<String>,
@@ -98,6 +103,7 @@ impl PluginData {
             installed_id: WidgetId::next(),
             uninstalled_id: WidgetId::next(),
             volts: VoltsList::new(),
+            installing: IndexMap::new(),
             installed: IndexMap::new(),
             disabled: HashSet::from_iter(disabled.into_iter()),
             workspace_disabled: HashSet::from_iter(workspace_disabled.into_iter()),
@@ -109,7 +115,7 @@ impl PluginData {
             if meta.wasm.is_none() {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::VoltInstalled(meta),
+                    LapceUICommand::VoltInstalled(meta, false),
                     Target::Widget(tab_id),
                 );
             }
@@ -184,12 +190,29 @@ impl PluginData {
     pub fn install_volt(proxy: Arc<LapceProxy>, volt: VoltInfo) -> Result<()> {
         let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
         let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
+
+        proxy.core_rpc.volt_installing(meta.clone(), "".to_string());
+
         if meta.wasm.is_some() {
             proxy.proxy_rpc.install_volt(volt);
         } else {
             std::thread::spawn(move || -> Result<()> {
-                let meta = download_volt(volt, false)?;
-                proxy.core_rpc.volt_installed(meta);
+                let download_volt_result =
+                    download_volt(volt, true, &meta, &meta_str);
+                if download_volt_result.is_err() {
+                    proxy.core_rpc.volt_installing(
+                        meta.clone(),
+                        "Could not download Volt".to_string(),
+                    );
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_secs(3));
+                        proxy.core_rpc.volt_installed(meta, true);
+                    });
+                    return Ok(());
+                }
+
+                let meta = download_volt_result?;
+                proxy.core_rpc.volt_installed(meta, false);
                 Ok(())
             });
         }
@@ -197,16 +220,30 @@ impl PluginData {
     }
 
     pub fn remove_volt(proxy: Arc<LapceProxy>, meta: VoltMetadata) -> Result<()> {
+        proxy.core_rpc.volt_removing(meta.clone(), "".to_string());
         if meta.wasm.is_some() {
             proxy.proxy_rpc.remove_volt(meta);
         } else {
             std::thread::spawn(move || -> Result<()> {
-                let path = meta
-                    .dir
-                    .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("don't have dir"))?;
-                std::fs::remove_dir_all(path)?;
-                proxy.core_rpc.volt_removed(meta.info());
+                let path = meta.dir.as_ref().ok_or_else(|| {
+                    proxy.core_rpc.volt_removing(
+                        meta.clone(),
+                        "Plugin Directory does not exist".to_string(),
+                    );
+                    anyhow::anyhow!("don't have dir")
+                })?;
+                if std::fs::remove_dir_all(path).is_err() {
+                    proxy.core_rpc.volt_removing(
+                        meta.clone(),
+                        "Could not remove Plugin Directory".to_string(),
+                    );
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_secs(3));
+                        proxy.core_rpc.volt_removed(meta.info(), true);
+                    });
+                } else {
+                    proxy.core_rpc.volt_removed(meta.info(), false);
+                }
                 Ok(())
             });
         }
