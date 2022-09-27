@@ -508,15 +508,24 @@ impl LapceEditorBufferData {
                                     .concat(),
                                     EditType::Completion,
                                 );
+
                             let selection = selection.apply_delta(
                                 &delta,
                                 true,
                                 InsertDrift::Default,
                             );
 
+                            let start_offset = additional_edit
+                                .iter()
+                                .map(|(selection, _)| selection.min_offset())
+                                .min()
+                                .map(|offset| {
+                                    offset.min(start_offset).min(edit_start)
+                                })
+                                .unwrap_or(start_offset);
+
                             let mut transformer = Transformer::new(&delta);
-                            let offset = transformer
-                                .transform(start_offset.min(edit_start), false);
+                            let offset = transformer.transform(start_offset, false);
                             let snippet_tabs = snippet.tabs(offset);
 
                             if snippet_tabs.is_empty() {
