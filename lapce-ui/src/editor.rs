@@ -26,6 +26,7 @@ use lapce_data::keypress::KeyPressFocus;
 use lapce_data::menu::MenuKind;
 use lapce_data::palette::PaletteStatus;
 use lapce_data::panel::{PanelData, PanelKind};
+use lapce_data::selection_range::SyntaxSelectionRanges;
 use lapce_data::{
     command::{
         LapceCommand, LapceUICommand, LapceWorkbenchCommand, LAPCE_UI_COMMAND,
@@ -1447,32 +1448,59 @@ impl LapceEditor {
             }
         }
 
-        let mut i = 0;
-        let total_stickly_lines = sticky_lines.len();
-        if last_sticky_should_scroll {
-            info.last_y_diff = y_diff;
+        let total_sticky_lines = sticky_lines.len();
+
+        let paint_last_line = total_sticky_lines > 0
+            && (last_sticky_should_scroll
+                || y_diff != 0.0
+                || start_line + total_sticky_lines - 1
+                    != *sticky_lines.last().unwrap());
+
+        // Fix up the line count in case we don't need to paint the last one.
+        let total_sticky_lines = if paint_last_line {
+            total_sticky_lines
         } else {
-            info.last_y_diff = 0.0;
+            total_sticky_lines.saturating_sub(1)
+        };
+
+        if total_sticky_lines == 0 {
+            return;
         }
-        info.lines = sticky_lines.clone();
-        info.height = 0.0;
-        for line in sticky_lines {
-            let y_diff = if last_sticky_should_scroll && i == total_stickly_lines - 1
-            {
-                y_diff
+
+        let scroll_offset = if last_sticky_should_scroll {
+            y_diff
+        } else {
+            0.0
+        };
+
+        // Clear background
+        let area_height =
+            total_sticky_lines as f64 * line_height - scroll_offset + 1.0;
+        let sticky_area_rect = Size::new(size.width, area_height)
+            .to_rect()
+            .with_origin(Point::new(0.0, y0));
+
+        ctx.fill(
+            sticky_area_rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        );
+
+        // Paint lines
+        for (i, line) in sticky_lines.iter().copied().enumerate() {
+            let y_diff = if i == total_sticky_lines - 1 {
+                scroll_offset
             } else {
                 0.0
             };
-            let rect = Size::new(size.width, line_height - y_diff)
-                .to_rect()
-                .with_origin(Point::new(0.0, y0 + line_height * i as f64));
+
             ctx.with_save(|ctx| {
-                ctx.clip(rect);
-                ctx.fill(
-                    rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-                );
+                let line_area_rect = Size::new(size.width, line_height - y_diff)
+                    .to_rect()
+                    .with_origin(Point::new(0.0, y0 + line_height * i as f64));
+
+                ctx.clip(line_area_rect);
+
                 let text_layout = data.doc.get_text_layout(
                     ctx.text(),
                     line,
@@ -1485,17 +1513,11 @@ impl LapceEditor {
                     - y_diff;
                 ctx.draw_text(&text_layout.text, Point::new(x0, y));
             });
-            i += 1;
         }
 
-        if i > 0 {
-            info.height = i as f64 * line_height
-                - if last_sticky_should_scroll {
-                    y_diff
-                } else {
-                    0.0
-                };
-        }
+        info.last_y_diff = scroll_offset;
+        info.height = area_height;
+        info.lines = sticky_lines;
     }
 
     fn paint_snippet(
@@ -1890,62 +1912,159 @@ impl Widget<LapceTabData> for LapceEditor {
                 }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
-                let cmd = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                if let LapceUICommand::ShowCodeActions(point) = cmd {
-                    let editor_data = data.editor_view_content(self.view_id);
-                    if let Some(actions) = editor_data.current_code_actions() {
-                        if !actions.is_empty() {
-                            let mut menu = druid::Menu::new("");
+                match cmd.get_unchecked(LAPCE_UI_COMMAND) {
+                    LapceUICommand::ShowCodeActions(point) => {
+                        let editor_data = data.editor_view_content(self.view_id);
+                        if let Some(actions) = editor_data.current_code_actions() {
+                            if !actions.is_empty() {
+                                let mut menu = druid::Menu::new("");
 
-                            for action in actions.iter() {
-                                let title = match action {
-                                    CodeActionOrCommand::Command(c) => {
-                                        c.title.clone()
-                                    }
-                                    CodeActionOrCommand::CodeAction(a) => {
-                                        a.title.clone()
-                                    }
-                                };
-                                let mut item = druid::MenuItem::new(title);
-                                item = item.command(Command::new(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::RunCodeAction(action.clone()),
-                                    Target::Widget(editor_data.view_id),
-                                ));
-                                menu = menu.entry(item);
+                                for action in actions.iter() {
+                                    let title = match action {
+                                        CodeActionOrCommand::Command(c) => {
+                                            c.title.clone()
+                                        }
+                                        CodeActionOrCommand::CodeAction(a) => {
+                                            a.title.clone()
+                                        }
+                                    };
+                                    let mut item = druid::MenuItem::new(title);
+                                    item = item.command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::RunCodeAction(
+                                            action.clone(),
+                                        ),
+                                        Target::Widget(editor_data.view_id),
+                                    ));
+                                    menu = menu.entry(item);
+                                }
+
+                                let point = point.unwrap_or_else(|| {
+                                    let offset = editor_data.editor.cursor.offset();
+                                    let (line, col) = editor_data
+                                        .doc
+                                        .buffer()
+                                        .offset_to_line_col(offset);
+
+                                    let phantom_text = editor_data
+                                        .doc
+                                        .line_phantom_text(&data.config, line);
+
+                                    let col = phantom_text.col_at(col);
+
+                                    let x = editor_data
+                                        .doc
+                                        .line_point_of_line_col(
+                                            ctx.text(),
+                                            line,
+                                            col,
+                                            editor_data.config.editor.font_size,
+                                            &editor_data.config,
+                                        )
+                                        .x;
+                                    let y = editor_data.config.editor.line_height()
+                                        as f64
+                                        * (line + 1) as f64;
+                                    ctx.to_window(Point::new(x, y))
+                                });
+                                ctx.show_context_menu::<LapceData>(menu, point);
                             }
-
-                            let point = point.unwrap_or_else(|| {
-                                let offset = editor_data.editor.cursor.offset();
-                                let (line, col) = editor_data
-                                    .doc
-                                    .buffer()
-                                    .offset_to_line_col(offset);
-
-                                let phantom_text = editor_data
-                                    .doc
-                                    .line_phantom_text(&data.config, line);
-
-                                let col = phantom_text.col_at(col);
-
-                                let x = editor_data
-                                    .doc
-                                    .line_point_of_line_col(
-                                        ctx.text(),
-                                        line,
-                                        col,
-                                        editor_data.config.editor.font_size,
-                                        &editor_data.config,
-                                    )
-                                    .x;
-                                let y = editor_data.config.editor.line_height()
-                                    as f64
-                                    * (line + 1) as f64;
-                                ctx.to_window(Point::new(x, y))
-                            });
-                            ctx.show_context_menu::<LapceData>(menu, point);
                         }
                     }
+                    LapceUICommand::ApplySelectionRange {
+                        buffer_id,
+                        rev,
+                        direction,
+                    } => {
+                        if let Some(editor) = data
+                            .main_split
+                            .active
+                            .and_then(|active| data.main_split.editors.get(&active))
+                            .cloned()
+                        {
+                            let mut editor_data =
+                                data.editor_view_content(editor.view_id);
+
+                            let orig_doc =
+                                data.main_split.editor_doc(editor.view_id);
+
+                            if orig_doc.id() != *buffer_id || orig_doc.rev() != *rev
+                            {
+                                return;
+                            }
+
+                            let doc = Arc::make_mut(&mut editor_data.doc);
+
+                            if let Some(selection) =
+                                doc.change_syntax_selection(*direction)
+                            {
+                                Arc::make_mut(&mut editor_data.editor)
+                                    .cursor
+                                    .update_selection(orig_doc.buffer(), selection);
+                                data.update_from_editor_buffer_data(
+                                    editor_data,
+                                    &editor,
+                                    &orig_doc,
+                                );
+                            }
+                        }
+                    }
+                    LapceUICommand::StoreSelectionRangeAndApply {
+                        rev,
+                        buffer_id,
+                        current_selection,
+                        ranges,
+                        direction,
+                    } => {
+                        if let Some(editor) = data
+                            .main_split
+                            .active
+                            .and_then(|active| data.main_split.editors.get(&active))
+                            .cloned()
+                        {
+                            let mut editor_data =
+                                data.editor_view_content(editor.view_id);
+                            let orig_doc =
+                                data.main_split.editor_doc(editor.view_id);
+
+                            if orig_doc.id() != *buffer_id || orig_doc.rev() != *rev
+                            {
+                                return;
+                            }
+
+                            let mut doc = Arc::make_mut(&mut editor_data.doc);
+                            if let (_, Some(ranges)) = (
+                                &doc.syntax_selection_range,
+                                ranges.first().cloned(),
+                            ) {
+                                doc.syntax_selection_range =
+                                    Some(SyntaxSelectionRanges {
+                                        buffer_id: *buffer_id,
+                                        rev: *rev,
+                                        last_known_selection: *current_selection,
+                                        ranges,
+                                        current_selection: None,
+                                    });
+                            };
+
+                            data.update_from_editor_buffer_data(
+                                editor_data,
+                                &editor,
+                                &orig_doc,
+                            );
+
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ApplySelectionRange {
+                                    buffer_id: *buffer_id,
+                                    rev: *rev,
+                                    direction: *direction,
+                                },
+                                Target::Auto,
+                            ));
+                        }
+                    }
+                    _ => {}
                 }
             }
             _ => (),

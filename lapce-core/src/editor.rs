@@ -57,6 +57,7 @@ impl Editor {
         buffer: &mut Buffer,
         s: &str,
         syntax: Option<&Syntax>,
+        auto_closing_matching_pairs: bool,
     ) -> Vec<(RopeDelta, InvalLines)> {
         let mut deltas = Vec::new();
         if let CursorMode::Insert(selection) = &cursor.mode {
@@ -88,17 +89,8 @@ impl Editor {
                         None
                     };
 
-                    if (c == '"' || c == '\'') && cursor_char == Some(c) {
-                        // Skip the closing character
-                        let new_offset =
-                            buffer.next_grapheme_offset(offset, 1, buffer.len());
-
-                        *region = SelRegion::caret(new_offset);
-                        continue;
-                    }
-
-                    if matching_pair_type == Some(false) {
-                        if cursor_char == Some(c) {
+                    if auto_closing_matching_pairs {
+                        if (c == '"' || c == '\'') && cursor_char == Some(c) {
                             // Skip the closing character
                             let new_offset =
                                 buffer.next_grapheme_offset(offset, 1, buffer.len());
@@ -107,68 +99,86 @@ impl Editor {
                             continue;
                         }
 
-                        let line = buffer.line_of_offset(offset);
-                        let line_start = buffer.offset_of_line(line);
-                        if buffer.slice_to_cow(line_start..offset).trim() == "" {
-                            let opening_character = matching_char(c).unwrap();
-                            if let Some(previous_offset) = buffer.previous_unmatched(
-                                syntax,
-                                opening_character,
-                                offset,
-                            ) {
-                                // Auto-indent closing character to the same level as the opening.
-                                let previous_line =
-                                    buffer.line_of_offset(previous_offset);
-                                let line_indent =
-                                    buffer.indent_on_line(previous_line);
+                        if matching_pair_type == Some(false) {
+                            if cursor_char == Some(c) {
+                                // Skip the closing character
+                                let new_offset = buffer.next_grapheme_offset(
+                                    offset,
+                                    1,
+                                    buffer.len(),
+                                );
 
-                                let current_selection =
-                                    Selection::region(line_start, offset);
-
-                                edits.push((
-                                    current_selection,
-                                    format!("{line_indent}{c}"),
-                                ));
+                                *region = SelRegion::caret(new_offset);
                                 continue;
                             }
-                        }
-                    }
 
-                    if matching_pair_type == Some(true) || c == '"' || c == '\'' {
-                        // Create a late edit to insert the closing pair, if allowed.
-                        let is_whitespace_or_punct = cursor_char
-                            .map(|c| {
-                                let prop = get_word_property(c);
-                                prop == WordProperty::Lf
-                                    || prop == WordProperty::Space
-                                    || prop == WordProperty::Punctuation
-                            })
-                            .unwrap_or(true);
+                            let line = buffer.line_of_offset(offset);
+                            let line_start = buffer.offset_of_line(line);
+                            if buffer.slice_to_cow(line_start..offset).trim() == "" {
+                                let opening_character = matching_char(c).unwrap();
+                                if let Some(previous_offset) = buffer
+                                    .previous_unmatched(
+                                        syntax,
+                                        opening_character,
+                                        offset,
+                                    )
+                                {
+                                    // Auto-indent closing character to the same level as the opening.
+                                    let previous_line =
+                                        buffer.line_of_offset(previous_offset);
+                                    let line_indent =
+                                        buffer.indent_on_line(previous_line);
 
-                        let should_insert_pair = match c {
-                            '"' | '\'' => {
-                                is_whitespace_or_punct
-                                    && prev_cursor_char
-                                        .map(|c| {
-                                            let prop = get_word_property(c);
-                                            prop == WordProperty::Lf
-                                                || prop == WordProperty::Space
-                                                || prop == WordProperty::Punctuation
-                                        })
-                                        .unwrap_or(true)
+                                    let current_selection =
+                                        Selection::region(line_start, offset);
+
+                                    edits.push((
+                                        current_selection,
+                                        format!("{line_indent}{c}"),
+                                    ));
+                                    continue;
+                                }
                             }
-                            _ => is_whitespace_or_punct,
-                        };
-
-                        if should_insert_pair {
-                            let insert_after = match c {
-                                '"' => '"',
-                                '\'' => '\'',
-                                _ => matching_char(c).unwrap(),
-                            };
-                            edits_after.push((idx, insert_after));
                         }
-                    };
+
+                        if matching_pair_type == Some(true) || c == '"' || c == '\''
+                        {
+                            // Create a late edit to insert the closing pair, if allowed.
+                            let is_whitespace_or_punct = cursor_char
+                                .map(|c| {
+                                    let prop = get_word_property(c);
+                                    prop == WordProperty::Lf
+                                        || prop == WordProperty::Space
+                                        || prop == WordProperty::Punctuation
+                                })
+                                .unwrap_or(true);
+
+                            let should_insert_pair = match c {
+                                '"' | '\'' => {
+                                    is_whitespace_or_punct
+                                        && prev_cursor_char
+                                            .map(|c| {
+                                                let prop = get_word_property(c);
+                                                prop == WordProperty::Lf
+                                                    || prop == WordProperty::Space
+                                                    || prop
+                                                        == WordProperty::Punctuation
+                                            })
+                                            .unwrap_or(true)
+                                }
+                                _ => is_whitespace_or_punct,
+                            };
+
+                            if should_insert_pair {
+                                let insert_after = match c {
+                                    '"' => '"',
+                                    '\'' => '\'',
+                                    _ => matching_char(c).unwrap(),
+                                };
+                                edits_after.push((idx, insert_after));
+                            }
+                        };
+                    }
 
                     let current_selection =
                         Selection::region(region.start, region.end);
@@ -555,17 +565,15 @@ impl Editor {
                 }
             }
             for line in start_line..=end_line {
-                if lines.contains(&line) {
-                    continue;
+                if lines.insert(line) {
+                    let line_content = buffer.line_content(line);
+                    if line_content == "\n" || line_content == "\r\n" {
+                        continue;
+                    }
+                    let nonblank = buffer.first_non_blank_character_on_line(line);
+                    let edit = crate::indent::create_edit(buffer, nonblank, indent);
+                    edits.push(edit);
                 }
-                lines.insert(line);
-                let line_content = buffer.line_content(line);
-                if line_content == "\n" || line_content == "\r\n" {
-                    continue;
-                }
-                let nonblank = buffer.first_non_blank_character_on_line(line);
-                let edit = crate::indent::create_edit(buffer, nonblank, indent);
-                edits.push(edit);
             }
         }
 
@@ -590,24 +598,68 @@ impl Editor {
                 }
             }
             for line in start_line..=end_line {
-                if lines.contains(&line) {
-                    continue;
-                }
-                lines.insert(line);
-                let line_content = buffer.line_content(line);
-                if line_content == "\n" || line_content == "\r\n" {
-                    continue;
-                }
-                let nonblank = buffer.first_non_blank_character_on_line(line);
-                if let Some(edit) =
-                    crate::indent::create_outdent(buffer, nonblank, indent)
-                {
-                    edits.push(edit);
+                if lines.insert(line) {
+                    let line_content = buffer.line_content(line);
+                    if line_content == "\n" || line_content == "\r\n" {
+                        continue;
+                    }
+                    let nonblank = buffer.first_non_blank_character_on_line(line);
+                    if let Some(edit) =
+                        crate::indent::create_outdent(buffer, nonblank, indent)
+                    {
+                        edits.push(edit);
+                    }
                 }
             }
         }
 
         buffer.edit(&edits, EditType::Outdent)
+    }
+
+    fn duplicate_line(
+        cursor: &mut Cursor,
+        buffer: &mut Buffer,
+        direction: DuplicateDirection,
+    ) -> Vec<(RopeDelta, InvalLines)> {
+        // TODO other modes
+        let selection = match cursor.mode {
+            CursorMode::Insert(ref mut sel) => sel,
+            _ => return vec![],
+        };
+
+        let mut line_ranges = HashSet::new();
+        for region in selection.regions_mut() {
+            let start_line = buffer.line_of_offset(region.start);
+            let end_line = buffer.line_of_offset(region.end) + 1;
+
+            line_ranges.insert(start_line..end_line);
+        }
+
+        let mut edits = vec![];
+        for range in line_ranges {
+            let start = buffer.offset_of_line(range.start);
+            let end = buffer.offset_of_line(range.end);
+
+            let content = buffer.slice_to_cow(start..end).into_owned();
+            edits.push((
+                match direction {
+                    DuplicateDirection::Up => Selection::caret(end),
+                    DuplicateDirection::Down => Selection::caret(start),
+                },
+                content,
+            ));
+        }
+
+        let edits = edits
+            .iter()
+            .map(|(sel, content)| (sel, content.as_str()))
+            .collect::<Vec<_>>();
+
+        let (delta, inval_lines) = buffer.edit(&edits, EditType::InsertChars);
+
+        *selection = selection.apply_delta(&delta, true, InsertDrift::Default);
+
+        vec![(delta, inval_lines)]
     }
 
     pub fn do_edit<T: Clipboard>(
@@ -967,13 +1019,11 @@ impl Editor {
             }
             PasteBefore => {
                 let offset = cursor.offset();
-                let line = buffer.line_of_offset(offset);
-                let line_offset = buffer.offset_of_line(line);
                 let data = register.unnamed.clone();
-                if offset > line_offset {
-                    cursor.set_offset(offset - 1, false, false);
-                }
-                Self::do_paste(cursor, buffer, &data)
+                let mut local_cursor =
+                    Cursor::new(CursorMode::Insert(Selection::new()), None, None);
+                local_cursor.set_offset(offset, false, false);
+                Self::do_paste(&mut local_cursor, buffer, &data)
             }
             NewLineAbove => {
                 let offset = cursor.offset();
@@ -1315,15 +1365,26 @@ impl Editor {
                 Self::toggle_visual(cursor, VisualMode::Blockwise, modal);
                 vec![]
             }
+            DuplicateLineUp => {
+                Self::duplicate_line(cursor, buffer, DuplicateDirection::Up)
+            }
+            DuplicateLineDown => {
+                Self::duplicate_line(cursor, buffer, DuplicateDirection::Down)
+            }
         }
     }
+}
+
+enum DuplicateDirection {
+    Up,
+    Down,
 }
 
 #[cfg(test)]
 mod test {
     use crate::buffer::Buffer;
     use crate::cursor::{Cursor, CursorMode};
-    use crate::editor::Editor;
+    use crate::editor::{DuplicateDirection, Editor};
     use crate::selection::{SelRegion, Selection};
 
     #[test]
@@ -1332,7 +1393,7 @@ mod test {
         let mut cursor =
             Cursor::new(CursorMode::Insert(Selection::caret(1)), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "e", None);
+        Editor::insert(&mut cursor, &mut buffer, "e", None, true);
         assert_eq!("aebc", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1344,7 +1405,7 @@ mod test {
         selection.add_region(SelRegion::caret(5));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "i", None);
+        Editor::insert(&mut cursor, &mut buffer, "i", None, true);
         assert_eq!("aibc\neifg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1356,13 +1417,13 @@ mod test {
         selection.add_region(SelRegion::caret(5));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "i", None);
+        Editor::insert(&mut cursor, &mut buffer, "i", None, true);
         assert_eq!("aibc\neifg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "j", None);
+        Editor::insert(&mut cursor, &mut buffer, "j", None, true);
         assert_eq!("aijbc\neijfg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "{", None);
+        Editor::insert(&mut cursor, &mut buffer, "{", None, true);
         assert_eq!("aij{bc\neij{fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, " ", None);
+        Editor::insert(&mut cursor, &mut buffer, " ", None, true);
         assert_eq!("aij{ bc\neij{ fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1374,9 +1435,153 @@ mod test {
         selection.add_region(SelRegion::caret(6));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "{", None);
+        Editor::insert(&mut cursor, &mut buffer, "{", None, true);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "}", None);
+        Editor::insert(&mut cursor, &mut buffer, "}", None, true);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
+
+    #[test]
+    fn test_insert_pair_without_auto_closing() {
+        let mut buffer = Buffer::new("a bc\ne fg\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(1));
+        selection.add_region(SelRegion::caret(6));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::insert(&mut cursor, &mut buffer, "{", None, false);
+        assert_eq!("a{ bc\ne{ fg\n", buffer.slice_to_cow(0..buffer.len()));
+        Editor::insert(&mut cursor, &mut buffer, "}", None, false);
+        assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
+    }
+
+    #[test]
+    fn duplicate_down_simple() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
+
+        assert_ne!(cursor.offset(), 0);
+        assert_eq!(
+            "first line\nfirst line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_up_simple() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
+
+        assert_eq!(cursor.offset(), 0);
+        assert_eq!(
+            "first line\nfirst line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_down_multiple_cursors_in_same_line() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        selection.add_region(SelRegion::caret(1));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
+
+        assert_eq!(
+            "first line\nfirst line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_up_multiple_cursors_in_same_line() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        selection.add_region(SelRegion::caret(1));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
+
+        assert_eq!(
+            "first line\nfirst line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_down_multiple() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        selection.add_region(SelRegion::caret(15));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
+
+        assert_eq!(
+            "first line\nfirst line\nsecond line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_up_multiple() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        selection.add_region(SelRegion::caret(15));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
+
+        assert_eq!(
+            "first line\nfirst line\nsecond line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_down_multiple_with_swapped_cursor_order() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(15));
+        selection.add_region(SelRegion::caret(0));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
+
+        assert_eq!(
+            "first line\nfirst line\nsecond line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    #[test]
+    fn duplicate_up_multiple_with_swapped_cursor_order() {
+        let mut buffer = Buffer::new("first line\nsecond line\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(15));
+        selection.add_region(SelRegion::caret(0));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
+
+        assert_eq!(
+            "first line\nfirst line\nsecond line\nsecond line\n",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+    }
+
+    // TODO(dbuga): add tests duplicating selections (multiple line blocks)
 }

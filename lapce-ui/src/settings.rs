@@ -986,7 +986,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum ThemeKind {
     Base,
     UI,
@@ -1071,7 +1071,7 @@ impl ThemeSettings {
         self.inputs.clear();
         self.text_layouts = None;
 
-        let colors: Vec<&str> = match &self.kind {
+        let colors: Vec<&str> = match self.kind {
             ThemeKind::Base => {
                 data.config.color.base.keys().into_iter().sorted().collect()
             }
@@ -1108,7 +1108,7 @@ impl ThemeSettings {
                 data.proxy.clone(),
             );
             doc.reload(
-                Rope::from(match &self.kind {
+                Rope::from(match self.kind {
                     ThemeKind::Base => data.config.theme.base.get(color).unwrap(),
                     ThemeKind::UI => data.config.theme.ui.get(color).unwrap(),
                     ThemeKind::Syntax => {
@@ -1303,8 +1303,7 @@ impl Widget<LapceTabData> for ThemeSettings {
                         .unwrap()
                         .to_string();
                     (
-                        data.config.theme.base.get(&self.keys[i]).unwrap()
-                            != &default,
+                        data.config.theme.base.get(&self.keys[i]) != Some(&default),
                         default,
                     )
                 }
@@ -1317,7 +1316,7 @@ impl Widget<LapceTabData> for ThemeSettings {
                         .unwrap()
                         .to_string();
                     (
-                        data.config.theme.ui.get(&self.keys[i]).unwrap() != &default,
+                        data.config.theme.ui.get(&self.keys[i]) != Some(&default),
                         default,
                     )
                 }
@@ -1330,8 +1329,8 @@ impl Widget<LapceTabData> for ThemeSettings {
                         .cloned()
                         .unwrap_or_else(|| "".to_string());
                     (
-                        data.config.theme.syntax.get(&self.keys[i]).unwrap()
-                            != &default,
+                        data.config.theme.syntax.get(&self.keys[i])
+                            != Some(&default),
                         default,
                     )
                 }
@@ -1352,7 +1351,7 @@ impl Widget<LapceTabData> for ThemeSettings {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let header_text = ctx
             .text()
-            .new_text_layout(match &self.kind {
+            .new_text_layout(match self.kind {
                 ThemeKind::Base => "Base Colors",
                 ThemeKind::UI => "UI Colors",
                 ThemeKind::Syntax => "Syntax Colors",

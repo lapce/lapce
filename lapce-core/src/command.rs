@@ -86,6 +86,10 @@ pub enum EditCommand {
     ToggleLinewiseVisualMode,
     #[strum(serialize = "toggle_blockwise_visual_mode")]
     ToggleBlockwiseVisualMode,
+    #[strum(serialize = "duplicate_line_up")]
+    DuplicateLineUp,
+    #[strum(serialize = "duplicate_line_down")]
+    DuplicateLineDown,
 }
 
 #[derive(
@@ -300,6 +304,10 @@ pub enum FocusCommand {
     Rename,
     #[strum(serialize = "confirm_rename")]
     ConfirmRename,
+    #[strum(serialize = "select_next_syntax_item")]
+    SelectNextSyntaxItem,
+    #[strum(serialize = "select_previous_syntax_item")]
+    SelectPreviousSyntaxItem,
 }
 
 #[derive(

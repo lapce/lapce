@@ -15,8 +15,8 @@ use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{
     CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
     GotoDefinition, GotoTypeDefinition, GotoTypeDefinitionParams,
-    GotoTypeDefinitionResponse, HoverRequest, InlayHintRequest,
-    PrepareRenameRequest, References, Rename, Request, ResolveCompletionItem,
+    GotoTypeDefinitionResponse, InlayHintRequest, PrepareRenameRequest, References,
+    Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
     SemanticTokensFullRequest, WorkspaceSymbol,
 };
 use lsp_types::{
@@ -24,12 +24,12 @@ use lsp_types::{
     CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
     DocumentFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
     FormattingOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverParams, InlayHint, InlayHintParams, Location, PartialResultParams,
-    Position, PrepareRenameResponse, Range, ReferenceContext, ReferenceParams,
-    RenameParams, SemanticTokens, SemanticTokensParams, SymbolInformation,
-    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit,
-    Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceEdit,
-    WorkspaceSymbolParams,
+    InlayHint, InlayHintParams, Location, PartialResultParams, Position,
+    PrepareRenameResponse, Range, ReferenceContext, ReferenceParams, RenameParams,
+    SelectionRange, SelectionRangeParams, SemanticTokens, SemanticTokensParams,
+    SymbolInformation, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentPositionParams, TextEdit, Url, VersionedTextDocumentIdentifier,
+    WorkDoneProgressParams, WorkspaceEdit, WorkspaceSymbolParams,
 };
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
@@ -683,6 +683,34 @@ impl PluginCatalogRpcHandler {
         );
     }
 
+    pub fn get_selection_range(
+        &self,
+        path: &Path,
+        positions: Vec<Position>,
+        cb: impl FnOnce(PluginId, Result<Vec<SelectionRange>, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = SelectionRangeRequest::METHOD;
+        let params = SelectionRangeParams {
+            text_document: TextDocumentIdentifier { uri },
+            positions,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: Default::default(),
+        };
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
     pub fn hover(
         &self,
         path: &Path,
@@ -690,16 +718,16 @@ impl PluginCatalogRpcHandler {
         cb: impl FnOnce(PluginId, Result<Hover, RpcError>) + Clone + Send + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
-        let method = HoverRequest::METHOD;
-        let params = HoverParams {
-            text_document_position_params: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier { uri },
-                position,
-            },
+        let method = SelectionRangeRequest::METHOD;
+        let params = SelectionRangeParams {
+            text_document: TextDocumentIdentifier { uri },
+            positions: vec![position],
             work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: Default::default(),
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
+
         self.send_request_to_all_plugins(
             method,
             params,
@@ -855,10 +883,12 @@ pub enum PluginNotification {
     },
 }
 
-pub fn download_volt(volt: VoltInfo, wasm: bool) -> Result<VoltMetadata> {
-    let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
-    let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
-
+pub fn download_volt(
+    volt: VoltInfo,
+    wasm: bool,
+    meta: &VoltMetadata,
+    meta_str: &String,
+) -> Result<VoltMetadata> {
     if meta.wasm.is_some() != wasm {
         return Err(anyhow!("plugin type not fit"));
     }
@@ -879,7 +909,6 @@ pub fn download_volt(volt: VoltInfo, wasm: bool) -> Result<VoltMetadata> {
             .open(&meta_path)?;
         file.write_all(meta_str.as_bytes())?;
     }
-
     let url = url::Url::parse(&volt.meta)?;
     if let Some(wasm) = meta.wasm.as_ref() {
         let url = url.join(wasm)?;
@@ -923,15 +952,31 @@ pub fn install_volt(
     configurations: Option<serde_json::Value>,
     volt: VoltInfo,
 ) -> Result<()> {
-    let meta = download_volt(volt, true)?;
-    let local_catalog_rpc = catalog_rpc.clone();
-    let local_meta = meta.clone();
-    thread::spawn(move || {
+    let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
+    let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
+
+    thread::spawn(move || -> Result<()> {
+        let download_volt_result = download_volt(volt, true, &meta, &meta_str);
+        if download_volt_result.is_err() {
+            catalog_rpc.core_rpc.volt_installing(
+                meta.clone(),
+                "Could not download Volt".to_string(),
+            );
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                catalog_rpc.core_rpc.volt_installed(meta, true);
+            });
+            return Ok(());
+        }
+
+        let meta = download_volt_result?;
+        let local_catalog_rpc = catalog_rpc.clone();
+        let local_meta = meta.clone();
+
         let _ = start_volt(workspace, configurations, local_catalog_rpc, local_meta);
+        catalog_rpc.core_rpc.volt_installed(meta, false);
+        Ok(())
     });
-
-    catalog_rpc.core_rpc.volt_installed(meta);
-
     Ok(())
 }
 
@@ -939,8 +984,27 @@ pub fn remove_volt(
     catalog_rpc: PluginCatalogRpcHandler,
     volt: VoltMetadata,
 ) -> Result<()> {
-    let path = volt.dir.as_ref().ok_or_else(|| anyhow!("don't have dir"))?;
-    fs::remove_dir_all(path)?;
-    catalog_rpc.core_rpc.volt_removed(volt.info());
+    thread::spawn(move || -> Result<()> {
+        let path = volt.dir.as_ref().ok_or_else(|| {
+            catalog_rpc
+                .core_rpc
+                .volt_removing(volt.clone(), "Plugin Directory not set".to_string());
+            anyhow::anyhow!("don't have dir")
+        })?;
+        if let Err(e) = std::fs::remove_dir_all(path) {
+            eprintln!("Could not delete plugin folder: {}", e);
+            catalog_rpc.core_rpc.volt_removing(
+                volt.clone(),
+                "Could not remove Plugin Directory".to_string(),
+            );
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                catalog_rpc.core_rpc.volt_removed(volt.info(), true);
+            });
+        } else {
+            catalog_rpc.core_rpc.volt_removed(volt.info(), false);
+        }
+        Ok(())
+    });
     Ok(())
 }

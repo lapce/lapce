@@ -1011,7 +1011,7 @@ dependencies = [
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#ae9a85d2430a53255ae05c20eac8b0241924f293"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#d8f036bc8100b19980dfcbd3067fcae600407219"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -1034,7 +1034,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#ae9a85d2430a53255ae05c20eac8b0241924f293"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#d8f036bc8100b19980dfcbd3067fcae600407219"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1044,7 +1044,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#ae9a85d2430a53255ae05c20eac8b0241924f293"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#d8f036bc8100b19980dfcbd3067fcae600407219"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -2535,6 +2535,7 @@ dependencies = [
  "tree-sitter-c-sharp",
  "tree-sitter-cpp",
  "tree-sitter-css",
+ "tree-sitter-d",
  "tree-sitter-dart",
  "tree-sitter-dockerfile",
  "tree-sitter-elixir",
@@ -4947,6 +4948,15 @@ dependencies = [
 name = "tree-sitter-css"
 version = "0.19.0"
 source = "git+https://github.com/syntacti/tree-sitter-css?branch=master#397aa132b9982fcdd2d473ed69343762a557f10a"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-d"
+version = "0.0.1"
+source = "git+https://github.com/syntacti/tree-sitter-d?branch=master#fdaa172d375f6c48987ce68ae01e8020acb9bc17"
 dependencies = [
  "cc",
  "tree-sitter",

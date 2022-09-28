@@ -44,6 +44,7 @@ use xi_rope::{
     Interval, Rope, RopeDelta, Transformer,
 };
 
+use crate::selection_range::SelectionRangeDirection;
 use crate::{
     command::{InitBufferContentCb, LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
@@ -52,6 +53,7 @@ use crate::{
     find::{Find, FindProgress},
     history::DocumentHistory,
     proxy::LapceProxy,
+    selection_range::SyntaxSelectionRanges,
     settings::SettingsValueKind,
 };
 
@@ -416,6 +418,7 @@ pub struct Document {
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
     pub inlay_hints: Option<Spans<InlayHint>>,
     pub diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
+    pub syntax_selection_range: Option<SyntaxSelectionRanges>,
     pub find: Rc<RefCell<Find>>,
     find_progress: Rc<RefCell<FindProgress>>,
     pub event_sink: ExtEventSink,
@@ -462,6 +465,7 @@ impl Document {
             find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             event_sink,
             proxy,
+            syntax_selection_range: None,
         }
     }
 
@@ -1050,10 +1054,16 @@ impl Document {
         &mut self,
         cursor: &mut Cursor,
         s: &str,
+        config: &Config,
     ) -> Vec<(RopeDelta, InvalLines)> {
         let old_cursor = cursor.mode.clone();
-        let deltas =
-            Editor::insert(cursor, &mut self.buffer, s, self.syntax.as_ref());
+        let deltas = Editor::insert(
+            cursor,
+            &mut self.buffer,
+            s,
+            self.syntax.as_ref(),
+            config.editor.auto_closing_matching_pairs,
+        );
         self.buffer_mut().set_cursor_before(old_cursor);
         self.buffer_mut().set_cursor_after(cursor.mode.clone());
         self.apply_deltas(&deltas);
@@ -2019,9 +2029,8 @@ impl Document {
         // Finally add all the trailing spaces if there are spaces left
         rendered_whitespaces.extend(whitespace_buffer.iter());
 
-        // TODO: theme option for whitespace color
         let whitespace_color = config
-            .get_style_color("comment")
+            .get_style_color(LapceTheme::EDITOR_VISIBLE_WHITESPACE)
             .unwrap_or(&Color::rgb8(0x5c, 0x63, 0x70)) // dark theme comment color
             .clone();
         let whitespace_color = whitespace_color.with_alpha(0.5);
@@ -2671,5 +2680,25 @@ impl Document {
         });
         self.sticky_headers.borrow_mut().insert(line, lines.clone());
         lines
+    }
+
+    pub fn change_syntax_selection(
+        &mut self,
+        direction: SelectionRangeDirection,
+    ) -> Option<Selection> {
+        if let Some(selections) = self.syntax_selection_range.as_mut() {
+            match direction {
+                SelectionRangeDirection::Next => selections.next_range(),
+                SelectionRangeDirection::Previous => selections.previous_range(),
+            }
+            .map(|range| {
+                let start = self.buffer.offset_of_position(&range.start);
+                let end = self.buffer.offset_of_position(&range.end);
+                selections.last_known_selection = Some((start, end));
+                Selection::region(start, end)
+            })
+        } else {
+            None
+        }
     }
 }

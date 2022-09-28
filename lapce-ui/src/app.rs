@@ -22,11 +22,6 @@ use lapce_data::{
 use crate::{logging::override_log_levels, tab::LAPCE_TAB_META};
 use crate::{tab::LapceTabHeader, window::LapceWindow};
 
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
-const LOGO_PNG: &[u8] = include_bytes!("../../extra/images/logo.png");
-#[cfg(target_os = "windows")]
-const LOGO_ICO: &[u8] = include_bytes!("../../extra/windows/lapce.ico");
-
 #[derive(Parser)]
 #[clap(name = "Lapce")]
 #[clap(version=*VERSION)]
@@ -44,7 +39,7 @@ pub fn launch() {
     let cli = Cli::parse();
     let pwd = std::env::current_dir().unwrap_or_default();
     let paths: Vec<PathBuf> = cli.paths.iter().map(|p| pwd.join(p)).collect();
-    if !cli.new && LapceData::check_local_socket(&paths).is_ok() {
+    if !cli.new && LapceData::try_open_in_existing_process(&paths).is_ok() {
         return;
     }
 
@@ -179,19 +174,15 @@ fn window_icon() -> Option<druid::Icon> {
     None
 }
 
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
+#[cfg(not(target_os = "macos"))]
 fn window_icon() -> Option<druid::Icon> {
-    let image = image::load_from_memory(LOGO_PNG)
-        .expect("Invalid Icon")
-        .into_rgba8();
-    let (width, height) = image.dimensions();
-    let rgba = image.into_raw();
-    Some(druid::Icon::from_rgba(rgba, width, height).expect("Failed to open icon"))
-}
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
+    const LOGO: &[u8] = include_bytes!("../../extra/images/logo.png");
 
-#[cfg(target_os = "windows")]
-fn window_icon() -> Option<druid::Icon> {
-    let image = image::load_from_memory(LOGO_ICO)
+    #[cfg(target_os = "windows")]
+    const LOGO: &[u8] = include_bytes!("../../extra/windows/lapce.ico");
+
+    let image = image::load_from_memory(LOGO)
         .expect("Invalid Icon")
         .into_rgba8();
     let (width, height) = image.dimensions();
@@ -384,16 +375,27 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                         let _ = data.db.save_app(data);
                         let process_path = process_path.clone();
                         let release = release.clone();
-                        std::thread::spawn(move || -> anyhow::Result<()> {
-                            log::info!("start to down new versoin");
-                            let src =
-                                lapce_data::update::download_release(&release)?;
-                            log::info!("start to extract");
-                            let path =
-                                lapce_data::update::extract(&src, &process_path)?;
-                            log::info!("now restart {path:?}");
-                            lapce_data::update::restart(&path)?;
-                            Ok(())
+                        std::thread::spawn(move || {
+                            let do_update = || -> anyhow::Result<()> {
+                                log::info!("start to down new versoin");
+                                let src =
+                                    lapce_data::update::download_release(&release)?;
+
+                                log::info!("start to extract");
+                                let path = lapce_data::update::extract(
+                                    &src,
+                                    &process_path,
+                                )?;
+
+                                log::info!("now restart {path:?}");
+                                lapce_data::update::restart(&path)?;
+
+                                Ok(())
+                            };
+
+                            if let Err(err) = do_update() {
+                                log::error!("Failed to update: {err}");
+                            }
                         });
                         return druid::Handled::Yes;
                     }

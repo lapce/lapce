@@ -274,6 +274,23 @@ impl Cursor {
         RegisterData { content, mode }
     }
 
+    /// Return the current selection start and end position for a
+    /// Single cursor selection
+    pub fn get_selection(&self) -> Option<(usize, usize)> {
+        match &self.mode {
+            CursorMode::Visual {
+                start,
+                end,
+                mode: _,
+            } => Some((*start, *end)),
+            CursorMode::Insert(selection) => selection
+                .regions()
+                .first()
+                .map(|region| (region.start, region.end)),
+            _ => None,
+        }
+    }
+
     pub fn set_offset(&mut self, offset: usize, modify: bool, new_cursor: bool) {
         match &self.mode {
             CursorMode::Normal(old_offset) => {

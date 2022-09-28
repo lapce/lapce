@@ -21,6 +21,7 @@ use crate::keypress::KeyPressFocus;
 use crate::palette::PaletteData;
 use crate::proxy::path_from_url;
 use crate::rename::RenameData;
+use crate::selection_range::SelectionRangeDirection;
 use crate::{
     command::{
         EnsureVisiblePosition, InitBufferContent, LapceUICommand, LAPCE_UI_COMMAND,
@@ -125,6 +126,7 @@ impl EditorPosition for usize {
 /// (If you want to jump to the very first character then use `LineCol` with column set to 0)
 #[derive(Debug, Clone, Copy)]
 pub struct Line(pub usize);
+
 impl EditorPosition for Line {
     fn to_utf8_offset(&self, buffer: &Buffer) -> usize {
         buffer.first_non_blank_character_on_line(self.0.saturating_sub(1))
@@ -153,6 +155,7 @@ pub struct LineCol {
     pub line: usize,
     pub column: usize,
 }
+
 impl EditorPosition for LineCol {
     fn to_utf8_offset(&self, buffer: &Buffer) -> usize {
         buffer.offset_of_line_col(self.line, self.column)
@@ -379,10 +382,7 @@ impl LapceEditorBufferData {
             if let Some(edits) = workspace_edits(edit) {
                 for (url, edits) in edits {
                     if url_matches_path(path, &url) {
-                        let path = path.clone();
-                        let doc =
-                            self.main_split.open_docs.get(&path).unwrap().clone();
-                        apply_edit(&doc, &mut self.main_split, &path, &edits);
+                        apply_edit(&mut self.main_split, path, &edits);
                     } else if let Ok(url_path) = url.to_file_path() {
                         // If it is not for the file we have open then we assume that
                         // we may have to load it
@@ -393,31 +393,27 @@ impl LapceEditorBufferData {
                         // We choose to just jump to the start of the first edit. The edit function will jump
                         // appropriately when we actually apply the edits.
                         let position = edits.get(0).map(|edit| edit.range.start);
-                        self.main_split.jump_to_location_cb(
-                                        ctx,
-                                        None,
-                                        false,
-                                        EditorLocation {
-                                            path: url_path.clone(),
-                                            position,
-                                            scroll_offset: None,
-                                            history: None,
-                                        },
-                                        &self.config,
-                                        // Note: For some reason Rust is unsure about what type the arguments are if we don't specify them
-                                        // Perhaps this could be fixed by being very explicit about the lifetimes in the jump_to_location_cb fn?
-                                        Some(move |_: &mut EventCtx, main_split: &mut LapceMainSplitData| {
-                                            // The file has been loaded, so we want to apply the edits now.
-                                            let doc = if let Some(doc) = main_split.open_docs.get(&url_path) {
-                                                doc.clone()
-                                            } else {
-                                                log::warn!("Failed to load URL-path {url_path:?} properly. It was loaded but was not able to be found, which might indicate cross platform path confusion issues.");
-                                                return;
-                                            };
+                        let location = EditorLocation {
+                            path: url_path.clone(),
+                            position,
+                            scroll_offset: None,
+                            history: None,
+                        };
 
-                                            apply_edit(&doc, main_split, &url_path, &edits);
-                                        }),
-                                    );
+                        // Note: For some reason Rust is unsure about what type the arguments are if we don't specify them
+                        // Perhaps this could be fixed by being very explicit about the lifetimes in the jump_to_location_cb fn?
+                        let callback = move |_: &mut EventCtx, main_split: &mut LapceMainSplitData| {
+                            // The file has been loaded, so we want to apply the edits now.
+                            apply_edit(main_split, &url_path, &edits);
+                        };
+                        self.main_split.jump_to_location_cb(
+                            ctx,
+                            None,
+                            false,
+                            location,
+                            &self.config,
+                            Some(callback),
+                        );
                     } else {
                         log::warn!("Text edits failed to apply to URL {url:?} because it was not found");
                     }
@@ -515,15 +511,24 @@ impl LapceEditorBufferData {
                                     .concat(),
                                     EditType::Completion,
                                 );
+
                             let selection = selection.apply_delta(
                                 &delta,
                                 true,
                                 InsertDrift::Default,
                             );
 
+                            let start_offset = additional_edit
+                                .iter()
+                                .map(|(selection, _)| selection.min_offset())
+                                .min()
+                                .map(|offset| {
+                                    offset.min(start_offset).min(edit_start)
+                                })
+                                .unwrap_or(start_offset);
+
                             let mut transformer = Transformer::new(&delta);
-                            let offset = transformer
-                                .transform(start_offset.min(edit_start), false);
+                            let offset = transformer.transform(start_offset, false);
                             let snippet_tabs = snippet.tabs(offset);
 
                             if snippet_tabs.is_empty() {
@@ -2220,9 +2225,75 @@ impl LapceEditorBufferData {
                     Target::Widget(self.rename.view_id),
                 ));
             }
+            SelectNextSyntaxItem => {
+                self.run_selection_range_command(ctx, SelectionRangeDirection::Next)
+            }
+            SelectPreviousSyntaxItem => self
+                .run_selection_range_command(ctx, SelectionRangeDirection::Previous),
             _ => return CommandExecuted::No,
         }
         CommandExecuted::Yes
+    }
+
+    fn run_selection_range_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        direction: SelectionRangeDirection,
+    ) {
+        let offset = self.editor.cursor.offset();
+        if let BufferContent::File(path) = self.doc.content() {
+            let rev = self.doc.buffer().rev();
+            let buffer_id = self.doc.id();
+            let event_sink = ctx.get_external_handle();
+            let current_selection = self.editor.cursor.get_selection();
+
+            match &self.doc.syntax_selection_range {
+                // If the cached selection range match current revision, no need to call the
+                // LSP server, we ca apply it right now
+                Some(selection_range)
+                    if selection_range.match_request(
+                        buffer_id,
+                        rev,
+                        current_selection,
+                    ) =>
+                {
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::ApplySelectionRange {
+                            rev,
+                            buffer_id,
+                            direction,
+                        },
+                        Target::Auto,
+                    );
+                }
+                // Otherwise, ask the LSP server for `textDocument/selectionRange`
+                _ => {
+                    let position = self.doc.buffer().offset_to_position(offset);
+                    self.proxy.proxy_rpc.get_selection_range(
+                        path.to_owned(),
+                        vec![position],
+                        move |result| {
+                            if let Ok(ProxyResponse::GetSelectionRange { ranges }) =
+                                result
+                            {
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::StoreSelectionRangeAndApply {
+                                        ranges,
+                                        rev,
+                                        buffer_id,
+                                        direction,
+                                        current_selection,
+                                    },
+                                    Target::Auto,
+                                );
+                            }
+                        },
+                    )
+                }
+            }
+        }
     }
 
     fn run_motion_mode_command(
@@ -2311,7 +2382,7 @@ impl KeyPressFocus for LapceEditorBufferData {
         if self.get_mode() == Mode::Insert {
             let doc = Arc::make_mut(&mut self.doc);
             let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
-            let deltas = doc.do_insert(cursor, c);
+            let deltas = doc.do_insert(cursor, c, &self.config);
 
             if !c
                 .chars()
@@ -2532,12 +2603,12 @@ fn url_matches_path(path: &Path, url: &Url) -> bool {
     matches
 }
 
-fn apply_edit(
-    doc: &Document,
-    main_split: &mut LapceMainSplitData,
-    path: &Path,
-    edits: &[TextEdit],
-) {
+fn apply_edit(main_split: &mut LapceMainSplitData, path: &Path, edits: &[TextEdit]) {
+    let doc = match main_split.open_docs.get(path) {
+        Some(doc) => doc,
+        None => return,
+    };
+
     let edits = edits
         .iter()
         .map(|edit| {

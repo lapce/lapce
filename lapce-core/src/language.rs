@@ -194,6 +194,8 @@ pub enum LapceLanguage {
     Latex,
     #[cfg(feature = "lang-kotlin")]
     Kotlin,
+    #[cfg(feature = "lang-d")]
+    D,
     #[cfg(feature = "lang-vue")]
     Vue,
 }
@@ -213,7 +215,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             &["source_file", "impl_item", "trait_item", "declaration_list"],
             &["source_file", "use_declaration", "line_comment"],
         ),
-        sticky_headers: &["struct_item", "function_item", "impl_item"],
+        sticky_headers: &["struct_item", "enum_item", "function_item", "impl_item"],
         extensions: &["rs"],
     },
     #[cfg(feature = "lang-go")]
@@ -354,7 +356,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        sticky_headers: &["function_definition", "struct_specifier"],
         extensions: &["c", "h"],
     },
     #[cfg(feature = "lang-cpp")]
@@ -366,7 +368,11 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        sticky_headers: &[
+            "function_definition",
+            "class_specifier",
+            "struct_specifier",
+        ],
         extensions: &["cpp", "cxx", "cc", "c++", "hpp", "hxx", "hh", "h++"],
     },
     #[cfg(feature = "lang-json")]
@@ -730,6 +736,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         extensions: &["kt"],
     },
+    #[cfg(feature = "lang-d")]
+    SyntaxProperties {
+        id: LapceLanguage::D,
+        language: tree_sitter_d::language,
+        highlight: tree_sitter_d::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["d", "di", "dlang"],
+    },
     #[cfg(feature = "lang-vue")]
     SyntaxProperties {
         id: LapceLanguage::Vue,
@@ -761,7 +779,7 @@ impl LapceLanguage {
         match LapceLanguage::from_str(name.to_lowercase().as_str()) {
             Ok(v) => Some(v),
             Err(e) => {
-                eprintln!("failed parsing LapceLanguage: {e}");
+                eprintln!("failed parsing {name} LapceLanguage: {e}");
                 None
             }
         }
@@ -1078,5 +1096,9 @@ mod test {
     #[cfg(feature = "lang-vue")]
     fn test_vue_lang() {
         assert_language(LapceLanguage::Vue, &["vue"]);
+    }
+    #[cfg(feature = "lang-d")]
+    fn test_d_lang() {
+        assert_language(LapceLanguage::D, &["d", "di", "dlang"]);
     }
 }

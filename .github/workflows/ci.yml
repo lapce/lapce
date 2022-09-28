@@ -10,7 +10,7 @@ name: CI
 jobs:
   build:
     name: Rust (${{ matrix.toolchain }}) on ${{ matrix.os }}
-    if: github.event.push || github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false
     needs: [fmt, clippy]
     strategy:
       fail-fast: false

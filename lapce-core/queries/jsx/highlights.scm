@@ -176,7 +176,6 @@
   "debugger"
   "delete"
   "extends"
-  "from"
   "function"
   "get"
   "in"
@@ -202,7 +201,6 @@
 [
   "switch"
   "case"
-  "default"
   "if"
   "else"
   "yield"
@@ -220,6 +218,8 @@
 
 [
   "import"
+  "default"
+  "from"
   "export"
 ] @keyword.control.import 
 

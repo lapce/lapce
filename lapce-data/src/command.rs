@@ -18,7 +18,7 @@ use lapce_rpc::{
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     InlayHint, Location, Position, ProgressParams, PublishDiagnosticsParams,
-    TextEdit, WorkspaceEdit,
+    SelectionRange, TextEdit, WorkspaceEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
@@ -31,6 +31,7 @@ use crate::document::BufferContent;
 use crate::editor::{EditorPosition, Line, LineCol};
 use crate::menu::MenuKind;
 use crate::rich_text::RichText;
+use crate::selection_range::SelectionRangeDirection;
 use crate::update::ReleaseInfo;
 use crate::{
     data::{EditorTabChild, SplitContent},
@@ -500,6 +501,10 @@ pub enum LapceUICommand {
     ShowAlert(AlertContentData),
     ShowMenu(Point, Arc<Vec<MenuKind>>),
     ShowWindow,
+    ShowGitBranches {
+        origin: Point,
+        branches: im::Vector<String>,
+    },
     UpdateSearchInput(String),
     UpdateSearch(String),
     GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),
@@ -557,8 +562,10 @@ pub enum LapceUICommand {
     UpdateExplorerItems(PathBuf, HashMap<PathBuf, FileNodeItem>, bool),
     LoadPlugins(Vec<VoltInfo>),
     LoadPluginsFailed,
-    VoltInstalled(VoltMetadata),
-    VoltRemoved(VoltInfo),
+    VoltInstalled(VoltMetadata, bool),
+    VoltInstalling(VoltMetadata, String),
+    VoltRemoving(VoltMetadata, String),
+    VoltRemoved(VoltInfo, bool),
     EnableVolt(VoltInfo),
     DisableVolt(VoltInfo),
     EnableVoltWorkspace(VoltInfo),
@@ -716,6 +723,18 @@ pub enum LapceUICommand {
     CopyPath(PathBuf),
     CopyRelativePath(PathBuf),
     SetLanguage(String),
+    ApplySelectionRange {
+        buffer_id: BufferId,
+        rev: u64,
+        direction: SelectionRangeDirection,
+    },
+    StoreSelectionRangeAndApply {
+        buffer_id: BufferId,
+        rev: u64,
+        current_selection: Option<(usize, usize)>,
+        ranges: Vec<SelectionRange>,
+        direction: SelectionRangeDirection,
+    },
 
     /// An item in a list was chosen  
     /// This is typically targeted at the widget which contains the list

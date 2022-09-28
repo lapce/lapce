@@ -37,6 +37,7 @@ use lapce_data::{
         PanelContainerPosition, PanelKind, PanelPosition, PanelResizePosition,
         PanelStyle,
     },
+    plugin::plugin_install_status::{PluginInstallStatus, PluginInstallType},
     proxy::path_from_url,
 };
 use lapce_rpc::proxy::ProxyResponse;
@@ -455,38 +456,35 @@ impl LapceTab {
         if let Some((_, _, DragContent::Panel(kind, _))) = data.drag.as_ref() {
             let rects = self.panel_rects();
             for (p, rect) in rects.iter() {
-                if rect.contains(self.mouse_pos) {
-                    let (_, from_position) =
-                        data.panel.panel_position(kind).unwrap();
-                    if &from_position == p {
-                        return;
-                    }
+                if !rect.contains(self.mouse_pos) {
+                    continue;
+                }
 
-                    let panel = Arc::make_mut(&mut data.panel);
-                    if let Some(order) = panel.order.get_mut(&from_position) {
-                        order.retain(|k| k != kind);
-                    }
-                    if !panel.order.contains_key(p) {
-                        panel.order.insert(*p, im::Vector::new());
-                    }
-                    let order = panel.order.get_mut(p).unwrap();
-                    order.push_back(*kind);
-                    if !panel.style.contains_key(p) {
-                        panel.style.insert(
-                            *p,
-                            PanelStyle {
-                                active: 0,
-                                shown: true,
-                                maximized: false,
-                            },
-                        );
-                    }
-                    let style = panel.style.get_mut(p).unwrap();
-                    style.active = order.len() - 1;
-                    style.shown = true;
-                    let _ = data.db.save_panel_orders(&panel.order);
+                let (_, from_position) = data.panel.panel_position(kind).unwrap();
+                if from_position == *p {
                     return;
                 }
+
+                let panel = Arc::make_mut(&mut data.panel);
+                if let Some(order) = panel.order.get_mut(&from_position) {
+                    order.retain(|k| k != kind);
+                }
+
+                let order = panel.order.entry(*p).or_insert_with(im::Vector::new);
+
+                order.push_back(*kind);
+
+                let style = panel.style.entry(*p).or_insert(PanelStyle {
+                    active: 0,
+                    shown: true,
+                    maximized: false,
+                });
+
+                style.active = order.len() - 1;
+                style.shown = true;
+                let _ = data.db.save_panel_orders(&panel.order);
+
+                return;
             }
         }
     }
@@ -495,17 +493,19 @@ impl LapceTab {
         if let Some((_, _, DragContent::Panel(_, _))) = data.drag.as_ref() {
             let rects = self.panel_rects();
             for (_, rect) in rects.iter() {
-                if rect.contains(self.mouse_pos) {
-                    ctx.fill(
-                        rect,
-                        &data
-                            .config
-                            .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
-                            .clone()
-                            .with_alpha(0.8),
-                    );
-                    break;
+                if !rect.contains(self.mouse_pos) {
+                    continue;
                 }
+
+                ctx.fill(
+                    rect,
+                    &data
+                        .config
+                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
+                        .clone()
+                        .with_alpha(0.8),
+                );
+                break;
             }
         }
     }
@@ -945,25 +945,72 @@ impl LapceTab {
                         let plugin = Arc::make_mut(&mut data.plugin);
                         plugin.volts.failed();
                     }
-                    LapceUICommand::VoltInstalled(volt) => {
+                    LapceUICommand::VoltInstalled(volt, only_installing) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
-                        plugin.installed.insert(volt.id(), volt.clone());
+
+                        // if there is a value inside the installing map, remove it from there as soon as it is installed.
+                        plugin.installing.remove(&volt.id());
+
+                        if !(*only_installing) {
+                            plugin.installed.insert(volt.id(), volt.clone());
+                        }
                     }
-                    LapceUICommand::VoltRemoved(volt) => {
+                    LapceUICommand::VoltInstalling(volt, error) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
-                        let id = volt.id();
-                        plugin.installed.remove(&id);
-                        if plugin.disabled.contains(&id) {
-                            plugin.disabled.remove(&id);
-                            let _ = data.db.save_disabled_volts(
-                                plugin.disabled.iter().collect(),
+
+                        if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
+                            if !error.is_empty() {
+                                elem.set_error(error);
+                            }
+                        } else {
+                            plugin.installing.insert(
+                                volt.id(),
+                                PluginInstallStatus::new(
+                                    PluginInstallType::Installation,
+                                    &volt.display_name,
+                                    error.to_string(),
+                                ),
                             );
                         }
-                        if plugin.workspace_disabled.contains(&id) {
-                            plugin.workspace_disabled.remove(&id);
-                            let _ = data.db.save_disabled_volts(
-                                plugin.workspace_disabled.iter().collect(),
+                    }
+                    LapceUICommand::VoltRemoving(volt, error) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+
+                        if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
+                            if !error.is_empty() {
+                                elem.set_error(error);
+                            }
+                        } else {
+                            plugin.installing.insert(
+                                volt.id(),
+                                PluginInstallStatus::new(
+                                    PluginInstallType::Uninstallation,
+                                    &volt.display_name,
+                                    error.to_string(),
+                                ),
                             );
+                        }
+                    }
+                    LapceUICommand::VoltRemoved(volt, only_installing) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        let id = volt.id();
+
+                        // if there is a value inside the installing map, remove it from there as soon as it is installed.
+                        plugin.installing.remove(&volt.id());
+
+                        if !(*only_installing) {
+                            plugin.installed.remove(&id);
+
+                            if plugin.disabled.remove(&id) {
+                                let _ = data.db.save_disabled_volts(
+                                    plugin.disabled.iter().collect(),
+                                );
+                            }
+                            if plugin.workspace_disabled.remove(&id) {
+                                let _ = data.db.save_disabled_volts(
+                                    plugin.workspace_disabled.iter().collect(),
+                                );
+                            }
                         }
                     }
                     LapceUICommand::DisableVoltWorkspace(volt) => {
@@ -1009,19 +1056,19 @@ impl LapceTab {
                     LapceUICommand::UpdateDiffInfo(diff) => {
                         let source_control = Arc::make_mut(&mut data.source_control);
                         source_control.branch = diff.head.to_string();
-                        source_control.branches = diff.branches.clone();
+                        source_control.branches =
+                            diff.branches.iter().cloned().collect();
                         source_control.file_diffs = diff
                             .diffs
                             .iter()
+                            .cloned()
                             .map(|diff| {
-                                let mut checked = true;
-                                for (p, c) in source_control.file_diffs.iter() {
-                                    if p == diff {
-                                        checked = *c;
-                                        break;
-                                    }
-                                }
-                                (diff.clone(), checked)
+                                let checked = source_control
+                                    .file_diffs
+                                    .iter()
+                                    .find_map(|(p, c)| (p == &diff).then_some(*c))
+                                    .unwrap_or(true);
+                                (diff, checked)
                             })
                             .collect();
 
@@ -1955,6 +2002,9 @@ impl Widget<LapceTabData> for LapceTab {
                             },
                             Target::Widget(data.palette.widget_id),
                         ));
+                    }
+                    if data.title.branches.active {
+                        Arc::make_mut(&mut data.title).branches.active = false;
                     }
                     if data.focus_area == FocusArea::Rename {
                         ctx.submit_command(Command::new(

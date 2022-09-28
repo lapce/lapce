@@ -42,6 +42,7 @@ pub struct LapceEditorView {
     pub editor: WidgetPod<LapceTabData, LapceEditorContainer>,
     pub find: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     cursor_blink_timer: TimerToken,
+    autosave_timer: TimerToken,
     last_idle_timer: TimerToken,
     display_border: bool,
     background_color_name: &'static str,
@@ -94,6 +95,7 @@ impl LapceEditorView {
             editor: WidgetPod::new(editor),
             find,
             cursor_blink_timer: TimerToken::INVALID,
+            autosave_timer: TimerToken::INVALID,
             last_idle_timer: TimerToken::INVALID,
             display_border: true,
             background_color_name: LapceTheme::EDITOR_BACKGROUND,
@@ -636,6 +638,39 @@ impl Widget<LapceTabData> for LapceEditorView {
                     }
                 }
             }
+            Event::Timer(id) if self.autosave_timer == *id => {
+                ctx.set_handled();
+                if let Some(editor) = data
+                    .main_split
+                    .active
+                    .and_then(|active| data.main_split.editors.get(&active))
+                    .cloned()
+                {
+                    if data.config.editor.autosave_interval > 0 {
+                        if ctx.is_focused() {
+                            let doc = data.main_split.editor_doc(self.view_id);
+                            if !doc.buffer().is_pristine() {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_COMMAND,
+                                    LapceCommand {
+                                        kind: CommandKind::Focus(FocusCommand::Save),
+                                        data: None,
+                                    },
+                                    Target::Widget(editor.view_id),
+                                ));
+                            }
+                            self.autosave_timer = ctx.request_timer(
+                                Duration::from_millis(
+                                    data.config.editor.autosave_interval,
+                                ),
+                                None,
+                            );
+                        } else {
+                            self.cursor_blink_timer = TimerToken::INVALID;
+                        }
+                    }
+                }
+            }
             _ => {}
         }
 
@@ -860,6 +895,15 @@ impl Widget<LapceTabData> for LapceEditorView {
                     Instant::now();
                 ctx.request_paint();
             }
+        }
+
+        if data.config.editor.autosave_interval > 0
+            && editor_data.doc.rev() != old_editor_data.doc.rev()
+        {
+            self.autosave_timer = ctx.request_timer(
+                Duration::from_millis(data.config.editor.autosave_interval),
+                None,
+            );
         }
 
         if old_data.config.lapce.modal != data.config.lapce.modal

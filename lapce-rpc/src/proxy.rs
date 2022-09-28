@@ -11,8 +11,8 @@ use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeActionResponse, CompletionItem,
     DocumentSymbolResponse, GotoDefinitionResponse, Hover, InlayHint, Location,
-    Position, PrepareRenameResponse, SymbolInformation, TextDocumentItem, TextEdit,
-    WorkspaceEdit,
+    Position, PrepareRenameResponse, SelectionRange, SymbolInformation,
+    TextDocumentItem, TextEdit, WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -25,7 +25,7 @@ use crate::{
     source_control::FileDiff,
     style::SemanticStyles,
     terminal::TermId,
-    RequestId, RpcError,
+    RequestId, RpcError, RpcMessage,
 };
 
 pub enum ProxyRpc {
@@ -60,6 +60,10 @@ pub enum ProxyRequest {
     GetSignature {
         buffer_id: BufferId,
         position: Position,
+    },
+    GetSelectionRange {
+        path: PathBuf,
+        positions: Vec<Position>,
     },
     GetReferences {
         path: PathBuf,
@@ -255,6 +259,9 @@ pub enum ProxyResponse {
     GetWorkspaceSymbols {
         symbols: Vec<SymbolInformation>,
     },
+    GetSelectionRange {
+        ranges: Vec<SelectionRange>,
+    },
     GetInlayHints {
         hints: Vec<InlayHint>,
     },
@@ -278,20 +285,16 @@ pub enum ProxyResponse {
     SaveResponse {},
 }
 
+pub type ProxyMessage = RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse>;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadDirResponse {
     pub items: HashMap<PathBuf, FileNodeItem>,
 }
 
-pub trait ProxyCallback: Send {
-    fn call(self: Box<Self>, result: Result<ProxyResponse, RpcError>);
-}
+pub trait ProxyCallback: Send + FnOnce(Result<ProxyResponse, RpcError>) {}
 
-impl<F: Send + FnOnce(Result<ProxyResponse, RpcError>)> ProxyCallback for F {
-    fn call(self: Box<F>, result: Result<ProxyResponse, RpcError>) {
-        (*self)(result)
-    }
-}
+impl<F: Send + FnOnce(Result<ProxyResponse, RpcError>)> ProxyCallback for F {}
 
 enum ResponseHandler {
     Callback(Box<dyn ProxyCallback>),
@@ -301,7 +304,7 @@ enum ResponseHandler {
 impl ResponseHandler {
     fn invoke(self, result: Result<ProxyResponse, RpcError>) {
         match self {
-            ResponseHandler::Callback(f) => f.call(result),
+            ResponseHandler::Callback(f) => f(result),
             ResponseHandler::Chan(tx) => {
                 let _ = tx.send(result);
             }
@@ -359,10 +362,9 @@ impl ProxyRpcHandler {
 
     fn request_common(&self, request: ProxyRequest, rh: ResponseHandler) {
         let id = self.id.fetch_add(1, Ordering::Relaxed);
-        {
-            let mut pending = self.pending.lock();
-            pending.insert(id, rh);
-        }
+
+        self.pending.lock().insert(id, rh);
+
         let _ = self.tx.send(ProxyRpc::Request(id, request));
     }
 
@@ -736,6 +738,15 @@ impl ProxyRpcHandler {
 
     pub fn git_discard_workspace_changes(&self) {
         self.notification(ProxyNotification::GitDiscardWorkspaceChanges {});
+    }
+
+    pub fn get_selection_range(
+        &self,
+        path: PathBuf,
+        positions: Vec<Position>,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::GetSelectionRange { path, positions }, f);
     }
 }
 
