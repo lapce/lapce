@@ -102,6 +102,7 @@ all-languages = [
     "lang-latex",
     "lang-kotlin",
     "lang-d",
+    "lang-lua"
 ]
 
 lang-rust = ["lapce-core/lang-rust"]
@@ -143,4 +144,4 @@ lang-svelte = ["lapce-core/lang-svelte"]
 lang-latex = ["lapce-core/lang-latex"]
 lang-kotlin = ["lapce-core/lang-kotlin"]
 lang-d = ["lapce-core/lang-d"]
-
+lang-lua = ["lapce-core/lang-lua"]
