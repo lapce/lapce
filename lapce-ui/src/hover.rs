@@ -239,24 +239,27 @@ impl Widget<LapceTabData> for Hover {
         data: &LapceTabData,
         _env: &Env,
     ) {
-        // If the active item has changed or we've switched our current item existence status
         // or we've gotten new diagnostic text
         // then update the layout
         if old_data.hover.request_id != data.hover.request_id
             || old_data.hover.get_current_items().is_some()
                 != data.hover.get_current_items().is_some()
+            || old_data.hover.len() != data.hover.len()
             || !old_data
                 .hover
                 .diagnostic_content
                 .same(&data.hover.diagnostic_content)
         {
-            for (i, item) in data.hover.items.iter().enumerate() {
-                if i >= self.active_layout.len() {
-                    self.active_layout.push(TextLayout::new());
-                }
-                let layout = &mut self.active_layout[i];
-                layout.set_text(item.clone());
-            }
+            self.active_layout = data
+                .hover
+                .items
+                .iter()
+                .map(|item| {
+                    let mut layout = TextLayout::new();
+                    layout.set_text(item.clone());
+                    layout
+                })
+                .collect();
 
             if let Some(diagnostic_content) = &data.hover.diagnostic_content {
                 self.active_diagnostic_layout

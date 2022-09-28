@@ -118,8 +118,13 @@ impl HoverData {
                     {
                         let items = parse_hover_resp(hover, &p_config);
 
-                        // reverse the order of the items so that the most relevant is at the top
-                        let items = Arc::new(items.into_iter().rev().collect());
+                        let items = Arc::new(
+                            items
+                                .into_iter()
+                                .filter(|i| !i.is_empty())
+                                .rev()
+                                .collect(),
+                        );
 
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
