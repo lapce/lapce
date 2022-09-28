@@ -17,7 +17,7 @@ use crate::{
         },
         Syntax,
     },
-    word::{get_word_property, WordProperty},
+    word::{get_char_property, CharClassification},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -146,10 +146,10 @@ impl Editor {
                             // Create a late edit to insert the closing pair, if allowed.
                             let is_whitespace_or_punct = cursor_char
                                 .map(|c| {
-                                    let prop = get_word_property(c);
-                                    prop == WordProperty::Lf
-                                        || prop == WordProperty::Space
-                                        || prop == WordProperty::Punctuation
+                                    let prop = get_char_property(c);
+                                    prop == CharClassification::Lf
+                                        || prop == CharClassification::Space
+                                        || prop == CharClassification::Punctuation
                                 })
                                 .unwrap_or(true);
 
@@ -158,11 +158,11 @@ impl Editor {
                                     is_whitespace_or_punct
                                         && prev_cursor_char
                                             .map(|c| {
-                                                let prop = get_word_property(c);
-                                                prop == WordProperty::Lf
-                                                    || prop == WordProperty::Space
+                                                let prop = get_char_property(c);
+                                                prop == CharClassification::Lf
+                                                    || prop == CharClassification::Space
                                                     || prop
-                                                        == WordProperty::Punctuation
+                                                        == CharClassification::Punctuation
                                             })
                                             .unwrap_or(true)
                                 }
