@@ -198,10 +198,7 @@ impl Hover {
 
     fn new() -> Self {
         Hover {
-            active_layout: {
-                let layout = Vec::new();
-                layout
-            },
+            active_layout: { Vec::new() },
             active_diagnostic_layout: {
                 let mut layout = TextLayout::new();
                 layout.set_text(RichText::new(ArcStr::from("")));
