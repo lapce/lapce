@@ -1,4 +1,7 @@
-;; https://github.com/nvim-treesitter/nvim-treesitter/blob/master/queries/lua
+;; source: https://github.com/nvim-treesitter/nvim-treesitter/blob/master/queries/lua
+;; license: https://github.com/nvim-treesitter/nvim-treesitter/blob/master/LICENSE
+;; spdx: Apache-2.0
+
 ;; Keywords
 
 "return" @keyword.return
