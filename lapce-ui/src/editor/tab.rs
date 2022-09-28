@@ -412,13 +412,11 @@ impl Widget<LapceTabData> for LapceEditorTab {
                             .get(&self.widget_id)
                             .unwrap();
                         if !editor_tab.children.is_empty() {
-                            let new_index = if editor_tab.active
-                                == editor_tab.children.len() - 1
-                            {
-                                0
-                            } else {
-                                editor_tab.active + 1
-                            };
+                            let mut new_index = editor_tab.active + 1;
+
+                            if editor_tab.active == editor_tab.children.len() - 1 {
+                                new_index = 0;
+                            }
 
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
