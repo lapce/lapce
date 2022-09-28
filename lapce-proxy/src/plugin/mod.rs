@@ -15,21 +15,22 @@ use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{
     CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
     GotoDefinition, GotoTypeDefinition, GotoTypeDefinitionParams,
-    GotoTypeDefinitionResponse, InlayHintRequest, PrepareRenameRequest, References,
-    Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
-    SemanticTokensFullRequest, WorkspaceSymbol,
+    GotoTypeDefinitionResponse, HoverRequest, InlayHintRequest,
+    PrepareRenameRequest, References, Rename, Request, ResolveCompletionItem,
+    SelectionRangeRequest, SemanticTokensFullRequest, WorkspaceSymbol,
 };
 use lsp_types::{
     CodeActionContext, CodeActionParams, CodeActionResponse, CompletionItem,
     CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
     DocumentFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
     FormattingOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    InlayHint, InlayHintParams, Location, PartialResultParams, Position,
-    PrepareRenameResponse, Range, ReferenceContext, ReferenceParams, RenameParams,
-    SelectionRange, SelectionRangeParams, SemanticTokens, SemanticTokensParams,
-    SymbolInformation, TextDocumentIdentifier, TextDocumentItem,
-    TextDocumentPositionParams, TextEdit, Url, VersionedTextDocumentIdentifier,
-    WorkDoneProgressParams, WorkspaceEdit, WorkspaceSymbolParams,
+    HoverParams, InlayHint, InlayHintParams, Location, PartialResultParams,
+    Position, PrepareRenameResponse, Range, ReferenceContext, ReferenceParams,
+    RenameParams, SelectionRange, SelectionRangeParams, SemanticTokens,
+    SemanticTokensParams, SymbolInformation, TextDocumentIdentifier,
+    TextDocumentItem, TextDocumentPositionParams, TextEdit, Url,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceEdit,
+    WorkspaceSymbolParams,
 };
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
@@ -718,12 +719,13 @@ impl PluginCatalogRpcHandler {
         cb: impl FnOnce(PluginId, Result<Hover, RpcError>) + Clone + Send + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
-        let method = SelectionRangeRequest::METHOD;
-        let params = SelectionRangeParams {
-            text_document: TextDocumentIdentifier { uri },
-            positions: vec![position],
+        let method = HoverRequest::METHOD;
+        let params = HoverParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
             work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: Default::default(),
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
