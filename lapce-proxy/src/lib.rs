@@ -124,6 +124,7 @@ pub fn mainloop() {
                 }
             }
         }
+        local_proxy_rpc.shutdown();
     });
 
     let local_proxy_rpc = proxy_rpc.clone();
