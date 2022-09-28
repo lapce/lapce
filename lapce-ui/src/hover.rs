@@ -310,16 +310,20 @@ impl Widget<LapceTabData> for Hover {
         self.active_diagnostic_layout
             .rebuild_if_needed(ctx.text(), env);
 
-        let mut height = 0.0;
+        let items_height = if self.active_layout.is_empty() {
+            0.0
+        } else {
+            let mut height = 0.0;
+            for layout in self.active_layout.iter() {
+                height += layout.layout_metrics().size.height;
+            }
 
-        for layout in self.active_layout.iter() {
-            height += layout.layout_metrics().size.height;
-        }
-
-        if self.active_layout.len() > 1 {
-            let line_height = data.config.editor.line_height() as f64;
-            height += (self.active_layout.len() - 1) as f64 * line_height
-        }
+            if self.active_layout.len() > 1 {
+                let line_height = data.config.editor.line_height() as f64;
+                height += (self.active_layout.len() - 1) as f64 * line_height
+            }
+            height
+        };
 
         let diagnostic_height = if self.active_diagnostic_layout.size().is_empty() {
             0.0
@@ -331,7 +335,10 @@ impl Widget<LapceTabData> for Hover {
                 + data.config.editor.line_height() as f64 * 1.5
         };
 
-        Size::new(width, height + diagnostic_height + Hover::STARTING_Y * 2.0)
+        Size::new(
+            width,
+            items_height + diagnostic_height + Hover::STARTING_Y * 2.0,
+        )
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
@@ -344,10 +351,7 @@ impl Widget<LapceTabData> for Hover {
         let line_height = data.config.editor.line_height() as f64;
 
         let rect = ctx.region().bounding_box();
-        let diagnostic_origin = Point::new(
-            Self::STARTING_X,
-            Self::STARTING_Y + data.config.editor.line_height() as f64 / 2.0,
-        );
+        let mut diagnostic_origin = Point::new(Self::STARTING_X, Self::STARTING_Y);
 
         ctx.fill(
             rect,
@@ -359,6 +363,8 @@ impl Widget<LapceTabData> for Hover {
         let height = if self.active_diagnostic_layout.size().is_empty() {
             0.0
         } else {
+            diagnostic_origin.y += line_height * 0.5;
+
             let diagnostic_text_metrics =
                 self.active_diagnostic_layout.layout_metrics();
 
