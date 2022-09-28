@@ -172,6 +172,7 @@ impl HoverData {
 
             // Build up the text for all the diagnostics
             let mut content = RichTextBuilder::new();
+            content.set_line_height(1.5);
             for diagnostic in diagnostics {
                 content.push(&diagnostic.message);
 

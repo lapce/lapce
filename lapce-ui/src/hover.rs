@@ -328,8 +328,7 @@ impl Widget<LapceTabData> for Hover {
             let diagnostic_text_metrics =
                 self.active_diagnostic_layout.layout_metrics();
 
-            diagnostic_text_metrics.size.height
-                + data.config.editor.line_height() as f64 * 1.5
+            diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0
         };
 
         Size::new(
@@ -348,7 +347,7 @@ impl Widget<LapceTabData> for Hover {
         let line_height = data.config.editor.line_height() as f64;
 
         let rect = ctx.region().bounding_box();
-        let mut diagnostic_origin = Point::new(Self::STARTING_X, Self::STARTING_Y);
+        let diagnostic_origin = Point::new(Self::STARTING_X, Self::STARTING_Y);
 
         ctx.fill(
             rect,
@@ -360,14 +359,13 @@ impl Widget<LapceTabData> for Hover {
         let height = if self.active_diagnostic_layout.size().is_empty() {
             0.0
         } else {
-            diagnostic_origin.y += line_height * 0.5;
-
             let diagnostic_text_metrics =
                 self.active_diagnostic_layout.layout_metrics();
 
             let line = {
                 let x0 = rect.x0 + side_margin;
-                let y = diagnostic_text_metrics.size.height + line_height * 1.5;
+                let y =
+                    diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0;
                 let x1 = rect.x1 - side_margin;
                 Line::new(Point::new(x0, y), Point::new(x1, y))
             };
@@ -380,7 +378,7 @@ impl Widget<LapceTabData> for Hover {
 
             self.active_diagnostic_layout.draw(ctx, diagnostic_origin);
 
-            diagnostic_text_metrics.size.height + line_height
+            diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0
         };
 
         let doc_origin = diagnostic_origin + (0.0, height);
