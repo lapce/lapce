@@ -42,6 +42,13 @@ impl VoltInfo {
 
 #[derive(Deserialize, Clone, Debug, Serialize)]
 #[serde(rename_all = "kebab-case")]
+pub struct VoltActivation {
+    pub language: Option<Vec<String>>,
+    pub workspace_contains: Option<Vec<String>>,
+}
+
+#[derive(Deserialize, Clone, Debug, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct VoltMetadata {
     pub name: String,
     pub version: String,
@@ -51,6 +58,7 @@ pub struct VoltMetadata {
     pub wasm: Option<String>,
     pub themes: Option<Vec<String>>,
     pub dir: Option<PathBuf>,
+    pub activation: Option<VoltActivation>,
 }
 
 impl VoltMetadata {

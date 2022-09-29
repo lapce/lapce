@@ -9,30 +9,35 @@ use std::{
 };
 
 use lapce_rpc::{
-    plugin::PluginId, proxy::ProxyResponse, style::LineStyle, RpcError,
+    plugin::{PluginId, VoltMetadata},
+    proxy::ProxyResponse,
+    style::LineStyle,
+    RpcError,
 };
 use lsp_types::{
     notification::DidOpenTextDocument, DidOpenTextDocumentParams, SemanticTokens,
-    TextDocumentIdentifier, VersionedTextDocumentIdentifier,
+    TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::Notification;
 use serde_json::Value;
 use xi_rope::{Rope, RopeDelta};
 
-use crate::plugin::{install_volt, wasi::start_volt_from_info};
+use crate::plugin::{install_volt, wasi::enable_volt};
 
 use super::{
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
-    wasi::load_all_volts,
+    wasi::{load_all_volts, start_volt},
     PluginCatalogNotification, PluginCatalogRpcHandler,
 };
 
 pub struct PluginCatalog {
     workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
-    new_plugins: HashMap<PluginId, PluginServerRpcHandler>,
+    plugins: HashMap<PluginId, PluginServerRpcHandler>,
     plugin_configurations: HashMap<String, serde_json::Value>,
+    unactivated_volts: HashMap<String, VoltMetadata>,
+    open_files: HashMap<PathBuf, String>,
 }
 
 impl PluginCatalog {
@@ -43,19 +48,16 @@ impl PluginCatalog {
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
         let plugin = Self {
-            workspace: workspace.clone(),
+            workspace,
             plugin_rpc: plugin_rpc.clone(),
-            plugin_configurations: plugin_configurations.clone(),
-            new_plugins: HashMap::new(),
+            plugin_configurations,
+            plugins: HashMap::new(),
+            unactivated_volts: HashMap::new(),
+            open_files: HashMap::new(),
         };
 
         thread::spawn(move || {
-            load_all_volts(
-                workspace,
-                plugin_rpc,
-                disabled_volts,
-                plugin_configurations,
-            );
+            load_all_volts(plugin_rpc, disabled_volts);
         });
 
         plugin
@@ -73,7 +75,7 @@ impl PluginCatalog {
         f: Box<dyn ClonableCallback>,
     ) {
         if let Some(plugin_id) = plugin_id {
-            if let Some(plugin) = self.new_plugins.get(&plugin_id) {
+            if let Some(plugin) = self.plugins.get(&plugin_id) {
                 plugin.server_request_async(
                     method,
                     params,
@@ -99,7 +101,7 @@ impl PluginCatalog {
         if let Some(request_sent) = request_sent {
             // if there are no plugins installed the callback of the client is not called
             // so check if plugins list is empty
-            if self.new_plugins.is_empty() {
+            if self.plugins.is_empty() {
                 // Add a request
                 request_sent.fetch_add(1, Ordering::Relaxed);
 
@@ -113,10 +115,10 @@ impl PluginCatalog {
                 );
                 return;
             } else {
-                request_sent.fetch_add(self.new_plugins.len(), Ordering::Relaxed);
+                request_sent.fetch_add(self.plugins.len(), Ordering::Relaxed);
             }
         }
-        for (plugin_id, plugin) in self.new_plugins.iter() {
+        for (plugin_id, plugin) in self.plugins.iter() {
             let f = dyn_clone::clone_box(&*f);
             let plugin_id = *plugin_id;
             plugin.server_request_async(
@@ -139,11 +141,87 @@ impl PluginCatalog {
         language_id: Option<String>,
         path: Option<PathBuf>,
     ) {
-        for (_, plugin) in self.new_plugins.iter() {
+        for (_, plugin) in self.plugins.iter() {
             plugin.server_notification(
                 method,
                 params.clone(),
                 language_id.clone(),
+                path.clone(),
+                true,
+            );
+        }
+    }
+
+    fn start_unactivated_volts(&mut self, to_be_activated: Vec<String>) {
+        for id in to_be_activated.iter() {
+            let workspace = self.workspace.clone();
+            if let Some(meta) = self.unactivated_volts.remove(id) {
+                let configurations =
+                    self.plugin_configurations.get(&meta.name).cloned();
+                let plugin_rpc = self.plugin_rpc.clone();
+                thread::spawn(move || {
+                    let _ = start_volt(workspace, configurations, plugin_rpc, meta);
+                });
+            }
+        }
+    }
+
+    fn check_unactivated_volts(&mut self) {
+        let to_be_activated: Vec<String> = self
+            .unactivated_volts
+            .iter()
+            .filter_map(|(id, meta)| {
+                let contains = meta
+                    .activation
+                    .as_ref()
+                    .and_then(|a| a.language.as_ref())
+                    .map(|l| {
+                        self.open_files
+                            .iter()
+                            .any(|(_, language_id)| l.contains(language_id))
+                    })?;
+                if contains {
+                    Some(id.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        self.start_unactivated_volts(to_be_activated);
+    }
+
+    pub fn handle_did_open_text_document(&mut self, document: TextDocumentItem) {
+        let language_id = document.language_id.clone();
+        if let Ok(path) = document.uri.to_file_path() {
+            self.open_files.insert(path, language_id.clone());
+        }
+
+        let to_be_activated: Vec<String> = self
+            .unactivated_volts
+            .iter()
+            .filter_map(|(id, meta)| {
+                let contains = meta
+                    .activation
+                    .as_ref()
+                    .and_then(|a| a.language.as_ref())
+                    .map(|l| l.contains(&language_id))?;
+                if contains {
+                    Some(id.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        self.start_unactivated_volts(to_be_activated);
+
+        let path = document.uri.to_file_path().ok();
+        for (_, plugin) in self.plugins.iter() {
+            plugin.server_notification(
+                DidOpenTextDocument::METHOD,
+                DidOpenTextDocumentParams {
+                    text_document: document.clone(),
+                },
+                Some(language_id.clone()),
                 path.clone(),
                 true,
             );
@@ -157,7 +235,7 @@ impl PluginCatalog {
         text_document: TextDocumentIdentifier,
         text: Rope,
     ) {
-        for (_, plugin) in self.new_plugins.iter() {
+        for (_, plugin) in self.plugins.iter() {
             plugin.handle_rpc(PluginServerRpc::DidSaveTextDocument {
                 language_id: language_id.clone(),
                 path: path.clone(),
@@ -176,7 +254,7 @@ impl PluginCatalog {
         new_text: Rope,
     ) {
         let change = Arc::new(Mutex::new((None, None)));
-        for (_, plugin) in self.new_plugins.iter() {
+        for (_, plugin) in self.plugins.iter() {
             plugin.handle_rpc(PluginServerRpc::DidChangeTextDocument {
                 language_id: language_id.clone(),
                 document: document.clone(),
@@ -195,7 +273,7 @@ impl PluginCatalog {
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
     ) {
-        if let Some(plugin) = self.new_plugins.get(&plugin_id) {
+        if let Some(plugin) = self.plugins.get(&plugin_id) {
             plugin.handle_rpc(PluginServerRpc::FormatSemanticTokens {
                 tokens,
                 text,
@@ -212,6 +290,13 @@ impl PluginCatalog {
     pub fn handle_notification(&mut self, notification: PluginCatalogNotification) {
         use PluginCatalogNotification::*;
         match notification {
+            UnactivatedVolts(volts) => {
+                for volt in volts {
+                    let id = volt.id();
+                    self.unactivated_volts.insert(id, volt);
+                }
+                self.check_unactivated_volts();
+            }
             PluginServerLoaded(plugin) => {
                 // TODO: check if the server has did open registered
                 if let Ok(ProxyResponse::GetOpenFilesContentResponse { items }) =
@@ -231,7 +316,7 @@ impl PluginCatalog {
                         );
                     }
                 }
-                self.new_plugins.insert(plugin.plugin_id, plugin);
+                self.plugins.insert(plugin.plugin_id, plugin);
             }
             InstallVolt(volt) => {
                 let workspace = self.workspace.clone();
@@ -246,36 +331,28 @@ impl PluginCatalog {
             }
             StopVolt(volt) => {
                 let volt_id = volt.id();
-                let ids: Vec<PluginId> = self.new_plugins.keys().cloned().collect();
+                let ids: Vec<PluginId> = self.plugins.keys().cloned().collect();
                 for id in ids {
-                    if self.new_plugins.get(&id).unwrap().volt_id == volt_id {
-                        let plugin = self.new_plugins.remove(&id).unwrap();
+                    if self.plugins.get(&id).unwrap().volt_id == volt_id {
+                        let plugin = self.plugins.remove(&id).unwrap();
                         plugin.shutdown();
                     }
                 }
             }
-            StartVolt(volt) => {
+            EnableVolt(volt) => {
                 let volt_id = volt.id();
-                for (_, volt) in self.new_plugins.iter() {
+                for (_, volt) in self.plugins.iter() {
                     if volt.volt_id == volt_id {
                         return;
                     }
                 }
-                let workspace = self.workspace.clone();
-                let catalog_rpc = self.plugin_rpc.clone();
-                let configurations =
-                    self.plugin_configurations.get(&volt.name).cloned();
+                let plugin_rpc = self.plugin_rpc.clone();
                 thread::spawn(move || {
-                    let _ = start_volt_from_info(
-                        workspace,
-                        configurations,
-                        catalog_rpc,
-                        volt,
-                    );
+                    let _ = enable_volt(plugin_rpc, volt);
                 });
             }
             Shutdown => {
-                for (_, plugin) in self.new_plugins.iter() {
+                for (_, plugin) in self.plugins.iter() {
                     plugin.shutdown();
                 }
             }
