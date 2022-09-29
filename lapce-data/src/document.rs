@@ -964,7 +964,8 @@ impl Document {
     fn update_styles(&mut self, delta: &RopeDelta) {
         if let Some(styles) = self.semantic_styles.as_mut() {
             Arc::make_mut(styles).apply_shape(delta);
-        } else if let Some(syntax) = self.syntax.as_mut() {
+        }
+        if let Some(syntax) = self.syntax.as_mut() {
             if let Some(styles) = syntax.styles.as_mut() {
                 Arc::make_mut(styles).apply_shape(delta);
             }
@@ -1364,12 +1365,23 @@ impl Document {
         self.apply_deltas(&deltas)
     }
 
-    pub fn styles(&self) -> Option<&Arc<Spans<Style>>> {
-        let styles = self
-            .semantic_styles
-            .as_ref()
-            .or_else(|| self.syntax().and_then(|s| s.styles.as_ref()));
-        styles
+    pub fn styles(&self) -> Option<Arc<Spans<Style>>> {
+        let semantic_styles = self.semantic_styles.as_ref();
+        let syntax_styles = self.syntax().and_then(|s| s.styles.as_ref());
+
+        if semantic_styles.is_some() && syntax_styles.is_some() {
+            let combined_styles = semantic_styles
+                .unwrap()
+                .merge(syntax_styles.unwrap(), |a, _| a.clone());
+
+            return Some(Arc::new(combined_styles));
+        } else if semantic_styles.is_some() {
+            return semantic_styles.map(|s| s.clone());
+        } else if syntax_styles.is_some() {
+            return syntax_styles.map(|s| s.clone());
+        }
+
+        None
     }
 
     fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
@@ -1377,7 +1389,7 @@ impl Document {
             let styles = self.styles();
 
             let line_styles = styles
-                .map(|styles| line_styles(self.buffer.text(), line, styles))
+                .map(|styles| line_styles(self.buffer.text(), line, &styles))
                 .unwrap_or_default();
             self.line_styles
                 .borrow_mut()

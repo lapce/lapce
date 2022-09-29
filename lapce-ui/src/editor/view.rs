@@ -998,7 +998,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                 ctx.request_paint();
             }
             (Some(new), Some(old)) => {
-                if !new.same(old) {
+                if !new.same(&old) {
                     ctx.request_paint();
                 }
             }
