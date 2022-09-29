@@ -95,6 +95,7 @@ declare_language_highlights!(
     Svelte: "lang-svelte",
     Latex: "lang-latex",
     Kotlin: "lang-kotlin",
+    Vue: "lang-vue",
     D: "lang-d",
     Lua: "lang-lua",
 );

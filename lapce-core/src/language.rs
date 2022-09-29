@@ -196,6 +196,8 @@ pub enum LapceLanguage {
     Kotlin,
     #[cfg(feature = "lang-d")]
     D,
+    #[cfg(feature = "lang-vue")]
+    Vue,
     #[cfg(feature = "lang-lua")]
     Lua,
 }
@@ -748,6 +750,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         extensions: &["d", "di", "dlang"],
     },
+    #[cfg(feature = "lang-vue")]
+    SyntaxProperties {
+        id: LapceLanguage::Vue,
+        language: tree_sitter_vue::language,
+        highlight: tree_sitter_vue::HIGHLIGHTS_QUERY,
+        injection: Some(tree_sitter_vue::INJECTIONS_QUERY),
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["vue"],
+    },
     #[cfg(feature = "lang-lua")]
     SyntaxProperties {
         id: LapceLanguage::Lua,
@@ -1092,6 +1106,10 @@ mod test {
     #[cfg(feature = "lang-kotlin")]
     fn test_kotlin_lang() {
         assert_language(LapceLanguage::Kotlin, &["kt"]);
+    }
+    #[cfg(feature = "lang-vue")]
+    fn test_vue_lang() {
+        assert_language(LapceLanguage::Vue, &["vue"]);
     }
     #[cfg(feature = "lang-d")]
     fn test_d_lang() {
