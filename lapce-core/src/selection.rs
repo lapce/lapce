@@ -452,6 +452,4 @@ fn remove_n_at<T>(v: &mut Vec<T>, index: usize, n: usize) {
 }
 
 #[cfg(test)]
-mod test {
-
-}
+mod test {}

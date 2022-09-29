@@ -402,7 +402,7 @@ impl Find {
             // get last valid occurrence that was unaffected by the delta
             let start = match self.occurrences.regions_in_range(0, iv.start()).last()
             {
-                Some(reg) => reg.end(),
+                Some(reg) => reg.end,
                 None => 0,
             };
 
