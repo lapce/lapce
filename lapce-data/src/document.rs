@@ -1369,19 +1369,17 @@ impl Document {
         let semantic_styles = self.semantic_styles.as_ref();
         let syntax_styles = self.syntax().and_then(|s| s.styles.as_ref());
 
-        if semantic_styles.is_some() && syntax_styles.is_some() {
-            let combined_styles = semantic_styles
-                .unwrap()
-                .merge(syntax_styles.unwrap(), |a, _| a.clone());
-
-            return Some(Arc::new(combined_styles));
-        } else if semantic_styles.is_some() {
-            return semantic_styles.cloned();
-        } else if syntax_styles.is_some() {
-            return syntax_styles.cloned();
+        match (semantic_styles, syntax_styles) {
+            (Some(semantic), Some(syntax)) => {
+                Some(Arc::new(syntax.merge(semantic, |a, b| match b {
+                    Some(b) => b.clone(),
+                    None => a.clone(),
+                })))
+            }
+            (Some(semantic), None) => Some(semantic.clone()),
+            (None, Some(syntax_styles)) => Some(syntax_styles.clone()),
+            (None, None) => None,
         }
-
-        None
     }
 
     fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
