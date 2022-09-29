@@ -1002,7 +1002,7 @@ impl LapceEditor {
                 let end = data.doc.buffer().offset_of_line(end_line + 1);
                 let regions = selection.regions_in_range(start, end);
                 for region in regions {
-                    let cursor_offset = region.end();
+                    let cursor_offset = region.end;
                     let (cursor_line, _) =
                         data.doc.buffer().offset_to_line_col(cursor_offset);
                     if let Some(info) = screen_lines.info.get(&cursor_line) {
@@ -1196,11 +1196,11 @@ impl LapceEditor {
                 let end = data.doc.buffer().offset_of_line(end_line + 1);
                 let regions = selection.regions_in_range(start, end);
                 for region in regions {
-                    let cursor_offset = region.end();
+                    let cursor_offset = region.end;
                     let (cursor_line, _) =
                         data.doc.buffer().offset_to_line_col(cursor_offset);
-                    let start = region.start();
-                    let end = region.end();
+                    let start = region.start;
+                    let end = region.end;
                     let (start_line, start_col) =
                         data.doc.buffer().offset_to_line_col(start.min(end));
                     let (end_line, end_col) =

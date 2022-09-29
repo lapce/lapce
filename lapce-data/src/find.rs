@@ -374,8 +374,7 @@ impl Find {
                 old_offset, len, ..
             } in delta.iter_deletions()
             {
-                self.occurrences
-                    .delete_range(old_offset, old_offset + len, false);
+                self.occurrences.delete_range(old_offset, old_offset + len);
             }
 
             self.occurrences =
@@ -389,11 +388,8 @@ impl Find {
             {
                 // also invalidate previous occurrence since it might expand after insertion
                 // eg. for regex .* every insertion after match will be part of match
-                self.occurrences.delete_range(
-                    new_offset.saturating_sub(1),
-                    new_offset + len,
-                    false,
-                );
+                self.occurrences
+                    .delete_range(new_offset.saturating_sub(1), new_offset + len);
             }
 
             // update find for the whole delta and everything after
@@ -402,7 +398,7 @@ impl Find {
             // get last valid occurrence that was unaffected by the delta
             let start = match self.occurrences.regions_in_range(0, iv.start()).last()
             {
-                Some(reg) => reg.end(),
+                Some(reg) => reg.end,
                 None => 0,
             };
 
@@ -412,7 +408,7 @@ impl Find {
 
             if is_multiline || self.is_multiline_regex() {
                 // ... the end of the file
-                self.occurrences.delete_range(iv.start(), text.len(), false);
+                self.occurrences.delete_range(iv.start(), text.len());
                 self.update_find(text, start, text.len(), false);
             } else {
                 // ... the end of the line including line break
@@ -424,8 +420,7 @@ impl Find {
                     _ => return,
                 };
 
-                self.occurrences
-                    .delete_range(iv.start(), end_of_line, false);
+                self.occurrences.delete_range(iv.start(), end_of_line);
                 self.update_find(text, start, end_of_line, false);
             }
         }

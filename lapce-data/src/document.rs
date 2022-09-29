@@ -1126,7 +1126,7 @@ impl Document {
             }
             InsertCursorAbove => {
                 if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
-                    let offset = selection.first().map(|s| s.end()).unwrap_or(0);
+                    let offset = selection.first().map(|s| s.end).unwrap_or(0);
                     let (new_offset, _) = self.move_offset(
                         text,
                         offset,
@@ -1147,7 +1147,7 @@ impl Document {
             }
             InsertCursorBelow => {
                 if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
-                    let offset = selection.last().map(|s| s.end()).unwrap_or(0);
+                    let offset = selection.last().map(|s| s.end).unwrap_or(0);
                     let (new_offset, _) = self.move_offset(
                         text,
                         offset,
@@ -1205,7 +1205,7 @@ impl Document {
                     if !selection.is_empty() {
                         let first = selection.first().unwrap();
                         let (start, end) = if first.is_caret() {
-                            self.buffer.select_word(first.start())
+                            self.buffer.select_word(first.start)
                         } else {
                             (first.min(), first.max())
                         };
@@ -1240,7 +1240,7 @@ impl Document {
                             if region.is_caret() {
                                 had_caret = true;
                                 let (start, end) =
-                                    self.buffer.select_word(region.start());
+                                    self.buffer.select_word(region.start);
                                 region.start = start;
                                 region.end = end;
                             }
@@ -1291,7 +1291,7 @@ impl Document {
                     if !selection.is_empty() {
                         let r = selection.last_inserted().unwrap();
                         if r.is_caret() {
-                            let (start, end) = self.buffer.select_word(r.start());
+                            let (start, end) = self.buffer.select_word(r.start);
                             selection.replace_last_inserted_region(SelRegion::new(
                                 start, end, None,
                             ));
@@ -2092,7 +2092,7 @@ impl Document {
             config,
         );
         let start = match modify {
-            true => region.start(),
+            true => region.start,
             false => end,
         };
         SelRegion::new(start, end, horiz)

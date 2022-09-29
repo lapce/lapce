@@ -50,6 +50,12 @@ jobs:
         with:
           command: llvm-cov
           args: --all-features --workspace --lcov --output-path lcov.info
+          
+      - uses: actions-rs/cargo@v1
+        name: Run doc tests
+        with:
+          command: test
+          args: --doc --workspace
 
       - name: Upload coverage
         uses: codecov/codecov-action@v2
