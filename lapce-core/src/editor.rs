@@ -230,7 +230,7 @@ impl Editor {
                 // Adjust selection according to previous late edits
                 let mut adjustment = 0;
                 for region in selection.regions_mut().iter_mut().sorted_by(
-                    |region_a, region_b| region_a.start().cmp(&region_b.start()),
+                    |region_a, region_b| region_a.start.cmp(&region_b.start),
                 ) {
                     *region = SelRegion::new(
                         region.start + adjustment,
@@ -240,8 +240,8 @@ impl Editor {
 
                     if let Some(inserted) =
                         edits_after.iter().find_map(|(selection, str)| {
-                            if selection.last_inserted().map(|r| r.start())
-                                == Some(region.start())
+                            if selection.last_inserted().map(|r| r.start)
+                                == Some(region.start)
                             {
                                 Some(str)
                             } else {

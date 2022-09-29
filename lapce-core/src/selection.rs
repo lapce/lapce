@@ -34,10 +34,13 @@ impl AsRef<Selection> for Selection {
 }
 
 impl SelRegion {
+    /// Creates new [`SelRegion`] from `start` and `end` offset.
     pub fn new(start: usize, end: usize, horiz: Option<ColPosition>) -> SelRegion {
         SelRegion { start, end, horiz }
     }
 
+    /// Creates a caret [`SelRegion`],
+    /// i.e. `start` and `end` position are both set to `offset` value.
     pub fn caret(offset: usize) -> SelRegion {
         SelRegion {
             start: offset,
@@ -50,22 +53,48 @@ impl SelRegion {
         self.min() <= offset && offset <= self.max()
     }
 
+    /// Return the minimum value between region's start and end position
+    ///
+    /// **Example:**
+    ///
+    /// ```rust
+    /// # fn main() {
+    /// # use lapce_core::selection::SelRegion;
+    /// let  region = SelRegion::new(1, 10, None);
+    /// assert_eq!(region.min(), region.start);
+    /// let  region = SelRegion::new(42, 1, None);
+    /// assert_eq!(region.min(), region.end);
+    /// # }
     pub fn min(self) -> usize {
         min(self.start, self.end)
     }
 
+    /// Return the maximum value between region's start and end position.
+    ///
+    /// **Example:**
+    ///
+    /// ```rust
+    /// # fn main() {
+    /// # use lapce_core::selection::SelRegion;
+    /// let  region = SelRegion::new(1, 10, None);
+    /// assert_eq!(region.max(), region.end);
+    /// let  region = SelRegion::new(42, 1, None);
+    /// assert_eq!(region.max(), region.start);
+    /// # }
     pub fn max(self) -> usize {
         max(self.start, self.end)
     }
 
-    pub fn start(self) -> usize {
-        self.start
-    }
-
-    pub fn end(self) -> usize {
-        self.end
-    }
-
+    /// A [`SelRegion`] is considered to be a caret when its start and end position are equal.
+    ///
+    /// **Example:**
+    ///
+    /// ```rust
+    /// # fn main() {
+    /// # use lapce_core::selection::SelRegion;
+    /// let  region = SelRegion::new(1, 1, None);
+    /// assert!(region.is_caret());
+    /// # }
     pub fn is_caret(self) -> bool {
         self.start == self.end
     }
@@ -75,6 +104,17 @@ impl SelRegion {
             || ((self.is_caret() || other.is_caret()) && other.min() == self.max())
     }
 
+    /// Merge two [`SelRegion`] into a single one.
+    ///
+    /// **Example:**
+    ///
+    /// ```rust
+    /// # fn main() {
+    /// # use lapce_core::selection::SelRegion;
+    /// let  region = SelRegion::new(1, 2, None);
+    /// let  other = SelRegion::new(3, 4, None);
+    /// assert_eq!(region.merge_with(other), SelRegion::new(1, 4, None));
+    /// # }
     pub fn merge_with(self, other: SelRegion) -> SelRegion {
         let is_forward = self.end >= self.start;
         let new_min = min(self.min(), other.min());
@@ -89,6 +129,7 @@ impl SelRegion {
 }
 
 impl Selection {
+    /// Creates a new empty [`Selection`]
     pub fn new() -> Selection {
         Selection {
             regions: Vec::new(),
@@ -96,6 +137,7 @@ impl Selection {
         }
     }
 
+    /// Creates a caret [`Selection`], i.e. a selection with a single caret [`SelRegion`]
     pub fn caret(offset: usize) -> Selection {
         Selection {
             regions: vec![SelRegion::caret(offset)],
@@ -103,6 +145,8 @@ impl Selection {
         }
     }
 
+    /// Creates a region [`Selection`], i.e. a selection with a single [`SelRegion`]
+    /// from `start` to `end` position
     pub fn region(start: usize, end: usize) -> Selection {
         Selection {
             regions: vec![SelRegion {
@@ -114,6 +158,19 @@ impl Selection {
         }
     }
 
+    /// Returns whether this [`Selection`], contains the given `offset` position or not.
+    ///
+    /// **Example:**
+    ///
+    /// ```rust
+    /// # fn main() {
+    /// # use lapce_core::selection::Selection;
+    /// let  selection = Selection::region(0, 2);
+    /// assert!(selection.contains(0));
+    /// assert!(selection.contains(1));
+    /// assert!(selection.contains(2));
+    /// assert!(!selection.contains(3));
+    /// # }
     pub fn contains(&self, offset: usize) -> bool {
         for region in self.regions.iter() {
             if region.contains(offset) {
@@ -140,6 +197,7 @@ impl Selection {
         selection
     }
 
+    /// Get the first [`SelRegion`] in this selection if present.
     pub fn first(&self) -> Option<&SelRegion> {
         if self.is_empty() {
             return None;
@@ -147,6 +205,7 @@ impl Selection {
         Some(&self.regions[0])
     }
 
+    /// Get the last [`SelRegion`] in this selection if present.
     pub fn last(&self) -> Option<&SelRegion> {
         if self.is_empty() {
             return None;
@@ -154,6 +213,7 @@ impl Selection {
         Some(&self.regions[self.len() - 1])
     }
 
+    /// Get the last inserted [`SelRegion`] in this selection if present.
     pub fn last_inserted(&self) -> Option<&SelRegion> {
         if self.is_empty() {
             return None;
@@ -161,6 +221,7 @@ impl Selection {
         Some(&self.regions[self.last_inserted])
     }
 
+    /// Get a mutable reference to the last inserted [`SelRegion`] in this selection if present.
     pub fn last_inserted_mut(&mut self) -> Option<&mut SelRegion> {
         if self.is_empty() {
             return None;
@@ -168,10 +229,13 @@ impl Selection {
         Some(&mut self.regions[self.last_inserted])
     }
 
+    /// The number of [`SelRegion`] in this selection.
     pub fn len(&self) -> usize {
         self.regions.len()
     }
 
+    /// A [`Selection`] is considered to be a caret if it contains
+    /// only caret [`SelRegion`] (see [`SelRegion::is_caret`])
     pub fn is_caret(&self) -> bool {
         for region in self.regions.iter() {
             if !region.is_caret() {
@@ -181,10 +245,24 @@ impl Selection {
         true
     }
 
+    /// Returns `true` if `self` has zero [`SelRegion`]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Returns the minimal offset across all region of this selection.
+    ///
+    /// **Example:**
+    ///
+    /// ```rust
+    /// # fn main() {
+    /// # use lapce_core::selection::{Selection, SelRegion};
+    /// let mut selection = Selection::new();
+    /// selection.add_region(SelRegion::caret(4));
+    /// selection.add_region(SelRegion::new(0, 12, None));
+    /// selection.add_region(SelRegion::new(24, 48, None));
+    /// assert_eq!(selection.min_offset(), 0);
+    /// # }
     pub fn min_offset(&self) -> usize {
         let mut offset = self.regions()[0].min();
         for region in &self.regions {
@@ -193,6 +271,19 @@ impl Selection {
         offset
     }
 
+    /// Returns the maximal offset across all region of this selection.
+    ///
+    /// **Example:**
+    ///
+    /// ```rust
+    /// # fn main() {
+    /// # use lapce_core::selection::{Selection, SelRegion};
+    /// let mut selection = Selection::new();
+    /// selection.add_region(SelRegion::caret(4));
+    /// selection.add_region(SelRegion::new(0, 12, None));
+    /// selection.add_region(SelRegion::new(24, 48, None));
+    /// assert_eq!(selection.min_offset(), 48);
+    /// # }
     pub fn max_offset(&self) -> usize {
         let mut offset = self.regions()[0].max();
         for region in &self.regions {
@@ -358,4 +449,9 @@ fn remove_n_at<T>(v: &mut Vec<T>, index: usize, n: usize) {
         }
         _ => (),
     };
+}
+
+#[cfg(test)]
+mod test {
+
 }
