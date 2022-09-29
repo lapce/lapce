@@ -2522,7 +2522,6 @@ dependencies = [
  "lsp-types",
  "once_cell",
  "serde 1.0.145",
- "serde_json",
  "slotmap",
  "strum 0.24.1",
  "strum_macros 0.24.3",
