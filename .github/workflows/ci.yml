@@ -36,6 +36,8 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v1
+        with:
+          key: "rust164"
 
       - name: Build
         uses: actions-rs/cargo@v1
