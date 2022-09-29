@@ -1376,9 +1376,9 @@ impl Document {
 
             return Some(Arc::new(combined_styles));
         } else if semantic_styles.is_some() {
-            return semantic_styles.map(|s| s.clone());
+            return semantic_styles.cloned();
         } else if syntax_styles.is_some() {
-            return syntax_styles.map(|s| s.clone());
+            return syntax_styles.cloned();
         }
 
         None
