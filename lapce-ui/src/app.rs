@@ -43,6 +43,9 @@ pub fn launch() {
         return;
     }
 
+    #[cfg(feature = "updater")]
+    lapce_data::update::cleanup();
+
     let mut log_dispatch = fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
