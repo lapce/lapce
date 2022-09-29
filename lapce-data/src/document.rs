@@ -1367,9 +1367,9 @@ impl Document {
 
     pub fn styles(&self) -> Option<Arc<Spans<Style>>> {
         let semantic_styles = self.semantic_styles.as_ref();
-        let syntax_styles = self.syntax().and_then(|s| s.styles.as_ref());
+        let syntactic_styles = self.syntax().and_then(|s| s.styles.as_ref());
 
-        match (semantic_styles, syntax_styles) {
+        match (semantic_styles, syntactic_styles) {
             (Some(semantic), Some(syntax)) => {
                 Some(Arc::new(syntax.merge(semantic, |a, b| match b {
                     Some(b) => b.clone(),
@@ -1377,7 +1377,7 @@ impl Document {
                 })))
             }
             (Some(semantic), None) => Some(semantic.clone()),
-            (None, Some(syntax_styles)) => Some(syntax_styles.clone()),
+            (None, Some(syntactic)) => Some(syntactic.clone()),
             (None, None) => None,
         }
     }
