@@ -4,6 +4,8 @@ use xi_rope::{RopeDelta, Transformer};
 
 use crate::cursor::ColPosition;
 
+/// Indicate whether a delta should be applied inside, outside non-caret selection or
+/// after a caret selection (see [`Selection::apply_delta`].
 #[derive(Copy, Clone)]
 pub enum InsertDrift {
     /// Indicates this edit should happen within any (non-caret) selections if possible.
@@ -16,11 +18,16 @@ pub enum InsertDrift {
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub struct SelRegion {
+    /// Region start offset
     pub start: usize,
+    /// Region end offset
     pub end: usize,
+    /// Horizontal rules for multiple selection
     pub horiz: Option<ColPosition>,
 }
 
+/// A selection holding one or more [`SelRegion`].
+/// Regions are kept in order from the leftmost selection to the rightmost selection.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Selection {
     regions: Vec<SelRegion>,
@@ -49,22 +56,17 @@ impl SelRegion {
         }
     }
 
-    fn contains(&self, offset: usize) -> bool {
-        self.min() <= offset && offset <= self.max()
-    }
-
     /// Return the minimum value between region's start and end position
     ///
     /// **Example:**
     ///
     /// ```rust
-    /// # fn main() {
     /// # use lapce_core::selection::SelRegion;
     /// let  region = SelRegion::new(1, 10, None);
     /// assert_eq!(region.min(), region.start);
     /// let  region = SelRegion::new(42, 1, None);
     /// assert_eq!(region.min(), region.end);
-    /// # }
+    /// ```
     pub fn min(self) -> usize {
         min(self.start, self.end)
     }
@@ -74,13 +76,12 @@ impl SelRegion {
     /// **Example:**
     ///
     /// ```rust
-    /// # fn main() {
     /// # use lapce_core::selection::SelRegion;
     /// let  region = SelRegion::new(1, 10, None);
     /// assert_eq!(region.max(), region.end);
     /// let  region = SelRegion::new(42, 1, None);
     /// assert_eq!(region.max(), region.start);
-    /// # }
+    /// ```
     pub fn max(self) -> usize {
         max(self.start, self.end)
     }
@@ -90,18 +91,12 @@ impl SelRegion {
     /// **Example:**
     ///
     /// ```rust
-    /// # fn main() {
     /// # use lapce_core::selection::SelRegion;
     /// let  region = SelRegion::new(1, 1, None);
     /// assert!(region.is_caret());
-    /// # }
+    /// ```
     pub fn is_caret(self) -> bool {
         self.start == self.end
-    }
-
-    fn should_merge(self, other: SelRegion) -> bool {
-        other.min() < self.max()
-            || ((self.is_caret() || other.is_caret()) && other.min() == self.max())
     }
 
     /// Merge two [`SelRegion`] into a single one.
@@ -109,12 +104,11 @@ impl SelRegion {
     /// **Example:**
     ///
     /// ```rust
-    /// # fn main() {
     /// # use lapce_core::selection::SelRegion;
     /// let  region = SelRegion::new(1, 2, None);
     /// let  other = SelRegion::new(3, 4, None);
     /// assert_eq!(region.merge_with(other), SelRegion::new(1, 4, None));
-    /// # }
+    /// ```
     pub fn merge_with(self, other: SelRegion) -> SelRegion {
         let is_forward = self.end >= self.start;
         let new_min = min(self.min(), other.min());
@@ -125,6 +119,15 @@ impl SelRegion {
             (new_max, new_min)
         };
         SelRegion::new(start, end, None)
+    }
+
+    fn should_merge(self, other: SelRegion) -> bool {
+        other.min() < self.max()
+            || ((self.is_caret() || other.is_caret()) && other.min() == self.max())
+    }
+
+    fn contains(&self, offset: usize) -> bool {
+        self.min() <= offset && offset <= self.max()
     }
 }
 
@@ -163,14 +166,13 @@ impl Selection {
     /// **Example:**
     ///
     /// ```rust
-    /// # fn main() {
     /// # use lapce_core::selection::Selection;
     /// let  selection = Selection::region(0, 2);
     /// assert!(selection.contains(0));
     /// assert!(selection.contains(1));
     /// assert!(selection.contains(2));
     /// assert!(!selection.contains(3));
-    /// # }
+    /// ```
     pub fn contains(&self, offset: usize) -> bool {
         for region in self.regions.iter() {
             if region.contains(offset) {
@@ -180,14 +182,33 @@ impl Selection {
         false
     }
 
+    /// Returns this selection regions
     pub fn regions(&self) -> &[SelRegion] {
         &self.regions
     }
 
+    /// Returns a mutable reference to this selection regions
     pub fn regions_mut(&mut self) -> &mut [SelRegion] {
         &mut self.regions
     }
 
+    /// Returns a copy of [`self`] with all regions converted to caret region at their respective
+    /// [`SelRegion::min`] offset.
+    ///
+    /// **Examples:**
+    ///
+    /// ```rust
+    /// # use lapce_core::selection::{Selection, SelRegion};
+    /// let mut selection = Selection::new();
+    /// selection.add_region(SelRegion::new(1, 3, None));
+    /// selection.add_region(SelRegion::new(6, 12, None));
+    /// selection.add_region(SelRegion::new(24, 48, None));
+    ///
+    /// assert_eq!(selection.min().regions(), vec![
+    ///     SelRegion::caret(1),
+    ///     SelRegion::caret(6),
+    ///     SelRegion::caret(24)
+    /// ]);
     pub fn min(&self) -> Selection {
         let mut selection = Self::new();
         for region in &self.regions {
@@ -197,7 +218,7 @@ impl Selection {
         selection
     }
 
-    /// Get the first [`SelRegion`] in this selection if present.
+    /// Get the leftmost [`SelRegion`] in this selection if present.
     pub fn first(&self) -> Option<&SelRegion> {
         if self.is_empty() {
             return None;
@@ -205,7 +226,7 @@ impl Selection {
         Some(&self.regions[0])
     }
 
-    /// Get the last [`SelRegion`] in this selection if present.
+    /// Get the rightmost [`SelRegion`] in this selection if present.
     pub fn last(&self) -> Option<&SelRegion> {
         if self.is_empty() {
             return None;
@@ -255,14 +276,13 @@ impl Selection {
     /// **Example:**
     ///
     /// ```rust
-    /// # fn main() {
     /// # use lapce_core::selection::{Selection, SelRegion};
     /// let mut selection = Selection::new();
     /// selection.add_region(SelRegion::caret(4));
     /// selection.add_region(SelRegion::new(0, 12, None));
     /// selection.add_region(SelRegion::new(24, 48, None));
     /// assert_eq!(selection.min_offset(), 0);
-    /// # }
+    /// ```
     pub fn min_offset(&self) -> usize {
         let mut offset = self.regions()[0].min();
         for region in &self.regions {
@@ -276,14 +296,13 @@ impl Selection {
     /// **Example:**
     ///
     /// ```rust
-    /// # fn main() {
     /// # use lapce_core::selection::{Selection, SelRegion};
     /// let mut selection = Selection::new();
     /// selection.add_region(SelRegion::caret(4));
     /// selection.add_region(SelRegion::new(0, 12, None));
     /// selection.add_region(SelRegion::new(24, 48, None));
-    /// assert_eq!(selection.min_offset(), 48);
-    /// # }
+    /// assert_eq!(selection.max_offset(), 48);
+    /// ```
     pub fn max_offset(&self) -> usize {
         let mut offset = self.regions()[0].max();
         for region in &self.regions {
@@ -292,6 +311,25 @@ impl Selection {
         offset
     }
 
+    /// Returns regions in [`self`] overlapping or fully enclosed in the provided
+    /// `start` to `end` range.
+    ///
+    /// **Example:**
+    ///
+    /// ```rust
+    /// # use lapce_core::selection::{Selection, SelRegion};
+    /// let mut selection = Selection::new();
+    /// selection.add_region(SelRegion::new(0, 3, None));
+    /// selection.add_region(SelRegion::new(3, 6, None));
+    /// selection.add_region(SelRegion::new(7, 8, None));
+    /// selection.add_region(SelRegion::new(9, 11, None));
+    /// let regions = selection.regions_in_range(5, 10);
+    /// assert_eq!(regions, vec![
+    ///     SelRegion::new(3, 6, None),
+    ///     SelRegion::new(7, 8, None),
+    ///     SelRegion::new(9, 11, None)
+    /// ]);
+    /// ```
     pub fn regions_in_range(&self, start: usize, end: usize) -> &[SelRegion] {
         let first = self.search(start);
         let mut last = self.search(end);
@@ -301,29 +339,23 @@ impl Selection {
         &self.regions[first..last]
     }
 
-    pub fn search(&self, offset: usize) -> usize {
-        if self.regions.is_empty() || offset > self.regions.last().unwrap().max() {
-            return self.regions.len();
-        }
-        match self.regions.binary_search_by(|r| r.max().cmp(&offset)) {
-            Ok(ix) => ix,
-            Err(ix) => ix,
-        }
-    }
-
-    pub fn search_min(&self, offset: usize) -> usize {
-        if self.regions.is_empty() || offset > self.regions.last().unwrap().max() {
-            return self.regions.len();
-        }
-        match self
-            .regions
-            .binary_search_by(|r| r.min().cmp(&(offset + 1)))
-        {
-            Ok(ix) => ix,
-            Err(ix) => ix,
-        }
-    }
-
+    /// Returns regions in [`self`] starting between `start` to `end` range.
+    ///
+    /// **Example:**
+    ///
+    /// ```rust
+    /// # use lapce_core::selection::{Selection, SelRegion};
+    /// let mut selection = Selection::new();
+    /// selection.add_region(SelRegion::new(0, 3, None));
+    /// selection.add_region(SelRegion::new(3, 6, None));
+    /// selection.add_region(SelRegion::new(7, 8, None));
+    /// selection.add_region(SelRegion::new(9, 11, None));
+    /// let regions = selection.full_regions_in_range(5, 10);
+    /// assert_eq!(regions, vec![
+    ///     SelRegion::new(7, 8, None),
+    ///     SelRegion::new(9, 11, None)
+    /// ]);
+    /// ```
     pub fn full_regions_in_range(&self, start: usize, end: usize) -> &[SelRegion] {
         let first = self.search_min(start);
         let mut last = self.search_min(end);
@@ -333,6 +365,20 @@ impl Selection {
         &self.regions[first..last]
     }
 
+    /// Deletes regions in [`self`] overlapping or enclosing in `start` to `end` range.
+    ///
+    /// **Example:**
+    ///
+    /// ```rust
+    /// # use lapce_core::selection::{Selection, SelRegion};
+    /// let mut selection = Selection::new();
+    /// selection.add_region(SelRegion::new(0, 3, None));
+    /// selection.add_region(SelRegion::new(3, 6, None));
+    /// selection.add_region(SelRegion::new(7, 8, None));
+    /// selection.add_region(SelRegion::new(9, 11, None));
+    /// selection.delete_range(5, 10);
+    /// assert_eq!(selection.regions(), vec![SelRegion::new(0, 3, None)]);
+    /// ```
     pub fn delete_range(&mut self, start: usize, end: usize) {
         let mut first = self.search(start);
         let mut last = self.search(end);
@@ -348,6 +394,27 @@ impl Selection {
         remove_n_at(&mut self.regions, first, last - first);
     }
 
+    /// Add a regions to [`self`]. Note that if provided region overlap
+    /// on of the selection regions they will be merged in a single region.
+    ///
+    /// **Example:**
+    ///
+    /// ```rust
+    /// # use lapce_core::selection::{Selection, SelRegion};
+    /// let mut selection = Selection::new();
+    /// // Overlapping
+    /// selection.add_region(SelRegion::new(0, 4, None));
+    /// selection.add_region(SelRegion::new(3, 6, None));
+    /// assert_eq!(selection.regions(), vec![SelRegion::new(0, 6, None)]);
+    /// // Non-overlapping
+    /// let mut selection = Selection::new();
+    /// selection.add_region(SelRegion::new(0, 3, None));
+    /// selection.add_region(SelRegion::new(3, 6, None));
+    /// assert_eq!(selection.regions(), vec![
+    ///     SelRegion::new(0, 3, None),
+    ///     SelRegion::new(3, 6, None)
+    /// ]);
+    /// ```
     pub fn add_region(&mut self, region: SelRegion) {
         let mut ix = self.search(region.min());
         if ix == self.regions.len() {
@@ -380,6 +447,12 @@ impl Selection {
         }
     }
 
+    /// Apply [`xi_rope::RopeDelta`] to this selection.
+    /// Typically used to apply an edit to a buffer and update its selections
+    /// **Parameters*:*
+    /// - `delta`[`xi_rope::RopeDelta`]
+    /// - `after` parameter indicate if the delta should be applied before or after the selection
+    /// - `drift` see [`InsertDrift`]
     pub fn apply_delta(
         &self,
         delta: &RopeDelta,
@@ -389,10 +462,9 @@ impl Selection {
         let mut result = Selection::new();
         let mut transformer = Transformer::new(delta);
         for region in self.regions() {
-            let is_caret = region.start == region.end;
             let is_region_forward = region.start < region.end;
 
-            let (start_after, end_after) = match (drift, is_caret) {
+            let (start_after, end_after) = match (drift, region.is_caret()) {
                 (InsertDrift::Inside, false) => {
                     (!is_region_forward, is_region_forward)
                 }
@@ -412,6 +484,7 @@ impl Selection {
         result
     }
 
+    /// Returns cursor position, which corresponds to last inserted region `end` offset,
     pub fn get_cursor_offset(&self) -> usize {
         if self.is_empty() {
             return 0;
@@ -419,6 +492,7 @@ impl Selection {
         self.regions[self.last_inserted].end
     }
 
+    /// Replaces last inserted [`SelRegion`] of this selection with the provided one.
     pub fn replace_last_inserted_region(&mut self, region: SelRegion) {
         if self.is_empty() {
             self.add_region(region);
@@ -427,6 +501,29 @@ impl Selection {
 
         self.regions.remove(self.last_inserted);
         self.add_region(region);
+    }
+
+    fn search(&self, offset: usize) -> usize {
+        if self.regions.is_empty() || offset > self.regions.last().unwrap().max() {
+            return self.regions.len();
+        }
+        match self.regions.binary_search_by(|r| r.max().cmp(&offset)) {
+            Ok(ix) => ix,
+            Err(ix) => ix,
+        }
+    }
+
+    fn search_min(&self, offset: usize) -> usize {
+        if self.regions.is_empty() || offset > self.regions.last().unwrap().max() {
+            return self.regions.len();
+        }
+        match self
+            .regions
+            .binary_search_by(|r| r.min().cmp(&(offset + 1)))
+        {
+            Ok(ix) => ix,
+            Err(ix) => ix,
+        }
     }
 }
 
@@ -449,4 +546,192 @@ fn remove_n_at<T>(v: &mut Vec<T>, index: usize, n: usize) {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use crate::buffer::Buffer;
+    use crate::editor::EditType;
+    use crate::selection::{InsertDrift, SelRegion, Selection};
+
+    #[test]
+    fn should_return_selection_region_min() {
+        let region = SelRegion::new(1, 10, None);
+        assert_eq!(region.min(), region.start);
+
+        let region = SelRegion::new(42, 1, None);
+        assert_eq!(region.min(), region.end);
+    }
+
+    #[test]
+    fn should_return_selection_region_max() {
+        let region = SelRegion::new(1, 10, None);
+        assert_eq!(region.max(), region.end);
+
+        let region = SelRegion::new(42, 1, None);
+        assert_eq!(region.max(), region.start);
+    }
+
+    #[test]
+    fn is_caret_should_return_true() {
+        let region = SelRegion::new(1, 10, None);
+        assert!(!region.is_caret());
+    }
+
+    #[test]
+    fn is_caret_should_return_false() {
+        let region = SelRegion::new(1, 1, None);
+        assert!(region.is_caret());
+    }
+
+    #[test]
+    fn should_merge_regions() {
+        let region = SelRegion::new(1, 2, None);
+        let other = SelRegion::new(3, 4, None);
+        assert_eq!(region.merge_with(other), SelRegion::new(1, 4, None));
+
+        let region = SelRegion::new(2, 1, None);
+        let other = SelRegion::new(4, 3, None);
+        assert_eq!(region.merge_with(other), SelRegion::new(4, 1, None));
+
+        let region = SelRegion::new(1, 1, None);
+        let other = SelRegion::new(6, 6, None);
+        assert_eq!(region.merge_with(other), SelRegion::new(1, 6, None));
+    }
+
+    #[test]
+    fn selection_should_be_caret() {
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(1));
+        selection.add_region(SelRegion::caret(6));
+        assert!(selection.is_caret());
+    }
+
+    #[test]
+    fn selection_should_not_be_caret() {
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(1));
+        selection.add_region(SelRegion::new(4, 6, None));
+        assert!(!selection.is_caret());
+    }
+
+    #[test]
+    fn should_return_min_selection() {
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::new(1, 3, None));
+        selection.add_region(SelRegion::new(4, 6, None));
+        assert_eq!(
+            selection.min().regions,
+            vec![SelRegion::caret(1), SelRegion::caret(4)]
+        );
+    }
+
+    #[test]
+    fn selection_should_contains_region() {
+        let selection = Selection::region(0, 2);
+        assert!(selection.contains(0));
+        assert!(selection.contains(1));
+        assert!(selection.contains(2));
+        assert!(!selection.contains(3));
+    }
+
+    #[test]
+    fn should_return_last_inserted_region() {
+        let mut selection = Selection::region(5, 6);
+        selection.add_region(SelRegion::caret(1));
+        assert_eq!(selection.last_inserted(), Some(&SelRegion::caret(1)));
+    }
+
+    #[test]
+    fn should_return_last_region() {
+        let mut selection = Selection::region(5, 6);
+        selection.add_region(SelRegion::caret(1));
+        assert_eq!(selection.last(), Some(&SelRegion::new(5, 6, None)));
+    }
+
+    #[test]
+    fn should_return_first_region() {
+        let mut selection = Selection::region(5, 6);
+        selection.add_region(SelRegion::caret(1));
+        assert_eq!(selection.first(), Some(&SelRegion::caret(1)));
+    }
+
+    #[test]
+    fn should_return_regions_in_range() {
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::new(0, 3, None));
+        selection.add_region(SelRegion::new(3, 6, None));
+        selection.add_region(SelRegion::new(7, 8, None));
+        selection.add_region(SelRegion::new(9, 11, None));
+
+        let regions = selection.regions_in_range(5, 10);
+
+        assert_eq!(
+            regions,
+            vec![
+                SelRegion::new(3, 6, None),
+                SelRegion::new(7, 8, None),
+                SelRegion::new(9, 11, None),
+            ]
+        );
+    }
+
+    #[test]
+    fn should_return_regions_in_full_range() {
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::new(0, 3, None));
+        selection.add_region(SelRegion::new(3, 6, None));
+        selection.add_region(SelRegion::new(7, 8, None));
+        selection.add_region(SelRegion::new(9, 11, None));
+
+        let regions = selection.full_regions_in_range(5, 10);
+
+        assert_eq!(
+            regions,
+            vec![SelRegion::new(7, 8, None), SelRegion::new(9, 11, None),]
+        );
+    }
+
+    #[test]
+    fn should_delete_regions() {
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::new(0, 3, None));
+        selection.add_region(SelRegion::new(3, 6, None));
+        selection.add_region(SelRegion::new(7, 8, None));
+        selection.add_region(SelRegion::new(9, 11, None));
+        selection.delete_range(5, 10);
+        assert_eq!(selection.regions(), vec![SelRegion::new(0, 3, None)]);
+    }
+
+    #[test]
+    fn should_add_regions() {
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::new(0, 3, None));
+        selection.add_region(SelRegion::new(3, 6, None));
+        assert_eq!(
+            selection.regions(),
+            vec![SelRegion::new(0, 3, None), SelRegion::new(3, 6, None),]
+        );
+    }
+
+    #[test]
+    fn should_add_and_merge_regions() {
+        let mut selection = Selection::new();
+
+        selection.add_region(SelRegion::new(0, 4, None));
+        selection.add_region(SelRegion::new(3, 6, None));
+        assert_eq!(selection.regions(), vec![SelRegion::new(0, 6, None)]);
+    }
+
+    #[test]
+    fn should_apply_delta_after_insertion() {
+        let selection = Selection::caret(0);
+
+        let (mock_delta, _) = {
+            let mut buffer = Buffer::new("");
+            buffer.edit(&[(selection.clone(), "Hello")], EditType::InsertChars)
+        };
+
+        assert_eq!(
+            selection.apply_delta(&mock_delta, true, InsertDrift::Inside),
+            Selection::caret(5)
+        );
+    }
+}
