@@ -834,7 +834,7 @@ impl Widget<LapceTabData> for LapceTerminal {
         }
         if data.find.visual {
             if let Some(search_string) = data.find.search_string.as_ref() {
-                if let Ok(dfas) = RegexSearch::new(search_string) {
+                if let Ok(dfas) = RegexSearch::new(&regex::escape(search_string)) {
                     let mut start = alacritty_terminal::index::Point::new(
                         alacritty_terminal::index::Line(
                             -(content.display_offset as i32),

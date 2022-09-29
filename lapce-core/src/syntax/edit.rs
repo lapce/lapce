@@ -104,18 +104,15 @@ pub fn generate_edits(
             text = insert_delta.apply(&text);
         }
 
-        // We have to keep track of a shift because the deletions aren't properly moved forward
-        let mut shift = insertions.inserts_len();
         for (start, end) in deletions.range_iter(CountMatcher::NonZero) {
-            edits.push(create_delete_edit(&text, start + shift, end + shift));
+            edits.push(create_delete_edit(&text, start, end));
 
             let delete_delta = RopeDelta::simple_edit(
-                Interval::new(start + shift, end + shift),
+                Interval::new(start, end),
                 Rope::default(),
                 text.len(),
             );
             text = delete_delta.apply(&text);
-            shift -= end - start;
         }
     }
 }

@@ -97,6 +97,7 @@ declare_language_highlights!(
     Kotlin: "lang-kotlin",
     Vue: "lang-vue",
     D: "lang-d",
+    Lua: "lang-lua",
 );
 
 /// Indicates which highlight should be applied to a region of source code.

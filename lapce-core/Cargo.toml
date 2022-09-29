@@ -65,6 +65,7 @@ tree-sitter-latex = { git = "https://github.com/latex-lsp/tree-sitter-latex", br
 tree-sitter-kotlin = { git = "https://github.com/fwcd/tree-sitter-kotlin", branch = "main", optional = true }
 tree-sitter-vue = { version = "0.0.3", optional = true }
 tree-sitter-d = { git = "https://github.com/syntacti/tree-sitter-d", branch = "master", optional = true }
+tree-sitter-lua = { git = "https://github.com/syntacti/tree-sitter-lua", branch = "main", optional = true }
 
 [features]
 default = []
@@ -111,3 +112,4 @@ lang-latex = ["dep:tree-sitter-latex"]
 lang-kotlin = ["dep:tree-sitter-kotlin"]
 lang-vue = ["dep:tree-sitter-vue"]
 lang-d = ["dep:tree-sitter-d"]
+lang-lua = ["dep:tree-sitter-lua"]

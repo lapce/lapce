@@ -598,7 +598,7 @@ impl LapceTerminalData {
         search_string: &str,
         direction: Direction,
     ) {
-        if let Ok(dfas) = RegexSearch::new(search_string) {
+        if let Ok(dfas) = RegexSearch::new(&regex::escape(search_string)) {
             let mut point = term.renderable_content().cursor.point;
             if direction == Direction::Right {
                 if point.column.0 < term.last_column() {

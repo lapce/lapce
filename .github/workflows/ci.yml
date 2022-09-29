@@ -32,6 +32,7 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.toolchain }}
           override: true
+          components: llvm-tools-preview
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v1
@@ -41,11 +42,19 @@ jobs:
         with:
           command: build
 
-      - name: Run tests
-        uses: actions-rs/cargo@v1
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - uses: actions-rs/cargo@v1
+        name: Run tests and coverage
         with:
-          command: test
-          args: --workspace
+          command: llvm-cov
+          args: --all-features --workspace --lcov --output-path lcov.info
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v2
+        with:
+          files: lcov.info
 
   fmt:
     name: Rustfmt

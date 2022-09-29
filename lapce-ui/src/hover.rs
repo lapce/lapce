@@ -141,10 +141,8 @@ impl Widget<LapceTabData> for HoverContainer {
             ));
         }
 
-        if old_hover.active_item_index != hover.active_item_index {
-            self.ensure_visible(ctx, data, env);
-            ctx.request_paint();
-        }
+        self.ensure_visible(ctx, data, env);
+        ctx.request_paint();
 
         self.hover.update(ctx, data, env);
     }
@@ -190,7 +188,7 @@ impl Widget<LapceTabData> for HoverContainer {
 
 #[derive(Default)]
 struct Hover {
-    active_layout: TextLayout<RichText>,
+    active_layout: Vec<TextLayout<RichText>>,
     active_diagnostic_layout: TextLayout<RichText>,
 }
 
@@ -200,11 +198,7 @@ impl Hover {
 
     fn new() -> Self {
         Hover {
-            active_layout: {
-                let mut layout = TextLayout::new();
-                layout.set_text(RichText::new(ArcStr::from("")));
-                layout
-            },
+            active_layout: { Vec::new() },
             active_diagnostic_layout: {
                 let mut layout = TextLayout::new();
                 layout.set_text(RichText::new(ArcStr::from("")));
@@ -242,23 +236,27 @@ impl Widget<LapceTabData> for Hover {
         data: &LapceTabData,
         _env: &Env,
     ) {
-        // If the active item has changed or we've switched our current item existence status
         // or we've gotten new diagnostic text
         // then update the layout
         if old_data.hover.request_id != data.hover.request_id
-            || old_data.hover.active_item_index != data.hover.active_item_index
-            || old_data.hover.get_current_item().is_some()
-                != data.hover.get_current_item().is_some()
+            || old_data.hover.get_current_items().is_some()
+                != data.hover.get_current_items().is_some()
+            || old_data.hover.len() != data.hover.len()
             || !old_data
                 .hover
                 .diagnostic_content
                 .same(&data.hover.diagnostic_content)
         {
-            if let Some(item) = data.hover.get_current_item() {
-                self.active_layout.set_text(item.clone());
-            } else {
-                self.active_layout.set_text(RichText::new(ArcStr::from("")));
-            }
+            self.active_layout = data
+                .hover
+                .items
+                .iter()
+                .map(|item| {
+                    let mut layout = TextLayout::new();
+                    layout.set_text(item.clone());
+                    layout
+                })
+                .collect();
 
             if let Some(diagnostic_content) = &data.hover.diagnostic_content {
                 self.active_diagnostic_layout
@@ -275,19 +273,15 @@ impl Widget<LapceTabData> for Hover {
                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                 .clone();
 
-            self.active_layout.set_font(font.clone());
-            self.active_layout.set_text_color(text_color.clone());
+            for layout in self.active_layout.iter_mut() {
+                layout.set_font(font.clone());
+                layout.set_text_color(text_color.clone());
+            }
 
             self.active_diagnostic_layout.set_font(font);
             self.active_diagnostic_layout.set_text_color(text_color);
 
-            if self.active_layout.needs_rebuild_after_update(ctx)
-                || self
-                    .active_diagnostic_layout
-                    .needs_rebuild_after_update(ctx)
-            {
-                ctx.request_layout();
-            }
+            ctx.request_layout();
         }
     }
 
@@ -304,17 +298,29 @@ impl Widget<LapceTabData> for Hover {
             - env.get(theme::SCROLLBAR_WIDTH)
             - env.get(theme::SCROLLBAR_PAD);
 
-        self.active_layout.set_wrap_width(max_width);
-        self.active_layout.rebuild_if_needed(ctx.text(), env);
+        for layout in self.active_layout.iter_mut() {
+            layout.set_wrap_width(max_width);
+            layout.rebuild_if_needed(ctx.text(), env);
+        }
 
         self.active_diagnostic_layout.set_wrap_width(max_width);
         self.active_diagnostic_layout
             .rebuild_if_needed(ctx.text(), env);
 
-        let text_metrics = self.active_layout.layout_metrics();
-        ctx.set_baseline_offset(
-            text_metrics.size.height - text_metrics.first_baseline,
-        );
+        let items_height = if self.active_layout.is_empty() {
+            0.0
+        } else {
+            let mut height = 0.0;
+            for layout in self.active_layout.iter() {
+                height += layout.layout_metrics().size.height;
+            }
+
+            if self.active_layout.len() > 1 {
+                let line_height = data.config.editor.line_height() as f64;
+                height += (self.active_layout.len() - 1) as f64 * line_height
+            }
+            height
+        };
 
         let diagnostic_height = if self.active_diagnostic_layout.size().is_empty() {
             0.0
@@ -322,13 +328,12 @@ impl Widget<LapceTabData> for Hover {
             let diagnostic_text_metrics =
                 self.active_diagnostic_layout.layout_metrics();
 
-            diagnostic_text_metrics.size.height
-                + data.config.editor.line_height() as f64
+            diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0
         };
 
         Size::new(
             width,
-            text_metrics.size.height + diagnostic_height + Hover::STARTING_Y * 2.0,
+            items_height + diagnostic_height + Hover::STARTING_Y * 2.0,
         )
     }
 
@@ -336,6 +341,10 @@ impl Widget<LapceTabData> for Hover {
         if data.hover.status != HoverStatus::Done {
             return;
         }
+
+        let side_margin =
+            env.get(theme::SCROLLBAR_WIDTH) + env.get(theme::SCROLLBAR_PAD);
+        let line_height = data.config.editor.line_height() as f64;
 
         let rect = ctx.region().bounding_box();
         let diagnostic_origin = Point::new(Self::STARTING_X, Self::STARTING_Y);
@@ -350,37 +359,57 @@ impl Widget<LapceTabData> for Hover {
         let height = if self.active_diagnostic_layout.size().is_empty() {
             0.0
         } else {
-            // let text_metrics = self.active_layout.layout_metrics();
             let diagnostic_text_metrics =
                 self.active_diagnostic_layout.layout_metrics();
 
-            let side_margin =
-                env.get(theme::SCROLLBAR_WIDTH) + env.get(theme::SCROLLBAR_PAD);
-            let line_height = data.config.editor.line_height() as f64;
-
-            // Create a separating line
             let line = {
                 let x0 = rect.x0 + side_margin;
-                let y = diagnostic_text_metrics.size.height + line_height;
+                let y =
+                    diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0;
                 let x1 = rect.x1 - side_margin;
                 Line::new(Point::new(x0, y), Point::new(x1, y))
             };
 
-            // Draw the separator
             ctx.stroke(
                 line,
                 data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
                 1.0,
             );
 
-            // Draw the diagnostic text
             self.active_diagnostic_layout.draw(ctx, diagnostic_origin);
 
-            diagnostic_text_metrics.size.height + line_height
+            diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0
         };
 
         let doc_origin = diagnostic_origin + (0.0, height);
 
-        self.active_layout.draw(ctx, doc_origin);
+        let mut start_height = 0.0;
+
+        let active_items_len = data.hover.items.len();
+
+        for (i, layout) in self.active_layout.iter_mut().enumerate() {
+            layout.draw(ctx, doc_origin + (0.0, start_height));
+
+            if i < active_items_len - 1 {
+                let layout_metrics = layout.layout_metrics();
+                start_height += layout_metrics.size.height;
+
+                let line = {
+                    let x0 = rect.x0 + side_margin;
+                    let y =
+                        (doc_origin + (0.0, start_height)).y + (line_height / 2.0);
+                    let x1 = rect.x1 - side_margin;
+                    Line::new(Point::new(x0, y), Point::new(x1, y))
+                };
+
+                start_height += line_height;
+
+                ctx.stroke(
+                    line,
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
+            }
+        }
     }
 }
