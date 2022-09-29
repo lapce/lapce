@@ -333,19 +333,16 @@ impl Selection {
         &self.regions[first..last]
     }
 
-    pub fn delete_range(&mut self, start: usize, end: usize, delete_adjacent: bool) {
+    pub fn delete_range(&mut self, start: usize, end: usize) {
         let mut first = self.search(start);
         let mut last = self.search(end);
         if first >= self.regions.len() {
             return;
         }
-        if !delete_adjacent && self.regions[first].max() == start {
+        if self.regions[first].max() == start {
             first += 1;
         }
-        if last < self.regions.len()
-            && ((delete_adjacent && self.regions[last].min() <= end)
-                || (!delete_adjacent && self.regions[last].min() < end))
-        {
+        if last < self.regions.len() && self.regions[last].min() < end {
             last += 1;
         }
         remove_n_at(&mut self.regions, first, last - first);
