@@ -90,7 +90,7 @@ pub struct TextLayoutLine {
 
 #[derive(Clone, Default)]
 pub struct TextLayoutCache {
-    config_id: u128,
+    config_id: u64,
     pub layouts: HashMap<usize, HashMap<usize, Arc<TextLayoutLine>>>,
     pub max_width: f64,
 }
@@ -108,7 +108,7 @@ impl TextLayoutCache {
         self.layouts.clear();
     }
 
-    pub fn check_attributes(&mut self, config_id: u128) {
+    pub fn check_attributes(&mut self, config_id: u64) {
         if self.config_id != config_id {
             self.clear();
             self.config_id = config_id;

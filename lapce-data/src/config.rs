@@ -589,7 +589,7 @@ impl ThemeBaseColor {
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct LapceConfig {
     #[serde(skip)]
-    pub id: u128,
+    pub id: u64,
     pub core: CoreConfig,
     pub ui: UIConfig,
     pub editor: EditorConfig,
@@ -956,7 +956,7 @@ impl LapceConfig {
     fn update_id(&mut self) {
         self.id = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis())
+            .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
     }
 
