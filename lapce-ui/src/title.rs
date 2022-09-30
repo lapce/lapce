@@ -486,7 +486,7 @@ impl Title {
         ));
 
         #[cfg(not(target_os = "macos"))]
-        if !data.multiple_tab && data.config.lapce.custom_titlebar {
+        if !data.multiple_tab && data.config.core.custom_titlebar {
             x += size.height;
             let (window_controls, svgs) = window_controls(
                 *data.window_id,

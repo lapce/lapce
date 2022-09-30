@@ -249,7 +249,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                 self.mouse_down_cmd = None;
                 #[cfg(not(target_os = "macos"))]
                 if (data.tabs.len() > 1 && _mouse_event.count == 1)
-                    || data.config.lapce.custom_titlebar
+                    || data.config.core.custom_titlebar
                 {
                     for (rect, cmd) in self.tab_header_cmds.iter() {
                         if rect.contains(_mouse_event.pos) {
@@ -283,7 +283,7 @@ impl Widget<LapceWindowData> for LapceWindow {
 
                 #[cfg(not(target_os = "macos"))]
                 if (data.tabs.len() > 1 && mouse_event.count < 2)
-                    || data.config.lapce.custom_titlebar
+                    || data.config.core.custom_titlebar
                 {
                     if let Some((rect, cmd)) = self.mouse_down_cmd.as_ref() {
                         if rect.contains(mouse_event.pos) {
@@ -748,7 +748,7 @@ impl Widget<LapceWindowData> for LapceWindow {
 
             self.tab_header_cmds.clear();
             #[cfg(not(target_os = "macos"))]
-            if data.config.lapce.custom_titlebar {
+            if data.config.core.custom_titlebar {
                 let (cmds, svgs) = window_controls(
                     data.window_id,
                     &ctx.window().get_window_state(),
