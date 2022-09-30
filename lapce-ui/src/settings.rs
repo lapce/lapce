@@ -21,7 +21,7 @@ use lapce_data::{
         CommandExecuted, CommandKind, LapceUICommand, LAPCE_COMMAND,
         LAPCE_UI_COMMAND,
     },
-    config::{EditorConfig, LapceConfig, LapceTheme, TerminalConfig, UIConfig},
+    config::{CoreConfig, EditorConfig, LapceTheme, TerminalConfig, UIConfig},
     data::{FocusArea, LapceEditorData, LapceTabData},
     document::{BufferContent, Document},
     keypress::KeyPressFocus,
@@ -391,10 +391,10 @@ impl LapceSettings {
 
         let (kind, fields, descs, mut settings) = match self.kind {
             LapceSettingsKind::Core => (
-                "lapce",
-                &LapceConfig::FIELDS[..],
-                &LapceConfig::DESCS[..],
-                into_settings_map(&data.config.lapce),
+                "core",
+                &CoreConfig::FIELDS[..],
+                &CoreConfig::DESCS[..],
+                into_settings_map(&data.config.core),
             ),
             LapceSettingsKind::UI => (
                 "ui",

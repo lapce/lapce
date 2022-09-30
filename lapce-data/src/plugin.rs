@@ -14,7 +14,7 @@ use plugin_install_status::PluginInstallStatus;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::Config,
+    config::LapceConfig,
     markdown::parse_markdown,
     proxy::LapceProxy,
 };
@@ -172,7 +172,7 @@ impl PluginData {
     pub fn download_readme(
         widget_id: WidgetId,
         volt: &VoltInfo,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> Result<()> {
         let url = Url::parse(&volt.meta)?;

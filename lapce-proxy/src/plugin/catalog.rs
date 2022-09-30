@@ -179,12 +179,40 @@ impl PluginCatalog {
                         self.open_files
                             .iter()
                             .any(|(_, language_id)| l.contains(language_id))
-                    })?;
+                    })
+                    .unwrap_or(false);
                 if contains {
-                    Some(id.to_string())
-                } else {
-                    None
+                    return Some(id.to_string());
                 }
+
+                if let Some(workspace) = self.workspace.as_ref() {
+                    if let Some(globs) = meta
+                        .activation
+                        .as_ref()
+                        .and_then(|a| a.workspace_contains.as_ref())
+                    {
+                        let mut builder = globset::GlobSetBuilder::new();
+                        for glob in globs {
+                            if let Ok(glob) = globset::Glob::new(glob) {
+                                builder.add(glob);
+                            }
+                        }
+                        if let Ok(matcher) = builder.build() {
+                            if !matcher.is_empty() {
+                                for entry in walkdir::WalkDir::new(workspace)
+                                    .into_iter()
+                                    .flatten()
+                                {
+                                    if matcher.is_match(entry.path()) {
+                                        return Some(id.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                None
             })
             .collect();
         self.start_unactivated_volts(to_be_activated);

@@ -10,7 +10,7 @@ use druid::{
 use druid::{Menu, MenuItem, SysMods};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::Config,
+    config::LapceConfig,
     data::{
         LapceData, LapceTabLens, LapceWindowData, LapceWindowLens, LapceWorkspace,
         LapceWorkspaceType,
@@ -67,7 +67,9 @@ pub fn launch() {
                 .chain(std::io::stderr()),
         ));
 
-    if let Some(log_file) = Config::log_file().and_then(|f| fern::log_file(f).ok()) {
+    if let Some(log_file) =
+        LapceConfig::log_file().and_then(|f| fern::log_file(f).ok())
+    {
         log_dispatch = log_dispatch.chain(
             fern::Dispatch::new()
                 .level(log::LevelFilter::Debug)
@@ -114,7 +116,7 @@ fn new_window_desc<W, T: druid::Data>(
     size: Size,
     pos: Point,
     maximised: bool,
-    config: &Arc<Config>,
+    config: &Arc<LapceConfig>,
 ) -> WindowDesc<T>
 where
     W: Widget<T> + 'static,
@@ -151,7 +153,7 @@ where
         .set_position(pos);
 
     if cfg!(not(target_os = "macos")) {
-        desc = desc.show_titlebar(!config.lapce.custom_titlebar);
+        desc = desc.show_titlebar(!config.core.custom_titlebar);
     } else {
         desc = desc.show_titlebar(false);
     }

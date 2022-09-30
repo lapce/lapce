@@ -10,7 +10,7 @@ use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
 use std::str::FromStr;
 
-use crate::{config::Config, list::ListData, proxy::LapceProxy};
+use crate::{config::LapceConfig, list::ListData, proxy::LapceProxy};
 
 #[derive(Debug)]
 pub struct Snippet {
@@ -249,7 +249,7 @@ pub struct CompletionData {
 }
 
 impl CompletionData {
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(config: Arc<LapceConfig>) -> Self {
         let id = WidgetId::next();
         let mut completion_list = ListData::new(config, id, ());
         // TODO: Make this configurable

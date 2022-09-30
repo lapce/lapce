@@ -6,7 +6,7 @@ use druid::{
 };
 
 use crate::{
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     keypress::paint_key,
 };
 
@@ -61,7 +61,7 @@ impl KeyPress {
         &self,
         ctx: &mut PaintCtx,
         origin: Point,
-        config: &Config,
+        config: &LapceConfig,
     ) -> (Point, Vec<(Option<Rect>, PietTextLayout, Point)>) {
         let mut origin = origin;
         let mut keys = Vec::new();

@@ -332,7 +332,7 @@ impl Title {
         let mut x = x;
         if cfg!(target_os = "macos")
             || data.multiple_tab
-            || !data.config.lapce.custom_titlebar
+            || !data.config.core.custom_titlebar
         {
             x -= size.height;
         } else {

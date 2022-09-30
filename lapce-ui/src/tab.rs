@@ -22,7 +22,7 @@ use lapce_data::{
         LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::{
         DragContent, EditorDiagnostic, FocusArea, LapceData, LapceTabData,
         LapceWindowData, LapceWorkspace, LapceWorkspaceType, WorkProgress,
@@ -1264,12 +1264,12 @@ impl LapceTab {
                             .and_then(|i| i.into_value().ok())
                         {
                             let update_result =
-                                Config::update_file(parent, key, value);
+                                LapceConfig::update_file(parent, key, value);
                             debug_assert!(update_result.is_some());
                         }
                     }
                     LapceUICommand::ResetSettingsFile(parent, key) => {
-                        Config::reset_setting(parent, key);
+                        LapceConfig::reset_setting(parent, key);
                     }
                     LapceUICommand::OpenFileDiff(path, history) => {
                         let editor_view_id = data.main_split.active.clone();
@@ -1567,7 +1567,7 @@ impl LapceTab {
                                     && editor.cursor.offset() >= doc.buffer().len()
                                 {
                                     let editor = Arc::make_mut(editor);
-                                    if data.config.lapce.modal {
+                                    if data.config.core.modal {
                                         editor.cursor = Cursor::new(
                                             CursorMode::Normal(
                                                 doc.buffer().offset_line_end(

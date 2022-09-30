@@ -235,23 +235,6 @@ impl PluginCatalogRpcHandler {
         Ok(())
     }
 
-    fn server_notification<P: Serialize>(
-        &self,
-        method: &'static str,
-        params: P,
-        language_id: Option<String>,
-        path: Option<PathBuf>,
-    ) {
-        let params = serde_json::to_value(params).unwrap();
-        let rpc = PluginCatalogRpc::ServerNotification {
-            method,
-            params,
-            language_id,
-            path,
-        };
-        let _ = self.plugin_tx.send(rpc);
-    }
-
     fn send_request_to_all_plugins<P, Resp>(
         &self,
         method: &'static str,

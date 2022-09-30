@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use xi_rope::Rope;
 
 use crate::{
-    config::Config,
+    config::LapceConfig,
     data::{
         EditorTabChild, LapceData, LapceEditorData, LapceEditorTabData,
         LapceMainSplitData, LapceTabData, LapceWindowData, LapceWorkspace,
@@ -52,7 +52,7 @@ impl SplitContentInfo {
         parent_split: Option<WidgetId>,
         editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> SplitContent {
         match &self {
@@ -96,7 +96,7 @@ impl EditorTabInfo {
         split: WidgetId,
         editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> LapceEditorTabData {
         let editor_tab_id = WidgetId::next();
@@ -147,7 +147,7 @@ impl EditorTabChildInfo {
         editor_tab_id: WidgetId,
         editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> EditorTabChild {
         match &self {
@@ -208,7 +208,7 @@ impl SplitInfo {
         parent_split: Option<WidgetId>,
         editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> SplitData {
         let split_id = WidgetId::next();
@@ -285,7 +285,7 @@ impl EditorInfo {
         editor_tab_id: WidgetId,
         editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> LapceEditorData {
         let editor_data = LapceEditorData::new(

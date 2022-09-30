@@ -5,7 +5,7 @@ use lapce_core::{command::FocusCommand, mode::Mode};
 
 use crate::{
     command::{CommandExecuted, CommandKind, LapceCommand},
-    config::Config,
+    config::LapceConfig,
     keypress::KeyPressFocus,
     list::ListData,
 };
@@ -16,7 +16,7 @@ pub struct TitleData {
     pub branches: BranchListData,
 }
 impl TitleData {
-    pub fn new(config: Arc<Config>) -> TitleData {
+    pub fn new(config: Arc<LapceConfig>) -> TitleData {
         let widget_id = WidgetId::next();
         TitleData {
             widget_id,
@@ -34,7 +34,7 @@ pub struct BranchListData {
     pub origin: Point,
 }
 impl BranchListData {
-    fn new(config: Arc<Config>, parent: WidgetId) -> Self {
+    fn new(config: Arc<LapceConfig>, parent: WidgetId) -> Self {
         let list = ListData::new(config, parent, ());
         BranchListData {
             list,

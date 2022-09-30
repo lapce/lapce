@@ -56,7 +56,7 @@ use crate::{
         LAPCE_OPEN_FOLDER, LAPCE_UI_COMMAND,
     },
     completion::CompletionData,
-    config::{Config, ConfigWatcher, GetConfig, LapceTheme},
+    config::{ConfigWatcher, GetConfig, LapceConfig, LapceTheme},
     db::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
@@ -113,7 +113,7 @@ impl LapceData {
     pub fn load(event_sink: ExtEventSink, paths: Vec<PathBuf>) -> Self {
         let db = Arc::new(LapceDb::new().unwrap());
         let mut windows = im::HashMap::new();
-        let config = Config::load(&LapceWorkspace::default()).unwrap_or_default();
+        let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
         let keypress = Arc::new(KeyPressData::new(&config, event_sink.clone()));
         let panel_orders = db
             .get_panel_orders()
@@ -408,7 +408,7 @@ pub struct LapceWindowData {
     /// The Id of the active window tab.
     pub active_id: Arc<WidgetId>,
     pub keypress: Arc<KeyPressData>,
-    pub config: Arc<Config>,
+    pub config: Arc<LapceConfig>,
     pub db: Arc<LapceDb>,
     pub watcher: Arc<notify::RecommendedWatcher>,
     /// The size of the window.
@@ -472,14 +472,14 @@ impl LapceWindowData {
             active_tab_id = tab_id;
         }
 
-        let config = Arc::new(
-            Config::load(&LapceWorkspace {
+        let config = Arc::new(LapceConfig::load(
+            &LapceWorkspace {
                 kind: LapceWorkspaceType::Local,
                 path: None,
                 last_open: 0,
-            })
-            .unwrap_or_default(),
-        );
+            },
+            &[],
+        ));
         let _ = event_sink.submit_command(
             LAPCE_UI_COMMAND,
             LapceUICommand::Focus,
@@ -488,13 +488,13 @@ impl LapceWindowData {
 
         let mut watcher =
             notify::recommended_watcher(ConfigWatcher::new(event_sink)).unwrap();
-        if let Some(path) = Config::settings_file() {
+        if let Some(path) = LapceConfig::settings_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
         if let Some(path) = Directory::themes_directory() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-        if let Some(path) = Config::keymaps_file() {
+        if let Some(path) = LapceConfig::keymaps_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
         if let Some(path) = Directory::plugins_directory() {
@@ -613,7 +613,7 @@ pub struct LapceTabData {
     #[data(ignore)]
     pub window_origin: Rc<RefCell<Point>>,
     pub panel: Arc<PanelData>,
-    pub config: Arc<Config>,
+    pub config: Arc<LapceConfig>,
     pub focus: Arc<WidgetId>,
     pub focus_area: FocusArea,
     #[data(ignore)]
@@ -624,7 +624,7 @@ pub struct LapceTabData {
 }
 
 impl GetConfig for LapceTabData {
-    fn get_config(&self) -> &Config {
+    fn get_config(&self) -> &LapceConfig {
         &self.config
     }
 }
@@ -641,8 +641,14 @@ impl LapceTabData {
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
     ) -> Self {
-        let config = Arc::new(Config::load(&workspace).unwrap_or_default());
+        let disabled_volts = db.get_disabled_volts().unwrap_or_default();
+        let workspace_disabled_volts = db
+            .get_workspace_disabled_volts(&workspace)
+            .unwrap_or_default();
+        let mut all_disabled_volts = disabled_volts.clone();
+        all_disabled_volts.extend_from_slice(&workspace_disabled_volts);
 
+        let config = Arc::new(LapceConfig::load(&workspace, &all_disabled_volts));
         let workspace_info = if workspace.path.is_some() {
             db.get_workspace_info(&workspace).ok()
         } else {
@@ -650,12 +656,6 @@ impl LapceTabData {
         };
 
         let (term_sender, term_receiver) = unbounded();
-        let disabled_volts = db.get_disabled_volts().unwrap_or_default();
-        let workspace_disabled_volts = db
-            .get_workspace_disabled_volts(&workspace)
-            .unwrap_or_default();
-        let mut all_disabled_volts = disabled_volts.clone();
-        all_disabled_volts.extend_from_slice(&workspace_disabled_volts);
         let proxy = Arc::new(LapceProxy::new(
             window_id,
             tab_id,
@@ -962,7 +962,7 @@ impl LapceTabData {
         text: &mut PietText,
         tab_size: Size,
         completion_size: Size,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Point {
         let line_height = self.config.editor.line_height() as f64;
 
@@ -1016,7 +1016,7 @@ impl LapceTabData {
         text: &mut PietText,
         tab_size: Size,
         rename_size: Size,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Point {
         let editor = self.main_split.active_editor();
         let editor = match editor {
@@ -1064,7 +1064,7 @@ impl LapceTabData {
         &self,
         text: &mut PietText,
         tab_size: Size,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Point {
         let line_height = self.config.editor.line_height() as f64;
 
@@ -1231,13 +1231,21 @@ impl LapceTabData {
             }
             LapceWorkbenchCommand::EnableModal => {
                 let config = Arc::make_mut(&mut self.config);
-                config.lapce.modal = true;
-                Config::update_file("lapce", "modal", toml_edit::Value::from(true));
+                config.core.modal = true;
+                LapceConfig::update_file(
+                    "core",
+                    "modal",
+                    toml_edit::Value::from(true),
+                );
             }
             LapceWorkbenchCommand::DisableModal => {
                 let config = Arc::make_mut(&mut self.config);
-                config.lapce.modal = false;
-                Config::update_file("lapce", "modal", toml_edit::Value::from(false));
+                config.core.modal = false;
+                LapceConfig::update_file(
+                    "core",
+                    "modal",
+                    toml_edit::Value::from(false),
+                );
             }
             LapceWorkbenchCommand::ChangeTheme => {
                 ctx.submit_command(Command::new(
@@ -1250,7 +1258,7 @@ impl LapceTabData {
                 self.main_split.new_file(ctx, &self.config);
             }
             LapceWorkbenchCommand::OpenLogFile => {
-                if let Some(path) = Config::log_file() {
+                if let Some(path) = LapceConfig::log_file() {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
@@ -1269,7 +1277,7 @@ impl LapceTabData {
                 self.main_split.open_settings(ctx, false, &self.config);
             }
             LapceWorkbenchCommand::OpenSettingsFile => {
-                if let Some(path) = Config::settings_file() {
+                if let Some(path) = LapceConfig::settings_file() {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
@@ -1310,7 +1318,7 @@ impl LapceTabData {
                 self.main_split.open_settings(ctx, true, &self.config);
             }
             LapceWorkbenchCommand::OpenKeyboardShortcutsFile => {
-                if let Some(path) = Config::keymaps_file() {
+                if let Some(path) = LapceConfig::keymaps_file() {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
@@ -1557,7 +1565,7 @@ impl LapceTabData {
                     .editors
                     .get_mut(&self.source_control.editor_view_id)
                     .unwrap();
-                Arc::make_mut(editor).cursor = if self.config.lapce.modal {
+                Arc::make_mut(editor).cursor = if self.config.core.modal {
                     Cursor::new(CursorMode::Normal(0), None, None)
                 } else {
                     Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
@@ -1643,7 +1651,7 @@ impl LapceTabData {
             LapceWorkbenchCommand::ToggleInlayHints => {
                 let config = Arc::make_mut(&mut self.config);
                 config.editor.enable_inlay_hints = !config.editor.enable_inlay_hints;
-                Config::update_file(
+                LapceConfig::update_file(
                     "editor",
                     "enable-inlay-hints",
                     toml_edit::Value::from(config.editor.enable_inlay_hints),
@@ -1879,7 +1887,7 @@ impl LapceTabData {
                 .get_mut(&self.picker.editor_view_id)
                 .unwrap();
             let editor = Arc::make_mut(editor);
-            editor.cursor = if self.config.lapce.modal {
+            editor.cursor = if self.config.core.modal {
                 Cursor::new(
                     CursorMode::Normal(doc.buffer().line_end_offset(0, false)),
                     None,
@@ -2336,7 +2344,7 @@ impl LapceMainSplitData {
         &mut self,
         _ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
-        config: &Config,
+        config: &LapceConfig,
     ) -> WidgetId {
         let editor_tab = self.editor_tabs.get_mut(&editor_tab_id).unwrap();
         let editor_tab = Arc::make_mut(editor_tab);
@@ -2362,7 +2370,7 @@ impl LapceMainSplitData {
         &mut self,
         _ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
-        config: &Config,
+        config: &LapceConfig,
     ) -> WidgetId {
         let editor_tab = self.editor_tabs.get_mut(&editor_tab_id).unwrap();
         let editor_tab = Arc::make_mut(editor_tab);
@@ -2389,7 +2397,7 @@ impl LapceMainSplitData {
         same_tab: bool,
         path: Option<PathBuf>,
         scratch: bool,
-        config: &Config,
+        config: &LapceConfig,
     ) -> &mut LapceEditorData {
         if path.is_none() {
             let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
@@ -2514,7 +2522,7 @@ impl LapceMainSplitData {
         same_tab: bool,
         path: Option<PathBuf>,
         scratch: bool,
-        config: &Config,
+        config: &LapceConfig,
     ) -> &mut LapceEditorData {
         match editor_view_id {
             Some(view_id) => Arc::make_mut(self.editors.get_mut(&view_id).unwrap()),
@@ -2538,7 +2546,7 @@ impl LapceMainSplitData {
         editor_view_id: Option<WidgetId>,
         same_tab: bool,
         position: Position,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let editor = self.get_editor_or_new(
             ctx,
@@ -2619,7 +2627,7 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         show_key_bindings: bool,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let widget_id = match *self.active_tab {
             Some(active) => {
@@ -2697,7 +2705,7 @@ impl LapceMainSplitData {
         editor_view_id: Option<WidgetId>,
         same_tab: bool,
         location: EditorLocation<P>,
-        config: &Config,
+        config: &LapceConfig,
     ) -> WidgetId {
         self.jump_to_location_cb::<P, fn(&mut EventCtx, &mut LapceMainSplitData)>(
             ctx,
@@ -2718,7 +2726,7 @@ impl LapceMainSplitData {
         editor_view_id: Option<WidgetId>,
         same_tab: bool,
         location: EditorLocation<P>,
-        config: &Config,
+        config: &LapceConfig,
         cb: Option<F>,
     ) -> WidgetId {
         if let Some(active_tab) = self.active_tab.as_ref() {
@@ -2815,7 +2823,7 @@ impl LapceMainSplitData {
         format!("{}{}", PREFIX, new_num)
     }
 
-    pub fn install_theme(&mut self, ctx: &mut EventCtx, _config: &Config) {
+    pub fn install_theme(&mut self, ctx: &mut EventCtx, _config: &LapceConfig) {
         let tab = self.get_active_tab_mut(ctx);
         let child = tab.active_child().clone();
         match child {
@@ -2834,7 +2842,7 @@ impl LapceMainSplitData {
         }
     }
 
-    pub fn export_theme(&mut self, ctx: &mut EventCtx, config: &Config) {
+    pub fn export_theme(&mut self, ctx: &mut EventCtx, config: &LapceConfig) {
         let id = self.new_file(ctx, config);
         let doc = self.scratch_docs.get_mut(&id).unwrap();
         let doc = Arc::make_mut(doc);
@@ -2845,7 +2853,11 @@ impl LapceMainSplitData {
         doc.reload(Rope::from(config.export_theme()), true);
     }
 
-    pub fn new_file(&mut self, ctx: &mut EventCtx, config: &Config) -> BufferId {
+    pub fn new_file(
+        &mut self,
+        ctx: &mut EventCtx,
+        config: &LapceConfig,
+    ) -> BufferId {
         let tab_id = *self.tab_id;
         let proxy = self.proxy.clone();
         let buffer_id = BufferId::next();
@@ -2857,7 +2869,7 @@ impl LapceMainSplitData {
 
         let editor = self.get_editor_or_new(ctx, None, true, None, true, config);
         editor.content = content;
-        editor.cursor = if config.lapce.modal {
+        editor.cursor = if config.core.modal {
             Cursor::new(CursorMode::Normal(0), None, None)
         } else {
             Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
@@ -2871,7 +2883,7 @@ impl LapceMainSplitData {
         editor_view_id: Option<WidgetId>,
         same_tab: bool,
         location: EditorLocation<P>,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         // Unfortunately this is the 'nicest' way I know to pass in no callback to an Option<F>
         self.go_to_location_cb::<P, fn(&mut EventCtx, &mut LapceMainSplitData)>(
@@ -2895,7 +2907,7 @@ impl LapceMainSplitData {
         editor_view_id: Option<WidgetId>,
         same_tab: bool,
         location: EditorLocation<P>,
-        config: &Config,
+        config: &LapceConfig,
         cb: Option<F>,
     ) {
         let editor_view_id = self
@@ -2987,7 +2999,7 @@ impl LapceMainSplitData {
             }
             editor.content = BufferContent::File(path.clone());
             editor.compare = location.history.clone();
-            editor.cursor = if config.lapce.modal {
+            editor.cursor = if config.core.modal {
                 Cursor::new(CursorMode::Normal(offset), None, None)
             } else {
                 Cursor::new(CursorMode::Insert(Selection::caret(offset)), None, None)
@@ -3028,7 +3040,7 @@ impl LapceMainSplitData {
         ctx: &mut EventCtx,
         editor_view_id: Option<WidgetId>,
         line: usize,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let editor =
             self.get_editor_or_new(ctx, editor_view_id, true, None, false, config);
@@ -3059,7 +3071,7 @@ impl LapceMainSplitData {
         workspace_info: Option<&WorkspaceInfo>,
         palette_preview_editor: WidgetId,
         proxy: Arc<LapceProxy>,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
         workspace: Arc<LapceWorkspace>,
         db: Arc<LapceDb>,
@@ -3161,7 +3173,11 @@ impl LapceMainSplitData {
         main_split_data
     }
 
-    pub fn insert_editor(&mut self, editor: Arc<LapceEditorData>, config: &Config) {
+    pub fn insert_editor(
+        &mut self,
+        editor: Arc<LapceEditorData>,
+        config: &LapceConfig,
+    ) {
         if let Some((find_view_id, find_editor_id)) = editor.find_view_id {
             let mut find_editor = LapceEditorData::new(
                 Some(find_view_id),
@@ -3182,7 +3198,7 @@ impl LapceMainSplitData {
         view_id: WidgetId,
         split_id: Option<WidgetId>,
         buffer_kind: LocalBufferKind,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) {
         let doc = Document::new(
@@ -3601,7 +3617,7 @@ impl LapceMainSplitData {
         volt_id: String,
         volt_name: String,
         direction: SplitDirection,
-        _config: &Config,
+        _config: &LapceConfig,
     ) {
         let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
         let split_id = editor_tab.split;
@@ -3646,7 +3662,7 @@ impl LapceMainSplitData {
         ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
         direction: SplitDirection,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
         let split_id = editor_tab.split;
@@ -3700,7 +3716,7 @@ impl LapceMainSplitData {
         ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
         direction: SplitDirection,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
         if let Some(active) = editor_tab.children.get(editor_tab.active) {
@@ -3735,7 +3751,7 @@ impl LapceMainSplitData {
         ctx: &mut EventCtx,
         view_id: WidgetId,
         direction: SplitDirection,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let editor = self.editors.get(&view_id).unwrap();
         if let Some(editor_tab_id) = editor.tab_id {
@@ -3942,7 +3958,7 @@ impl LapceEditorData {
         editor_id: Option<WidgetId>,
         tab_id: Option<WidgetId>,
         content: BufferContent,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Self {
         Self {
             tab_id,
@@ -3958,7 +3974,7 @@ impl LapceEditorData {
             scroll_offset: Vec2::ZERO,
             cursor: if content.is_input() {
                 Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
-            } else if config.lapce.modal {
+            } else if config.core.modal {
                 Cursor::new(CursorMode::Normal(0), None, None)
             } else {
                 Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)

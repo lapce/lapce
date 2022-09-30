@@ -7,7 +7,7 @@ use crate::{
     command::{
         CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
-    config::{Config, GetConfig},
+    config::{GetConfig, LapceConfig},
 };
 
 // Note: when adding fields to this, make sure to think whether they need to be added to the `same`
@@ -36,11 +36,11 @@ pub struct ListData<T: Clone, D: Data> {
     pub line_height: Option<usize>,
 
     // These should be filled whenever you call into the `List` widget
-    pub config: Arc<Config>,
+    pub config: Arc<LapceConfig>,
 }
 impl<T: Clone, D: Data> ListData<T, D> {
     pub fn new(
-        config: Arc<Config>,
+        config: Arc<LapceConfig>,
         parent: WidgetId,
         held_data: D,
     ) -> ListData<T, D> {
@@ -59,14 +59,14 @@ impl<T: Clone, D: Data> ListData<T, D> {
     /// This is typically what you need to use to ensure that it has the
     /// appropriately updated data when passing the data to the list's widget functions    
     /// Note that due to the usage of `Arc` and `im::Vector`, cloning is relatively cheap.
-    pub fn clone_with(&self, config: Arc<Config>) -> ListData<T, D> {
+    pub fn clone_with(&self, config: Arc<LapceConfig>) -> ListData<T, D> {
         let mut data = self.clone();
         data.update_data(config);
 
         data
     }
 
-    pub fn update_data(&mut self, config: Arc<Config>) {
+    pub fn update_data(&mut self, config: Arc<LapceConfig>) {
         self.config = config;
     }
 
@@ -197,7 +197,7 @@ impl<T: Clone + PartialEq + 'static, D: Data> Data for ListData<T, D> {
     }
 }
 impl<T: Clone + PartialEq + 'static, D: Data> GetConfig for ListData<T, D> {
-    fn get_config(&self) -> &Config {
+    fn get_config(&self) -> &LapceConfig {
         &self.config
     }
 }

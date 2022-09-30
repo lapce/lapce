@@ -22,7 +22,7 @@ use lapce_data::proxy::{LapceProxy, VERSION};
 use lapce_data::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::LapceTabData,
 };
 use lapce_rpc::file::FileNodeItem;
@@ -45,7 +45,7 @@ fn paint_single_file_node_item(
     current: usize,
     active: Option<&Path>,
     hovered: Option<usize>,
-    config: &Config,
+    config: &LapceConfig,
     toggle_rects: &mut HashMap<usize, Rect>,
 ) {
     let background = if Some(item.path_buf.as_ref()) == active {
@@ -148,7 +148,7 @@ pub fn paint_file_node_item(
     name_edit_input: &mut NameEditInput,
     drawn_name_input: &mut bool,
     data: &LapceTabData,
-    config: &Config,
+    config: &LapceConfig,
     toggle_rects: &mut HashMap<usize, Rect>,
 ) -> usize {
     if current > max {

@@ -7,7 +7,7 @@ use druid::{
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::{LapceTabData, LapceTabLens, LapceWindowData, LapceWorkspace},
 };
 use std::cmp::Ordering;
@@ -317,15 +317,25 @@ impl Widget<LapceWindowData> for LapceWindow {
                         ctx.set_handled();
                     }
                     LapceUICommand::ReloadConfig => {
-                        data.config = Arc::new(
-                            Config::load(&LapceWorkspace::default())
-                                .unwrap_or_default(),
-                        );
+                        data.config = Arc::new(LapceConfig::load(
+                            &LapceWorkspace::default(),
+                            &[],
+                        ));
                         for (_, tab) in data.tabs.iter_mut() {
-                            tab.config = Arc::new(
-                                Config::load(&tab.workspace.clone())
-                                    .unwrap_or_default(),
+                            let mut disabled_volts: Vec<String> =
+                                tab.plugin.disabled.clone().into_iter().collect();
+                            disabled_volts.append(
+                                &mut tab
+                                    .plugin
+                                    .workspace_disabled
+                                    .clone()
+                                    .into_iter()
+                                    .collect(),
                             );
+                            tab.config = Arc::new(LapceConfig::load(
+                                &tab.workspace.clone(),
+                                &disabled_volts,
+                            ));
                         }
                         Arc::make_mut(&mut data.keypress)
                             .update_keymaps(&data.config);
@@ -340,7 +350,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                     }
                     LapceUICommand::SetWorkspace(workspace) => {
                         let mut workspaces =
-                            Config::recent_workspaces().unwrap_or_default();
+                            LapceConfig::recent_workspaces().unwrap_or_default();
 
                         let mut exits = false;
                         for w in workspaces.iter_mut() {
@@ -356,19 +366,24 @@ impl Widget<LapceWindowData> for LapceWindow {
                             workspaces.push(workspace.clone());
                         }
                         workspaces.sort_by_key(|w| -(w.last_open as i64));
-                        Config::update_recent_workspaces(workspaces);
+                        LapceConfig::update_recent_workspaces(workspaces);
 
                         self.new_tab(ctx, data, workspace.clone(), true);
                         return;
                     }
                     LapceUICommand::SetTheme(theme, preview) => {
                         let config = Arc::make_mut(&mut data.config);
-                        config.set_theme(theme, *preview);
-                        if *preview {
-                            for (_, tab) in data.tabs.iter_mut() {
-                                Arc::make_mut(&mut tab.config)
-                                    .set_theme(theme, true);
-                            }
+                        config.set_theme(
+                            &LapceWorkspace::default(),
+                            theme,
+                            *preview,
+                        );
+                        for (_, tab) in data.tabs.iter_mut() {
+                            Arc::make_mut(&mut tab.config).set_theme(
+                                &tab.workspace,
+                                theme,
+                                true,
+                            );
                         }
                         ctx.set_handled();
                     }
@@ -530,10 +545,9 @@ impl Widget<LapceWindowData> for LapceWindow {
             ctx.request_layout();
         }
         #[cfg(not(platform_os = "macos"))]
-        if data.config.lapce.custom_titlebar != old_data.config.lapce.custom_titlebar
-        {
+        if data.config.core.custom_titlebar != old_data.config.core.custom_titlebar {
             ctx.window()
-                .show_titlebar(!data.config.lapce.custom_titlebar);
+                .show_titlebar(!data.config.core.custom_titlebar);
         }
         let old_tab = old_data.tabs.get(&old_data.active_id).unwrap();
         let tab = data.tabs.get(&data.active_id).unwrap();
@@ -569,7 +583,7 @@ impl Widget<LapceWindowData> for LapceWindow {
             let left_padding = 0.0;
             #[cfg(target_os = "macos")]
             let left_padding = if ctx.window().is_fullscreen()
-                || !data.config.lapce.custom_titlebar
+                || !data.config.core.custom_titlebar
             {
                 0.0
             } else {
@@ -607,7 +621,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                 x += size.width;
             }
 
-            self.draggable_area = if data.config.lapce.custom_titlebar {
+            self.draggable_area = if data.config.core.custom_titlebar {
                 // Area right of tabs, but left of the window control buttons
                 let mut draggable_area = Region::from(
                     Size::new(
@@ -786,7 +800,7 @@ pub fn window_controls(
     window_state: &WindowState,
     x: f64,
     width: f64,
-    config: &Config,
+    config: &LapceConfig,
 ) -> (
     Vec<(Rect, Command)>,
     Vec<(druid::piet::Svg, Rect, druid::Color)>,

@@ -15,6 +15,7 @@ regex = "1.5.6"
 grep-searcher = "0.1.8"
 grep-matcher = "0.1.5"
 grep-regex = "0.1.9"
+walkdir = "2.3.2"
 ignore = "0.4.18"
 globset = "0.4.9"
 reqwest = { version = "0.11", features = ["blocking", "json", "socks"] }

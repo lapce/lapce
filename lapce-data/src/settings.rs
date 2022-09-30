@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     command::{CommandExecuted, CommandKind, LapceUICommand, LAPCE_UI_COMMAND},
-    config::Config,
+    config::LapceConfig,
     data::LapceMainSplitData,
     keypress::KeyPressFocus,
     split::SplitDirection,
@@ -102,7 +102,7 @@ pub struct LapceSettingsFocusData {
     pub widget_id: WidgetId,
     pub editor_tab_id: WidgetId,
     pub main_split: LapceMainSplitData,
-    pub config: Arc<Config>,
+    pub config: Arc<LapceConfig>,
 }
 
 impl KeyPressFocus for LapceSettingsFocusData {
