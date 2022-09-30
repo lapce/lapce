@@ -761,6 +761,9 @@ impl Document {
             let rev = buffer.rev();
             let len = buffer.len();
             let event_sink = self.event_sink.clone();
+            let syntactic_styles =
+                self.syntax().and_then(|s| s.styles.as_ref()).cloned();
+
             self.proxy
                 .proxy_rpc
                 .get_semantic_tokens(path.clone(), move |result| {
@@ -773,14 +776,36 @@ impl Document {
                                     style.style,
                                 );
                             }
-                            let styles_span = Arc::new(styles_span.build());
+
+                            let styles = styles_span.build();
+
+                            let mut syntactic_styles_spans = SpansBuilder::new(len);
+
+                            if let Some(syntactic_styles) = syntactic_styles {
+                                for (interval, style) in syntactic_styles.iter() {
+                                    syntactic_styles_spans
+                                        .add_span(interval, style.clone());
+                                }
+                            }
+                            let syntactic_styles_spans =
+                                syntactic_styles_spans.build();
+
+                            let merged_styles = Arc::new(
+                                syntactic_styles_spans.merge(&styles, |a, b| {
+                                    if let Some(b) = b {
+                                        return b.clone();
+                                    }
+                                    a.clone()
+                                }),
+                            );
+
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::UpdateSemanticStyles(
                                     buffer_id,
                                     path,
                                     rev,
-                                    styles_span,
+                                    merged_styles,
                                 ),
                                 Target::Widget(tab_id),
                             );
@@ -841,10 +866,10 @@ impl Document {
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.get_inlay_hints();
-        self.get_semantic_styles();
         self.clear_style_cache();
-        self.clear_sticky_headers_cache();
         self.trigger_syntax_change(deltas);
+        self.get_semantic_styles();
+        self.clear_sticky_headers_cache();
         self.trigger_head_change();
         self.notify_special();
     }
@@ -1365,20 +1390,11 @@ impl Document {
         self.apply_deltas(&deltas)
     }
 
-    pub fn styles(&self) -> Option<Arc<Spans<Style>>> {
-        let semantic_styles = self.semantic_styles.as_ref();
-        let syntactic_styles = self.syntax().and_then(|s| s.styles.as_ref());
-
-        match (semantic_styles, syntactic_styles) {
-            (Some(semantic), Some(syntax)) => {
-                Some(Arc::new(syntax.merge(semantic, |a, b| match b {
-                    Some(b) => b.clone(),
-                    None => a.clone(),
-                })))
-            }
-            (Some(semantic), None) => Some(semantic.clone()),
-            (None, Some(syntactic)) => Some(syntactic.clone()),
-            (None, None) => None,
+    pub fn styles(&self) -> Option<&Arc<Spans<Style>>> {
+        if let Some(semantic_styles) = self.semantic_styles.as_ref() {
+            Some(semantic_styles)
+        } else {
+            self.syntax().and_then(|s| s.styles.as_ref())
         }
     }
 
@@ -1387,7 +1403,7 @@ impl Document {
             let styles = self.styles();
 
             let line_styles = styles
-                .map(|styles| line_styles(self.buffer.text(), line, &styles))
+                .map(|styles| line_styles(self.buffer.text(), line, styles))
                 .unwrap_or_default();
             self.line_styles
                 .borrow_mut()
