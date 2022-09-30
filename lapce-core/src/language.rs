@@ -299,7 +299,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         highlight: tree_sitter_python::HIGHLIGHT_QUERY,
         injection: None,
         comment: "#",
-        indent: "\t",
+        indent: "    ",
         code_lens: (
             &[
                 "source_file",
