@@ -182,6 +182,8 @@ pub enum LapceLanguage {
     Ruby,
     #[cfg(feature = "lang-rust")]
     Rust,
+    #[cfg(feature = "lang-scheme")]
+    Scheme,
     #[cfg(feature = "lang-scss")]
     Scss,
     #[cfg(feature = "lang-svelte")]
@@ -667,6 +669,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         ),
         sticky_headers: &["struct_item", "enum_item", "function_item", "impl_item"],
         extensions: &["rs"],
+    },
+    #[cfg(feature = "lang-scheme")]
+    SyntaxProperties {
+        id: LapceLanguage::Scheme,
+        language: tree_sitter_scheme::language,
+        highlight: tree_sitter_scheme::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: ";",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["scm", "ss"],
     },
     #[cfg(feature = "lang-scss")]
     SyntaxProperties {
