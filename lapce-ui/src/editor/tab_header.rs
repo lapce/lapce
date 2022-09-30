@@ -266,8 +266,6 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
         let header_height = data.config.ui.header_height() as f64;
         let size = Size::new(bc.max().width, data.config.ui.header_height() as f64);
 
-        let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
-
         let icon_size = 24.0;
         let gap = (header_height - icon_size) / 2.0;
         let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
@@ -289,7 +287,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             icon: "split-horizontal.svg",
             rect: Size::new(icon_size, icon_size)
                 .to_rect()
-                .with_origin(Point::new(x, gap)),
+                .with_origin(Point::new(x + gap, gap)),
             command: Command::new(
                 LAPCE_COMMAND,
                 LapceCommand {
@@ -302,29 +300,27 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
         self.icons.push(icon);
 
         if data.config.editor.show_tab {
-            let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
             let icon = LapceIcon {
-                icon: "chevron-right.svg",
+                icon: "chevron-left.svg",
                 rect: Size::new(icon_size, icon_size)
                     .to_rect()
-                    .with_origin(Point::new(x, gap)),
+                    .with_origin(Point::new(gap, gap)),
                 command: Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::NextEditorTab,
+                    LapceUICommand::PreviousEditorTab,
                     Target::Widget(self.widget_id),
                 ),
             };
             self.icons.push(icon);
 
-            let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
             let icon = LapceIcon {
-                icon: "chevron-left.svg",
+                icon: "chevron-right.svg",
                 rect: Size::new(icon_size, icon_size)
                     .to_rect()
-                    .with_origin(Point::new(x, gap)),
+                    .with_origin(Point::new(gap + icon_size, gap)),
                 command: Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::PreviousEditorTab,
+                    LapceUICommand::NextEditorTab,
                     Target::Widget(self.widget_id),
                 ),
             };
@@ -340,7 +336,19 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             data,
             env,
         );
-        self.content.set_origin(ctx, data, env, Point::ZERO);
+        self.content.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new(
+                if data.config.editor.show_tab {
+                    2.0 * (gap + icon_size)
+                } else {
+                    0.0
+                },
+                0.0,
+            ),
+        );
         size
     }
 
@@ -370,6 +378,63 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
         }
         if data.config.editor.show_tab {
             self.content.paint(ctx, data, env);
+            let scroll_offset = self.content.widget().offset().x;
+            let content_rect = self.content.layout_rect();
+            let child_size = self.content.widget().child_size();
+            if scroll_offset > 0.0 {
+                ctx.with_save(|ctx| {
+                    ctx.clip(content_rect);
+                    let rect = Rect::new(
+                        content_rect.x0 - 10.0,
+                        content_rect.y0 - 10.0,
+                        content_rect.x0,
+                        content_rect.y1 + 10.0,
+                    );
+                    ctx.blurred_rect(
+                        rect,
+                        4.0,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                });
+                ctx.fill(
+                    Rect::new(
+                        0.0,
+                        content_rect.y0,
+                        content_rect.x0,
+                        content_rect.y1,
+                    ),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                );
+            }
+            if scroll_offset < child_size.width - content_rect.width() {
+                ctx.with_save(|ctx| {
+                    ctx.clip(content_rect);
+                    let rect = Rect::new(
+                        content_rect.x1,
+                        content_rect.y0 - 10.0,
+                        content_rect.x1 + 10.0,
+                        content_rect.y1 + 10.0,
+                    );
+                    ctx.blurred_rect(
+                        rect,
+                        4.0,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                });
+                ctx.fill(
+                    Rect::new(
+                        content_rect.x1,
+                        content_rect.y0,
+                        rect.x1,
+                        content_rect.y1,
+                    ),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                );
+            }
         } else {
             self.paint_header(ctx, data);
         }
