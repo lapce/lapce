@@ -1942,7 +1942,8 @@ impl Widget<LapceTabData> for LapceTab {
                 }
             }
             if !data.main_split.editor_tabs.iter().any(|(_, tab)| {
-                tab.active_child().widget_id() == data.hover.editor_view_id
+                tab.active_child().map(|c| c.widget_id())
+                    == Some(data.hover.editor_view_id)
             }) {
                 Arc::make_mut(&mut data.hover).cancel();
             }

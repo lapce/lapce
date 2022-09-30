@@ -1720,7 +1720,8 @@ impl LapceTabData {
                         .get(active_tab)
                         .unwrap()
                         .active_child()
-                        .widget_id()
+                        .map(|c| c.widget_id())
+                        .unwrap_or(*self.focus)
                 } else {
                     *self.focus
                 };
@@ -2401,7 +2402,8 @@ impl LapceMainSplitData {
     ) -> &mut LapceEditorData {
         if path.is_none() {
             let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
-            if let EditorTabChild::Editor(id, _, _) = editor_tab.active_child() {
+            if let Some(EditorTabChild::Editor(id, _, _)) = editor_tab.active_child()
+            {
                 return Arc::make_mut(self.editors.get_mut(id).unwrap());
             }
         }
@@ -2462,7 +2464,8 @@ impl LapceMainSplitData {
         if !config.editor.show_tab || (path.is_none() && !scratch) {
             let editor_tab =
                 Arc::make_mut(self.editor_tabs.get_mut(&editor_tab_id).unwrap());
-            if let EditorTabChild::Editor(id, _, _) = editor_tab.active_child() {
+            if let Some(EditorTabChild::Editor(id, _, _)) = editor_tab.active_child()
+            {
                 let editor = self.editors.get_mut(id).unwrap();
                 if let BufferContent::File(path) = &editor.content {
                     if let Some(doc) = self.open_docs.get(path) {
@@ -2731,7 +2734,8 @@ impl LapceMainSplitData {
     ) -> WidgetId {
         if let Some(active_tab) = self.active_tab.as_ref() {
             let editor_tab = self.editor_tabs.get(active_tab).unwrap();
-            if let EditorTabChild::Editor(view_id, _, _) = editor_tab.active_child()
+            if let Some(EditorTabChild::Editor(view_id, _, _)) =
+                editor_tab.active_child()
             {
                 let editor = self.editors.get(view_id).unwrap();
                 if let BufferContent::File(path) = &editor.content {
@@ -2825,20 +2829,22 @@ impl LapceMainSplitData {
 
     pub fn install_theme(&mut self, ctx: &mut EventCtx, _config: &LapceConfig) {
         let tab = self.get_active_tab_mut(ctx);
-        let child = tab.active_child().clone();
-        match child {
-            EditorTabChild::Editor(view_id, _, _) => {
-                let editor = self.editors.get(&view_id).unwrap();
-                if let BufferContent::File(ref path) = editor.content {
-                    if let Some(folder) = Directory::themes_directory() {
-                        if let Some(file_name) = path.file_name() {
-                            let _ = std::fs::copy(path, folder.join(file_name));
+        let child = tab.active_child().cloned();
+        if let Some(child) = child {
+            match child {
+                EditorTabChild::Editor(view_id, _, _) => {
+                    let editor = self.editors.get(&view_id).unwrap();
+                    if let BufferContent::File(ref path) = editor.content {
+                        if let Some(folder) = Directory::themes_directory() {
+                            if let Some(file_name) = path.file_name() {
+                                let _ = std::fs::copy(path, folder.join(file_name));
+                            }
                         }
                     }
                 }
+                EditorTabChild::Settings { .. } => {}
+                EditorTabChild::Plugin { .. } => {}
             }
-            EditorTabChild::Settings { .. } => {}
-            EditorTabChild::Plugin { .. } => {}
         }
     }
 
@@ -3897,8 +3903,8 @@ impl LapceEditorTabData {
         info
     }
 
-    pub fn active_child(&self) -> &EditorTabChild {
-        &self.children[self.active]
+    pub fn active_child(&self) -> Option<&EditorTabChild> {
+        self.children.get(self.active)
     }
 }
 
