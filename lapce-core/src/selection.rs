@@ -220,34 +220,22 @@ impl Selection {
 
     /// Get the leftmost [`SelRegion`] in this selection if present.
     pub fn first(&self) -> Option<&SelRegion> {
-        if self.is_empty() {
-            return None;
-        }
-        Some(&self.regions[0])
+        self.regions.get(0)
     }
 
     /// Get the rightmost [`SelRegion`] in this selection if present.
     pub fn last(&self) -> Option<&SelRegion> {
-        if self.is_empty() {
-            return None;
-        }
-        Some(&self.regions[self.len() - 1])
+        self.regions.get(self.len() - 1)
     }
 
     /// Get the last inserted [`SelRegion`] in this selection if present.
     pub fn last_inserted(&self) -> Option<&SelRegion> {
-        if self.is_empty() {
-            return None;
-        }
-        Some(&self.regions[self.last_inserted])
+        self.regions.get(self.last_inserted)
     }
 
     /// Get a mutable reference to the last inserted [`SelRegion`] in this selection if present.
     pub fn last_inserted_mut(&mut self) -> Option<&mut SelRegion> {
-        if self.is_empty() {
-            return None;
-        }
-        Some(&mut self.regions[self.last_inserted])
+        self.regions.get_mut(self.last_inserted)
     }
 
     /// The number of [`SelRegion`] in this selection.
@@ -258,12 +246,7 @@ impl Selection {
     /// A [`Selection`] is considered to be a caret if it contains
     /// only caret [`SelRegion`] (see [`SelRegion::is_caret`])
     pub fn is_caret(&self) -> bool {
-        for region in self.regions.iter() {
-            if !region.is_caret() {
-                return false;
-            }
-        }
-        true
+        self.regions.iter().all(|region| region.is_caret())
     }
 
     /// Returns `true` if `self` has zero [`SelRegion`]
@@ -272,6 +255,8 @@ impl Selection {
     }
 
     /// Returns the minimal offset across all region of this selection.
+    ///
+    /// This function panics if the selection is empty.
     ///
     /// **Example:**
     ///
@@ -292,6 +277,8 @@ impl Selection {
     }
 
     /// Returns the maximal offset across all region of this selection.
+    ///
+    /// This function panics if the selection is empty.
     ///
     /// **Example:**
     ///
