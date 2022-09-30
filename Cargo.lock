@@ -2574,6 +2574,7 @@ dependencies = [
  "tree-sitter-r",
  "tree-sitter-ruby",
  "tree-sitter-rust",
+ "tree-sitter-scheme",
  "tree-sitter-scss",
  "tree-sitter-svelte",
  "tree-sitter-swift",
@@ -5226,6 +5227,15 @@ name = "tree-sitter-rust"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13470fafb7327a3acf96f5bc1013b5539a899a182f01c59b5af53f6b93195717"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-scheme"
+version = "0.2.0"
+source = "git+https://github.com/6cdh/tree-sitter-scheme.git?branch=main#af0fd1fa452cb2562dc7b5c8a8c55551c39273b9"
 dependencies = [
  "cc",
  "tree-sitter",
