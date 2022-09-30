@@ -1075,6 +1075,10 @@ mod test {
         assert_language(LapceLanguage::Ocaml, &["ml"]);
         assert_language(LapceLanguage::OcamlInterface, &["mli"]);
     }
+    #[cfg(feature = "lang-scheme")]
+    fn test_scheme_lang() {
+        assert_language(LapceLanguage::Scheme, &["scm", "ss"]);
+    }
     #[cfg(feature = "lang-scss")]
     fn test_scss_lang() {
         assert_language(LapceLanguage::Scss, &["scss"]);
