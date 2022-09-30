@@ -89,6 +89,8 @@ pub fn launch() {
         Err(e) => eprintln!("Initialising logging failed {e:?}"),
     }
 
+    log_panics::init();
+
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
     let mut data = LapceData::load(launcher.get_external_handle(), paths);
     for (_window_id, window_data) in data.windows.iter_mut() {
