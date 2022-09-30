@@ -1032,7 +1032,10 @@ impl Widget<LapceTabData> for PanelSwitcher {
                 self.clicked_maximise = false;
                 if self
                     .maximise_toggle
-                    .map(|r| r.contains(mouse_event.pos))
+                    .map(|r| {
+                        r.inflate(icon_padding, icon_padding)
+                            .contains(mouse_event.pos)
+                    })
                     .unwrap_or(false)
                 {
                     self.clicked_maximise = true;
@@ -1053,7 +1056,10 @@ impl Widget<LapceTabData> for PanelSwitcher {
                 if self.clicked_maximise
                     && self
                         .maximise_toggle
-                        .map(|r| r.contains(mouse_event.pos))
+                        .map(|r| {
+                            r.inflate(icon_padding, icon_padding)
+                                .contains(mouse_event.pos)
+                        })
                         .unwrap_or(false)
                 {
                     ctx.submit_command(Command::new(
