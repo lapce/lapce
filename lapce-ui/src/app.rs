@@ -89,7 +89,9 @@ pub fn launch() {
         Err(e) => eprintln!("Initialising logging failed {e:?}"),
     }
 
-    log_panics::init();
+    log_panics::Config::new()
+        .backtrace_mode(log_panics::BacktraceMode::Resolved)
+        .install_panic_hook();
 
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
     let mut data = LapceData::load(launcher.get_external_handle(), paths);
