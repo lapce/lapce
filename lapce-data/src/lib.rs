@@ -1,5 +1,6 @@
 pub mod about;
 pub mod alert;
+pub mod atomic_soft_tabs;
 pub mod command;
 pub mod completion;
 pub mod config;

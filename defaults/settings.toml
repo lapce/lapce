@@ -31,6 +31,7 @@ blink-interval = 500 # ms
 multicursor-case-sensitive = true
 multicursor-whole-words = true
 render-whitespace = "none"
+atomic-soft-tabs = false
 
 [terminal]
 font-family = ""
