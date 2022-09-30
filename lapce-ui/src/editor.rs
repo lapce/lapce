@@ -12,6 +12,9 @@ use druid::{
 use druid::{Modifiers, TimerToken};
 use lapce_core::buffer::DiffLines;
 use lapce_core::command::EditCommand;
+use lapce_core::syntax::util::{
+    is_bracket, is_valid_pair, matching_pair_direction,
+};
 use lapce_core::{
     command::FocusCommand,
     cursor::{ColPosition, CursorMode},
@@ -829,6 +832,7 @@ impl LapceEditor {
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
         Self::paint_sticky_headers(ctx, data, env);
+        Self::paint_bracket_highlight(ctx, data, &screen_lines);
 
         if let Some(placeholder) = self.placeholder.as_ref() {
             if data.doc.buffer().is_empty() {
@@ -1785,6 +1789,105 @@ impl LapceEditor {
                 }
             }
         }
+    }
+
+    /// Checks if the cursor is on a bracket and highlights the matching bracket if there is one.
+    fn paint_bracket_highlight(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        screen_lines: &ScreenLines,
+    ) {
+        if screen_lines.lines.is_empty() {
+            return;
+        }
+
+        let cursor_offset = data.editor.cursor.offset();
+
+        let char_at_cursor = match data.doc.buffer().char_at_offset(cursor_offset) {
+            Some(c) => c,
+            None => return,
+        };
+
+        if is_bracket(char_at_cursor) {
+            let start_line = *screen_lines.lines.first().unwrap();
+            let end_line = *screen_lines.lines.last().unwrap();
+            let start = data.doc.buffer().offset_of_line(start_line);
+            let end = data.doc.buffer().offset_of_line(end_line + 1);
+
+            let pos_offset = match matching_pair_direction(char_at_cursor) {
+                Some(true) => data
+                    .doc
+                    .buffer()
+                    .char_indices_iter(cursor_offset..end)
+                    .find(|c| is_valid_pair(&(char_at_cursor, c.1))),
+                Some(false) => data
+                    .doc
+                    .buffer()
+                    .char_indices_iter(cursor_offset..start)
+                    .find(|c| is_valid_pair(&(char_at_cursor, c.1))),
+                None => return,
+            };
+
+            let second_bracket_offset =
+                match cursor_offset.checked_add(pos_offset.unwrap().0){
+                    Some(offset) => offset,
+                    None => return,
+                };
+
+            Self::highlight_char(ctx, data, screen_lines, cursor_offset);
+            Self::highlight_char(ctx, data, screen_lines, second_bracket_offset);
+        }
+    }
+
+    fn highlight_char(ctx: &mut PaintCtx, data: &LapceEditorBufferData, screen_lines: &ScreenLines, offset: usize,) {
+        let (line, col) =
+        data.doc.buffer().offset_to_line_col(offset);
+        let info = match screen_lines.info.get(&line){
+            Some(info) => info,
+            None => return,
+        };
+        let char_width = data.config.editor_char_width(ctx.text());
+        let phantom_text =
+            data.doc.line_phantom_text(&data.config, line);
+
+        let x0 = data
+            .doc
+            .line_point_of_line_col(
+                ctx.text(),
+                line,
+                col,
+                info.font_size,
+                &data.config,
+            )
+            .x;
+
+        let right_offset = offset + 1;
+        let (_, right_col) = data.doc.buffer().offset_to_line_col(right_offset);
+        let right_col = phantom_text.col_after(right_col, false);
+
+        let x1 = data
+            .doc
+            .line_point_of_line_col(
+                ctx.text(),
+                line,
+                right_col,
+                info.font_size,
+                &data.config,
+            )
+            .x;
+        let char_width = if x1 > x0 { x1 - x0 } else { char_width };
+        let rect = Rect::from_origin_size(
+            Point::new(x0 + info.x, info.y),
+            Size::new(char_width, info.line_height),
+        );
+        ctx.fill(
+            rect,
+            &data
+                .config
+                .get_color_unchecked(LapceTheme::EDITOR_CARET)
+                .clone()
+                .with_alpha(0.5),
+        );
     }
 
     fn line_height(data: &LapceEditorBufferData, env: &Env) -> f64 {

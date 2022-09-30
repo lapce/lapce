@@ -26,6 +26,12 @@ impl<'a> TextProvider<'a> for RopeProvider<'a> {
     }
 }
 
+const PAIRS: &[(char, char)] = &[
+    ('(', ')'),
+    ('{', '}'),
+    ('[', ']'),
+];
+
 pub fn matching_pair_direction(c: char) -> Option<bool> {
     Some(match c {
         '{' => true,
@@ -94,4 +100,12 @@ pub fn str_matching_pair(c: &str) -> Option<char> {
         return matching_char(c);
     }
     None
+}
+
+pub fn is_bracket(c: char) -> bool {
+    PAIRS.iter().any(|(l, r)| *l == c || *r == c)
+}
+
+pub fn is_valid_pair(pair: &(char, char)) -> bool {
+    PAIRS.contains(pair)
 }
