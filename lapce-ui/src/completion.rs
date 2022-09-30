@@ -12,7 +12,7 @@ use itertools::Itertools;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     completion::{CompletionData, CompletionStatus, ScoredCompletionItem},
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::LapceTabData,
     list::ListData,
     markdown::parse_markdown,
@@ -682,7 +682,7 @@ impl Widget<LapceTabData> for CompletionDocumentation {
     }
 }
 
-fn parse_documentation(doc: &Documentation, config: &Config) -> RichText {
+fn parse_documentation(doc: &Documentation, config: &LapceConfig) -> RichText {
     match doc {
         // We assume this is plain text
         Documentation::String(text) => {

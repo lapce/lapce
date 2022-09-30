@@ -7,7 +7,7 @@ use druid::{
 use lapce_core::mode::Mode;
 use lapce_data::{
     command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::{FocusArea, LapceTabData},
     panel::{PanelContainerPosition, PanelKind},
 };
@@ -132,7 +132,7 @@ impl LapceStatus {
         icon: &'static str,
         label: String,
         ctx: &mut PaintCtx,
-        config: &Config,
+        config: &LapceConfig,
     ) -> (f64, Option<(Rect, Svg)>, (Point, PietTextLayout)) {
         let fg_color = config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
 
@@ -171,7 +171,7 @@ impl LapceStatus {
         icon: &'static str,
         label: String,
         ctx: &mut PaintCtx,
-        config: &Config,
+        config: &LapceConfig,
     ) -> (f64, Option<(Rect, Svg)>, (Point, PietTextLayout)) {
         let fg_color = config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
 
@@ -329,7 +329,7 @@ impl Widget<LapceTabData> for LapceStatus {
         let mut left = 0.0;
         let mut _right = 0.0;
 
-        if data.config.lapce.modal {
+        if data.config.core.modal {
             let mode = if data.focus_area == FocusArea::Panel(PanelKind::Terminal) {
                 data.terminal
                     .terminals

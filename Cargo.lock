@@ -620,13 +620,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b1b9d958c2b1368a663f05538fc1b5975adce1e19f435acceae987aceeeb369"
 dependencies = [
  "lazy_static",
- "nom",
+ "nom 5.1.2",
  "rust-ini",
  "serde 1.0.145",
  "serde-hjson",
  "serde_json",
  "toml",
  "yaml-rust",
+]
+
+[[package]]
+name = "config"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11f1667b8320afa80d69d8bbe40830df2c8a06003d86f73d8e003b2c48df416d"
+dependencies = [
+ "async-trait",
+ "lazy_static",
+ "nom 7.1.1",
+ "pathdiff",
+ "serde 1.0.145",
+ "toml",
 ]
 
 [[package]]
@@ -2581,7 +2595,7 @@ dependencies = [
  "base64 0.13.0",
  "bytemuck",
  "chrono",
- "config",
+ "config 0.13.2",
  "crossbeam-channel",
  "dmg",
  "druid",
@@ -2599,6 +2613,7 @@ dependencies = [
  "log 0.4.17",
  "lsp-types",
  "notify",
+ "once_cell",
  "parking_lot 0.11.2",
  "pulldown-cmark",
  "rayon",
@@ -2655,6 +2670,7 @@ dependencies = [
  "toml_edit",
  "trash",
  "url",
+ "walkdir",
  "wasi-common",
  "wasi-experimental-http-wasmtime",
  "wasmtime",
@@ -2686,7 +2702,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
- "config",
+ "config 0.11.0",
  "druid",
  "fern",
  "im",
@@ -3009,6 +3025,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a60c7ce501c71e03a9c9c0d35b861413ae925bd979cc7a4e30d060069aaac8d"
 
 [[package]]
+name = "minimal-lexical"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
+
+[[package]]
 name = "miniz_oxide"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3171,6 +3193,16 @@ dependencies = [
  "lexical-core",
  "memchr",
  "version_check",
+]
+
+[[package]]
+name = "nom"
+version = "7.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8903e5a29a317527874d0402f867152a3d21c908bb0b933e416c65e301d4c36"
+dependencies = [
+ "memchr",
+ "minimal-lexical",
 ]
 
 [[package]]

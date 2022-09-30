@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     fs,
     io::{Read, Seek, Write},
     path::{Path, PathBuf},
@@ -201,29 +201,22 @@ impl Plugin {
 }
 
 pub fn load_all_volts(
-    workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
     disabled_volts: Vec<String>,
-    volt_configurations: HashMap<String, serde_json::Value>,
 ) {
     let all_volts = find_all_volts();
-    for meta in all_volts {
-        if meta.wasm.is_none() {
-            continue;
-        }
-        plugin_rpc.core_rpc.volt_installed(meta.clone(), false);
-        if disabled_volts.contains(&meta.id()) {
-            continue;
-        }
-        let workspace = workspace.clone();
-        let configurations = volt_configurations.get(&meta.name).cloned();
-        let plugin_rpc = plugin_rpc.clone();
-        thread::spawn(move || {
-            if let Err(e) = start_volt(workspace, configurations, plugin_rpc, meta) {
-                eprintln!("start volt error {e}");
+    let volts = all_volts
+        .into_iter()
+        .filter_map(|meta| {
+            meta.wasm.as_ref()?;
+            plugin_rpc.core_rpc.volt_installed(meta.clone(), false);
+            if disabled_volts.contains(&meta.id()) {
+                return None;
             }
-        });
-    }
+            Some(meta)
+        })
+        .collect();
+    let _ = plugin_rpc.unactivated_volts(volts);
 }
 
 pub fn find_all_volts() -> Vec<VoltMetadata> {
@@ -275,10 +268,8 @@ pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
     Ok(meta)
 }
 
-pub fn start_volt_from_info(
-    workspace: Option<PathBuf>,
-    configurations: Option<serde_json::Value>,
-    catalog_rpc: PluginCatalogRpcHandler,
+pub fn enable_volt(
+    plugin_rpc: PluginCatalogRpcHandler,
     volt: VoltInfo,
 ) -> Result<()> {
     let path = Directory::plugins_directory()
@@ -286,7 +277,7 @@ pub fn start_volt_from_info(
         .join(volt.id())
         .join("volt.toml");
     let meta = load_volt(&path)?;
-    start_volt(workspace, configurations, catalog_rpc, meta)?;
+    plugin_rpc.unactivated_volts(vec![meta])?;
     Ok(())
 }
 

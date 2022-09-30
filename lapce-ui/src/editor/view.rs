@@ -906,10 +906,10 @@ impl Widget<LapceTabData> for LapceEditorView {
             );
         }
 
-        if old_data.config.lapce.modal != data.config.lapce.modal
+        if old_data.config.core.modal != data.config.core.modal
             && !editor_data.doc.content().is_input()
         {
-            if !data.config.lapce.modal {
+            if !data.config.core.modal {
                 ctx.submit_command(Command::new(
                     LAPCE_COMMAND,
                     LapceCommand {

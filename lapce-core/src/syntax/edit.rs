@@ -1,11 +1,12 @@
 use tree_sitter::Point;
 use xi_rope::{multiset::CountMatcher, Interval, Rope, RopeDelta};
 
-use crate::buffer::InsertsValueIter;
+use crate::buffer::{rope_text::RopeText, InsertsValueIter};
 
 fn point_at_offset(text: &Rope, offset: usize) -> Point {
+    let text = RopeText::new(text);
     let line = text.line_of_offset(offset);
-    let col = text.offset_of_line(line + 1) - offset;
+    let col = text.offset_of_line(line + 1).saturating_sub(offset);
     Point::new(line, col)
 }
 

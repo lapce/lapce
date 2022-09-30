@@ -18,7 +18,8 @@ hashbrown = "0.11.2"
 sled = "0.34.7"
 base64 = "0.13.0"
 alacritty_terminal = "0.16"
-config = "0.11"
+once_cell = "1.15"
+config = { version = "0.13.2", default-features = false, features = ["toml"] }
 indexmap = "1.7.0"
 itertools = "0.10.1"
 im = { version = "15.0.0", features = ["serde"] }

@@ -155,15 +155,25 @@ impl PanelData {
 
     pub fn toggle_maximize(&mut self, kind: &PanelKind) {
         if let Some((_, p)) = self.panel_position(kind) {
-            if let Some(style) = self.style.get_mut(&p) {
-                style.maximized = !style.maximized;
+            if p.is_bottom() {
+                self.toggle_bottom_maximize();
             }
         }
     }
 
     pub fn toggle_active_maximize(&mut self) {
-        if let Some(style) = self.style.get_mut(&self.active) {
-            style.maximized = !style.maximized;
+        if self.active.is_bottom() {
+            self.toggle_bottom_maximize();
+        }
+    }
+
+    pub fn toggle_bottom_maximize(&mut self) {
+        let maximized = !self.panel_bottom_maximized();
+        if let Some(style) = self.style.get_mut(&PanelPosition::BottomLeft) {
+            style.maximized = maximized;
+        }
+        if let Some(style) = self.style.get_mut(&PanelPosition::BottomRight) {
+            style.maximized = maximized;
         }
     }
 

@@ -327,7 +327,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                         Point::new(
                             size.width / 2.0
                                 + 10.0
-                                + if data.config.lapce.modal {
+                                + if data.config.core.modal {
                                     keypress_width
                                 } else {
                                     0.0
@@ -338,7 +338,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                     )
                 }
 
-                if data.config.lapce.modal && !keymap.modes.is_empty() {
+                if data.config.core.modal && !keymap.modes.is_empty() {
                     let mut origin = Point::new(
                         size.width / 2.0 + 10.0,
                         i as f64 * self.line_height + self.line_height / 2.0,
@@ -421,7 +421,7 @@ impl Widget<LapceTabData> for LapceKeymap {
             data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
             1.0,
         );
-        if data.config.lapce.modal {
+        if data.config.core.modal {
             let x = size.width / 2.0 + keypress_width;
             ctx.stroke(
                 Line::new(Point::new(x, 0.0), Point::new(x, size.height)),
@@ -714,7 +714,7 @@ impl Widget<LapceTabData> for LapceKeymapHeader {
             Point::new(
                 size.width / 2.0
                     + 10.0
-                    + if data.config.lapce.modal {
+                    + if data.config.core.modal {
                         keypress_width
                     } else {
                         0.0
@@ -723,7 +723,7 @@ impl Widget<LapceTabData> for LapceKeymapHeader {
             ),
         );
 
-        if data.config.lapce.modal {
+        if data.config.core.modal {
             let text_layout = ctx
                 .text()
                 .new_text_layout("Modes")
@@ -761,7 +761,7 @@ impl Widget<LapceTabData> for LapceKeymapHeader {
             data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
             1.0,
         );
-        if data.config.lapce.modal {
+        if data.config.core.modal {
             let x = size.width / 2.0 + keypress_width;
             ctx.stroke(
                 Line::new(Point::new(x, 0.0), Point::new(x, size.height)),
