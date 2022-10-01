@@ -232,7 +232,7 @@ impl Editor {
                 for region in selection.regions_mut().iter_mut().sorted_by(
                     |region_a, region_b| region_a.start.cmp(&region_b.start),
                 ) {
-                    *region = SelRegion::new(
+                    let new_region = SelRegion::new(
                         region.start + adjustment,
                         region.end + adjustment,
                         None,
@@ -251,6 +251,8 @@ impl Editor {
                     {
                         adjustment += inserted.len();
                     }
+
+                    *region = new_region;
                 }
 
                 cursor.mode = CursorMode::Insert(selection);
