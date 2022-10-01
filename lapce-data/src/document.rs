@@ -761,6 +761,9 @@ impl Document {
             let rev = buffer.rev();
             let len = buffer.len();
             let event_sink = self.event_sink.clone();
+            let syntactic_styles =
+                self.syntax().and_then(|s| s.styles.as_ref()).cloned();
+
             self.proxy
                 .proxy_rpc
                 .get_semantic_tokens(path.clone(), move |result| {
@@ -773,14 +776,32 @@ impl Document {
                                     style.style,
                                 );
                             }
-                            let styles_span = Arc::new(styles_span.build());
+
+                            let styles = styles_span.build();
+
+                            let merged_styles;
+
+                            if let Some(syntactic_styles) = syntactic_styles {
+                                merged_styles = Arc::new(syntactic_styles.merge(
+                                    &styles,
+                                    |a, b| {
+                                        if let Some(b) = b {
+                                            return b.clone();
+                                        }
+                                        a.clone()
+                                    },
+                                ));
+                            } else {
+                                merged_styles = Arc::new(styles);
+                            }
+
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::UpdateSemanticStyles(
                                     buffer_id,
                                     path,
                                     rev,
-                                    styles_span,
+                                    merged_styles,
                                 ),
                                 Target::Widget(tab_id),
                             );
@@ -841,10 +862,10 @@ impl Document {
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.get_inlay_hints();
-        self.get_semantic_styles();
         self.clear_style_cache();
-        self.clear_sticky_headers_cache();
         self.trigger_syntax_change(deltas);
+        self.get_semantic_styles();
+        self.clear_sticky_headers_cache();
         self.trigger_head_change();
         self.notify_special();
     }
@@ -964,7 +985,8 @@ impl Document {
     fn update_styles(&mut self, delta: &RopeDelta) {
         if let Some(styles) = self.semantic_styles.as_mut() {
             Arc::make_mut(styles).apply_shape(delta);
-        } else if let Some(syntax) = self.syntax.as_mut() {
+        }
+        if let Some(syntax) = self.syntax.as_mut() {
             if let Some(styles) = syntax.styles.as_mut() {
                 Arc::make_mut(styles).apply_shape(delta);
             }
@@ -1365,11 +1387,11 @@ impl Document {
     }
 
     pub fn styles(&self) -> Option<&Arc<Spans<Style>>> {
-        let styles = self
-            .semantic_styles
-            .as_ref()
-            .or_else(|| self.syntax().and_then(|s| s.styles.as_ref()));
-        styles
+        if let Some(semantic_styles) = self.semantic_styles.as_ref() {
+            Some(semantic_styles)
+        } else {
+            self.syntax().and_then(|s| s.styles.as_ref())
+        }
     }
 
     fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
