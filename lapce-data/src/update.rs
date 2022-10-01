@@ -55,7 +55,9 @@ pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
     let name = match std::env::consts::OS {
         "macos" => "Lapce-macos.dmg",
         "linux" => "Lapce-linux.tar.gz",
-        // TODO(dbuga): download installer for non-portable
+        #[cfg(feature = "portable")]
+        "windows" => "Lapce-windows.msi",
+        #[cfg(not(feature = "portable"))]
         "windows" => "Lapce-windows-portable.zip",
         _ => return Err(anyhow!("os not supported")),
     };
@@ -113,7 +115,7 @@ pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
     Ok(process_path.to_path_buf())
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", feature = "portable"))]
 pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
     let parent = src
         .parent()
@@ -135,6 +137,13 @@ pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
     Ok(process_path.to_path_buf())
 }
 
+#[cfg(all(target_os = "windows", not(feature = "portable")))]
+pub fn extract(src: &Path, _process_path: &Path) -> Result<PathBuf> {
+    // We downloaded an uncompressed msi installer, nothing to extract.
+    // On the other hand, we need to run this msi so pass its path back out.
+    Ok(src.to_path_buf())
+}
+
 #[cfg(target_os = "macos")]
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::unix::process::CommandExt;
@@ -154,7 +163,7 @@ pub fn restart(path: &Path) -> Result<()> {
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", feature = "portable"))]
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::windows::process::CommandExt;
     const DETACHED_PROCESS: u32 = 0x00000008;
@@ -170,7 +179,13 @@ pub fn restart(path: &Path) -> Result<()> {
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", not(feature = "portable")))]
+
+pub fn restart(_path: &Path) -> Result<()> {
+    todo!()
+}
+
+#[cfg(all(target_os = "windows", feature = "portable"))]
 pub fn cleanup() {
     // Clean up backup exe after an update
     if let Ok(process_path) = std::env::current_exe() {
@@ -180,7 +195,10 @@ pub fn cleanup() {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(any(
+    not(target_os = "windows"),
+    all(target_os = "windows", not(feature = "portable"))
+))]
 pub fn cleanup() {
     // Nothing to do yet
 }
