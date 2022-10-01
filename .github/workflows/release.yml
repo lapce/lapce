@@ -66,6 +66,7 @@ jobs:
       - name: Create portable
         shell: pwsh
         run: |
+          cargo build --profile release-lto --features lapce-ui/portable
           Compress-Archive ./target/release-lto/lapce.exe ./Lapce-windows-portable.zip
       - name: Create lapce-proxy archive
         shell: pwsh
