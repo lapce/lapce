@@ -779,25 +779,21 @@ impl Document {
 
                             let styles = styles_span.build();
 
-                            let mut syntactic_styles_spans = SpansBuilder::new(len);
+                            let merged_styles;
 
                             if let Some(syntactic_styles) = syntactic_styles {
-                                for (interval, style) in syntactic_styles.iter() {
-                                    syntactic_styles_spans
-                                        .add_span(interval, style.clone());
-                                }
+                                merged_styles = Arc::new(syntactic_styles.merge(
+                                    &styles,
+                                    |a, b| {
+                                        if let Some(b) = b {
+                                            return b.clone();
+                                        }
+                                        a.clone()
+                                    },
+                                ));
+                            } else {
+                                merged_styles = Arc::new(styles);
                             }
-                            let syntactic_styles_spans =
-                                syntactic_styles_spans.build();
-
-                            let merged_styles = Arc::new(
-                                syntactic_styles_spans.merge(&styles, |a, b| {
-                                    if let Some(b) = b {
-                                        return b.clone();
-                                    }
-                                    a.clone()
-                                }),
-                            );
 
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
