@@ -26,6 +26,7 @@ impl<'a> TextProvider<'a> for RopeProvider<'a> {
     }
 }
 
+/// If the character is an opening bracket return Some(true), if closing, return Some(false)
 pub fn matching_pair_direction(c: char) -> Option<bool> {
     Some(match c {
         '{' => true,
