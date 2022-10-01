@@ -56,9 +56,9 @@ pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
         "macos" => "Lapce-macos.dmg",
         "linux" => "Lapce-linux.tar.gz",
         #[cfg(feature = "portable")]
-        "windows" => "Lapce-windows.msi",
-        #[cfg(not(feature = "portable"))]
         "windows" => "Lapce-windows-portable.zip",
+        #[cfg(not(feature = "portable"))]
+        "windows" => "Lapce-windows.msi",
         _ => return Err(anyhow!("os not supported")),
     };
     let file_path = dir.join(name);
@@ -172,8 +172,10 @@ pub fn restart(path: &Path) -> Result<()> {
         .to_str()
         .ok_or_else(|| anyhow!("can't get path to str"))?;
     std::process::Command::new("cmd")
-        .arg("/C")
-        .arg(format!("taskkill /PID {} & start {} -n", process_id, path))
+        .raw_arg(format!(
+            r#"/C taskkill /PID {} & start "" "{}""#,
+            process_id, path
+        ))
         .creation_flags(DETACHED_PROCESS)
         .spawn()?;
     Ok(())
@@ -181,8 +183,28 @@ pub fn restart(path: &Path) -> Result<()> {
 
 #[cfg(all(target_os = "windows", not(feature = "portable")))]
 
-pub fn restart(_path: &Path) -> Result<()> {
-    todo!()
+pub fn restart(path: &Path) -> Result<()> {
+    use std::os::windows::process::CommandExt;
+    const DETACHED_PROCESS: u32 = 0x00000008;
+    let process_id = std::process::id();
+    let path = path
+        .to_str()
+        .ok_or_else(|| anyhow!("can't get path to str"))?;
+
+    let lapce_exe = std::env::current_exe()
+        .map_err(|err| anyhow!("can't get path to exe").context(err))?;
+    let lapce_exe = lapce_exe
+        .to_str()
+        .ok_or_else(|| anyhow!("can't convert exe path to str"))?;
+
+    std::process::Command::new("cmd")
+        .raw_arg(format!(
+            r#"/C taskkill /PID {} & msiexec /i "{}" /qb & start "" "{}""#,
+            process_id, path, lapce_exe
+        ))
+        .creation_flags(DETACHED_PROCESS)
+        .spawn()?;
+    Ok(())
 }
 
 #[cfg(all(target_os = "windows", feature = "portable"))]
