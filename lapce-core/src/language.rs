@@ -79,7 +79,7 @@ struct SyntaxProperties {
     language: fn() -> tree_sitter::Language,
     /// For most languages, it is `tree_sitter_$crate::HIGHLIGHT_QUERY`.
     highlight: &'static str,
-    /// For most languages, it is `tree_sitter_$crate::INJECTION_QUERY`.  
+    /// For most languages, it is `tree_sitter_$crate::INJECTION_QUERY`.
     /// Though, not all languages have injections.
     injection: Option<&'static str>,
     /// The comment token.  "#" for python, "//" for rust for example.
@@ -318,7 +318,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        sticky_headers: &["do_block"],
         extensions: &["ex", "exs", "eex", "heex", "sface"],
     },
     #[cfg(feature = "lang-elm")]
@@ -652,7 +652,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        sticky_headers: &["module", "class", "method", "do_block"],
+
         extensions: &["rb"],
     },
     #[cfg(feature = "lang-rust")]
