@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use tree_sitter::TextProvider;
 use xi_rope::{rope::ChunkIter, Rope};
 
+use crate::buffer::Buffer;
+
 pub struct RopeChunksIterBytes<'a> {
     chunks: ChunkIter<'a>,
 }
@@ -26,11 +28,7 @@ impl<'a> TextProvider<'a> for RopeProvider<'a> {
     }
 }
 
-const PAIRS: &[(char, char)] = &[
-    ('(', ')'),
-    ('{', '}'),
-    ('[', ']'),
-];
+const PAIRS: &[(char, char)] = &[('(', ')'), ('{', '}'), ('[', ']')];
 
 pub fn matching_pair_direction(c: char) -> Option<bool> {
     Some(match c {
@@ -102,10 +100,38 @@ pub fn str_matching_pair(c: &str) -> Option<char> {
     None
 }
 
-pub fn is_bracket(c: char) -> bool {
+fn is_bracket(c: char) -> bool {
     PAIRS.iter().any(|(l, r)| *l == c || *r == c)
 }
 
-pub fn is_valid_pair(pair: &(char, char)) -> bool {
+fn is_valid_pair(pair: &(char, char)) -> bool {
     PAIRS.contains(pair)
+}
+
+pub fn find_matching_bracket(
+    buffer: &Buffer,
+    offset: usize,
+    start_line: usize,
+    end_line: usize,
+) -> Option<usize> {
+    let char_at_cursor = buffer.char_at_offset(offset)?;
+
+    if is_bracket(char_at_cursor) {
+        let start = buffer.offset_of_line(start_line);
+        let end = buffer.offset_of_line(end_line + 1);
+
+        let direction = matching_pair_direction(char_at_cursor)?;
+
+        if direction {
+            let pos = buffer
+                .char_indices_iter(offset..end)
+                .position(|c| is_valid_pair(&(char_at_cursor, c.1)));
+
+            if pos.is_some() {
+                return offset.checked_add(pos.unwrap());
+            }
+        }
+    }
+
+    None
 }

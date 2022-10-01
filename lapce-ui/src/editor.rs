@@ -13,7 +13,7 @@ use druid::{Modifiers, TimerToken};
 use lapce_core::buffer::DiffLines;
 use lapce_core::command::EditCommand;
 use lapce_core::syntax::util::{
-    is_bracket, is_valid_pair, matching_pair_direction,
+    find_matching_bracket,
 };
 use lapce_core::{
     command::FocusCommand,
@@ -1803,52 +1803,37 @@ impl LapceEditor {
 
         let cursor_offset = data.editor.cursor.offset();
 
-        let char_at_cursor = match data.doc.buffer().char_at_offset(cursor_offset) {
-            Some(c) => c,
+        let start_line = *screen_lines.lines.first().unwrap();
+        let end_line = *screen_lines.lines.last().unwrap();
+
+        match find_matching_bracket(
+            data.doc.buffer(),
+            cursor_offset,
+            start_line,
+            end_line,
+        ) {
+            Some(second_bracket) => {
+                Self::highlight_char(ctx, data, screen_lines, cursor_offset);
+                Self::highlight_char(ctx, data, screen_lines, second_bracket);
+            }
             None => return,
         };
-
-        if is_bracket(char_at_cursor) {
-            let start_line = *screen_lines.lines.first().unwrap();
-            let end_line = *screen_lines.lines.last().unwrap();
-            let start = data.doc.buffer().offset_of_line(start_line);
-            let end = data.doc.buffer().offset_of_line(end_line + 1);
-
-            let pos_offset = match matching_pair_direction(char_at_cursor) {
-                Some(true) => data
-                    .doc
-                    .buffer()
-                    .char_indices_iter(cursor_offset..end)
-                    .find(|c| is_valid_pair(&(char_at_cursor, c.1))),
-                Some(false) => data
-                    .doc
-                    .buffer()
-                    .char_indices_iter(cursor_offset..start)
-                    .find(|c| is_valid_pair(&(char_at_cursor, c.1))),
-                None => return,
-            };
-
-            let second_bracket_offset =
-                match cursor_offset.checked_add(pos_offset.unwrap().0){
-                    Some(offset) => offset,
-                    None => return,
-                };
-
-            Self::highlight_char(ctx, data, screen_lines, cursor_offset);
-            Self::highlight_char(ctx, data, screen_lines, second_bracket_offset);
-        }
     }
 
-    fn highlight_char(ctx: &mut PaintCtx, data: &LapceEditorBufferData, screen_lines: &ScreenLines, offset: usize,) {
-        let (line, col) =
-        data.doc.buffer().offset_to_line_col(offset);
-        let info = match screen_lines.info.get(&line){
+    /// Highlights a character at the given position
+    fn highlight_char(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        screen_lines: &ScreenLines,
+        offset: usize,
+    ) {
+        let (line, col) = data.doc.buffer().offset_to_line_col(offset);
+        let info = match screen_lines.info.get(&line) {
             Some(info) => info,
             None => return,
         };
         let char_width = data.config.editor_char_width(ctx.text());
-        let phantom_text =
-            data.doc.line_phantom_text(&data.config, line);
+        let phantom_text = data.doc.line_phantom_text(&data.config, line);
 
         let x0 = data
             .doc
