@@ -76,7 +76,7 @@ magenta = "#C678DD"
 "editor.caret" = "#528BFF"
 "editor.selection" = "$grey"
 "editor.current_line" = "#2C313C"
-"editor.link" = "$cyan"
+"editor.link" = "$blue"
 "editor.visible_whitespace" = "$grey"
 
 "inlay_hint.foreground" = "$white"

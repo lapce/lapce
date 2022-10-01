@@ -193,7 +193,7 @@ impl ProxyHandler for Dispatcher {
                 let _ = self.catalog_rpc.stop_volt(volt);
             }
             EnableVolt { volt } => {
-                let _ = self.catalog_rpc.start_volt(volt);
+                let _ = self.catalog_rpc.enable_volt(volt);
             }
             GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.as_ref() {
@@ -247,7 +247,7 @@ impl ProxyHandler for Dispatcher {
             NewBuffer { buffer_id, path } => {
                 let buffer = Buffer::new(buffer_id, path.clone());
                 let content = buffer.rope.to_string();
-                self.catalog_rpc.document_did_open(
+                self.catalog_rpc.did_open_document(
                     &path,
                     buffer.language_id.to_string(),
                     buffer.rev as i32,

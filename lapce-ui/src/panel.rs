@@ -868,6 +868,8 @@ pub struct PanelSwitcher {
     mouse_pos: Point,
     on_icon: bool,
     clicked_icon: Option<usize>,
+    maximise_toggle: Option<Rect>,
+    clicked_maximise: bool,
 }
 
 impl PanelSwitcher {
@@ -878,6 +880,8 @@ impl PanelSwitcher {
             mouse_pos: Point::ZERO,
             on_icon: false,
             clicked_icon: None,
+            maximise_toggle: None,
+            clicked_maximise: false,
         }
     }
 
@@ -896,6 +900,7 @@ impl PanelSwitcher {
         }
         let switcher_size = data.config.ui.header_height() as f64;
         let icon_size = data.config.ui.font_size() as f64;
+        self.maximise_toggle = None;
         if self.position.is_bottom() {
             for (i, (_, icon)) in icons.iter_mut().enumerate() {
                 icon.rect = Rect::ZERO
@@ -905,6 +910,14 @@ impl PanelSwitcher {
                     ))
                     .inflate(icon_size / 2.0, icon_size / 2.0);
             }
+            self.maximise_toggle = Some(
+                Rect::ZERO
+                    .with_origin(Point::new(
+                        self_size.width / 2.0,
+                        self_size.height - switcher_size / 2.0,
+                    ))
+                    .inflate(icon_size / 2.0, icon_size / 2.0),
+            );
         } else {
             for (i, (_, icon)) in icons.iter_mut().enumerate() {
                 icon.rect = Rect::ZERO
@@ -985,6 +998,21 @@ impl Widget<LapceTabData> for PanelSwitcher {
                         return;
                     }
                 }
+                if self
+                    .maximise_toggle
+                    .map(|r| {
+                        r.inflate(icon_padding, icon_padding)
+                            .contains(mouse_event.pos)
+                    })
+                    .unwrap_or(false)
+                {
+                    if !self.on_icon {
+                        ctx.set_cursor(&Cursor::Pointer);
+                        self.on_icon = true;
+                        ctx.request_paint();
+                    }
+                    return;
+                }
                 if self.on_icon {
                     self.on_icon = false;
                     ctx.clear_cursor();
@@ -1001,6 +1029,17 @@ impl Widget<LapceTabData> for PanelSwitcher {
                         break;
                     }
                 }
+                self.clicked_maximise = false;
+                if self
+                    .maximise_toggle
+                    .map(|r| {
+                        r.inflate(icon_padding, icon_padding)
+                            .contains(mouse_event.pos)
+                    })
+                    .unwrap_or(false)
+                {
+                    self.clicked_maximise = true;
+                }
             }
             Event::MouseUp(mouse_event) => {
                 ctx.set_active(false);
@@ -1014,6 +1053,28 @@ impl Widget<LapceTabData> for PanelSwitcher {
                         break;
                     }
                 }
+                if self.clicked_maximise
+                    && self
+                        .maximise_toggle
+                        .map(|r| {
+                            r.inflate(icon_padding, icon_padding)
+                                .contains(mouse_event.pos)
+                        })
+                        .unwrap_or(false)
+                {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::ToggleMaximizedPanel,
+                            ),
+                            data: None,
+                        },
+                        Target::Widget(data.id),
+                    ));
+                }
+                self.clicked_icon = None;
+                self.clicked_maximise = false;
             }
             _ => (),
         }
@@ -1245,6 +1306,46 @@ impl Widget<LapceTabData> for PanelSwitcher {
             ctx.draw_svg(
                 &svg,
                 icon.rect,
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                ),
+            );
+        }
+
+        if let Some(rect) = self.maximise_toggle {
+            let maximized = data
+                .panel
+                .style
+                .get(&PanelPosition::BottomLeft)
+                .map(|s| s.maximized)
+                .unwrap_or(false)
+                || data
+                    .panel
+                    .style
+                    .get(&PanelPosition::BottomRight)
+                    .map(|s| s.maximized)
+                    .unwrap_or(false);
+            let mouse_rect = rect.inflate(icon_padding, icon_padding);
+            if mouse_rect.contains(self.mouse_pos) {
+                ctx.fill(
+                    mouse_rect,
+                    if is_bottom {
+                        data.config
+                            .get_color_unchecked(LapceTheme::HOVER_BACKGROUND)
+                    } else {
+                        data.config.get_color_unchecked(LapceTheme::PANEL_HOVERED)
+                    },
+                );
+            }
+            let svg = if maximized {
+                get_svg("chevron-down.svg").unwrap()
+            } else {
+                get_svg("chevron-up.svg").unwrap()
+            };
+            ctx.draw_svg(
+                &svg,
+                rect,
                 Some(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),

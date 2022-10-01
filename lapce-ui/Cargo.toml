@@ -15,6 +15,7 @@ rayon = "1.5.1"
 alacritty_terminal = "0.16"
 config = "0.11"
 itertools = "0.10.1"
+log-panics = { version = "2.1.0", features = ["with-backtrace"] }
 unicode-width = "0.1.8"
 im = { version = "15.0.0", features = ["serde"] }
 regex = "1.5.6"
@@ -50,87 +51,91 @@ default = ["all-languages", "lapce-data/updater"]
 #     --features lang-rust,lang-toml,lang-markdown,lang-json
 #
 all-languages = [
-    "lang-rust",
-    "lang-go",
-    "lang-javascript",
-    "lang-typescript",
-    "lang-python",
-    "lang-toml",
-    "lang-elixir",
-    "lang-php",
-    "lang-ruby",
+    "lang-bash",
     "lang-c",
     "lang-cpp",
-    "lang-json",
-    "lang-markdown",
-    "lang-html",
-    "lang-java",
+    "lang-csharp",
+    "lang-css",
+    "lang-d",
+    "lang-dart",
+    "lang-dockerfile",
+    "lang-elixir",
     "lang-elm",
-    "lang-swift",
-    "lang-ql",
-    "lang-haskell",
-    "lang-ocaml",
     "lang-glimmer",
+    "lang-go",
+    "lang-hare",
+    "lang-haskell",
     "lang-haxe",
     "lang-hcl",
-    "lang-scss",
-    "lang-hare",
-    "lang-css",
-    "lang-zig",
-    "lang-bash",
-    "lang-yaml",
+    "lang-html",
+    "lang-java",
+    "lang-javascript",
+    "lang-json",
     "lang-julia",
-    "lang-wgsl",
-    "lang-dockerfile",
-    "lang-csharp",
-    "lang-nix",
-    "lang-dart",
-    "lang-svelte",
-    "lang-latex",
     "lang-kotlin",
+    "lang-latex",
+    "lang-lua",
+    "lang-markdown",
+    "lang-nix",
+    "lang-ocaml",
+    "lang-php",
+    "lang-python",
+    "lang-ql",
+    "lang-r",
+    "lang-ruby",
+    "lang-rust",
+    "lang-scheme",
+    "lang-scss",
+    "lang-svelte",
+    "lang-swift",
+    "lang-toml",
+    "lang-typescript",
     "lang-vue",
-    "lang-d",
-    "lang-lua"
+    "lang-wgsl",
+    "lang-yaml",
+    "lang-zig",
 ]
 
-lang-rust = ["lapce-core/lang-rust"]
-lang-go = ["lapce-core/lang-go"]
-lang-javascript = ["lapce-core/lang-javascript"]
-lang-typescript = ["lapce-core/lang-typescript"]
-lang-python = ["lapce-core/lang-python"]
-lang-toml = ["lapce-core/lang-toml"]
-lang-elixir = ["lapce-core/lang-elixir"]
-lang-php = ["lapce-core/lang-php"]
-lang-ruby = ["lapce-core/lang-ruby"]
+lang-bash = ["lapce-core/lang-bash"]
 lang-c = ["lapce-core/lang-c"]
 lang-cpp = ["lapce-core/lang-cpp"]
-lang-json = ["lapce-core/lang-json"]
-lang-markdown = ["lapce-core/lang-markdown"]
-lang-html = ["lapce-core/lang-html"]
-lang-java = ["lapce-core/lang-java"]
+lang-csharp = ["lapce-core/lang-csharp"]
+lang-css = ["lapce-core/lang-css"]
+lang-d = ["lapce-core/lang-d"]
+lang-dart = ["lapce-core/lang-dart"]
+lang-dockerfile = ["lapce-core/lang-dockerfile"]
+lang-elixir = ["lapce-core/lang-elixir"]
 lang-elm = ["lapce-core/lang-elm"]
-lang-swift = ["lapce-core/lang-swift"]
-lang-ql = ["lapce-core/lang-ql"]
-lang-haskell = ["lapce-core/lang-haskell"]
-lang-ocaml = ["lapce-core/lang-ocaml"]
 lang-glimmer = ["lapce-core/lang-glimmer"]
+lang-go = ["lapce-core/lang-go"]
+lang-hare = ["lapce-core/lang-hare"]
+lang-haskell = ["lapce-core/lang-haskell"]
 lang-haxe = ["lapce-core/lang-haxe"]
 lang-hcl = ["lapce-core/lang-hcl"]
-lang-scss = ["lapce-core/lang-scss"]
-lang-hare = ["lapce-core/lang-hare"]
-lang-css = ["lapce-core/lang-css"]
-lang-zig = ["lapce-core/lang-zig"]
-lang-bash = ["lapce-core/lang-bash"]
-lang-yaml = ["lapce-core/lang-yaml"]
+lang-html = ["lapce-core/lang-html"]
+lang-java = ["lapce-core/lang-java"]
+lang-javascript = ["lapce-core/lang-javascript"]
+lang-json = ["lapce-core/lang-json"]
 lang-julia = ["lapce-core/lang-julia"]
-lang-wgsl = ["lapce-core/lang-wgsl"]
-lang-dockerfile = ["lapce-core/lang-dockerfile"]
-lang-csharp = ["lapce-core/lang-csharp"]
-lang-nix = ["lapce-core/lang-nix"]
-lang-dart = ["lapce-core/lang-dart"]
-lang-svelte = ["lapce-core/lang-svelte"]
-lang-latex = ["lapce-core/lang-latex"]
 lang-kotlin = ["lapce-core/lang-kotlin"]
-lang-vue = ["lapce-core/lang-vue"]
-lang-d = ["lapce-core/lang-d"]
+lang-latex = ["lapce-core/lang-latex"]
 lang-lua = ["lapce-core/lang-lua"]
+lang-markdown = ["lapce-core/lang-markdown"]
+lang-nix = ["lapce-core/lang-nix"]
+lang-ocaml = ["lapce-core/lang-ocaml"]
+lang-php = ["lapce-core/lang-php"]
+lang-python = ["lapce-core/lang-python"]
+lang-ql = ["lapce-core/lang-ql"]
+lang-r = ["lapce-core/lang-r"]
+lang-ruby = ["lapce-core/lang-ruby"]
+lang-rust = ["lapce-core/lang-rust"]
+lang-scheme = ["lapce-core/lang-scheme"]
+lang-scss = ["lapce-core/lang-scss"]
+lang-svelte = ["lapce-core/lang-svelte"]
+lang-swift = ["lapce-core/lang-swift"]
+lang-toml = ["lapce-core/lang-toml"]
+lang-typescript = ["lapce-core/lang-typescript"]
+lang-vue = ["lapce-core/lang-vue"]
+lang-wgsl = ["lapce-core/lang-wgsl"]
+lang-yaml = ["lapce-core/lang-yaml"]
+lang-zig = ["lapce-core/lang-zig"]

@@ -5,7 +5,7 @@ use include_dir::{include_dir, Dir};
 use lsp_types::{CompletionItemKind, SymbolKind};
 use once_cell::sync::Lazy;
 
-use lapce_data::config::{Config, LOGO};
+use lapce_data::config::{LapceConfig, LOGO};
 
 const ICONS_DIR: Dir = include_dir!("../icons");
 
@@ -148,7 +148,7 @@ pub fn symbol_svg(kind: &SymbolKind) -> Option<Svg> {
 
 pub fn completion_svg(
     kind: Option<CompletionItemKind>,
-    config: &Config,
+    config: &LapceConfig,
 ) -> Option<(Svg, Option<Color>)> {
     let kind = kind?;
     let kind_str = match kind {

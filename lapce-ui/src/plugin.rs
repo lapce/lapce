@@ -17,7 +17,7 @@ use druid::{
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{CommandKind, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::{LapceData, LapceTabData},
     panel::PanelKind,
     plugin::{
@@ -79,7 +79,7 @@ impl Plugin {
         display_name: &str,
         install_type: &PluginInstallType,
         error_string: &str,
-        config: &Config,
+        config: &LapceConfig,
         i: usize,
     ) {
         let y = self.line_height * i as f64;
@@ -152,7 +152,7 @@ impl Plugin {
         author: &str,
         version: &str,
         status: PluginStatus,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Rect {
         let y = (3.0 * self.line_height + self.gap) * i as f64 + self.gap / 2.0;
         let x = 3.0 * self.line_height;
@@ -996,6 +996,11 @@ fn status_on_click(ctx: &mut EventCtx, data: &LapceTabData, id: &str, pos: Point
                     LapceUICommand::EnableVolt(local_volt.clone()),
                     Target::Widget(tab_id),
                 ));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ReloadConfig,
+                    Target::Auto,
+                ));
             })
             .enabled(data.plugin.disabled.contains(id));
         menu = menu.entry(item);
@@ -1008,6 +1013,11 @@ fn status_on_click(ctx: &mut EventCtx, data: &LapceTabData, id: &str, pos: Point
                     LAPCE_UI_COMMAND,
                     LapceUICommand::DisableVolt(local_volt.clone()),
                     Target::Widget(tab_id),
+                ));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ReloadConfig,
+                    Target::Auto,
                 ));
             })
             .enabled(!data.plugin.disabled.contains(id));

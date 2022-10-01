@@ -6,7 +6,7 @@ use lsp_types::{HoverContents, MarkedString, MarkupKind, Position};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::EditorDiagnostic,
     document::{BufferContent, Document},
     markdown::{from_marked_string, parse_markdown},
@@ -102,7 +102,7 @@ impl HoverData {
         position: Position,
         hover_widget_id: WidgetId,
         event_sink: ExtEventSink,
-        config: Arc<Config>,
+        config: Arc<LapceConfig>,
     ) {
         if let BufferContent::File(path) = doc.content() {
             // Clone config for use inside the proxy callback
@@ -155,7 +155,7 @@ impl HoverData {
         &mut self,
         position: Position,
         diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
-        config: Arc<Config>,
+        config: Arc<LapceConfig>,
     ) {
         if let Some(diagnostics) = diagnostics {
             let diagnostics = diagnostics
@@ -226,7 +226,7 @@ impl Default for HoverData {
     }
 }
 
-fn parse_hover_resp(hover: lsp_types::Hover, config: &Config) -> Vec<RichText> {
+fn parse_hover_resp(hover: lsp_types::Hover, config: &LapceConfig) -> Vec<RichText> {
     match hover.contents {
         HoverContents::Scalar(text) => match text {
             MarkedString::String(text) => {

@@ -4,7 +4,7 @@ use crate::command::LAPCE_COMMAND;
 use crate::command::LAPCE_SAVE_FILE_AS;
 use crate::command::{CommandExecuted, CommandKind};
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
-use crate::config::Config;
+use crate::config::LapceConfig;
 use crate::data::EditorView;
 use crate::data::FocusArea;
 use crate::data::{
@@ -233,7 +233,7 @@ pub struct LapceEditorBufferData {
     pub find: Arc<Find>,
     pub proxy: Arc<LapceProxy>,
     pub command_keymaps: Arc<IndexMap<String, Vec<KeyMap>>>,
-    pub config: Arc<Config>,
+    pub config: Arc<LapceConfig>,
 }
 
 impl LapceEditorBufferData {
@@ -1118,7 +1118,7 @@ impl LapceEditorBufferData {
         &self,
         text: &mut PietText,
         pos: Point,
-        config: &Config,
+        config: &LapceConfig,
     ) -> usize {
         let (line, char_width) = if self.editor.is_code_lens() {
             let (line, font_size) = if let Some(syntax) = self.doc.syntax() {
@@ -1175,7 +1175,7 @@ impl LapceEditorBufferData {
         &mut self,
         ctx: &mut EventCtx,
         mouse_event: &MouseEvent,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let (new_offset, _) = self.doc.offset_of_point(
             ctx.text(),
@@ -1219,7 +1219,7 @@ impl LapceEditorBufferData {
         &mut self,
         ctx: &mut EventCtx,
         mouse_event: &MouseEvent,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         ctx.set_active(true);
         let (mouse_offset, _) = self.doc.offset_of_point(
@@ -1243,7 +1243,7 @@ impl LapceEditorBufferData {
         &mut self,
         ctx: &mut EventCtx,
         mouse_event: &MouseEvent,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         ctx.set_active(true);
         let (mouse_offset, _) = self.doc.offset_of_point(
@@ -1399,7 +1399,7 @@ impl LapceEditorBufferData {
         ctx: &mut EventCtx,
         cmd: &EditCommand,
     ) -> CommandExecuted {
-        let modal = self.config.lapce.modal && !self.editor.content.is_input();
+        let modal = self.config.core.modal && !self.editor.content.is_input();
         let doc = Arc::make_mut(&mut self.doc);
         let doc_before_edit = doc.buffer().text().clone();
         let register = Arc::make_mut(&mut self.main_split.register);
@@ -2369,7 +2369,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             "list_focus" => self.has_completions() || self.is_palette(),
             "rename_focus" => self.has_rename(),
             "modal_focus" => {
-                (self.has_completions() && !self.config.lapce.modal)
+                (self.has_completions() && !self.config.core.modal)
                     || self.has_hover()
                     || self.is_palette()
                     || self.has_rename()

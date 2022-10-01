@@ -128,6 +128,7 @@ impl Widget<LapceTabData> for HoverContainer {
             || old_hover.status != hover.status
             || !old_hover.items.same(&hover.items)
         {
+            self.ensure_visible(ctx, data, env);
             ctx.request_layout();
         }
 
@@ -140,9 +141,6 @@ impl Widget<LapceTabData> for HoverContainer {
                 Target::Widget(self.scroll_id),
             ));
         }
-
-        self.ensure_visible(ctx, data, env);
-        ctx.request_paint();
 
         self.hover.update(ctx, data, env);
     }

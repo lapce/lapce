@@ -23,7 +23,7 @@ use crate::command::{
     lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
     LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
 };
-use crate::config::{Config, LapceTheme};
+use crate::config::{LapceConfig, LapceTheme};
 use crate::keypress::loader::KeyMapLoader;
 
 pub use keypress::KeyPress;
@@ -47,7 +47,7 @@ pub fn paint_key(
     ctx: &mut PaintCtx,
     text: &str,
     origin: Point,
-    config: &Config,
+    config: &LapceConfig,
 ) -> (Rect, PietTextLayout, Point) {
     let text_layout = ctx
         .text()
@@ -89,7 +89,7 @@ impl KeyMap {
         ctx: &mut PaintCtx,
         origin: Point,
         align: Alignment,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let old_origin = origin;
 
@@ -161,7 +161,7 @@ pub struct KeyPressData {
 }
 
 impl KeyPressData {
-    pub fn new(config: &Config, event_sink: ExtEventSink) -> Self {
+    pub fn new(config: &LapceConfig, event_sink: ExtEventSink) -> Self {
         let (keymaps, command_keymaps) =
             Self::get_keymaps(config).unwrap_or((IndexMap::new(), IndexMap::new()));
         let mut keypress = Self {
@@ -181,7 +181,7 @@ impl KeyPressData {
         keypress
     }
 
-    pub fn update_keymaps(&mut self, config: &Config) {
+    pub fn update_keymaps(&mut self, config: &LapceConfig) {
         if let Ok((new_keymaps, new_command_keymaps)) = Self::get_keymaps(config) {
             self.keymaps = Arc::new(new_keymaps);
             self.command_keymaps = Arc::new(new_command_keymaps);
@@ -634,17 +634,17 @@ impl KeyPressData {
     }
 
     pub fn file() -> Option<PathBuf> {
-        Config::keymaps_file()
+        LapceConfig::keymaps_file()
     }
 
     #[allow(clippy::type_complexity)]
     fn get_keymaps(
-        config: &Config,
+        config: &LapceConfig,
     ) -> Result<(
         IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
         IndexMap<String, Vec<KeyMap>>,
     )> {
-        let is_modal = config.lapce.modal;
+        let is_modal = config.core.modal;
 
         let mut loader = KeyMapLoader::new();
 

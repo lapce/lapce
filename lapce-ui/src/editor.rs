@@ -34,7 +34,7 @@ use lapce_data::{
     command::{
         LapceCommand, LapceUICommand, LapceWorkbenchCommand, LAPCE_UI_COMMAND,
     },
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::LapceTabData,
     editor::{LapceEditorBufferData, Syntax},
     menu::MenuItem,
@@ -106,7 +106,7 @@ impl LapceEditor {
         &mut self,
         ctx: &mut EventCtx,
         editor_data: &LapceEditorBufferData,
-        config: &Config,
+        config: &LapceConfig,
     ) -> bool {
         if !ctx.is_active() {
             return false;
@@ -168,7 +168,7 @@ impl LapceEditor {
         mouse_pos: Point,
         mods: Modifiers,
         editor_data: &mut LapceEditorBufferData,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let mouse_actually_moved = self.mouse_pos != mouse_pos;
         self.mouse_pos = mouse_pos;
@@ -217,7 +217,7 @@ impl LapceEditor {
         ctx: &mut EventCtx,
         mouse_event: &MouseEvent,
         editor_data: &mut LapceEditorBufferData,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         ctx.set_handled();
         match mouse_event.button {
@@ -246,7 +246,7 @@ impl LapceEditor {
         ctx: &mut EventCtx,
         mouse_event: &MouseEvent,
         editor_data: &mut LapceEditorBufferData,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         match mouse_event.count {
             1 => {
@@ -267,7 +267,7 @@ impl LapceEditor {
         ctx: &mut EventCtx,
         editor_data: &mut LapceEditorBufferData,
         mouse_event: &MouseEvent,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let (offset, _) = editor_data.doc.offset_of_point(
             ctx.text(),

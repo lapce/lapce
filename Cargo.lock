@@ -620,13 +620,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b1b9d958c2b1368a663f05538fc1b5975adce1e19f435acceae987aceeeb369"
 dependencies = [
  "lazy_static",
- "nom",
+ "nom 5.1.2",
  "rust-ini",
  "serde 1.0.145",
  "serde-hjson",
  "serde_json",
  "toml",
  "yaml-rust",
+]
+
+[[package]]
+name = "config"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11f1667b8320afa80d69d8bbe40830df2c8a06003d86f73d8e003b2c48df416d"
+dependencies = [
+ "async-trait",
+ "lazy_static",
+ "nom 7.1.1",
+ "pathdiff",
+ "serde 1.0.145",
+ "toml",
 ]
 
 [[package]]
@@ -2557,8 +2571,10 @@ dependencies = [
  "tree-sitter-php",
  "tree-sitter-python",
  "tree-sitter-ql",
+ "tree-sitter-r",
  "tree-sitter-ruby",
  "tree-sitter-rust",
+ "tree-sitter-scheme",
  "tree-sitter-scss",
  "tree-sitter-svelte",
  "tree-sitter-swift",
@@ -2580,7 +2596,7 @@ dependencies = [
  "base64 0.13.0",
  "bytemuck",
  "chrono",
- "config",
+ "config 0.13.2",
  "crossbeam-channel",
  "dmg",
  "druid",
@@ -2598,6 +2614,7 @@ dependencies = [
  "log 0.4.17",
  "lsp-types",
  "notify",
+ "once_cell",
  "parking_lot 0.11.2",
  "pulldown-cmark",
  "rayon",
@@ -2654,6 +2671,7 @@ dependencies = [
  "toml_edit",
  "trash",
  "url",
+ "walkdir",
  "wasi-common",
  "wasi-experimental-http-wasmtime",
  "wasmtime",
@@ -2685,7 +2703,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
- "config",
+ "config 0.11.0",
  "druid",
  "fern",
  "im",
@@ -2696,6 +2714,7 @@ dependencies = [
  "lapce-data",
  "lapce-rpc",
  "log 0.4.17",
+ "log-panics",
  "lsp-types",
  "once_cell",
  "open",
@@ -2856,6 +2875,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "log-panics"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68f9dd8546191c1850ecf67d22f5ff00a935b890d0e84713159a55495cc2ac5f"
+dependencies = [
+ "backtrace",
+ "log 0.4.17",
+]
+
+[[package]]
 name = "lsp-types"
 version = "0.93.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2995,6 +3024,12 @@ name = "mime"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a60c7ce501c71e03a9c9c0d35b861413ae925bd979cc7a4e30d060069aaac8d"
+
+[[package]]
+name = "minimal-lexical"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 
 [[package]]
 name = "miniz_oxide"
@@ -3159,6 +3194,16 @@ dependencies = [
  "lexical-core",
  "memchr",
  "version_check",
+]
+
+[[package]]
+name = "nom"
+version = "7.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8903e5a29a317527874d0402f867152a3d21c908bb0b933e416c65e301d4c36"
+dependencies = [
+ "memchr",
+ "minimal-lexical",
 ]
 
 [[package]]
@@ -5159,6 +5204,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-r"
+version = "0.19.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "522c13f4cc46213148b19d4ad40a988ffabd51fd90eb7de759844fbde49bda0c"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-ruby"
 version = "0.19.0"
 source = "git+https://github.com/tree-sitter/tree-sitter-ruby.git?rev=656abef#656abef0645caea793e33c1c773570722463e1d8"
@@ -5172,6 +5227,15 @@ name = "tree-sitter-rust"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13470fafb7327a3acf96f5bc1013b5539a899a182f01c59b5af53f6b93195717"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-scheme"
+version = "0.2.0"
+source = "git+https://github.com/6cdh/tree-sitter-scheme.git?branch=main#af0fd1fa452cb2562dc7b5c8a8c55551c39273b9"
 dependencies = [
  "cc",
  "tree-sitter",

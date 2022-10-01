@@ -22,7 +22,7 @@ use lapce_data::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::{FocusArea, LapceEditorData, LapceTabData, SplitContent, SplitData},
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap},
     panel::PanelKind,
@@ -547,7 +547,7 @@ impl LapceSplit {
         self.children.iter().any(|ch| !ch.flex)
     }
 
-    fn paint_bar(&mut self, ctx: &mut PaintCtx, config: &Config) {
+    fn paint_bar(&mut self, ctx: &mut PaintCtx, config: &LapceConfig) {
         let children_len = self.children.len();
         if children_len <= 1 {
             return;
@@ -1287,7 +1287,7 @@ impl Widget<LapceTabData> for LapceSplit {
             let line_height = 35.0;
 
             self.commands = empty_editor_commands(
-                data.config.lapce.modal,
+                data.config.core.modal,
                 data.workspace.path.is_some(),
             )
             .iter()
