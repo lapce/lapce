@@ -2400,7 +2400,7 @@ impl LapceMainSplitData {
         scratch: bool,
         config: &LapceConfig,
     ) -> &mut LapceEditorData {
-        if path.is_none() {
+        if path.is_none() && !scratch {
             let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
             if let Some(EditorTabChild::Editor(id, _, _)) = editor_tab.active_child()
             {
