@@ -25,6 +25,7 @@ use lapce_rpc::{
     style::LineStyle,
     RequestId, RpcError,
 };
+use lsp_types::request::CodeActionResolveRequest;
 use lsp_types::{
     request::{
         CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
@@ -33,8 +34,8 @@ use lsp_types::{
         PrepareRenameRequest, References, Rename, Request, ResolveCompletionItem,
         SelectionRangeRequest, SemanticTokensFullRequest, WorkspaceSymbol,
     },
-    CodeActionContext, CodeActionParams, CodeActionResponse, CompletionItem,
-    CompletionParams, CompletionResponse, DocumentFormattingParams,
+    CodeAction, CodeActionContext, CodeActionParams, CodeActionResponse,
+    CompletionItem, CompletionParams, CompletionResponse, DocumentFormattingParams,
     DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions,
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint,
     InlayHintParams, Location, PartialResultParams, Position, PrepareRenameResponse,
@@ -800,6 +801,41 @@ impl PluginCatalogRpcHandler {
                             Err(RpcError {
                                 code: 0,
                                 message: "completion item deserialize error"
+                                    .to_string(),
+                            })
+                        }
+                    }
+                    Err(e) => Err(e),
+                };
+                cb(result)
+            },
+        );
+    }
+
+    pub fn action_resolve(
+        &self,
+        item: CodeAction,
+        plugin_id: PluginId,
+        cb: impl FnOnce(Result<CodeAction, RpcError>) + Send + Clone + 'static,
+    ) {
+        let method = CodeActionResolveRequest::METHOD;
+        self.send_request(
+            Some(plugin_id),
+            None,
+            method,
+            item,
+            None,
+            None,
+            move |_, result| {
+                let result = match result {
+                    Ok(value) => {
+                        if let Ok(item) = serde_json::from_value::<CodeAction>(value)
+                        {
+                            Ok(item)
+                        } else {
+                            Err(RpcError {
+                                code: 0,
+                                message: "code_action item deserialize error"
                                     .to_string(),
                             })
                         }

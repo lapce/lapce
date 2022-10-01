@@ -312,6 +312,10 @@ impl LspClient {
                     ..Default::default()
                 }),
                 code_action: Some(CodeActionClientCapabilities {
+                    data_support: Some(true),
+                    resolve_support: Some(CodeActionCapabilityResolveSupport {
+                        properties: vec!["edit".to_string()],
+                    }),
                     code_action_literal_support: Some(CodeActionLiteralSupport {
                         code_action_kind: CodeActionKindLiteralSupport {
                             value_set: vec![

@@ -9,10 +9,10 @@ use std::{
 
 use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
-    request::GotoTypeDefinitionResponse, CodeActionResponse, CompletionItem,
-    DocumentSymbolResponse, GotoDefinitionResponse, Hover, InlayHint, Location,
-    Position, PrepareRenameResponse, SelectionRange, SymbolInformation,
-    TextDocumentItem, TextEdit, WorkspaceEdit,
+    request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
+    CompletionItem, DocumentSymbolResponse, GotoDefinitionResponse, Hover,
+    InlayHint, Location, Position, PrepareRenameResponse, SelectionRange,
+    SymbolInformation, TextDocumentItem, TextEdit, WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -51,6 +51,10 @@ pub enum ProxyRequest {
     CompletionResolve {
         plugin_id: PluginId,
         completion_item: Box<CompletionItem>,
+    },
+    CodeActionResolve {
+        plugin_id: PluginId,
+        action_item: Box<CodeAction>,
     },
     GetHover {
         request_id: usize,
@@ -229,6 +233,9 @@ pub enum ProxyResponse {
     CompletionResolveResponse {
         item: Box<CompletionItem>,
     },
+    CodeActionResolveResponse {
+        item: Box<CodeAction>,
+    },
     HoverResponse {
         request_id: usize,
         hover: Hover,
@@ -245,6 +252,7 @@ pub enum ProxyResponse {
         references: Vec<Location>,
     },
     GetCodeActionsResponse {
+        plugin_id: PluginId,
         resp: CodeActionResponse,
     },
     GetFilesResponse {
@@ -592,6 +600,21 @@ impl ProxyRpcHandler {
             ProxyRequest::CompletionResolve {
                 plugin_id,
                 completion_item: Box::new(completion_item),
+            },
+            f,
+        );
+    }
+
+    pub fn code_action_resolve(
+        &self,
+        action_item: CodeAction,
+        plugin_id: PluginId,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::CodeActionResolve {
+                action_item: Box::new(action_item),
+                plugin_id,
             },
             f,
         );
