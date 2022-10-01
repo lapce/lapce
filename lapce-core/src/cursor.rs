@@ -291,6 +291,43 @@ impl Cursor {
         }
     }
 
+    pub fn get_line_col_char(
+        &self,
+        buffer: &Buffer,
+    ) -> Option<(usize, usize, usize)> {
+        match &self.mode {
+            CursorMode::Normal(offset) => {
+                let ln_col = buffer.offset_to_line_col(*offset);
+                Some((ln_col.0, ln_col.1, *offset))
+            }
+            CursorMode::Visual {
+                start,
+                end,
+                mode: _,
+            } => {
+                let v = buffer.offset_to_line_col(*start.min(end));
+                Some((v.0, v.1, *start))
+            }
+            CursorMode::Insert(selection) => {
+                if selection.regions().len() > 1 {
+                    return None;
+                }
+
+                let x = selection.regions().get(0).unwrap();
+                let v = buffer.offset_to_line_col(x.start);
+
+                Some((v.0, v.1, x.start))
+            }
+        }
+    }
+
+    pub fn get_selection_count(&self) -> usize {
+        match &self.mode {
+            CursorMode::Insert(selection) => selection.regions().len(),
+            _ => 0,
+        }
+    }
+
     pub fn set_offset(&mut self, offset: usize, modify: bool, new_cursor: bool) {
         match &self.mode {
             CursorMode::Normal(old_offset) => {
