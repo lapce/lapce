@@ -1585,5 +1585,30 @@ mod test {
         );
     }
 
+    #[test]
+    fn check_multiple_cursor_match_insertion() {
+        let mut buffer = Buffer::new(" 123 567 9ab def");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        selection.add_region(SelRegion::caret(4));
+        selection.add_region(SelRegion::caret(8));
+        selection.add_region(SelRegion::caret(12));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::insert(&mut cursor, &mut buffer, "(", None, true);
+
+        assert_eq!(
+            "() 123() 567() 9ab() def",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+
+        let mut end_selection = Selection::new();
+        end_selection.add_region(SelRegion::caret(1));
+        end_selection.add_region(SelRegion::caret(7));
+        end_selection.add_region(SelRegion::caret(13));
+        end_selection.add_region(SelRegion::caret(19));
+        assert_eq!(cursor.mode, CursorMode::Insert(end_selection));
+    }
+
     // TODO(dbuga): add tests duplicating selections (multiple line blocks)
 }
