@@ -28,7 +28,7 @@ use crate::{
     command::LAPCE_UI_COMMAND,
     command::{CommandExecuted, LAPCE_COMMAND},
     command::{LapceCommand, LapceUICommand},
-    config::Config,
+    config::LapceConfig,
     data::{FocusArea, LapceMainSplitData, LapceTabData},
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
@@ -301,7 +301,7 @@ pub struct PaletteViewData {
     pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
     pub keypress: Arc<KeyPressData>,
-    pub config: Arc<Config>,
+    pub config: Arc<LapceConfig>,
     pub focus_area: FocusArea,
     pub terminal: Arc<TerminalSplitData>,
 }
@@ -417,7 +417,7 @@ impl KeyPressFocus for PaletteViewData {
 }
 
 impl PaletteData {
-    pub fn new(config: Arc<Config>, proxy: Arc<LapceProxy>) -> Self {
+    pub fn new(config: Arc<LapceConfig>, proxy: Arc<LapceProxy>) -> Self {
         let (sender, receiver) = unbounded();
         let widget_id = WidgetId::next();
         let scroll_id = WidgetId::next();
@@ -487,6 +487,13 @@ impl PaletteData {
 
 impl PaletteViewData {
     pub fn cancel(&mut self, ctx: &mut EventCtx) {
+        if self.palette.palette_type == PaletteType::Theme {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ReloadConfig,
+                Target::Auto,
+            ));
+        }
         let palette = Arc::make_mut(&mut self.palette);
         palette.status = PaletteStatus::Inactive;
         palette.input = "".to_string();
@@ -813,7 +820,7 @@ impl PaletteViewData {
     }
 
     fn get_ssh_hosts(&mut self, _ctx: &mut EventCtx) {
-        let workspaces = Config::recent_workspaces().unwrap_or_default();
+        let workspaces = LapceConfig::recent_workspaces().unwrap_or_default();
         let mut hosts = HashSet::new();
         for workspace in workspaces.iter() {
             if let LapceWorkspaceType::RemoteSSH(user, host) = &workspace.kind {
@@ -837,7 +844,7 @@ impl PaletteViewData {
     }
 
     fn get_workspaces(&mut self, _ctx: &mut EventCtx) {
-        let workspaces = Config::recent_workspaces().unwrap_or_default();
+        let workspaces = LapceConfig::recent_workspaces().unwrap_or_default();
         let palette = Arc::make_mut(&mut self.palette);
         palette.total_items = workspaces
             .into_iter()
@@ -868,7 +875,7 @@ impl PaletteViewData {
             .collect();
     }
 
-    fn get_themes(&mut self, _ctx: &mut EventCtx, config: &Config) {
+    fn get_themes(&mut self, _ctx: &mut EventCtx, config: &LapceConfig) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.total_items = config
             .available_themes

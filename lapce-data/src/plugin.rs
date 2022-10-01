@@ -14,7 +14,7 @@ use plugin_install_status::PluginInstallStatus;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::Config,
+    config::LapceConfig,
     markdown::parse_markdown,
     proxy::LapceProxy,
 };
@@ -172,7 +172,7 @@ impl PluginData {
     pub fn download_readme(
         widget_id: WidgetId,
         volt: &VoltInfo,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> Result<()> {
         let url = Url::parse(&volt.meta)?;
@@ -198,8 +198,9 @@ impl PluginData {
         } else {
             std::thread::spawn(move || -> Result<()> {
                 let download_volt_result =
-                    download_volt(volt, true, &meta, &meta_str);
-                if download_volt_result.is_err() {
+                    download_volt(volt, false, &meta, &meta_str);
+                if let Err(err) = download_volt_result {
+                    log::warn!("download_volt err: {err:?}");
                     proxy.core_rpc.volt_installing(
                         meta.clone(),
                         "Could not download Volt".to_string(),

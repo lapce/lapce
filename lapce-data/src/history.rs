@@ -22,7 +22,7 @@ use xi_rope::{spans::Spans, Rope};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     document::{BufferContent, Document, TextLayoutCache, TextLayoutLine},
 };
 
@@ -80,7 +80,7 @@ impl DocumentHistory {
         &self,
         text: &mut PietText,
         line: usize,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Arc<TextLayoutLine> {
         let font_size = 0;
         self.text_layouts.borrow_mut().check_attributes(config.id);
@@ -118,7 +118,7 @@ impl DocumentHistory {
         &self,
         text: &mut PietText,
         line: usize,
-        config: &Config,
+        config: &LapceConfig,
     ) -> TextLayoutLine {
         let line_content = self.buffer.as_ref().unwrap().line_content(line);
         let font_family = config.editor.font_family();

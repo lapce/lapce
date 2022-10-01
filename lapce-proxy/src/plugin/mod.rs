@@ -11,25 +11,24 @@ use lapce_rpc::plugin::{PluginId, VoltInfo, VoltMetadata};
 use lapce_rpc::proxy::ProxyRpcHandler;
 use lapce_rpc::style::LineStyle;
 use lapce_rpc::{RequestId, RpcError};
-use lsp_types::notification::{DidOpenTextDocument, Notification};
 use lsp_types::request::{
     CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
     GotoDefinition, GotoTypeDefinition, GotoTypeDefinitionParams,
-    GotoTypeDefinitionResponse, InlayHintRequest, PrepareRenameRequest, References,
-    Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
-    SemanticTokensFullRequest, WorkspaceSymbol,
+    GotoTypeDefinitionResponse, HoverRequest, InlayHintRequest,
+    PrepareRenameRequest, References, Rename, Request, ResolveCompletionItem,
+    SelectionRangeRequest, SemanticTokensFullRequest, WorkspaceSymbol,
 };
 use lsp_types::{
     CodeActionContext, CodeActionParams, CodeActionResponse, CompletionItem,
-    CompletionParams, CompletionResponse, DidOpenTextDocumentParams,
-    DocumentFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
-    FormattingOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    InlayHint, InlayHintParams, Location, PartialResultParams, Position,
-    PrepareRenameResponse, Range, ReferenceContext, ReferenceParams, RenameParams,
-    SelectionRange, SelectionRangeParams, SemanticTokens, SemanticTokensParams,
-    SymbolInformation, TextDocumentIdentifier, TextDocumentItem,
-    TextDocumentPositionParams, TextEdit, Url, VersionedTextDocumentIdentifier,
-    WorkDoneProgressParams, WorkspaceEdit, WorkspaceSymbolParams,
+    CompletionParams, CompletionResponse, DocumentFormattingParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint,
+    InlayHintParams, Location, PartialResultParams, Position, PrepareRenameResponse,
+    Range, ReferenceContext, ReferenceParams, RenameParams, SelectionRange,
+    SelectionRangeParams, SemanticTokens, SemanticTokensParams, SymbolInformation,
+    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit,
+    Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceEdit,
+    WorkspaceSymbolParams,
 };
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
@@ -75,6 +74,9 @@ pub enum PluginCatalogRpc {
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
     },
+    DidOpenTextDocument {
+        document: TextDocumentItem,
+    },
     DidChangeTextDocument {
         language_id: String,
         document: VersionedTextDocumentIdentifier,
@@ -93,10 +95,11 @@ pub enum PluginCatalogRpc {
 }
 
 pub enum PluginCatalogNotification {
+    UnactivatedVolts(Vec<VoltMetadata>),
     PluginServerLoaded(PluginServerRpcHandler),
     InstallVolt(VoltInfo),
     StopVolt(VoltInfo),
-    StartVolt(VoltInfo),
+    EnableVolt(VoltInfo),
     Shutdown,
 }
 
@@ -179,6 +182,9 @@ impl PluginCatalogRpcHandler {
                 } => {
                     plugin.format_semantic_tokens(plugin_id, tokens, text, f);
                 }
+                PluginCatalogRpc::DidOpenTextDocument { document } => {
+                    plugin.handle_did_open_text_document(document);
+                }
                 PluginCatalogRpc::DidSaveTextDocument {
                     language_id,
                     path,
@@ -227,23 +233,6 @@ impl PluginCatalogRpcHandler {
             .send(PluginCatalogRpc::Handler(notification))
             .map_err(|e| anyhow!(e.to_string()))?;
         Ok(())
-    }
-
-    fn server_notification<P: Serialize>(
-        &self,
-        method: &'static str,
-        params: P,
-        language_id: Option<String>,
-        path: Option<PathBuf>,
-    ) {
-        let params = serde_json::to_value(params).unwrap();
-        let rpc = PluginCatalogRpc::ServerNotification {
-            method,
-            params,
-            language_id,
-            path,
-        };
-        let _ = self.plugin_tx.send(rpc);
     }
 
     fn send_request_to_all_plugins<P, Resp>(
@@ -718,12 +707,13 @@ impl PluginCatalogRpcHandler {
         cb: impl FnOnce(PluginId, Result<Hover, RpcError>) + Clone + Send + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
-        let method = SelectionRangeRequest::METHOD;
-        let params = SelectionRangeParams {
-            text_document: TextDocumentIdentifier { uri },
-            positions: vec![position],
+        let method = HoverRequest::METHOD;
+        let params = HoverParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
             work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: Default::default(),
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
@@ -815,28 +805,25 @@ impl PluginCatalogRpcHandler {
         );
     }
 
-    pub fn document_did_open(
+    pub fn did_open_document(
         &self,
         path: &Path,
         language_id: String,
         version: i32,
         text: String,
     ) {
-        let method = DidOpenTextDocument::METHOD;
-        let params = DidOpenTextDocumentParams {
-            text_document: TextDocumentItem::new(
+        let _ = self.plugin_tx.send(PluginCatalogRpc::DidOpenTextDocument {
+            document: TextDocumentItem::new(
                 Url::from_file_path(path).unwrap(),
-                language_id.clone(),
+                language_id,
                 version,
                 text,
             ),
-        };
-        self.server_notification(
-            method,
-            params,
-            Some(language_id),
-            Some(path.to_path_buf()),
-        );
+        });
+    }
+
+    pub fn unactivated_volts(&self, volts: Vec<VoltMetadata>) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::UnactivatedVolts(volts))
     }
 
     pub fn plugin_server_loaded(
@@ -856,8 +843,8 @@ impl PluginCatalogRpcHandler {
         self.catalog_notification(PluginCatalogNotification::StopVolt(volt))
     }
 
-    pub fn start_volt(&self, volt: VoltInfo) -> Result<()> {
-        self.catalog_notification(PluginCatalogNotification::StartVolt(volt))
+    pub fn enable_volt(&self, volt: VoltInfo) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::EnableVolt(volt))
     }
 }
 

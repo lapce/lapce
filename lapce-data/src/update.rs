@@ -55,6 +55,7 @@ pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
     let name = match std::env::consts::OS {
         "macos" => "Lapce-macos.dmg",
         "linux" => "Lapce-linux.tar.gz",
+        // TODO(dbuga): download installer for non-portable
         "windows" => "Lapce-windows-portable.zip",
         _ => return Err(anyhow!("os not supported")),
     };
@@ -114,13 +115,23 @@ pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
 
 #[cfg(target_os = "windows")]
 pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
-    let parent = src.parent().ok_or_else(|| anyhow::anyhow!("no parent"))?;
+    let parent = src
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("src has no parent"))?;
+    let dst_parent = process_path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("process_path has no parent"))?;
+
     {
         let mut archive = zip::ZipArchive::new(std::fs::File::open(src)?)?;
         archive.extract(parent)?;
     }
-    std::fs::remove_file(process_path)?;
+
+    // TODO(dbuga): instead of replacing the exe, run the msi installer for non-portable
+    // TODO(dbuga): there's a very slight chance the user might end up with a backup file without a working .exe
+    std::fs::rename(process_path, dst_parent.join("lapce.exe.bak"))?;
     std::fs::copy(parent.join("lapce.exe"), process_path)?;
+
     Ok(process_path.to_path_buf())
 }
 
@@ -157,4 +168,19 @@ pub fn restart(path: &Path) -> Result<()> {
         .creation_flags(DETACHED_PROCESS)
         .spawn()?;
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn cleanup() {
+    // Clean up backup exe after an update
+    if let Ok(process_path) = std::env::current_exe() {
+        if let Some(dst_parent) = process_path.parent() {
+            let _ = std::fs::remove_file(dst_parent.join("lapce.exe.bak"));
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn cleanup() {
+    // Nothing to do yet
 }

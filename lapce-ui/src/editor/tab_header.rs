@@ -97,47 +97,50 @@ impl LapceEditorTabHeader {
         let mut text = "".to_string();
         let mut hint = "".to_string();
         let mut svg = get_svg("default_file.svg").unwrap();
-        match child {
-            EditorTabChild::Editor(view_id, _, _) => {
-                let editor_buffer = data.editor_view_content(*view_id);
+        if let Some(child) = child {
+            match child {
+                EditorTabChild::Editor(view_id, _, _) => {
+                    let editor_buffer = data.editor_view_content(*view_id);
 
-                if let BufferContent::File(path) = &editor_buffer.editor.content {
-                    (svg, _) = file_svg(path);
-                    if let Some(file_name) = path.file_name() {
-                        if let Some(s) = file_name.to_str() {
-                            text = s.to_string();
+                    if let BufferContent::File(path) = &editor_buffer.editor.content
+                    {
+                        (svg, _) = file_svg(path);
+                        if let Some(file_name) = path.file_name() {
+                            if let Some(s) = file_name.to_str() {
+                                text = s.to_string();
+                            }
                         }
+                        let mut path = path.to_path_buf();
+                        if let Some(workspace_path) = data.workspace.path.as_ref() {
+                            path = path
+                                .strip_prefix(workspace_path)
+                                .unwrap_or(&path)
+                                .to_path_buf();
+                        }
+                        hint = path
+                            .parent()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("")
+                            .to_string();
+                    } else if let BufferContent::Scratch(..) =
+                        &editor_buffer.editor.content
+                    {
+                        text = editor_buffer.editor.content.file_name().to_string();
                     }
-                    let mut path = path.to_path_buf();
-                    if let Some(workspace_path) = data.workspace.path.as_ref() {
-                        path = path
-                            .strip_prefix(workspace_path)
-                            .unwrap_or(&path)
-                            .to_path_buf();
+                    if !editor_buffer.doc.buffer().is_pristine() {
+                        text = format!("*{text}");
                     }
-                    hint = path
-                        .parent()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("")
-                        .to_string();
-                } else if let BufferContent::Scratch(..) =
-                    &editor_buffer.editor.content
-                {
-                    text = editor_buffer.editor.content.file_name().to_string();
+                    if let Some(_compare) = editor_buffer.editor.compare.as_ref() {
+                        text = format!("{text} (Working tree)");
+                    }
                 }
-                if !editor_buffer.doc.buffer().is_pristine() {
-                    text = format!("*{text}");
+                EditorTabChild::Settings { .. } => {
+                    text = "Settings".to_string();
+                    hint = format!("ver. {}", *VERSION);
                 }
-                if let Some(_compare) = editor_buffer.editor.compare.as_ref() {
-                    text = format!("{text} (Working tree)");
+                EditorTabChild::Plugin { volt_name, .. } => {
+                    text = format!("Plugin: {volt_name}");
                 }
-            }
-            EditorTabChild::Settings { .. } => {
-                text = "Settings".to_string();
-                hint = format!("ver. {}", *VERSION);
-            }
-            EditorTabChild::Plugin { volt_name, .. } => {
-                text = format!("Plugin: {volt_name}");
             }
         }
         let font_size = data.config.ui.font_size() as f64;
@@ -263,84 +266,89 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
         let header_height = data.config.ui.header_height() as f64;
         let size = Size::new(bc.max().width, data.config.ui.header_height() as f64);
 
-        let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
-        if self.is_hot || *editor_tab.content_is_hot.borrow() {
-            let icon_size = 24.0;
-            let gap = (header_height - icon_size) / 2.0;
-            let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
+        let icon_size = 24.0;
+        let gap = (header_height - icon_size) / 2.0;
+        let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
+        let icon = LapceIcon {
+            icon: "close.svg",
+            rect: Size::new(icon_size, icon_size)
+                .to_rect()
+                .with_origin(Point::new(x, gap)),
+            command: Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::SplitClose,
+                Target::Widget(self.widget_id),
+            ),
+        };
+        self.icons.push(icon);
+
+        let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
+        let icon = LapceIcon {
+            icon: "split-horizontal.svg",
+            rect: Size::new(icon_size, icon_size)
+                .to_rect()
+                .with_origin(Point::new(x + gap, gap)),
+            command: Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Focus(FocusCommand::SplitVertical),
+                    data: None,
+                },
+                Target::Widget(self.widget_id),
+            ),
+        };
+        self.icons.push(icon);
+
+        if data.config.editor.show_tab {
             let icon = LapceIcon {
-                icon: "close.svg",
+                icon: "chevron-left.svg",
                 rect: Size::new(icon_size, icon_size)
                     .to_rect()
-                    .with_origin(Point::new(x, gap)),
+                    .with_origin(Point::new(gap, gap)),
                 command: Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitClose,
+                    LapceUICommand::PreviousEditorTab,
                     Target::Widget(self.widget_id),
                 ),
             };
             self.icons.push(icon);
 
-            let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
             let icon = LapceIcon {
-                icon: "split-horizontal.svg",
+                icon: "chevron-right.svg",
                 rect: Size::new(icon_size, icon_size)
                     .to_rect()
-                    .with_origin(Point::new(x, gap)),
+                    .with_origin(Point::new(gap + icon_size, gap)),
                 command: Command::new(
-                    LAPCE_COMMAND,
-                    LapceCommand {
-                        kind: CommandKind::Focus(FocusCommand::SplitVertical),
-                        data: None,
-                    },
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::NextEditorTab,
                     Target::Widget(self.widget_id),
                 ),
             };
             self.icons.push(icon);
-
-            if data.config.editor.show_tab {
-                let x =
-                    size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
-                let icon = LapceIcon {
-                    icon: "chevron-right.svg",
-                    rect: Size::new(icon_size, icon_size)
-                        .to_rect()
-                        .with_origin(Point::new(x, gap)),
-                    command: Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::NextEditorTab,
-                        Target::Widget(self.widget_id),
-                    ),
-                };
-                self.icons.push(icon);
-
-                let x =
-                    size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
-                let icon = LapceIcon {
-                    icon: "chevron-left.svg",
-                    rect: Size::new(icon_size, icon_size)
-                        .to_rect()
-                        .with_origin(Point::new(x, gap)),
-                    command: Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::PreviousEditorTab,
-                        Target::Widget(self.widget_id),
-                    ),
-                };
-                self.icons.push(icon);
-            }
         }
 
         self.content.layout(
             ctx,
             &BoxConstraints::tight(Size::new(
-                size.width - self.icons.len() as f64 * size.height,
+                size.width - self.icons.len() as f64 * (gap + icon_size),
                 size.height,
             )),
             data,
             env,
         );
-        self.content.set_origin(ctx, data, env, Point::ZERO);
+        self.content.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new(
+                if data.config.editor.show_tab {
+                    2.0 * (gap + icon_size)
+                } else {
+                    0.0
+                },
+                0.0,
+            ),
+        );
         size
     }
 
@@ -370,6 +378,63 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
         }
         if data.config.editor.show_tab {
             self.content.paint(ctx, data, env);
+            let scroll_offset = self.content.widget().offset().x;
+            let content_rect = self.content.layout_rect();
+            let child_size = self.content.widget().child_size();
+            if scroll_offset > 0.0 {
+                ctx.with_save(|ctx| {
+                    ctx.clip(content_rect);
+                    let rect = Rect::new(
+                        content_rect.x0 - 10.0,
+                        content_rect.y0 - 10.0,
+                        content_rect.x0,
+                        content_rect.y1 + 10.0,
+                    );
+                    ctx.blurred_rect(
+                        rect,
+                        4.0,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                });
+                ctx.fill(
+                    Rect::new(
+                        0.0,
+                        content_rect.y0,
+                        content_rect.x0,
+                        content_rect.y1,
+                    ),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                );
+            }
+            if scroll_offset < child_size.width - content_rect.width() {
+                ctx.with_save(|ctx| {
+                    ctx.clip(content_rect);
+                    let rect = Rect::new(
+                        content_rect.x1,
+                        content_rect.y0 - 10.0,
+                        content_rect.x1 + 10.0,
+                        content_rect.y1 + 10.0,
+                    );
+                    ctx.blurred_rect(
+                        rect,
+                        4.0,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                });
+                ctx.fill(
+                    Rect::new(
+                        content_rect.x1,
+                        content_rect.y0,
+                        rect.x1,
+                        content_rect.y1,
+                    ),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                );
+            }
         } else {
             self.paint_header(ctx, data);
         }

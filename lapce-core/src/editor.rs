@@ -17,7 +17,7 @@ use crate::{
         },
         Syntax,
     },
-    word::{get_word_property, WordProperty},
+    word::{get_char_property, CharClassification},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -146,10 +146,10 @@ impl Editor {
                             // Create a late edit to insert the closing pair, if allowed.
                             let is_whitespace_or_punct = cursor_char
                                 .map(|c| {
-                                    let prop = get_word_property(c);
-                                    prop == WordProperty::Lf
-                                        || prop == WordProperty::Space
-                                        || prop == WordProperty::Punctuation
+                                    let prop = get_char_property(c);
+                                    prop == CharClassification::Lf
+                                        || prop == CharClassification::Space
+                                        || prop == CharClassification::Punctuation
                                 })
                                 .unwrap_or(true);
 
@@ -158,11 +158,11 @@ impl Editor {
                                     is_whitespace_or_punct
                                         && prev_cursor_char
                                             .map(|c| {
-                                                let prop = get_word_property(c);
-                                                prop == WordProperty::Lf
-                                                    || prop == WordProperty::Space
+                                                let prop = get_char_property(c);
+                                                prop == CharClassification::Lf
+                                                    || prop == CharClassification::Space
                                                     || prop
-                                                        == WordProperty::Punctuation
+                                                        == CharClassification::Punctuation
                                             })
                                             .unwrap_or(true)
                                 }
@@ -230,7 +230,7 @@ impl Editor {
                 // Adjust selection according to previous late edits
                 let mut adjustment = 0;
                 for region in selection.regions_mut().iter_mut().sorted_by(
-                    |region_a, region_b| region_a.start().cmp(&region_b.start()),
+                    |region_a, region_b| region_a.start.cmp(&region_b.start),
                 ) {
                     *region = SelRegion::new(
                         region.start + adjustment,
@@ -240,8 +240,8 @@ impl Editor {
 
                     if let Some(inserted) =
                         edits_after.iter().find_map(|(selection, str)| {
-                            if selection.last_inserted().map(|r| r.start())
-                                == Some(region.start())
+                            if selection.last_inserted().map(|r| r.start)
+                                == Some(region.start)
                             {
                                 Some(str)
                             } else {

@@ -8,11 +8,11 @@ use smallvec::SmallVec;
 use xi_rope::Rope;
 
 use crate::{
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     rich_text::{AttributesAdder, RichText, RichTextBuilder},
 };
 
-pub fn parse_markdown(text: &str, config: &Config) -> RichText {
+pub fn parse_markdown(text: &str, config: &LapceConfig) -> RichText {
     use pulldown_cmark::{CowStr, Event, Options, Parser};
 
     let mut builder = RichTextBuilder::new();
@@ -148,7 +148,7 @@ pub fn parse_markdown(text: &str, config: &Config) -> RichText {
     builder.build()
 }
 
-pub fn from_marked_string(text: MarkedString, config: &Config) -> RichText {
+pub fn from_marked_string(text: MarkedString, config: &LapceConfig) -> RichText {
     match text {
         MarkedString::String(text) => parse_markdown(&text, config),
         // This is a short version of a code block
@@ -163,7 +163,11 @@ pub fn from_marked_string(text: MarkedString, config: &Config) -> RichText {
     }
 }
 
-fn add_attribute_for_tag(tag: &Tag, mut attrs: AttributesAdder, config: &Config) {
+fn add_attribute_for_tag(
+    tag: &Tag,
+    mut attrs: AttributesAdder,
+    config: &LapceConfig,
+) {
     use pulldown_cmark::HeadingLevel;
     match tag {
         Tag::Heading(level, _, _) => {

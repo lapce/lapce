@@ -653,6 +653,19 @@ impl TabRectRenderer for TabRect {
             data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
             1.0,
         );
+        if tab_idx == 0 {
+            ctx.stroke(
+                Line::new(
+                    Point::new(self.rect.x0 + 0.5, (size.height * 0.8).round()),
+                    Point::new(
+                        self.rect.x0 + 0.5,
+                        size.height - (size.height * 0.8).round(),
+                    ),
+                ),
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
+        }
 
         // Only show background of close button on hover
         if self.close_rect.contains(mouse_pos) {

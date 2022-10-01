@@ -13,7 +13,7 @@ use druid::{
 
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, GetConfig, LapceTheme},
+    config::{GetConfig, LapceConfig, LapceTheme},
 };
 
 /// Minimum length for any scrollbar to be when measured on that
@@ -413,7 +413,7 @@ impl ScrollComponent {
     pub fn calc_vertical_bar_bounds(
         &self,
         port: &Viewport,
-        config: &Config,
+        config: &LapceConfig,
         env: &Env,
     ) -> Option<Rect> {
         let viewport_size = port.rect.size();
@@ -452,7 +452,7 @@ impl ScrollComponent {
     pub fn calc_horizontal_bar_bounds(
         &self,
         port: &Viewport,
-        config: &Config,
+        config: &LapceConfig,
         env: &Env,
     ) -> Option<Rect> {
         let viewport_size = port.rect.size();
@@ -503,7 +503,7 @@ impl ScrollComponent {
         ctx: &mut PaintCtx,
         port: &Viewport,
         env: &Env,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let scroll_offset = port.rect.origin().to_vec2();
         if self.opacity <= 0.0 {
@@ -552,7 +552,7 @@ impl ScrollComponent {
         &self,
         port: &Viewport,
         pos: Point,
-        config: &Config,
+        config: &LapceConfig,
         env: &Env,
     ) -> bool {
         let viewport_size = port.rect.size();
@@ -574,7 +574,7 @@ impl ScrollComponent {
         &self,
         port: &Viewport,
         pos: Point,
-        config: &Config,
+        config: &LapceConfig,
         env: &Env,
     ) -> bool {
         let viewport_size = port.rect.size();
@@ -598,7 +598,7 @@ impl ScrollComponent {
         port: &mut Viewport,
         ctx: &mut EventCtx,
         event: &Event,
-        config: &Config,
+        config: &LapceConfig,
         env: &Env,
     ) {
         let viewport_size = port.rect.size();

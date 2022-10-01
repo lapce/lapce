@@ -4,13 +4,13 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Result;
 use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
     Color, ExtEventSink, FontFamily, Size, Target,
 };
 use indexmap::IndexMap;
 use lapce_proxy::{directory::Directory, plugin::wasi::find_all_volts};
+use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -25,10 +25,13 @@ use crate::{
 
 pub use lapce_proxy::APPLICATION_NAME;
 
+pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
 const DEFAULT_LIGHT_THEME: &str = include_str!("../../defaults/light-theme.toml");
 const DEFAULT_DARK_THEME: &str = include_str!("../../defaults/dark-theme.toml");
-pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
+static DEFAULT_CONFIG: Lazy<config::Config> = Lazy::new(LapceConfig::default_config);
+static DEFAULT_LAPCE_CONFIG: Lazy<LapceConfig> =
+    Lazy::new(LapceConfig::default_lapce_config);
 
 pub struct LapceTheme {}
 
@@ -135,12 +138,12 @@ pub enum LoadThemeError {
 }
 
 pub trait GetConfig {
-    fn get_config(&self) -> &Config;
+    fn get_config(&self) -> &LapceConfig;
 }
 
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
-pub struct LapceConfig {
+pub struct CoreConfig {
     #[field_names(desc = "Enable modal editing (Vim like)")]
     pub modal: bool,
     #[field_names(desc = "Set the color theme of Lapce")]
@@ -584,10 +587,10 @@ impl ThemeBaseColor {
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
-pub struct Config {
+pub struct LapceConfig {
     #[serde(skip)]
     pub id: u64,
-    pub lapce: LapceConfig,
+    pub core: CoreConfig,
     pub ui: UIConfig,
     pub editor: EditorConfig,
     pub terminal: TerminalConfig,
@@ -645,73 +648,92 @@ impl notify::EventHandler for ConfigWatcher {
     }
 }
 
-impl Config {
-    pub fn load(workspace: &LapceWorkspace) -> Result<Self> {
-        let default_settings = Self::default_settings();
-        let mut default_config: Config =
-            default_settings.clone().try_into().unwrap();
-        default_config.resolve_colors(None);
-
-        let settings =
-            Self::merge_settings(default_settings.clone(), workspace, None);
-        let mut config: Config = settings.try_into()?;
-        let available_themes = Self::load_themes();
-        if let Some((_, theme)) =
-            available_themes.get(&config.lapce.color_theme.to_lowercase())
-        {
-            if let Ok(mut theme_config) = default_settings
-                .clone()
-                .with_merged(theme.clone())
-                .and_then(|theme| theme.try_into::<Config>())
-            {
-                theme_config.resolve_colors(Some(&default_config));
-                default_config = theme_config;
-            }
-            config = Self::merge_settings(
-                default_settings,
-                workspace,
-                Some(theme.clone()),
-            )
-            .try_into()?;
-        }
-        config.update_id();
-        config.available_themes = available_themes;
-        config.resolve_colors(Some(&default_config));
-        config.default_theme = default_config.theme.clone();
-
-        Ok(config)
+impl LapceConfig {
+    pub fn load(workspace: &LapceWorkspace, disabled_volts: &[String]) -> Self {
+        let config = Self::merge_config(workspace, None);
+        let mut lapce_config: LapceConfig = config
+            .try_deserialize()
+            .unwrap_or_else(|_| DEFAULT_LAPCE_CONFIG.clone());
+        let available_themes = Self::load_themes(disabled_volts);
+        lapce_config.available_themes = available_themes;
+        lapce_config.resolve_theme(workspace);
+        lapce_config
     }
 
-    fn merge_settings(
-        mut settings: config::Config,
+    fn resolve_theme(&mut self, workspace: &LapceWorkspace) {
+        let mut default_lapce_config = DEFAULT_LAPCE_CONFIG.clone();
+        if let Some((_, theme_config)) = self
+            .available_themes
+            .get(&self.core.color_theme.to_lowercase())
+        {
+            if let Ok(mut theme_lapce_config) = config::Config::builder()
+                .add_source(DEFAULT_CONFIG.clone())
+                .add_source(theme_config.clone())
+                .build()
+                .and_then(|theme| theme.try_deserialize::<LapceConfig>())
+            {
+                theme_lapce_config.resolve_colors(Some(&default_lapce_config));
+                default_lapce_config = theme_lapce_config;
+            }
+            if let Ok(new) =
+                Self::merge_config(workspace, Some(theme_config.clone()))
+                    .try_deserialize::<LapceConfig>()
+            {
+                self.core = new.core;
+                self.ui = new.ui;
+                self.editor = new.editor;
+                self.terminal = new.terminal;
+                self.theme = new.theme;
+                self.plugins = new.plugins;
+            }
+        }
+        self.resolve_colors(Some(&default_lapce_config));
+        self.default_theme = default_lapce_config.theme.clone();
+        self.update_id();
+    }
+
+    fn merge_config(
         workspace: &LapceWorkspace,
-        theme: Option<config::Config>,
+        theme_config: Option<config::Config>,
     ) -> config::Config {
-        if let Some(theme) = theme {
-            let _ = settings.merge(theme);
+        let mut config = DEFAULT_CONFIG.clone();
+        if let Some(theme) = theme_config {
+            config = config::Config::builder()
+                .add_source(config.clone())
+                .add_source(theme)
+                .build()
+                .unwrap_or_else(|_| config.clone());
         }
 
         if let Some(path) = Self::settings_file() {
-            let _ =
-                settings.merge(config::File::from(path.as_path()).required(false));
+            config = config::Config::builder()
+                .add_source(config.clone())
+                .add_source(config::File::from(path.as_path()).required(false))
+                .build()
+                .unwrap_or_else(|_| config.clone());
         }
 
         match workspace.kind {
             LapceWorkspaceType::Local => {
                 if let Some(path) = workspace.path.as_ref() {
                     let path = path.join("./.lapce/settings.toml");
-                    let _ = settings
-                        .merge(config::File::from(path.as_path()).required(false));
+                    config = config::Config::builder()
+                        .add_source(config.clone())
+                        .add_source(
+                            config::File::from(path.as_path()).required(false),
+                        )
+                        .build()
+                        .unwrap_or_else(|_| config.clone());
                 }
             }
             LapceWorkspaceType::RemoteSSH(_, _) => {}
             LapceWorkspaceType::RemoteWSL => {}
         }
 
-        settings
+        config
     }
 
-    fn resolve_colors(&mut self, default_config: Option<&Config>) {
+    fn resolve_colors(&mut self, default_config: Option<&LapceConfig>) {
         self.color.base = self
             .theme
             .base
@@ -725,9 +747,11 @@ impl Config {
         );
     }
 
-    fn load_themes() -> HashMap<String, (String, config::Config)> {
+    fn load_themes(
+        disabled_volts: &[String],
+    ) -> HashMap<String, (String, config::Config)> {
         let mut themes = Self::load_local_themes().unwrap_or_default();
-        if let Some(plugin_themes) = Self::load_plugin_themes() {
+        if let Some(plugin_themes) = Self::load_plugin_themes(disabled_volts) {
             for (key, theme) in plugin_themes.into_iter() {
                 themes.insert(key, theme);
             }
@@ -753,9 +777,14 @@ impl Config {
         Some(themes)
     }
 
-    fn load_plugin_themes() -> Option<HashMap<String, (String, config::Config)>> {
+    fn load_plugin_themes(
+        disabled_volts: &[String],
+    ) -> Option<HashMap<String, (String, config::Config)>> {
         let mut themes: HashMap<String, (String, config::Config)> = HashMap::new();
         for meta in find_all_volts() {
+            if disabled_volts.contains(&meta.id()) {
+                continue;
+            }
             if let Some(plugin_themes) = meta.themes.as_ref() {
                 for theme_path in plugin_themes {
                     if let Some((key, theme)) =
@@ -770,33 +799,43 @@ impl Config {
     }
 
     fn load_theme_from_str(s: &str) -> Option<(String, config::Config)> {
-        let settings = config::Config::new()
-            .with_merged(config::File::from_str(s, config::FileFormat::Toml))
+        let config = config::Config::builder()
+            .add_source(config::File::from_str(s, config::FileFormat::Toml))
+            .build()
             .ok()?;
-        let table = settings.get_table("theme").ok()?;
+        let table = config.get_table("theme").ok()?;
         let name = table.get("name")?.to_string();
-        Some((name, settings))
+        Some((name, config))
     }
 
     fn load_theme(path: &Path) -> Option<(String, (String, config::Config))> {
         if !path.is_file() {
             return None;
         }
-        let settings = config::Config::new()
-            .with_merged(config::File::from(path))
+        let config = config::Config::builder()
+            .add_source(config::File::from(path))
+            .build()
             .ok()?;
-        let table = settings.get_table("theme").ok()?;
+        let table = config.get_table("theme").ok()?;
         let name = table.get("name")?.to_string();
-        Some((name.to_lowercase(), (name, settings)))
+        Some((name.to_lowercase(), (name, config)))
     }
 
-    fn default_settings() -> config::Config {
-        config::Config::default()
-            .with_merged(config::File::from_str(
+    fn default_config() -> config::Config {
+        config::Config::builder()
+            .add_source(config::File::from_str(
                 DEFAULT_SETTINGS,
                 config::FileFormat::Toml,
             ))
+            .build()
             .unwrap()
+    }
+
+    fn default_lapce_config() -> LapceConfig {
+        let mut default_lapce_config: LapceConfig =
+            DEFAULT_CONFIG.clone().try_deserialize().unwrap();
+        default_lapce_config.resolve_colors(None);
+        default_lapce_config
     }
 
     pub fn export_theme(&self) -> String {
@@ -917,27 +956,25 @@ impl Config {
     fn update_id(&mut self) {
         self.id = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
+            .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
     }
 
-    pub fn set_theme(&mut self, theme: &str, preview: bool) -> bool {
-        self.update_id();
-
-        self.lapce.color_theme = theme.to_string();
-
-        if !preview
-            && Config::update_file(
-                "lapce",
+    pub fn set_theme(
+        &mut self,
+        workspace: &LapceWorkspace,
+        theme: &str,
+        preview: bool,
+    ) {
+        self.core.color_theme = theme.to_string();
+        self.resolve_theme(workspace);
+        if !preview {
+            LapceConfig::update_file(
+                "core",
                 "color-theme",
                 toml_edit::Value::from(theme),
-            )
-            .is_none()
-        {
-            return false;
+            );
         }
-
-        true
     }
 
     /// Get the color by the name from the current theme if it exists

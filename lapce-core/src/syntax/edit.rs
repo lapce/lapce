@@ -1,11 +1,12 @@
 use tree_sitter::Point;
 use xi_rope::{multiset::CountMatcher, Interval, Rope, RopeDelta};
 
-use crate::buffer::InsertsValueIter;
+use crate::buffer::{rope_text::RopeText, InsertsValueIter};
 
 fn point_at_offset(text: &Rope, offset: usize) -> Point {
+    let text = RopeText::new(text);
     let line = text.line_of_offset(offset);
-    let col = text.offset_of_line(line + 1) - offset;
+    let col = text.offset_of_line(line + 1).saturating_sub(offset);
     Point::new(line, col)
 }
 
@@ -104,18 +105,15 @@ pub fn generate_edits(
             text = insert_delta.apply(&text);
         }
 
-        // We have to keep track of a shift because the deletions aren't properly moved forward
-        let mut shift = insertions.inserts_len();
         for (start, end) in deletions.range_iter(CountMatcher::NonZero) {
-            edits.push(create_delete_edit(&text, start + shift, end + shift));
+            edits.push(create_delete_edit(&text, start, end));
 
             let delete_delta = RopeDelta::simple_edit(
-                Interval::new(start + shift, end + shift),
+                Interval::new(start, end),
                 Rope::default(),
                 text.len(),
             );
             text = delete_delta.apply(&text);
-            shift -= end - start;
         }
     }
 }

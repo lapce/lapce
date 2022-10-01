@@ -47,7 +47,7 @@ use xi_rope::{
 use crate::selection_range::SelectionRangeDirection;
 use crate::{
     command::{InitBufferContentCb, LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::{EditorDiagnostic, EditorView},
     editor::{EditorLocation, EditorPosition},
     find::{Find, FindProgress},
@@ -983,7 +983,7 @@ impl Document {
 
     pub fn line_phantom_text(
         &self,
-        config: &Config,
+        config: &LapceConfig,
         line: usize,
     ) -> PhantomTextLine {
         let start_offset = self.buffer.offset_of_line(line);
@@ -1054,7 +1054,7 @@ impl Document {
         &mut self,
         cursor: &mut Cursor,
         s: &str,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Vec<(RopeDelta, InvalLines)> {
         let old_cursor = cursor.mode.clone();
         let deltas = Editor::insert(
@@ -1110,7 +1110,7 @@ impl Document {
         cursor: &mut Cursor,
         cmd: &MultiSelectionCommand,
         view: &EditorView,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         use MultiSelectionCommand::*;
         match cmd {
@@ -1126,7 +1126,7 @@ impl Document {
             }
             InsertCursorAbove => {
                 if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
-                    let offset = selection.first().map(|s| s.end()).unwrap_or(0);
+                    let offset = selection.first().map(|s| s.end).unwrap_or(0);
                     let (new_offset, _) = self.move_offset(
                         text,
                         offset,
@@ -1147,7 +1147,7 @@ impl Document {
             }
             InsertCursorBelow => {
                 if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
-                    let offset = selection.last().map(|s| s.end()).unwrap_or(0);
+                    let offset = selection.last().map(|s| s.end).unwrap_or(0);
                     let (new_offset, _) = self.move_offset(
                         text,
                         offset,
@@ -1205,7 +1205,7 @@ impl Document {
                     if !selection.is_empty() {
                         let first = selection.first().unwrap();
                         let (start, end) = if first.is_caret() {
-                            self.buffer.select_word(first.start())
+                            self.buffer.select_word(first.start)
                         } else {
                             (first.min(), first.max())
                         };
@@ -1240,7 +1240,7 @@ impl Document {
                             if region.is_caret() {
                                 had_caret = true;
                                 let (start, end) =
-                                    self.buffer.select_word(region.start());
+                                    self.buffer.select_word(region.start);
                                 region.start = start;
                                 region.end = end;
                             }
@@ -1291,7 +1291,7 @@ impl Document {
                     if !selection.is_empty() {
                         let r = selection.last_inserted().unwrap();
                         if r.is_caret() {
-                            let (start, end) = self.buffer.select_word(r.start());
+                            let (start, end) = self.buffer.select_word(r.start);
                             selection.replace_last_inserted_region(SelRegion::new(
                                 start, end, None,
                             ));
@@ -1392,7 +1392,7 @@ impl Document {
         mode: Mode,
         point: Point,
         view: &EditorView,
-        config: &Config,
+        config: &LapceConfig,
     ) -> ((usize, usize), bool) {
         let (line, font_size) = match view {
             EditorView::Diff(version) => {
@@ -1506,7 +1506,7 @@ impl Document {
         mode: Mode,
         point: Point,
         view: &EditorView,
-        config: &Config,
+        config: &LapceConfig,
     ) -> (usize, bool) {
         let ((line, col), is_inside) =
             self.line_col_of_point(text, mode, point, view, config);
@@ -1518,7 +1518,7 @@ impl Document {
         text: &mut PietText,
         offset: usize,
         view: &EditorView,
-        config: &Config,
+        config: &LapceConfig,
     ) -> (Point, Point) {
         let (line, col) = self.buffer.offset_to_line_col(offset);
         self.points_of_line_col(text, line, col, view, config)
@@ -1530,7 +1530,7 @@ impl Document {
         line: usize,
         col: usize,
         view: &EditorView,
-        config: &Config,
+        config: &LapceConfig,
     ) -> (Point, Point) {
         let (y, line_height, font_size) = match view {
             EditorView::Diff(version) => {
@@ -1688,7 +1688,7 @@ impl Document {
         text: &mut PietText,
         offset: usize,
         font_size: usize,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Point {
         let (line, col) = self.buffer.offset_to_line_col(offset);
         self.line_point_of_line_col(text, line, col, font_size, config)
@@ -1700,7 +1700,7 @@ impl Document {
         line: usize,
         col: usize,
         font_size: usize,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Point {
         let text_layout = self.get_text_layout(text, line, font_size, config);
         text_layout.text.hit_test_text_position(col).point
@@ -1711,7 +1711,7 @@ impl Document {
         text: &mut PietText,
         line: usize,
         font_size: usize,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Arc<TextLayoutLine> {
         self.text_layouts.borrow_mut().check_attributes(config.id);
         if self.text_layouts.borrow().layouts.get(&font_size).is_none() {
@@ -1755,7 +1755,7 @@ impl Document {
         text: &mut PietText,
         line: usize,
         font_size: usize,
-        config: &Config,
+        config: &LapceConfig,
     ) -> TextLayoutLine {
         let line_content_original = self.buffer.line_content(line);
 
@@ -1958,7 +1958,7 @@ impl Document {
     fn new_layout_whitespace(
         layout_text: &PietTextLayout,
         line_content: &str,
-        config: &Config,
+        config: &LapceConfig,
         tab_width: f64,
         text: &mut PietText,
         font_size: usize,
@@ -2052,7 +2052,7 @@ impl Document {
         font_size: usize,
         horiz: &ColPosition,
         caret: bool,
-        config: &Config,
+        config: &LapceConfig,
     ) -> usize {
         match *horiz {
             ColPosition::Col(x) => {
@@ -2079,7 +2079,7 @@ impl Document {
         movement: &Movement,
         mode: Mode,
         view: &EditorView,
-        config: &Config,
+        config: &LapceConfig,
     ) -> SelRegion {
         let (end, horiz) = self.move_offset(
             text,
@@ -2092,7 +2092,7 @@ impl Document {
             config,
         );
         let start = match modify {
-            true => region.start(),
+            true => region.start,
             false => end,
         };
         SelRegion::new(start, end, horiz)
@@ -2108,7 +2108,7 @@ impl Document {
         modify: bool,
         view: &EditorView,
         register: &mut Register,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         match cursor.mode {
             CursorMode::Normal(offset) => {
@@ -2208,7 +2208,7 @@ impl Document {
         movement: &Movement,
         mode: Mode,
         view: &EditorView,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Selection {
         let mut new_selection = Selection::new();
         for region in selection.regions() {
@@ -2229,7 +2229,7 @@ impl Document {
         movement: &Movement,
         mode: Mode,
         view: &EditorView,
-        config: &Config,
+        config: &LapceConfig,
     ) -> (usize, Option<ColPosition>) {
         match movement {
             Movement::Left => {
@@ -2530,7 +2530,7 @@ impl Document {
         &self,
         text: &mut PietText,
         offset: usize,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Size {
         let prev_offset = self.buffer.prev_code_boundary(offset);
         let empty_vec = Vec::new();

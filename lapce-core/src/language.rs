@@ -107,243 +107,119 @@ struct SyntaxProperties {
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, Display, EnumString)]
 #[strum(ascii_case_insensitive)]
 pub enum LapceLanguage {
-    #[cfg(feature = "lang-rust")]
-    Rust,
-    #[cfg(feature = "lang-go")]
-    Go,
-    #[cfg(feature = "lang-javascript")]
-    Javascript,
-    #[cfg(feature = "lang-javascript")]
-    Jsx,
-    #[cfg(feature = "lang-typescript")]
-    Typescript,
-    #[cfg(feature = "lang-typescript")]
-    Tsx,
-    #[cfg(feature = "lang-python")]
-    Python,
-    #[cfg(feature = "lang-toml")]
-    Toml,
-    #[cfg(feature = "lang-php")]
-    Php,
-    #[cfg(feature = "lang-elixir")]
-    Elixir,
+    #[cfg(feature = "lang-bash")]
+    #[strum(serialize = "bash", serialize = "sh")]
+    Bash,
     #[cfg(feature = "lang-c")]
     C,
     #[cfg(feature = "lang-cpp")]
     Cpp,
+    #[cfg(feature = "lang-csharp")]
+    Csharp,
+    #[cfg(feature = "lang-css")]
+    Css,
+    #[cfg(feature = "lang-d")]
+    D,
+    #[cfg(feature = "lang-dart")]
+    Dart,
+    #[cfg(feature = "lang-dockerfile")]
+    Dockerfile,
+    #[cfg(feature = "lang-elixir")]
+    Elixir,
+    #[cfg(feature = "lang-elm")]
+    Elm,
+    #[cfg(feature = "lang-glimmer")]
+    Glimmer,
+    #[cfg(feature = "lang-go")]
+    Go,
+    #[cfg(feature = "lang-hare")]
+    Hare,
+    #[cfg(feature = "lang-haskell")]
+    Haskell,
+    #[cfg(feature = "lang-haxe")]
+    Haxe,
+    #[cfg(feature = "lang-hcl")]
+    Hcl,
+    #[cfg(feature = "lang-html")]
+    Html,
+    #[cfg(feature = "lang-java")]
+    Java,
+    #[cfg(feature = "lang-javascript")]
+    Javascript,
     #[cfg(feature = "lang-json")]
     Json,
+    #[cfg(feature = "lang-javascript")]
+    Jsx,
+    #[cfg(feature = "lang-julia")]
+    Julia,
+    #[cfg(feature = "lang-kotlin")]
+    Kotlin,
+    #[cfg(feature = "lang-latex")]
+    Latex,
+    #[cfg(feature = "lang-lua")]
+    Lua,
     #[cfg(feature = "lang-markdown")]
     Markdown,
     // TODO: Hide this when it is shown to the user!
     #[cfg(feature = "lang-markdown")]
     #[strum(serialize = "markdown.inline")]
     MarkdownInline,
-    #[cfg(feature = "lang-ruby")]
-    Ruby,
-    #[cfg(feature = "lang-html")]
-    Html,
-    #[cfg(feature = "lang-java")]
-    Java,
-    #[cfg(feature = "lang-elm")]
-    Elm,
-    #[cfg(feature = "lang-swift")]
-    Swift,
-    #[cfg(feature = "lang-ql")]
-    Ql,
-    #[cfg(feature = "lang-haskell")]
-    Haskell,
-    #[cfg(feature = "lang-glimmer")]
-    Glimmer,
-    #[cfg(feature = "lang-haxe")]
-    Haxe,
-    #[cfg(feature = "lang-hcl")]
-    Hcl,
+    #[cfg(feature = "lang-nix")]
+    Nix,
     #[cfg(feature = "lang-ocaml")]
     Ocaml,
     #[cfg(feature = "lang-ocaml")]
     OcamlInterface,
+    #[cfg(feature = "lang-php")]
+    Php,
+    #[cfg(feature = "lang-python")]
+    Python,
+    #[cfg(feature = "lang-ql")]
+    Ql,
+    #[cfg(feature = "lang-r")]
+    R,
+    #[cfg(feature = "lang-ruby")]
+    Ruby,
+    #[cfg(feature = "lang-rust")]
+    Rust,
+    #[cfg(feature = "lang-scheme")]
+    Scheme,
     #[cfg(feature = "lang-scss")]
     Scss,
-    #[cfg(feature = "lang-hare")]
-    Hare,
-    #[cfg(feature = "lang-css")]
-    Css,
-    #[cfg(feature = "lang-zig")]
-    Zig,
-    #[cfg(feature = "lang-bash")]
-    #[strum(serialize = "bash", serialize = "sh")]
-    Bash,
-    #[cfg(feature = "lang-yaml")]
-    Yaml,
-    #[cfg(feature = "lang-julia")]
-    Julia,
-    #[cfg(feature = "lang-wgsl")]
-    Wgsl,
-    #[cfg(feature = "lang-dockerfile")]
-    Dockerfile,
-    #[cfg(feature = "lang-csharp")]
-    Csharp,
-    #[cfg(feature = "lang-nix")]
-    Nix,
-    #[cfg(feature = "lang-dart")]
-    Dart,
     #[cfg(feature = "lang-svelte")]
     Svelte,
-    #[cfg(feature = "lang-latex")]
-    Latex,
-    #[cfg(feature = "lang-kotlin")]
-    Kotlin,
-    #[cfg(feature = "lang-d")]
-    D,
+    #[cfg(feature = "lang-swift")]
+    Swift,
+    #[cfg(feature = "lang-toml")]
+    Toml,
+    #[cfg(feature = "lang-typescript")]
+    Tsx,
+    #[cfg(feature = "lang-typescript")]
+    Typescript,
+    #[cfg(feature = "lang-vue")]
+    Vue,
+    #[cfg(feature = "lang-wgsl")]
+    Wgsl,
+    #[cfg(feature = "lang-yaml")]
+    Yaml,
+    #[cfg(feature = "lang-zig")]
+    Zig,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
 // `LapceLanguage` as they will be accessed using the enum variants as indices.
 const LANGUAGES: &[SyntaxProperties] = &[
-    #[cfg(feature = "lang-rust")]
+    #[cfg(feature = "lang-bash")]
     SyntaxProperties {
-        id: LapceLanguage::Rust,
-        language: tree_sitter_rust::language,
-        highlight: tree_sitter_rust::HIGHLIGHT_QUERY,
-        injection: None,
-        comment: "//",
-        indent: "    ",
-        code_lens: (
-            &["source_file", "impl_item", "trait_item", "declaration_list"],
-            &["source_file", "use_declaration", "line_comment"],
-        ),
-        sticky_headers: &["struct_item", "enum_item", "function_item", "impl_item"],
-        extensions: &["rs"],
-    },
-    #[cfg(feature = "lang-go")]
-    SyntaxProperties {
-        id: LapceLanguage::Go,
-        language: tree_sitter_go::language,
-        highlight: tree_sitter_go::HIGHLIGHT_QUERY,
-        injection: None,
-        comment: "//",
-        indent: "    ",
-        code_lens: (
-            &[
-                "source_file",
-                "type_declaration",
-                "type_spec",
-                "interface_type",
-                "method_spec_list",
-            ],
-            &["source_file", "comment", "line_comment"],
-        ),
-        sticky_headers: &[],
-        extensions: &["go"],
-    },
-    #[cfg(feature = "lang-javascript")]
-    SyntaxProperties {
-        id: LapceLanguage::Javascript,
-        language: tree_sitter_javascript::language,
-        highlight: include_str!("../queries/javascript/highlights.scm"),
-        injection: Some(tree_sitter_javascript::INJECTION_QUERY),
-        comment: "//",
-        indent: "  ",
-        code_lens: (&["source_file", "program"], &["source_file"]),
-        sticky_headers: &[],
-        extensions: &["js", "cjs", "mjs"],
-    },
-    #[cfg(feature = "lang-javascript")]
-    SyntaxProperties {
-        id: LapceLanguage::Jsx,
-        language: tree_sitter_javascript::language,
-        highlight: include_str!("../queries/jsx/highlights.scm"),
-        // TODO: Does jsx use the javascript injection query too?
-        injection: Some(tree_sitter_javascript::INJECTION_QUERY),
-        comment: "//",
-        indent: "  ",
-        code_lens: (&["source_file", "program"], &["source_file"]),
-        sticky_headers: &[],
-        extensions: &["jsx"],
-    },
-    #[cfg(feature = "lang-typescript")]
-    SyntaxProperties {
-        id: LapceLanguage::Typescript,
-        language: tree_sitter_typescript::language_typescript,
-        highlight: include_str!("../queries/typescript/highlights.scm"),
-        injection: None,
-        comment: "//",
-        indent: "    ",
-        code_lens: (&["source_file", "program"], &["source_file"]),
-        sticky_headers: &[],
-        extensions: &["ts", "cts", "mts"],
-    },
-    #[cfg(feature = "lang-typescript")]
-    SyntaxProperties {
-        id: LapceLanguage::Tsx,
-        language: tree_sitter_typescript::language_tsx,
-        highlight: include_str!("../queries/typescript/highlights.scm"),
-        injection: None,
-        comment: "//",
-        indent: "    ",
-        code_lens: (&["source_file", "program"], &["source_file"]),
-        sticky_headers: &[],
-        extensions: &["tsx"],
-    },
-    #[cfg(feature = "lang-python")]
-    SyntaxProperties {
-        id: LapceLanguage::Python,
-        language: tree_sitter_python::language,
-        highlight: tree_sitter_python::HIGHLIGHT_QUERY,
-        injection: None,
-        comment: "#",
-        indent: "\t",
-        code_lens: (
-            &[
-                "source_file",
-                "module",
-                "class_definition",
-                "class",
-                "identifier",
-                "decorated_definition",
-                "block",
-            ],
-            &["source_file", "import_statement", "import_from_statement"],
-        ),
-        sticky_headers: &[],
-        extensions: &["py", "pyi", "pyc", "pyd", "pyw"],
-    },
-    #[cfg(feature = "lang-toml")]
-    SyntaxProperties {
-        id: LapceLanguage::Toml,
-        language: tree_sitter_toml::language,
-        highlight: tree_sitter_toml::HIGHLIGHT_QUERY,
+        id: LapceLanguage::Bash,
+        language: tree_sitter_bash::language,
+        highlight: include_str!("../queries/bash/highlights.scm"),
         injection: None,
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
-        extensions: &["toml"],
-    },
-    #[cfg(feature = "lang-php")]
-    SyntaxProperties {
-        id: LapceLanguage::Php,
-        language: tree_sitter_php::language,
-        highlight: tree_sitter_php::HIGHLIGHT_QUERY,
-        injection: Some(tree_sitter_php::INJECTIONS_QUERY),
-        comment: "//",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["php"],
-    },
-    #[cfg(feature = "lang-elixir")]
-    SyntaxProperties {
-        id: LapceLanguage::Elixir,
-        language: tree_sitter_elixir::language,
-        highlight: tree_sitter_elixir::HIGHLIGHTS_QUERY,
-        injection: None,
-        comment: "#",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["ex", "exs", "eex", "heex", "sface"],
+        extensions: &["sh", "bash"],
     },
     #[cfg(feature = "lang-c")]
     SyntaxProperties {
@@ -373,6 +249,207 @@ const LANGUAGES: &[SyntaxProperties] = &[
         ],
         extensions: &["cpp", "cxx", "cc", "c++", "hpp", "hxx", "hh", "h++"],
     },
+    #[cfg(feature = "lang-csharp")]
+    SyntaxProperties {
+        id: LapceLanguage::Csharp,
+        language: tree_sitter_c_sharp::language,
+        highlight: tree_sitter_c_sharp::HIGHLIGHT_QUERY,
+        injection: None,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["cs", "csx"],
+    },
+    #[cfg(feature = "lang-css")]
+    SyntaxProperties {
+        id: LapceLanguage::Css,
+        language: tree_sitter_css::language,
+        highlight: include_str!("../queries/css/highlights.scm"),
+        injection: None,
+        comment: "/*",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["css"],
+    },
+    #[cfg(feature = "lang-d")]
+    SyntaxProperties {
+        id: LapceLanguage::D,
+        language: tree_sitter_d::language,
+        highlight: tree_sitter_d::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["d", "di", "dlang"],
+    },
+    #[cfg(feature = "lang-dart")]
+    SyntaxProperties {
+        id: LapceLanguage::Dart,
+        language: tree_sitter_dart::language,
+        highlight: tree_sitter_dart::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["dart"],
+    },
+    #[cfg(feature = "lang-dockerfile")]
+    SyntaxProperties {
+        id: LapceLanguage::Dockerfile,
+        language: tree_sitter_dockerfile::language,
+        highlight: tree_sitter_dockerfile::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["dockerfile"],
+    },
+    #[cfg(feature = "lang-elixir")]
+    SyntaxProperties {
+        id: LapceLanguage::Elixir,
+        language: tree_sitter_elixir::language,
+        highlight: tree_sitter_elixir::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["ex", "exs", "eex", "heex", "sface"],
+    },
+    #[cfg(feature = "lang-elm")]
+    SyntaxProperties {
+        id: LapceLanguage::Elm,
+        language: tree_sitter_elm::language,
+        highlight: include_str!("../queries/elm/highlights.scm"),
+        injection: Some(tree_sitter_elm::INJECTIONS_QUERY),
+        comment: "#",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["elm"],
+    },
+    #[cfg(feature = "lang-glimmer")]
+    SyntaxProperties {
+        id: LapceLanguage::Glimmer,
+        language: tree_sitter_glimmer::language,
+        highlight: tree_sitter_glimmer::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "{{!",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["hbs"],
+    },
+    #[cfg(feature = "lang-go")]
+    SyntaxProperties {
+        id: LapceLanguage::Go,
+        language: tree_sitter_go::language,
+        highlight: tree_sitter_go::HIGHLIGHT_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (
+            &[
+                "source_file",
+                "type_declaration",
+                "type_spec",
+                "interface_type",
+                "method_spec_list",
+            ],
+            &["source_file", "comment", "line_comment"],
+        ),
+        sticky_headers: &[],
+        extensions: &["go"],
+    },
+    #[cfg(feature = "lang-hare")]
+    SyntaxProperties {
+        id: LapceLanguage::Hare,
+        language: tree_sitter_hare::language,
+        highlight: tree_sitter_hare::HIGHLIGHT_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "        ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["ha"],
+    },
+    #[cfg(feature = "lang-haskell")]
+    SyntaxProperties {
+        id: LapceLanguage::Haskell,
+        language: tree_sitter_haskell::language,
+        highlight: tree_sitter_haskell::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "--",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["hs"],
+    },
+    #[cfg(feature = "lang-haxe")]
+    SyntaxProperties {
+        id: LapceLanguage::Haxe,
+        language: tree_sitter_haxe::language,
+        highlight: tree_sitter_haxe::HIGHLIGHTS_QUERY,
+        injection: Some(tree_sitter_haxe::INJECTIONS_QUERY),
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["hx"],
+    },
+    #[cfg(feature = "lang-hcl")]
+    SyntaxProperties {
+        id: LapceLanguage::Hcl,
+        language: tree_sitter_hcl::language,
+        highlight: tree_sitter_hcl::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["hcl"],
+    },
+    #[cfg(feature = "lang-html")]
+    SyntaxProperties {
+        id: LapceLanguage::Html,
+        language: tree_sitter_html::language,
+        highlight: tree_sitter_html::HIGHLIGHT_QUERY,
+        injection: Some(tree_sitter_html::INJECTION_QUERY),
+        comment: "",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["html", "htm"],
+    },
+    #[cfg(feature = "lang-java")]
+    SyntaxProperties {
+        id: LapceLanguage::Java,
+        language: tree_sitter_java::language,
+        highlight: tree_sitter_java::HIGHLIGHT_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["java"],
+    },
+    #[cfg(feature = "lang-javascript")]
+    SyntaxProperties {
+        id: LapceLanguage::Javascript,
+        language: tree_sitter_javascript::language,
+        highlight: include_str!("../queries/javascript/highlights.scm"),
+        injection: Some(tree_sitter_javascript::INJECTION_QUERY),
+        comment: "//",
+        indent: "  ",
+        code_lens: (&["source_file", "program"], &["source_file"]),
+        sticky_headers: &[],
+        extensions: &["js", "cjs", "mjs"],
+    },
     #[cfg(feature = "lang-json")]
     SyntaxProperties {
         id: LapceLanguage::Json,
@@ -382,8 +459,69 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        sticky_headers: &["pair"],
         extensions: &["json"],
+    },
+    #[cfg(feature = "lang-javascript")]
+    SyntaxProperties {
+        id: LapceLanguage::Jsx,
+        language: tree_sitter_javascript::language,
+        highlight: include_str!("../queries/jsx/highlights.scm"),
+        // TODO: Does jsx use the javascript injection query too?
+        injection: Some(tree_sitter_javascript::INJECTION_QUERY),
+        comment: "//",
+        indent: "  ",
+        code_lens: (&["source_file", "program"], &["source_file"]),
+        sticky_headers: &[],
+        extensions: &["jsx"],
+    },
+    #[cfg(feature = "lang-julia")]
+    SyntaxProperties {
+        id: LapceLanguage::Julia,
+        language: tree_sitter_julia::language,
+        highlight: include_str!("../queries/julia/highlights.scm"),
+        injection: None,
+        comment: "#",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["julia", "jl"],
+    },
+    #[cfg(feature = "lang-kotlin")]
+    SyntaxProperties {
+        id: LapceLanguage::Kotlin,
+        language: tree_sitter_kotlin::language,
+        highlight: include_str!("../queries/kotlin/highlights.scm"),
+        injection: Some(include_str!("../queries/kotlin/injections.scm")),
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["kt"],
+    },
+    #[cfg(feature = "lang-latex")]
+    SyntaxProperties {
+        id: LapceLanguage::Latex,
+        language: tree_sitter_latex::language,
+        highlight: include_str!("../queries/latex/highlights.scm"),
+        injection: Some(include_str!("../queries/latex/injections.scm")),
+        comment: "%",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["tex"],
+    },
+    #[cfg(feature = "lang-lua")]
+    SyntaxProperties {
+        id: LapceLanguage::Lua,
+        language: tree_sitter_lua::language,
+        highlight: include_str!("../queries/lua/highlights.scm"),
+        injection: None,
+        comment: "--",
+        indent: "  ",
+        sticky_headers: &[],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        extensions: &["lua"],
     },
     #[cfg(feature = "lang-markdown")]
     SyntaxProperties {
@@ -410,125 +548,17 @@ const LANGUAGES: &[SyntaxProperties] = &[
         // markdown inline is only used as an injection by the Markdown language
         extensions: &[],
     },
-    #[cfg(feature = "lang-ruby")]
+    #[cfg(feature = "lang-nix")]
     SyntaxProperties {
-        id: LapceLanguage::Ruby,
-        language: tree_sitter_ruby::language,
-        highlight: tree_sitter_ruby::HIGHLIGHT_QUERY,
+        id: LapceLanguage::Nix,
+        language: tree_sitter_nix::language,
+        highlight: tree_sitter_nix::HIGHLIGHTS_QUERY,
         injection: None,
         comment: "#",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
-        extensions: &["rb"],
-    },
-    #[cfg(feature = "lang-html")]
-    SyntaxProperties {
-        id: LapceLanguage::Html,
-        language: tree_sitter_html::language,
-        highlight: tree_sitter_html::HIGHLIGHT_QUERY,
-        injection: Some(tree_sitter_html::INJECTION_QUERY),
-        comment: "",
-        indent: "    ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["html", "htm"],
-    },
-    #[cfg(feature = "lang-java")]
-    SyntaxProperties {
-        id: LapceLanguage::Java,
-        language: tree_sitter_java::language,
-        highlight: tree_sitter_java::HIGHLIGHT_QUERY,
-        injection: None,
-        comment: "//",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["java"],
-    },
-    #[cfg(feature = "lang-elm")]
-    SyntaxProperties {
-        id: LapceLanguage::Elm,
-        language: tree_sitter_elm::language,
-        highlight: include_str!("../queries/elm/highlights.scm"),
-        injection: Some(tree_sitter_elm::INJECTIONS_QUERY),
-        comment: "#",
-        indent: "    ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["elm"],
-    },
-    #[cfg(feature = "lang-swift")]
-    SyntaxProperties {
-        id: LapceLanguage::Swift,
-        language: tree_sitter_swift::language,
-        highlight: tree_sitter_swift::HIGHLIGHTS_QUERY,
-        injection: None,
-        comment: "//",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["swift"],
-    },
-    #[cfg(feature = "lang-ql")]
-    SyntaxProperties {
-        id: LapceLanguage::Ql,
-        language: tree_sitter_ql::language,
-        highlight: tree_sitter_ql::HIGHLIGHTS_QUERY,
-        injection: None,
-        comment: "//",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["ql"],
-    },
-    #[cfg(feature = "lang-haskell")]
-    SyntaxProperties {
-        id: LapceLanguage::Haskell,
-        language: tree_sitter_haskell::language,
-        highlight: tree_sitter_haskell::HIGHLIGHTS_QUERY,
-        injection: None,
-        comment: "--",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["hs"],
-    },
-    #[cfg(feature = "lang-glimmer")]
-    SyntaxProperties {
-        id: LapceLanguage::Glimmer,
-        language: tree_sitter_glimmer::language,
-        highlight: tree_sitter_glimmer::HIGHLIGHTS_QUERY,
-        injection: None,
-        comment: "{{!",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["hbs"],
-    },
-    #[cfg(feature = "lang-haxe")]
-    SyntaxProperties {
-        id: LapceLanguage::Haxe,
-        language: tree_sitter_haxe::language,
-        highlight: tree_sitter_haxe::HIGHLIGHTS_QUERY,
-        injection: Some(tree_sitter_haxe::INJECTIONS_QUERY),
-        comment: "//",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["hx"],
-    },
-    #[cfg(feature = "lang-hcl")]
-    SyntaxProperties {
-        id: LapceLanguage::Hcl,
-        language: tree_sitter_hcl::language,
-        highlight: tree_sitter_hcl::HIGHLIGHTS_QUERY,
-        injection: None,
-        comment: "//",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["hcl"],
+        extensions: &["nix"],
     },
     #[cfg(feature = "lang-ocaml")]
     SyntaxProperties {
@@ -554,6 +584,104 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         extensions: &["mli"],
     },
+    #[cfg(feature = "lang-php")]
+    SyntaxProperties {
+        id: LapceLanguage::Php,
+        language: tree_sitter_php::language,
+        highlight: tree_sitter_php::HIGHLIGHT_QUERY,
+        injection: Some(tree_sitter_php::INJECTIONS_QUERY),
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["php"],
+    },
+    #[cfg(feature = "lang-python")]
+    SyntaxProperties {
+        id: LapceLanguage::Python,
+        language: tree_sitter_python::language,
+        highlight: tree_sitter_python::HIGHLIGHT_QUERY,
+        injection: None,
+        comment: "#",
+        indent: "       ",
+        code_lens: (
+            &[
+                "source_file",
+                "module",
+                "class_definition",
+                "class",
+                "identifier",
+                "decorated_definition",
+                "block",
+            ],
+            &["source_file", "import_statement", "import_from_statement"],
+        ),
+        sticky_headers: &[],
+        extensions: &["py", "pyi", "pyc", "pyd", "pyw"],
+    },
+    #[cfg(feature = "lang-ql")]
+    SyntaxProperties {
+        id: LapceLanguage::Ql,
+        language: tree_sitter_ql::language,
+        highlight: tree_sitter_ql::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["ql"],
+    },
+    #[cfg(feature = "lang-r")]
+    SyntaxProperties {
+        id: LapceLanguage::R,
+        language: tree_sitter_r::language,
+        highlight: include_str!("../queries/r/highlights.scm"),
+        injection: None,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["r"],
+    },
+    #[cfg(feature = "lang-ruby")]
+    SyntaxProperties {
+        id: LapceLanguage::Ruby,
+        language: tree_sitter_ruby::language,
+        highlight: tree_sitter_ruby::HIGHLIGHT_QUERY,
+        injection: None,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["rb"],
+    },
+    #[cfg(feature = "lang-rust")]
+    SyntaxProperties {
+        id: LapceLanguage::Rust,
+        language: tree_sitter_rust::language,
+        highlight: tree_sitter_rust::HIGHLIGHT_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (
+            &["source_file", "impl_item", "trait_item", "declaration_list"],
+            &["source_file", "use_declaration", "line_comment"],
+        ),
+        sticky_headers: &["struct_item", "enum_item", "function_item", "impl_item"],
+        extensions: &["rs"],
+    },
+    #[cfg(feature = "lang-scheme")]
+    SyntaxProperties {
+        id: LapceLanguage::Scheme,
+        language: tree_sitter_scheme::language,
+        highlight: tree_sitter_scheme::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: ";",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["scm", "ss"],
+    },
     #[cfg(feature = "lang-scss")]
     SyntaxProperties {
         id: LapceLanguage::Scss,
@@ -565,138 +693,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["scss"],
-    },
-    #[cfg(feature = "lang-hare")]
-    SyntaxProperties {
-        id: LapceLanguage::Hare,
-        language: tree_sitter_hare::language,
-        highlight: tree_sitter_hare::HIGHLIGHT_QUERY,
-        injection: None,
-        comment: "//",
-        indent: "        ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["ha"],
-    },
-    #[cfg(feature = "lang-css")]
-    SyntaxProperties {
-        id: LapceLanguage::Css,
-        language: tree_sitter_css::language,
-        highlight: include_str!("../queries/css/highlights.scm"),
-        injection: None,
-        comment: "/*",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["css"],
-    },
-    #[cfg(feature = "lang-zig")]
-    SyntaxProperties {
-        id: LapceLanguage::Zig,
-        language: tree_sitter_zig::language,
-        highlight: include_str!("../queries/zig/highlights.scm"),
-        injection: Some(tree_sitter_zig::INJECTIONS_QUERY),
-        comment: "//",
-        indent: "    ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["zig"],
-    },
-    #[cfg(feature = "lang-bash")]
-    SyntaxProperties {
-        id: LapceLanguage::Bash,
-        language: tree_sitter_bash::language,
-        highlight: include_str!("../queries/bash/highlights.scm"),
-        injection: None,
-        comment: "#",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["sh", "bash"],
-    },
-    #[cfg(feature = "lang-yaml")]
-    SyntaxProperties {
-        id: LapceLanguage::Yaml,
-        language: tree_sitter_yaml::language,
-        highlight: tree_sitter_yaml::HIGHLIGHTS_QUERY,
-        injection: Some(tree_sitter_yaml::INJECTIONS_QUERY),
-        comment: "#",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["yml", "yaml"],
-    },
-    #[cfg(feature = "lang-julia")]
-    SyntaxProperties {
-        id: LapceLanguage::Julia,
-        language: tree_sitter_julia::language,
-        highlight: include_str!("../queries/julia/highlights.scm"),
-        injection: None,
-        comment: "#",
-        indent: "    ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["julia", "jl"],
-    },
-    #[cfg(feature = "lang-wgsl")]
-    SyntaxProperties {
-        id: LapceLanguage::Wgsl,
-        language: tree_sitter_wgsl::language,
-        highlight: tree_sitter_wgsl::HIGHLIGHTS_QUERY,
-        injection: None,
-        comment: "//",
-        indent: "    ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["wgsl"],
-    },
-    #[cfg(feature = "lang-dockerfile")]
-    SyntaxProperties {
-        id: LapceLanguage::Dockerfile,
-        language: tree_sitter_dockerfile::language,
-        highlight: tree_sitter_dockerfile::HIGHLIGHTS_QUERY,
-        injection: None,
-        comment: "#",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["dockerfile"],
-    },
-    #[cfg(feature = "lang-csharp")]
-    SyntaxProperties {
-        id: LapceLanguage::Csharp,
-        language: tree_sitter_c_sharp::language,
-        highlight: tree_sitter_c_sharp::HIGHLIGHT_QUERY,
-        injection: None,
-        comment: "#",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["cs", "csx"],
-    },
-    #[cfg(feature = "lang-nix")]
-    SyntaxProperties {
-        id: LapceLanguage::Nix,
-        language: tree_sitter_nix::language,
-        highlight: tree_sitter_nix::HIGHLIGHTS_QUERY,
-        injection: None,
-        comment: "#",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["nix"],
-    },
-    #[cfg(feature = "lang-dart")]
-    SyntaxProperties {
-        id: LapceLanguage::Dart,
-        language: tree_sitter_dart::language,
-        highlight: tree_sitter_dart::HIGHLIGHTS_QUERY,
-        injection: None,
-        comment: "//",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["dart"],
     },
     #[cfg(feature = "lang-svelte")]
     SyntaxProperties {
@@ -710,41 +706,101 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         extensions: &["svelte"],
     },
-    #[cfg(feature = "lang-latex")]
+    #[cfg(feature = "lang-swift")]
     SyntaxProperties {
-        id: LapceLanguage::Latex,
-        language: tree_sitter_latex::language,
-        highlight: include_str!("../queries/latex/highlights.scm"),
-        injection: Some(include_str!("../queries/latex/injections.scm")),
-        comment: "%",
-        indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
-        extensions: &["tex"],
-    },
-    #[cfg(feature = "lang-kotlin")]
-    SyntaxProperties {
-        id: LapceLanguage::Kotlin,
-        language: tree_sitter_kotlin::language,
-        highlight: include_str!("../queries/kotlin/highlights.scm"),
-        injection: Some(include_str!("../queries/kotlin/injections.scm")),
+        id: LapceLanguage::Swift,
+        language: tree_sitter_swift::language,
+        highlight: tree_sitter_swift::HIGHLIGHTS_QUERY,
+        injection: None,
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
-        extensions: &["kt"],
+        extensions: &["swift"],
     },
-    #[cfg(feature = "lang-d")]
+    #[cfg(feature = "lang-toml")]
     SyntaxProperties {
-        id: LapceLanguage::D,
-        language: tree_sitter_d::language,
-        highlight: tree_sitter_d::HIGHLIGHTS_QUERY,
+        id: LapceLanguage::Toml,
+        language: tree_sitter_toml::language,
+        highlight: tree_sitter_toml::HIGHLIGHT_QUERY,
+        injection: None,
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["toml"],
+    },
+    #[cfg(feature = "lang-typescript")]
+    SyntaxProperties {
+        id: LapceLanguage::Tsx,
+        language: tree_sitter_typescript::language_tsx,
+        highlight: include_str!("../queries/typescript/highlights.scm"),
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (&["source_file", "program"], &["source_file"]),
+        sticky_headers: &[],
+        extensions: &["tsx"],
+    },
+    #[cfg(feature = "lang-typescript")]
+    SyntaxProperties {
+        id: LapceLanguage::Typescript,
+        language: tree_sitter_typescript::language_typescript,
+        highlight: include_str!("../queries/typescript/highlights.scm"),
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (&["source_file", "program"], &["source_file"]),
+        sticky_headers: &[],
+        extensions: &["ts", "cts", "mts"],
+    },
+    #[cfg(feature = "lang-vue")]
+    SyntaxProperties {
+        id: LapceLanguage::Vue,
+        language: tree_sitter_vue::language,
+        highlight: tree_sitter_vue::HIGHLIGHTS_QUERY,
+        injection: Some(tree_sitter_vue::INJECTIONS_QUERY),
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["vue"],
+    },
+    #[cfg(feature = "lang-wgsl")]
+    SyntaxProperties {
+        id: LapceLanguage::Wgsl,
+        language: tree_sitter_wgsl::language,
+        highlight: tree_sitter_wgsl::HIGHLIGHTS_QUERY,
         injection: None,
         comment: "//",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
-        extensions: &["d", "di", "dlang"],
+        extensions: &["wgsl"],
+    },
+    #[cfg(feature = "lang-yaml")]
+    SyntaxProperties {
+        id: LapceLanguage::Yaml,
+        language: tree_sitter_yaml::language,
+        highlight: tree_sitter_yaml::HIGHLIGHTS_QUERY,
+        injection: Some(tree_sitter_yaml::INJECTIONS_QUERY),
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["yml", "yaml"],
+    },
+    #[cfg(feature = "lang-zig")]
+    SyntaxProperties {
+        id: LapceLanguage::Zig,
+        language: tree_sitter_zig::language,
+        highlight: include_str!("../queries/zig/highlights.scm"),
+        injection: Some(tree_sitter_zig::INJECTIONS_QUERY),
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["zig"],
     },
 ];
 
@@ -1019,6 +1075,10 @@ mod test {
         assert_language(LapceLanguage::Ocaml, &["ml"]);
         assert_language(LapceLanguage::OcamlInterface, &["mli"]);
     }
+    #[cfg(feature = "lang-scheme")]
+    fn test_scheme_lang() {
+        assert_language(LapceLanguage::Scheme, &["scm", "ss"]);
+    }
     #[cfg(feature = "lang-scss")]
     fn test_scss_lang() {
         assert_language(LapceLanguage::Scss, &["scss"]);
@@ -1079,8 +1139,20 @@ mod test {
     fn test_kotlin_lang() {
         assert_language(LapceLanguage::Kotlin, &["kt"]);
     }
+    #[cfg(feature = "lang-vue")]
+    fn test_vue_lang() {
+        assert_language(LapceLanguage::Vue, &["vue"]);
+    }
     #[cfg(feature = "lang-d")]
     fn test_d_lang() {
         assert_language(LapceLanguage::D, &["d", "di", "dlang"]);
+    }
+    #[cfg(feature = "lang-lua")]
+    fn test_lua_lang() {
+        assert_language(LapceLanguage::Lua, &["lua"]);
+    }
+    #[cfg(feature = "lang-r")]
+    fn test_r_lang() {
+        assert_language(LapceLanguage::R, &["r"]);
     }
 }

@@ -9,7 +9,7 @@ use druid::{
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::LapceTabData,
     picker::FilePickerData,
 };
@@ -547,7 +547,7 @@ pub fn paint_file_node_item_by_index(
     current: usize,
     active: usize,
     hovered: Option<usize>,
-    config: &Config,
+    config: &LapceConfig,
     toggle_rects: &mut HashMap<usize, Rect>,
 ) -> usize {
     if current > max {

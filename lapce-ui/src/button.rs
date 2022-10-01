@@ -9,7 +9,7 @@ use druid::{
     UpdateCtx, Widget,
 };
 use lapce_data::{
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::LapceTabData,
 };
 
@@ -160,7 +160,7 @@ impl Widget<LapceTabData> for Button {
     }
 }
 
-fn update_label(config: &Config, label: &mut Label<LapceTabData>) {
+fn update_label(config: &LapceConfig, label: &mut Label<LapceTabData>) {
     label.set_text_size(config.ui.font_size() as f64);
     label.set_font(FontDescriptor::new(config.ui.font_family()));
     label.set_text_color(

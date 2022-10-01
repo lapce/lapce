@@ -28,7 +28,7 @@ use crate::{
     command::{
         CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::LapceWorkspace,
     document::SystemClipboard,
     find::Find,
@@ -97,7 +97,7 @@ impl TerminalSplitData {
         &self,
         color: &ansi::Color,
         colors: &alacritty_terminal::term::color::Colors,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Color {
         match color {
             ansi::Color::Named(color) => self.get_named_color(color, config),
@@ -133,7 +133,11 @@ impl TerminalSplitData {
         }
     }
 
-    fn get_named_color(&self, color: &ansi::NamedColor, config: &Config) -> Color {
+    fn get_named_color(
+        &self,
+        color: &ansi::NamedColor,
+        config: &LapceConfig,
+    ) -> Color {
         let (color, alpha) = match color {
             ansi::NamedColor::Cursor => (LapceTheme::TERMINAL_CURSOR, 1.0),
             ansi::NamedColor::Foreground => (LapceTheme::TERMINAL_FOREGROUND, 1.0),
@@ -185,7 +189,7 @@ impl TerminalSplitData {
 
 pub struct LapceTerminalViewData {
     pub terminal: Arc<LapceTerminalData>,
-    pub config: Arc<Config>,
+    pub config: Arc<LapceConfig>,
     pub find: Arc<Find>,
 }
 
@@ -195,7 +199,7 @@ impl LapceTerminalViewData {
     }
 
     fn toggle_visual(&mut self, visual_mode: VisualMode) {
-        if !self.config.lapce.modal {
+        if !self.config.core.modal {
             return;
         }
 
@@ -322,7 +326,7 @@ impl KeyPressFocus for LapceTerminalViewData {
             }
             CommandKind::Edit(cmd) => match cmd {
                 EditCommand::NormalMode => {
-                    if !self.config.lapce.modal {
+                    if !self.config.core.modal {
                         return CommandExecuted::Yes;
                     }
                     self.terminal_mut().mode = Mode::Normal;
@@ -535,7 +539,7 @@ impl LapceTerminalData {
         split_id: WidgetId,
         event_sink: ExtEventSink,
         proxy: Arc<LapceProxy>,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Self {
         let cwd = workspace.path.as_ref().cloned();
         let widget_id = WidgetId::next();
@@ -598,7 +602,7 @@ impl LapceTerminalData {
         search_string: &str,
         direction: Direction,
     ) {
-        if let Ok(dfas) = RegexSearch::new(search_string) {
+        if let Ok(dfas) = RegexSearch::new(&regex::escape(search_string)) {
             let mut point = term.renderable_content().cursor.point;
             if direction == Direction::Right {
                 if point.column.0 < term.last_column() {
