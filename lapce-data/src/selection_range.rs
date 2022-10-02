@@ -93,9 +93,10 @@ impl SyntaxSelectionRanges {
 
 #[cfg(test)]
 mod test {
-    use crate::selection_range::SyntaxSelectionRanges;
     use lapce_rpc::buffer::BufferId;
     use lsp_types::{Position, Range, SelectionRange};
+
+    use crate::selection_range::SyntaxSelectionRanges;
 
     #[test]
     fn should_get_next_selection_range() {

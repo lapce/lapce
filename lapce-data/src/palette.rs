@@ -1,38 +1,39 @@
+use std::{cmp::Ordering, collections::HashSet, path::PathBuf, sync::Arc};
+
 use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
-use druid::{Command, ExtEventSink, Lens, Modifiers, Target, WidgetId};
-use druid::{Data, Env, EventCtx};
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
+use druid::{
+    Command, Data, Env, EventCtx, ExtEventSink, Lens, Modifiers, Target, WidgetId,
+};
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
-use lapce_core::command::{EditCommand, FocusCommand};
-use lapce_core::language::LapceLanguage;
-use lapce_core::mode::Mode;
+use lapce_core::{
+    command::{EditCommand, FocusCommand},
+    language::LapceLanguage,
+    mode::Mode,
+};
 use lapce_rpc::proxy::ProxyResponse;
 use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
-use std::cmp::Ordering;
-use std::collections::HashSet;
-use std::path::PathBuf;
-use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::command::CommandKind;
-use crate::data::{LapceWorkspace, LapceWorkspaceType};
-use crate::document::BufferContent;
-use crate::editor::EditorLocation;
-use crate::list::ListData;
-use crate::panel::PanelKind;
-use crate::proxy::path_from_url;
 use crate::{
-    command::LAPCE_UI_COMMAND,
-    command::{CommandExecuted, LAPCE_COMMAND},
-    command::{LapceCommand, LapceUICommand},
+    command::{
+        CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND,
+        LAPCE_UI_COMMAND,
+    },
     config::LapceConfig,
-    data::{FocusArea, LapceMainSplitData, LapceTabData},
+    data::{
+        FocusArea, LapceMainSplitData, LapceTabData, LapceWorkspace,
+        LapceWorkspaceType,
+    },
+    document::BufferContent,
+    editor::EditorLocation,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
-    proxy::LapceProxy,
+    list::ListData,
+    panel::PanelKind,
+    proxy::{path_from_url, LapceProxy},
     terminal::TerminalSplitData,
 };
 

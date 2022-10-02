@@ -23,13 +23,12 @@ use psp_types::Notification;
 use serde_json::Value;
 use xi_rope::{Rope, RopeDelta};
 
-use crate::plugin::{install_volt, wasi::enable_volt};
-
 use super::{
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
     wasi::{load_all_volts, start_volt},
     PluginCatalogNotification, PluginCatalogRpcHandler,
 };
+use crate::plugin::{install_volt, wasi::enable_volt};
 
 pub struct PluginCatalog {
     workspace: Option<PathBuf>,

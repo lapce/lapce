@@ -1,4 +1,4 @@
-use std::{fmt::Display, path::PathBuf, sync::Arc};
+use std::{fmt::Display, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::Error;
 use druid::{EventCtx, Size, WidgetId};
@@ -8,7 +8,6 @@ use lapce_core::command::FocusCommand;
 use lapce_rpc::{buffer::BufferId, plugin::PluginId};
 use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
-use std::str::FromStr;
 
 use crate::{config::LapceConfig, list::ListData, proxy::LapceProxy};
 

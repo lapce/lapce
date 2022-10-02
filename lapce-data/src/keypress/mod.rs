@@ -1,17 +1,14 @@
 #![allow(clippy::module_inception)]
 
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-use druid::piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder};
-use druid::{Command, KbKey};
 use druid::{
-    Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, PaintCtx, Point, Rect,
-    RenderContext, Size, Target,
+    piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
+    Command, Env, EventCtx, ExtEventSink, KbKey, KeyEvent, Modifiers, PaintCtx,
+    Point, Rect, RenderContext, Size, Target,
 };
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::mode::{Mode, Modes};
@@ -19,14 +16,16 @@ use lapce_core::mode::{Mode, Modes};
 mod keypress;
 mod loader;
 
-use crate::command::{
-    lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
-    LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
-};
-use crate::config::{LapceConfig, LapceTheme};
-use crate::keypress::loader::KeyMapLoader;
-
 pub use keypress::KeyPress;
+
+use crate::{
+    command::{
+        lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
+        LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
+    },
+    config::{LapceConfig, LapceTheme},
+    keypress::loader::KeyMapLoader,
+};
 
 const DEFAULT_KEYMAPS_COMMON: &str =
     include_str!("../../../defaults/keymaps-common.toml");
@@ -740,8 +739,9 @@ impl<'a> Condition<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::keypress::{Condition, KeyPressData, KeyPressFocus};
     use lapce_core::mode::Mode;
+
+    use crate::keypress::{Condition, KeyPressData, KeyPressFocus};
 
     struct MockFocus {
         accepted_conditions: &'static [&'static str],

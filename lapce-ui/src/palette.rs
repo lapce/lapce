@@ -1,32 +1,28 @@
-use std::path::Path;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
-use druid::kurbo::Line;
-use druid::piet::{Svg, TextAttribute, TextLayout};
 use druid::{
-    kurbo::Rect,
-    piet::{Text, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
-    WidgetExt, WidgetId, WidgetPod,
+    kurbo::{Line, Rect},
+    piet::{Svg, Text, TextAttribute, TextLayout, TextLayoutBuilder},
+    BoxConstraints, Command, Data, Env, Event, EventCtx, FontWeight, LayoutCtx,
+    LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext, Size,
+    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
-use druid::{FontWeight, Modifiers};
-use lapce_data::command::LAPCE_COMMAND;
-use lapce_data::data::LapceWorkspaceType;
-use lapce_data::list::ListData;
-use lapce_data::palette::{PaletteItem, PaletteItemContent, PaletteListData};
 use lapce_data::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    command::{LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::LapceTabData,
+    data::{LapceTabData, LapceWorkspaceType},
     keypress::KeyPressFocus,
-    palette::{PaletteStatus, PaletteType, PaletteViewData},
+    list::ListData,
+    palette::{
+        PaletteItem, PaletteItemContent, PaletteListData, PaletteStatus,
+        PaletteType, PaletteViewData,
+    },
 };
 use lsp_types::SymbolKind;
 
-use crate::list::{List, ListPaint};
 use crate::{
     editor::view::LapceEditorView,
+    list::{List, ListPaint},
     svg::{file_svg, symbol_svg},
 };
 

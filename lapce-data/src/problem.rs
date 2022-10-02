@@ -1,6 +1,6 @@
+use std::{collections::HashMap, path::PathBuf};
+
 use druid::WidgetId;
-use std::collections::HashMap;
-use std::path::PathBuf;
 
 #[derive(Clone)]
 pub struct ProblemData {

@@ -1,10 +1,11 @@
+use std::cmp::{max, min};
+
 use lapce_core::{
     selection::{InsertDrift, SelRegion, Selection},
     word::WordCursor,
 };
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
-use std::cmp::{max, min};
 use xi_rope::{
     delta::DeltaRegion,
     find::{find, is_multiline_regex, CaseMatching},

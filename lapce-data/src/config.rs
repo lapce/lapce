@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::Write,
     path::{Path, PathBuf},
     sync::Arc,
@@ -9,11 +10,11 @@ use druid::{
     Color, ExtEventSink, FontFamily, Size, Target,
 };
 use indexmap::IndexMap;
+pub use lapce_proxy::APPLICATION_NAME;
 use lapce_proxy::{directory::Directory, plugin::wasi::find_all_volts};
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use structdesc::FieldNames;
 use thiserror::Error;
 use toml_edit::easy as toml;
@@ -22,8 +23,6 @@ use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     data::{LapceWorkspace, LapceWorkspaceType},
 };
-
-pub use lapce_proxy::APPLICATION_NAME;
 
 pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");

@@ -21,11 +21,10 @@ use lapce_data::{
     split::{SplitDirection, SplitMoveDirection},
 };
 
-use crate::editor::{
-    tab_header::LapceEditorTabHeader, view::editor_tab_child_widget,
+use crate::{
+    editor::{tab_header::LapceEditorTabHeader, view::editor_tab_child_widget},
+    svg::get_svg,
 };
-
-use crate::svg::get_svg;
 
 pub struct LapceEditorTab {
     pub widget_id: WidgetId,

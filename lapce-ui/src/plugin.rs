@@ -1,8 +1,3 @@
-use crate::{
-    panel::PanelSizing,
-    scroll::LapceScroll,
-    svg::{get_svg, logo_svg},
-};
 use druid::{
     kurbo::Line,
     piet::{
@@ -27,7 +22,11 @@ use lapce_data::{
     rich_text::RichText,
 };
 
-use crate::panel::{LapcePanel, PanelHeaderKind};
+use crate::{
+    panel::{LapcePanel, PanelHeaderKind, PanelSizing},
+    scroll::LapceScroll,
+    svg::{get_svg, logo_svg},
+};
 
 pub struct Plugin {
     line_height: f64,
