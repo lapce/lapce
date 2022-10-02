@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize};
 use xi_rope::{RopeDelta, Transformer};
 
-use crate::buffer::Buffer;
-use crate::mode::{Mode, MotionMode, VisualMode};
-use crate::register::RegisterData;
-use crate::selection::{InsertDrift, SelRegion, Selection};
+use crate::{
+    buffer::Buffer,
+    mode::{Mode, MotionMode, VisualMode},
+    register::RegisterData,
+    selection::{InsertDrift, SelRegion, Selection},
+};
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ColPosition {

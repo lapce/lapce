@@ -1,21 +1,11 @@
-use crate::{
-    editor::{
-        tab::LapceEditorTab,
-        view::{editor_tab_child_widget, LapceEditorView},
-    },
-    terminal::LapceTerminalView,
-};
 use std::sync::Arc;
 
-use crate::svg::logo_svg;
 use druid::{
     kurbo::{Line, Rect},
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    Command, Target, WidgetId,
-};
-use druid::{
-    BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
-    PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WidgetPod,
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
+    WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{
@@ -30,6 +20,15 @@ use lapce_data::{
     terminal::LapceTerminalData,
 };
 use lapce_rpc::terminal::TermId;
+
+use crate::{
+    editor::{
+        tab::LapceEditorTab,
+        view::{editor_tab_child_widget, LapceEditorView},
+    },
+    svg::logo_svg,
+    terminal::LapceTerminalView,
+};
 
 struct LapceDynamicSplit {
     widget_id: WidgetId,

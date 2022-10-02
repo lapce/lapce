@@ -1,34 +1,29 @@
-use std::sync::Arc;
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
-use druid::menu::MenuEventCtx;
-use druid::piet::TextAttribute;
 use druid::{
-    piet::{Text, TextLayoutBuilder},
-    BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
-    Widget, WidgetExt, WidgetId, WidgetPod,
+    menu::MenuEventCtx,
+    piet::{Text, TextAttribute, TextLayoutBuilder},
+    BoxConstraints, Command, Cursor, Env, Event, EventCtx, ExtEventSink, KbKey,
+    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
+    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
 };
-use druid::{ExtEventSink, KbKey, WindowId};
 use itertools::Itertools;
 use lapce_core::command::FocusCommand;
-use lapce_data::command::{CommandKind, LapceCommand, LAPCE_COMMAND};
-use lapce_data::data::{EditorTabChild, LapceData, LapceEditorData};
-use lapce_data::document::{BufferContent, LocalBufferKind};
-use lapce_data::explorer::FileExplorerData;
-use lapce_data::explorer::Naming;
-use lapce_data::panel::PanelKind;
-use lapce_data::proxy::{LapceProxy, VERSION};
 use lapce_data::{
-    command::LapceUICommand,
-    command::LAPCE_UI_COMMAND,
+    command::{
+        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
+    },
     config::{LapceConfig, LapceTheme},
-    data::LapceTabData,
+    data::{EditorTabChild, LapceData, LapceEditorData, LapceTabData},
+    document::{BufferContent, LocalBufferKind},
+    explorer::{FileExplorerData, Naming},
+    panel::PanelKind,
+    proxy::{LapceProxy, VERSION},
 };
 use lapce_rpc::file::FileNodeItem;
 
-use crate::editor::view::LapceEditorView;
 use crate::{
+    editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapceScroll,
     svg::{file_svg, get_svg},

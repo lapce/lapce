@@ -3,22 +3,36 @@ pub mod lsp;
 pub mod psp;
 pub mod wasi;
 
+use std::{
+    collections::HashMap,
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+        Arc,
+    },
+    thread,
+};
+
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
-use lapce_rpc::core::CoreRpcHandler;
-use lapce_rpc::plugin::{PluginId, VoltInfo, VoltMetadata};
-use lapce_rpc::proxy::ProxyRpcHandler;
-use lapce_rpc::style::LineStyle;
-use lapce_rpc::{RequestId, RpcError};
-use lsp_types::request::{
-    CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
-    GotoDefinition, GotoTypeDefinition, GotoTypeDefinitionParams,
-    GotoTypeDefinitionResponse, HoverRequest, InlayHintRequest,
-    PrepareRenameRequest, References, Rename, Request, ResolveCompletionItem,
-    SelectionRangeRequest, SemanticTokensFullRequest, WorkspaceSymbol,
+use lapce_rpc::{
+    core::CoreRpcHandler,
+    plugin::{PluginId, VoltInfo, VoltMetadata},
+    proxy::ProxyRpcHandler,
+    style::LineStyle,
+    RequestId, RpcError,
 };
 use lsp_types::{
+    request::{
+        CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
+        GotoDefinition, GotoTypeDefinition, GotoTypeDefinitionParams,
+        GotoTypeDefinitionResponse, HoverRequest, InlayHintRequest,
+        PrepareRenameRequest, References, Rename, Request, ResolveCompletionItem,
+        SelectionRangeRequest, SemanticTokensFullRequest, WorkspaceSymbol,
+    },
     CodeActionContext, CodeActionParams, CodeActionResponse, CompletionItem,
     CompletionParams, CompletionResponse, DocumentFormattingParams,
     DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions,
@@ -31,24 +45,16 @@ use lsp_types::{
     WorkspaceSymbolParams,
 };
 use parking_lot::Mutex;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
-use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::thread;
 use xi_rope::{Rope, RopeDelta};
 
-use crate::buffer::language_id_from_path;
-use crate::directory::Directory;
-
-use self::catalog::PluginCatalog;
-use self::psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback};
-use self::wasi::{load_volt, start_volt};
+use self::{
+    catalog::PluginCatalog,
+    psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback},
+    wasi::{load_volt, start_volt},
+};
+use crate::{buffer::language_id_from_path, directory::Directory};
 
 pub type PluginName = String;
 

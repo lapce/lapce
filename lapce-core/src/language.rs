@@ -915,8 +915,9 @@ mod test {
     // function(s) in the module become unused.  Hence turning off the lints.
     #![allow(unused, unreachable_code)]
 
-    use super::LapceLanguage;
     use std::path::PathBuf;
+
+    use super::LapceLanguage;
 
     fn assert_language(expected: LapceLanguage, exts: &[&str]) {
         for ext in exts {

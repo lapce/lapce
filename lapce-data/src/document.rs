@@ -44,7 +44,6 @@ use xi_rope::{
     Interval, Rope, RopeDelta, Transformer,
 };
 
-use crate::selection_range::SelectionRangeDirection;
 use crate::{
     command::{InitBufferContentCb, LapceUICommand, LAPCE_UI_COMMAND},
     config::{LapceConfig, LapceTheme},
@@ -53,7 +52,7 @@ use crate::{
     find::{Find, FindProgress},
     history::DocumentHistory,
     proxy::LapceProxy,
-    selection_range::SyntaxSelectionRanges,
+    selection_range::{SelectionRangeDirection, SyntaxSelectionRanges},
     settings::SettingsValueKind,
 };
 

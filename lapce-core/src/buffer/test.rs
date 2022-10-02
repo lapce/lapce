@@ -1,9 +1,10 @@
 use super::Buffer;
 
 mod editing {
+    use xi_rope::Rope;
+
     use super::*;
     use crate::{editor::EditType, selection::Selection};
-    use xi_rope::Rope;
 
     #[test]
     fn is_pristine() {

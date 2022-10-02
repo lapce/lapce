@@ -1,3 +1,5 @@
+#[cfg(target_os = "windows")]
+use std::env;
 use std::{
     cell::RefCell,
     cmp::Ordering,
@@ -10,16 +12,12 @@ use std::{
     time::Instant,
 };
 
-#[cfg(target_os = "windows")]
-use std::env;
-
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
     piet::PietText, theme, Command, Data, Env, EventCtx, ExtEventSink,
     FileDialogOptions, Lens, Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
-
 use itertools::Itertools;
 use lapce_core::{
     command::{FocusCommand, MultiSelectionCommand},
@@ -40,7 +38,6 @@ use lapce_rpc::{
     terminal::TermId,
     RpcMessage,
 };
-
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdit};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};

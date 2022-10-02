@@ -24,12 +24,6 @@ use xi_rope::{
     Interval, Rope, RopeDelta,
 };
 
-use crate::{
-    language::LapceLanguage,
-    lens::{Lens, LensBuilder},
-    style::SCOPES,
-};
-
 use self::{
     edit::generate_edits,
     highlight::{
@@ -38,6 +32,11 @@ use self::{
         IncludedChildren, LocalScope,
     },
     util::{matching_char, RopeProvider},
+};
+use crate::{
+    language::LapceLanguage,
+    lens::{Lens, LensBuilder},
+    style::SCOPES,
 };
 
 mod edit;

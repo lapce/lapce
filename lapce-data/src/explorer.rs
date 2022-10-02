@@ -1,25 +1,20 @@
-use std::collections::HashMap;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-use druid::Command;
-use druid::EventCtx;
-use druid::ExtEventSink;
-use druid::{Target, WidgetId};
-
-use lapce_core::cursor::CursorMode;
-use lapce_core::selection::Selection;
-use lapce_rpc::file::FileNodeItem;
-use lapce_rpc::proxy::ProxyResponse;
+use druid::{Command, EventCtx, ExtEventSink, Target, WidgetId};
+use lapce_core::{cursor::CursorMode, selection::Selection};
+use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
 use xi_rope::Rope;
 
-use crate::data::LapceMainSplitData;
-use crate::data::LapceWorkspace;
-use crate::document::LocalBufferKind;
-use crate::proxy::LapceProxy;
-
-use crate::{command::LapceUICommand, command::LAPCE_UI_COMMAND};
+use crate::{
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    data::{LapceMainSplitData, LapceWorkspace},
+    document::LocalBufferKind,
+    proxy::LapceProxy,
+};
 
 #[derive(Clone)]
 pub enum Naming {
