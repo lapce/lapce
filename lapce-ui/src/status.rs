@@ -536,5 +536,45 @@ impl Widget<LapceTabData> for LapceStatus {
                 ),
             ));
         }
+
+        if let Some(editor) = data.main_split.active_editor() {
+            let mut string = "".to_string();
+            let editor_content = data.editor_view_content(editor.view_id);
+            if let Some(cursor_pos) =
+                editor.cursor.get_line_col_char(editor_content.doc.buffer())
+            {
+                string += &format!(
+                    "Ln {}, Col {}, Char {}",
+                    cursor_pos.0 + 1,
+                    cursor_pos.1 + 1,
+                    cursor_pos.2
+                );
+            }
+
+            if let Some(selection) = editor.cursor.get_selection() {
+                let selection_range = selection.0.abs_diff(selection.1);
+
+                if selection.0 != selection.1 {
+                    string += &format!(" ({} selected)", selection_range);
+                }
+            }
+            let selection_count = editor.cursor.get_selection_count();
+            if selection_count > 1 {
+                string += &format!(" {} selections", selection_count);
+            }
+
+            if !string.is_empty() {
+                let (_, _, (point, text_layout)) = self
+                    .paint_icon_with_label_from_right(
+                        right - 10.0,
+                        size.height,
+                        "",
+                        string,
+                        ctx,
+                        &data.config,
+                    );
+                ctx.draw_text(&text_layout, point);
+            }
+        }
     }
 }
