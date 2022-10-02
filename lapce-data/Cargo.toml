@@ -55,3 +55,4 @@ dmg = "0.1.1"
 
 [features]
 updater = []
+portable = []
