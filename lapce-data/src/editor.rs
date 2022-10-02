@@ -1,79 +1,62 @@
-use crate::command::InitBufferContentCb;
-use crate::command::LapceCommand;
-use crate::command::LAPCE_COMMAND;
-use crate::command::LAPCE_SAVE_FILE_AS;
-use crate::command::{CommandExecuted, CommandKind};
-use crate::completion::{CompletionData, CompletionStatus, Snippet};
-use crate::config::LapceConfig;
-use crate::data::EditorView;
-use crate::data::FocusArea;
-use crate::data::{
-    EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
-    SplitContent,
+use std::{
+    cmp::Ordering,
+    collections::HashMap,
+    iter::Iterator,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+    thread,
+    time::Duration,
 };
-use crate::document::BufferContent;
-use crate::document::Document;
-use crate::document::LocalBufferKind;
-use crate::hover::HoverData;
-use crate::hover::HoverStatus;
-use crate::keypress::KeyMap;
-use crate::keypress::KeyPressFocus;
-use crate::palette::PaletteData;
-use crate::proxy::path_from_url;
-use crate::rename::RenameData;
-use crate::selection_range::SelectionRangeDirection;
-use crate::{
-    command::{
-        EnsureVisiblePosition, InitBufferContent, LapceUICommand, LAPCE_UI_COMMAND,
-    },
-    split::SplitMoveDirection,
-};
-use crate::{find::Find, split::SplitDirection};
-use crate::{proxy::LapceProxy, source_control::SourceControlData};
+
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{self, bounded};
-use druid::piet::PietTextLayout;
-use druid::piet::Svg;
-use druid::FileDialogOptions;
-use druid::Modifiers;
 use druid::{
-    piet::PietText, Command, Env, EventCtx, Point, Rect, Target, Vec2, WidgetId,
+    piet::{PietText, PietTextLayout, Svg},
+    Command, Env, EventCtx, ExtEventSink, FileDialogOptions, Modifiers, MouseEvent,
+    Point, Rect, Target, Vec2, WidgetId,
 };
-use druid::{ExtEventSink, MouseEvent};
 use indexmap::IndexMap;
-use lapce_core::buffer::Buffer;
-use lapce_core::buffer::{DiffLines, InvalLines};
-use lapce_core::command::{
-    EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
-};
-use lapce_core::editor::EditType;
-use lapce_core::mode::{Mode, MotionMode};
-use lapce_core::selection::InsertDrift;
-use lapce_core::selection::Selection;
 pub use lapce_core::syntax::Syntax;
-use lapce_rpc::proxy::ProxyResponse;
-use lsp_types::request::GotoTypeDefinitionResponse;
-use lsp_types::CodeActionOrCommand;
-use lsp_types::CompletionTextEdit;
-use lsp_types::DocumentChangeOperation;
-use lsp_types::DocumentChanges;
-use lsp_types::OneOf;
-use lsp_types::ResourceOp;
-use lsp_types::TextEdit;
-use lsp_types::Url;
-use lsp_types::WorkspaceEdit;
-use lsp_types::{
-    CodeActionResponse, CompletionItem, DiagnosticSeverity, GotoDefinitionResponse,
-    Location, Position,
+use lapce_core::{
+    buffer::{Buffer, DiffLines, InvalLines},
+    command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
+    editor::EditType,
+    mode::{Mode, MotionMode},
+    selection::{InsertDrift, Selection},
 };
-use std::cmp::Ordering;
-use std::path::Path;
-use std::thread;
-use std::{collections::HashMap, sync::Arc};
-use std::{iter::Iterator, path::PathBuf};
-use std::{str::FromStr, time::Duration};
-use xi_rope::Rope;
-use xi_rope::{RopeDelta, Transformer};
+use lapce_rpc::proxy::ProxyResponse;
+use lsp_types::{
+    request::GotoTypeDefinitionResponse, CodeActionOrCommand, CodeActionResponse,
+    CompletionItem, CompletionTextEdit, DiagnosticSeverity, DocumentChangeOperation,
+    DocumentChanges, GotoDefinitionResponse, Location, OneOf, Position, ResourceOp,
+    TextEdit, Url, WorkspaceEdit,
+};
+use xi_rope::{Rope, RopeDelta, Transformer};
+
+use crate::{
+    command::{
+        CommandExecuted, CommandKind, EnsureVisiblePosition, InitBufferContent,
+        InitBufferContentCb, LapceCommand, LapceUICommand, LAPCE_COMMAND,
+        LAPCE_SAVE_FILE_AS, LAPCE_UI_COMMAND,
+    },
+    completion::{CompletionData, CompletionStatus, Snippet},
+    config::LapceConfig,
+    data::{
+        EditorDiagnostic, EditorView, FocusArea, InlineFindDirection,
+        LapceEditorData, LapceMainSplitData, SplitContent,
+    },
+    document::{BufferContent, Document, LocalBufferKind},
+    find::Find,
+    hover::{HoverData, HoverStatus},
+    keypress::{KeyMap, KeyPressFocus},
+    palette::PaletteData,
+    proxy::{path_from_url, LapceProxy},
+    rename::RenameData,
+    selection_range::SelectionRangeDirection,
+    source_control::SourceControlData,
+    split::{SplitDirection, SplitMoveDirection},
+};
 
 pub struct LapceUI {}
 

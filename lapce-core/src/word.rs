@@ -420,8 +420,7 @@ fn classify_boundary(
     prev: CharClassification,
     next: CharClassification,
 ) -> WordBoundary {
-    use self::CharClassification::*;
-    use self::WordBoundary::*;
+    use self::{CharClassification::*, WordBoundary::*};
     match (prev, next) {
         (Lf, Lf) => Start,
         (Lf, Space) => Interior,
@@ -442,8 +441,9 @@ fn classify_boundary(
 
 #[cfg(test)]
 mod test {
-    use super::WordCursor;
     use xi_rope::Rope;
+
+    use super::WordCursor;
 
     #[test]
     fn prev_boundary_should_be_none_at_position_zero() {

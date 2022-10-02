@@ -10,12 +10,8 @@ pub mod stdio;
 pub mod style;
 pub mod terminal;
 
-pub use parse::Call;
-pub use parse::RequestId;
-pub use parse::RpcObject;
-use serde::Deserialize;
-use serde::Serialize;
-
+pub use parse::{Call, RequestId, RpcObject};
+use serde::{Deserialize, Serialize};
 pub use stdio::stdio_transport;
 
 #[derive(Debug)]

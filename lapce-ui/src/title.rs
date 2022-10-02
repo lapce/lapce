@@ -1,34 +1,30 @@
 use std::sync::Arc;
 
-use crate::list::List;
-#[cfg(not(target_os = "macos"))]
-use crate::window::window_controls;
-use crate::{palette::Palette, svg::get_svg};
-use druid::{kurbo::Circle, InternalEvent};
 use druid::{
-    kurbo::Line,
+    kurbo::{Circle, Line},
     piet::{PietText, PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, Region, RenderContext, Size,
-    Target, Widget, WidgetExt, WidgetPod, WindowState,
+    BoxConstraints, Color, Command, Env, Event, EventCtx, InternalEvent, LayoutCtx,
+    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, Region,
+    RenderContext, Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
+    WindowConfig, WindowState,
 };
-use druid::{WidgetId, WindowConfig};
 use lapce_core::command::FocusCommand;
-use lapce_data::command::LAPCE_COMMAND;
-use lapce_data::data::FocusArea;
-use lapce_data::list::ListData;
-use lapce_data::proxy::VERSION;
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
-        LAPCE_UI_COMMAND,
+        LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
-    data::{LapceTabData, LapceWorkspaceType},
+    data::{FocusArea, LapceTabData, LapceWorkspaceType},
+    list::ListData,
     menu::{MenuItem, MenuKind},
     palette::PaletteStatus,
-    proxy::ProxyStatus,
+    proxy::{ProxyStatus, VERSION},
 };
+
+#[cfg(not(target_os = "macos"))]
+use crate::window::window_controls;
+use crate::{list::List, palette::Palette, svg::get_svg};
 
 pub struct Title {
     widget_id: WidgetId,

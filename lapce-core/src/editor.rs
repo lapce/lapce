@@ -1384,10 +1384,12 @@ enum DuplicateDirection {
 
 #[cfg(test)]
 mod test {
-    use crate::buffer::Buffer;
-    use crate::cursor::{Cursor, CursorMode};
-    use crate::editor::{DuplicateDirection, Editor};
-    use crate::selection::{SelRegion, Selection};
+    use crate::{
+        buffer::Buffer,
+        cursor::{Cursor, CursorMode},
+        editor::{DuplicateDirection, Editor},
+        selection::{SelRegion, Selection},
+    };
 
     #[test]
     fn test_insert_simple() {

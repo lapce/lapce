@@ -20,12 +20,11 @@ use parking_lot::Mutex;
 use serde_json::{json, Value};
 use xi_rope::Rope;
 
-use crate::{buffer::Buffer, plugin::PluginCatalogRpcHandler};
-
 use super::psp::{
     handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
     PluginServerHandler, PluginServerRpcHandler, RpcCallback,
 };
+use crate::{buffer::Buffer, plugin::PluginCatalogRpcHandler};
 
 const HEADER_CONTENT_LENGTH: &str = "content-length";
 const HEADER_CONTENT_TYPE: &str = "content-type";

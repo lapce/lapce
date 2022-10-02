@@ -20,9 +20,8 @@ use tree_sitter::{
 };
 use xi_rope::Rope;
 
-use crate::{language::LapceLanguage, style::SCOPES};
-
 use super::{util::RopeProvider, PARSER};
+use crate::{language::LapceLanguage, style::SCOPES};
 
 macro_rules! declare_language_highlights {
     ($($name:ident: $feature_name:expr),* $(,)?) => {
