@@ -12,9 +12,7 @@ use druid::{
 use druid::{Modifiers, TimerToken};
 use lapce_core::buffer::DiffLines;
 use lapce_core::command::EditCommand;
-use lapce_core::syntax::util::{
-    find_matching_bracket,
-};
+use lapce_core::syntax::util::{is_bracket, matching_pair_direction};
 use lapce_core::{
     command::FocusCommand,
     cursor::{ColPosition, CursorMode},
@@ -1792,6 +1790,7 @@ impl LapceEditor {
     }
 
     /// Checks if the cursor is on a bracket and highlights the matching bracket if there is one.
+    /// If the cursor is between brackets it highlights the enclosing brackets.
     fn paint_bracket_highlight(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
@@ -1803,21 +1802,57 @@ impl LapceEditor {
 
         let cursor_offset = data.editor.cursor.offset();
 
-        let start_line = *screen_lines.lines.first().unwrap();
-        let end_line = *screen_lines.lines.last().unwrap();
+        if let Some(char_at_cursor) = data.doc.buffer().char_at_offset(cursor_offset)
+        {
+            if is_bracket(char_at_cursor) {
+                if let Some(syntax) = data.doc.syntax() {
+                    if let Some(new_offset) =
+                        syntax.find_matching_pair(cursor_offset)
+                    {
+                        Self::highlight_char(ctx, data, screen_lines, cursor_offset);
+                        Self::highlight_char(ctx, data, screen_lines, new_offset);
+                    }
+                }
+            } else {
+                if let Some(syntax) = data.doc.syntax() {
+                    let end_line = *screen_lines.lines.last().unwrap();
+                    let end = data.doc.buffer().offset_of_line(end_line + 1);
 
-        match find_matching_bracket(
-            data.doc.buffer(),
-            cursor_offset,
-            start_line,
-            end_line,
-        ) {
-            Some(second_bracket) => {
-                Self::highlight_char(ctx, data, screen_lines, cursor_offset);
-                Self::highlight_char(ctx, data, screen_lines, second_bracket);
+                    for (indice, c) in
+                        data.doc.buffer().char_indices_iter(cursor_offset..end)
+                    {
+                        if is_bracket(c) && matching_pair_direction(c) == Some(false)
+                        {
+                            let closing_bracket_offset = indice + cursor_offset;
+
+                            if let Some(opening_bracket_offset) =
+                                syntax.find_matching_pair(closing_bracket_offset)
+                            {
+                                if opening_bracket_offset < cursor_offset
+                                    && cursor_offset < closing_bracket_offset
+                                {
+                                    Self::highlight_char(
+                                        ctx,
+                                        data,
+                                        screen_lines,
+                                        opening_bracket_offset,
+                                    );
+                                    Self::highlight_char(
+                                        ctx,
+                                        data,
+                                        screen_lines,
+                                        closing_bracket_offset,
+                                    );
+                                    break;
+                                } else {
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            None => return,
-        };
+        }
     }
 
     /// Highlights a character at the given position
