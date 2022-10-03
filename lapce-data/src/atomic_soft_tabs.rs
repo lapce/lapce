@@ -64,5 +64,114 @@ fn count_spaces_from(buffer: &Buffer, from_offset: usize) -> usize {
         }
         space_count += 1;
     }
-    return space_count;
+    space_count
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_count_spaces_from() {
+        let buffer = Buffer::new("     abc\n   def\nghi\n");
+        assert_eq!(count_spaces_from(&buffer, 0), 5);
+        assert_eq!(count_spaces_from(&buffer, 1), 4);
+        assert_eq!(count_spaces_from(&buffer, 5), 0);
+        assert_eq!(count_spaces_from(&buffer, 6), 0);
+
+        assert_eq!(count_spaces_from(&buffer, 8), 0);
+        assert_eq!(count_spaces_from(&buffer, 9), 3);
+        assert_eq!(count_spaces_from(&buffer, 10), 2);
+
+        assert_eq!(count_spaces_from(&buffer, 16), 0);
+        assert_eq!(count_spaces_from(&buffer, 17), 0);
+    }
+
+    #[test]
+    fn test_snap_to_soft_tab() {
+        let buffer = Buffer::new("          abc\n      def\n    ghi\nklm\n        opq");
+
+        let tab_width = 4;
+
+        // Input offset, and output offset for Left, Nearest and Right respectively.
+        let test_cases = [
+            (0, 0, 0, 0),
+            (1, 0, 0, 4),
+            (2, 0, 4, 4),
+            (3, 0, 4, 4),
+            (4, 4, 4, 4),
+            (5, 4, 4, 8),
+            (6, 4, 8, 8),
+            (7, 4, 8, 8),
+            (8, 8, 8, 8),
+            (9, 9, 9, 9),
+            (10, 10, 10, 10),
+            (11, 11, 11, 11),
+            (12, 12, 12, 12),
+            (13, 13, 13, 13),
+            (14, 14, 14, 14),
+            (15, 14, 14, 18),
+            (16, 14, 18, 18),
+            (17, 14, 18, 18),
+            (18, 18, 18, 18),
+            (19, 19, 19, 19),
+            (20, 20, 20, 20),
+            (21, 21, 21, 21),
+        ];
+
+        for test_case in test_cases {
+            assert_eq!(snap_to_soft_tab(&buffer, test_case.0, SnapDirection::Left, tab_width), test_case.1);
+            assert_eq!(snap_to_soft_tab(&buffer, test_case.0, SnapDirection::Nearest, tab_width), test_case.2);
+            assert_eq!(snap_to_soft_tab(&buffer, test_case.0, SnapDirection::Right, tab_width), test_case.3);
+        }
+    }
+
+    #[test]
+    fn test_snap_to_soft_tab_line_col() {
+        let buffer = Buffer::new("          abc\n      def\n    ghi\nklm\n        opq");
+
+        let tab_width = 4;
+
+        // Input line, column, and output column for Left, Nearest and Right respectively.
+        let test_cases = [
+            (0, 0, 0, 0, 0),
+            (0, 1, 0, 0, 4),
+            (0, 2, 0, 4, 4),
+            (0, 3, 0, 4, 4),
+            (0, 4, 4, 4, 4),
+            (0, 5, 4, 4, 8),
+            (0, 6, 4, 8, 8),
+            (0, 7, 4, 8, 8),
+            (0, 8, 8, 8, 8),
+            (0, 9, 9, 9, 9),
+            (0, 10, 10, 10, 10),
+            (0, 11, 11, 11, 11),
+            (0, 12, 12, 12, 12),
+            (0, 13, 13, 13, 13),
+            (1, 0, 0, 0, 0),
+            (1, 1, 0, 0, 4),
+            (1, 2, 0, 4, 4),
+            (1, 3, 0, 4, 4),
+            (1, 4, 4, 4, 4),
+            (1, 5, 5, 5, 5),
+            (1, 6, 6, 6, 6),
+            (1, 7, 7, 7, 7),
+            (4, 0, 0, 0, 0),
+            (4, 1, 0, 0, 4),
+            (4, 2, 0, 4, 4),
+            (4, 3, 0, 4, 4),
+            (4, 4, 4, 4, 4),
+            (4, 5, 4, 4, 8),
+            (4, 6, 4, 8, 8),
+            (4, 7, 4, 8, 8),
+            (4, 8, 8, 8, 8),
+            (4, 9, 9, 9, 9),
+        ];
+
+        for test_case in test_cases {
+            assert_eq!(snap_to_soft_tab_line_col(&buffer, test_case.0, test_case.1, SnapDirection::Left, tab_width), test_case.2);
+            assert_eq!(snap_to_soft_tab_line_col(&buffer, test_case.0, test_case.1, SnapDirection::Nearest, tab_width), test_case.3);
+            assert_eq!(snap_to_soft_tab_line_col(&buffer, test_case.0, test_case.1, SnapDirection::Right, tab_width), test_case.4);
+        }
+    }
 }
