@@ -488,9 +488,9 @@ impl ProxyHandler for Dispatcher {
                 self.catalog_rpc.get_code_actions(
                     &path,
                     position,
-                    move |_, result| {
+                    move |plugin_id, result| {
                         let result = result.map(|resp| {
-                            ProxyResponse::GetCodeActionsResponse { resp }
+                            ProxyResponse::GetCodeActionsResponse { plugin_id, resp }
                         });
                         proxy_rpc.handle_response(id, result);
                     },
@@ -720,6 +720,24 @@ impl ProxyHandler for Dispatcher {
                     move |_, result| {
                         let result = result.map(|ranges| {
                             ProxyResponse::GetSelectionRange { ranges }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
+            CodeActionResolve {
+                action_item,
+                plugin_id,
+            } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.action_resolve(
+                    *action_item,
+                    plugin_id,
+                    move |result| {
+                        let result = result.map(|item| {
+                            ProxyResponse::CodeActionResolveResponse {
+                                item: Box::new(item),
+                            }
                         });
                         proxy_rpc.handle_response(id, result);
                     },

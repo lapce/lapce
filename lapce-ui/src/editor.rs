@@ -1910,7 +1910,9 @@ impl Widget<LapceTabData> for LapceEditor {
                 match cmd.get_unchecked(LAPCE_UI_COMMAND) {
                     LapceUICommand::ShowCodeActions(point) => {
                         let editor_data = data.editor_view_content(self.view_id);
-                        if let Some(actions) = editor_data.current_code_actions() {
+                        if let Some((plugin_id, actions)) =
+                            editor_data.current_code_actions()
+                        {
                             if !actions.is_empty() {
                                 let mut menu = druid::Menu::new("");
 
@@ -1928,6 +1930,7 @@ impl Widget<LapceTabData> for LapceEditor {
                                         LAPCE_UI_COMMAND,
                                         LapceUICommand::RunCodeAction(
                                             action.clone(),
+                                            *plugin_id,
                                         ),
                                         Target::Widget(editor_data.view_id),
                                     ));

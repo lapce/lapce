@@ -24,11 +24,12 @@ use lsp_types::{
         Initialized, Notification, Progress, PublishDiagnostics,
     },
     request::{
-        CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
-        GotoDefinition, GotoTypeDefinition, HoverRequest, Initialize,
-        InlayHintRequest, PrepareRenameRequest, References, RegisterCapability,
-        Rename, ResolveCompletionItem, SelectionRangeRequest,
-        SemanticTokensFullRequest, WorkDoneProgressCreate, WorkspaceSymbol,
+        CodeActionRequest, CodeActionResolveRequest, Completion,
+        DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
+        HoverRequest, Initialize, InlayHintRequest, PrepareRenameRequest,
+        References, RegisterCapability, Rename, ResolveCompletionItem,
+        SelectionRangeRequest, SemanticTokensFullRequest, WorkDoneProgressCreate,
+        WorkspaceSymbol,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability, OneOf,
@@ -694,6 +695,9 @@ impl PluginHostHandler {
             Rename::METHOD => self.server_capabilities.rename_provider.is_some(),
             SelectionRangeRequest::METHOD => {
                 self.server_capabilities.selection_range_provider.is_some()
+            }
+            CodeActionResolveRequest::METHOD => {
+                self.server_capabilities.code_action_provider.is_some()
             }
             _ => false,
         }

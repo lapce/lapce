@@ -209,8 +209,8 @@ impl LapceEditorView {
         env: &Env,
     ) {
         match cmd {
-            LapceUICommand::RunCodeAction(action) => {
-                data.run_code_action(ctx, action);
+            LapceUICommand::RunCodeAction(action, plugin_id) => {
+                data.run_code_action(ctx, action, plugin_id);
             }
             LapceUICommand::ApplyWorkspaceEdit(edit) => {
                 data.apply_workspace_edit(ctx, edit);

@@ -55,6 +55,7 @@ use crate::{
     selection_range::{SelectionRangeDirection, SyntaxSelectionRanges},
     settings::SettingsValueKind,
 };
+use lapce_rpc::plugin::PluginId;
 
 pub struct SystemClipboard {}
 
@@ -414,7 +415,7 @@ pub struct Document {
     histories: im::HashMap<String, DocumentHistory>,
     pub cursor_offset: usize,
     pub scroll_offset: Vec2,
-    pub code_actions: im::HashMap<usize, CodeActionResponse>,
+    pub code_actions: im::HashMap<usize, (PluginId, CodeActionResponse)>,
     pub inlay_hints: Option<Spans<InlayHint>>,
     pub diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
     pub syntax_selection_range: Option<SyntaxSelectionRanges>,
@@ -2555,7 +2556,11 @@ impl Document {
     ) -> Size {
         let prev_offset = self.buffer.prev_code_boundary(offset);
         let empty_vec = Vec::new();
-        let code_actions = self.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+        let code_actions = self
+            .code_actions
+            .get(&prev_offset)
+            .map(|(_plugin_id, code_actions)| code_actions)
+            .unwrap_or(&empty_vec);
 
         let action_text_layouts: Vec<PietTextLayout> = code_actions
             .iter()

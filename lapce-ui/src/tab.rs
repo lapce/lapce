@@ -1505,12 +1505,18 @@ impl LapceTab {
                             }
                         }
                     }
-                    LapceUICommand::UpdateCodeActions(path, rev, offset, resp) => {
+                    LapceUICommand::UpdateCodeActions {
+                        path,
+                        plugin_id,
+                        rev,
+                        offset,
+                        resp,
+                    } => {
                         if let Some(doc) = data.main_split.open_docs.get_mut(path) {
                             if doc.rev() == *rev {
                                 Arc::make_mut(doc)
                                     .code_actions
-                                    .insert(*offset, resp.clone());
+                                    .insert(*offset, (*plugin_id, resp.clone()));
                             }
                         }
                     }
