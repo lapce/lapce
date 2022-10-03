@@ -1,9 +1,8 @@
-#[cfg(target_os = "windows")]
-use std::env;
 use std::{
     cell::RefCell,
     cmp::Ordering,
     collections::{HashMap, HashSet},
+    env,
     io::{BufReader, Read, Write},
     path::{Path, PathBuf},
     rc::Rc,
@@ -280,11 +279,14 @@ impl LapceData {
     }
 
     fn listen_local_socket(event_sink: ExtEventSink) -> Result<()> {
-        if let Ok(path) = std::env::current_exe() {
+        if let Ok(path) = env::current_exe() {
             if let Some(path) = path.parent() {
                 if let Some(path) = path.to_str() {
-                    if let Ok(current_path) = std::env::var("PATH") {
-                        std::env::set_var("PATH", format!("{path}:{current_path}"));
+                    if let Ok(current_path) = env::var("PATH") {
+                        env::set_var(
+                            "PATH",
+                            env::join_paths([path, &current_path])?,
+                        );
                     }
                 }
             }
@@ -1137,7 +1139,7 @@ impl LapceTabData {
             LapceWorkbenchCommand::RestartToUpdate => {
                 if let Some(release) = (*self.latest_release).clone() {
                     if release.version != *VERSION {
-                        if let Ok(process_path) = std::env::current_exe() {
+                        if let Ok(process_path) = env::current_exe() {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::RestartToUpdate(
