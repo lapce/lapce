@@ -135,10 +135,14 @@ pub fn mainloop() {
         if let Some(path) = path.parent() {
             if let Some(path) = path.to_str() {
                 if let Ok(current_path) = std::env::var("PATH") {
+                    let mut paths = vec![PathBuf::from(path)];
+                    paths.append(
+                        &mut std::env::split_paths(&current_path)
+                            .collect::<Vec<_>>(),
+                    );
                     std::env::set_var(
                         "PATH",
-                        std::env::join_paths([path, &current_path])
-                            .expect("Couldn't join PATH"),
+                        std::env::join_paths(paths).expect("Couldn't join PATH"),
                     );
                 }
             }
