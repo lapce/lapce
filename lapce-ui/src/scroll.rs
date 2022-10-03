@@ -1,16 +1,11 @@
-use std::time::Duration;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use druid::Cursor;
 use druid::{
     kurbo::{Affine, Point, Rect, Size, Vec2},
-    Insets, WidgetId,
+    theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, Insets, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, RenderContext, TimerToken, UpdateCtx, Widget,
+    WidgetId, WidgetPod,
 };
-use druid::{
-    theme, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, RenderContext, TimerToken, UpdateCtx, Widget, WidgetPod,
-};
-
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{GetConfig, LapceConfig, LapceTheme},

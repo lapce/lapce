@@ -27,8 +27,6 @@ use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
 use xi_rope::{Rope, RopeDelta};
 
-use crate::{directory::Directory, plugin::psp::PluginServerRpcHandler};
-
 use super::{
     psp::{
         handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
@@ -36,6 +34,7 @@ use super::{
     },
     PluginCatalogRpcHandler,
 };
+use crate::{directory::Directory, plugin::psp::PluginServerRpcHandler};
 
 #[derive(Default)]
 pub struct WasiPipe {

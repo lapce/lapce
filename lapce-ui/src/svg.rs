@@ -2,10 +2,9 @@ use std::{collections::HashMap, ffi::OsStr, path::Path, str::FromStr};
 
 use druid::{piet::Svg, Color};
 use include_dir::{include_dir, Dir};
+use lapce_data::config::{LapceConfig, LOGO};
 use lsp_types::{CompletionItemKind, SymbolKind};
 use once_cell::sync::Lazy;
-
-use lapce_data::config::{LapceConfig, LOGO};
 
 const ICONS_DIR: Dir = include_dir!("../icons");
 

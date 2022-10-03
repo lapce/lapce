@@ -4,10 +4,10 @@ use std::{
 };
 
 use druid::{
-    piet::TextStorage as PietTextStorage,
-    piet::{PietTextLayoutBuilder, TextLayoutBuilder},
-    text::{Attribute, AttributeSpans, Link},
-    text::{EnvUpdateCtx, TextStorage},
+    piet::{
+        PietTextLayoutBuilder, TextLayoutBuilder, TextStorage as PietTextStorage,
+    },
+    text::{Attribute, AttributeSpans, EnvUpdateCtx, Link, TextStorage},
     ArcStr, Color, Command, Data, Env, FontDescriptor, FontFamily, FontStyle,
     FontWeight, KeyOrValue,
 };

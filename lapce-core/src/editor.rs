@@ -232,7 +232,7 @@ impl Editor {
                 for region in selection.regions_mut().iter_mut().sorted_by(
                     |region_a, region_b| region_a.start.cmp(&region_b.start),
                 ) {
-                    *region = SelRegion::new(
+                    let new_region = SelRegion::new(
                         region.start + adjustment,
                         region.end + adjustment,
                         None,
@@ -251,6 +251,8 @@ impl Editor {
                     {
                         adjustment += inserted.len();
                     }
+
+                    *region = new_region;
                 }
 
                 cursor.mode = CursorMode::Insert(selection);
@@ -1382,10 +1384,12 @@ enum DuplicateDirection {
 
 #[cfg(test)]
 mod test {
-    use crate::buffer::Buffer;
-    use crate::cursor::{Cursor, CursorMode};
-    use crate::editor::{DuplicateDirection, Editor};
-    use crate::selection::{SelRegion, Selection};
+    use crate::{
+        buffer::Buffer,
+        cursor::{Cursor, CursorMode},
+        editor::{DuplicateDirection, Editor},
+        selection::{SelRegion, Selection},
+    };
 
     #[test]
     fn test_insert_simple() {
@@ -1581,6 +1585,31 @@ mod test {
             "first line\nfirst line\nsecond line\nsecond line\n",
             buffer.slice_to_cow(0..buffer.len())
         );
+    }
+
+    #[test]
+    fn check_multiple_cursor_match_insertion() {
+        let mut buffer = Buffer::new(" 123 567 9ab def");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::caret(0));
+        selection.add_region(SelRegion::caret(4));
+        selection.add_region(SelRegion::caret(8));
+        selection.add_region(SelRegion::caret(12));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+
+        Editor::insert(&mut cursor, &mut buffer, "(", None, true);
+
+        assert_eq!(
+            "() 123() 567() 9ab() def",
+            buffer.slice_to_cow(0..buffer.len())
+        );
+
+        let mut end_selection = Selection::new();
+        end_selection.add_region(SelRegion::caret(1));
+        end_selection.add_region(SelRegion::caret(7));
+        end_selection.add_region(SelRegion::caret(13));
+        end_selection.add_region(SelRegion::caret(19));
+        assert_eq!(cursor.mode, CursorMode::Insert(end_selection));
     }
 
     // TODO(dbuga): add tests duplicating selections (multiple line blocks)

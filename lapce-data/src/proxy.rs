@@ -1,37 +1,39 @@
-use std::io::BufReader;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
-use std::path::Path;
-use std::process::{Command, Stdio};
-use std::thread;
-use std::{collections::HashMap, io::Write};
-use std::{path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    collections::HashMap,
+    io::{BufReader, Write},
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+    str::FromStr,
+    sync::Arc,
+    thread,
+};
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
-use druid::{ExtEventSink, WidgetId};
-use druid::{Target, WindowId};
+use druid::{ExtEventSink, Target, WidgetId, WindowId};
 use flate2::read::GzDecoder;
-use lapce_proxy::directory::Directory;
-use lapce_proxy::dispatch::Dispatcher;
-use lapce_proxy::APPLICATION_NAME;
 pub use lapce_proxy::VERSION;
-use lapce_rpc::core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler};
-use lapce_rpc::proxy::{ProxyRpc, ProxyRpcHandler};
-use lapce_rpc::stdio::stdio_transport;
-use lapce_rpc::terminal::TermId;
-use lapce_rpc::RequestId;
-use lapce_rpc::RpcMessage;
+use lapce_proxy::{directory::Directory, dispatch::Dispatcher, APPLICATION_NAME};
+use lapce_rpc::{
+    core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler},
+    proxy::{ProxyRpc, ProxyRpcHandler},
+    stdio::stdio_transport,
+    terminal::TermId,
+    RequestId, RpcMessage,
+};
 use lsp_types::Url;
 use parking_lot::Mutex;
 use serde_json::Value;
 use thiserror::Error;
 use xi_rope::Rope;
 
-use crate::command::LapceUICommand;
-use crate::command::LAPCE_UI_COMMAND;
-use crate::data::{LapceWorkspace, LapceWorkspaceType};
-use crate::terminal::RawTerminal;
+use crate::{
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    data::{LapceWorkspace, LapceWorkspaceType},
+    terminal::RawTerminal,
+};
 
 const UNIX_PROXY_SCRIPT: &[u8] = include_bytes!("../../extra/proxy.sh");
 const WINDOWS_PROXY_SCRIPT: &[u8] = include_bytes!("../../extra/proxy.ps1");

@@ -1,4 +1,4 @@
-use std::{fmt::Display, sync::Arc};
+use std::{fmt::Display, str::FromStr, sync::Arc};
 
 use anyhow::Error;
 use druid::{
@@ -20,7 +20,6 @@ use lapce_data::{
 };
 use lsp_types::{Documentation, MarkupKind};
 use regex::Regex;
-use std::str::FromStr;
 
 use crate::{
     list::{List, ListPaint},

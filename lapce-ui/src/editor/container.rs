@@ -5,12 +5,11 @@ use druid::{
 };
 use lapce_data::{config::LapceTheme, data::LapceTabData};
 
+use super::bread_crumb::LapceEditorBreadCrumb;
 use crate::{
     editor::{gutter::LapceEditorGutter, LapceEditor},
     scroll::{LapceIdentityWrapper, LapcePadding, LapceScroll},
 };
-
-use super::bread_crumb::LapceEditorBreadCrumb;
 
 pub struct LapceEditorContainer {
     pub view_id: WidgetId,

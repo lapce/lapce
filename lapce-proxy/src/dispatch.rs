@@ -1,37 +1,41 @@
-use crate::buffer::{get_mod_time, load_file, Buffer};
-use crate::plugin::catalog::PluginCatalog;
-use crate::plugin::{remove_volt, PluginCatalogRpcHandler};
-use crate::terminal::Terminal;
-use crate::watcher::{FileWatcher, Notify, WatchToken};
-use alacritty_terminal::event_loop::Msg;
-use alacritty_terminal::term::SizeInfo;
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+    thread,
+    time::Duration,
+};
+
+use alacritty_terminal::{event_loop::Msg, term::SizeInfo};
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
-use git2::build::CheckoutBuilder;
-use git2::{DiffOptions, Repository};
+use git2::{build::CheckoutBuilder, DiffOptions, Repository};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
-use grep_searcher::sinks::UTF8;
-use grep_searcher::SearcherBuilder;
-use lapce_rpc::core::{CoreNotification, CoreRpcHandler};
-use lapce_rpc::file::FileNodeItem;
-use lapce_rpc::proxy::{
-    ProxyHandler, ProxyNotification, ProxyRequest, ProxyResponse, ProxyRpcHandler,
+use grep_searcher::{sinks::UTF8, SearcherBuilder};
+use lapce_rpc::{
+    core::{CoreNotification, CoreRpcHandler},
+    file::FileNodeItem,
+    proxy::{
+        ProxyHandler, ProxyNotification, ProxyRequest, ProxyResponse,
+        ProxyRpcHandler,
+    },
+    source_control::{DiffInfo, FileDiff},
+    style::{LineStyle, SemanticStyles},
+    terminal::TermId,
+    RequestId, RpcError,
 };
-use lapce_rpc::source_control::{DiffInfo, FileDiff};
-use lapce_rpc::style::{LineStyle, SemanticStyles};
-use lapce_rpc::terminal::TermId;
-use lapce_rpc::{RequestId, RpcError};
 use lsp_types::{Position, Range, TextDocumentItem, Url};
 use parking_lot::Mutex;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
 use xi_rope::Rope;
+
+use crate::{
+    buffer::{get_mod_time, load_file, Buffer},
+    plugin::{catalog::PluginCatalog, remove_volt, PluginCatalogRpcHandler},
+    terminal::Terminal,
+    watcher::{FileWatcher, Notify, WatchToken},
+};
 
 const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(1);
 const WORKSPACE_EVENT_TOKEN: WatchToken = WatchToken(2);

@@ -19,8 +19,11 @@ use lapce_data::{
     proxy::VERSION,
 };
 
-use crate::{logging::override_log_levels, tab::LAPCE_TAB_META};
-use crate::{tab::LapceTabHeader, window::LapceWindow};
+use crate::{
+    logging::override_log_levels,
+    tab::{LapceTabHeader, LAPCE_TAB_META},
+    window::LapceWindow,
+};
 
 #[derive(Parser)]
 #[clap(name = "Lapce")]

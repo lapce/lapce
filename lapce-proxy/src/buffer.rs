@@ -1,14 +1,19 @@
+use std::{
+    borrow::Cow,
+    ffi::OsString,
+    fs,
+    fs::File,
+    io::{Read, Write},
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
+
 use anyhow::{anyhow, Result};
-use lapce_core::buffer::rope_text::CharIndicesJoin;
-use lapce_core::encoding::offset_utf8_to_utf16;
+use lapce_core::{
+    buffer::rope_text::CharIndicesJoin, encoding::offset_utf8_to_utf16,
+};
 use lapce_rpc::buffer::BufferId;
 use lsp_types::*;
-use std::ffi::OsString;
-use std::fs;
-use std::fs::File;
-use std::io::{Read, Write};
-use std::path::PathBuf;
-use std::{borrow::Cow, path::Path, time::SystemTime};
 use xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 
 #[derive(Clone)]

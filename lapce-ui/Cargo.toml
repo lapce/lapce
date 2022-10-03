@@ -13,7 +13,6 @@ fern = "0.6.0"
 Inflector = "0.11.4"
 rayon = "1.5.1"
 alacritty_terminal = "0.16"
-config = "0.11"
 itertools = "0.10.1"
 log-panics = { version = "2.1.0", features = ["with-backtrace"] }
 unicode-width = "0.1.8"
@@ -45,6 +44,8 @@ winres = "0.1.12"
 
 [features]
 default = ["all-languages", "lapce-data/updater"]
+portable = ["lapce-data/portable"]
+
 # To build lapce with only some of the supported languages, for example:
 #
 #   cargo build --no-default-features -p lapce-ui \
