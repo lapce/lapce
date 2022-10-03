@@ -135,7 +135,11 @@ pub fn mainloop() {
         if let Some(path) = path.parent() {
             if let Some(path) = path.to_str() {
                 if let Ok(current_path) = std::env::var("PATH") {
-                    std::env::set_var("PATH", &format!("{path}:{current_path}"));
+                    std::env::set_var(
+                        "PATH",
+                        std::env::join_paths([path, &current_path])
+                            .expect("Couldn't join PATH"),
+                    );
                 }
             }
         }
