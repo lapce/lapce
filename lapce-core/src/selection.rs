@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::cmp::{max, min, Ordering};
+
+use serde::{Deserialize, Serialize};
 use xi_rope::{RopeDelta, Transformer};
 
 use crate::cursor::ColPosition;
@@ -534,9 +535,11 @@ fn remove_n_at<T>(v: &mut Vec<T>, index: usize, n: usize) {
 
 #[cfg(test)]
 mod test {
-    use crate::buffer::Buffer;
-    use crate::editor::EditType;
-    use crate::selection::{InsertDrift, SelRegion, Selection};
+    use crate::{
+        buffer::Buffer,
+        editor::EditType,
+        selection::{InsertDrift, SelRegion, Selection},
+    };
 
     #[test]
     fn should_return_selection_region_min() {

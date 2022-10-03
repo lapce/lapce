@@ -1,7 +1,3 @@
-use crossbeam_channel::{Receiver, Sender};
-use lsp_types::{CompletionResponse, ProgressParams, PublishDiagnosticsParams};
-use parking_lot::Mutex;
-use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -10,6 +6,11 @@ use std::{
         Arc,
     },
 };
+
+use crossbeam_channel::{Receiver, Sender};
+use lsp_types::{CompletionResponse, ProgressParams, PublishDiagnosticsParams};
+use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     file::FileNodeItem,

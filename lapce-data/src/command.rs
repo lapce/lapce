@@ -5,14 +5,20 @@ use druid::{
     EventCtx, FileInfo, Point, Rect, Selector, SingleUse, Size, WidgetId, WindowId,
 };
 use indexmap::IndexMap;
-use lapce_core::buffer::DiffLines;
-use lapce_core::command::{
-    EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
+use lapce_core::{
+    buffer::DiffLines,
+    command::{
+        EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
+        MultiSelectionCommand,
+    },
+    syntax::Syntax,
 };
-use lapce_core::syntax::Syntax;
-use lapce_rpc::plugin::{PluginId, VoltInfo, VoltMetadata};
 use lapce_rpc::{
-    buffer::BufferId, file::FileNodeItem, source_control::DiffInfo, style::Style,
+    buffer::BufferId,
+    file::FileNodeItem,
+    plugin::{PluginId, VoltInfo, VoltMetadata},
+    source_control::DiffInfo,
+    style::Style,
     terminal::TermId,
 };
 use lsp_types::{
@@ -25,22 +31,23 @@ use strum::{self, EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use xi_rope::{spans::Spans, Rope};
 
-use crate::alert::AlertContentData;
-use crate::data::{LapceMainSplitData, LapceTabData, LapceWorkspace};
-use crate::document::BufferContent;
-use crate::editor::{EditorPosition, Line, LineCol};
-use crate::menu::MenuKind;
-use crate::rich_text::RichText;
-use crate::selection_range::SelectionRangeDirection;
-use crate::update::ReleaseInfo;
 use crate::{
-    data::{EditorTabChild, SplitContent},
-    editor::EditorLocation,
+    alert::AlertContentData,
+    data::{
+        EditorTabChild, LapceMainSplitData, LapceTabData, LapceWorkspace,
+        SplitContent,
+    },
+    document::BufferContent,
+    editor::{EditorLocation, EditorPosition, Line, LineCol},
     keypress::{KeyMap, KeyPress},
+    menu::MenuKind,
     palette::{PaletteItem, PaletteType},
     proxy::ProxyStatus,
+    rich_text::RichText,
     search::Match,
+    selection_range::SelectionRangeDirection,
     split::{SplitDirection, SplitMoveDirection},
+    update::ReleaseInfo,
 };
 
 pub const LAPCE_OPEN_FOLDER: Selector<FileInfo> = Selector::new("lapce.open-folder");

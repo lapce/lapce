@@ -1,3 +1,5 @@
+use std::{cmp::Ordering, sync::Arc};
+
 use druid::{
     kurbo::Line,
     widget::{LensWrap, WidgetExt},
@@ -10,8 +12,6 @@ use lapce_data::{
     config::{LapceConfig, LapceTheme},
     data::{LapceTabData, LapceTabLens, LapceWindowData, LapceWorkspace},
 };
-use std::cmp::Ordering;
-use std::sync::Arc;
 
 use crate::tab::{LapceTab, LapceTabHeader, LapceTabMeta, LAPCE_TAB_META};
 
@@ -805,8 +805,9 @@ pub fn window_controls(
     Vec<(Rect, Command)>,
     Vec<(druid::piet::Svg, Rect, druid::Color)>,
 ) {
-    use crate::svg::get_svg;
     use druid::Color;
+
+    use crate::svg::get_svg;
 
     let mut commands = Vec::new();
 

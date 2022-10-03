@@ -8,9 +8,8 @@ use indexmap::IndexMap;
 use lapce_proxy::plugin::{download_volt, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
 use lsp_types::Url;
-use strum_macros::Display;
-
 use plugin_install_status::PluginInstallStatus;
+use strum_macros::Display;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},

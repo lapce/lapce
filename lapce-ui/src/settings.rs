@@ -1308,17 +1308,16 @@ impl Widget<LapceTabData> for ThemeSettings {
                     )
                 }
                 ThemeKind::UI => {
-                    let default = data
-                        .config
-                        .default_theme
-                        .ui
-                        .get(&self.keys[i])
-                        .unwrap()
-                        .to_string();
-                    (
-                        data.config.theme.ui.get(&self.keys[i]) != Some(&default),
-                        default,
-                    )
+                    if let Some(default) =
+                        data.config.default_theme.ui.get(&self.keys[i])
+                    {
+                        (
+                            data.config.theme.ui.get(&self.keys[i]) != Some(default),
+                            default.to_string(),
+                        )
+                    } else {
+                        continue;
+                    }
                 }
                 ThemeKind::Syntax => {
                     let default = data

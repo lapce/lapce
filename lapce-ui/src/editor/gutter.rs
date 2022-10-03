@@ -1,4 +1,3 @@
-use crate::svg::get_svg;
 use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
@@ -12,6 +11,8 @@ use lapce_data::{
     data::{EditorView, LapceTabData},
     editor::{LapceEditorBufferData, Syntax},
 };
+
+use crate::svg::get_svg;
 
 pub struct LapceEditorGutter {
     view_id: WidgetId,
