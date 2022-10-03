@@ -1807,19 +1807,17 @@ impl LapceEditor {
             None => return,
         };
 
+        let syntax = match data.doc.syntax() {
+            Some(syntax) => syntax,
+            None => return,
+        };
+
         if is_bracket(char_at_cursor) {
-            if let Some(syntax) = data.doc.syntax() {
-                if let Some(new_offset) = syntax.find_matching_pair(cursor_offset) {
-                    Self::highlight_char(ctx, data, screen_lines, cursor_offset);
-                    Self::highlight_char(ctx, data, screen_lines, new_offset);
-                }
+            if let Some(new_offset) = syntax.find_matching_pair(cursor_offset) {
+                Self::highlight_char(ctx, data, screen_lines, cursor_offset);
+                Self::highlight_char(ctx, data, screen_lines, new_offset);
             }
         } else {
-            let syntax = if let Some(syntax) = data.doc.syntax() {
-                syntax
-            } else {
-                return;
-            };
             let end_line = *screen_lines.lines.last().unwrap();
             let end = data.doc.buffer().offset_of_line(end_line + 1);
 
