@@ -1802,52 +1802,51 @@ impl LapceEditor {
 
         let cursor_offset = data.editor.cursor.offset();
 
-        if let Some(char_at_cursor) = data.doc.buffer().char_at_offset(cursor_offset)
-        {
-            if is_bracket(char_at_cursor) {
-                if let Some(syntax) = data.doc.syntax() {
-                    if let Some(new_offset) =
-                        syntax.find_matching_pair(cursor_offset)
-                    {
-                        Self::highlight_char(ctx, data, screen_lines, cursor_offset);
-                        Self::highlight_char(ctx, data, screen_lines, new_offset);
-                    }
+        let char_at_cursor = match data.doc.buffer().char_at_offset(cursor_offset) {
+            Some(c) => c,
+            None => return,
+        };
+
+        if is_bracket(char_at_cursor) {
+            if let Some(syntax) = data.doc.syntax() {
+                if let Some(new_offset) = syntax.find_matching_pair(cursor_offset) {
+                    Self::highlight_char(ctx, data, screen_lines, cursor_offset);
+                    Self::highlight_char(ctx, data, screen_lines, new_offset);
                 }
+            }
+        } else {
+            let syntax = if let Some(syntax) = data.doc.syntax() {
+                syntax
             } else {
-                if let Some(syntax) = data.doc.syntax() {
-                    let end_line = *screen_lines.lines.last().unwrap();
-                    let end = data.doc.buffer().offset_of_line(end_line + 1);
+                return;
+            };
+            let end_line = *screen_lines.lines.last().unwrap();
+            let end = data.doc.buffer().offset_of_line(end_line + 1);
 
-                    for (indice, c) in
-                        data.doc.buffer().char_indices_iter(cursor_offset..end)
+            for (index, c) in data.doc.buffer().char_indices_iter(cursor_offset..end)
+            {
+                if is_bracket(c) && matching_pair_direction(c) == Some(false) {
+                    let closing_bracket_offset = index + cursor_offset;
+
+                    if let Some(opening_bracket_offset) =
+                        syntax.find_matching_pair(closing_bracket_offset)
                     {
-                        if is_bracket(c) && matching_pair_direction(c) == Some(false)
+                        if opening_bracket_offset < cursor_offset
+                            && cursor_offset < closing_bracket_offset
                         {
-                            let closing_bracket_offset = indice + cursor_offset;
-
-                            if let Some(opening_bracket_offset) =
-                                syntax.find_matching_pair(closing_bracket_offset)
-                            {
-                                if opening_bracket_offset < cursor_offset
-                                    && cursor_offset < closing_bracket_offset
-                                {
-                                    Self::highlight_char(
-                                        ctx,
-                                        data,
-                                        screen_lines,
-                                        opening_bracket_offset,
-                                    );
-                                    Self::highlight_char(
-                                        ctx,
-                                        data,
-                                        screen_lines,
-                                        closing_bracket_offset,
-                                    );
-                                    break;
-                                } else {
-                                    continue;
-                                }
-                            }
+                            Self::highlight_char(
+                                ctx,
+                                data,
+                                screen_lines,
+                                opening_bracket_offset,
+                            );
+                            Self::highlight_char(
+                                ctx,
+                                data,
+                                screen_lines,
+                                closing_bracket_offset,
+                            );
+                            break;
                         }
                     }
                 }
