@@ -6,7 +6,7 @@ use std::{
 
 use druid::{
     piet::HitTestPoint,
-    text::{EditableText, ImeHandlerRef, InputHandler, Selection, TextComponent},
+    text::{EditableText, ImeHandlerRef, InputHandler, Selection},
     Point, Rect,
 };
 

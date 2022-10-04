@@ -1,15 +1,8 @@
-use std::{
-    cell::{Cell, RefCell, Ref},
-    collections::HashMap,
-    iter::Iterator,
-    sync::{Arc, Weak},
-    time::Duration, ops::Range,
-};
+use std::{collections::HashMap, iter::Iterator, sync::Arc, time::Duration};
 
 use druid::{
     kurbo::{BezPath, Line},
     piet::{PietText, PietTextLayout, Text, TextLayout as _, TextLayoutBuilder},
-    text::{ImeHandlerRef, TextComponent},
     BoxConstraints, Color, Command, Env, Event, EventCtx, InternalLifeCycle,
     LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, MouseButton, MouseEvent,
     PaintCtx, Point, Rect, RenderContext, Size, Target, TimerToken, UpdateCtx,
@@ -1844,7 +1837,7 @@ impl Widget<LapceTabData> for LapceEditor {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         match event {
             Event::Wheel(_) => {

@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     cell::RefCell,
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -225,6 +224,7 @@ impl BufferContent {
 }
 
 pub struct PhantomText {
+    kind: PhantomTextKind,
     col: usize,
     text: String,
     fg: Color,
@@ -234,19 +234,20 @@ pub struct PhantomText {
     under_line: Option<Color>,
 }
 
-#[derive(Default)]
-pub struct PhantomTextLine<'hint, 'diag> {
-    text: SmallVec<[PhantomText; 6]>,
-    // TODO: This could be made more general
-    /// These are entries that have an order within the text
-    ordered_text: SmallVec<[(usize, &'hint InlayHint); 6]>,
-    // TODO: This could be made more general (ex: for things like showing the commit information
-    // for that line)
-    /// These are entries that are always at the end of the text
-    end_text: SmallVec<[&'diag EditorDiagnostic; 3]>,
+#[derive(Ord, Eq, PartialEq, PartialOrd)]
+pub enum PhantomTextKind {
+    Ime,
+    InlayHint,
+    Diagnostic,
 }
 
-impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
+#[derive(Default)]
+pub struct PhantomTextLine {
+    text: SmallVec<[PhantomText; 6]>,
+    max_severity: Option<DiagnosticSeverity>,
+}
+
+impl PhantomTextLine {
     /// Translate a column position into the text into what it would be after combining
     pub fn col_at(&self, pre_col: usize) -> usize {
         let mut last = pre_col;
@@ -326,34 +327,6 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
                 phantom.col,
                 phantom,
             )
-        })
-    }
-
-    /// Iterator over (column, size, diagnostic)
-    pub fn end_offset_size_iter(
-        &self,
-        pre_text: &str,
-    ) -> impl Iterator<Item = (usize, usize, &'diag EditorDiagnostic)> + '_ {
-        const PADDING: usize = 4;
-
-        // Trim because the text would be trimmed for any end text that existed
-        let column = pre_text.trim_end().len();
-        // Move the column to be after the shifts by any of the ordered texts
-        let mut column = self.col_at(column);
-
-        self.end_text.iter().map(move |entry| {
-            let text_size = itertools::intersperse(
-                entry.diagnostic.message.lines().map(str::len),
-                1,
-            )
-            .sum::<usize>();
-            let size = PADDING + text_size;
-
-            let column_pre = column;
-
-            column += size;
-
-            (column_pre, size, *entry)
         })
     }
 }
@@ -969,99 +942,58 @@ impl Document {
     ) -> PhantomTextLine {
         let start_offset = self.buffer.offset_of_line(line);
         let end_offset = self.buffer.offset_of_line(line + 1);
-        let hints = if config.editor.enable_inlay_hints {
-            self.inlay_hints.as_ref().map(|hints| {
-                hints.iter_chunks(start_offset..end_offset).filter_map(
-                    |(interval, inlay_hint)| {
-                        if interval.start >= start_offset
-                            && interval.start < end_offset
-                        {
+
+        let hints = config
+            .editor
+            .enable_inlay_hints
+            .then_some(())
+            .and_then(|_| {
+                self.inlay_hints.as_ref().map(|hints| {
+                    let chunks = hints.iter_chunks(start_offset..end_offset);
+                    chunks.filter_map(|(interval, inlay_hint)| {
+                        let on_line = interval.start >= start_offset
+                            && interval.start < end_offset;
+                        on_line.then(|| {
                             let (_, col) =
                                 self.buffer.offset_to_line_col(interval.start);
-                            Some((col, inlay_hint))
-                        } else {
-                            None
-                        }
-                    },
-                )
-            })
-        } else {
-            None
-        };
-
-        let hints_new =
-            config
-                .editor
-                .enable_inlay_hints
-                .then_some(())
-                .and_then(|_| {
-                    self.inlay_hints.as_ref().map(|hints| {
-                        let chunks = hints.iter_chunks(start_offset..end_offset);
-                        chunks.filter_map(|(interval, inlay_hint)| {
-                            let on_line = interval.start >= start_offset
-                                && interval.start < end_offset;
-                            on_line.then(|| {
-                                let (_, col) =
-                                    self.buffer.offset_to_line_col(interval.start);
-                                let text = match &inlay_hint.label {
-                                    InlayHintLabel::String(label) => {
-                                        label.to_string()
-                                    }
-                                    InlayHintLabel::LabelParts(parts) => {
-                                        parts.iter().map(|p| &p.value).join("")
-                                    }
-                                };
-                                PhantomText {
-                                    col,
-                                    text,
-                                    fg: config
+                            let text = match &inlay_hint.label {
+                                InlayHintLabel::String(label) => label.to_string(),
+                                InlayHintLabel::LabelParts(parts) => {
+                                    parts.iter().map(|p| &p.value).join("")
+                                }
+                            };
+                            PhantomText {
+                                kind: PhantomTextKind::InlayHint,
+                                col,
+                                text,
+                                fg: config
+                                    .get_color_unchecked(
+                                        LapceTheme::INLAY_HINT_FOREGROUND,
+                                    )
+                                    .clone(),
+                                font_family: Some(
+                                    config.editor.inlay_hint_font_family(),
+                                ),
+                                font_size: Some(
+                                    config.editor.inlay_hint_font_size(),
+                                ),
+                                bg: Some(
+                                    config
                                         .get_color_unchecked(
-                                            LapceTheme::INLAY_HINT_FOREGROUND,
+                                            LapceTheme::INLAY_HINT_BACKGROUND,
                                         )
                                         .clone(),
-                                    font_family: Some(
-                                        config.editor.inlay_hint_font_family(),
-                                    ),
-                                    font_size: Some(
-                                        config.editor.inlay_hint_font_size(),
-                                    ),
-                                    bg: Some(
-                                        config
-                                            .get_color_unchecked(
-                                                LapceTheme::INLAY_HINT_BACKGROUND,
-                                            )
-                                            .clone(),
-                                    ),
-                                    under_line: None,
-                                }
-                            })
+                                ),
+                                under_line: None,
+                            }
                         })
                     })
-                });
-        let mut hints_new: SmallVec<[PhantomText; 6]> =
-            hints_new.into_iter().flatten().collect();
-
-        config.editor.enable_error_lens.then(|| {
-            self.diagnostics.as_ref().map(|diags| {
-                diags.iter().filter(|diag| {
-                    diag.diagnostic.range.end.line as usize == line
-                        && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
                 })
-            })
-        });
+            });
+        let mut text: SmallVec<[PhantomText; 6]> =
+            hints.into_iter().flatten().collect();
 
-        let diagnostics = if config.editor.enable_error_lens {
-            // Is end line a good place to use?
-            self.diagnostics.as_ref().map(|diags| {
-                diags.iter().filter(|diag| {
-                    diag.diagnostic.range.end.line as usize == line
-                        && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
-                })
-            })
-        } else {
-            None
-        };
-
+        let mut max_severity = None;
         let diag_text =
             config.editor.enable_error_lens.then_some(()).and_then(|_| {
                 self.diagnostics.as_ref().map(|diags| {
@@ -1073,6 +1005,18 @@ impl Document {
                                     < Some(DiagnosticSeverity::HINT)
                         })
                         .map(|diag| {
+                            match (diag.diagnostic.severity, max_severity) {
+                                (Some(severity), Some(max)) => {
+                                    if severity < max {
+                                        max_severity = Some(severity);
+                                    }
+                                }
+                                (Some(severity), None) => {
+                                    max_severity = Some(severity);
+                                }
+                                _ => {}
+                            }
+
                             let col = self.buffer.line_end_col(line, true);
                             let fg = {
                                 let severity = diag
@@ -1097,6 +1041,7 @@ impl Document {
                                 diag.diagnostic.message.lines().join(" ")
                             );
                             PhantomText {
+                                kind: PhantomTextKind::Diagnostic,
                                 col,
                                 text,
                                 fg,
@@ -1115,15 +1060,17 @@ impl Document {
         let mut diag_text: SmallVec<[PhantomText; 6]> =
             diag_text.into_iter().flatten().collect();
 
-        hints_new.append(&mut diag_text);
+        text.append(&mut diag_text);
 
-        let ordered_text = hints.into_iter().flatten().collect();
-        let end_text = diagnostics.into_iter().flatten().collect();
-        PhantomTextLine {
-            text: hints_new,
-            ordered_text,
-            end_text,
-        }
+        text.sort_by(|a, b| {
+            if a.col == b.col {
+                a.kind.cmp(&b.kind)
+            } else {
+                a.col.cmp(&b.col)
+            }
+        });
+
+        PhantomTextLine { text, max_severity }
     }
 
     fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines)]) {
@@ -1943,32 +1890,7 @@ impl Document {
             }
         }
 
-        let is_error_lens_to_eol = config.editor.error_lens_end_of_line;
-
-        let mut max_severity = None;
-        let mut end_column = None;
-        for (column, size, entry) in
-            phantom_text.end_offset_size_iter(&line_content_original)
-        {
-            match (entry.diagnostic.severity, max_severity) {
-                (Some(severity), Some(max)) => {
-                    if severity < max {
-                        max_severity = Some(severity);
-                    }
-                }
-                (Some(severity), None) => {
-                    max_severity = Some(severity);
-                }
-                _ => {}
-            }
-
-            if !is_error_lens_to_eol {
-                end_column = Some(column + size);
-            }
-        }
-
-        if !phantom_text.end_text.is_empty() {
-            let max_severity = max_severity.unwrap_or(DiagnosticSeverity::WARNING);
+        if let Some(max_severity) = phantom_text.max_severity {
             let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
                 LapceTheme::ERROR_LENS_ERROR_BACKGROUND
             } else if max_severity == DiagnosticSeverity::WARNING {
@@ -1977,10 +1899,12 @@ impl Document {
                 LapceTheme::ERROR_LENS_OTHER_BACKGROUND
             };
 
-            // Use the end of the diagnostics if end column exists (which it only will if the config setting is false)
-            // otherwise None, which is the end of the line in the view
-            let x1 = end_column
-                .map(|col| layout_text.hit_test_text_position(col).point.x);
+            let x1 = config.editor.error_lens_end_of_line.then(|| {
+                layout_text
+                    .hit_test_text_position(line_content.len())
+                    .point
+                    .x
+            });
 
             extra_style.push((
                 0.0,
