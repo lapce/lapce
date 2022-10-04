@@ -11,7 +11,7 @@ use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    Color, ExtEventSink, Point, Size, Target, Vec2, WidgetId,
+    Color, ExtEventSink, FontFamily, Point, Size, Target, Vec2, WidgetId,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -224,8 +224,19 @@ impl BufferContent {
     }
 }
 
+pub struct PhantomText {
+    col: usize,
+    text: String,
+    fg: Color,
+    font_size: Option<usize>,
+    font_family: Option<FontFamily>,
+    bg: Option<Color>,
+    under_line: Option<Color>,
+}
+
 #[derive(Default)]
 pub struct PhantomTextLine<'hint, 'diag> {
+    text: SmallVec<[PhantomText; 6]>,
     // TODO: This could be made more general
     /// These are entries that have an order within the text
     ordered_text: SmallVec<[(usize, &'hint InlayHint); 6]>,
@@ -239,7 +250,7 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
     /// Translate a column position into the text into what it would be after combining
     pub fn col_at(&self, pre_col: usize) -> usize {
         let mut last = pre_col;
-        for (col_shift, size, _, col) in self.offset_size_iter() {
+        for (col_shift, size, col, _) in self.offset_size_iter() {
             if pre_col >= col {
                 last = pre_col + col_shift + size;
             }
@@ -252,7 +263,7 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
     /// If before_cursor is false and the cursor is right at the start then it will stay there
     pub fn col_after(&self, pre_col: usize, before_cursor: bool) -> usize {
         let mut last = pre_col;
-        for (col_shift, size, _, col) in self.offset_size_iter() {
+        for (col_shift, size, col, _) in self.offset_size_iter() {
             if pre_col > col || (pre_col == col && before_cursor) {
                 last = pre_col + col_shift + size;
             }
@@ -264,7 +275,7 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
     /// Translate a column position into the position it would be before combining
     pub fn before_col(&self, col: usize) -> usize {
         let mut last = col;
-        for (col_shift, size, _, hint_col) in self.offset_size_iter() {
+        for (col_shift, size, hint_col, _) in self.offset_size_iter() {
             let shifted_start = hint_col + col_shift;
             let shifted_end = shifted_start + size;
             if col >= shifted_start {
@@ -279,62 +290,23 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
     }
 
     /// Insert the hints at their positions in the text
-    pub fn combine_with_text<'b>(&self, mut text: Cow<'b, str>) -> Cow<'b, str> {
+    pub fn combine_with_text(&self, text: String) -> String {
+        let mut text = text;
         let mut col_shift = 0;
-        for (col, hint) in self.ordered_text.iter() {
-            let mut otext = text.into_owned();
 
-            let location = col + col_shift;
+        for phantom in self.text.iter() {
+            let location = phantom.col + col_shift;
 
             // Stop iterating if the location is bad
-            if otext.get(location..).is_none() {
-                return Cow::Owned(otext);
+            if text.get(location..).is_none() {
+                return text;
             }
 
-            // Insert the right padding. This will be shifted to the right
-            // after we insert the text at location
-            if hint.padding_right == Some(true) {
-                otext.insert(location, ' ');
-                col_shift += 1;
-            }
-
-            match &hint.label {
-                InlayHintLabel::String(label) => {
-                    otext.insert_str(location, label.as_str());
-                    col_shift += label.len();
-                }
-                InlayHintLabel::LabelParts(parts) => {
-                    for part in parts.iter().rev() {
-                        otext.insert_str(location, part.value.as_str());
-                        col_shift += part.value.len();
-                    }
-                }
-            };
-
-            if hint.padding_left == Some(true) {
-                otext.insert(location, ' ');
-                col_shift += 1;
-            }
-
-            text = Cow::Owned(otext);
+            text.insert_str(location, &phantom.text);
+            col_shift += phantom.text.len();
         }
 
-        // If there are end text entries then trim any whitespace at the end
-        if !self.end_text.is_empty() {
-            text = Cow::Owned(text.into_owned().trim_end().to_string());
-        }
-
-        let mut otext = text.into_owned();
-        for entry in self.end_text.iter() {
-            // TODO: allow customization of padding. Remember to update end_offset_size_iter
-            otext.push_str("    ");
-            otext.extend(itertools::intersperse(
-                entry.diagnostic.message.lines(),
-                " ",
-            ));
-        }
-
-        Cow::Owned(otext)
+        text
     }
 
     /// Iterator over (col_shift, size, hint, pre_column)
@@ -342,30 +314,18 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
     /// they'll be positioned
     pub fn offset_size_iter(
         &self,
-    ) -> impl Iterator<Item = (usize, usize, &'hint InlayHint, usize)> + '_ {
+    ) -> impl Iterator<Item = (usize, usize, usize, &PhantomText)> + '_ {
         let mut col_shift = 0;
-        self.ordered_text.iter().map(move |(col, hint)| {
+
+        self.text.iter().map(move |phantom| {
             let pre_col_shift = col_shift;
-            match &hint.label {
-                InlayHintLabel::String(label) => {
-                    col_shift += label.len();
-                }
-                InlayHintLabel::LabelParts(parts) => {
-                    for part in parts {
-                        col_shift += part.value.len();
-                    }
-                }
-            }
-
-            if hint.padding_right == Some(true) {
-                col_shift += 1;
-            }
-
-            if hint.padding_left == Some(true) {
-                col_shift += 1;
-            }
-
-            (pre_col_shift, col_shift - pre_col_shift, *hint, *col)
+            col_shift += phantom.text.len();
+            (
+                pre_col_shift,
+                col_shift - pre_col_shift,
+                phantom.col,
+                phantom,
+            )
         })
     }
 
@@ -1029,6 +989,67 @@ impl Document {
             None
         };
 
+        let hints_new =
+            config
+                .editor
+                .enable_inlay_hints
+                .then_some(())
+                .and_then(|_| {
+                    self.inlay_hints.as_ref().map(|hints| {
+                        let chunks = hints.iter_chunks(start_offset..end_offset);
+                        chunks.filter_map(|(interval, inlay_hint)| {
+                            let on_line = interval.start >= start_offset
+                                && interval.start < end_offset;
+                            on_line.then(|| {
+                                let (_, col) =
+                                    self.buffer.offset_to_line_col(interval.start);
+                                let text = match &inlay_hint.label {
+                                    InlayHintLabel::String(label) => {
+                                        label.to_string()
+                                    }
+                                    InlayHintLabel::LabelParts(parts) => {
+                                        parts.iter().map(|p| &p.value).join("")
+                                    }
+                                };
+                                PhantomText {
+                                    col,
+                                    text,
+                                    fg: config
+                                        .get_color_unchecked(
+                                            LapceTheme::INLAY_HINT_FOREGROUND,
+                                        )
+                                        .clone(),
+                                    font_family: Some(
+                                        config.editor.inlay_hint_font_family(),
+                                    ),
+                                    font_size: Some(
+                                        config.editor.inlay_hint_font_size(),
+                                    ),
+                                    bg: Some(
+                                        config
+                                            .get_color_unchecked(
+                                                LapceTheme::INLAY_HINT_BACKGROUND,
+                                            )
+                                            .clone(),
+                                    ),
+                                    under_line: None,
+                                }
+                            })
+                        })
+                    })
+                });
+        let mut hints_new: SmallVec<[PhantomText; 6]> =
+            hints_new.into_iter().flatten().collect();
+
+        config.editor.enable_error_lens.then(|| {
+            self.diagnostics.as_ref().map(|diags| {
+                diags.iter().filter(|diag| {
+                    diag.diagnostic.range.end.line as usize == line
+                        && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
+                })
+            })
+        });
+
         let diagnostics = if config.editor.enable_error_lens {
             // Is end line a good place to use?
             self.diagnostics.as_ref().map(|diags| {
@@ -1041,9 +1062,65 @@ impl Document {
             None
         };
 
+        let diag_text =
+            config.editor.enable_error_lens.then_some(()).and_then(|_| {
+                self.diagnostics.as_ref().map(|diags| {
+                    diags
+                        .iter()
+                        .filter(|diag| {
+                            diag.diagnostic.range.end.line as usize == line
+                                && diag.diagnostic.severity
+                                    < Some(DiagnosticSeverity::HINT)
+                        })
+                        .map(|diag| {
+                            let col = self.buffer.line_end_col(line, true);
+                            let fg = {
+                                let severity = diag
+                                    .diagnostic
+                                    .severity
+                                    .unwrap_or(DiagnosticSeverity::WARNING);
+                                let theme_prop = if severity
+                                    == DiagnosticSeverity::ERROR
+                                {
+                                    LapceTheme::ERROR_LENS_ERROR_FOREGROUND
+                                } else if severity == DiagnosticSeverity::WARNING {
+                                    LapceTheme::ERROR_LENS_WARNING_FOREGROUND
+                                } else {
+                                    // information + hint (if we keep that) + things without a severity
+                                    LapceTheme::ERROR_LENS_OTHER_FOREGROUND
+                                };
+
+                                config.get_color_unchecked(theme_prop).clone()
+                            };
+                            let text = format!(
+                                "    {}",
+                                diag.diagnostic.message.lines().join(" ")
+                            );
+                            PhantomText {
+                                col,
+                                text,
+                                fg,
+                                font_size: Some(
+                                    config.editor.error_lens_font_size(),
+                                ),
+                                font_family: Some(
+                                    config.editor.error_lens_font_family(),
+                                ),
+                                bg: None,
+                                under_line: None,
+                            }
+                        })
+                })
+            });
+        let mut diag_text: SmallVec<[PhantomText; 6]> =
+            diag_text.into_iter().flatten().collect();
+
+        hints_new.append(&mut diag_text);
+
         let ordered_text = hints.into_iter().flatten().collect();
         let end_text = diagnostics.into_iter().flatten().collect();
         PhantomTextLine {
+            text: hints_new,
             ordered_text,
             end_text,
         }
@@ -1782,7 +1859,7 @@ impl Document {
 
         let phantom_text = self.line_phantom_text(config, line);
         let line_content =
-            phantom_text.combine_with_text(line_content_original.clone());
+            phantom_text.combine_with_text(line_content_original.to_string());
 
         let tab_width =
             config.tab_width(text, config.editor.font_family(), font_size);
@@ -1823,89 +1900,47 @@ impl Document {
         }
 
         // Give the inlay hints their styling
-        for (offset, size, _, col) in phantom_text.offset_size_iter() {
+        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
             let start = col + offset;
             let end = start + size;
 
             layout_builder = layout_builder.range_attribute(
                 start..end,
-                TextAttribute::FontSize(
-                    config.editor.inlay_hint_font_size().min(font_size) as f64,
-                ),
+                TextAttribute::TextColor(phantom.fg.clone()),
             );
-            layout_builder = layout_builder.range_attribute(
-                start..end,
-                TextAttribute::FontFamily(config.editor.inlay_hint_font_family()),
-            );
-            layout_builder = layout_builder.range_attribute(
-                start..end,
-                TextAttribute::TextColor(
-                    config
-                        .get_color_unchecked(LapceTheme::INLAY_HINT_FOREGROUND)
-                        .clone(),
-                ),
-            );
+            if let Some(font_size) = phantom.font_size {
+                layout_builder = layout_builder.range_attribute(
+                    start..end,
+                    TextAttribute::FontSize(
+                        config.editor.inlay_hint_font_size().min(font_size) as f64,
+                    ),
+                );
+            }
+            if let Some(font_family) = phantom.font_family.clone() {
+                layout_builder = layout_builder.range_attribute(
+                    start..end,
+                    TextAttribute::FontFamily(font_family),
+                );
+            }
         }
-
-        // Add styling to all the diagnostics that appear at the end of the line
-        for (column, size, entry) in
-            phantom_text.end_offset_size_iter(&line_content_original)
-        {
-            let end = column + size;
-
-            let text_color = {
-                let severity = entry
-                    .diagnostic
-                    .severity
-                    .unwrap_or(DiagnosticSeverity::WARNING);
-                let theme_prop = if severity == DiagnosticSeverity::ERROR {
-                    LapceTheme::ERROR_LENS_ERROR_FOREGROUND
-                } else if severity == DiagnosticSeverity::WARNING {
-                    LapceTheme::ERROR_LENS_WARNING_FOREGROUND
-                } else {
-                    // information + hint (if we keep that) + things without a severity
-                    LapceTheme::ERROR_LENS_OTHER_FOREGROUND
-                };
-
-                config.get_color_unchecked(theme_prop).clone()
-            };
-
-            layout_builder = layout_builder.range_attribute(
-                column..end,
-                TextAttribute::FontSize(
-                    config.editor.error_lens_font_size().min(font_size) as f64,
-                ),
-            );
-            layout_builder = layout_builder.range_attribute(
-                column..end,
-                TextAttribute::FontFamily(config.editor.error_lens_font_family()),
-            );
-            layout_builder = layout_builder
-                .range_attribute(column..end, TextAttribute::TextColor(text_color));
-        }
-
-        // TODO: error lens background colors
-        // We could provide an option for whether they should just be around the diagnostic or over the entire line?
 
         let layout_text = layout_builder.build().unwrap();
         let mut extra_style = Vec::new();
-        for (offset, size, _, col) in phantom_text.offset_size_iter() {
-            let start = col + offset;
-            let end = start + size;
-            let x0 = layout_text.hit_test_text_position(start).point.x;
-            let x1 = layout_text.hit_test_text_position(end).point.x;
-            extra_style.push((
-                x0,
-                Some(x1),
-                LineExtraStyle {
-                    bg_color: Some(
-                        config
-                            .get_color_unchecked(LapceTheme::INLAY_HINT_BACKGROUND)
-                            .clone(),
-                    ),
-                    under_line: None,
-                },
-            ));
+        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
+            if phantom.bg.is_some() || phantom.under_line.is_some() {
+                let start = col + offset;
+                let end = start + size;
+                let x0 = layout_text.hit_test_text_position(start).point.x;
+                let x1 = layout_text.hit_test_text_position(end).point.x;
+                extra_style.push((
+                    x0,
+                    Some(x1),
+                    LineExtraStyle {
+                        bg_color: phantom.bg.clone(),
+                        under_line: phantom.under_line.clone(),
+                    },
+                ));
+            }
         }
 
         let is_error_lens_to_eol = config.editor.error_lens_end_of_line;

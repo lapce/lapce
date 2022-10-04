@@ -32,6 +32,7 @@ use crate::{
         container::LapceEditorContainer, header::LapceEditorHeader, LapceEditor,
     },
     find::FindBox,
+    ime::ImeComponent,
     plugin::PluginInfo,
     settings::LapceSettingsPanel,
 };
@@ -46,6 +47,7 @@ pub struct LapceEditorView {
     last_idle_timer: TimerToken,
     display_border: bool,
     background_color_name: &'static str,
+    ime: ImeComponent,
 }
 
 pub fn editor_tab_child_widget(
@@ -99,6 +101,7 @@ impl LapceEditorView {
             last_idle_timer: TimerToken::INVALID,
             display_border: true,
             background_color_name: LapceTheme::EDITOR_BACKGROUND,
+            ime: ImeComponent::default(),
         }
     }
 
@@ -680,28 +683,36 @@ impl Widget<LapceTabData> for LapceEditorView {
         match event {
             Event::KeyDown(key_event) => {
                 ctx.set_handled();
-                let mut keypress = data.keypress.clone();
-                if Arc::make_mut(&mut keypress).key_down(
-                    ctx,
-                    key_event,
-                    &mut editor_data,
-                    env,
-                ) {
-                    self.ensure_cursor_visible(
+                println!("key down {key_event:?}");
+                if let Some(text) = self.ime.get_input_text() {
+                    editor_data.receive_char(ctx, &text);
+                    println!("input text");
+                } else if !self.ime.borrow().text().is_empty() {
+                    println!("ime pre edit text");
+                } else {
+                    println!("normal handling");
+                    let mut keypress = data.keypress.clone();
+                    if Arc::make_mut(&mut keypress).key_down(
                         ctx,
-                        &editor_data,
-                        &data.panel,
-                        None,
+                        key_event,
+                        &mut editor_data,
                         env,
+                    ) {
+                        self.ensure_cursor_visible(
+                            ctx,
+                            &editor_data,
+                            &data.panel,
+                            None,
+                            env,
+                        );
+                    }
+                    editor_data.sync_buffer_position(
+                        self.editor.widget().editor.widget().inner().offset(),
                     );
-                }
-                editor_data.sync_buffer_position(
-                    self.editor.widget().editor.widget().inner().offset(),
-                );
-                editor_data.get_code_actions(ctx);
+                    editor_data.get_code_actions(ctx);
 
-                data.keypress = keypress.clone();
-                ctx.set_handled();
+                    data.keypress = keypress.clone();
+                }
             }
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_COMMAND);
@@ -770,6 +781,13 @@ impl Widget<LapceTabData> for LapceEditorView {
                         ),
                         Target::Widget(editor.view_id),
                     ));
+                }
+                ctx.register_text_input(self.ime.ime_handler());
+                let editor = data.main_split.editors.get(&self.view_id).unwrap();
+                if editor.cursor.is_insert() {
+                    self.ime.borrow_mut().set_active(true);
+                } else {
+                    self.ime.borrow_mut().set_active(false);
                 }
             }
             LifeCycle::FocusChanged(is_focus) => {
@@ -952,6 +970,19 @@ impl Widget<LapceTabData> for LapceEditorView {
                     );
                 });
             }
+        }
+
+        match (
+            old_editor_data.editor.cursor.is_insert(),
+            editor_data.editor.cursor.is_insert(),
+        ) {
+            (true, false) => {
+                self.ime.borrow_mut().set_active(false);
+            }
+            (false, true) => {
+                self.ime.borrow_mut().set_active(true);
+            }
+            (false, false) | (true, true) => {}
         }
 
         if editor_data.editor.content != old_editor_data.editor.content {

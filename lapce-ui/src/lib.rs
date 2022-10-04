@@ -26,3 +26,4 @@ mod tab;
 pub mod terminal;
 pub mod title;
 pub mod window;
+pub mod ime;
