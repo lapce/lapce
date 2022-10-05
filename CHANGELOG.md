@@ -10,7 +10,7 @@
 - Render whitespace [#1284]
 - Implemented syntax aware selection [#1353]
 - Added autosave configuration [#1358]
-- IME support [#1440]
+- IME support for macOS [#1440]
 
 ### Fixed
 
