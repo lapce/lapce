@@ -665,7 +665,7 @@ impl Widget<LapceTabData> for LapceTerminal {
         if self.width != size.width || self.height != size.height {
             self.width = size.width;
             self.height = size.height;
-            let width = data.config.editor_char_width(ctx.text());
+            let width = data.config.terminal_char_width(ctx.text());
             let line_height = data.config.terminal_line_height() as f64;
             let width = if width > 0.0 {
                 (self.width / width).floor() as usize
@@ -683,7 +683,7 @@ impl Widget<LapceTabData> for LapceTerminal {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        let char_size = data.config.editor_text_size(ctx.text(), "W");
+        let char_size = data.config.terminal_text_size(ctx.text(), "W");
         let char_width = char_size.width;
         let line_height = data.config.terminal_line_height() as f64;
 

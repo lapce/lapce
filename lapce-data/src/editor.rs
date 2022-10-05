@@ -1160,7 +1160,14 @@ impl LapceEditorBufferData {
                 )
             };
 
-            (line, config.char_width(text, font_size as f64))
+            (
+                line,
+                config.char_width(
+                    text,
+                    font_size as f64,
+                    config.editor.font_family(),
+                ),
+            )
         } else if let Some(compare) = self.editor.compare.as_ref() {
             let line = (pos.y / config.editor.line_height() as f64).floor() as usize;
             let line = self.doc.history_actual_line_from_visual(compare, line);
