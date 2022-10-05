@@ -7,6 +7,7 @@ pub mod editor;
 pub mod explorer;
 pub mod find;
 pub mod hover;
+pub mod ime;
 pub mod keymap;
 pub mod list;
 mod logging;
