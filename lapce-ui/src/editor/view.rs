@@ -17,7 +17,7 @@ use lapce_data::{
         CommandExecuted, CommandKind, EnsureVisiblePosition, LapceCommand,
         LapceUICommand, LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{EditorConfig, LapceConfig, LapceTheme},
+    config::{EditorConfig, LapceTheme},
     data::{EditorTabChild, EditorView, FocusArea, LapceTabData},
     document::{BufferContent, LocalBufferKind},
     editor::LapceEditorBufferData,
