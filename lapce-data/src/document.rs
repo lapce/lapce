@@ -227,9 +227,9 @@ pub struct PhantomText {
     kind: PhantomTextKind,
     col: usize,
     text: String,
-    fg: Color,
     font_size: Option<usize>,
     font_family: Option<FontFamily>,
+    fg: Option<Color>,
     bg: Option<Color>,
     under_line: Option<Color>,
 }
@@ -350,6 +350,8 @@ pub struct Document {
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
     pub inlay_hints: Option<Spans<InlayHint>>,
     pub diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
+    ime_text: Option<Arc<String>>,
+    ime_pos: (usize, usize, usize),
     pub syntax_selection_range: Option<SyntaxSelectionRanges>,
     pub find: Rc<RefCell<Find>>,
     find_progress: Rc<RefCell<FindProgress>>,
@@ -393,6 +395,8 @@ impl Document {
             code_actions: im::HashMap::new(),
             inlay_hints: None,
             diagnostics: None,
+            ime_text: None,
+            ime_pos: (0, 0, 0),
             find: Rc::new(RefCell::new(Find::new(0))),
             find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             event_sink,
@@ -935,6 +939,30 @@ impl Document {
         }
     }
 
+    pub fn set_ime_pos(&mut self, line: usize, col: usize, shift: usize) {
+        self.ime_pos = (line, col, shift);
+    }
+
+    pub fn ime_text(&self) -> Option<&Arc<String>> {
+        self.ime_text.as_ref()
+    }
+
+    pub fn ime_pos(&self) -> (usize, usize, usize) {
+        self.ime_pos
+    }
+
+    pub fn set_ime_text(&mut self, text: String) {
+        self.ime_text = Some(Arc::new(text));
+        self.clear_text_layout_cache();
+    }
+
+    pub fn clear_ime_text(&mut self) {
+        if self.ime_text.is_some() {
+            self.ime_text = None;
+            self.clear_text_layout_cache();
+        }
+    }
+
     pub fn line_phantom_text(
         &self,
         config: &LapceConfig,
@@ -966,11 +994,13 @@ impl Document {
                                 kind: PhantomTextKind::InlayHint,
                                 col,
                                 text,
-                                fg: config
-                                    .get_color_unchecked(
-                                        LapceTheme::INLAY_HINT_FOREGROUND,
-                                    )
-                                    .clone(),
+                                fg: Some(
+                                    config
+                                        .get_color_unchecked(
+                                            LapceTheme::INLAY_HINT_FOREGROUND,
+                                        )
+                                        .clone(),
+                                ),
                                 font_family: Some(
                                     config.editor.inlay_hint_font_family(),
                                 ),
@@ -1044,7 +1074,7 @@ impl Document {
                                 kind: PhantomTextKind::Diagnostic,
                                 col,
                                 text,
-                                fg,
+                                fg: Some(fg),
                                 font_size: Some(
                                     config.editor.error_lens_font_size(),
                                 ),
@@ -1061,6 +1091,26 @@ impl Document {
             diag_text.into_iter().flatten().collect();
 
         text.append(&mut diag_text);
+
+        if let Some(ime_text) = self.ime_text.as_ref() {
+            let (ime_line, col, _) = self.ime_pos;
+            if line == ime_line {
+                text.push(PhantomText {
+                    kind: PhantomTextKind::Ime,
+                    text: ime_text.to_string(),
+                    col,
+                    font_size: None,
+                    font_family: None,
+                    fg: None,
+                    bg: None,
+                    under_line: Some(
+                        config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    ),
+                });
+            }
+        }
 
         text.sort_by(|a, b| {
             if a.col == b.col {
@@ -1640,7 +1690,7 @@ impl Document {
         let line = line.min(self.buffer.last_line());
 
         let phantom_text = self.line_phantom_text(config, line);
-        let col = phantom_text.col_after(col, true);
+        let col = phantom_text.col_after(col, false);
 
         let mut x_shift = 0.0;
         if font_size < config.editor.font_size {
@@ -1851,10 +1901,10 @@ impl Document {
             let start = col + offset;
             let end = start + size;
 
-            layout_builder = layout_builder.range_attribute(
-                start..end,
-                TextAttribute::TextColor(phantom.fg.clone()),
-            );
+            if let Some(fg) = phantom.fg.clone() {
+                layout_builder = layout_builder
+                    .range_attribute(start..end, TextAttribute::TextColor(fg));
+            }
             if let Some(font_size) = phantom.font_size {
                 layout_builder = layout_builder.range_attribute(
                     start..end,

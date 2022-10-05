@@ -885,6 +885,14 @@ impl LapceEditor {
                         bg,
                     );
                 }
+                if let Some(under_line) = &style.under_line {
+                    let x1 = x1.unwrap_or(self_size.width);
+                    let line = Line::new(
+                        Point::new(*x0, y + height),
+                        Point::new(x1, y + height),
+                    );
+                    ctx.stroke(line, under_line, 1.0);
+                }
             }
 
             if let Some(whitespace) = &text_layout.whitespace {
@@ -916,6 +924,19 @@ impl LapceEditor {
         } else {
             phantom_text.col_after(col, false)
         };
+
+        let col = data
+            .doc
+            .ime_text()
+            .map(|_| {
+                let (ime_line, _, shift) = data.doc.ime_pos();
+                if ime_line == line {
+                    col + shift
+                } else {
+                    col
+                }
+            })
+            .unwrap_or(col);
 
         let x0 = data
             .doc

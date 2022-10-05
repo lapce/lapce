@@ -29,6 +29,8 @@ impl Default for ImeComponent {
             composition_range: None,
             text: "".to_string(),
             input_text: None,
+            orgin: Point::ZERO,
+            shift: 0,
         };
         ImeComponent {
             ime_session: Arc::new(RefCell::new(session)),
@@ -58,8 +60,24 @@ impl ImeComponent {
         self.ime_session.borrow_mut()
     }
 
+    pub fn set_origin(&self, origin: Point) {
+        self.ime_session.borrow_mut().orgin = origin;
+    }
+
+    pub fn set_active(&mut self, active: bool) {
+        self.ime_session.borrow_mut().is_active = active;
+    }
+
+    pub fn clear_text(&self) {
+        self.ime_session.borrow_mut().text.clear();
+    }
+
     pub fn get_input_text(&self) -> Option<String> {
         self.ime_session.borrow_mut().input_text.take()
+    }
+
+    pub fn get_shift(&self) -> usize {
+        self.ime_session.borrow().shift
     }
 
     /// Returns `true` if the IME is actively composing (or the text is locked.)
@@ -104,15 +122,13 @@ pub struct ImeSession {
     composition_range: Option<Range<usize>>,
     text: String,
     input_text: Option<String>,
+    shift: usize,
+    orgin: Point,
 }
 
 impl ImeSession {
     pub fn text(&self) -> &str {
         &self.text
-    }
-
-    pub fn set_active(&mut self, active: bool) {
-        self.is_active = active;
     }
 }
 
@@ -124,9 +140,10 @@ struct ImeSessionHandle {
 
 impl ImeSessionHandle {
     fn new(inner: Arc<RefCell<ImeSession>>) -> Self {
+        let text = inner.borrow().text.clone();
         ImeSessionHandle {
             inner,
-            text: "".to_string(),
+            text,
             selection: Selection::default(),
         }
     }
@@ -138,7 +155,8 @@ impl InputHandler for ImeSessionHandle {
     }
 
     fn set_selection(&mut self, selection: Selection) {
-        self.selection = selection
+        self.selection = selection;
+        self.inner.borrow_mut().shift = selection.active;
     }
 
     fn composition_range(&self) -> Option<std::ops::Range<usize>> {
@@ -146,7 +164,6 @@ impl InputHandler for ImeSessionHandle {
     }
 
     fn set_composition_range(&mut self, range: Option<std::ops::Range<usize>>) {
-        println!("set composition range {range:?}");
         if range.is_none() {
             self.inner.borrow_mut().text.clear();
             self.text.clear();
@@ -199,7 +216,7 @@ impl InputHandler for ImeSessionHandle {
     }
 
     fn slice_bounding_box(&self, _range: std::ops::Range<usize>) -> Option<Rect> {
-        None
+        Some(Rect::ZERO.with_origin(self.inner.borrow().orgin))
     }
 
     fn handle_action(&mut self, _action: druid::text::TextAction) {}
