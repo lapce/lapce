@@ -514,6 +514,10 @@ pub enum LapceUICommand {
     },
     UpdateSearchInput(String),
     UpdateSearch(String),
+    UpdateSearchWithCaseSensitivity {
+        pattern: String,
+        case_sensitive: bool,
+    },
     GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),
     CancelFilePicker,
     SetWorkspace(LapceWorkspace),

@@ -783,14 +783,18 @@ impl LapceTab {
                             Arc::make_mut(doc).reload(Rope::from(pattern), true);
                         }
                     }
-                    LapceUICommand::UpdateSearch(pattern) => {
+                    LapceUICommand::UpdateSearchWithCaseSensitivity {
+                        pattern,
+                        case_sensitive,
+                    } => {
                         if pattern.is_empty() {
                             Arc::make_mut(&mut data.find).unset();
                             Arc::make_mut(&mut data.search).matches =
                                 Arc::new(HashMap::new());
                         } else {
                             let find = Arc::make_mut(&mut data.find);
-                            find.set_find(pattern, false, false, false);
+                            find.set_case_sensitive(*case_sensitive);
+                            find.set_find(pattern, false, false);
                             find.visual = true;
                             if data.focus_area == FocusArea::Panel(PanelKind::Search)
                             {
@@ -812,6 +816,7 @@ impl LapceTab {
                             let tab_id = data.id;
                             data.proxy.proxy_rpc.global_search(
                                 pattern.clone(),
+                                find.case_sensitive(),
                                 Box::new(move |result| {
                                     if let Ok(
                                         ProxyResponse::GlobalSearchResponse {
@@ -831,6 +836,17 @@ impl LapceTab {
                                 }),
                             )
                         }
+                    }
+                    LapceUICommand::UpdateSearch(pattern) => {
+                        let case_sensitive = data.find.case_sensitive();
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateSearchWithCaseSensitivity {
+                                pattern: pattern.clone(),
+                                case_sensitive,
+                            },
+                            Target::Widget(self.id),
+                        ))
                     }
                     LapceUICommand::OpenPluginInfo(volt) => {
                         data.main_split.open_plugin_info(ctx, volt);

@@ -286,7 +286,10 @@ impl ProxyHandler for Dispatcher {
                 };
                 self.respond_rpc(id, result);
             }
-            GlobalSearch { pattern } => {
+            GlobalSearch {
+                pattern,
+                case_sensitive,
+            } => {
                 let workspace = self.workspace.clone();
                 let proxy_rpc = self.proxy_rpc.clone();
                 thread::spawn(move || {
@@ -294,7 +297,7 @@ impl ProxyHandler for Dispatcher {
                         let mut matches = HashMap::new();
                         let pattern = regex::escape(&pattern);
                         if let Ok(matcher) = RegexMatcherBuilder::new()
-                            .case_insensitive(true)
+                            .case_insensitive(!case_sensitive)
                             .build_literals(&[&pattern])
                         {
                             let mut searcher = SearcherBuilder::new().build();

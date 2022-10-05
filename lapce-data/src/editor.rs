@@ -1559,7 +1559,8 @@ impl LapceEditorBufferData {
                     LapceUICommand::UpdateSearchInput(word.clone()),
                     Target::Widget(*self.main_split.tab_id),
                 ));
-                Arc::make_mut(&mut self.find).set_find(&word, false, false, true);
+
+                Arc::make_mut(&mut self.find).set_find(&word, false, true);
                 let next =
                     self.find
                         .next(self.doc.buffer().text(), offset, false, true);
@@ -1633,6 +1634,22 @@ impl LapceEditorBufferData {
                         );
                     }
                 }
+            }
+            ToggleCaseSensitive => {
+                let tab_id = *self.main_split.tab_id;
+                let find = Arc::make_mut(&mut self.find);
+                if let Some(pattern) = find.search_string.clone() {
+                    let case_sensitive = find.toggle_case_sensitive();
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateSearchWithCaseSensitivity {
+                            pattern,
+                            case_sensitive,
+                        },
+                        Target::Widget(tab_id),
+                    ));
+                }
+                return CommandExecuted::No;
             }
             GlobalSearchRefresh => {
                 let tab_id = *self.main_split.tab_id;
@@ -2136,8 +2153,7 @@ impl LapceEditorBufferData {
                         .to_string()
                 };
                 if !pattern.contains('\n') {
-                    Arc::make_mut(&mut self.find)
-                        .set_find(&pattern, false, false, false);
+                    Arc::make_mut(&mut self.find).set_find(&pattern, false, false);
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateSearchInput(pattern),

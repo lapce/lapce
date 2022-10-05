@@ -1306,17 +1306,16 @@ impl Document {
                             (first.min(), first.max())
                         };
                         let search_str = self.buffer.slice_to_cow(start..end);
-                        let search_case_sensitive =
+                        let case_sensitive = self.find.borrow().case_sensitive();
+                        let multicursor_case_sensitive =
                             config.editor.multicursor_case_sensitive;
+                        let case_sensitive =
+                            multicursor_case_sensitive || case_sensitive;
                         let search_whole_word =
                             config.editor.multicursor_whole_words;
                         let mut find = Find::new(0);
-                        find.set_find(
-                            &search_str,
-                            search_case_sensitive,
-                            false,
-                            search_whole_word,
-                        );
+                        find.set_case_sensitive(case_sensitive);
+                        find.set_find(&search_str, false, search_whole_word);
                         let mut offset = 0;
                         while let Some((start, end)) =
                             find.next(self.buffer.text(), offset, false, false)
@@ -1345,17 +1344,15 @@ impl Document {
                             let r = selection.last_inserted().unwrap();
                             let search_str =
                                 self.buffer.slice_to_cow(r.min()..r.max());
-                            let search_case_sensitive =
-                                config.editor.multicursor_case_sensitive;
+                            let case_sensitive = self.find.borrow().case_sensitive();
+                            let case_sensitive =
+                                config.editor.multicursor_case_sensitive
+                                    || case_sensitive;
                             let search_whole_word =
                                 config.editor.multicursor_whole_words;
                             let mut find = Find::new(0);
-                            find.set_find(
-                                &search_str,
-                                search_case_sensitive,
-                                false,
-                                search_whole_word,
-                            );
+                            find.set_case_sensitive(case_sensitive);
+                            find.set_find(&search_str, false, search_whole_word);
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) =
@@ -1394,8 +1391,10 @@ impl Document {
                         } else {
                             let search_str =
                                 self.buffer.slice_to_cow(r.min()..r.max());
+                            let case_sensitive = self.find.borrow().case_sensitive();
                             let mut find = Find::new(0);
-                            find.set_find(&search_str, false, false, false);
+                            find.set_case_sensitive(case_sensitive);
+                            find.set_find(&search_str, false, false);
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) =
