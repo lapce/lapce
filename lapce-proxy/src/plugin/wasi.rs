@@ -1,5 +1,5 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     fs,
     io::{Read, Seek, Write},
     path::{Path, PathBuf},
@@ -80,7 +80,7 @@ pub struct Plugin {
     #[allow(dead_code)]
     id: PluginId,
     host: PluginHostHandler,
-    configurations: Option<serde_json::Value>,
+    configurations: Option<HashMap<String, serde_json::Value>>,
 }
 
 impl PluginServerHandler for Plugin {
@@ -186,7 +186,8 @@ impl Plugin {
                     trace: None,
                     client_info: None,
                     locale: None,
-                    initialization_options: configurations,
+                    initialization_options: configurations
+                        .and_then(|v| serde_json::to_value(v).ok()),
                     workspace_folders: None,
                 },
                 None,
@@ -282,7 +283,7 @@ pub fn enable_volt(
 
 pub fn start_volt(
     workspace: Option<PathBuf>,
-    configurations: Option<serde_json::Value>,
+    configurations: Option<HashMap<String, serde_json::Value>>,
     plugin_rpc: PluginCatalogRpcHandler,
     meta: VoltMetadata,
 ) -> Result<()> {

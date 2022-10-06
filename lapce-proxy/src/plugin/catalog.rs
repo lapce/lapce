@@ -34,7 +34,7 @@ pub struct PluginCatalog {
     workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
     plugins: HashMap<PluginId, PluginServerRpcHandler>,
-    plugin_configurations: HashMap<String, serde_json::Value>,
+    plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
     unactivated_volts: HashMap<String, VoltMetadata>,
     open_files: HashMap<PathBuf, String>,
 }
@@ -43,7 +43,7 @@ impl PluginCatalog {
     pub fn new(
         workspace: Option<PathBuf>,
         disabled_volts: Vec<String>,
-        plugin_configurations: HashMap<String, serde_json::Value>,
+        plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
         let plugin = Self {

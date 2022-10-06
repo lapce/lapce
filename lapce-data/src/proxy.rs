@@ -267,7 +267,7 @@ impl LapceProxy {
         tab_id: WidgetId,
         workspace: LapceWorkspace,
         disabled_volts: Vec<String>,
-        plugin_configurations: HashMap<String, serde_json::Value>,
+        plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         term_tx: Sender<(TermId, TermEvent)>,
         event_sink: ExtEventSink,
     ) -> Self {
@@ -310,7 +310,7 @@ impl LapceProxy {
         &self,
         workspace: LapceWorkspace,
         disabled_volts: Vec<String>,
-        plugin_configurations: HashMap<String, serde_json::Value>,
+        plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
     ) -> Result<()> {

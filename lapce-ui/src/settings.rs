@@ -42,6 +42,7 @@ enum LapceSettingsKind {
     UI,
     Editor,
     Terminal,
+    Plugin(String),
 }
 
 pub struct LapceSettingsPanel {
@@ -61,7 +62,7 @@ impl LapceSettingsPanel {
         editor_tab_id: WidgetId,
         keymap_input_view_id: WidgetId,
     ) -> Self {
-        let children = vec![
+        let mut children = vec![
             WidgetPod::new(
                 LapceSettings::new_split(LapceSettingsKind::Core, data).boxed(),
             ),
@@ -77,6 +78,17 @@ impl LapceSettingsPanel {
             WidgetPod::new(ThemeSettings::new_boxed().boxed()),
             WidgetPod::new(LapceKeymap::new_split(keymap_input_view_id).boxed()),
         ];
+        for (volt_id, volt) in data.plugin.installed.iter() {
+            if volt.config.is_some() {
+                children.push(WidgetPod::new(
+                    LapceSettings::new_split(
+                        LapceSettingsKind::Plugin(volt_id.to_string()),
+                        data,
+                    )
+                    .boxed(),
+                ));
+            }
+        }
         Self {
             widget_id,
             editor_tab_id,
@@ -98,6 +110,7 @@ impl LapceSettingsPanel {
             let index = ((mouse_event.pos.y - self.switcher_rect.y0)
                 / self.switcher_line_height)
                 .floor() as usize;
+            println!("index {index}, children len {}", self.children.len());
             if index < self.children.len() {
                 self.active = index;
                 ctx.request_layout();
@@ -295,7 +308,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
 
         ctx.with_save(|ctx| {
             ctx.clip(self.switcher_rect);
-            const SETTINGS_SECTIONS: [&str; 6] = [
+            let mut settings_sections: Vec<&str> = vec![
                 "Core Settings",
                 "UI Settings",
                 "Editor Settings",
@@ -304,10 +317,16 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                 "Keybindings",
             ];
 
-            for (i, text) in SETTINGS_SECTIONS.into_iter().enumerate() {
+            for (_, volt) in data.plugin.installed.iter() {
+                if volt.config.is_some() {
+                    settings_sections.push(volt.display_name.as_str());
+                }
+            }
+
+            for (i, text) in settings_sections.iter().enumerate() {
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(text)
+                    .new_text_layout(text.to_string())
                     .font(
                         data.config.ui.font_family(),
                         (data.config.ui.font_size() + 1) as f64,
@@ -389,7 +408,7 @@ impl LapceSettings {
 
         self.children.clear();
 
-        let (kind, fields, descs, mut settings) = match self.kind {
+        let (kind, fields, descs, mut settings) = match &self.kind {
             LapceSettingsKind::Core => (
                 "core",
                 &CoreConfig::FIELDS[..],
@@ -414,6 +433,39 @@ impl LapceSettings {
                 &TerminalConfig::DESCS[..],
                 into_settings_map(&data.config.terminal),
             ),
+            LapceSettingsKind::Plugin(volt_id) => {
+                if let Some(volt) = data.plugin.installed.get(volt_id).cloned() {
+                    if let Some(config) = volt.config.as_ref() {
+                        for (key, config) in
+                            config.iter().sorted_by_key(|(key, _)| *key)
+                        {
+                            let mut value = config.default.clone();
+                            if let Some(plugin_config) =
+                                data.config.plugins.get(&volt.name)
+                            {
+                                if let Some(v) = plugin_config.get(key) {
+                                    value = v.clone();
+                                }
+                            }
+                            self.children.push(WidgetPod::new(
+                                LapcePadding::new(
+                                    (10.0, 10.0),
+                                    LapceSettingsItem::new(
+                                        data,
+                                        volt.name.clone(),
+                                        key.to_string(),
+                                        config.description.clone(),
+                                        value,
+                                        ctx.get_external_handle(),
+                                    ),
+                                )
+                                .boxed(),
+                            ));
+                        }
+                    }
+                }
+                return;
+            }
         };
 
         for (field, desc) in fields.iter().zip(descs.iter()) {
@@ -622,9 +674,24 @@ impl LapceSettingsItem {
         text: &mut PietText,
         data: &LapceTabData,
     ) -> &PietTextLayout {
+        let splits: Vec<&str> = self.name.rsplitn(2, '.').collect();
+        let mut name_text = "".to_string();
+        if let Some(title) = splits.get(1) {
+            for (i, part) in title.split('.').enumerate() {
+                if i > 0 {
+                    name_text.push_str(" > ");
+                }
+                name_text.push_str(&part.to_title_case());
+            }
+            name_text.push_str(": ");
+        }
+        if let Some(name) = splits.first() {
+            name_text.push_str(&name.to_title_case());
+        }
+
         if self.name_text.is_none() {
             let text_layout = text
-                .new_text_layout(self.name.to_title_case())
+                .new_text_layout(name_text)
                 .font(
                     data.config.ui.font_family(),
                     (data.config.ui.font_size() + 1) as f64,

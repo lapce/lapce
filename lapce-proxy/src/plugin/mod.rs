@@ -978,7 +978,7 @@ pub fn download_volt(
 pub fn install_volt(
     catalog_rpc: PluginCatalogRpcHandler,
     workspace: Option<PathBuf>,
-    configurations: Option<serde_json::Value>,
+    configurations: Option<HashMap<String, serde_json::Value>>,
     volt: VoltInfo,
 ) -> Result<()> {
     let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;

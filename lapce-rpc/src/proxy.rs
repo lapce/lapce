@@ -150,7 +150,7 @@ pub enum ProxyNotification {
     Initialize {
         workspace: Option<PathBuf>,
         disabled_volts: Vec<String>,
-        plugin_configurations: HashMap<String, serde_json::Value>,
+        plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
     },
@@ -447,7 +447,7 @@ impl ProxyRpcHandler {
         &self,
         workspace: Option<PathBuf>,
         disabled_volts: Vec<String>,
-        plugin_configurations: HashMap<String, serde_json::Value>,
+        plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
     ) {

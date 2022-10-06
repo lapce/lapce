@@ -595,7 +595,7 @@ pub struct LapceConfig {
     pub terminal: TerminalConfig,
     pub theme: ThemeConfig,
     #[serde(flatten)]
-    pub plugins: HashMap<String, serde_json::Value>,
+    pub plugins: HashMap<String, HashMap<String, serde_json::Value>>,
     #[serde(skip)]
     pub default_theme: ThemeConfig,
     #[serde(skip)]
