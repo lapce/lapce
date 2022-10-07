@@ -284,7 +284,7 @@ impl Widget<LapceTabData> for SearchContent {
                 if i >= min {
                     let mut text_layout = ctx
                         .text()
-                        .new_text_layout(format!("{line_number}: {line}"))
+                        .new_text_layout(format!("{}: {}", line_number, line.trim()))
                         .font(
                             data.config.ui.font_family(),
                             data.config.ui.font_size() as f64,
