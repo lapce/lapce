@@ -93,8 +93,12 @@ impl Editor {
 
                     // when text is selected, and [,{,(,'," is inserted
                     // wrap the text with that char and its corresponding closing pair
-                    if region.start != region.end && (matching_pair_type.is_some() || c == '"' || c == '\'') && ((matching_pair_type.unwrap_or(false))
-                            || c == '"' || c == '\'') {
+                    if region.start != region.end
+                        && (matching_pair_type.is_some() || c == '"' || c == '\'')
+                        && ((matching_pair_type.unwrap_or(false))
+                            || c == '"'
+                            || c == '\'')
+                    {
                         edits.push((
                             Selection::region(region.min(), region.min()),
                             c.to_string(),
