@@ -39,6 +39,12 @@ pub fn build_window(data: &mut LapceWindowData) -> impl Widget<LapceData> {
 }
 
 pub fn launch() {
+    // if PWD is not set, then we are not being launched via a terminal
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    if !std::env::var("PWD").is_ok() {
+        load_shell_env();
+    }
+
     let cli = Cli::parse();
     let pwd = std::env::current_dir().unwrap_or_default();
     let paths: Vec<PathBuf> = cli.paths.iter().map(|p| pwd.join(p)).collect();
@@ -235,6 +241,39 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
                 ),
         )
     })
+}
+
+/// Uses a login shell to load the correct shell environment for the current user.
+fn load_shell_env() {
+    use std::process::Command;
+
+    let shell = match std::env::var("SHELL") {
+        Ok(s) => s,
+        Err(_) => {
+            // Shell variable is not set, so we can't determine the correct shell executable.
+            // Silently failing, since logger is not set up yet.
+            return;
+        }
+    };
+
+    let mut command = Command::new(shell);
+
+    command.args(["--login"]).args(["-c", "printenv"]);
+
+    let env = match command.output() {
+        Ok(output) => String::from_utf8(output.stdout).unwrap_or_default(),
+
+        Err(_) => {
+            // sliently ignoring since logger is not yet available
+            return;
+        }
+    };
+
+    env.split("\n")
+        .filter_map(|line| line.split_once("="))
+        .for_each(|(key, value)| {
+            std::env::set_var(key, value);
+        })
 }
 
 /// The delegate handler for Top-Level Druid events (terminate, new window, etc.)
