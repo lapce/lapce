@@ -3361,12 +3361,11 @@ impl LapceMainSplitData {
         editor_tab_id: WidgetId,
     ) {
         let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
-        let mut index = 0;
-        for (i, child) in editor_tab.children.iter().enumerate() {
-            if child.widget_id() == widget_id {
-                index = i;
-            }
-        }
+        let index = editor_tab
+            .children
+            .iter()
+            .position(|child| child.widget_id() == widget_id)
+            .unwrap_or(0);
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::EditorTabRemove(index, true, true),
