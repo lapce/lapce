@@ -91,7 +91,7 @@ impl LapceEditorTab {
             editor_tab.children.remove(i)
         } else if editor_tab.active == i {
             if i >= editor_tab.children.len() - 1 {
-                editor_tab.active = i - 1;
+                editor_tab.active -= 1;
             };
             if focus {
                 ctx.submit_command(Command::new(
@@ -117,7 +117,12 @@ impl LapceEditorTab {
         if delete {
             match removed_child {
                 EditorTabChild::Editor(view_id, _, _) => {
-                    data.main_split.editors.remove(&view_id);
+                    if let Some(editor) = data.main_split.editors.remove(&view_id) {
+                        if let BufferContent::Scratch(buffer_id, _) = editor.content
+                        {
+                            data.main_split.scratch_docs.remove(&buffer_id);
+                        }
+                    }
                 }
                 EditorTabChild::Settings { .. } => {}
                 EditorTabChild::Plugin { .. } => {}
