@@ -1048,7 +1048,9 @@ impl Document {
                                 _ => {}
                             }
 
-                            let col = self.buffer.line_end_col(line, true);
+                            let rope_text = self.buffer.rope_text();
+                            let col = rope_text.offset_of_line(line + 1)
+                                - rope_text.offset_of_line(line);
                             let fg = {
                                 let severity = diag
                                     .diagnostic
@@ -1855,9 +1857,17 @@ impl Document {
     ) -> TextLayoutLine {
         let line_content_original = self.buffer.line_content(line);
 
+        let line_content_original =
+            if let Some(s) = line_content_original.strip_suffix("\r\n") {
+                format!("{s}  ")
+            } else if let Some(s) = line_content_original.strip_suffix('\n') {
+                format!("{s} ",)
+            } else {
+                line_content_original.to_string()
+            };
+
         let phantom_text = self.line_phantom_text(config, line);
-        let line_content =
-            phantom_text.combine_with_text(line_content_original.to_string());
+        let line_content = phantom_text.combine_with_text(line_content_original);
 
         let tab_width =
             config.tab_width(text, config.editor.font_family(), font_size);
@@ -1897,7 +1907,6 @@ impl Document {
             }
         }
 
-        // Give the inlay hints their styling
         for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
             let start = col + offset;
             let end = start + size;
@@ -1906,12 +1915,10 @@ impl Document {
                 layout_builder = layout_builder
                     .range_attribute(start..end, TextAttribute::TextColor(fg));
             }
-            if let Some(font_size) = phantom.font_size {
+            if let Some(phantom_font_size) = phantom.font_size {
                 layout_builder = layout_builder.range_attribute(
                     start..end,
-                    TextAttribute::FontSize(
-                        config.editor.inlay_hint_font_size().min(font_size) as f64,
-                    ),
+                    TextAttribute::FontSize(phantom_font_size.min(font_size) as f64),
                 );
             }
             if let Some(font_family) = phantom.font_family.clone() {
@@ -1950,7 +1957,7 @@ impl Document {
                 LapceTheme::ERROR_LENS_OTHER_BACKGROUND
             };
 
-            let x1 = config.editor.error_lens_end_of_line.then(|| {
+            let x1 = (!config.editor.error_lens_end_of_line).then(|| {
                 layout_text
                     .hit_test_text_position(line_content.len())
                     .point

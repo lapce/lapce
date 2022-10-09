@@ -1281,8 +1281,8 @@ impl Widget<LapceTabData> for PanelSwitcher {
                     PanelPosition::BottomLeft => {
                         ctx.stroke(
                             Line::new(
-                                Point::new(mouse_rect.x1 + 1.0, mouse_rect.y0),
-                                Point::new(mouse_rect.x1 + 1.0, mouse_rect.y1),
+                                Point::new(mouse_rect.x0 - 1.0, mouse_rect.y0),
+                                Point::new(mouse_rect.x0 - 1.0, mouse_rect.y1),
                             ),
                             data.config
                                 .get_color_unchecked(LapceTheme::EDITOR_CARET),
@@ -1292,8 +1292,8 @@ impl Widget<LapceTabData> for PanelSwitcher {
                     PanelPosition::BottomRight => {
                         ctx.stroke(
                             Line::new(
-                                Point::new(mouse_rect.x0 - 1.0, mouse_rect.y0),
-                                Point::new(mouse_rect.x0 - 1.0, mouse_rect.y1),
+                                Point::new(mouse_rect.x1 + 1.0, mouse_rect.y0),
+                                Point::new(mouse_rect.x1 + 1.0, mouse_rect.y1),
                             ),
                             data.config
                                 .get_color_unchecked(LapceTheme::EDITOR_CARET),

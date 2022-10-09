@@ -137,6 +137,9 @@ impl ProxyHandler for Dispatcher {
                     buffer.rope.clone(),
                 );
             }
+            UpdatePluginConfigs { configs } => {
+                let _ = self.catalog_rpc.update_plugin_configs(configs);
+            }
             NewTerminal {
                 term_id,
                 cwd,
@@ -185,6 +188,9 @@ impl ProxyHandler for Dispatcher {
             InstallVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();
                 let _ = catalog_rpc.install_volt(volt);
+            }
+            ReloadVolt { volt } => {
+                let _ = self.catalog_rpc.reload_volt(volt);
             }
             RemoveVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();

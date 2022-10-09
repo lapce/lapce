@@ -23,8 +23,8 @@ use lapce_rpc::{
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
-    InlayHint, Location, Position, ProgressParams, PublishDiagnosticsParams,
-    SelectionRange, TextEdit, WorkspaceEdit,
+    InlayHint, Location, MessageType, Position, ProgressParams,
+    PublishDiagnosticsParams, SelectionRange, TextEdit, WorkspaceEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
@@ -558,6 +558,7 @@ pub enum LapceUICommand {
     FocusSourceControl,
     ShowSettings,
     ShowKeybindings,
+    ShowSettingsIndex(usize),
     FocusEditor,
     RunPalette(Option<PaletteType>),
     RunPaletteReferences(Vec<EditorLocation<Position>>),
@@ -752,6 +753,12 @@ pub enum LapceUICommand {
     /// An item in a list was chosen  
     /// This is typically targeted at the widget which contains the list
     ListItemSelected,
+    NewMessage {
+        kind: MessageType,
+        title: String,
+        message: String,
+    },
+    CloseMessage(WidgetId),
 }
 
 /// This can't be an `FnOnce` because we only ever get a reference to

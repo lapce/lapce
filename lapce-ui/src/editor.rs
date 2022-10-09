@@ -2123,6 +2123,7 @@ impl Widget<LapceTabData> for LapceEditor {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
+        ctx.set_paint_insets((1.0, 0.0, 0.0, 0.0));
         let editor_data = data.editor_view_content(self.view_id);
         Self::get_size(&editor_data, ctx.text(), bc.max(), &data.panel, env)
     }

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -48,6 +48,12 @@ pub struct VoltActivation {
 }
 
 #[derive(Deserialize, Clone, Debug, Serialize)]
+pub struct VoltConfig {
+    pub default: Value,
+    pub description: String,
+}
+
+#[derive(Deserialize, Clone, Debug, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct VoltMetadata {
     pub name: String,
@@ -59,6 +65,7 @@ pub struct VoltMetadata {
     pub themes: Option<Vec<String>>,
     pub dir: Option<PathBuf>,
     pub activation: Option<VoltActivation>,
+    pub config: Option<HashMap<String, VoltConfig>>,
 }
 
 impl VoltMetadata {

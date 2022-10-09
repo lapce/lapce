@@ -8,7 +8,10 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender};
-use lsp_types::{CompletionResponse, ProgressParams, PublishDiagnosticsParams};
+use lsp_types::{
+    CompletionResponse, LogMessageParams, ProgressParams, PublishDiagnosticsParams,
+    ShowMessageParams,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
@@ -57,6 +60,13 @@ pub enum CoreNotification {
     },
     WorkDoneProgress {
         progress: ProgressParams,
+    },
+    ShowMessage {
+        title: String,
+        message: ShowMessageParams,
+    },
+    LogMessage {
+        message: LogMessageParams,
     },
     HomeDir {
         path: PathBuf,
@@ -258,6 +268,14 @@ impl CoreRpcHandler {
 
     pub fn work_done_progress(&self, progress: ProgressParams) {
         self.notification(CoreNotification::WorkDoneProgress { progress });
+    }
+
+    pub fn show_message(&self, title: String, message: ShowMessageParams) {
+        self.notification(CoreNotification::ShowMessage { title, message });
+    }
+
+    pub fn log_message(&self, message: LogMessageParams) {
+        self.notification(CoreNotification::LogMessage { message });
     }
 
     pub fn close_terminal(&self, term_id: TermId) {

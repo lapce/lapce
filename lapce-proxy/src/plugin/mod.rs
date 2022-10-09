@@ -102,11 +102,13 @@ pub enum PluginCatalogRpc {
 }
 
 pub enum PluginCatalogNotification {
+    UpdatePluginConfigs(HashMap<String, HashMap<String, serde_json::Value>>),
     UnactivatedVolts(Vec<VoltMetadata>),
     PluginServerLoaded(PluginServerRpcHandler),
     InstallVolt(VoltInfo),
     StopVolt(VoltInfo),
     EnableVolt(VoltInfo),
+    ReloadVolt(VoltMetadata),
     Shutdown,
 }
 
@@ -877,12 +879,25 @@ impl PluginCatalogRpcHandler {
         ))
     }
 
+    pub fn update_plugin_configs(
+        &self,
+        configs: HashMap<String, HashMap<String, serde_json::Value>>,
+    ) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::UpdatePluginConfigs(
+            configs,
+        ))
+    }
+
     pub fn install_volt(&self, volt: VoltInfo) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::InstallVolt(volt))
     }
 
     pub fn stop_volt(&self, volt: VoltInfo) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::StopVolt(volt))
+    }
+
+    pub fn reload_volt(&self, volt: VoltMetadata) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::ReloadVolt(volt))
     }
 
     pub fn enable_volt(&self, volt: VoltInfo) -> Result<()> {
@@ -978,7 +993,7 @@ pub fn download_volt(
 pub fn install_volt(
     catalog_rpc: PluginCatalogRpcHandler,
     workspace: Option<PathBuf>,
-    configurations: Option<serde_json::Value>,
+    configurations: Option<HashMap<String, serde_json::Value>>,
     volt: VoltInfo,
 ) -> Result<()> {
     let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;

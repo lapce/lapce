@@ -34,7 +34,7 @@ pub struct PluginCatalog {
     workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
     plugins: HashMap<PluginId, PluginServerRpcHandler>,
-    plugin_configurations: HashMap<String, serde_json::Value>,
+    plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
     unactivated_volts: HashMap<String, VoltMetadata>,
     open_files: HashMap<PathBuf, String>,
 }
@@ -43,7 +43,7 @@ impl PluginCatalog {
     pub fn new(
         workspace: Option<PathBuf>,
         disabled_volts: Vec<String>,
-        plugin_configurations: HashMap<String, serde_json::Value>,
+        plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
         let plugin = Self {
@@ -324,6 +324,9 @@ impl PluginCatalog {
                 }
                 self.check_unactivated_volts();
             }
+            UpdatePluginConfigs(configs) => {
+                self.plugin_configurations = configs;
+            }
             PluginServerLoaded(plugin) => {
                 // TODO: check if the server has did open registered
                 if let Ok(ProxyResponse::GetOpenFilesContentResponse { items }) =
@@ -355,6 +358,17 @@ impl PluginCatalog {
                     let _ =
                         install_volt(catalog_rpc, workspace, configurations, volt);
                 });
+            }
+            ReloadVolt(volt) => {
+                let volt_id = volt.id();
+                let ids: Vec<PluginId> = self.plugins.keys().cloned().collect();
+                for id in ids {
+                    if self.plugins.get(&id).unwrap().volt_id == volt_id {
+                        let plugin = self.plugins.remove(&id).unwrap();
+                        plugin.shutdown();
+                    }
+                }
+                let _ = self.plugin_rpc.unactivated_volts(vec![volt]);
             }
             StopVolt(volt) => {
                 let volt_id = volt.id();
