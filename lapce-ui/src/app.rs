@@ -41,7 +41,7 @@ pub fn build_window(data: &mut LapceWindowData) -> impl Widget<LapceData> {
 pub fn launch() {
     // if PWD is not set, then we are not being launched via a terminal
     #[cfg(any(target_os = "macos", target_os = "linux"))]
-    if !std::env::var("PWD").is_ok() {
+    if std::env::var("PWD").is_err() {
         load_shell_env();
     }
 
@@ -244,6 +244,7 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
 }
 
 /// Uses a login shell to load the correct shell environment for the current user.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn load_shell_env() {
     use std::process::Command;
 
@@ -269,8 +270,8 @@ fn load_shell_env() {
         }
     };
 
-    env.split("\n")
-        .filter_map(|line| line.split_once("="))
+    env.split('\n')
+        .filter_map(|line| line.split_once('='))
         .for_each(|(key, value)| {
             std::env::set_var(key, value);
         })
