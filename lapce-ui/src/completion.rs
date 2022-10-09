@@ -454,8 +454,6 @@ impl Widget<LapceTabData> for CompletionContainer {
             Point::new(self.completion_content_size.width, 0.0),
         );
 
-        ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
-
         Size::new(
             self.completion_content_size.width + documentation_size.width,
             self.completion_content_size

@@ -47,10 +47,11 @@ use xi_rope::Rope;
 use crate::{
     about::AboutBox, alert::AlertBox, completion::CompletionContainer,
     editor::view::LapceEditorView, explorer::FileExplorer, hover::HoverContainer,
-    panel::PanelContainer, picker::FilePicker, plugin::Plugin,
-    problem::new_problem_panel, search::new_search_panel,
-    source_control::new_source_control_panel, split::split_data_widget,
-    status::LapceStatus, svg::get_svg, terminal::TerminalPanel, title::Title,
+    message::LapceMessage, panel::PanelContainer, picker::FilePicker,
+    plugin::Plugin, problem::new_problem_panel, scroll::LapceScroll,
+    search::new_search_panel, source_control::new_source_control_panel,
+    split::split_data_widget, status::LapceStatus, svg::get_svg,
+    terminal::TerminalPanel, title::Title,
 };
 
 pub const LAPCE_TAB_META: Selector<SingleUse<LapceTabMeta>> =
@@ -84,6 +85,7 @@ pub struct LapceTab {
     picker: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     about: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     alert: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    message: WidgetPod<LapceTabData, LapceScroll<LapceTabData, LapceMessage>>,
     panel_left: WidgetPod<LapceTabData, PanelContainer>,
     panel_bottom: WidgetPod<LapceTabData, PanelContainer>,
     panel_right: WidgetPod<LapceTabData, PanelContainer>,
@@ -117,6 +119,7 @@ impl LapceTab {
 
         let about = AboutBox::new(data);
         let alert = AlertBox::new(data);
+        let message = LapceScroll::new(LapceMessage::new(*data.message_widget_id));
 
         let mut panel_left = PanelContainer::new(PanelContainerPosition::Left);
         let mut panel_bottom = PanelContainer::new(PanelContainerPosition::Bottom);
@@ -187,6 +190,7 @@ impl LapceTab {
             status: WidgetPod::new(status.boxed()),
             about: WidgetPod::new(about.boxed()),
             alert: WidgetPod::new(alert.boxed()),
+            message: WidgetPod::new(message),
             panel_left: WidgetPod::new(panel_left),
             panel_right: WidgetPod::new(panel_right),
             panel_bottom: WidgetPod::new(panel_bottom),
@@ -1868,6 +1872,22 @@ impl LapceTab {
                         let mut clipboard = druid::Application::global().clipboard();
                         clipboard.put_string(relative_path.to_str().unwrap());
                     }
+                    LapceUICommand::NewMessage {
+                        kind,
+                        title,
+                        message,
+                    } => {
+                        ctx.set_handled();
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::NewMessage {
+                                kind: *kind,
+                                title: title.clone(),
+                                message: message.clone(),
+                            },
+                            Target::Widget(*data.message_widget_id),
+                        ));
+                    }
                     _ => (),
                 }
             }
@@ -1900,6 +1920,7 @@ impl Widget<LapceTabData> for LapceTab {
             self.picker.event(ctx, event, data, env);
         }
         self.title.event(ctx, event, data, env);
+        self.message.event(ctx, event, data, env);
         if data.completion.status == CompletionStatus::Started
             || event.should_propagate_to_hidden()
         {
@@ -1953,6 +1974,10 @@ impl Widget<LapceTabData> for LapceTab {
             }) {
                 Arc::make_mut(&mut data.hover).cancel();
             }
+        }
+
+        if ctx.is_handled() {
+            return;
         }
 
         match event {
@@ -2064,6 +2089,7 @@ impl Widget<LapceTabData> for LapceTab {
         self.picker.lifecycle(ctx, event, data, env);
         self.about.lifecycle(ctx, event, data, env);
         self.alert.lifecycle(ctx, event, data, env);
+        self.message.lifecycle(ctx, event, data, env);
         self.panel_left.lifecycle(ctx, event, data, env);
         self.panel_right.lifecycle(ctx, event, data, env);
         self.panel_bottom.lifecycle(ctx, event, data, env);
@@ -2140,6 +2166,7 @@ impl Widget<LapceTabData> for LapceTab {
         self.picker.update(ctx, data, env);
         self.about.update(ctx, data, env);
         self.alert.update(ctx, data, env);
+        self.message.update(ctx, data, env);
         self.panel_left.update(ctx, data, env);
         self.panel_right.update(ctx, data, env);
         self.panel_bottom.update(ctx, data, env);
@@ -2152,7 +2179,6 @@ impl Widget<LapceTabData> for LapceTab {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        // ctx.set_paint_insets((0.0, 10.0, 0.0, 0.0));
         let self_size = bc.max();
         self.height = self_size.height;
         self.width = self_size.width;
@@ -2317,6 +2343,28 @@ impl Widget<LapceTabData> for LapceTab {
             self.alert.set_origin(ctx, data, env, Point::ZERO);
         }
 
+        let message_size = self.message.layout(
+            ctx,
+            &BoxConstraints::new(
+                Size::ZERO,
+                Size::new(
+                    self_size.width,
+                    self_size.height - title_height - status_size.height - 20.0,
+                ),
+            ),
+            data,
+            env,
+        );
+        self.message.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new(
+                (self_size.width - message_size.width - 10.0).max(0.0),
+                title_height + 10.0,
+            ),
+        );
+
         self_size
     }
 
@@ -2436,6 +2484,9 @@ impl Widget<LapceTabData> for LapceTab {
         ctx.incr_alpha_depth();
         self.about.paint(ctx, data, env);
         self.alert.paint(ctx, data, env);
+        if self.message.widget().child().has_items() {
+            self.message.paint(ctx, data, env);
+        }
     }
 }
 

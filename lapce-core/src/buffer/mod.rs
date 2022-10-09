@@ -681,6 +681,10 @@ impl Buffer {
         Some((delta, inval_lines, cursor_after))
     }
 
+    pub fn rope_text(&self) -> RopeText {
+        RopeText::new(&self.text)
+    }
+
     pub fn last_line(&self) -> usize {
         RopeText::new(&self.text).last_line()
     }

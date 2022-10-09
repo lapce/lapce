@@ -336,6 +336,9 @@ impl Widget<LapceWindowData> for LapceWindow {
                                 &tab.workspace.clone(),
                                 &disabled_volts,
                             ));
+                            tab.proxy
+                                .proxy_rpc
+                                .update_plugin_configs(data.config.plugins.clone());
                         }
                         Arc::make_mut(&mut data.keypress)
                             .update_keymaps(&data.config);

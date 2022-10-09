@@ -5,7 +5,7 @@ use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    BoxConstraints, Command, Env, Event, EventCtx, ExtEventSink, FontWeight,
+    BoxConstraints, Command, Cursor, Env, Event, EventCtx, ExtEventSink, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, MouseEvent, PaintCtx, Point,
     Rect, RenderContext, Size, Target, TimerToken, UpdateCtx, Widget, WidgetExt,
     WidgetId, WidgetPod,
@@ -51,7 +51,7 @@ pub struct LapceSettingsPanel {
     active: usize,
     content_rect: Rect,
     switcher_rect: Rect,
-    switcher_line_height: f64,
+    switcher: WidgetPod<LapceTabData, LapceScroll<LapceTabData, SettingsSwitcher>>,
     children: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
 }
 
@@ -89,34 +89,17 @@ impl LapceSettingsPanel {
                 ));
             }
         }
+
+        let switcher = LapceScroll::new(SettingsSwitcher::new(widget_id));
+
         Self {
             widget_id,
             editor_tab_id,
             active: 0,
             content_rect: Rect::ZERO,
             switcher_rect: Rect::ZERO,
-            switcher_line_height: 40.0,
+            switcher: WidgetPod::new(switcher),
             children,
-        }
-    }
-
-    fn mouse_down(
-        &mut self,
-        ctx: &mut EventCtx,
-        mouse_event: &MouseEvent,
-        data: &mut LapceTabData,
-    ) {
-        if self.switcher_rect.contains(mouse_event.pos) {
-            let index = ((mouse_event.pos.y - self.switcher_rect.y0)
-                / self.switcher_line_height)
-                .floor() as usize;
-            println!("index {index}, children len {}", self.children.len());
-            if index < self.children.len() {
-                self.active = index;
-                ctx.request_layout();
-            }
-            ctx.set_handled();
-            self.request_focus(ctx, data);
         }
     }
 
@@ -174,9 +157,6 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     }
                 }
             }
-            Event::MouseDown(mouse_event) => {
-                self.mouse_down(ctx, mouse_event, data);
-            }
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 let cmd = cmd.get_unchecked(LAPCE_COMMAND);
                 let mut focus = LapceSettingsFocusData {
@@ -202,10 +182,19 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     LapceUICommand::ShowSettings => {
                         ctx.request_focus();
                         self.active = 0;
+                        self.switcher.widget_mut().child_mut().active = 0;
                     }
                     LapceUICommand::ShowKeybindings => {
                         ctx.request_focus();
                         self.active = 5;
+                        self.switcher.widget_mut().child_mut().active = 5;
+                    }
+                    LapceUICommand::ShowSettingsIndex(index) => {
+                        if *index < self.children.len() && self.active != *index {
+                            self.active = *index;
+                            self.switcher.widget_mut().child_mut().active = *index;
+                            ctx.request_layout();
+                        }
                     }
                     LapceUICommand::Hide => {
                         if let Some(active) = *data.main_split.active {
@@ -226,6 +215,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
             return;
         }
 
+        self.switcher.event(ctx, event, data, env);
         if event.should_propagate_to_hidden() {
             for child in self.children.iter_mut() {
                 child.event(ctx, event, data, env);
@@ -242,6 +232,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         data: &LapceTabData,
         env: &Env,
     ) {
+        self.switcher.lifecycle(ctx, event, data, env);
         for child in self.children.iter_mut() {
             child.lifecycle(ctx, event, data, env);
         }
@@ -254,6 +245,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         data: &LapceTabData,
         env: &Env,
     ) {
+        self.switcher.update(ctx, data, env);
         for child in self.children.iter_mut() {
             child.update(ctx, data, env);
         }
@@ -270,16 +262,24 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         let origin = Point::ZERO;
         self.content_rect = self_size.to_rect().with_origin(origin).round();
 
+        let switcher_size = self.switcher.layout(
+            ctx,
+            &BoxConstraints::new(Size::ZERO, bc.max()),
+            data,
+            env,
+        );
+        self.switcher.set_origin(ctx, data, env, Point::ZERO);
+
         self.switcher_rect = Size::new(150.0, self_size.height)
             .to_rect()
             .with_origin(Point::ZERO)
             .round();
 
         let content_size = Size::new(
-            self_size.width - self.switcher_rect.width() - 20.0,
+            self_size.width - switcher_size.width - 20.0,
             self_size.height,
         );
-        let content_origin = Point::new(self.switcher_rect.width() + 20.0, 0.0);
+        let content_origin = Point::new(switcher_size.width + 20.0, 0.0);
         let content_bc = BoxConstraints::tight(content_size);
         let child = &mut self.children[self.active];
         child.layout(ctx, &content_bc, data, env);
@@ -289,67 +289,68 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        ctx.fill(
-            self.content_rect,
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-        );
+        // ctx.fill(
+        //     self.content_rect,
+        //     data.config
+        //         .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        // );
 
-        ctx.fill(
-            Size::new(self.switcher_rect.width(), self.switcher_line_height)
-                .to_rect()
-                .with_origin(
-                    self.switcher_rect.origin()
-                        + (0.0, self.active as f64 * self.switcher_line_height),
-                ),
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
-        );
+        // ctx.fill(
+        //     Size::new(self.switcher_rect.width(), self.switcher_line_height)
+        //         .to_rect()
+        //         .with_origin(
+        //             self.switcher_rect.origin()
+        //                 + (0.0, self.active as f64 * self.switcher_line_height),
+        //         ),
+        //     data.config
+        //         .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+        // );
 
-        ctx.with_save(|ctx| {
-            ctx.clip(self.switcher_rect);
-            let mut settings_sections: Vec<&str> = vec![
-                "Core Settings",
-                "UI Settings",
-                "Editor Settings",
-                "Terminal Settings",
-                "Theme Settings",
-                "Keybindings",
-            ];
+        // ctx.with_save(|ctx| {
+        //     ctx.clip(self.switcher_rect);
+        //     let mut settings_sections: Vec<&str> = vec![
+        //         "Core Settings",
+        //         "UI Settings",
+        //         "Editor Settings",
+        //         "Terminal Settings",
+        //         "Theme Settings",
+        //         "Keybindings",
+        //     ];
 
-            for (_, volt) in data.plugin.installed.iter() {
-                if volt.config.is_some() {
-                    settings_sections.push(volt.display_name.as_str());
-                }
-            }
+        //     for (_, volt) in data.plugin.installed.iter() {
+        //         if volt.config.is_some() {
+        //             settings_sections.push(volt.display_name.as_str());
+        //         }
+        //     }
 
-            for (i, text) in settings_sections.iter().enumerate() {
-                let text_layout = ctx
-                    .text()
-                    .new_text_layout(text.to_string())
-                    .font(
-                        data.config.ui.font_family(),
-                        (data.config.ui.font_size() + 1) as f64,
-                    )
-                    .text_color(
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                            .clone(),
-                    )
-                    .build()
-                    .unwrap();
-                ctx.draw_text(
-                    &text_layout,
-                    self.switcher_rect.origin()
-                        + (
-                            20.0,
-                            i as f64 * self.switcher_line_height
-                                + text_layout.y_offset(self.switcher_line_height),
-                        ),
-                );
-            }
-        });
+        //     for (i, text) in settings_sections.iter().enumerate() {
+        //         let text_layout = ctx
+        //             .text()
+        //             .new_text_layout(text.to_string())
+        //             .font(
+        //                 data.config.ui.font_family(),
+        //                 (data.config.ui.font_size() + 1) as f64,
+        //             )
+        //             .text_color(
+        //                 data.config
+        //                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+        //                     .clone(),
+        //             )
+        //             .build()
+        //             .unwrap();
+        //         ctx.draw_text(
+        //             &text_layout,
+        //             self.switcher_rect.origin()
+        //                 + (
+        //                     20.0,
+        //                     i as f64 * self.switcher_line_height
+        //                         + text_layout.y_offset(self.switcher_line_height),
+        //                 ),
+        //         );
+        //     }
+        // });
 
+        self.switcher.paint(ctx, data, env);
         self.children[self.active].paint(ctx, data, env);
 
         ctx.stroke(
@@ -1476,6 +1477,191 @@ impl Widget<LapceTabData> for ThemeSettings {
                     rect.y0 + reset_text.y_offset(rect.height()),
                 ),
             )
+        }
+    }
+}
+
+struct SettingsSwitcher {
+    settings_widget_id: WidgetId,
+    plugin_settings_expanded: bool,
+    line_height: f64,
+    last_mouse_down: Option<usize>,
+    active: usize,
+}
+
+impl SettingsSwitcher {
+    fn new(settings_widget_id: WidgetId) -> Self {
+        Self {
+            settings_widget_id,
+            plugin_settings_expanded: true,
+            line_height: 40.0,
+            last_mouse_down: None,
+            active: 0,
+        }
+    }
+
+    fn num_items(&self, data: &LapceTabData) -> usize {
+        let mut n = 7;
+        if self.plugin_settings_expanded {
+            n += data
+                .plugin
+                .installed
+                .iter()
+                .filter(|(_, v)| v.config.is_some())
+                .count();
+        }
+        n
+    }
+}
+
+impl Widget<LapceTabData> for SettingsSwitcher {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        _env: &Env,
+    ) {
+        match event {
+            Event::MouseDown(mouse_event) => {
+                self.last_mouse_down = None;
+                let index = (mouse_event.pos.y / self.line_height) as usize;
+                if index < self.num_items(data) {
+                    self.last_mouse_down = Some(index);
+                }
+            }
+            Event::MouseUp(mouse_event) => {
+                if let Some(last_index) = self.last_mouse_down.take() {
+                    let index = (mouse_event.pos.y / self.line_height) as usize;
+                    if index < self.num_items(data) && index == last_index {
+                        if index == 6 {
+                            self.plugin_settings_expanded =
+                                !self.plugin_settings_expanded;
+                            ctx.request_layout();
+                        } else {
+                            let index = if index > 6 { index - 1 } else { index };
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ShowSettingsIndex(index),
+                                Target::Widget(self.settings_widget_id),
+                            ));
+                        }
+                    }
+                }
+            }
+            Event::MouseMove(mouse_event) => {
+                if mouse_event.pos.y
+                    <= self.num_items(data) as f64 * self.line_height
+                {
+                    ctx.set_cursor(&Cursor::Pointer);
+                } else {
+                    ctx.clear_cursor();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        _ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        _env: &Env,
+    ) -> Size {
+        let width = 150.0;
+        let mut n = 7;
+        if self.plugin_settings_expanded {
+            n += data
+                .plugin
+                .installed
+                .iter()
+                .filter(|(_, v)| v.config.is_some())
+                .count();
+        }
+        Size::new(width, bc.max().height.max(n as f64 * self.line_height))
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+        let mut settings_sections: Vec<&str> = vec![
+            "Core Settings",
+            "UI Settings",
+            "Editor Settings",
+            "Terminal Settings",
+            "Theme Settings",
+            "Keybindings",
+            "Plugin Settings",
+        ];
+
+        if self.plugin_settings_expanded {
+            for (_, volt) in data.plugin.installed.iter() {
+                if volt.config.is_some() {
+                    settings_sections.push(volt.display_name.as_str());
+                }
+            }
+        }
+
+        for (i, text) in settings_sections.iter().enumerate() {
+            let font_size = if i <= 6 {
+                data.config.ui.font_size() + 1
+            } else {
+                data.config.ui.font_size()
+            };
+            let text_layout = ctx
+                .text()
+                .new_text_layout(text.to_string())
+                .font(data.config.ui.font_family(), font_size as f64)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+
+            let x = if i <= 6 { 20.0 } else { 40.0 };
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    x,
+                    i as f64 * self.line_height
+                        + text_layout.y_offset(self.line_height),
+                ),
+            );
+        }
+
+        let x = 2.0;
+        let active = if self.active > 5 {
+            self.active + 1
+        } else {
+            self.active
+        };
+        if active <= 6 || self.plugin_settings_expanded {
+            let y0 = self.line_height * active as f64;
+            let y1 = y0 + self.line_height;
+            ctx.stroke(
+                Line::new(Point::new(x, y0 + 5.0), Point::new(x, y1 - 5.0)),
+                data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
+                2.0,
+            );
         }
     }
 }

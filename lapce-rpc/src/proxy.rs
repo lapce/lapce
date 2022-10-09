@@ -28,6 +28,7 @@ use crate::{
     RequestId, RpcError, RpcMessage,
 };
 
+#[allow(clippy::large_enum_variant)]
 pub enum ProxyRpc {
     Request(RequestId, ProxyRequest),
     Notification(ProxyNotification),
@@ -173,6 +174,9 @@ pub enum ProxyNotification {
         delta: RopeDelta,
         rev: u64,
     },
+    UpdatePluginConfigs {
+        configs: HashMap<String, HashMap<String, serde_json::Value>>,
+    },
     NewTerminal {
         term_id: TermId,
         cwd: Option<PathBuf>,
@@ -182,6 +186,9 @@ pub enum ProxyNotification {
         volt: VoltInfo,
     },
     RemoveVolt {
+        volt: VoltMetadata,
+    },
+    ReloadVolt {
         volt: VoltMetadata,
     },
     DisableVolt {
@@ -424,6 +431,10 @@ impl ProxyRpcHandler {
 
     pub fn install_volt(&self, volt: VoltInfo) {
         self.notification(ProxyNotification::InstallVolt { volt });
+    }
+
+    pub fn reload_volt(&self, volt: VoltMetadata) {
+        self.notification(ProxyNotification::ReloadVolt { volt });
     }
 
     pub fn remove_volt(&self, volt: VoltMetadata) {
@@ -753,6 +764,13 @@ impl ProxyRpcHandler {
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {
         self.notification(ProxyNotification::Update { path, delta, rev });
+    }
+
+    pub fn update_plugin_configs(
+        &self,
+        configs: HashMap<String, HashMap<String, serde_json::Value>>,
+    ) {
+        self.notification(ProxyNotification::UpdatePluginConfigs { configs });
     }
 
     pub fn git_discard_files_changes(&self, files: Vec<PathBuf>) {

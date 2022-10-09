@@ -174,6 +174,18 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
+            LogMessage { .. } => {}
+            ShowMessage { title, message } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::NewMessage {
+                        kind: message.typ,
+                        title,
+                        message: message.message,
+                    },
+                    Target::Widget(self.tab_id),
+                );
+            }
             HomeDir { path } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,

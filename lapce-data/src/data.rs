@@ -606,6 +606,7 @@ pub struct LapceTabData {
     pub settings: Arc<LapceSettingsPanelData>,
     pub about: Arc<AboutData>,
     pub alert: Arc<AlertData>,
+    pub message_widget_id: Arc<WidgetId>,
     #[data(ignore)]
     pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
     #[data(ignore)]
@@ -797,6 +798,7 @@ impl LapceTabData {
             settings,
             about,
             alert,
+            message_widget_id: Arc::new(WidgetId::next()),
             proxy_status: Arc::new(ProxyStatus::Connecting),
             keypress,
             window_origin: Rc::new(RefCell::new(Point::ZERO)),

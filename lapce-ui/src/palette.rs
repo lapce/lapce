@@ -335,8 +335,11 @@ impl Widget<LapceTabData> for PaletteContainer {
 
         let height = max_height - input_size.height;
         let bc = BoxConstraints::tight(Size::new(width, height));
-        let content_size =
+        let mut content_size =
             self.content.layout(ctx, &bc, &data.palette.list_data, env);
+        if content_size.height > 0.0 {
+            content_size.height += 5.0;
+        }
         self.content.set_origin(
             ctx,
             &data.palette.list_data.clone_with(data.config.clone()),

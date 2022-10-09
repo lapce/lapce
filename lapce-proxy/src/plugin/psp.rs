@@ -21,7 +21,8 @@ use lapce_rpc::{
 use lsp_types::{
     notification::{
         DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument,
-        Initialized, Notification, Progress, PublishDiagnostics,
+        Initialized, LogMessage, Notification, Progress, PublishDiagnostics,
+        ShowMessage,
     },
     request::{
         CodeActionRequest, CodeActionResolveRequest, Completion,
@@ -32,10 +33,10 @@ use lsp_types::{
         WorkspaceSymbol,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability, OneOf,
-    ProgressParams, PublishDiagnosticsParams, Range, Registration,
-    RegistrationParams, SemanticTokens, SemanticTokensLegend,
-    SemanticTokensServerCapabilities, ServerCapabilities,
+    DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
+    LogMessageParams, OneOf, ProgressParams, PublishDiagnosticsParams, Range,
+    Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
+    SemanticTokensServerCapabilities, ServerCapabilities, ShowMessageParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncSaveOptions,
@@ -527,6 +528,7 @@ struct ServerRegistrations {
 
 pub struct PluginHostHandler {
     volt_id: String,
+    volt_display_name: String,
     pwd: Option<PathBuf>,
     pub(crate) workspace: Option<PathBuf>,
     document_selector: Vec<DocumentFilter>,
@@ -541,6 +543,7 @@ impl PluginHostHandler {
         workspace: Option<PathBuf>,
         pwd: Option<PathBuf>,
         volt_id: String,
+        volt_display_name: String,
         document_selector: DocumentSelector,
         server_rpc: PluginServerRpcHandler,
         catalog_rpc: PluginCatalogRpcHandler,
@@ -553,6 +556,7 @@ impl PluginHostHandler {
             pwd,
             workspace,
             volt_id,
+            volt_display_name,
             document_selector,
             catalog_rpc,
             server_rpc,
@@ -819,12 +823,14 @@ impl PluginHostHandler {
                 let pwd = self.pwd.clone();
                 let catalog_rpc = self.catalog_rpc.clone();
                 let volt_id = self.volt_id.clone();
+                let volt_display_name = self.volt_display_name.clone();
                 thread::spawn(move || {
                     let _ = LspClient::start(
                         catalog_rpc,
                         params.document_selector,
                         workspace,
                         volt_id,
+                        volt_display_name,
                         pwd,
                         params.server_uri,
                         params.server_args,
@@ -841,6 +847,17 @@ impl PluginHostHandler {
                 let progress: ProgressParams =
                     serde_json::from_value(serde_json::to_value(params)?)?;
                 self.catalog_rpc.core_rpc.work_done_progress(progress);
+            }
+            ShowMessage::METHOD => {
+                let message: ShowMessageParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                let title = format!("Plugin: {}", self.volt_display_name);
+                self.catalog_rpc.core_rpc.show_message(title, message);
+            }
+            LogMessage::METHOD => {
+                let message: LogMessageParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                self.catalog_rpc.core_rpc.log_message(message);
             }
             _ => {
                 eprintln!("host notificaton {method} not handled");

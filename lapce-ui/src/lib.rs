@@ -11,6 +11,7 @@ pub mod ime;
 pub mod keymap;
 pub mod list;
 mod logging;
+pub mod message;
 pub mod palette;
 pub mod panel;
 pub mod picker;

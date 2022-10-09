@@ -11,6 +11,7 @@
 - Implemented syntax aware selection [#1353]
 - Added autosave configuration [#1358]
 - IME support for macOS [#1440]
+- Added plugin settings [#1449]
 
 ### Fixed
 
