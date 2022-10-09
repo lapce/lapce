@@ -167,6 +167,63 @@ impl LapceEditorTabHeaderContent {
         }
     }
 
+    fn mouse_up(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        mouse_event: &MouseEvent,
+    ) {
+        let editor_tab = data
+            .main_split
+            .editor_tabs
+            .get_mut(&self.widget_id)
+            .unwrap();
+
+        let mut close_tab = |tab_idx: usize, was_active: bool| {
+            if was_active {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ActiveFileChanged { path: None },
+                    Target::Widget(data.file_explorer.widget_id),
+                ));
+            }
+
+            ctx.submit_command(Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Focus(FocusCommand::SplitClose),
+                    data: None,
+                },
+                Target::Widget(editor_tab.children[tab_idx].widget_id()),
+            ));
+        };
+
+        match self.mouse_down_target.take() {
+            // Was the left button released on the close icon that started the close?
+            Some((MouseAction::CloseViaIcon, target))
+                if self.is_close_icon_hit(target, mouse_event.pos)
+                    && mouse_event.button.is_left() =>
+            {
+                close_tab(target, target == editor_tab.active);
+            }
+
+            // Was the middle button released on the tab that started the close?
+            Some((MouseAction::CloseViaMiddleClick, target))
+                if self.is_tab_hit(target, mouse_event.pos)
+                    && mouse_event.button.is_middle() =>
+            {
+                close_tab(target, target == editor_tab.active);
+            }
+
+            None if mouse_event.button.is_left() => {
+                let mouse_index = self.drag_target_idx(mouse_event.pos);
+                self.handle_drag(mouse_index, ctx, data)
+            }
+
+            _ => {}
+        }
+    }
+
     fn after_last_tab_index(&self) -> usize {
         self.rects.len()
     }
@@ -269,55 +326,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 self.mouse_down(ctx, data, mouse_event);
             }
             Event::MouseUp(mouse_event) => {
-                let editor_tab = data
-                    .main_split
-                    .editor_tabs
-                    .get_mut(&self.widget_id)
-                    .unwrap();
-
-                let mut close_tab = |tab_idx: usize, was_active: bool| {
-                    if was_active {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::ActiveFileChanged { path: None },
-                            Target::Widget(data.file_explorer.widget_id),
-                        ));
-                    }
-
-                    ctx.submit_command(Command::new(
-                        LAPCE_COMMAND,
-                        LapceCommand {
-                            kind: CommandKind::Focus(FocusCommand::SplitClose),
-                            data: None,
-                        },
-                        Target::Widget(editor_tab.children[tab_idx].widget_id()),
-                    ));
-                };
-
-                match self.mouse_down_target.take() {
-                    // Was the left button released on the close icon that started the close?
-                    Some((MouseAction::CloseViaIcon, target))
-                        if self.is_close_icon_hit(target, mouse_event.pos)
-                            && mouse_event.button.is_left() =>
-                    {
-                        close_tab(target, target == editor_tab.active);
-                    }
-
-                    // Was the middle button released on the tab that started the close?
-                    Some((MouseAction::CloseViaMiddleClick, target))
-                        if self.is_tab_hit(target, mouse_event.pos)
-                            && mouse_event.button.is_middle() =>
-                    {
-                        close_tab(target, target == editor_tab.active);
-                    }
-
-                    None if mouse_event.button.is_left() => {
-                        let mouse_index = self.drag_target_idx(mouse_event.pos);
-                        self.handle_drag(mouse_index, ctx, data)
-                    }
-
-                    _ => {}
-                }
+                self.mouse_up(ctx, data, mouse_event);
             }
             _ => (),
         }
