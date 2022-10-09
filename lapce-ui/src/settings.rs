@@ -6,9 +6,9 @@ use druid::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, ExtEventSink, FontWeight,
-    LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, MouseEvent, PaintCtx, Point,
-    Rect, RenderContext, Size, Target, TimerToken, UpdateCtx, Widget, WidgetExt,
-    WidgetId, WidgetPod,
+    LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, TimerToken, UpdateCtx, Widget, WidgetExt, WidgetId,
+    WidgetPod,
 };
 use inflector::Inflector;
 use itertools::Itertools;

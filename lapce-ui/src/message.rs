@@ -1,17 +1,15 @@
 use druid::{
-    kurbo::{BezPath, Line},
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    BoxConstraints, Command, Cursor, Env, Event, EventCtx, ExtEventSink, FontWeight,
-    LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, MouseEvent, PaintCtx, Point,
-    Rect, RenderContext, Size, Target, TimerToken, UpdateCtx, Widget, WidgetExt,
-    WidgetId, WidgetPod,
+    BoxConstraints, Command, Env, Event, EventCtx, FontWeight, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
+    Widget, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{LapceConfig, LapceTheme},
-    data::{LapceTabData, StickyHeaderInfo},
+    data::LapceTabData,
 };
 use lsp_types::MessageType;
 
@@ -248,8 +246,8 @@ impl Widget<LapceTabData> for LapceMessageItem {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceTabData,
-        env: &Env,
+        _data: &mut LapceTabData,
+        _env: &Env,
     ) {
         match event {
             Event::MouseUp(mouse_event) => {
@@ -285,19 +283,19 @@ impl Widget<LapceTabData> for LapceMessageItem {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
