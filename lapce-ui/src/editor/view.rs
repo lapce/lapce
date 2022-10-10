@@ -744,13 +744,17 @@ impl Widget<LapceTabData> for LapceEditorView {
                 {
                     ctx.set_handled();
                 }
-                self.ensure_cursor_visible(
-                    ctx,
-                    &editor_data,
-                    &data.panel,
-                    None,
-                    env,
-                );
+
+                // We don't want to send this on `FocusCommand::Save`, especially when autosave is enabled.
+                if command.kind != CommandKind::Focus(FocusCommand::Save) {
+                    self.ensure_cursor_visible(
+                        ctx,
+                        &editor_data,
+                        &data.panel,
+                        None,
+                        env,
+                    );
+                }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let cmd = cmd.get_unchecked(LAPCE_UI_COMMAND);
