@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Now use `esc` to close searchbar regarless of the current focus
+
 ### Features/Changes
 
 ### Bug Fixes

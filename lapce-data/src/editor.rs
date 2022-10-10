@@ -2386,6 +2386,13 @@ impl KeyPressFocus for LapceEditorBufferData {
 
     fn check_condition(&self, condition: &str) -> bool {
         match condition {
+            "search_active" => {
+                if self.config.core.modal && !self.editor.cursor.is_normal() {
+                    false
+                } else {
+                    self.find.visual
+                }
+            }
             "search_focus" => {
                 self.editor.content == BufferContent::Local(LocalBufferKind::Search)
                     && self.editor.parent_view_id.is_some()
