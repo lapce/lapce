@@ -49,6 +49,7 @@ drop-shadow-width = 0
 preview-editor-width = 0
 hover-font-family = ""
 hover-font-size = 0
+trim-search-results-whitespace = true
 
 [theme]
 name = ""
