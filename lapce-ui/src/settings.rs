@@ -25,7 +25,7 @@ use lapce_data::{
     data::{FocusArea, LapceEditorData, LapceTabData},
     document::{BufferContent, Document},
     keypress::KeyPressFocus,
-    settings::{LapceSettingsFocusData, SettingsValueKind},
+    settings::{LapceSettingsFocusData, LapceSettingsKind, SettingsValueKind},
 };
 use serde::Serialize;
 use xi_rope::Rope;
@@ -37,22 +37,17 @@ use crate::{
     split::LapceSplit,
 };
 
-enum LapceSettingsKind {
-    Core,
-    UI,
-    Editor,
-    Terminal,
-    Plugin(String),
-}
-
 pub struct LapceSettingsPanel {
     widget_id: WidgetId,
     editor_tab_id: WidgetId,
-    active: usize,
+    active: LapceSettingsKind,
     content_rect: Rect,
     switcher_rect: Rect,
     switcher: WidgetPod<LapceTabData, LapceScroll<LapceTabData, SettingsSwitcher>>,
-    children: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+    children: HashMap<
+        LapceSettingsKind,
+        WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    >,
 }
 
 impl LapceSettingsPanel {
@@ -62,31 +57,48 @@ impl LapceSettingsPanel {
         editor_tab_id: WidgetId,
         keymap_input_view_id: WidgetId,
     ) -> Self {
-        let mut children = vec![
+        let mut children = HashMap::new();
+        children.insert(
+            LapceSettingsKind::Core,
             WidgetPod::new(
-                LapceSettings::new_split(LapceSettingsKind::Core, data).boxed(),
+                LapceSettings::new_scroll(LapceSettingsKind::Core).boxed(),
             ),
+        );
+        children.insert(
+            LapceSettingsKind::UI,
+            WidgetPod::new(LapceSettings::new_scroll(LapceSettingsKind::UI).boxed()),
+        );
+        children.insert(
+            LapceSettingsKind::Editor,
             WidgetPod::new(
-                LapceSettings::new_split(LapceSettingsKind::UI, data).boxed(),
+                LapceSettings::new_scroll(LapceSettingsKind::Editor).boxed(),
             ),
+        );
+        children.insert(
+            LapceSettingsKind::Terminal,
             WidgetPod::new(
-                LapceSettings::new_split(LapceSettingsKind::Editor, data).boxed(),
+                LapceSettings::new_scroll(LapceSettingsKind::Terminal).boxed(),
             ),
-            WidgetPod::new(
-                LapceSettings::new_split(LapceSettingsKind::Terminal, data).boxed(),
-            ),
-            WidgetPod::new(ThemeSettings::new_boxed().boxed()),
+        );
+        children.insert(
+            LapceSettingsKind::Theme,
+            WidgetPod::new(ThemeSettings::new_boxed()),
+        );
+        children.insert(
+            LapceSettingsKind::Keymap,
             WidgetPod::new(LapceKeymap::new_split(keymap_input_view_id).boxed()),
-        ];
+        );
         for (volt_id, volt) in data.plugin.installed.iter() {
             if volt.config.is_some() {
-                children.push(WidgetPod::new(
-                    LapceSettings::new_split(
-                        LapceSettingsKind::Plugin(volt_id.to_string()),
-                        data,
-                    )
-                    .boxed(),
-                ));
+                children.insert(
+                    LapceSettingsKind::Plugin(volt_id.to_string()),
+                    WidgetPod::new(
+                        LapceSettings::new_scroll(LapceSettingsKind::Plugin(
+                            volt_id.to_string(),
+                        ))
+                        .boxed(),
+                    ),
+                );
             }
         }
 
@@ -95,11 +107,11 @@ impl LapceSettingsPanel {
         Self {
             widget_id,
             editor_tab_id,
-            active: 0,
             content_rect: Rect::ZERO,
             switcher_rect: Rect::ZERO,
             switcher: WidgetPod::new(switcher),
             children,
+            active: LapceSettingsKind::Core,
         }
     }
 
@@ -122,6 +134,34 @@ impl LapceSettingsPanel {
         data.focus = Arc::new(self.widget_id);
         data.focus_area = FocusArea::Editor;
         ctx.request_focus();
+    }
+
+    fn update_plugins(&mut self, ctx: &mut EventCtx, data: &LapceTabData) {
+        let current_keys: Vec<LapceSettingsKind> =
+            self.children.keys().cloned().collect();
+        for kind in current_keys {
+            if let LapceSettingsKind::Plugin(volt_id) = &kind {
+                if !data.plugin.installed.keys().contains(&volt_id) {
+                    self.children.remove(&kind);
+                    ctx.children_changed();
+                    if self.active == kind {
+                        self.active = LapceSettingsKind::Core;
+                    }
+                }
+            }
+        }
+        for (_, volt) in data.plugin.installed.iter() {
+            if volt.config.is_some() {
+                let kind = LapceSettingsKind::Plugin(volt.id());
+                if !self.children.keys().contains(&kind) {
+                    self.children.insert(
+                        kind.clone(),
+                        WidgetPod::new(LapceSettings::new_scroll(kind).boxed()),
+                    );
+                    ctx.children_changed();
+                }
+            }
+        }
     }
 }
 
@@ -180,21 +220,30 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                         self.request_focus(ctx, data);
                     }
                     LapceUICommand::ShowSettings => {
+                        let kind = LapceSettingsKind::Core;
+                        self.active = kind.clone();
+                        self.switcher
+                            .widget_mut()
+                            .child_mut()
+                            .set_active(kind, data);
                         ctx.request_focus();
-                        self.active = 0;
-                        self.switcher.widget_mut().child_mut().active = 0;
                     }
                     LapceUICommand::ShowKeybindings => {
+                        let kind = LapceSettingsKind::Core;
+                        self.active = kind.clone();
+                        self.switcher
+                            .widget_mut()
+                            .child_mut()
+                            .set_active(kind, data);
                         ctx.request_focus();
-                        self.active = 5;
-                        self.switcher.widget_mut().child_mut().active = 5;
                     }
-                    LapceUICommand::ShowSettingsIndex(index) => {
-                        if *index < self.children.len() && self.active != *index {
-                            self.active = *index;
-                            self.switcher.widget_mut().child_mut().active = *index;
-                            ctx.request_layout();
-                        }
+                    LapceUICommand::ShowSettingsKind(kind) => {
+                        self.active = kind.clone();
+                        self.switcher
+                            .widget_mut()
+                            .child_mut()
+                            .set_active(kind.clone(), data);
+                        ctx.request_layout();
                     }
                     LapceUICommand::Hide => {
                         if let Some(active) = *data.main_split.active {
@@ -204,6 +253,11 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                                 Target::Widget(active),
                             ));
                         }
+                    }
+                    LapceUICommand::VoltInstalled(_, _)
+                    | LapceUICommand::VoltRemoved(_, _) => {
+                        ctx.set_handled();
+                        self.update_plugins(ctx, data);
                     }
                     _ => (),
                 }
@@ -217,11 +271,11 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
 
         self.switcher.event(ctx, event, data, env);
         if event.should_propagate_to_hidden() {
-            for child in self.children.iter_mut() {
+            for child in self.children.values_mut() {
                 child.event(ctx, event, data, env);
             }
-        } else {
-            self.children[self.active].event(ctx, event, data, env);
+        } else if let Some(child) = self.children.get_mut(&self.active) {
+            child.event(ctx, event, data, env);
         }
     }
 
@@ -233,7 +287,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         env: &Env,
     ) {
         self.switcher.lifecycle(ctx, event, data, env);
-        for child in self.children.iter_mut() {
+        for child in self.children.values_mut() {
             child.lifecycle(ctx, event, data, env);
         }
     }
@@ -246,7 +300,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         env: &Env,
     ) {
         self.switcher.update(ctx, data, env);
-        for child in self.children.iter_mut() {
+        for child in self.children.values_mut() {
             child.update(ctx, data, env);
         }
     }
@@ -281,77 +335,19 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         );
         let content_origin = Point::new(switcher_size.width + 20.0, 0.0);
         let content_bc = BoxConstraints::tight(content_size);
-        let child = &mut self.children[self.active];
-        child.layout(ctx, &content_bc, data, env);
-        child.set_origin(ctx, data, env, content_origin);
+        if let Some(child) = self.children.get_mut(&self.active) {
+            child.layout(ctx, &content_bc, data, env);
+            child.set_origin(ctx, data, env, content_origin);
+        }
 
         self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        // ctx.fill(
-        //     self.content_rect,
-        //     data.config
-        //         .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-        // );
-
-        // ctx.fill(
-        //     Size::new(self.switcher_rect.width(), self.switcher_line_height)
-        //         .to_rect()
-        //         .with_origin(
-        //             self.switcher_rect.origin()
-        //                 + (0.0, self.active as f64 * self.switcher_line_height),
-        //         ),
-        //     data.config
-        //         .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
-        // );
-
-        // ctx.with_save(|ctx| {
-        //     ctx.clip(self.switcher_rect);
-        //     let mut settings_sections: Vec<&str> = vec![
-        //         "Core Settings",
-        //         "UI Settings",
-        //         "Editor Settings",
-        //         "Terminal Settings",
-        //         "Theme Settings",
-        //         "Keybindings",
-        //     ];
-
-        //     for (_, volt) in data.plugin.installed.iter() {
-        //         if volt.config.is_some() {
-        //             settings_sections.push(volt.display_name.as_str());
-        //         }
-        //     }
-
-        //     for (i, text) in settings_sections.iter().enumerate() {
-        //         let text_layout = ctx
-        //             .text()
-        //             .new_text_layout(text.to_string())
-        //             .font(
-        //                 data.config.ui.font_family(),
-        //                 (data.config.ui.font_size() + 1) as f64,
-        //             )
-        //             .text_color(
-        //                 data.config
-        //                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-        //                     .clone(),
-        //             )
-        //             .build()
-        //             .unwrap();
-        //         ctx.draw_text(
-        //             &text_layout,
-        //             self.switcher_rect.origin()
-        //                 + (
-        //                     20.0,
-        //                     i as f64 * self.switcher_line_height
-        //                         + text_layout.y_offset(self.switcher_line_height),
-        //                 ),
-        //         );
-        //     }
-        // });
-
         self.switcher.paint(ctx, data, env);
-        self.children[self.active].paint(ctx, data, env);
+        if let Some(child) = self.children.get_mut(&self.active) {
+            child.paint(ctx, data, env);
+        }
 
         ctx.stroke(
             Line::new(
@@ -371,31 +367,14 @@ struct LapceSettings {
 }
 
 impl LapceSettings {
-    pub fn new_split(kind: LapceSettingsKind, data: &LapceTabData) -> LapceSplit {
-        let settings = LapceScroll::new(
-            Self {
-                widget_id: WidgetId::next(),
-                kind,
-                children: Vec::new(),
-            }
-            .boxed(),
-        );
-
-        let _input = LapceEditorView::new(
-            data.settings.settings_view_id,
-            WidgetId::next(),
-            None,
-        )
-        .hide_header()
-        .hide_gutter()
-        .padding((15.0, 15.0, 0.0, 15.0));
-
-        let split = LapceSplit::new(data.settings.settings_split_id)
-            .horizontal()
-            //.with_child(input.boxed(), None, 55.0)
-            .with_flex_child(settings.boxed(), None, 1.0, false);
-
-        split
+    pub fn new_scroll(
+        kind: LapceSettingsKind,
+    ) -> LapceScroll<LapceTabData, LapceSettings> {
+        LapceScroll::new(Self {
+            widget_id: WidgetId::next(),
+            kind,
+            children: Vec::new(),
+        })
     }
 
     fn update_children(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
@@ -434,6 +413,9 @@ impl LapceSettings {
                 &TerminalConfig::DESCS[..],
                 into_settings_map(&data.config.terminal),
             ),
+            LapceSettingsKind::Theme | LapceSettingsKind::Keymap => {
+                return;
+            }
             LapceSettingsKind::Plugin(volt_id) => {
                 if let Some(volt) = data.plugin.installed.get(volt_id).cloned() {
                     if let Some(config) = volt.config.as_ref() {
@@ -1486,7 +1468,8 @@ struct SettingsSwitcher {
     plugin_settings_expanded: bool,
     line_height: f64,
     last_mouse_down: Option<usize>,
-    active: usize,
+    active: LapceSettingsKind,
+    active_index: Option<usize>,
 }
 
 impl SettingsSwitcher {
@@ -1496,7 +1479,8 @@ impl SettingsSwitcher {
             plugin_settings_expanded: true,
             line_height: 40.0,
             last_mouse_down: None,
-            active: 0,
+            active: LapceSettingsKind::Core,
+            active_index: Some(0),
         }
     }
 
@@ -1511,6 +1495,42 @@ impl SettingsSwitcher {
                 .count();
         }
         n
+    }
+
+    pub fn set_active(&mut self, active: LapceSettingsKind, data: &LapceTabData) {
+        self.active = active;
+
+        if let LapceSettingsKind::Plugin(active_volt_id) = &self.active {
+            for (i, (volt_id, _)) in data
+                .plugin
+                .installed
+                .iter()
+                .filter(|(_, v)| v.config.is_some())
+                .sorted_by_key(|(_, v)| &v.display_name)
+                .enumerate()
+            {
+                if active_volt_id == volt_id {
+                    self.active_index = Some(i + 6);
+                    return;
+                }
+            }
+        }
+
+        let kinds = [
+            LapceSettingsKind::Core,
+            LapceSettingsKind::UI,
+            LapceSettingsKind::Editor,
+            LapceSettingsKind::Terminal,
+            LapceSettingsKind::Theme,
+            LapceSettingsKind::Keymap,
+        ];
+
+        for (i, kind) in kinds.iter().enumerate() {
+            if kind == &self.active {
+                self.active_index = Some(i);
+                return;
+            }
+        }
     }
 }
 
@@ -1534,17 +1554,52 @@ impl Widget<LapceTabData> for SettingsSwitcher {
                 if let Some(last_index) = self.last_mouse_down.take() {
                     let index = (mouse_event.pos.y / self.line_height) as usize;
                     if index < self.num_items(data) && index == last_index {
-                        if index == 6 {
-                            self.plugin_settings_expanded =
-                                !self.plugin_settings_expanded;
-                            ctx.request_layout();
-                        } else {
-                            let index = if index > 6 { index - 1 } else { index };
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::ShowSettingsIndex(index),
-                                Target::Widget(self.settings_widget_id),
-                            ));
+                        match index {
+                            6 => {
+                                self.plugin_settings_expanded =
+                                    !self.plugin_settings_expanded;
+                                ctx.request_layout();
+                            }
+                            _ if index > 6 => {
+                                if let Some((volt_id, _)) = data
+                                    .plugin
+                                    .installed
+                                    .iter()
+                                    .filter(|(_, v)| v.config.is_some())
+                                    .sorted_by_key(|(_, v)| &v.display_name)
+                                    .nth(index - 7)
+                                {
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::ShowSettingsKind(
+                                            LapceSettingsKind::Plugin(
+                                                volt_id.to_string(),
+                                            ),
+                                        ),
+                                        Target::Widget(self.settings_widget_id),
+                                    ));
+                                }
+                            }
+                            _ => {
+                                if let Some(kind) = [
+                                    LapceSettingsKind::Core,
+                                    LapceSettingsKind::UI,
+                                    LapceSettingsKind::Editor,
+                                    LapceSettingsKind::Terminal,
+                                    LapceSettingsKind::Theme,
+                                    LapceSettingsKind::Keymap,
+                                ]
+                                .get(index)
+                                {
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::ShowSettingsKind(
+                                            kind.clone(),
+                                        ),
+                                        Target::Widget(self.settings_widget_id),
+                                    ));
+                                }
+                            }
                         }
                     }
                 }
@@ -1612,7 +1667,12 @@ impl Widget<LapceTabData> for SettingsSwitcher {
         ];
 
         if self.plugin_settings_expanded {
-            for (_, volt) in data.plugin.installed.iter() {
+            for (_, volt) in data
+                .plugin
+                .installed
+                .iter()
+                .sorted_by_key(|(_, v)| &v.display_name)
+            {
                 if volt.config.is_some() {
                     settings_sections.push(volt.display_name.as_str());
                 }
@@ -1649,11 +1709,8 @@ impl Widget<LapceTabData> for SettingsSwitcher {
         }
 
         let x = 2.0;
-        let active = if self.active > 5 {
-            self.active + 1
-        } else {
-            self.active
-        };
+        let active = self.active_index.unwrap_or(0);
+        let active = if active > 5 { active + 1 } else { active };
         if active <= 6 || self.plugin_settings_expanded {
             let y0 = self.line_height * active as f64;
             let y1 = y0 + self.line_height;
