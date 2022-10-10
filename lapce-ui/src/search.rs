@@ -281,15 +281,6 @@ impl Widget<LapceTabData> for SearchContent {
                     return;
                 }
 
-                // let whitespace_count: usize = if data.config.ui.trim_search_results_whitespace() {
-                //     line
-                //         .chars()
-                //         .take_while(|ch| ch.is_whitespace() && *ch != '\n')
-                //         .map(|ch| ch.len_utf8())
-                //         .sum()
-
-                //     }
-
                 let whitespace_count: usize =
                     if data.config.ui.trim_search_results_whitespace() {
                         line.chars()
