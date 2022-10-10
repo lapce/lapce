@@ -146,6 +146,10 @@ impl LapceSettingsPanel {
                     ctx.children_changed();
                     if self.active == kind {
                         self.active = LapceSettingsKind::Core;
+                        self.switcher
+                            .widget_mut()
+                            .child_mut()
+                            .set_active(self.active.clone(), data);
                     }
                 }
             }
