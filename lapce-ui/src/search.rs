@@ -3,9 +3,11 @@ use std::path::PathBuf;
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontWeight,
-    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext,
-    Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
+use lapce_core::command::FocusCommand;
+use lapce_data::command::{CommandKind, LapceCommand, LAPCE_COMMAND};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
@@ -14,6 +16,8 @@ use lapce_data::{
     panel::PanelKind,
 };
 
+use crate::svg::get_svg;
+use crate::tab::LapceIcon;
 use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
@@ -22,19 +26,276 @@ use crate::{
     svg::file_svg,
 };
 
+pub struct SearchInput {
+    input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    icons: Vec<LapceIcon>,
+    parent_view_id: WidgetId,
+    result_width: f64,
+    search_input_padding: f64,
+    mouse_pos: Point,
+}
+
+impl SearchInput {
+    fn new(view_id: WidgetId) -> Self {
+        let id = WidgetId::next();
+
+        let search_input_padding = 15.0;
+        let input = LapceEditorView::new(view_id, id, None)
+            .hide_header()
+            .hide_gutter()
+            .padding((search_input_padding, search_input_padding));
+
+        let icons = vec![LapceIcon {
+            icon: "case-sensitive.svg",
+            rect: Rect::ZERO,
+            command: Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Focus(FocusCommand::ToggleCaseSensitive),
+                    data: None,
+                },
+                Target::Widget(view_id),
+            ),
+        }];
+
+        Self {
+            parent_view_id: view_id,
+            result_width: 75.0,
+            input: WidgetPod::new(input.boxed()),
+            icons,
+            mouse_pos: Point::ZERO,
+            search_input_padding,
+        }
+    }
+
+    fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
+        for icon in self.icons.iter() {
+            if icon.rect.contains(mouse_event.pos) {
+                ctx.submit_command(icon.command.clone());
+            }
+        }
+    }
+
+    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+        for icon in self.icons.iter() {
+            if icon.rect.contains(mouse_event.pos) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+impl Widget<LapceTabData> for SearchInput {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        self.input.event(ctx, event, data, env);
+        match event {
+            Event::MouseMove(mouse_event) => {
+                ctx.set_handled();
+                self.mouse_pos = mouse_event.pos;
+                if self.icon_hit_test(mouse_event) {
+                    ctx.set_cursor(&druid::Cursor::Pointer);
+                } else {
+                    ctx.clear_cursor();
+                }
+            }
+            Event::MouseDown(mouse_event) => {
+                ctx.set_handled();
+                self.mouse_down(ctx, mouse_event);
+            }
+            _ => {}
+        }
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        let input_bc = BoxConstraints::tight(bc.max());
+        let mut input_size = self.input.layout(ctx, &input_bc, data, env);
+        self.input.set_origin(ctx, data, env, Point::ZERO);
+        let icon_len = self.icons.len() as f64;
+        let height = input_size.height;
+        let icon_height = height - self.search_input_padding;
+        let mut width = input_size.width + self.result_width + height * icon_len;
+
+        if width - 20.0 > bc.max().width {
+            let input_bc = BoxConstraints::tight(Size::new(
+                bc.max().width - height * icon_len - 20.0 - self.result_width,
+                bc.max().height,
+            ));
+            input_size = self.input.layout(ctx, &input_bc, data, env);
+            width = input_size.width + self.result_width + height * icon_len;
+        }
+
+        for (i, icon) in self.icons.iter_mut().enumerate() {
+            icon.rect = Size::new(icon_height, icon_height)
+                .to_rect()
+                .with_origin(Point::new(
+                    input_size.width + self.result_width + i as f64 * icon_height,
+                    self.search_input_padding / 2.0,
+                ))
+                .inflate(-5.0, -5.0);
+        }
+
+        Size::new(width, height)
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        self.input.lifecycle(ctx, event, data, env);
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        self.input.update(ctx, data, env);
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let buffer = data.editor_view_content(self.parent_view_id);
+
+        let rect = ctx.size().to_rect();
+        ctx.with_save(|ctx| {
+            ctx.clip(rect.inset((100.0, 0.0, 100.0, 100.0)));
+            let shadow_width = data.config.ui.drop_shadow_width() as f64;
+            if shadow_width > 0.0 {
+                ctx.blurred_rect(
+                    rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            } else {
+                ctx.stroke(
+                    rect.inflate(0.5, 0.5),
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
+            }
+        });
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        );
+        self.input.paint(ctx, data, env);
+
+        let mut index = None;
+        let cursor_offset = buffer.editor.cursor.offset();
+
+        for i in 0..buffer.doc.find.borrow().occurrences().regions().len() {
+            let region = buffer.doc.find.borrow().occurrences().regions()[i];
+            if region.min() <= cursor_offset && cursor_offset <= region.max() {
+                index = Some(i);
+            }
+        }
+
+        let match_count = data
+            .search
+            .matches
+            .iter()
+            .map(|(_, matches)| matches.len())
+            .sum::<usize>();
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout(if match_count > 0 {
+                match index {
+                    Some(index) => format!("{}/{}", index + 1, match_count),
+                    None => format!("{} results", match_count),
+                }
+            } else {
+                "No results".to_string()
+            })
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .max_width(self.result_width)
+            .build()
+            .unwrap();
+
+        let input_size = self.input.layout_rect().size();
+        ctx.draw_text(
+            &text_layout,
+            Point::new(input_size.width, text_layout.y_offset(input_size.height)),
+        );
+
+        let case_sensitive = data
+            .main_split
+            .active_editor()
+            .map(|editor| {
+                let editor_data = data.editor_view_content(editor.view_id);
+                editor_data.find.case_sensitive()
+            })
+            .unwrap_or_default();
+
+        for icon in self.icons.iter() {
+            if icon.icon == "case-sensitive.svg" && case_sensitive {
+                ctx.fill(
+                    &icon.rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
+                );
+            } else if icon.rect.contains(self.mouse_pos)
+                && icon.icon != "case-sensitive.svg"
+            {
+                ctx.fill(
+                    &icon.rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                );
+            }
+
+            let svg = get_svg(icon.icon).unwrap();
+            ctx.draw_svg(
+                &svg,
+                icon.rect.inflate(-7.0, -7.0),
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                ),
+            );
+        }
+    }
+}
+
 pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
     let editor_data = data
         .main_split
         .editors
         .get(&data.search.editor_view_id)
         .unwrap();
-    let input = LapceEditorView::new(editor_data.view_id, WidgetId::next(), None)
-        .hide_header()
-        .hide_gutter()
-        .padding((15.0, 15.0));
+
+    let search_bar = SearchInput::new(editor_data.view_id);
+
     let split = LapceSplit::new(data.search.split_id)
         .horizontal()
-        .with_child(input.boxed(), None, 100.0)
+        .with_child(search_bar.boxed(), None, 100.0)
         .with_flex_child(
             LapceScroll::new(SearchContent::new().boxed())
                 .vertical()
@@ -44,6 +305,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
             false,
         )
         .hide_border();
+
     LapcePanel::new(
         PanelKind::Search,
         data.search.widget_id,
@@ -174,6 +436,7 @@ impl Widget<LapceTabData> for SearchContent {
             .iter()
             .map(|(_, matches)| matches.len() + 1)
             .sum::<usize>();
+
         let height = self.line_height * n as f64;
         Size::new(bc.max().width, height)
     }

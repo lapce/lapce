@@ -48,6 +48,7 @@ pub enum ProxyRequest {
     },
     GlobalSearch {
         pattern: String,
+        case_sensitive: bool,
     },
     CompletionResolve {
         plugin_id: PluginId,
@@ -576,8 +577,19 @@ impl ProxyRpcHandler {
         );
     }
 
-    pub fn global_search(&self, pattern: String, f: impl ProxyCallback + 'static) {
-        self.request_async(ProxyRequest::GlobalSearch { pattern }, f);
+    pub fn global_search(
+        &self,
+        pattern: String,
+        case_sensitive: bool,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::GlobalSearch {
+                pattern,
+                case_sensitive,
+            },
+            f,
+        );
     }
 
     pub fn save(&self, rev: u64, path: PathBuf, f: impl ProxyCallback + 'static) {
