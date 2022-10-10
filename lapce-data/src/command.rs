@@ -455,6 +455,16 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "save_all")]
     SaveAll,
 
+    #[cfg(target_os = "macos")]
+    #[strum(message = "Install Lapce to PATH")]
+    #[strum(serialize = "install_to_path")]
+    InstallToPATH,
+
+    #[cfg(target_os = "macos")]
+    #[strum(message = "Uninstall Lapce from PATH")]
+    #[strum(serialize = "uninstall_from_path")]
+    UninstallFromPATH,
+
     #[strum(serialize = "quit")]
     #[strum(message = "Quit Editor")]
     Quit,
@@ -551,6 +561,7 @@ pub enum LapceUICommand {
         resp: CodeActionResponse,
     },
     CancelPalette,
+    RunCommand(String, Vec<String>),
     RunCodeAction(CodeActionOrCommand, PluginId),
     ApplyWorkspaceEdit(WorkspaceEdit),
     ShowCodeActions(Option<Point>),
