@@ -526,10 +526,14 @@ impl LapceEditorView {
             line as f64 * line_height
         };
 
+        let surrounding_lines_height =
+            (data.config.editor.cursor_surrounding_lines as f64 * line_height)
+                .min(data.editor.size.borrow().height / 2.);
+
         Rect::ZERO
             .with_size(Size::new(width, line_height))
             .with_origin(Point::new(cursor_x, y))
-            .inflate(width, line_height)
+            .inflate(width, surrounding_lines_height)
     }
 }
 
