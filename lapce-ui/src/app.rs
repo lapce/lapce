@@ -41,7 +41,11 @@ pub fn build_window(data: &mut LapceWindowData) -> impl Widget<LapceData> {
 pub fn launch() {
     let cli = Cli::parse();
     let pwd = std::env::current_dir().unwrap_or_default();
-    let paths: Vec<PathBuf> = cli.paths.iter().map(|p| pwd.join(p)).collect();
+    let paths: Vec<PathBuf> = cli
+        .paths
+        .iter()
+        .map(|p| pwd.join(p).canonicalize().unwrap_or_default())
+        .collect();
     if !cli.new && LapceData::try_open_in_existing_process(&paths).is_ok() {
         return;
     }

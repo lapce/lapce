@@ -67,7 +67,11 @@ pub fn mainloop() {
     let cli = Cli::parse();
     if !cli.proxy {
         let pwd = std::env::current_dir().unwrap_or_default();
-        let paths: Vec<_> = cli.paths.iter().map(|p| pwd.join(p)).collect();
+        let paths: Vec<_> = cli
+            .paths
+            .iter()
+            .map(|p| pwd.join(p).canonicalize().unwrap_or_default())
+            .collect();
         let _ = try_open_in_existing_process(&paths);
         return;
     }
