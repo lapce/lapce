@@ -23,9 +23,15 @@ pub enum SettingsValueKind {
     Bool,
 }
 
+#[derive(Hash, Eq, PartialEq, Clone)]
 pub enum LapceSettingsKind {
     Core,
+    UI,
     Editor,
+    Terminal,
+    Theme,
+    Keymap,
+    Plugin(String),
 }
 
 #[derive(Clone)]

@@ -46,6 +46,7 @@ use crate::{
     rich_text::RichText,
     search::Match,
     selection_range::SelectionRangeDirection,
+    settings::LapceSettingsKind,
     split::{SplitDirection, SplitMoveDirection},
     update::ReleaseInfo,
 };
@@ -562,7 +563,7 @@ pub enum LapceUICommand {
     FocusSourceControl,
     ShowSettings,
     ShowKeybindings,
-    ShowSettingsIndex(usize),
+    ShowSettingsKind(LapceSettingsKind),
     FocusEditor,
     RunPalette(Option<PaletteType>),
     RunPaletteReferences(Vec<EditorLocation<Position>>),

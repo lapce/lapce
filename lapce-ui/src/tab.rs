@@ -24,8 +24,9 @@ use lapce_data::{
     completion::CompletionStatus,
     config::{LapceConfig, LapceTheme},
     data::{
-        DragContent, EditorDiagnostic, FocusArea, LapceData, LapceTabData,
-        LapceWindowData, LapceWorkspace, LapceWorkspaceType, WorkProgress,
+        DragContent, EditorDiagnostic, EditorTabChild, FocusArea, LapceData,
+        LapceTabData, LapceWindowData, LapceWorkspace, LapceWorkspaceType,
+        WorkProgress,
     },
     document::{BufferContent, LocalBufferKind},
     editor::EditorLocation,
@@ -973,6 +974,25 @@ impl LapceTab {
 
                         if !(*only_installing) {
                             plugin.installed.insert(volt.id(), volt.clone());
+
+                            for (_, tabs) in data.main_split.editor_tabs.iter() {
+                                for child in tabs.children.iter() {
+                                    if let EditorTabChild::Settings {
+                                        settings_widget_id,
+                                        ..
+                                    } = child
+                                    {
+                                        ctx.submit_command(Command::new(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::VoltInstalled(
+                                                volt.clone(),
+                                                false,
+                                            ),
+                                            Target::Widget(*settings_widget_id),
+                                        ));
+                                    }
+                                }
+                            }
                         }
                     }
                     LapceUICommand::VoltInstalling(volt, error) => {
@@ -1030,6 +1050,25 @@ impl LapceTab {
                                 let _ = data.db.save_disabled_volts(
                                     plugin.workspace_disabled.iter().collect(),
                                 );
+                            }
+
+                            for (_, tabs) in data.main_split.editor_tabs.iter() {
+                                for child in tabs.children.iter() {
+                                    if let EditorTabChild::Settings {
+                                        settings_widget_id,
+                                        ..
+                                    } = child
+                                    {
+                                        ctx.submit_command(Command::new(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::VoltRemoved(
+                                                volt.clone(),
+                                                false,
+                                            ),
+                                            Target::Widget(*settings_widget_id),
+                                        ));
+                                    }
+                                }
                             }
                         }
                     }
