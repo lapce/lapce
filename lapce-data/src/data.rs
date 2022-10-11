@@ -1689,6 +1689,32 @@ impl LapceTabData {
                     }
                 }
             }
+            #[cfg(target_os = "macos")]
+            LapceWorkbenchCommand::InstallToPATH => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunCommand(
+                        String::from("osascript"),
+                        vec![
+                            String::from("-e"),
+                            format!("do shell script \"ln -sf '{}' /usr/local/bin/lapce\" with administrator privileges", std::env::args().next().unwrap())
+                        ]),
+                    Target::Widget(self.id),
+                ));
+            }
+            #[cfg(target_os = "macos")]
+            LapceWorkbenchCommand::UninstallFromPATH => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunCommand(
+                        String::from("osascript"),
+                        vec![
+                            String::from("-e"),
+                            String::from("do shell script \"rm /usr/local/bin/lapce\" with administrator privileges")
+                        ]),
+                    Target::Widget(self.id),
+                ));
+            }
             LapceWorkbenchCommand::Quit => {
                 ctx.submit_command(druid::commands::QUIT_APP);
             }

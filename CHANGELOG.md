@@ -12,6 +12,7 @@
 - Added autosave configuration [#1358]
 - IME support for macOS [#1440]
 - Added plugin settings [#1449]
+- Added palette commands to un/install Lapce from/to PATH on macOS [#1471]
 
 ### Fixed
 

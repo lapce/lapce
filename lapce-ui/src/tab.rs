@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, process, sync::Arc};
 
 use druid::{
     kurbo::Line,
@@ -1942,6 +1942,10 @@ impl LapceTab {
                             },
                             Target::Widget(*data.message_widget_id),
                         ));
+                    }
+                    LapceUICommand::RunCommand(cmd, args) => {
+                        ctx.set_handled();
+                        let _ = process::Command::new(cmd).args(args).spawn();
                     }
                     _ => (),
                 }
