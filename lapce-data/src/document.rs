@@ -716,29 +716,23 @@ impl Document {
 
                             let styles = styles_span.build();
 
-                            let merged_styles;
-
-                            if let Some(syntactic_styles) = syntactic_styles {
-                                merged_styles = Arc::new(syntactic_styles.merge(
-                                    &styles,
-                                    |a, b| {
+                            let styles =
+                                if let Some(syntactic_styles) = syntactic_styles {
+                                    syntactic_styles.merge(&styles, |a, b| {
                                         if let Some(b) = b {
                                             return b.clone();
                                         }
                                         a.clone()
-                                    },
-                                ));
-                            } else {
-                                merged_styles = Arc::new(styles);
-                            }
+                                    })
+                                } else {
+                                    styles
+                                };
+                            let styles = Arc::new(styles);
 
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::UpdateSemanticStyles(
-                                    buffer_id,
-                                    path,
-                                    rev,
-                                    merged_styles,
+                                    buffer_id, path, rev, styles,
                                 ),
                                 Target::Widget(tab_id),
                             );
