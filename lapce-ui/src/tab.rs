@@ -1737,15 +1737,16 @@ impl LapceTab {
                     }
                     LapceUICommand::SetLanguage(name) => {
                         ctx.set_handled();
-                        let editor =
-                            if let Some(editor) = data.main_split.active_editor() {
-                                editor
-                            } else {
-                                return;
-                            };
+                        let editor = if let Some(editor) =
+                            data.main_split.active_editor().cloned()
+                        {
+                            editor
+                        } else {
+                            return;
+                        };
 
-                        let mut doc = data.main_split.content_doc(&editor.content);
-                        let doc = Arc::make_mut(&mut doc);
+                        let doc = data.main_split.content_doc_mut(&editor.content);
+                        let doc = Arc::make_mut(doc);
 
                         if name.is_empty() || name.to_lowercase().eq("plain text") {
                             doc.set_syntax(None);

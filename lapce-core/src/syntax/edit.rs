@@ -3,6 +3,15 @@ use xi_rope::{multiset::CountMatcher, Interval, Rope, RopeDelta};
 
 use crate::buffer::{rope_text::RopeText, InsertsValueIter};
 
+#[derive(Clone)]
+pub struct SyntaxEdit(pub(crate) Vec<tree_sitter::InputEdit>);
+
+impl SyntaxEdit {
+    pub fn new(edits: Vec<tree_sitter::InputEdit>) -> Self {
+        Self(edits)
+    }
+}
+
 fn point_at_offset(text: &Rope, offset: usize) -> Point {
     let text = RopeText::new(text);
     let line = text.line_of_offset(offset);
@@ -27,7 +36,7 @@ fn traverse(point: Point, text: &str) -> Point {
     Point { row, column }
 }
 
-fn create_insert_edit(
+pub fn create_insert_edit(
     old_text: &Rope,
     start: usize,
     inserted: &Rope,
@@ -46,7 +55,7 @@ fn create_insert_edit(
     }
 }
 
-fn create_delete_edit(
+pub fn create_delete_edit(
     old_text: &Rope,
     start: usize,
     end: usize,

@@ -2146,6 +2146,20 @@ impl LapceMainSplitData {
         }
     }
 
+    pub fn content_doc_mut(
+        &mut self,
+        content: &BufferContent,
+    ) -> &mut Arc<Document> {
+        match content {
+            BufferContent::File(path) => self.open_docs.get_mut(path).unwrap(),
+            BufferContent::Local(kind) => self.local_docs.get_mut(kind).unwrap(),
+            BufferContent::SettingsValue(name, ..) => {
+                self.value_docs.get_mut(name).unwrap()
+            }
+            BufferContent::Scratch(id, _) => self.scratch_docs.get_mut(id).unwrap(),
+        }
+    }
+
     pub fn editor_doc(&self, editor_view_id: WidgetId) -> Arc<Document> {
         let editor = self.editors.get(&editor_view_id).unwrap();
         self.content_doc(&editor.content)
@@ -2287,7 +2301,7 @@ impl LapceMainSplitData {
             }
         }
 
-        let (delta, _) = Arc::make_mut(doc).do_raw_edit(edits, edit_type);
+        let (delta, _, _) = Arc::make_mut(doc).do_raw_edit(edits, edit_type);
         if move_cursor {
             self.cursor_apply_delta(path, &delta);
         }
