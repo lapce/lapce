@@ -526,10 +526,24 @@ impl Widget<LapceTabData> for SearchContent {
                     return;
                 }
 
+                let whitespace_count: usize =
+                    if data.config.ui.trim_search_results_whitespace() {
+                        line.chars()
+                            .take_while(|ch| ch.is_whitespace() && *ch != '\n')
+                            .map(|ch| ch.len_utf8())
+                            .sum()
+                    } else {
+                        0
+                    };
+
                 if i >= min {
                     let mut text_layout = ctx
                         .text()
-                        .new_text_layout(format!("{line_number}: {line}"))
+                        .new_text_layout(format!(
+                            "{}: {}",
+                            line_number,
+                            &line[whitespace_count..]
+                        ))
                         .font(
                             data.config.ui.font_family(),
                             data.config.ui.font_size() as f64,
@@ -541,11 +555,13 @@ impl Widget<LapceTabData> for SearchContent {
                         );
                     let prefix = line_number.to_string().len() + 2;
                     text_layout = text_layout.range_attribute(
-                        *start + prefix..*end + prefix,
+                        *start + prefix - whitespace_count
+                            ..*end + prefix - whitespace_count,
                         TextAttribute::TextColor(focus_color.clone()),
                     );
                     text_layout = text_layout.range_attribute(
-                        *start + prefix..*end + prefix,
+                        *start + prefix - whitespace_count
+                            ..*end + prefix - whitespace_count,
                         TextAttribute::Weight(FontWeight::BOLD),
                     );
                     let text_layout = text_layout.build().unwrap();

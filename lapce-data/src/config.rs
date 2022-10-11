@@ -338,6 +338,9 @@ pub struct UIConfig {
     hover_font_family: String,
     #[field_names(desc = "Set the hover font size. If 0, uses the UI font size")]
     hover_font_size: usize,
+
+    #[field_names(desc = "Trim whitespace from search results")]
+    trim_search_results_whitespace: bool,
 }
 
 impl UIConfig {
@@ -393,6 +396,10 @@ impl UIConfig {
         } else {
             self.hover_font_size
         }
+    }
+
+    pub fn trim_search_results_whitespace(&self) -> bool {
+        self.trim_search_results_whitespace
     }
 }
 
