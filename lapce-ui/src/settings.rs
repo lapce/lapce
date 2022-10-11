@@ -566,9 +566,7 @@ struct LapceSettingsItem {
     value: serde_json::Value,
     padding: f64,
     checkbox_width: f64,
-    input_max_width: f64,
     width: f64,
-    cursor: usize,
     input: String,
     value_changed: bool,
     last_idle_timer: TimerToken,
@@ -643,8 +641,6 @@ impl LapceSettingsItem {
             padding: 10.0,
             width: 0.0,
             checkbox_width: 20.0,
-            input_max_width: 500.0,
-            cursor: 0,
             input: "".to_string(),
             value_changed: false,
             last_idle_timer: TimerToken::INVALID,
@@ -842,40 +838,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         }
         match event {
             Event::MouseDown(mouse_event) => {
-                // ctx.request_focus();
-                let input = self.input.clone();
-                if let Some(_text) = self.value(ctx.text(), data) {
-                    let text = ctx
-                        .text()
-                        .new_text_layout(input)
-                        .font(
-                            data.config.ui.font_family(),
-                            data.config.ui.font_size() as f64,
-                        )
-                        .text_color(
-                            data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                                .clone(),
-                        )
-                        .build()
-                        .unwrap();
-                    let mut height = self.name(ctx.text(), data).size().height;
-                    height += self.desc(ctx.text(), data).size().height;
-                    height += self.padding * 2.0 + self.padding;
-
-                    let rect = Size::new(
-                        ctx.size().width.min(self.input_max_width),
-                        text.size().height,
-                    )
-                    .to_rect()
-                    .with_origin(Point::new(0.0, height))
-                    .inflate(0.0, 8.0);
-                    if rect.contains(mouse_event.pos) {
-                        let pos = mouse_event.pos - (8.0, 0.0);
-                        let hit = text.hit_test_point(pos);
-                        self.cursor = hit.idx;
-                    }
-                } else if let serde_json::Value::Bool(checked) = self.value {
+                if let serde_json::Value::Bool(checked) = self.value {
                     let rect = Size::new(self.checkbox_width, self.checkbox_width)
                         .to_rect()
                         .with_origin(Point::new(
