@@ -24,7 +24,7 @@ use lapce_core::{
     register::{Clipboard, Register, RegisterData},
     selection::{SelRegion, Selection},
     style::line_styles,
-    syntax::Syntax,
+    syntax::{edit::SyntaxEdit, Syntax},
     word::WordCursor,
 };
 use lapce_rpc::{
@@ -795,12 +795,12 @@ impl Document {
         }
     }
 
-    fn on_update(&mut self, deltas: Option<SmallVec<[RopeDelta; 3]>>) {
+    fn on_update(&mut self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.get_inlay_hints();
         self.clear_style_cache();
-        self.trigger_syntax_change(deltas);
+        self.trigger_syntax_change(edits);
         self.get_semantic_styles();
         self.clear_sticky_headers_cache();
         self.trigger_head_change();
@@ -890,13 +890,13 @@ impl Document {
 
     pub fn trigger_syntax_change(
         &mut self,
-        deltas: Option<SmallVec<[RopeDelta; 3]>>,
+        edits: Option<SmallVec<[SyntaxEdit; 3]>>,
     ) {
         if let Some(syntax) = self.syntax.as_mut() {
             let rev = self.buffer.rev();
             let text = self.buffer.text().clone();
 
-            syntax.parse(rev, text, deltas.as_deref());
+            syntax.parse(rev, text, edits.as_deref());
         }
     }
 
@@ -1126,9 +1126,9 @@ impl Document {
         PhantomTextLine { text, max_severity }
     }
 
-    fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines)]) {
+    fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
         let rev = self.rev() - deltas.len() as u64;
-        for (i, (delta, _)) in deltas.iter().enumerate() {
+        for (i, (delta, _, _)) in deltas.iter().enumerate() {
             self.update_styles(delta);
             self.update_inlay_hints(delta);
             self.update_diagnostics(delta);
@@ -1144,8 +1144,8 @@ impl Document {
         // TODO(minor): We could avoid this potential allocation since most apply_delta callers are actually using a Vec
         // which we could reuse.
         // We use a smallvec because there is unlikely to be more than a couple of deltas
-        let deltas_iter = deltas.iter().map(|(delta, _)| delta.clone()).collect();
-        self.on_update(Some(deltas_iter));
+        let edits = deltas.iter().map(|(_, _, edits)| edits.clone()).collect();
+        self.on_update(Some(edits));
     }
 
     pub fn do_insert(
@@ -1153,7 +1153,7 @@ impl Document {
         cursor: &mut Cursor,
         s: &str,
         config: &LapceConfig,
-    ) -> Vec<(RopeDelta, InvalLines)> {
+    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let old_cursor = cursor.mode.clone();
         let deltas = Editor::insert(
             cursor,
@@ -1172,10 +1172,10 @@ impl Document {
         &mut self,
         edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
-    ) -> (RopeDelta, InvalLines) {
-        let (delta, inval_lines) = self.buffer.edit(edits, edit_type);
-        self.apply_deltas(&[(delta.clone(), inval_lines.clone())]);
-        (delta, inval_lines)
+    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
+        let (delta, inval_lines, edits) = self.buffer.edit(edits, edit_type);
+        self.apply_deltas(&[(delta.clone(), inval_lines.clone(), edits.clone())]);
+        (delta, inval_lines, edits)
     }
 
     pub fn do_edit(
@@ -1184,7 +1184,7 @@ impl Document {
         cmd: &EditCommand,
         modal: bool,
         register: &mut Register,
-    ) -> Vec<(RopeDelta, InvalLines)> {
+    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let mut clipboard = SystemClipboard {};
         let old_cursor = cursor.mode.clone();
         let deltas = Editor::do_edit(

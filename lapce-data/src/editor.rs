@@ -24,6 +24,7 @@ use lapce_core::{
     editor::EditType,
     mode::{Mode, MotionMode},
     selection::{InsertDrift, Selection},
+    syntax::edit::SyntaxEdit,
 };
 use lapce_rpc::plugin::PluginId;
 use lapce_rpc::proxy::ProxyResponse;
@@ -498,8 +499,8 @@ impl LapceEditorBufferData {
                     );
                     match text_format {
                         lsp_types::InsertTextFormat::PLAIN_TEXT => {
-                            let (delta, inval_lines) = Arc::make_mut(&mut self.doc)
-                                .do_raw_edit(
+                            let (delta, inval_lines, edits) =
+                                Arc::make_mut(&mut self.doc).do_raw_edit(
                                     &[
                                         &[(&selection, edit.new_text.as_str())][..],
                                         &additional_edit[..],
@@ -515,14 +516,14 @@ impl LapceEditorBufferData {
                             Arc::make_mut(&mut self.editor)
                                 .cursor
                                 .update_selection(self.doc.buffer(), selection);
-                            self.apply_deltas(&[(delta, inval_lines)]);
+                            self.apply_deltas(&[(delta, inval_lines, edits)]);
                             return Ok(());
                         }
                         lsp_types::InsertTextFormat::SNIPPET => {
                             let snippet = Snippet::from_str(&edit.new_text)?;
                             let text = snippet.text();
-                            let (delta, inval_lines) = Arc::make_mut(&mut self.doc)
-                                .do_raw_edit(
+                            let (delta, inval_lines, edits) =
+                                Arc::make_mut(&mut self.doc).do_raw_edit(
                                     &[
                                         &[(&selection, text.as_str())][..],
                                         &additional_edit[..],
@@ -554,7 +555,7 @@ impl LapceEditorBufferData {
                                 Arc::make_mut(&mut self.editor)
                                     .cursor
                                     .update_selection(self.doc.buffer(), selection);
-                                self.apply_deltas(&[(delta, inval_lines)]);
+                                self.apply_deltas(&[(delta, inval_lines, edits)]);
                                 return Ok(());
                             }
 
@@ -568,7 +569,7 @@ impl LapceEditorBufferData {
                             Arc::make_mut(&mut self.editor)
                                 .cursor
                                 .set_insert(selection);
-                            self.apply_deltas(&[(delta, inval_lines)]);
+                            self.apply_deltas(&[(delta, inval_lines, edits)]);
                             Arc::make_mut(&mut self.editor)
                                 .add_snippet_placeholders(snippet_tabs);
                             return Ok(());
@@ -585,7 +586,7 @@ impl LapceEditorBufferData {
         let end_offset = self.doc.buffer().next_code_boundary(offset);
         let selection = Selection::region(start_offset, end_offset);
 
-        let (delta, inval_lines) = Arc::make_mut(&mut self.doc).do_raw_edit(
+        let (delta, inval_lines, edits) = Arc::make_mut(&mut self.doc).do_raw_edit(
             &[
                 &[(
                     &selection,
@@ -600,7 +601,7 @@ impl LapceEditorBufferData {
         Arc::make_mut(&mut self.editor)
             .cursor
             .update_selection(self.doc.buffer(), selection);
-        self.apply_deltas(&[(delta, inval_lines)]);
+        self.apply_deltas(&[(delta, inval_lines, edits)]);
         Ok(())
     }
 
@@ -1291,8 +1292,8 @@ impl LapceEditorBufferData {
         );
     }
 
-    fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines)]) {
-        for (delta, _) in deltas {
+    fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
+        for (delta, _, _) in deltas {
             self.inactive_apply_delta(delta);
             self.update_snippet_offset(delta);
         }
@@ -2670,7 +2671,7 @@ fn apply_edit(main_split: &mut LapceMainSplitData, path: &Path, edits: &[TextEdi
 fn show_completion(
     cmd: &EditCommand,
     doc: &Rope,
-    deltas: &[(RopeDelta, InvalLines)],
+    deltas: &[(RopeDelta, InvalLines, SyntaxEdit)],
 ) -> bool {
     let show_completion = match cmd {
         EditCommand::DeleteBackward

@@ -385,7 +385,13 @@ impl CompletionData {
             .filter_map(|i| {
                 let filter_text =
                     i.item.filter_text.as_ref().unwrap_or(&i.item.label);
-                let shift = i.item.label.match_indices(filter_text).next()?.0;
+                let shift = i
+                    .item
+                    .label
+                    .match_indices(filter_text)
+                    .next()
+                    .map(|(shift, _)| shift)
+                    .unwrap_or(0);
                 if let Some((score, mut indices)) =
                     self.matcher.fuzzy_indices(filter_text, &self.input)
                 {

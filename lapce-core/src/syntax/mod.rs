@@ -21,11 +21,11 @@ use thiserror::Error;
 use tree_sitter::{Node, Parser, Point, QueryCursor, Tree};
 use xi_rope::{
     spans::{Spans, SpansBuilder},
-    Interval, Rope, RopeDelta,
+    Interval, Rope,
 };
 
 use self::{
-    edit::generate_edits,
+    edit::SyntaxEdit,
     highlight::{
         get_highlight_config, injection_for_match, intersect_ranges, Highlight,
         HighlightConfiguration, HighlightEvent, HighlightIter, HighlightIterLayer,
@@ -39,7 +39,7 @@ use crate::{
     style::SCOPES,
 };
 
-mod edit;
+pub mod edit;
 pub mod highlight;
 pub mod util;
 
@@ -76,6 +76,7 @@ pub struct LanguageLayer {
     pub(crate) tree: Option<Tree>,
     pub ranges: Vec<tree_sitter::Range>,
     pub depth: usize,
+    rev: u64,
 }
 
 impl LanguageLayer {
@@ -87,7 +88,12 @@ impl LanguageLayer {
         self.tree.as_ref()
     }
 
-    fn parse(&mut self, parser: &mut Parser, source: &Rope) -> Result<(), Error> {
+    fn parse(
+        &mut self,
+        parser: &mut Parser,
+        source: &Rope,
+        had_edits: bool,
+    ) -> Result<(), Error> {
         parser.set_included_ranges(&self.ranges).unwrap();
 
         parser
@@ -108,7 +114,7 @@ impl LanguageLayer {
                         &[]
                     }
                 },
-                self.tree.as_ref(),
+                had_edits.then_some(()).and(self.tree.as_ref()),
             )
             .ok_or(Error::Cancelled)?;
         // unsafe { ts_parser.parser.set_cancellation_flag(None) };
@@ -141,6 +147,7 @@ impl SyntaxLayers {
                 start_point: Point::new(0, 0),
                 end_point: Point::new(usize::MAX, usize::MAX),
             }],
+            rev: 0,
         };
 
         let mut layers = HopSlotMap::default();
@@ -149,7 +156,7 @@ impl SyntaxLayers {
         let mut syntax = SyntaxLayers { root, layers };
 
         if let Some(source) = source {
-            let _ = syntax.update(source, source, None);
+            let _ = syntax.update(0, 0, source, None);
         }
 
         syntax
@@ -157,9 +164,10 @@ impl SyntaxLayers {
 
     pub fn update(
         &mut self,
-        old_source: &Rope,
+        current_rev: u64,
+        new_rev: u64,
         source: &Rope,
-        deltas: Option<&[RopeDelta]>,
+        syntax_edits: Option<&[SyntaxEdit]>,
     ) -> Result<(), Error> {
         let mut queue = VecDeque::new();
         queue.push_back(self.root);
@@ -169,12 +177,11 @@ impl SyntaxLayers {
         };
 
         let mut edits = Vec::new();
-        if let Some(deltas) = deltas {
-            let mut current_source = old_source.clone();
-            for delta in deltas {
-                generate_edits(&current_source, delta, &mut edits);
-                // Apply the edit, since later deltas can rely on this one having occurred
-                current_source = delta.apply(&current_source);
+        if let Some(syntax_edits) = syntax_edits {
+            for edit in syntax_edits {
+                for edit in &edit.0 {
+                    edits.push(edit);
+                }
             }
         }
 
@@ -280,17 +287,21 @@ impl SyntaxLayers {
 
                 let layer = &mut self.layers[layer_id];
 
+                let had_edits = layer.rev == current_rev && syntax_edits.is_some();
                 // If a tree already exists, notify it of changes.
-                if let Some(tree) = &mut layer.tree {
-                    for edit in edits.iter().rev() {
-                        // Apply the edits in reverse.
-                        // If we applied them in order then edit 1 would disrupt the positioning of edit 2.
-                        tree.edit(edit);
+                if had_edits {
+                    if let Some(tree) = &mut layer.tree {
+                        for edit in edits.iter().rev() {
+                            // Apply the edits in reverse.
+                            // If we applied them in order then edit 1 would disrupt the positioning of edit 2.
+                            tree.edit(edit);
+                        }
                     }
                 }
 
                 // Re-parse the tree.
-                layer.parse(&mut ts_parser.parser, source)?;
+                layer.parse(&mut ts_parser.parser, source, had_edits)?;
+                layer.rev = new_rev;
 
                 // Switch to an immutable borrow.
                 let layer = &self.layers[layer_id];
@@ -394,6 +405,7 @@ impl SyntaxLayers {
                             config,
                             depth,
                             ranges,
+                            rev: 0,
                         })
                     });
 
@@ -562,24 +574,19 @@ impl Syntax {
         &mut self,
         new_rev: u64,
         new_text: Rope,
-        deltas: Option<&[RopeDelta]>,
+        edits: Option<&[SyntaxEdit]>,
     ) {
-        // Update it if the revision is new, or if it is doing the initial update
-        let change_count = deltas.map(|deltas| deltas.len()).unwrap_or(0).max(1);
-        let tree = if new_rev == self.rev + change_count as u64
-            || (self.rev == 0 && new_rev == 0)
-        {
-            if self.layers.update(&self.text, &new_text, deltas).is_err() {
-                // We failed to update. However, we still want to update the rev and the like
-                // TODO: It would be good to try reparsing the entire file, in case it was an issue with the deltas
-                log::warn!("Failed to update syntax highlighting!");
-                None
+        let edits = if let Some(edits) = edits {
+            if new_rev == self.rev + edits.len() as u64 {
+                Some(edits)
             } else {
-                self.layers.try_tree()
+                None
             }
         } else {
-            self.layers.try_tree()
+            None
         };
+        let _ = self.layers.update(self.rev, new_rev, &new_text, edits);
+        let tree = self.layers.try_tree();
 
         let styles = if tree.is_some() {
             let mut current_hl: Option<Highlight> = None;
@@ -638,18 +645,6 @@ impl Syntax {
         self.normal_lines = normal_lines;
         self.styles = styles;
         self.text = new_text
-
-        // Syntax {
-        //     rev: new_rev,
-        //     language: self.language,
-        //     text: new_text,
-        //     layers,
-        //     lens,
-        //     line_height: self.line_height,
-        //     lens_height: self.lens_height,
-        //     normal_lines,
-        //     styles,
-        // }
     }
 
     pub fn update_lens_height(&mut self, line_height: usize, lens_height: usize) {
