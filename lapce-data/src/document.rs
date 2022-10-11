@@ -44,6 +44,7 @@ use xi_rope::{
 };
 
 use crate::{
+    atomic_soft_tabs::{snap_to_soft_tab, snap_to_soft_tab_line_col, SnapDirection},
     command::{InitBufferContentCb, LapceUICommand, LAPCE_UI_COMMAND},
     config::{LapceConfig, LapceTheme},
     data::{EditorDiagnostic, EditorView},
@@ -53,7 +54,6 @@ use crate::{
     proxy::LapceProxy,
     selection_range::{SelectionRangeDirection, SyntaxSelectionRanges},
     settings::SettingsValueKind,
-    atomic_soft_tabs::{SnapDirection, snap_to_soft_tab, snap_to_soft_tab_line_col},
 };
 use lapce_rpc::plugin::PluginId;
 
@@ -1597,7 +1597,13 @@ impl Document {
         let mut col = col.min(max_col);
 
         if config.editor.atomic_soft_tabs && config.editor.tab_width > 1 {
-            col = snap_to_soft_tab_line_col(&self.buffer, line, col, SnapDirection::Nearest, config.editor.tab_width);
+            col = snap_to_soft_tab_line_col(
+                &self.buffer,
+                line,
+                col,
+                SnapDirection::Nearest,
+                config.editor.tab_width,
+            );
         }
 
         ((line, col), hit_point.is_inside)
@@ -2279,7 +2285,12 @@ impl Document {
                 let mut new_offset = self.buffer.move_left(offset, mode, count);
 
                 if config.editor.atomic_soft_tabs && config.editor.tab_width > 1 {
-                    new_offset = snap_to_soft_tab(&self.buffer, new_offset, SnapDirection::Left, config.editor.tab_width);
+                    new_offset = snap_to_soft_tab(
+                        &self.buffer,
+                        new_offset,
+                        SnapDirection::Left,
+                        config.editor.tab_width,
+                    );
                 }
 
                 (new_offset, None)
@@ -2288,7 +2299,12 @@ impl Document {
                 let mut new_offset = self.buffer.move_right(offset, mode, count);
 
                 if config.editor.atomic_soft_tabs && config.editor.tab_width > 1 {
-                    new_offset = snap_to_soft_tab(&self.buffer, new_offset, SnapDirection::Right, config.editor.tab_width);
+                    new_offset = snap_to_soft_tab(
+                        &self.buffer,
+                        new_offset,
+                        SnapDirection::Right,
+                        config.editor.tab_width,
+                    );
                 }
 
                 (new_offset, None)
