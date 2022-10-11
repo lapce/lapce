@@ -242,6 +242,10 @@ pub struct EditorConfig {
         desc = "Set the auto save delay (in milliseconds), Set to 0 to completely disable"
     )]
     pub autosave_interval: u64,
+    #[field_names(
+        desc = "If enabled the cursor treats leading soft tabs as if they are hard tabs."
+    )]
+    pub atomic_soft_tabs: bool,
 }
 
 impl EditorConfig {
