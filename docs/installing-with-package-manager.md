@@ -1,4 +1,4 @@
-## Installation
+## Installation With Package Manager
 
 ### Arch Linux
 
