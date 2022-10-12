@@ -603,7 +603,7 @@ pub trait TabRectRenderer {
         widget_id: WidgetId,
         tab_idx: usize,
         size: Size,
-        mouse_pos: Point,
+        mouse_pos: Option<Point>,
     );
 }
 
@@ -615,7 +615,7 @@ impl TabRectRenderer for TabRect {
         widget_id: WidgetId,
         tab_idx: usize,
         size: Size,
-        mouse_pos: Point,
+        mouse_pos: Option<Point>,
     ) {
         let font_size = data.config.ui.font_size() as f64;
         let width = font_size;
@@ -624,8 +624,8 @@ impl TabRectRenderer for TabRect {
         let editor_tab = data.main_split.editor_tabs.get(&widget_id).unwrap();
 
         let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-            self.rect.x0 + (size.height - width) / 2.0,
-            (size.height - height) / 2.0,
+            self.rect.x0 + (width) / 2.0,
+            self.rect.y0 + (size.height - height) / 2.0,
         ));
 
         let is_active_tab = tab_idx == editor_tab.active;
@@ -677,7 +677,7 @@ impl TabRectRenderer for TabRect {
         }
 
         // Only show background of close button on hover
-        if self.close_rect.contains(mouse_pos) {
+        if mouse_pos.map(|s| self.rect.contains(s)).unwrap_or(false) {
             ctx.fill(
                 &self.close_rect,
                 data.config
@@ -687,10 +687,11 @@ impl TabRectRenderer for TabRect {
 
         // See if any of the children have unsaved changes
         let is_pristine = match &editor_tab.children[tab_idx] {
-            EditorTabChild::Editor(editor_id, _, _) => {
-                let doc = data.main_split.editor_doc(*editor_id);
-                doc.buffer().is_pristine()
-            }
+            EditorTabChild::Editor(editor_id, _, _) => data
+                .main_split
+                .editor_doc(*editor_id)
+                .buffer()
+                .is_pristine(),
             EditorTabChild::Settings { .. } => true,
             EditorTabChild::Plugin { .. } => true,
         };
@@ -706,8 +707,10 @@ impl TabRectRenderer for TabRect {
             );
         };
 
-        if is_pristine || self.close_rect.contains(mouse_pos) {
-            if self.rect.contains(mouse_pos) || is_active_tab {
+        if is_pristine {
+            if mouse_pos.map(|s| self.rect.contains(s)).unwrap_or(false)
+                || is_active_tab
+            {
                 draw_icon("close.svg")
             }
         } else {

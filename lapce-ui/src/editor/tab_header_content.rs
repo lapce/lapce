@@ -34,7 +34,7 @@ enum MouseAction {
 pub struct LapceEditorTabHeaderContent {
     pub widget_id: WidgetId,
     pub rects: Vec<TabRect>,
-    mouse_pos: Point,
+    mouse_pos: Option<Point>,
     mouse_down_target: Option<(MouseAction, usize)>,
 }
 
@@ -43,7 +43,7 @@ impl LapceEditorTabHeaderContent {
         Self {
             widget_id,
             rects: Vec::new(),
-            mouse_pos: Point::ZERO,
+            mouse_pos: None,
             mouse_down_target: None,
         }
     }
@@ -108,7 +108,7 @@ impl LapceEditorTabHeaderContent {
                         Target::Widget(editor_tab.children[tab_idx].widget_id()),
                     ));
                 }
-                self.mouse_pos = mouse_event.pos;
+                self.mouse_pos = Some(mouse_event.pos);
                 self.mouse_down_target = Some((MouseAction::Drag, tab_idx));
 
                 ctx.request_paint();
@@ -130,7 +130,7 @@ impl LapceEditorTabHeaderContent {
         data: &mut LapceTabData,
         mouse_event: &MouseEvent,
     ) {
-        self.mouse_pos = mouse_event.pos;
+        self.mouse_pos = Some(mouse_event.pos);
         if self.tab_hit_test(mouse_event) {
             ctx.set_cursor(&druid::Cursor::Pointer);
         } else {
@@ -431,7 +431,8 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
         }
 
         if ctx.is_hot() && data.is_drag_editor() {
-            let mouse_index = self.drag_target_idx(self.mouse_pos);
+            // SAFETY: unwrap here is safe because `ctx.is_hot` is true if mouse is hovered over it.
+            let mouse_index = self.drag_target_idx(self.mouse_pos.unwrap());
 
             let tab_rect;
             let x = if mouse_index == self.after_last_tab_index() {
