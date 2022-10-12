@@ -5,6 +5,7 @@ use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
+    widget::Padding,
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, ExtEventSink, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect,
     RenderContext, Size, Target, TimerToken, UpdateCtx, Widget, WidgetExt, WidgetId,
@@ -434,19 +435,13 @@ impl LapceSettings {
                                     value = v.clone();
                                 }
                             }
-                            self.children.push(WidgetPod::new(
-                                LapcePadding::new(
-                                    (10.0, 10.0),
-                                    LapceSettingsItem::new(
-                                        data,
-                                        volt.name.clone(),
-                                        key.to_string(),
-                                        config.description.clone(),
-                                        value,
-                                        ctx.get_external_handle(),
-                                    ),
-                                )
-                                .boxed(),
+                            self.children.push(create_settings_item(
+                                data,
+                                volt.name.clone(),
+                                key.to_string(),
+                                config.description.clone(),
+                                value,
+                                ctx.get_external_handle(),
                             ));
                         }
                     }
@@ -459,20 +454,14 @@ impl LapceSettings {
             // TODO(dbuga): we should generate kebab-case field names
             let field = field.replace('_', "-");
             let value = settings.remove(&field).unwrap();
-            self.children.push(WidgetPod::new(
-                LapcePadding::new(
-                    (10.0, 10.0),
-                    LapceSettingsItem::new(
-                        data,
-                        kind.to_string(),
-                        field,
-                        desc.to_string(),
-                        value,
-                        ctx.get_external_handle(),
-                    ),
-                )
-                .boxed(),
-            ))
+            self.children.push(create_settings_item(
+                data,
+                kind.to_string(),
+                field,
+                desc.to_string(),
+                value,
+                ctx.get_external_handle(),
+            ));
         }
     }
 }
@@ -559,105 +548,122 @@ struct LapceSettingsItemKeypress {
     cursor: usize,
 }
 
-struct LapceSettingsItem {
+/// Create a settings item widget  
+/// Includes padding.
+fn create_settings_item(
+    data: &mut LapceTabData,
     kind: String,
-    name: String,
+    key: String,
     desc: String,
     value: serde_json::Value,
-    padding: f64,
-    checkbox_width: f64,
+    event_sink: ExtEventSink,
+) -> WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>> {
+    let insets = (10.0, 10.0);
+    match value {
+        serde_json::Value::Number(n) => {
+            let value_kind = if n.is_f64() {
+                SettingsValueKind::Float
+            } else {
+                SettingsValueKind::Integer
+            };
+            WidgetPod::new(
+                LapcePadding::new(
+                    insets,
+                    InputSettingsItem::new(
+                        data,
+                        kind,
+                        key,
+                        desc,
+                        event_sink,
+                        n.to_string(),
+                        value_kind,
+                    ),
+                )
+                .boxed(),
+            )
+        }
+        serde_json::Value::String(s) => WidgetPod::new(
+            LapcePadding::new(
+                insets,
+                InputSettingsItem::new(
+                    data,
+                    kind,
+                    key,
+                    desc,
+                    event_sink,
+                    s,
+                    SettingsValueKind::String,
+                ),
+            )
+            .boxed(),
+        ),
+        serde_json::Value::Bool(checked) => WidgetPod::new(
+            LapcePadding::new(
+                insets,
+                CheckBoxSettingsItem::new(key, kind, desc, checked),
+            )
+            .boxed(),
+        ),
+        serde_json::Value::Array(_)
+        | serde_json::Value::Object(_)
+        | serde_json::Value::Null => panic!("Unknown setting value kind"),
+    }
+}
+
+/// Shared information between each setting item
+struct SettingsItemInfo {
     width: f64,
-    input: String,
-    value_changed: bool,
-    last_idle_timer: TimerToken,
+    padding: f64,
+
+    /// Key of the field
+    key: String,
+    kind: String,
+    desc: String,
 
     name_text: Option<PietTextLayout>,
     desc_text: Option<PietTextLayout>,
-    value_text: Option<Option<PietTextLayout>>,
-    input_widget: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
-}
 
-impl LapceSettingsItem {
+    /// Timer which keeps track of when it was last edited  
+    /// So that it can update
+    last_idle_timer: TimerToken,
+}
+impl SettingsItemInfo {
     /// The amount of time to wait for the next key press before storing settings.
     const SAVE_DELAY: Duration = Duration::from_millis(500);
 
-    pub fn new(
-        data: &mut LapceTabData,
-        kind: String,
-        key: String,
-        desc: String,
-        value: serde_json::Value,
-        event_sink: ExtEventSink,
-    ) -> Self {
-        let input = match &value {
-            serde_json::Value::Number(n) => {
-                if n.is_f64() {
-                    Some((n.to_string(), SettingsValueKind::Float))
-                } else {
-                    Some((n.to_string(), SettingsValueKind::Integer))
-                }
-            }
-            serde_json::Value::String(s) => {
-                Some((s.to_string(), SettingsValueKind::String))
-            }
-            serde_json::Value::Array(_)
-            | serde_json::Value::Object(_)
-            | serde_json::Value::Bool(_)
-            | serde_json::Value::Null => None,
-        };
-        let input = input.map(|(input, value_kind)| {
-            let name = format!("{kind}.{key}");
-            let content = BufferContent::SettingsValue(
-                name.clone(),
-                value_kind,
-                kind.clone(),
-                key.clone(),
-            );
-
-            let mut doc = Document::new(
-                content.clone(),
-                data.id,
-                event_sink,
-                data.proxy.clone(),
-            );
-            doc.reload(Rope::from(&input), true);
-            data.main_split.value_docs.insert(name, Arc::new(doc));
-            let editor =
-                LapceEditorData::new(None, None, None, content, &data.config);
-            let view_id = editor.view_id;
-            let input = LapceEditorView::new(editor.view_id, editor.editor_id, None)
-                .hide_header()
-                .hide_gutter()
-                .padding((5.0, 0.0, 50.0, 0.0));
-            data.main_split.editors.insert(view_id, Arc::new(editor));
-            (view_id, WidgetPod::new(input.boxed()))
-        });
-        let input_widget = input.map(|i| i.1);
-        Self {
-            kind,
-            name: key,
-            desc,
-            value,
-            padding: 10.0,
+    fn new(key: String, kind: String, desc: String) -> Self {
+        SettingsItemInfo {
             width: 0.0,
-            checkbox_width: 20.0,
-            input: "".to_string(),
-            value_changed: false,
-            last_idle_timer: TimerToken::INVALID,
-
+            padding: 10.0,
+            key,
+            kind,
+            desc,
             name_text: None,
             desc_text: None,
-            value_text: None,
-            input_widget,
+            last_idle_timer: TimerToken::INVALID,
         }
     }
 
+    /// Check if the last-idle-timer has been triggered, and thus it should probably update
+    fn idle_timer_triggered(&self, token: TimerToken) -> bool {
+        token == self.last_idle_timer
+    }
+
+    fn clear_text_layout_cache(&mut self) {
+        self.name_text = None;
+        self.desc_text = None;
+    }
+
+    /// Get the text layout for the name of the setting item, creating it if it has changed
+    /// or if it is not already initialize.
     pub fn name(
         &mut self,
         text: &mut PietText,
         data: &LapceTabData,
     ) -> &PietTextLayout {
-        let splits: Vec<&str> = self.name.rsplitn(2, '.').collect();
+        // TODO: This could likely use smallvec, or even skip the allocs completely for
+        // the *common* case of the name text not changing..
+        let splits: Vec<&str> = self.key.rsplitn(2, '.').collect();
         let mut name_text = "".to_string();
         if let Some(title) = splits.get(1) {
             for (i, part) in title.split('.').enumerate() {
@@ -695,17 +701,17 @@ impl LapceSettingsItem {
         self.name_text.as_ref().unwrap()
     }
 
+    /// Get the text layout for the description of the setting item, creating it if it doesn't exist.  
+    /// `extra_width` is used for when there are other rendered elements on the same line as the description,  
+    /// such as the checkbox.
     pub fn desc(
         &mut self,
         text: &mut PietText,
         data: &LapceTabData,
+        extra_width: f64,
     ) -> &PietTextLayout {
         if self.desc_text.is_none() {
-            let max_width = if self.value.is_boolean() {
-                self.width - self.checkbox_width
-            } else {
-                self.width
-            };
+            let max_width = self.width - extra_width;
             let text_layout = text
                 .new_text_layout(self.desc.clone())
                 .font(
@@ -727,45 +733,366 @@ impl LapceSettingsItem {
         self.desc_text.as_ref().unwrap()
     }
 
-    pub fn value(
-        &mut self,
-        text: &mut PietText,
+    fn update_settings(
+        &self,
         data: &LapceTabData,
-    ) -> Option<&PietTextLayout> {
-        if self.value_text.is_none() {
-            let value = match &self.value {
-                serde_json::Value::Number(n) => Some(n.to_string()),
-                serde_json::Value::String(s) => Some(s.to_string()),
-                serde_json::Value::Array(_)
-                | serde_json::Value::Object(_)
-                | serde_json::Value::Bool(_)
-                | serde_json::Value::Null => None,
-            };
-            let text_layout = value.map(|value| {
-                self.input = value.to_string();
-                text.new_text_layout(value)
-                    .font(
-                        data.config.ui.font_family(),
-                        data.config.ui.font_size() as f64,
-                    )
-                    .text_color(
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                            .clone(),
-                    )
-                    .build()
-                    .unwrap()
-            });
-            self.value_text = Some(text_layout);
-        }
-
-        self.value_text.as_ref().unwrap().as_ref()
+        ctx: &mut EventCtx,
+        value: serde_json::Value,
+    ) {
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::UpdateSettingsFile(
+                self.kind.clone(),
+                self.key.clone(),
+                value,
+            ),
+            Target::Widget(data.id),
+        ));
     }
 
-    fn clear_text_layout_cache(&mut self) {
-        self.name_text = None;
-        self.desc_text = None;
-        self.value_text = None;
+    fn update(
+        &mut self,
+        _ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        _env: &Env,
+    ) {
+        if data.config.id != old_data.config.id {
+            self.clear_text_layout_cache();
+        }
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        _env: &Env,
+        extra_width: f64,
+    ) -> Size {
+        let width = bc.max().width;
+        if width != self.width {
+            self.width = width;
+            self.clear_text_layout_cache();
+        }
+        let text = ctx.text();
+        let name = self.name(text, data).size();
+        let desc = self.desc(text, data, extra_width).size();
+        let mut height = name.height + desc.height + (self.padding * 3.0);
+        height = height.round();
+
+        Size::new(self.width, height)
+    }
+
+    /// Paint the name of the setting and the description  
+    /// `extra_width` decides how the description should be shifted to the right  
+    /// Returns the y position of the description, so that you can relative to it.
+    fn paint(
+        &mut self,
+        ctx: &mut PaintCtx,
+        data: &LapceTabData,
+        _env: &Env,
+        extra_width: f64,
+    ) -> f64 {
+        let mut y = 0.0;
+        let padding = self.padding;
+
+        let rect = ctx
+            .size()
+            .to_rect()
+            .inflate(0.0, padding)
+            .inset((padding, 0.0, -30.0, 0.0));
+        if ctx.is_hot() {
+            ctx.fill(
+                rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+            );
+        }
+
+        let text = ctx.text();
+        let text = self.name(text, data);
+        y += padding;
+        ctx.draw_text(text, Point::new(0.0, y));
+        y += text.size().height;
+        y += padding;
+
+        let desc_y = y;
+
+        let text = ctx.text();
+        let desc = self.desc(text, data, extra_width);
+        ctx.draw_text(desc, Point::new(extra_width, y));
+
+        desc_y
+    }
+}
+
+struct CheckBoxSettingsItem {
+    checked: bool,
+    checkbox_width: f64,
+
+    info: SettingsItemInfo,
+}
+impl CheckBoxSettingsItem {
+    fn new(key: String, kind: String, desc: String, checked: bool) -> Self {
+        Self {
+            checked,
+            checkbox_width: 20.0,
+
+            info: SettingsItemInfo::new(key, kind, desc),
+        }
+    }
+}
+impl Widget<LapceTabData> for CheckBoxSettingsItem {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        _env: &Env,
+    ) {
+        match event {
+            Event::MouseMove(_) => ctx.set_handled(),
+            Event::MouseDown(mouse_event) => {
+                let rect = Size::new(self.checkbox_width, self.checkbox_width)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        0.0,
+                        self.info.name(ctx.text(), data).size().height
+                            + self.info.padding * 2.0
+                            + 4.0,
+                    ));
+                if rect.contains(mouse_event.pos) {
+                    self.checked = !self.checked;
+                    self.info.last_idle_timer =
+                        ctx.request_timer(SettingsItemInfo::SAVE_DELAY, None);
+                }
+            }
+            Event::Timer(token) if self.info.idle_timer_triggered(*token) => {
+                ctx.set_handled();
+                self.info.update_settings(
+                    data,
+                    ctx,
+                    serde_json::Value::Bool(self.checked),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+        if let LifeCycle::HotChanged(_) = event {
+            ctx.request_paint();
+        }
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        self.info.update(ctx, old_data, data, env);
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        self.info.layout(ctx, bc, data, env, self.checkbox_width)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let y = self.info.paint(ctx, data, env, self.checkbox_width);
+
+        let width = 13.0;
+        let height = 13.0;
+        let origin = Point::new(0.0, y + 4.0);
+        let rect = Size::new(width, height).to_rect().with_origin(origin);
+        ctx.stroke(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+            1.0,
+        );
+        if self.checked {
+            let mut path = BezPath::new();
+            path.move_to((origin.x + 3.0, origin.y + 7.0));
+            path.line_to((origin.x + 6.0, origin.y + 9.5));
+            path.line_to((origin.x + 10.0, origin.y + 3.0));
+            ctx.stroke(
+                path,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                2.0,
+            );
+        }
+    }
+}
+
+// TODO: Split input into separate kinds for for int/f64/string?
+struct InputSettingsItem {
+    /// ID of the editor so that it can be easily accessed
+    view_id: WidgetId,
+
+    input: WidgetPod<LapceTabData, Padding<LapceTabData, LapceEditorView>>,
+
+    /// The value kind of the setting item, so that we know what to parse it as.
+    value_kind: SettingsValueKind,
+
+    info: SettingsItemInfo,
+}
+impl InputSettingsItem {
+    fn new(
+        data: &mut LapceTabData,
+        kind: String,
+        key: String,
+        desc: String,
+        event_sink: ExtEventSink,
+        input: String,
+        value_kind: SettingsValueKind,
+    ) -> Self {
+        let name = format!("{kind}.{key}");
+        let content = BufferContent::SettingsValue(name.clone());
+
+        let mut doc =
+            Document::new(content.clone(), data.id, event_sink, data.proxy.clone());
+        doc.reload(Rope::from(&input), true);
+        data.main_split.value_docs.insert(name, Arc::new(doc));
+        let editor = LapceEditorData::new(None, None, None, content, &data.config);
+        let view_id = editor.view_id;
+        let input = LapceEditorView::new(editor.view_id, editor.editor_id, None)
+            .hide_header()
+            .hide_gutter()
+            .padding((5.0, 0.0, 50.0, 0.0));
+        data.main_split.editors.insert(view_id, Arc::new(editor));
+
+        Self {
+            view_id,
+            input: WidgetPod::new(input),
+            value_kind,
+            info: SettingsItemInfo::new(key, kind, desc),
+        }
+    }
+}
+impl Widget<LapceTabData> for InputSettingsItem {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        // Don't alert the input to mouse-wheel events
+        if !matches!(event, Event::Wheel(_)) {
+            self.input.event(ctx, event, data, env);
+        }
+
+        match event {
+            Event::MouseMove(_) => ctx.set_handled(),
+            // Save settings when it has been some time since the last edit
+            Event::Timer(token) if self.info.idle_timer_triggered(*token) => {
+                ctx.set_handled();
+                let editor_data = data.editor_view_content(self.view_id);
+
+                if let BufferContent::SettingsValue(_) = &editor_data.editor.content
+                {
+                    let content = editor_data.doc.buffer().to_string();
+                    let value = match self.value_kind {
+                        SettingsValueKind::String => {
+                            Some(serde_json::json!(content))
+                        }
+                        SettingsValueKind::Integer => {
+                            content.parse::<i64>().ok().map(|n| serde_json::json!(n))
+                        }
+                        SettingsValueKind::Float => {
+                            content.parse::<f64>().ok().map(|n| serde_json::json!(n))
+                        }
+                        // Should be unreachable
+                        SettingsValueKind::Bool => None,
+                    };
+
+                    if let Some(value) = value {
+                        self.info.update_settings(data, ctx, value);
+                    }
+                } else {
+                    log::warn!("Setting Input editor view id referred to editor with non-settings-value BufferContent");
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        if let LifeCycle::HotChanged(_) = event {
+            ctx.request_paint();
+        }
+
+        self.input.lifecycle(ctx, event, data, env);
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        self.info.update(ctx, old_data, data, env);
+
+        let old_editor_data = old_data.editor_view_content(self.view_id);
+        let editor_data = data.editor_view_content(self.view_id);
+
+        // If there's been changes, then report that the last time we were idle is right now
+        // TODO: minor. These usages of slice_to_cow are fine, since all settings are short values and thus
+        // it can probably just return a `Cow::Borrowed(_)`, but there's probably a better way to compare
+        if !editor_data.doc.buffer().is_pristine()
+            && (editor_data.doc.buffer().len() != old_editor_data.doc.buffer().len()
+                || editor_data.doc.buffer().text().slice_to_cow(..)
+                    != old_editor_data.doc.buffer().text().slice_to_cow(..))
+        {
+            self.info.last_idle_timer =
+                ctx.request_timer(SettingsItemInfo::SAVE_DELAY, None);
+        }
+
+        self.input.update(ctx, data, env);
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        let size = self.info.layout(ctx, bc, data, env, 0.0);
+
+        let input_size = self.input.layout(ctx, bc, data, env);
+        self.input
+            .set_origin(ctx, data, env, Point::new(0.0, size.height));
+
+        Size::new(size.width, (size.height + input_size.height).ceil())
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        self.info.paint(ctx, data, env, 0.0);
+        self.input.paint(ctx, data, env);
     }
 }
 
@@ -817,189 +1144,6 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
             _ => return CommandExecuted::No,
         }
         CommandExecuted::Yes
-    }
-}
-
-impl Widget<LapceTabData> for LapceSettingsItem {
-    fn event(
-        &mut self,
-        ctx: &mut EventCtx,
-        event: &Event,
-        data: &mut LapceTabData,
-        env: &Env,
-    ) {
-        if let Some(input) = self.input_widget.as_mut() {
-            match event {
-                Event::Wheel(_) => {}
-                _ => {
-                    input.event(ctx, event, data, env);
-                }
-            }
-        }
-        match event {
-            Event::MouseDown(mouse_event) => {
-                if let serde_json::Value::Bool(checked) = self.value {
-                    let rect = Size::new(self.checkbox_width, self.checkbox_width)
-                        .to_rect()
-                        .with_origin(Point::new(
-                            0.0,
-                            self.name(ctx.text(), data).size().height
-                                + self.padding * 2.0
-                                + 4.0,
-                        ));
-                    if rect.contains(mouse_event.pos) {
-                        self.value = serde_json::json!(!checked);
-                        self.value_changed = true;
-                        self.last_idle_timer =
-                            ctx.request_timer(Self::SAVE_DELAY, None);
-                    }
-                }
-            }
-            Event::MouseMove(_) => {
-                ctx.set_handled();
-            }
-            Event::Timer(token)
-                if self.value_changed && *token == self.last_idle_timer =>
-            {
-                self.value_changed = false;
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSettingsFile(
-                        self.kind.clone(),
-                        self.name.clone(),
-                        self.value.clone(),
-                    ),
-                    Target::Widget(data.id),
-                ));
-            }
-
-            _ => {}
-        }
-    }
-
-    fn lifecycle(
-        &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
-    ) {
-        if let LifeCycle::HotChanged(_) = event {
-            ctx.request_paint();
-        }
-        if let Some(input) = self.input_widget.as_mut() {
-            input.lifecycle(ctx, event, data, env);
-        }
-    }
-
-    fn update(
-        &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
-    ) {
-        if data.config.id != old_data.config.id {
-            self.clear_text_layout_cache();
-        }
-        if let Some(input) = self.input_widget.as_mut() {
-            input.update(ctx, data, env);
-        }
-    }
-
-    fn layout(
-        &mut self,
-        ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
-        data: &LapceTabData,
-        env: &Env,
-    ) -> Size {
-        let width = bc.max().width;
-        if width != self.width {
-            self.width = width;
-            self.clear_text_layout_cache();
-        }
-        let text = ctx.text();
-        let name = self.name(text, data).size();
-        let desc = self.desc(text, data).size();
-        let mut height = name.height + desc.height + (self.padding * 3.0);
-        height = height.round();
-
-        if let Some(input) = self.input_widget.as_mut() {
-            input.layout(ctx, bc, data, env);
-            input.set_origin(ctx, data, env, Point::new(0.0, height));
-        }
-
-        let text = ctx.text();
-        let value = self
-            .value(text, data)
-            .map(|v| v.size().height)
-            .unwrap_or(0.0);
-        if value > 0.0 {
-            height += value + self.padding * 2.0;
-        }
-        Size::new(self.width, height.ceil())
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let mut y = 0.0;
-        let padding = self.padding;
-
-        let rect = ctx
-            .size()
-            .to_rect()
-            .inflate(0.0, padding)
-            .inset((padding, 0.0, -30.0, 0.0));
-        if ctx.is_hot() {
-            ctx.fill(
-                rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
-            );
-        }
-
-        let text = ctx.text();
-        let text = self.name(text, data);
-        y += padding;
-        ctx.draw_text(text, Point::new(0.0, y));
-        y += text.size().height;
-
-        y += padding;
-        let x = if let serde_json::Value::Bool(checked) = self.value {
-            let width = 13.0;
-            let height = 13.0;
-            let origin = Point::new(0.0, y + 4.0);
-            let rect = Size::new(width, height).to_rect().with_origin(origin);
-            ctx.stroke(
-                rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                1.0,
-            );
-            if checked {
-                let mut path = BezPath::new();
-                path.move_to((origin.x + 3.0, origin.y + 7.0));
-                path.line_to((origin.x + 6.0, origin.y + 9.5));
-                path.line_to((origin.x + 10.0, origin.y + 3.0));
-                ctx.stroke(
-                    path,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                    2.0,
-                );
-            }
-
-            self.checkbox_width
-        } else {
-            0.0
-        };
-        let text = ctx.text();
-        let text = self.desc(text, data);
-        ctx.draw_text(text, Point::new(x, y));
-
-        if let Some(input) = self.input_widget.as_mut() {
-            input.paint(ctx, data, env);
-        }
     }
 }
 
@@ -1112,12 +1256,7 @@ impl ThemeSettings {
 
         for color in colors {
             let name = format!("{}.{color}", self.kind);
-            let content = BufferContent::SettingsValue(
-                name.clone(),
-                SettingsValueKind::String,
-                self.kind.to_string(),
-                color.to_string(),
-            );
+            let content = BufferContent::SettingsValue(name.clone());
             let mut doc = Document::new(
                 content.clone(),
                 data.id,
