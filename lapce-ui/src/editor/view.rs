@@ -24,7 +24,6 @@ use lapce_data::{
     keypress::KeyPressFocus,
     palette::PaletteStatus,
     panel::{PanelData, PanelKind},
-    settings::SettingsValueKind,
 };
 
 use crate::{
@@ -44,7 +43,6 @@ pub struct LapceEditorView {
     pub find: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     cursor_blink_timer: TimerToken,
     autosave_timer: TimerToken,
-    last_idle_timer: TimerToken,
     display_border: bool,
     background_color_name: &'static str,
     ime: ImeComponent,
@@ -98,7 +96,6 @@ impl LapceEditorView {
             find,
             cursor_blink_timer: TimerToken::INVALID,
             autosave_timer: TimerToken::INVALID,
-            last_idle_timer: TimerToken::INVALID,
             display_border: true,
             background_color_name: LapceTheme::EDITOR_BACKGROUND,
             ime: ImeComponent::default(),
@@ -611,38 +608,6 @@ impl Widget<LapceTabData> for LapceEditorView {
                     }
                 }
             }
-            Event::Timer(id) if self.last_idle_timer == *id => {
-                ctx.set_handled();
-                let editor_data = data.editor_view_content(self.view_id);
-                if let BufferContent::SettingsValue(_, kind, parent, key) =
-                    &editor_data.editor.content
-                {
-                    let content = editor_data.doc.buffer().to_string();
-                    let new_value = match kind {
-                        SettingsValueKind::String => {
-                            Some(serde_json::json!(content))
-                        }
-                        SettingsValueKind::Integer => {
-                            content.parse::<i64>().ok().map(|n| serde_json::json!(n))
-                        }
-                        SettingsValueKind::Float => {
-                            content.parse::<f64>().ok().map(|n| serde_json::json!(n))
-                        }
-                        SettingsValueKind::Bool => None,
-                    };
-                    if let Some(new_value) = new_value {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSettingsFile(
-                                parent.to_string(),
-                                key.to_string(),
-                                new_value,
-                            ),
-                            Target::Widget(data.id),
-                        ));
-                    }
-                }
-            }
             Event::Timer(id) if self.autosave_timer == *id => {
                 ctx.set_handled();
                 if let Some(editor) = data
@@ -913,18 +878,6 @@ impl Widget<LapceTabData> for LapceEditorView {
 
         let old_editor_data = old_data.editor_view_content(self.view_id);
         let editor_data = data.editor_view_content(self.view_id);
-
-        if let BufferContent::SettingsValue(..) = &editor_data.editor.content {
-            if !editor_data.doc.buffer().is_pristine()
-                && (editor_data.doc.buffer().len()
-                    != old_editor_data.doc.buffer().len()
-                    || editor_data.doc.buffer().text().slice_to_cow(..)
-                        != old_editor_data.doc.buffer().text().slice_to_cow(..))
-            {
-                self.last_idle_timer =
-                    ctx.request_timer(Duration::from_millis(500), None);
-            }
-        }
 
         let offset = editor_data.editor.cursor.offset();
         let old_offset = old_editor_data.editor.cursor.offset();

@@ -1721,7 +1721,7 @@ impl LapceTab {
                             BufferContent::Local(kind) => {
                                 data.main_split.local_docs.get_mut(kind).unwrap()
                             }
-                            BufferContent::SettingsValue(name, _, _, _) => {
+                            BufferContent::SettingsValue(name) => {
                                 data.main_split.value_docs.get_mut(name).unwrap()
                             }
                             BufferContent::Scratch(id, _) => {

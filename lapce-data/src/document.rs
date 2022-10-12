@@ -53,7 +53,6 @@ use crate::{
     history::DocumentHistory,
     proxy::LapceProxy,
     selection_range::{SelectionRangeDirection, SyntaxSelectionRanges},
-    settings::SettingsValueKind,
 };
 use lapce_rpc::plugin::PluginId;
 
@@ -133,7 +132,8 @@ pub enum LocalBufferKind {
 pub enum BufferContent {
     File(PathBuf),
     Local(LocalBufferKind),
-    SettingsValue(String, SettingsValueKind, String, String),
+    /// A setting input; with its name.
+    SettingsValue(String),
     Scratch(BufferId, String),
 }
 
