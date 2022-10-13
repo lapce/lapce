@@ -441,17 +441,14 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             .children
             .iter()
             .flat_map(|child| {
-                match child {
-                    EditorTabChild::Editor(view_id, _, _) => {
-                        let editor = data.main_split.editors.get(view_id).unwrap();
-                        if let BufferContent::File(path) = &editor.content {
-                            if let Some(file_name) = path.file_name() {
-                                let name = file_name.to_str().unwrap();
-                                return Some(name);
-                            }
+                if let EditorTabChild::Editor(view_id, _, _) = child {
+                    let editor = data.main_split.editors.get(view_id).unwrap();
+                    if let BufferContent::File(path) = &editor.content {
+                        if let Some(file_name) = path.file_name() {
+                            let name = file_name.to_str().unwrap();
+                            return Some(name);
                         }
                     }
-                    _ => {}
                 }
                 return None;
             })
