@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- [#1483](https://github.com/lapce/lapce/pull/1483): Fix showing the close icon for the first tab when opening multiple tab
+
 ### Bug Fixes
 
 - [#1505](https://github.com/lapce/lapce/pull/1505): Fix proxy download for hosts with curl without -Z flag
@@ -11,13 +13,14 @@
 ## 0.2.1
 
 ### Features/Changes
+
 - [#1050](https://github.com/lapce/lapce/pull/1050): Collapse groups of problems in the problem list panel
 - [#1165](https://github.com/lapce/lapce/pull/1165): Command to reveal item in system file explorer
 - [#1196](https://github.com/lapce/lapce/pull/1196): Always show close button on focused editor tabs
 - [#1208](https://github.com/lapce/lapce/pull/1208): Sticky header breadcrumbs
   - This provides a header at the top which tells you information about the current scope! Especially useful for long blocks of code
   - ![image](https://user-images.githubusercontent.com/13157904/195404556-2c329ebb-f721-4d55-aa22-56a54f8e8454.png)
-  - As well, you can see that there is now a breadcrumb path to the current file. 
+  - As well, you can see that there is now a breadcrumb path to the current file.
   - A language with syntax highlighting can have this added, even without an LSP. Take a look at `language.rs` if your language isn't supported!
 - [#1198](https://github.com/lapce/lapce/pull/1198): Focus current theme/language in palette
 - [#1244](https://github.com/lapce/lapce/pull/1244); Prettier plugin panel
@@ -49,6 +52,7 @@
 - [#1475](https://github.com/lapce/lapce/pull/1475): Add editor setting: "Cursor Surrounding Lines" which sets minimum number of lines above and below cursor
 
 ### Syntax / Extensions
+
 - [#957](https://github.com/lapce/lapce/pull/957): Replace existing tree-sitter syntax highlighting code with part of Helix's better implementation
   - This means that syntax highlighting for more languages! Such as fixing markdown support, and making so that languages embedded in others (like JavaScript in HTML) work.
   - Note that not all themes have updated themselves to include the extra scopes/colors.
@@ -69,6 +73,7 @@
 - [#1450](https://github.com/lapce/lapce/pull/1450): Add `tf` extension for HCL
 
 ### Bug Fixes
+
 - [#1030](https://github.com/lapce/lapce/pull/1030): Don't try to open an font file with an empty name if there is no font family set
 - [9f0120d](https://github.com/lapce/lapce/commit/9f0120df85e3aaaef7fbb43385bb15d88443260a): Fix excessive CPU usage in part of the code
 - [bf5a98a](https://github.com/lapce/lapce/commit/bf5a98a6d432f9d2abdc1737da2d075e204771fb): Fix issue where sometimes Lapce can't open
@@ -92,6 +97,7 @@
 - Many more fixes!
 
 ### Other
+
 - [#1191](https://github.com/lapce/lapce/pull/1191): Tone down default inlay hint background color in Lapce dark theme
 - [#1227](https://github.com/lapce/lapce/pull/1227): Don't restore cursor mode on undo
 - [#1413](https://github.com/lapce/lapce/pull/1413): Disable format-on-save by default. Remember to re-enable this if you want it!
