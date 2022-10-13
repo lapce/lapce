@@ -230,10 +230,11 @@ fn parse_hover_resp(hover: lsp_types::Hover, config: &LapceConfig) -> Vec<RichTe
     match hover.contents {
         HoverContents::Scalar(text) => match text {
             MarkedString::String(text) => {
-                vec![parse_markdown(&text, config)]
+                vec![parse_markdown(&text, 1.5, config)]
             }
             MarkedString::LanguageString(code) => vec![parse_markdown(
                 &format!("```{}\n{}\n```", code.language, code.value),
+                1.5,
                 config,
             )],
         },
@@ -249,7 +250,7 @@ fn parse_hover_resp(hover: lsp_types::Hover, config: &LapceConfig) -> Vec<RichTe
                 vec![builder.build()]
             }
             MarkupKind::Markdown => {
-                vec![parse_markdown(&content.value, config)]
+                vec![parse_markdown(&content.value, 1.5, config)]
             }
         },
     }

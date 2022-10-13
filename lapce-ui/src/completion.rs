@@ -699,7 +699,7 @@ fn parse_documentation(doc: &Documentation, config: &LapceConfig) -> RichText {
                 builder.push(&content.value);
                 builder.build()
             }
-            MarkupKind::Markdown => parse_markdown(&content.value, config),
+            MarkupKind::Markdown => parse_markdown(&content.value, 1.5, config),
         },
     }
 }
