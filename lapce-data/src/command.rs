@@ -616,6 +616,8 @@ pub enum LapceUICommand {
     PreviousEditorTab,
     FilterItems,
     RestartToUpdate(PathBuf, ReleaseInfo),
+    UpdateStarted,
+    UpdateFailed,
     NewWindow(WindowId),
     CloseWindow(WindowId),
     ReloadWindow,

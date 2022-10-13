@@ -99,6 +99,8 @@ pub struct LapceData {
     pub panel_orders: PanelOrder,
     /// The latest release information
     pub latest_release: Arc<Option<ReleaseInfo>>,
+    /// whether the update is in progress
+    pub update_in_process: bool,
     /// The window on focus
     pub active_window: Arc<WindowId>,
 }
@@ -154,6 +156,7 @@ impl LapceData {
                 let window = LapceWindowData::new(
                     keypress.clone(),
                     latest_release.clone(),
+                    false,
                     panel_orders.clone(),
                     event_sink.clone(),
                     &info,
@@ -167,6 +170,7 @@ impl LapceData {
                     let window = LapceWindowData::new(
                         keypress.clone(),
                         latest_release.clone(),
+                        false,
                         panel_orders.clone(),
                         event_sink.clone(),
                         info,
@@ -194,6 +198,7 @@ impl LapceData {
             let window = LapceWindowData::new(
                 keypress.clone(),
                 latest_release.clone(),
+                false,
                 panel_orders.clone(),
                 event_sink.clone(),
                 &info,
@@ -245,6 +250,7 @@ impl LapceData {
             db,
             panel_orders,
             latest_release,
+            update_in_process: false,
         }
     }
 
@@ -418,12 +424,14 @@ pub struct LapceWindowData {
     pub pos: Point,
     pub panel_orders: PanelOrder,
     pub latest_release: Arc<Option<ReleaseInfo>>,
+    pub update_in_progress: bool,
 }
 
 impl LapceWindowData {
     pub fn new(
         keypress: Arc<KeyPressData>,
         latest_release: Arc<Option<ReleaseInfo>>,
+        update_in_progress: bool,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
         info: &WindowInfo,
@@ -444,6 +452,7 @@ impl LapceWindowData {
                 db.clone(),
                 keypress.clone(),
                 latest_release.clone(),
+                update_in_progress,
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -464,6 +473,7 @@ impl LapceWindowData {
                 db.clone(),
                 keypress.clone(),
                 latest_release.clone(),
+                update_in_progress,
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -516,6 +526,7 @@ impl LapceWindowData {
             maximised: info.maximised,
             panel_orders,
             latest_release,
+            update_in_progress,
         }
     }
 
@@ -622,6 +633,7 @@ pub struct LapceTabData {
     pub progresses: Arc<Vec<WorkProgress>>,
     pub drag: Arc<Option<(Vec2, Vec2, DragContent)>>,
     pub latest_release: Arc<Option<ReleaseInfo>>,
+    pub update_in_progress: bool,
 }
 
 impl GetConfig for LapceTabData {
@@ -639,6 +651,7 @@ impl LapceTabData {
         db: Arc<LapceDb>,
         keypress: Arc<KeyPressData>,
         latest_release: Arc<Option<ReleaseInfo>>,
+        update_in_progress: bool,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
     ) -> Self {
@@ -809,6 +822,7 @@ impl LapceTabData {
             progresses: Arc::new(Vec::new()),
             drag: Arc::new(None),
             latest_release,
+            update_in_progress,
         };
         tab.start_update_process(event_sink);
         tab
@@ -1959,6 +1973,7 @@ impl Lens<LapceWindowData, LapceTabData> for LapceTabLens {
         let mut tab = data.tabs.get(&self.0).unwrap().clone();
         tab.keypress = data.keypress.clone();
         tab.latest_release = data.latest_release.clone();
+        tab.update_in_progress = data.update_in_progress;
         tab.multiple_tab = data.tabs.len() > 1;
         if !tab.panel.order.same(&data.panel_orders) {
             Arc::make_mut(&mut tab.panel).order = data.panel_orders.clone();
@@ -1995,6 +2010,7 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
         let mut win = data.windows.get(&self.0).unwrap().clone();
         win.keypress = data.keypress.clone();
         win.latest_release = data.latest_release.clone();
+        win.update_in_progress = data.update_in_process;
         win.panel_orders = data.panel_orders.clone();
         let result = f(&mut win);
         data.keypress = win.keypress.clone();
