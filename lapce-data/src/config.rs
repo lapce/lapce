@@ -1,99 +1,118 @@
 use std::{
+    collections::HashMap,
     io::Write,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
-use anyhow::Result;
-use directories::ProjectDirs;
 use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
     Color, ExtEventSink, FontFamily, Size, Target,
 };
 use indexmap::IndexMap;
-use lapce_proxy::plugin::PluginCatalog;
-use parking_lot::RwLock;
+pub use lapce_proxy::APPLICATION_NAME;
+use lapce_proxy::{directory::Directory, plugin::wasi::find_all_volts};
+use once_cell::sync::Lazy;
+use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use structdesc::FieldNames;
 use thiserror::Error;
+use toml_edit::easy as toml;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     data::{LapceWorkspace, LapceWorkspaceType},
 };
 
+pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
 const DEFAULT_LIGHT_THEME: &str = include_str!("../../defaults/light-theme.toml");
 const DEFAULT_DARK_THEME: &str = include_str!("../../defaults/dark-theme.toml");
-pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
+static DEFAULT_CONFIG: Lazy<config::Config> = Lazy::new(LapceConfig::default_config);
+static DEFAULT_LAPCE_CONFIG: Lazy<LapceConfig> =
+    Lazy::new(LapceConfig::default_lapce_config);
 
 pub struct LapceTheme {}
 
 impl LapceTheme {
-    pub const LAPCE_WARN: &'static str = "lapce.warn";
-    pub const LAPCE_ERROR: &'static str = "lapce.error";
-    pub const LAPCE_ACTIVE_TAB: &'static str = "lapce.active_tab";
-    pub const LAPCE_INACTIVE_TAB: &'static str = "lapce.inactive_tab";
-    pub const LAPCE_DROPDOWN_SHADOW: &'static str = "lapce.dropdown_shadow";
-    pub const LAPCE_BORDER: &'static str = "lapce.border";
-    pub const LAPCE_SCROLL_BAR: &'static str = "lapce.scroll_bar";
+    pub const LAPCE_WARN: &str = "lapce.warn";
+    pub const LAPCE_ERROR: &str = "lapce.error";
+    pub const LAPCE_ACTIVE_TAB: &str = "lapce.active_tab";
+    pub const LAPCE_INACTIVE_TAB: &str = "lapce.inactive_tab";
+    pub const LAPCE_DROPDOWN_SHADOW: &str = "lapce.dropdown_shadow";
+    pub const LAPCE_BORDER: &str = "lapce.border";
+    pub const LAPCE_SCROLL_BAR: &str = "lapce.scroll_bar";
 
-    pub const EDITOR_BACKGROUND: &'static str = "editor.background";
-    pub const EDITOR_FOREGROUND: &'static str = "editor.foreground";
-    pub const EDITOR_DIM: &'static str = "editor.dim";
-    pub const EDITOR_FOCUS: &'static str = "editor.focus";
-    pub const EDITOR_CARET: &'static str = "editor.caret";
-    pub const EDITOR_SELECTION: &'static str = "editor.selection";
-    pub const EDITOR_CURRENT_LINE: &'static str = "editor.current_line";
-    pub const EDITOR_LINK: &'static str = "editor.link";
+    pub const EDITOR_BACKGROUND: &str = "editor.background";
+    pub const EDITOR_FOREGROUND: &str = "editor.foreground";
+    pub const EDITOR_DIM: &str = "editor.dim";
+    pub const EDITOR_FOCUS: &str = "editor.focus";
+    pub const EDITOR_CARET: &str = "editor.caret";
+    pub const EDITOR_SELECTION: &str = "editor.selection";
+    pub const EDITOR_CURRENT_LINE: &str = "editor.current_line";
+    pub const EDITOR_LINK: &str = "editor.link";
+    pub const EDITOR_VISIBLE_WHITESPACE: &str = "editor.visible_whitespace";
 
-    pub const SOURCE_CONTROL_ADDED: &'static str = "source_control.added";
-    pub const SOURCE_CONTROL_REMOVED: &'static str = "source_control.removed";
-    pub const SOURCE_CONTROL_MODIFIED: &'static str = "source_control.modified";
+    pub const INLAY_HINT_FOREGROUND: &str = "inlay_hint.foreground";
+    pub const INLAY_HINT_BACKGROUND: &str = "inlay_hint.background";
 
-    pub const TERMINAL_CURSOR: &'static str = "terminal.cursor";
-    pub const TERMINAL_BACKGROUND: &'static str = "terminal.background";
-    pub const TERMINAL_FOREGROUND: &'static str = "terminal.foreground";
-    pub const TERMINAL_RED: &'static str = "terminal.red";
-    pub const TERMINAL_BLUE: &'static str = "terminal.blue";
-    pub const TERMINAL_GREEN: &'static str = "terminal.green";
-    pub const TERMINAL_YELLOW: &'static str = "terminal.yellow";
-    pub const TERMINAL_BLACK: &'static str = "terminal.black";
-    pub const TERMINAL_WHITE: &'static str = "terminal.white";
-    pub const TERMINAL_CYAN: &'static str = "terminal.cyan";
-    pub const TERMINAL_MAGENTA: &'static str = "terminal.magenta";
+    pub const ERROR_LENS_ERROR_FOREGROUND: &str = "error_lens.error.foreground";
+    pub const ERROR_LENS_ERROR_BACKGROUND: &str = "error_lens.error.background";
+    pub const ERROR_LENS_WARNING_FOREGROUND: &str = "error_lens.warning.foreground";
+    pub const ERROR_LENS_WARNING_BACKGROUND: &str = "error_lens.warning.background";
+    pub const ERROR_LENS_OTHER_FOREGROUND: &str = "error_lens.other.foreground";
+    pub const ERROR_LENS_OTHER_BACKGROUND: &str = "error_lens.other.background";
 
-    pub const TERMINAL_BRIGHT_RED: &'static str = "terminal.bright_red";
-    pub const TERMINAL_BRIGHT_BLUE: &'static str = "terminal.bright_blue";
-    pub const TERMINAL_BRIGHT_GREEN: &'static str = "terminal.bright_green";
-    pub const TERMINAL_BRIGHT_YELLOW: &'static str = "terminal.bright_yellow";
-    pub const TERMINAL_BRIGHT_BLACK: &'static str = "terminal.bright_black";
-    pub const TERMINAL_BRIGHT_WHITE: &'static str = "terminal.bright_white";
-    pub const TERMINAL_BRIGHT_CYAN: &'static str = "terminal.bright_cyan";
-    pub const TERMINAL_BRIGHT_MAGENTA: &'static str = "terminal.bright_magenta";
+    pub const SOURCE_CONTROL_ADDED: &str = "source_control.added";
+    pub const SOURCE_CONTROL_REMOVED: &str = "source_control.removed";
+    pub const SOURCE_CONTROL_MODIFIED: &str = "source_control.modified";
 
-    pub const PALETTE_BACKGROUND: &'static str = "palette.background";
-    pub const PALETTE_CURRENT: &'static str = "palette.current";
+    pub const TERMINAL_CURSOR: &str = "terminal.cursor";
+    pub const TERMINAL_BACKGROUND: &str = "terminal.background";
+    pub const TERMINAL_FOREGROUND: &str = "terminal.foreground";
+    pub const TERMINAL_RED: &str = "terminal.red";
+    pub const TERMINAL_BLUE: &str = "terminal.blue";
+    pub const TERMINAL_GREEN: &str = "terminal.green";
+    pub const TERMINAL_YELLOW: &str = "terminal.yellow";
+    pub const TERMINAL_BLACK: &str = "terminal.black";
+    pub const TERMINAL_WHITE: &str = "terminal.white";
+    pub const TERMINAL_CYAN: &str = "terminal.cyan";
+    pub const TERMINAL_MAGENTA: &str = "terminal.magenta";
 
-    pub const COMPLETION_BACKGROUND: &'static str = "completion.background";
-    pub const COMPLETION_CURRENT: &'static str = "completion.current";
+    pub const TERMINAL_BRIGHT_RED: &str = "terminal.bright_red";
+    pub const TERMINAL_BRIGHT_BLUE: &str = "terminal.bright_blue";
+    pub const TERMINAL_BRIGHT_GREEN: &str = "terminal.bright_green";
+    pub const TERMINAL_BRIGHT_YELLOW: &str = "terminal.bright_yellow";
+    pub const TERMINAL_BRIGHT_BLACK: &str = "terminal.bright_black";
+    pub const TERMINAL_BRIGHT_WHITE: &str = "terminal.bright_white";
+    pub const TERMINAL_BRIGHT_CYAN: &str = "terminal.bright_cyan";
+    pub const TERMINAL_BRIGHT_MAGENTA: &str = "terminal.bright_magenta";
 
-    pub const HOVER_BACKGROUND: &'static str = "hover.background";
+    pub const PALETTE_BACKGROUND: &str = "palette.background";
+    pub const PALETTE_CURRENT: &str = "palette.current";
 
-    pub const ACTIVITY_BACKGROUND: &'static str = "activity.background";
-    pub const ACTIVITY_CURRENT: &'static str = "activity.current";
+    pub const COMPLETION_BACKGROUND: &str = "completion.background";
+    pub const COMPLETION_CURRENT: &str = "completion.current";
 
-    pub const PANEL_BACKGROUND: &'static str = "panel.background";
-    pub const PANEL_CURRENT: &'static str = "panel.current";
-    pub const PANEL_HOVERED: &'static str = "panel.hovered";
+    pub const HOVER_BACKGROUND: &str = "hover.background";
 
-    pub const STATUS_BACKGROUND: &'static str = "status.background";
-    pub const STATUS_MODAL_NORMAL: &'static str = "status.modal.normal";
-    pub const STATUS_MODAL_INSERT: &'static str = "status.modal.insert";
-    pub const STATUS_MODAL_VISUAL: &'static str = "status.modal.visual";
-    pub const STATUS_MODAL_TERMINAL: &'static str = "status.modal.terminal";
+    pub const ACTIVITY_BACKGROUND: &str = "activity.background";
+    pub const ACTIVITY_CURRENT: &str = "activity.current";
 
+    pub const PANEL_BACKGROUND: &str = "panel.background";
+    pub const PANEL_CURRENT: &str = "panel.current";
+    pub const PANEL_HOVERED: &str = "panel.hovered";
+
+    pub const STATUS_BACKGROUND: &str = "status.background";
+    pub const STATUS_MODAL_NORMAL: &str = "status.modal.normal";
+    pub const STATUS_MODAL_INSERT: &str = "status.modal.insert";
+    pub const STATUS_MODAL_VISUAL: &str = "status.modal.visual";
+    pub const STATUS_MODAL_TERMINAL: &str = "status.modal.terminal";
+
+    pub const PALETTE_INPUT_LINE_HEIGHT: druid::Key<f64> =
+        druid::Key::new("lapce.palette_input_line_height");
+    pub const PALETTE_INPUT_LINE_PADDING: druid::Key<f64> =
+        druid::Key::new("lapce.palette_input_line_padding");
     pub const INPUT_LINE_HEIGHT: druid::Key<f64> =
         druid::Key::new("lapce.input_line_height");
     pub const INPUT_LINE_PADDING: druid::Key<f64> =
@@ -118,16 +137,20 @@ pub enum LoadThemeError {
 }
 
 pub trait GetConfig {
-    fn get_config(&self) -> &Config;
+    fn get_config(&self) -> &LapceConfig;
 }
 
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
-pub struct LapceConfig {
+pub struct CoreConfig {
     #[field_names(desc = "Enable modal editing (Vim like)")]
     pub modal: bool,
     #[field_names(desc = "Set the color theme of Lapce")]
     pub color_theme: String,
+    #[field_names(
+        desc = "Enable customised titlebar and disable OS native one (Linux, BSD, Windows)"
+    )]
+    pub custom_titlebar: bool,
 }
 
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
@@ -139,14 +162,30 @@ pub struct EditorConfig {
     pub font_size: usize,
     #[field_names(desc = "Set the font size in the code lens")]
     pub code_lens_font_size: usize,
-    #[field_names(desc = "Set the editor line height")]
-    pub line_height: usize,
+    #[field_names(
+        desc = "Set the editor line height. If less than 5.0, line height will be a multiple of the font size."
+    )]
+    line_height: f64,
     #[field_names(desc = "Set the tab width")]
     pub tab_width: usize,
     #[field_names(desc = "If opened editors are shown in a tab")]
     pub show_tab: bool,
+    #[field_names(desc = "If navigation breadcrumbs are shown for the file")]
+    pub show_bread_crumbs: bool,
     #[field_names(desc = "If the editor can scroll beyond the last line")]
     pub scroll_beyond_last_line: bool,
+    #[field_names(
+        desc = "Show code context like functions and classes at the top of editor when scroll"
+    )]
+    pub sticky_header: bool,
+    #[field_names(
+        desc = "If the editor should show the documentation of the current completion item"
+    )]
+    pub completion_show_documentation: bool,
+    #[field_names(
+        desc = "Whether the editor should disable automatic closing of matching pairs"
+    )]
+    pub auto_closing_matching_pairs: bool,
     #[field_names(
         desc = "How long (in ms) it should take before the hover information appears"
     )]
@@ -159,11 +198,110 @@ pub struct EditorConfig {
         desc = "Whether it should format the document on save (if there is an available formatter)"
     )]
     pub format_on_save: bool,
+    #[field_names(desc = "If inlay hints should be displayed")]
+    pub enable_inlay_hints: bool,
+    #[field_names(
+        desc = "Set the inlay hint font family. If empty, it uses the editor font family."
+    )]
+    pub inlay_hint_font_family: String,
+    #[field_names(
+        desc = "Set the inlay hint font size. If less than 5 or greater than editor font size, it uses the editor font size."
+    )]
+    pub inlay_hint_font_size: usize,
+    #[field_names(desc = "If diagnostics should be displayed inline")]
+    pub enable_error_lens: bool,
+    #[field_names(
+        desc = "Whether error lens should go to the end of view line, or only to the end of the diagnostic"
+    )]
+    pub error_lens_end_of_line: bool,
+    #[field_names(
+        desc = "Set error lens font family. If empty, it uses the inlay hint font family."
+    )]
+    pub error_lens_font_family: String,
+    #[field_names(
+        desc = "Set the error lens font size. If 0 it uses the inlay hint font size."
+    )]
+    pub error_lens_font_size: usize,
+    #[field_names(
+        desc = "Set the cursor blink interval (in milliseconds). Set to 0 to completely disable."
+    )]
+    pub blink_interval: u64, // TODO: change to u128 when upgrading config-rs to >0.11
+    #[field_names(
+        desc = "Whether the multiple cursor selection is case sensitive."
+    )]
+    pub multicursor_case_sensitive: bool,
+    #[field_names(
+        desc = "Whether the multiple cursor selection only selects whole words."
+    )]
+    pub multicursor_whole_words: bool,
+    #[field_names(
+        desc = "How the editor should render whitespace characters.\nOptions: none, all, boundary, trailing."
+    )]
+    pub render_whitespace: String,
+    #[field_names(
+        desc = "Set the auto save delay (in milliseconds), Set to 0 to completely disable"
+    )]
+    pub autosave_interval: u64,
+    #[field_names(
+        desc = "If enabled the cursor treats leading soft tabs as if they are hard tabs."
+    )]
+    pub atomic_soft_tabs: bool,
 }
 
 impl EditorConfig {
+    pub fn line_height(&self) -> usize {
+        const SCALE_OR_SIZE_LIMIT: f64 = 5.0;
+
+        let line_height = if self.line_height < SCALE_OR_SIZE_LIMIT {
+            self.line_height * self.font_size as f64
+        } else {
+            self.line_height
+        };
+
+        // Prevent overlapping lines
+        (line_height.round() as usize).max(self.font_size)
+    }
+
     pub fn font_family(&self) -> FontFamily {
-        FontFamily::new_unchecked(self.font_family.clone())
+        if self.font_family.is_empty() {
+            FontFamily::SYSTEM_UI
+        } else {
+            FontFamily::new_unchecked(self.font_family.clone())
+        }
+    }
+
+    pub fn inlay_hint_font_family(&self) -> FontFamily {
+        if self.inlay_hint_font_family.is_empty() {
+            self.font_family()
+        } else {
+            FontFamily::new_unchecked(self.inlay_hint_font_family.clone())
+        }
+    }
+
+    pub fn inlay_hint_font_size(&self) -> usize {
+        if self.inlay_hint_font_size < 5
+            || self.inlay_hint_font_size > self.font_size
+        {
+            self.font_size
+        } else {
+            self.inlay_hint_font_size
+        }
+    }
+
+    pub fn error_lens_font_family(&self) -> FontFamily {
+        if self.error_lens_font_family.is_empty() {
+            self.inlay_hint_font_family()
+        } else {
+            FontFamily::new_unchecked(self.error_lens_font_family.clone())
+        }
+    }
+
+    pub fn error_lens_font_size(&self) -> usize {
+        if self.error_lens_font_size == 0 {
+            self.inlay_hint_font_size()
+        } else {
+            self.error_lens_font_size
+        }
     }
 }
 
@@ -171,11 +309,11 @@ impl EditorConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct UIConfig {
     #[field_names(
-        desc = "Set the ui font family. If empty, it uses system default."
+        desc = "Set the UI font family. If empty, it uses system default."
     )]
     font_family: String,
 
-    #[field_names(desc = "Set the ui base font size")]
+    #[field_names(desc = "Set the UI base font size")]
     font_size: usize,
 
     #[field_names(
@@ -186,17 +324,27 @@ pub struct UIConfig {
     #[field_names(desc = "Set the height for status line")]
     status_height: usize,
 
-    #[field_names(desc = "Set the minium width for editor tab")]
+    #[field_names(desc = "Set the minimum width for editor tab")]
     tab_min_width: usize,
-
-    #[field_names(desc = "Set the width for activity bar")]
-    activity_width: usize,
 
     #[field_names(desc = "Set the width for scroll bar")]
     scroll_width: usize,
 
     #[field_names(desc = "Controls the width of drop shadow in the UI")]
     drop_shadow_width: usize,
+
+    #[field_names(desc = "Controls the width of the preview editor")]
+    preview_editor_width: usize,
+
+    #[field_names(
+        desc = "Set the hover font family. If empty, it uses the UI font family"
+    )]
+    hover_font_family: String,
+    #[field_names(desc = "Set the hover font size. If 0, uses the UI font size")]
+    hover_font_size: usize,
+
+    #[field_names(desc = "Trim whitespace from search results")]
+    trim_search_results_whitespace: bool,
 }
 
 impl UIConfig {
@@ -204,7 +352,7 @@ impl UIConfig {
         if self.font_family.is_empty() {
             FontFamily::SYSTEM_UI
         } else {
-            FontFamily::new_unchecked(self.font_family.clone())
+            FontFamily::new_unchecked(self.font_family.as_str())
         }
     }
 
@@ -226,16 +374,36 @@ impl UIConfig {
         self.tab_min_width
     }
 
-    pub fn activity_width(&self) -> usize {
-        self.activity_width
-    }
-
     pub fn scroll_width(&self) -> usize {
         self.scroll_width
     }
 
     pub fn drop_shadow_width(&self) -> usize {
         self.drop_shadow_width
+    }
+
+    pub fn preview_editor_width(&self) -> usize {
+        self.preview_editor_width
+    }
+
+    pub fn hover_font_family(&self) -> FontFamily {
+        if self.hover_font_family.is_empty() {
+            self.font_family()
+        } else {
+            FontFamily::new_unchecked(self.hover_font_family.as_str())
+        }
+    }
+
+    pub fn hover_font_size(&self) -> usize {
+        if self.hover_font_size == 0 {
+            self.font_size()
+        } else {
+            self.hover_font_size
+        }
+    }
+
+    pub fn trim_search_results_whitespace(&self) -> bool {
+        self.trim_search_results_whitespace
     }
 }
 
@@ -277,27 +445,19 @@ impl ThemeConfig {
         colors
             .iter()
             .map(|(name, hex)| {
-                if let Some(stripped) = hex.strip_prefix('$') {
-                    if let Some(c) = base.get(stripped) {
-                        return (name.to_string(), c.clone());
-                    }
-                    if let Some(default) = default {
-                        if let Some(c) = default.get(name) {
-                            return (name.to_string(), c.clone());
-                        }
-                    }
-                    return (name.to_string(), Color::rgb8(0, 0, 0));
-                }
+                let color = if let Some(stripped) = hex.strip_prefix('$') {
+                    base.get(stripped).cloned()
+                } else {
+                    Color::from_hex_str(hex).ok()
+                };
 
-                if let Ok(c) = Color::from_hex_str(hex) {
-                    return (name.to_string(), c);
-                }
-                if let Some(default) = default {
-                    if let Some(c) = default.get(name) {
-                        return (name.to_string(), c.clone());
-                    }
-                }
-                (name.to_string(), Color::rgb8(0, 0, 0))
+                let color = color
+                    .or_else(|| {
+                        default.and_then(|default| default.get(name).cloned())
+                    })
+                    .unwrap_or(Color::rgb8(0, 0, 0));
+
+                (name.to_string(), color)
             })
             .collect()
     }
@@ -336,62 +496,19 @@ pub struct ThemeBaseConfig {
 
 impl ThemeBaseConfig {
     pub fn resolve(&self, default: Option<&ThemeBaseColor>) -> ThemeBaseColor {
+        let default = default.cloned().unwrap_or_default();
         ThemeBaseColor {
-            white: Color::from_hex_str(&self.white).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.white.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            black: Color::from_hex_str(&self.black).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.black.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            grey: Color::from_hex_str(&self.grey).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.grey.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            blue: Color::from_hex_str(&self.blue).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.blue.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            red: Color::from_hex_str(&self.red).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.red.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            yellow: Color::from_hex_str(&self.yellow).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.yellow.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            orange: Color::from_hex_str(&self.orange).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.orange.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            green: Color::from_hex_str(&self.green).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.green.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            purple: Color::from_hex_str(&self.purple).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.purple.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            cyan: Color::from_hex_str(&self.cyan).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.cyan.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
-            magenta: Color::from_hex_str(&self.magenta).unwrap_or_else(|_| {
-                default
-                    .map(|d| d.magenta.clone())
-                    .unwrap_or_else(|| Color::rgb8(0, 0, 0))
-            }),
+            white: Color::from_hex_str(&self.white).unwrap_or(default.white),
+            black: Color::from_hex_str(&self.black).unwrap_or(default.black),
+            grey: Color::from_hex_str(&self.grey).unwrap_or(default.grey),
+            blue: Color::from_hex_str(&self.blue).unwrap_or(default.blue),
+            red: Color::from_hex_str(&self.red).unwrap_or(default.red),
+            yellow: Color::from_hex_str(&self.yellow).unwrap_or(default.yellow),
+            orange: Color::from_hex_str(&self.orange).unwrap_or(default.orange),
+            green: Color::from_hex_str(&self.green).unwrap_or(default.green),
+            purple: Color::from_hex_str(&self.purple).unwrap_or(default.purple),
+            cyan: Color::from_hex_str(&self.cyan).unwrap_or(default.cyan),
+            magenta: Color::from_hex_str(&self.magenta).unwrap_or(default.magenta),
         }
     }
 
@@ -480,14 +597,16 @@ impl ThemeBaseColor {
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
-pub struct Config {
+pub struct LapceConfig {
     #[serde(skip)]
     pub id: u64,
-    pub lapce: LapceConfig,
+    pub core: CoreConfig,
     pub ui: UIConfig,
     pub editor: EditorConfig,
     pub terminal: TerminalConfig,
     pub theme: ThemeConfig,
+    #[serde(flatten)]
+    pub plugins: HashMap<String, HashMap<String, serde_json::Value>>,
     #[serde(skip)]
     pub default_theme: ThemeConfig,
     #[serde(skip)]
@@ -500,11 +619,15 @@ pub struct Config {
 
 pub struct ConfigWatcher {
     event_sink: ExtEventSink,
+    delay_handler: Arc<Mutex<Option<()>>>,
 }
 
 impl ConfigWatcher {
     pub fn new(event_sink: ExtEventSink) -> Self {
-        Self { event_sink }
+        Self {
+            event_sink,
+            delay_handler: Arc::new(Mutex::new(None)),
+        }
     }
 }
 
@@ -515,11 +638,19 @@ impl notify::EventHandler for ConfigWatcher {
                 notify::EventKind::Create(_)
                 | notify::EventKind::Modify(_)
                 | notify::EventKind::Remove(_) => {
-                    let _ = self.event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::ReloadConfig,
-                        Target::Auto,
-                    );
+                    *self.delay_handler.lock() = Some(());
+                    let delay_handler = self.delay_handler.clone();
+                    let event_sink = self.event_sink.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                        if delay_handler.lock().take().is_some() {
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ReloadConfig,
+                                Target::Auto,
+                            );
+                        }
+                    });
                 }
                 _ => (),
             }
@@ -527,73 +658,92 @@ impl notify::EventHandler for ConfigWatcher {
     }
 }
 
-impl Config {
-    pub fn load(workspace: &LapceWorkspace) -> Result<Self> {
-        let default_settings = Self::default_settings();
-        let mut default_config: Config =
-            default_settings.clone().try_into().unwrap();
-        default_config.resolve_colors(None);
-
-        let settings =
-            Self::merge_settings(default_settings.clone(), workspace, None);
-        let mut config: Config = settings.try_into()?;
-        let available_themes = Self::load_themes();
-        if let Some((_, theme)) =
-            available_themes.get(&config.lapce.color_theme.to_lowercase())
-        {
-            if let Ok(theme_settings) =
-                default_settings.clone().with_merged(theme.clone())
-            {
-                if let Ok(mut theme_config) = theme_settings.try_into::<Config>() {
-                    theme_config.resolve_colors(Some(&default_config));
-                    default_config = theme_config;
-                }
-            }
-            config = Self::merge_settings(
-                default_settings,
-                workspace,
-                Some(theme.clone()),
-            )
-            .try_into()?;
-        }
-        config.update_id();
-        config.available_themes = available_themes;
-        config.resolve_colors(Some(&default_config));
-        config.default_theme = default_config.theme.clone();
-
-        Ok(config)
+impl LapceConfig {
+    pub fn load(workspace: &LapceWorkspace, disabled_volts: &[String]) -> Self {
+        let config = Self::merge_config(workspace, None);
+        let mut lapce_config: LapceConfig = config
+            .try_deserialize()
+            .unwrap_or_else(|_| DEFAULT_LAPCE_CONFIG.clone());
+        let available_themes = Self::load_themes(disabled_volts);
+        lapce_config.available_themes = available_themes;
+        lapce_config.resolve_theme(workspace);
+        lapce_config
     }
 
-    fn merge_settings(
-        mut settings: config::Config,
+    fn resolve_theme(&mut self, workspace: &LapceWorkspace) {
+        let mut default_lapce_config = DEFAULT_LAPCE_CONFIG.clone();
+        if let Some((_, theme_config)) = self
+            .available_themes
+            .get(&self.core.color_theme.to_lowercase())
+        {
+            if let Ok(mut theme_lapce_config) = config::Config::builder()
+                .add_source(DEFAULT_CONFIG.clone())
+                .add_source(theme_config.clone())
+                .build()
+                .and_then(|theme| theme.try_deserialize::<LapceConfig>())
+            {
+                theme_lapce_config.resolve_colors(Some(&default_lapce_config));
+                default_lapce_config = theme_lapce_config;
+            }
+            if let Ok(new) =
+                Self::merge_config(workspace, Some(theme_config.clone()))
+                    .try_deserialize::<LapceConfig>()
+            {
+                self.core = new.core;
+                self.ui = new.ui;
+                self.editor = new.editor;
+                self.terminal = new.terminal;
+                self.theme = new.theme;
+                self.plugins = new.plugins;
+            }
+        }
+        self.resolve_colors(Some(&default_lapce_config));
+        self.default_theme = default_lapce_config.theme.clone();
+        self.update_id();
+    }
+
+    fn merge_config(
         workspace: &LapceWorkspace,
-        theme: Option<config::Config>,
+        theme_config: Option<config::Config>,
     ) -> config::Config {
-        if let Some(theme) = theme {
-            let _ = settings.merge(theme);
+        let mut config = DEFAULT_CONFIG.clone();
+        if let Some(theme) = theme_config {
+            config = config::Config::builder()
+                .add_source(config.clone())
+                .add_source(theme)
+                .build()
+                .unwrap_or_else(|_| config.clone());
         }
 
         if let Some(path) = Self::settings_file() {
-            let _ =
-                settings.merge(config::File::from(path.as_path()).required(false));
+            config = config::Config::builder()
+                .add_source(config.clone())
+                .add_source(config::File::from(path.as_path()).required(false))
+                .build()
+                .unwrap_or_else(|_| config.clone());
         }
 
         match workspace.kind {
             LapceWorkspaceType::Local => {
                 if let Some(path) = workspace.path.as_ref() {
                     let path = path.join("./.lapce/settings.toml");
-                    let _ = settings
-                        .merge(config::File::from(path.as_path()).required(false));
+                    config = config::Config::builder()
+                        .add_source(config.clone())
+                        .add_source(
+                            config::File::from(path.as_path()).required(false),
+                        )
+                        .build()
+                        .unwrap_or_else(|_| config.clone());
                 }
             }
             LapceWorkspaceType::RemoteSSH(_, _) => {}
             LapceWorkspaceType::RemoteWSL => {}
         }
 
-        settings
+        config
     }
 
-    fn resolve_colors(&mut self, default_config: Option<&Config>) {
+    fn resolve_colors(&mut self, default_config: Option<&LapceConfig>) {
         self.color.base = self
             .theme
             .base
@@ -607,9 +757,11 @@ impl Config {
         );
     }
 
-    fn load_themes() -> HashMap<String, (String, config::Config)> {
+    fn load_themes(
+        disabled_volts: &[String],
+    ) -> HashMap<String, (String, config::Config)> {
         let mut themes = Self::load_local_themes().unwrap_or_default();
-        if let Some(plugin_themes) = Self::load_plugin_themes() {
+        if let Some(plugin_themes) = Self::load_plugin_themes(disabled_volts) {
             for (key, theme) in plugin_themes.into_iter() {
                 themes.insert(key, theme);
             }
@@ -624,7 +776,7 @@ impl Config {
     }
 
     fn load_local_themes() -> Option<HashMap<String, (String, config::Config)>> {
-        let themes_folder = Config::themes_folder()?;
+        let themes_folder = Directory::themes_directory()?;
         let themes: HashMap<String, (String, config::Config)> =
             std::fs::read_dir(themes_folder)
                 .ok()?
@@ -635,14 +787,15 @@ impl Config {
         Some(themes)
     }
 
-    fn load_plugin_themes() -> Option<HashMap<String, (String, config::Config)>> {
-        let mut catalog = PluginCatalog::new();
-        catalog.reload();
-
+    fn load_plugin_themes(
+        disabled_volts: &[String],
+    ) -> Option<HashMap<String, (String, config::Config)>> {
         let mut themes: HashMap<String, (String, config::Config)> = HashMap::new();
-
-        for (_, plugin) in catalog.items.iter() {
-            if let Some(plugin_themes) = plugin.themes.as_ref() {
+        for meta in find_all_volts() {
+            if disabled_volts.contains(&meta.id()) {
+                continue;
+            }
+            if let Some(plugin_themes) = meta.themes.as_ref() {
                 for theme_path in plugin_themes {
                     if let Some((key, theme)) =
                         Self::load_theme(&PathBuf::from(theme_path))
@@ -656,33 +809,43 @@ impl Config {
     }
 
     fn load_theme_from_str(s: &str) -> Option<(String, config::Config)> {
-        let settings = config::Config::new()
-            .with_merged(config::File::from_str(s, config::FileFormat::Toml))
+        let config = config::Config::builder()
+            .add_source(config::File::from_str(s, config::FileFormat::Toml))
+            .build()
             .ok()?;
-        let table = settings.get_table("theme").ok()?;
+        let table = config.get_table("theme").ok()?;
         let name = table.get("name")?.to_string();
-        Some((name, settings))
+        Some((name, config))
     }
 
     fn load_theme(path: &Path) -> Option<(String, (String, config::Config))> {
         if !path.is_file() {
             return None;
         }
-        let settings = config::Config::new()
-            .with_merged(config::File::from(path))
+        let config = config::Config::builder()
+            .add_source(config::File::from(path))
+            .build()
             .ok()?;
-        let table = settings.get_table("theme").ok()?;
+        let table = config.get_table("theme").ok()?;
         let name = table.get("name")?.to_string();
-        Some((name.to_lowercase(), (name, settings)))
+        Some((name.to_lowercase(), (name, config)))
     }
 
-    fn default_settings() -> config::Config {
-        config::Config::default()
-            .with_merged(config::File::from_str(
+    fn default_config() -> config::Config {
+        config::Config::builder()
+            .add_source(config::File::from_str(
                 DEFAULT_SETTINGS,
                 config::FileFormat::Toml,
             ))
+            .build()
             .unwrap()
+    }
+
+    fn default_lapce_config() -> LapceConfig {
+        let mut default_lapce_config: LapceConfig =
+            DEFAULT_CONFIG.clone().try_deserialize().unwrap();
+        default_lapce_config.resolve_colors(None);
+        default_lapce_config
     }
 
     pub fn export_theme(&self) -> String {
@@ -694,27 +857,28 @@ impl Config {
         table.insert("theme".to_string(), toml::Value::try_from(&theme).unwrap());
         table.insert("ui".to_string(), toml::Value::try_from(&self.ui).unwrap());
         let value = toml::Value::Table(table);
-        toml::to_string(&value).unwrap()
+        toml::to_string_pretty(&value).unwrap()
     }
 
-    pub fn dir() -> Option<PathBuf> {
-        ProjectDirs::from("", "", "Lapce").map(|d| PathBuf::from(d.config_dir()))
+    pub fn keymaps_file() -> Option<PathBuf> {
+        let path = Directory::config_directory()?.join("keymaps.toml");
+
+        if !path.exists() {
+            let _ = std::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&path);
+        }
+
+        Some(path)
     }
 
     pub fn log_file() -> Option<PathBuf> {
-        let path = Self::dir().map(|d| {
-            d.join(if !cfg!(debug_assertions) {
-                "lapce.log"
-            } else {
-                "debug-lapce.log"
-            })
-        })?;
+        let time = chrono::Local::now().format("%Y%m%d-%H%M%S");
 
-        if let Some(dir) = path.parent() {
-            if !dir.exists() {
-                let _ = std::fs::create_dir_all(dir);
-            }
-        }
+        let file_name = format!("{time}.log");
+
+        let path = Directory::logs_directory()?.join(file_name);
 
         if !path.exists() {
             let _ = std::fs::OpenOptions::new()
@@ -727,19 +891,7 @@ impl Config {
     }
 
     pub fn settings_file() -> Option<PathBuf> {
-        let path = Self::dir().map(|d| {
-            d.join(if !cfg!(debug_assertions) {
-                "settings.toml"
-            } else {
-                "debug-settings.toml"
-            })
-        })?;
-
-        if let Some(dir) = path.parent() {
-            if !dir.exists() {
-                let _ = std::fs::create_dir_all(dir);
-            }
-        }
+        let path = Directory::config_directory()?.join("settings.toml");
 
         if !path.exists() {
             let _ = std::fs::OpenOptions::new()
@@ -751,41 +903,24 @@ impl Config {
         Some(path)
     }
 
-    /// Get the path to the themes folder
-    /// Themes are stored within as individual toml files
-    pub fn themes_folder() -> Option<PathBuf> {
-        let path = Self::dir()?.join("themes");
-
-        if let Some(dir) = path.parent() {
-            if !dir.exists() {
-                let _ = std::fs::create_dir_all(dir);
-            }
-        }
-
-        if !path.exists() {
-            let _ = std::fs::create_dir(&path);
-        }
-
-        Some(path)
-    }
-
-    fn get_file_table() -> Option<toml::value::Table> {
+    fn get_file_table() -> Option<toml_edit::Document> {
         let path = Self::settings_file()?;
-        let content = std::fs::read(&path).ok()?;
-        let toml_value: toml::Value = toml::from_slice(&content).ok()?;
-        let table = toml_value.as_table()?.clone();
-        Some(table)
+        let content = std::fs::read_to_string(path).ok()?;
+        let document: toml_edit::Document = content.parse().ok()?;
+        Some(document)
     }
 
     pub fn reset_setting(parent: &str, key: &str) -> Option<()> {
         let mut main_table = Self::get_file_table().unwrap_or_default();
 
         // Find the container table
-        let mut table = &mut main_table;
+        let mut table = main_table.as_table_mut();
         for key in parent.split('.') {
             if !table.contains_key(key) {
-                table
-                    .insert(key.to_string(), toml::Value::Table(Default::default()));
+                table.insert(
+                    key,
+                    toml_edit::Item::Table(toml_edit::Table::default()),
+                );
             }
             table = table.get_mut(key)?.as_table_mut()?;
         }
@@ -794,30 +929,36 @@ impl Config {
 
         // Store
         let path = Self::settings_file()?;
-        std::fs::write(&path, toml::to_string(&main_table).ok()?.as_bytes()).ok()?;
+        std::fs::write(&path, main_table.to_string().as_bytes()).ok()?;
 
         Some(())
     }
 
-    pub fn update_file(parent: &str, key: &str, value: toml::Value) -> Option<()> {
+    pub fn update_file(
+        parent: &str,
+        key: &str,
+        value: toml_edit::Value,
+    ) -> Option<()> {
         let mut main_table = Self::get_file_table().unwrap_or_default();
 
         // Find the container table
-        let mut table = &mut main_table;
+        let mut table = main_table.as_table_mut();
         for key in parent.split('.') {
             if !table.contains_key(key) {
-                table
-                    .insert(key.to_string(), toml::Value::Table(Default::default()));
+                table.insert(
+                    key,
+                    toml_edit::Item::Table(toml_edit::Table::default()),
+                );
             }
             table = table.get_mut(key)?.as_table_mut()?;
         }
 
         // Update key
-        table.insert(key.to_string(), value);
+        table.insert(key, toml_edit::Item::Value(value));
 
         // Store
         let path = Self::settings_file()?;
-        std::fs::write(&path, toml::to_string(&main_table).ok()?.as_bytes()).ok()?;
+        std::fs::write(&path, main_table.to_string().as_bytes()).ok()?;
 
         Some(())
     }
@@ -825,27 +966,25 @@ impl Config {
     fn update_id(&mut self) {
         self.id = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
+            .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
     }
 
-    pub fn set_theme(&mut self, theme: &str, preview: bool) -> bool {
-        self.update_id();
-
-        self.lapce.color_theme = theme.to_string();
-
-        if !preview
-            && Config::update_file(
-                "lapce",
+    pub fn set_theme(
+        &mut self,
+        workspace: &LapceWorkspace,
+        theme: &str,
+        preview: bool,
+    ) {
+        self.core.color_theme = theme.to_string();
+        self.resolve_theme(workspace);
+        if !preview {
+            LapceConfig::update_file(
+                "core",
                 "color-theme",
-                toml::Value::String(theme.to_string()),
-            )
-            .is_none()
-        {
-            return false;
+                toml_edit::Value::from(theme),
+            );
         }
-
-        true
     }
 
     /// Get the color by the name from the current theme if it exists
@@ -867,14 +1006,13 @@ impl Config {
 
     /// Calculate the width of the character "W" (being the widest character)
     /// in the editor's current font family at the specified font size.
-    pub fn char_width(&self, text: &mut PietText, font_size: f64) -> f64 {
-        Self::editor_text_size_internal(
-            self.editor.font_family(),
-            font_size,
-            text,
-            "W",
-        )
-        .width
+    pub fn char_width(
+        &self,
+        text: &mut PietText,
+        font_size: f64,
+        font_family: FontFamily,
+    ) -> f64 {
+        Self::text_size_internal(font_family, font_size, text, "W").width
     }
 
     pub fn terminal_font_family(&self) -> FontFamily {
@@ -897,14 +1035,18 @@ impl Config {
         if self.terminal.line_height > 0 {
             self.terminal.line_height
         } else {
-            self.editor.line_height
+            self.editor.line_height()
         }
     }
 
     /// Calculate the width of the character "W" (being the widest character)
     /// in the editor's current font family and current font size.
     pub fn editor_char_width(&self, text: &mut PietText) -> f64 {
-        self.char_width(text, self.editor.font_size as f64)
+        self.char_width(
+            text,
+            self.editor.font_size as f64,
+            self.editor.font_family(),
+        )
     }
 
     /// Calculate the width of `text_to_measure` in the editor's current font family and font size.
@@ -913,7 +1055,7 @@ impl Config {
         text: &mut PietText,
         text_to_measure: &str,
     ) -> f64 {
-        Self::editor_text_size_internal(
+        Self::text_size_internal(
             self.editor.font_family(),
             self.editor.font_size as f64,
             text,
@@ -928,7 +1070,7 @@ impl Config {
         text: &mut PietText,
         text_to_measure: &str,
     ) -> Size {
-        Self::editor_text_size_internal(
+        Self::text_size_internal(
             self.editor.font_family(),
             self.editor.font_size as f64,
             text,
@@ -936,9 +1078,48 @@ impl Config {
         )
     }
 
+    /// Calculate the width of the character "W" (being the widest character)
+    /// in the editor's current font family and current font size.
+    pub fn terminal_char_width(&self, text: &mut PietText) -> f64 {
+        self.char_width(
+            text,
+            self.terminal_font_size() as f64,
+            self.terminal_font_family(),
+        )
+    }
+
+    /// Calculate the width of `text_to_measure` in the editor's current font family and font size.
+    pub fn terminal_text_width(
+        &self,
+        text: &mut PietText,
+        text_to_measure: &str,
+    ) -> f64 {
+        Self::text_size_internal(
+            self.terminal_font_family(),
+            self.terminal_font_size() as f64,
+            text,
+            text_to_measure,
+        )
+        .width
+    }
+
+    /// Calculate the size of `text_to_measure` in the terminal's current font family and font size.
+    pub fn terminal_text_size(
+        &self,
+        text: &mut PietText,
+        text_to_measure: &str,
+    ) -> Size {
+        Self::text_size_internal(
+            self.terminal_font_family(),
+            self.terminal_font_size() as f64,
+            text,
+            text_to_measure,
+        )
+    }
+
     /// Efficiently calculate the size of a piece of text, without allocating.
     /// This function should not be made public, use one of the public wrapper functions instead.
-    fn editor_text_size_internal(
+    fn text_size_internal(
         font_family: FontFamily,
         font_size: f64,
         text: &mut PietText,
@@ -1053,9 +1234,7 @@ impl Config {
     }
 
     pub fn recent_workspaces_file() -> Option<PathBuf> {
-        let proj_dirs = ProjectDirs::from("", "", "Lapce")?;
-        let _ = std::fs::create_dir_all(proj_dirs.config_dir());
-        let path = proj_dirs.config_dir().join("workspaces.toml");
+        let path = Directory::config_directory()?.join("workspaces.toml");
         {
             let _ = std::fs::OpenOptions::new()
                 .create_new(true)

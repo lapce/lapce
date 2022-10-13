@@ -1,35 +1,34 @@
-use crate::{
-    editor::{tab::LapceEditorTab, view::LapceEditorView},
-    settings::LapceSettingsPanel,
-    terminal::LapceTerminalView,
-};
 use std::sync::Arc;
 
-use crate::svg::logo_svg;
 use druid::{
     kurbo::{Line, Rect},
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    Command, Target, WidgetId,
-};
-use druid::{
-    BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
-    PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WidgetPod,
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
+    WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{Config, LapceTheme},
-    data::{
-        EditorTabChild, FocusArea, LapceEditorData, LapceTabData, PanelKind,
-        SplitContent, SplitData,
-    },
+    config::{LapceConfig, LapceTheme},
+    data::{FocusArea, LapceEditorData, LapceTabData, SplitContent, SplitData},
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap},
+    panel::PanelKind,
     split::{SplitDirection, SplitMoveDirection},
     terminal::LapceTerminalData,
 };
 use lapce_rpc::terminal::TermId;
+
+use crate::{
+    editor::{
+        tab::LapceEditorTab,
+        view::{editor_tab_child_widget, LapceEditorView},
+    },
+    svg::logo_svg,
+    terminal::LapceTerminalView,
+};
 
 struct LapceDynamicSplit {
     widget_id: WidgetId,
@@ -41,7 +40,7 @@ pub fn split_data_widget(split_data: &SplitData, data: &LapceTabData) -> LapceSp
         LapceSplit::new(split_data.widget_id).direction(split_data.direction);
     for child in split_data.children.iter() {
         let child = split_content_widget(child, data);
-        split = split.with_flex_child(child, None, 1.0);
+        split = split.with_flex_child(child, None, 1.0, true);
     }
     split
 }
@@ -56,26 +55,8 @@ pub fn split_content_widget(
                 data.main_split.editor_tabs.get(widget_id).unwrap();
             let mut editor_tab = LapceEditorTab::new(editor_tab_data.widget_id);
             for child in editor_tab_data.children.iter() {
-                match child {
-                    EditorTabChild::Editor(view_id, editor_id, find_view_id) => {
-                        let editor = LapceEditorView::new(
-                            *view_id,
-                            *editor_id,
-                            *find_view_id,
-                        )
-                        .boxed();
-                        editor_tab = editor_tab.with_child(editor);
-                    }
-                    EditorTabChild::Settings(widget_id, editor_tab_id) => {
-                        let settings = LapceSettingsPanel::new(
-                            data,
-                            *widget_id,
-                            *editor_tab_id,
-                        )
-                        .boxed();
-                        editor_tab = editor_tab.with_child(settings);
-                    }
-                }
+                let child = editor_tab_child_widget(child, data);
+                editor_tab = editor_tab.with_child(child);
             }
             editor_tab.boxed()
         }
@@ -88,6 +69,7 @@ pub fn split_content_widget(
                     split_content_widget(content, data),
                     None,
                     1.0,
+                    true,
                 );
             }
             split.boxed()
@@ -195,13 +177,30 @@ pub struct LapceSplit {
     direction: SplitDirection,
     show_border: bool,
     commands: Vec<(LapceCommand, PietTextLayout, Rect, Option<KeyMap>)>,
+    panel: Option<PanelKind>,
+    /// Whether the resize bar is hovered  
+    /// Contains the [`WidgetId`] of the child we are resizing
+    bar_hovered: Option<WidgetId>,
+    /// The sum of the non flex child sizes  
+    /// This is updated whenever we layout
+    non_flex_total: f64,
+    /// The total size of the split  
+    /// This is updated whenever we layout
+    total_size: f64,
 }
 
 struct ChildWidget {
-    pub widget: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    widget: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     flex: bool,
     params: f64,
     layout_rect: Rect,
+    /// Whether it can be resized through the UI
+    resizable: bool,
+    /// The offset (in the direction, so x0 or y0) to use when resizing
+    /// This is used to avoid noise accumulation in the floating point math when resizing
+    resize_pos: f64,
+    /// Whether we should update the resize pos, even if we are currently resizing.
+    update_resize_pos: bool,
 }
 
 impl LapceSplit {
@@ -213,11 +212,23 @@ impl LapceSplit {
             direction: SplitDirection::Vertical,
             show_border: true,
             commands: vec![],
+            panel: None,
+            bar_hovered: None,
+            non_flex_total: 0.0,
+            total_size: 0.0,
         }
     }
 
     pub fn direction(mut self, direction: SplitDirection) -> Self {
         self.direction = direction;
+        self
+    }
+
+    /// Set the panel kind on the split, so that split can
+    /// determine the split direction based on the position
+    /// of the panel
+    pub fn panel(mut self, panel: PanelKind) -> Self {
+        self.panel = Some(panel);
         self
     }
 
@@ -236,12 +247,16 @@ impl LapceSplit {
         child: Box<dyn Widget<LapceTabData>>,
         child_id: Option<WidgetId>,
         params: f64,
+        resizable: bool,
     ) -> Self {
         let child = ChildWidget {
             widget: WidgetPod::new(child),
             flex: true,
             params,
             layout_rect: Rect::ZERO,
+            resizable,
+            resize_pos: 0.0,
+            update_resize_pos: true,
         };
         self.children_ids
             .push(child_id.unwrap_or_else(|| child.widget.id()));
@@ -259,7 +274,10 @@ impl LapceSplit {
             widget: WidgetPod::new(child),
             flex: false,
             params,
+            resizable: false,
             layout_rect: Rect::ZERO,
+            resize_pos: 0.0,
+            update_resize_pos: true,
         };
         self.children_ids
             .push(child_id.unwrap_or_else(|| child.widget.id()));
@@ -285,12 +303,16 @@ impl LapceSplit {
         child: Box<dyn Widget<LapceTabData>>,
         child_id: Option<WidgetId>,
         params: f64,
+        resizable: bool,
     ) -> WidgetId {
         let child = ChildWidget {
             widget: WidgetPod::new(child),
             flex: true,
             params,
             layout_rect: Rect::ZERO,
+            resizable,
+            resize_pos: 0.0,
+            update_resize_pos: true,
         };
         let child_id = child_id.unwrap_or_else(|| child.widget.id());
         self.children_ids.insert(index, child_id);
@@ -306,11 +328,235 @@ impl LapceSplit {
         }
     }
 
-    fn paint_bar(&mut self, ctx: &mut PaintCtx, config: &Config) {
+    /// Returns the child whose border we are resizing 'at'
+    fn resize_bar_hit_test(&self, mouse_pos: Point) -> Option<&ChildWidget> {
+        // Currently we don't support resizing splits with non flex children
+        // This should be fixed.
+        if self.has_non_flex_children() {
+            return None;
+        }
+
+        // TODO: We probably aren't being as restrictive about what outofbounds positions are allowed as we should!
+        // We only check the resize bar for the 'second' child, since it's left/upper
+        // bar is the actual bar we want to use for resizing.
+        // We currently only consider flex children, but this could perhaps be extended?
+        for child in self
+            .children
+            .iter()
+            .skip(1)
+            .filter(|ch| ch.flex && ch.resizable)
+        {
+            // TODO: provide information about which child widget this is, so that we can actually resize it!
+            if self.direction == SplitDirection::Vertical {
+                let x = child.layout_rect.x0;
+                if mouse_pos.x >= x - 2.0 && mouse_pos.x <= x + 2.0 {
+                    return Some(child);
+                }
+            } else {
+                let y = child.layout_rect.y0;
+                if mouse_pos.y >= y - 2.0 && mouse_pos.y <= y + 2.0 {
+                    return Some(child);
+                }
+            }
+        }
+
+        None
+    }
+
+    fn get_hovered_child_index(&self) -> Option<usize> {
+        if let Some(child_id) = self.bar_hovered {
+            self.children
+                .iter()
+                .enumerate()
+                .find(|(_, c)| c.widget.id() == child_id)
+                .map(|(i, _)| i)
+        } else {
+            None
+        }
+    }
+
+    fn update_resize_point(&mut self, mouse_pos: Point) {
+        if let Some(i) = self.get_hovered_child_index() {
+            // We want to move the start edge of the editor to be where the mouse is, since they're dragging that edge
+            let start = match self.direction {
+                SplitDirection::Vertical => mouse_pos.x,
+                SplitDirection::Horizontal => mouse_pos.y,
+            };
+
+            self.shift_start_of_child(i, start, true);
+        }
+    }
+
+    /// Shift the x0/y0 (start) of the specific child at `i`  
+    /// `allow_shifting` decides whether we should shift other children if the start is sufficiently far back
+    /// this is for dragging an editor to the left and causing other editors to the left to also be dragged
+    fn shift_start_of_child(&mut self, i: usize, start: f64, allow_shifting: bool) {
+        // We can't move the start of the zeroth entry, and it isn't meaningful to move the start
+        // of anything past the end
+        if i == 0 || i >= self.children.len() {
+            return;
+        }
+
+        // TODO: We should implement support for a mix of flex and non-flex children
+        // though that complicates things somewhat, and for most cases that we need resizing for
+        // they are all flex. We'd need to do some more logic to shift the indices to the flex
+        // entries that we want to consider, and bound the movement of the splits to the non-flex entries.
+        if self.has_non_flex_children() {
+            return;
+        }
+
+        let start = start.round();
+        let flex_total = self.total_size - self.non_flex_total;
+        // TODO: let the margin be customizable? Also, is this the best margin we could use?
+        // Limits how close the resize can get to another get to another editor or the edge
+        let limit_margin = (0.05 * flex_total).max(5.0);
+
+        // Constrain the start position to be within the bounds of the editor, and
+        // after the previous editor.
+        let prev_offset = self
+            .children
+            .get(i - 1)
+            .map(|ch| ch.resize_pos)
+            .unwrap_or(0.0);
+        let next_offset = self
+            .children
+            .get(i + 1)
+            .map(|ch| ch.resize_pos)
+            .unwrap_or(flex_total);
+
+        let prev_limit = prev_offset + limit_margin;
+        let next_limit = next_offset - limit_margin;
+
+        let start = if allow_shifting && start <= prev_limit {
+            // If the start is before the previous offset, then we can start moving the previous editor
+            start.max(limit_margin * i as f64).min(next_limit)
+        } else if allow_shifting && start >= next_limit {
+            start
+                .max(prev_limit)
+                .min(flex_total - limit_margin * (self.children.len() - i) as f64)
+        } else {
+            start.max(prev_limit).min(next_limit)
+        };
+
+        // Check if we're shifting a specific previous child
+        let is_shifting_prev = |child_i: usize, child_offset: f64| -> bool {
+            allow_shifting
+                && child_i < i
+                && child_i != 0
+                && start <= child_offset + limit_margin * (i - child_i) as f64
+        };
+
+        // Check if we're shifting a specific child after us
+        let is_shifting_after = |child_i: usize, child_offset: f64| -> bool {
+            allow_shifting
+                && child_i > i
+                && start >= child_offset - limit_margin * (child_i - i) as f64
+        };
+
+        // Get the offset/position we want a child to start at. Skips non-flex entries as if they weren't there
+        // This uses the existing position for every child except the one we are resizing
+        let get_offset = |child_i: usize, children: &[ChildWidget]| -> f64 {
+            let child = &children[child_i];
+            // We use resize pos instead of the layout_rect.x0 because that gets rounded a bit and even if we didn't round
+            // there is some noise inherent in the calculation done in the layout.
+            // Thus we keep track of a separate position, which we only allow to update (to the layout_rect.x0 value) whenever
+            // we actually would have caused a change.
+            let offset = child.resize_pos;
+
+            if child_i == i {
+                // We return the position we want to put the editor at, rather than whatever its
+                // actual position is
+                start
+            } else if is_shifting_prev(child_i, offset) {
+                // If we're shifting an editor then we need to modify its position relative to the mouse
+                // and shift it by the limit_margin so that it is shifted at a distance
+                let shift_size = (i - child_i) as f64;
+                (start - limit_margin * shift_size)
+                    .max(0.0 + limit_margin * child_i as f64)
+            } else if is_shifting_after(child_i, offset) {
+                let shift_size = (child_i - i) as f64;
+                let from_end_shift = (children.len() - child_i) as f64;
+                (start + limit_margin * shift_size)
+                    // .min(flex_total - limit_margin * shift_size + limit_margin)
+                    .min(flex_total - limit_margin * from_end_shift)
+            } else {
+                // Otherwise, we just have the editor use its current position
+                offset
+            }
+        };
+
+        // For more than two children, we can't just update a single param to shift the start of any child
+        // We have to update multiple. There might be a way to just update a few params, rather than every single
+        // param, but given the amount of expected splits, it just isn't worth the extra effort.
+        // The basic logic is that we have:
+        // x_i = T * c_{i-1} / (sum c)
+        // aka x_i = flex_total * children[i].params / children.iter().map(|ch| ch.params).sum()
+        // So we have some x positions (existing x positions and the new one after resizing) and we want to
+        // get the params that would produce those x positions.
+        // However, this equation has an infinite number of solutions, so no single answer awaits us
+        // but, with algebra we can get:
+        // c_i = k * (x_{i + 1} - x_i)/T
+        // where k is any positive non-zero value
+        // so we can just choose k = 1
+        // we could also have chosen k = T to just get: c_i = x_{i + 1} - xi
+        // but normalizing by T gets us a nice percentage-like behavior (though, only after a resize!)
+        // or we could have chosen a k s.t. the sum is always children.len(), which would
+        // match the values it has when you initialize (since they default to a param of 1.0)
+        // Currently we don't rely on that, but if we want to do that, then it is pretty simple.
+        for child_i in 0..self.children.len() {
+            let next_child_i = child_i + 1;
+
+            // If we've caused a change, then allow the stored position to update.
+            // This still allows a tiny bit of noise, but it is more of a tiny jitter rather than the
+            // constant shifting to the side that we would get without this method.
+            if child_i == i
+                || child_i == 0
+                || is_shifting_prev(child_i, self.children[child_i].resize_pos)
+                || is_shifting_after(child_i, self.children[child_i].resize_pos)
+            {
+                self.children[child_i].update_resize_pos = true;
+            }
+
+            // x_i
+            let start_offset = get_offset(child_i, &self.children);
+            // x_{i+1}
+            // If it is the last entry, just use the total
+            let end_offset = if next_child_i >= self.children.len() {
+                flex_total
+            } else {
+                get_offset(next_child_i, &self.children)
+            };
+
+            // x_{i+1} - x_i
+            let diff = end_offset - start_offset;
+            self.children[child_i].params = diff / flex_total;
+        }
+
+        // TODO: Post-sanity check that ensures everything is inside the editor bounds?
+        // While this shouldn't occur, it would be good to ensure it simply doesn't happen.
+
+        // TODO: We get negative box constraints in layouting, which is unfortunate.
+
+        // TODO: While resizing the split arrows flicker since the mouse is constantly moving between the sides.
+        // TODO: Write to db the sizes so it gets restored? Though this shouldn't be done every single call to this!
+        //  Probably just when we reset the bar_hovered
+    }
+
+    fn has_non_flex_children(&self) -> bool {
+        self.children.iter().any(|ch| !ch.flex)
+    }
+
+    fn paint_bar(&mut self, ctx: &mut PaintCtx, config: &LapceConfig) {
         let children_len = self.children.len();
         if children_len <= 1 {
             return;
         }
+
+        let hover_i = if ctx.is_hot() || ctx.is_active() {
+            self.get_hovered_child_index()
+        } else {
+            None
+        };
 
         let size = ctx.size();
         for i in 1..children_len {
@@ -323,11 +569,16 @@ impl LapceSplit {
 
                 Line::new(Point::new(0.0, y), Point::new(size.width, y))
             };
-            ctx.stroke(
-                line,
-                config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                1.0,
-            );
+
+            // Match the panel resize bar if we're hovering over the editor split bar
+            let (color, width) = if Some(i) == hover_i {
+                (LapceTheme::EDITOR_CARET, 2.0)
+            } else {
+                (LapceTheme::LAPCE_BORDER, 1.0)
+            };
+            let color = config.get_color_unchecked(color);
+
+            ctx.stroke(line, color, width);
         }
     }
 
@@ -507,6 +758,7 @@ impl LapceSplit {
             terminal.boxed(),
             Some(terminal_data.widget_id),
             1.0,
+            true,
         );
         self.even_flex_children();
         ctx.children_changed();
@@ -530,10 +782,8 @@ impl LapceSplit {
 
             self.even_flex_children();
             ctx.children_changed();
-            for (_pos, panel) in data.panels.iter_mut() {
-                if panel.active == PanelKind::Terminal {
-                    Arc::make_mut(panel).shown = false;
-                }
+            if data.panel.is_panel_visible(&PanelKind::Terminal) {
+                Arc::make_mut(&mut data.panel).hide_panel(&PanelKind::Terminal);
             }
             if let Some(active) = *data.main_split.active_tab {
                 ctx.submit_command(Command::new(
@@ -721,7 +971,7 @@ impl LapceSplit {
         focus_new: bool,
     ) {
         let new_child = split_content_widget(content, data);
-        self.insert_flex_child(index, new_child, None, 1.0);
+        self.insert_flex_child(index, new_child, None, 1.0, true);
         self.even_flex_children();
         ctx.children_changed();
         if focus_new {
@@ -758,7 +1008,6 @@ impl LapceSplit {
             &data.config,
         );
         editor_data.cursor = from_editor.cursor.clone();
-        editor_data.locations = from_editor.locations.clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::ForceScrollTo(
@@ -778,6 +1027,7 @@ impl LapceSplit {
             editor.boxed(),
             Some(editor_data.view_id),
             1.0,
+            true,
         );
         self.even_flex_children();
         ctx.children_changed();
@@ -799,23 +1049,21 @@ impl Widget<LapceTabData> for LapceSplit {
         env: &Env,
     ) {
         match event {
-            Event::MouseMove(mouse_event) => {
-                if self.children.is_empty() {
-                    let mut on_command = false;
-                    for (_, _, rect, _) in &self.commands {
-                        if rect.contains(mouse_event.pos) {
-                            on_command = true;
-                            break;
-                        }
-                    }
-                    if on_command {
-                        ctx.set_cursor(&druid::Cursor::Pointer);
-                    } else {
-                        ctx.clear_cursor();
-                    }
+            Event::MouseUp(mouse_event) => {
+                if mouse_event.button.is_left() && ctx.is_active() {
+                    ctx.set_active(false);
                 }
             }
             Event::MouseDown(mouse_event) => {
+                if mouse_event.button.is_left() {
+                    if let Some(child) = self.resize_bar_hit_test(mouse_event.pos) {
+                        self.bar_hovered = Some(child.widget.id());
+                        ctx.set_active(true);
+                        ctx.set_handled();
+                        return;
+                    }
+                }
+
                 if self.children.is_empty() {
                     for (cmd, _, rect, _) in &self.commands {
                         if rect.contains(mouse_event.pos) {
@@ -858,7 +1106,7 @@ impl Widget<LapceTabData> for LapceSplit {
                                 ));
                             } else {
                                 ctx.request_focus();
-                                data.focus = self.split_id;
+                                data.focus = Arc::new(self.split_id);
                                 data.focus_area = FocusArea::Editor;
                             }
                         }
@@ -911,6 +1159,7 @@ impl Widget<LapceTabData> for LapceSplit {
                                 terminal.boxed(),
                                 Some(terminal_data.widget_id),
                                 1.0,
+                                true,
                             );
                             if *focus {
                                 ctx.submit_command(Command::new(
@@ -934,8 +1183,55 @@ impl Widget<LapceTabData> for LapceSplit {
             }
             _ => (),
         }
+
         for child in self.children.iter_mut() {
             child.widget.event(ctx, event, data, env);
+        }
+
+        if let Event::MouseMove(mouse_event) = event {
+            if self.children.is_empty() {
+                ctx.clear_cursor();
+                for (_, _, rect, _) in &self.commands {
+                    if rect.contains(mouse_event.pos) {
+                        ctx.set_cursor(&druid::Cursor::Pointer);
+                        break;
+                    }
+                }
+            } else if ctx.is_active() {
+                // If we're active then we're probably being dragged
+                self.update_resize_point(mouse_event.pos);
+                ctx.request_layout();
+                ctx.set_handled();
+            } else if data.drag.is_none() {
+                let has_active =
+                    self.children.iter().any(|child| child.widget.has_active());
+                if has_active {
+                    self.bar_hovered = None;
+                    ctx.clear_cursor();
+                } else {
+                    // TODO: We probably want to make so you don't get highlighting for more than one editor
+                    // resize bar at once, and so that you don't get highlighting/dragging for an editor resize bar
+                    // and a panel resize bar! That means we need the tab to know.
+                    if let Some(child) = self.resize_bar_hit_test(mouse_event.pos) {
+                        self.bar_hovered = Some(child.widget.id());
+
+                        ctx.set_cursor(match self.direction {
+                            SplitDirection::Vertical => {
+                                &druid::Cursor::ResizeLeftRight
+                            }
+                            SplitDirection::Horizontal => {
+                                &druid::Cursor::ResizeUpDown
+                            }
+                        });
+                    } else {
+                        if self.bar_hovered.is_some() {
+                            self.bar_hovered = None;
+                            ctx.request_paint();
+                        }
+                        ctx.clear_cursor();
+                    }
+                }
+            }
         }
     }
 
@@ -971,6 +1267,15 @@ impl Widget<LapceTabData> for LapceSplit {
         env: &Env,
     ) -> Size {
         let my_size = bc.max();
+        if let Some(panel) = self.panel {
+            if let Some((_, pos)) = data.panel.panel_position(&panel) {
+                if pos.is_bottom() {
+                    self.direction = SplitDirection::Vertical;
+                } else {
+                    self.direction = SplitDirection::Horizontal;
+                }
+            }
+        }
 
         let split_data = data.main_split.splits.get(&self.split_id);
 
@@ -981,7 +1286,7 @@ impl Widget<LapceTabData> for LapceSplit {
             let line_height = 35.0;
 
             self.commands = empty_editor_commands(
-                data.config.lapce.modal,
+                data.config.core.modal,
                 data.workspace.path.is_some(),
             )
             .iter()
@@ -998,7 +1303,7 @@ impl Widget<LapceTabData> for LapceSplit {
                     )
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .get_color_unchecked(LapceTheme::EDITOR_LINK)
                             .clone(),
                     )
                     .build()
@@ -1018,7 +1323,7 @@ impl Widget<LapceTabData> for LapceSplit {
             return my_size;
         }
 
-        let mut non_flex_total = 0.0;
+        self.non_flex_total = 0.0;
         let mut max_other_axis = 0.0;
         for child in self.children.iter_mut() {
             if !child.flex {
@@ -1033,7 +1338,7 @@ impl Widget<LapceTabData> for LapceSplit {
                     data,
                     env,
                 );
-                non_flex_total += self.direction.main_size(size);
+                self.non_flex_total += self.direction.main_size(size);
                 let cross_size = self.direction.cross_size(size);
                 if cross_size > max_other_axis {
                     max_other_axis = cross_size;
@@ -1041,16 +1346,15 @@ impl Widget<LapceTabData> for LapceSplit {
                 child.layout_rect = size.to_rect();
             };
         }
-        let non_flex_total = non_flex_total;
 
         let flex_sum = self
             .children
             .iter()
-            .filter_map(|child| child.flex.then(|| child.params))
+            .filter_map(|child| child.flex.then_some(child.params))
             .sum::<f64>();
 
-        let total_size = self.direction.main_size(my_size);
-        let flex_total = total_size - non_flex_total;
+        self.total_size = self.direction.main_size(my_size);
+        let flex_total = self.total_size - self.non_flex_total;
 
         let mut next_origin = Point::ZERO;
         let children_len = self.children.len();
@@ -1061,8 +1365,10 @@ impl Widget<LapceTabData> for LapceSplit {
             if child.flex {
                 let flex = if i == children_len - 1 {
                     match self.direction {
-                        SplitDirection::Vertical => total_size - next_origin.x,
-                        SplitDirection::Horizontal => total_size - next_origin.y,
+                        SplitDirection::Vertical => self.total_size - next_origin.x,
+                        SplitDirection::Horizontal => {
+                            self.total_size - next_origin.y
+                        }
                     }
                 } else {
                     (flex_total / flex_sum * child.params).round()
@@ -1094,6 +1400,13 @@ impl Widget<LapceTabData> for LapceSplit {
                 }
 
                 child.layout_rect = child.layout_rect.with_size(size);
+            }
+
+            if self.bar_hovered.is_none() || child.update_resize_pos {
+                // TODO: There's probably some bugs lurking with this handling of resize pos
+                // most likely to happen if we resize the window while resizing a split
+                child.resize_pos = self.direction.start(child.layout_rect);
+                child.update_resize_pos = false;
             }
 
             let child_size = child.layout_rect.size();
@@ -1155,6 +1468,15 @@ impl Widget<LapceTabData> for LapceSplit {
         }
         for child in self.children.iter_mut() {
             child.widget.paint(ctx, data, env);
+        }
+        if let Some(panel) = self.panel {
+            if let Some((_, pos)) = data.panel.panel_position(&panel) {
+                if pos.is_bottom() {
+                    self.show_border = true
+                } else {
+                    self.show_border = false
+                }
+            }
         }
         if self.show_border {
             self.paint_bar(ctx, &data.config);

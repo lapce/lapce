@@ -1,117 +1,138 @@
 [package]
 name = "lapce-ui"
-version = "0.1.2"
+version = "0.2.1"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-image = "0.24"
+clap = { version = "3.2.17", features = ["derive"] }
+image = "0.24.3"
 chrono = "0.4.19"
 log = "0.4.14"
 fern = "0.6.0"
 Inflector = "0.11.4"
 rayon = "1.5.1"
-diff = "0.1.12"
-libloading = "0.7"
-flate2 = "1.0.22"
-hashbrown = "0.11.2"
-sled = "0.34.7"
-base64 = "0.13.0"
 alacritty_terminal = "0.16"
-config = "0.11"
-indexmap = "1.7.0"
-directories = "4.0.1"
 itertools = "0.10.1"
+log-panics = { version = "2.1.0", features = ["with-backtrace"] }
 unicode-width = "0.1.8"
-unicode-segmentation = "1.7.1"
 im = { version = "15.0.0", features = ["serde"] }
-crossbeam-channel = "0.5.0"
-crossbeam-utils = "0.8.4"
 regex = "1.5.6"
-jsonrpc-lite = "0.5.0"
-bit-vec = "0.5.0"
-parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
 include_dir = "0.6.0"
 anyhow = "1.0.32"
-strum = "0.24.0"
-strum_macros = "0.24"
-lazy_static = "1.4.0"
+once_cell = "1.15"
 serde = "1.0"
 serde_json = "1.0"
-notify = "5.0.0-pre.13"
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
-xi-unicode = "0.3.0"
-fuzzy-matcher = "0.3.7"
-lsp-types = { version = "0.89.2", features = ["proposed"] }
-druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = [ "svg", "im", "serde", ] }
+lsp-types = { version = "0.93", features = ["proposed"] }
+toml_edit = { version = "0.14.4", features = ["easy"] }
+open = "3.0.2"
+
+# lapce deps
+druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = ["svg", "im", "serde"] }
 # druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
-toml = { version = "0.5.8", features = ["preserve_order"] }
-structdesc = { git = "https://github.com/lapce/structdesc" }
-lapce-core = { path = "../lapce-core" }
 lapce-data = { path = "../lapce-data" }
 lapce-rpc = { path = "../lapce-rpc" }
+lapce-core = { path = "../lapce-core" }
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1.12"
 
 [features]
-default = ["all-languages"]
+default = ["all-languages", "lapce-data/updater"]
+portable = ["lapce-data/portable"]
+
 # To build lapce with only some of the supported languages, for example:
 #
 #   cargo build --no-default-features -p lapce-ui \
-#     --features lang-rust,lang-toml,lang-md,lang-json
+#     --features lang-rust,lang-toml,lang-markdown,lang-json
 #
 all-languages = [
-    "lang-rust",
-    "lang-go",
-    "lang-javascript",
-    "lang-typescript",
-    "lang-python",
-    "lang-toml",
-    "lang-elixir",
-    "lang-php",
-    "lang-ruby",
+    "lang-bash",
     "lang-c",
     "lang-cpp",
-    "lang-json",
-    "lang-md",
-    "lang-html",
-    "lang-java",
+    "lang-csharp",
+    "lang-css",
+    "lang-d",
+    "lang-dart",
+    "lang-dockerfile",
+    "lang-elixir",
     "lang-elm",
-    "lang-swift",
-    "lang-ql",
-    "lang-haskell",
-    "lang-ocaml",
     "lang-glimmer",
+    "lang-go",
+    "lang-hare",
+    "lang-haskell",
     "lang-haxe",
     "lang-hcl",
+    "lang-html",
+    "lang-java",
+    "lang-javascript",
+    "lang-json",
+    "lang-julia",
+    "lang-kotlin",
+    "lang-latex",
+    "lang-lua",
+    "lang-markdown",
+    "lang-nix",
+    "lang-ocaml",
+    "lang-php",
+    "lang-python",
+    "lang-ql",
+    "lang-r",
+    "lang-ruby",
+    "lang-rust",
+    "lang-scheme",
     "lang-scss",
-    "lang-hare"
-
+    "lang-svelte",
+    "lang-swift",
+    "lang-toml",
+    "lang-typescript",
+    "lang-vue",
+    "lang-wgsl",
+    "lang-yaml",
+    "lang-zig",
 ]
 
-lang-rust = ["lapce-core/lang-rust"]
-lang-go = ["lapce-core/lang-go"]
-lang-javascript= ["lapce-core/lang-javascript"]
-lang-typescript = ["lapce-core/lang-typescript"]
-lang-python = ["lapce-core/lang-python"]
-lang-toml = ["lapce-core/lang-toml"]
-lang-elixir = ["lapce-core/lang-elixir"]
-lang-php = ["lapce-core/lang-php"]
-lang-ruby= ["lapce-core/lang-ruby"]
+lang-bash = ["lapce-core/lang-bash"]
 lang-c = ["lapce-core/lang-c"]
 lang-cpp = ["lapce-core/lang-cpp"]
-lang-json= ["lapce-core/lang-json"]
-lang-md = ["lapce-core/lang-md"]
-lang-html = ["lapce-core/lang-html"]
-lang-java = ["lapce-core/lang-java"]
+lang-csharp = ["lapce-core/lang-csharp"]
+lang-css = ["lapce-core/lang-css"]
+lang-d = ["lapce-core/lang-d"]
+lang-dart = ["lapce-core/lang-dart"]
+lang-dockerfile = ["lapce-core/lang-dockerfile"]
+lang-elixir = ["lapce-core/lang-elixir"]
 lang-elm = ["lapce-core/lang-elm"]
-lang-swift = ["lapce-core/lang-swift"]
-lang-ql = ["lapce-core/lang-ql"]
-lang-haskell = ["lapce-core/lang-haskell"]
-lang-ocaml = ["lapce-core/lang-ocaml"]
 lang-glimmer = ["lapce-core/lang-glimmer"]
+lang-go = ["lapce-core/lang-go"]
+lang-hare = ["lapce-core/lang-hare"]
+lang-haskell = ["lapce-core/lang-haskell"]
 lang-haxe = ["lapce-core/lang-haxe"]
 lang-hcl = ["lapce-core/lang-hcl"]
+lang-html = ["lapce-core/lang-html"]
+lang-java = ["lapce-core/lang-java"]
+lang-javascript = ["lapce-core/lang-javascript"]
+lang-json = ["lapce-core/lang-json"]
+lang-julia = ["lapce-core/lang-julia"]
+lang-kotlin = ["lapce-core/lang-kotlin"]
+lang-latex = ["lapce-core/lang-latex"]
+lang-lua = ["lapce-core/lang-lua"]
+lang-markdown = ["lapce-core/lang-markdown"]
+lang-nix = ["lapce-core/lang-nix"]
+lang-ocaml = ["lapce-core/lang-ocaml"]
+lang-php = ["lapce-core/lang-php"]
+lang-python = ["lapce-core/lang-python"]
+lang-ql = ["lapce-core/lang-ql"]
+lang-r = ["lapce-core/lang-r"]
+lang-ruby = ["lapce-core/lang-ruby"]
+lang-rust = ["lapce-core/lang-rust"]
+lang-scheme = ["lapce-core/lang-scheme"]
 lang-scss = ["lapce-core/lang-scss"]
-lang-hare = ["lapce-core/lang-hare"]
+lang-svelte = ["lapce-core/lang-svelte"]
+lang-swift = ["lapce-core/lang-swift"]
+lang-toml = ["lapce-core/lang-toml"]
+lang-typescript = ["lapce-core/lang-typescript"]
+lang-vue = ["lapce-core/lang-vue"]
+lang-wgsl = ["lapce-core/lang-wgsl"]
+lang-yaml = ["lapce-core/lang-yaml"]
+lang-zig = ["lapce-core/lang-zig"]

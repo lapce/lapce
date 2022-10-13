@@ -1,3 +1,9 @@
+# --------------------------------- Window ---------------------------------------------
+
+[[keymaps]]
+command = "window_close"
+key = "Meta+Shift+W"
+
 # --------------------------------- General --------------------------------------------
 
 [[keymaps]]
@@ -5,7 +11,7 @@ key = "meta+p"
 command = "palette"
 
 [[keymaps]]
-key = "meta+P"
+key = "meta+shift+p"
 command = "palette.command"
 
 [[keymaps]]
@@ -21,6 +27,10 @@ command = "open_settings"
 key = "meta+k meta+s"
 command = "open_keyboard_shortcuts"
 
+# [[keymaps]]
+# key = "meta+q"
+# command = "quit"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
@@ -28,7 +38,7 @@ key = "meta+z"
 command = "undo"
 
 [[keymaps]]
-key = "meta+Z"
+key = "meta+shift+z"
 command = "redo"
 
 [[keymaps]]
@@ -131,7 +141,7 @@ command = "select_current_line"
 mode = "i"
 
 [[keymaps]]
-key = "meta+L"
+key = "meta+shift+l"
 command = "select_all_current"
 mode = "i"
 
@@ -197,19 +207,19 @@ command = "show_code_actions"
 # --------------------------------- Display -------------------------------------------
 
 [[keymaps]]
-key = "meta+E"
+key = "meta+shift+e"
 command = "toggle_file_explorer_focus"
 
 [[keymaps]]
-key = "meta+F"
+key = "meta+shift+f"
 command = "toggle_search_focus"
 
 [[keymaps]]
-key = "meta+X"
+key = "meta+shift+x"
 command = "toggle_plugin_focus"
 
 [[keymaps]]
-key = "meta+M"
+key = "meta+shift+m"
 command = "toggle_problem_focus"
 
 # ------------------------------------ Navigation -------------------------------------
@@ -223,8 +233,12 @@ key = "meta+down"
 command = "document_end"
 
 [[keymaps]]
-key = "meta+O"
+key = "meta+shift+o"
 command = "palette.symbol"
+
+[[keymaps]]
+key = "meta+t"
+command = "palette.workspace_symbol"
 
 [[keymaps]]
 key = "ctrl+g"

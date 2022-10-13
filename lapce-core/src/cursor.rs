@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize};
 use xi_rope::{RopeDelta, Transformer};
 
-use crate::buffer::Buffer;
-use crate::mode::{Mode, MotionMode, VisualMode};
-use crate::register::RegisterData;
-use crate::selection::{InsertDrift, SelRegion, Selection};
+use crate::{
+    buffer::Buffer,
+    mode::{Mode, MotionMode, VisualMode},
+    register::RegisterData,
+    selection::{InsertDrift, SelRegion, Selection},
+};
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ColPosition {
@@ -274,6 +276,60 @@ impl Cursor {
         RegisterData { content, mode }
     }
 
+    /// Return the current selection start and end position for a
+    /// Single cursor selection
+    pub fn get_selection(&self) -> Option<(usize, usize)> {
+        match &self.mode {
+            CursorMode::Visual {
+                start,
+                end,
+                mode: _,
+            } => Some((*start, *end)),
+            CursorMode::Insert(selection) => selection
+                .regions()
+                .first()
+                .map(|region| (region.start, region.end)),
+            _ => None,
+        }
+    }
+
+    pub fn get_line_col_char(
+        &self,
+        buffer: &Buffer,
+    ) -> Option<(usize, usize, usize)> {
+        match &self.mode {
+            CursorMode::Normal(offset) => {
+                let ln_col = buffer.offset_to_line_col(*offset);
+                Some((ln_col.0, ln_col.1, *offset))
+            }
+            CursorMode::Visual {
+                start,
+                end,
+                mode: _,
+            } => {
+                let v = buffer.offset_to_line_col(*start.min(end));
+                Some((v.0, v.1, *start))
+            }
+            CursorMode::Insert(selection) => {
+                if selection.regions().len() > 1 {
+                    return None;
+                }
+
+                let x = selection.regions().get(0).unwrap();
+                let v = buffer.offset_to_line_col(x.start);
+
+                Some((v.0, v.1, x.start))
+            }
+        }
+    }
+
+    pub fn get_selection_count(&self) -> usize {
+        match &self.mode {
+            CursorMode::Insert(selection) => selection.regions().len(),
+            _ => 0,
+        }
+    }
+
     pub fn set_offset(&mut self, offset: usize, modify: bool, new_cursor: bool) {
         match &self.mode {
             CursorMode::Normal(old_offset) => {
@@ -320,8 +376,7 @@ impl Cursor {
                 } else if modify {
                     let mut new_selection = Selection::new();
                     if let Some(region) = selection.first() {
-                        let new_region =
-                            SelRegion::new(region.start(), offset, None);
+                        let new_region = SelRegion::new(region.start, offset, None);
                         new_selection.add_region(new_region);
                     } else {
                         new_selection
@@ -443,7 +498,7 @@ pub fn get_first_selection_after(
     });
 
     positions
-        .get(0)
+        .first()
         .cloned()
         .map(Selection::caret)
         .map(|selection| {

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
 use lapce_core::{
     command::{EditCommand, FocusCommand, MoveCommand},
@@ -7,21 +9,29 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     command::{CommandExecuted, CommandKind, LapceUICommand, LAPCE_UI_COMMAND},
+    config::LapceConfig,
     data::LapceMainSplitData,
     keypress::KeyPressFocus,
     split::SplitDirection,
 };
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SettingsValueKind {
     String,
-    Number,
+    Integer,
+    Float,
     Bool,
 }
 
+#[derive(Hash, Eq, PartialEq, Clone)]
 pub enum LapceSettingsKind {
     Core,
+    UI,
     Editor,
+    Terminal,
+    Theme,
+    Keymap,
+    Plugin(String),
 }
 
 #[derive(Clone)]
@@ -98,6 +108,7 @@ pub struct LapceSettingsFocusData {
     pub widget_id: WidgetId,
     pub editor_tab_id: WidgetId,
     pub main_split: LapceMainSplitData,
+    pub config: Arc<LapceConfig>,
 }
 
 impl KeyPressFocus for LapceSettingsFocusData {
@@ -124,10 +135,11 @@ impl KeyPressFocus for LapceSettingsFocusData {
                         ctx,
                         self.editor_tab_id,
                         SplitDirection::Vertical,
+                        &self.config,
                     );
                 }
                 FocusCommand::SplitClose => {
-                    self.main_split.settings_close(
+                    self.main_split.widget_close(
                         ctx,
                         self.widget_id,
                         self.editor_tab_id,

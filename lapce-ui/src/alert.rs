@@ -3,8 +3,8 @@ use std::sync::Arc;
 use druid::{
     piet::{PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, FontWeight, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, TextAlignment,
-    UpdateCtx, Widget, WidgetId, WidgetPod,
+    LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    TextAlignment, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
@@ -141,6 +141,18 @@ impl AlertBoxContent {
             mouse_down_point: Point::ZERO,
         }
     }
+
+    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+        for rect in self.buttons.iter() {
+            if rect.contains(mouse_event.pos) {
+                return true;
+            }
+        }
+        if self.cancel_rect.contains(mouse_event.pos) {
+            return true;
+        }
+        false
+    }
 }
 
 impl Widget<LapceTabData> for AlertBoxContent {
@@ -160,6 +172,13 @@ impl Widget<LapceTabData> for AlertBoxContent {
                 let mut focus = AlertFocusData::new(data);
                 Arc::make_mut(&mut data.keypress)
                     .key_down(ctx, key_event, &mut focus, env);
+            }
+            Event::MouseMove(mouse_event) => {
+                if self.icon_hit_test(mouse_event) {
+                    ctx.set_cursor(&druid::Cursor::Pointer);
+                } else {
+                    ctx.clear_cursor();
+                }
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down_point = mouse_event.pos;
@@ -210,7 +229,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::Focus,
-                        Target::Widget(data.focus),
+                        Target::Widget(*data.focus),
                     ));
                     ctx.set_handled();
                 }
@@ -378,7 +397,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
                 .unwrap();
             let text_layout_size = text_layout.size();
             let point = self.buttons[i].center()
-                - (text_layout_size.width / 2.0, text_layout_size.height / 2.0);
+                - (text_layout_size.width / 2.0, text_layout.cap_center());
             ctx.draw_text(&text_layout, point);
         }
 
@@ -403,7 +422,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
             .unwrap();
         let text_layout_size = text_layout.size();
         let cancel_point = self.cancel_rect.center()
-            - (text_layout_size.width / 2.0, text_layout_size.height / 2.0);
+            - (text_layout_size.width / 2.0, text_layout.cap_center());
         ctx.draw_text(&text_layout, cancel_point);
     }
 }

@@ -59,6 +59,9 @@ impl LapceEditorTabHeaderContent {
     }
 
     fn cancel_pending_drag(&mut self, data: &mut LapceTabData) {
+        if data.drag.is_none() {
+            return;
+        }
         *Arc::make_mut(&mut data.drag) = None;
     }
 
@@ -134,7 +137,6 @@ impl LapceEditorTabHeaderContent {
         } else {
             ctx.clear_cursor();
         }
-        ctx.request_paint();
 
         if !mouse_event.buttons.contains(MouseButton::Left) {
             // If drag data exists, mouse was released outside of the view.
@@ -154,14 +156,72 @@ impl LapceEditorTabHeaderContent {
                     mouse_event.pos.to_vec2() - tab_rect.rect.origin().to_vec2();
                 *Arc::make_mut(&mut data.drag) = Some((
                     offset,
+                    mouse_event.window_pos.to_vec2(),
                     DragContent::EditorTab(
                         editor_tab.widget_id,
                         target,
                         editor_tab.children[target].clone(),
-                        tab_rect.clone(),
+                        Box::new(tab_rect.clone()),
                     ),
                 ));
             }
+        }
+    }
+
+    fn mouse_up(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        mouse_event: &MouseEvent,
+    ) {
+        let editor_tab = data
+            .main_split
+            .editor_tabs
+            .get_mut(&self.widget_id)
+            .unwrap();
+
+        let mut close_tab = |tab_idx: usize, was_active: bool| {
+            if was_active {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ActiveFileChanged { path: None },
+                    Target::Widget(data.file_explorer.widget_id),
+                ));
+            }
+
+            ctx.submit_command(Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Focus(FocusCommand::SplitClose),
+                    data: None,
+                },
+                Target::Widget(editor_tab.children[tab_idx].widget_id()),
+            ));
+        };
+
+        match self.mouse_down_target.take() {
+            // Was the left button released on the close icon that started the close?
+            Some((MouseAction::CloseViaIcon, target))
+                if self.is_close_icon_hit(target, mouse_event.pos)
+                    && mouse_event.button.is_left() =>
+            {
+                close_tab(target, target == editor_tab.active);
+            }
+
+            // Was the middle button released on the tab that started the close?
+            Some((MouseAction::CloseViaMiddleClick, target))
+                if self.is_tab_hit(target, mouse_event.pos)
+                    && mouse_event.button.is_middle() =>
+            {
+                close_tab(target, target == editor_tab.active);
+            }
+
+            None if mouse_event.button.is_left() => {
+                let mouse_index = self.drag_target_idx(mouse_event.pos);
+                self.handle_drag(mouse_index, ctx, data)
+            }
+
+            _ => {}
         }
     }
 
@@ -190,7 +250,7 @@ impl LapceEditorTabHeaderContent {
         ctx: &mut EventCtx,
         data: &mut LapceTabData,
     ) {
-        if let Some((_, DragContent::EditorTab(from_id, from_index, child, _))) =
+        if let Some((_, _, DragContent::EditorTab(from_id, from_index, child, _))) =
             Arc::make_mut(&mut data.drag).take()
         {
             let editor_tab = data
@@ -340,55 +400,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 self.mouse_down(ctx, data, mouse_event);
             }
             Event::MouseUp(mouse_event) => {
-                let editor_tab = data
-                    .main_split
-                    .editor_tabs
-                    .get_mut(&self.widget_id)
-                    .unwrap();
-
-                let mut close_tab = |tab_idx: usize, was_active: bool| {
-                    if was_active {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::ActiveFileChanged { path: None },
-                            Target::Widget(data.file_explorer.widget_id),
-                        ));
-                    }
-
-                    ctx.submit_command(Command::new(
-                        LAPCE_COMMAND,
-                        LapceCommand {
-                            kind: CommandKind::Focus(FocusCommand::SplitClose),
-                            data: None,
-                        },
-                        Target::Widget(editor_tab.children[tab_idx].widget_id()),
-                    ));
-                };
-
-                match self.mouse_down_target.take() {
-                    // Was the left button released on the close icon that started the close?
-                    Some((MouseAction::CloseViaIcon, target))
-                        if self.is_close_icon_hit(target, mouse_event.pos)
-                            && mouse_event.button.is_left() =>
-                    {
-                        close_tab(target, target == editor_tab.active);
-                    }
-
-                    // Was the middle button released on the tab that started the close?
-                    Some((MouseAction::CloseViaMiddleClick, target))
-                        if self.is_tab_hit(target, mouse_event.pos)
-                            && mouse_event.button.is_middle() =>
-                    {
-                        close_tab(target, target == editor_tab.active);
-                    }
-
-                    None if mouse_event.button.is_left() => {
-                        let mouse_index = self.drag_target_idx(mouse_event.pos);
-                        self.handle_drag(mouse_index, ctx, data)
-                    }
-
-                    _ => {}
-                }
+                self.mouse_up(ctx, data, mouse_event);
             }
             _ => (),
         }
@@ -454,7 +466,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 EditorTabChild::Editor(view_id, _, _) => {
                     let editor = data.main_split.editors.get(view_id).unwrap();
                     if let BufferContent::File(path) = &editor.content {
-                        svg = file_svg(path);
+                        (svg, _) = file_svg(path);
                         if let Some(file_name) = path.file_name() {
                             if let Some(s) = file_name.to_str() {
                                 text = s.to_string();
@@ -476,8 +488,11 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                         text = editor.content.file_name().to_string();
                     }
                 }
-                EditorTabChild::Settings(_, _) => {
-                    text = format!("Settings v{}", VERSION);
+                EditorTabChild::Settings { .. } => {
+                    text = format!("Settings (ver. {})", *VERSION);
+                }
+                EditorTabChild::Plugin { volt_name, .. } => {
+                    text = format!("Plugin: {volt_name}");
                 }
             }
             let font_size = data.config.ui.font_size() as f64;
@@ -532,11 +547,11 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let size = ctx.size();
 
-        for (i, tab_rect) in self.rects.iter().enumerate() {
-            tab_rect.paint(ctx, data, self.widget_id, i, size, self.mouse_pos);
+        for (tab_idx, tab_rect) in self.rects.iter().enumerate() {
+            tab_rect.paint(ctx, data, self.widget_id, tab_idx, size, self.mouse_pos);
         }
 
-        if ctx.is_hot() && data.drag.is_some() {
+        if ctx.is_hot() && data.is_drag_editor() {
             let mouse_index = self.drag_target_idx(self.mouse_pos);
 
             let tab_rect;

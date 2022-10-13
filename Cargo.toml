@@ -1,10 +1,10 @@
 [package]
 name = "lapce"
-version = "0.1.2"
+version = "0.2.1"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
-rust-version = "1.60"
-resolver = "2"
+rust-version = "1.62"
+default-run = "lapce"
 
 [dependencies]
 lapce-ui = { path = "./lapce-ui" }

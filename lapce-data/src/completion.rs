@@ -1,19 +1,15 @@
-use std::{fmt::Display, sync::Arc};
+use std::{fmt::Display, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::Error;
-use druid::{ExtEventSink, Size, Target, WidgetId};
+use druid::{EventCtx, Size, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
-use lapce_core::movement::Movement;
-use lapce_rpc::buffer::BufferId;
+use lapce_core::command::FocusCommand;
+use lapce_rpc::{buffer::BufferId, plugin::PluginId};
 use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
-use std::str::FromStr;
 
-use crate::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
-    proxy::LapceProxy,
-};
+use crate::{config::LapceConfig, list::ListData, proxy::LapceProxy};
 
 #[derive(Debug)]
 pub struct Snippet {
@@ -111,7 +107,7 @@ impl Snippet {
                     .map(|e| format!("\\{}", e))
                     .any(|x| x == *esc)
                 {
-                    ele = ele + &s[1..2].to_string();
+                    ele += &s[1..2];
                     end += 2;
                     s = &s[2..];
                     continue;
@@ -120,7 +116,7 @@ impl Snippet {
             if escs.contains(&&s[0..1]) {
                 break;
             }
-            ele = ele + &s[0..1].to_string();
+            ele += &s[0..1];
             end += 1;
             s = &s[1..];
         }
@@ -227,7 +223,7 @@ impl Display for SnippetElement {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum CompletionStatus {
     Inactive,
     Started,
@@ -237,75 +233,76 @@ pub enum CompletionStatus {
 pub struct CompletionData {
     pub id: WidgetId,
     pub scroll_id: WidgetId,
+    pub documentation_scroll_id: WidgetId,
     pub request_id: usize,
     pub status: CompletionStatus,
     pub offset: usize,
     pub buffer_id: BufferId,
     pub input: String,
-    pub index: usize,
-    pub input_items: im::HashMap<String, Arc<Vec<ScoredCompletionItem>>>,
-    empty: Arc<Vec<ScoredCompletionItem>>,
-    pub filtered_items: Arc<Vec<ScoredCompletionItem>>,
+    pub input_items: im::HashMap<String, im::Vector<ScoredCompletionItem>>,
+    empty: im::Vector<ScoredCompletionItem>,
+    pub completion_list: ListData<ScoredCompletionItem, ()>,
     pub matcher: Arc<SkimMatcherV2>,
-    pub size: Size,
+    /// The size of the documentation view
+    pub documentation_size: Size,
 }
 
 impl CompletionData {
-    pub fn new() -> Self {
+    pub fn new(config: Arc<LapceConfig>) -> Self {
+        let id = WidgetId::next();
+        let mut completion_list = ListData::new(config, id, ());
+        // TODO: Make this configurable
+        completion_list.max_displayed_items = 15;
         Self {
-            id: WidgetId::next(),
+            id,
             scroll_id: WidgetId::next(),
+            documentation_scroll_id: WidgetId::next(),
             request_id: 0,
-            index: 0,
             offset: 0,
             status: CompletionStatus::Inactive,
             buffer_id: BufferId(0),
             input: "".to_string(),
             input_items: im::HashMap::new(),
-            filtered_items: Arc::new(Vec::new()),
+            completion_list,
             matcher: Arc::new(SkimMatcherV2::default().ignore_case()),
-            size: Size::new(400.0, 300.0),
-            empty: Arc::new(Vec::new()),
+            // TODO: Make this configurable
+            documentation_size: Size::new(400.0, 300.0),
+            empty: im::Vector::new(),
         }
     }
 
+    /// Return the number of entries that are displayable
     pub fn len(&self) -> usize {
-        self.current_items().len()
+        self.completion_list.items.len()
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    pub fn next(&mut self) {
-        self.index = Movement::Down.update_index(self.index, self.len(), 1, true);
-    }
-
-    pub fn previous(&mut self) {
-        self.index = Movement::Up.update_index(self.index, self.len(), 1, true);
-    }
-
-    pub fn current_items(&self) -> &Arc<Vec<ScoredCompletionItem>> {
+    pub fn current_items(&self) -> &im::Vector<ScoredCompletionItem> {
         if self.input.is_empty() {
             self.all_items()
         } else {
-            &self.filtered_items
+            &self.completion_list.items
         }
     }
 
-    pub fn all_items(&self) -> &Arc<Vec<ScoredCompletionItem>> {
+    pub fn all_items(&self) -> &im::Vector<ScoredCompletionItem> {
         self.input_items
             .get(&self.input)
             .filter(|items| !items.is_empty())
             .unwrap_or_else(move || self.input_items.get("").unwrap_or(&self.empty))
     }
 
-    pub fn current_item(&self) -> &CompletionItem {
-        &self.current_items()[self.index].item
+    pub fn current_item(&self) -> Option<&ScoredCompletionItem> {
+        self.completion_list
+            .items
+            .get(self.completion_list.selected_index)
     }
 
-    pub fn current(&self) -> &str {
-        self.current_items()[self.index].item.label.as_str()
+    pub fn current(&self) -> Option<&str> {
+        self.current_item().map(|item| item.item.label.as_str())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -313,32 +310,13 @@ impl CompletionData {
         &self,
         proxy: Arc<LapceProxy>,
         request_id: usize,
-        buffer_id: BufferId,
+        path: PathBuf,
         input: String,
         position: Position,
-        completion_widget_id: WidgetId,
-        event_sink: ExtEventSink,
     ) {
-        proxy.get_completion(
-            request_id,
-            buffer_id,
-            position,
-            Box::new(move |result| {
-                if let Ok(res) = result {
-                    if let Ok(resp) =
-                        serde_json::from_value::<CompletionResponse>(res)
-                    {
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateCompletion(
-                                request_id, input, resp,
-                            ),
-                            Target::Widget(completion_widget_id),
-                        );
-                    }
-                }
-            }),
-        );
+        proxy
+            .proxy_rpc
+            .completion(request_id, path, input, position);
     }
 
     pub fn cancel(&mut self) {
@@ -348,12 +326,12 @@ impl CompletionData {
         self.status = CompletionStatus::Inactive;
         self.input = "".to_string();
         self.input_items.clear();
-        self.index = 0;
+        self.completion_list.clear_items();
     }
 
     pub fn update_input(&mut self, input: String) {
         self.input = input;
-        self.index = 0;
+        self.completion_list.selected_index = 0;
         if self.status == CompletionStatus::Inactive {
             return;
         }
@@ -365,6 +343,7 @@ impl CompletionData {
         request_id: usize,
         input: String,
         resp: CompletionResponse,
+        plugin_id: PluginId,
     ) {
         if self.status == CompletionStatus::Inactive || self.request_id != request_id
         {
@@ -375,32 +354,44 @@ impl CompletionData {
             CompletionResponse::Array(items) => items,
             CompletionResponse::List(list) => list.items,
         };
-        let items: Vec<ScoredCompletionItem> = items
+        let items: im::Vector<ScoredCompletionItem> = items
             .iter()
             .map(|i| ScoredCompletionItem {
                 item: i.to_owned(),
+                plugin_id,
                 score: 0,
                 label_score: 0,
                 indices: Vec::new(),
             })
             .collect();
 
-        self.input_items.insert(input, Arc::new(items));
+        self.input_items.insert(input, items);
         self.filter_items();
+
+        if self.completion_list.selected_index >= self.len() {
+            self.completion_list.selected_index = 0;
+        }
     }
 
     pub fn filter_items(&mut self) {
         if self.input.is_empty() {
+            self.completion_list.items = self.all_items().clone();
             return;
         }
 
-        let mut items: Vec<ScoredCompletionItem> = self
+        let mut items: im::Vector<ScoredCompletionItem> = self
             .all_items()
             .iter()
             .filter_map(|i| {
                 let filter_text =
                     i.item.filter_text.as_ref().unwrap_or(&i.item.label);
-                let shift = i.item.label.match_indices(filter_text).next()?.0;
+                let shift = i
+                    .item
+                    .label
+                    .match_indices(filter_text)
+                    .next()
+                    .map(|(shift, _)| shift)
+                    .unwrap_or(0);
                 if let Some((score, mut indices)) =
                     self.matcher.fuzzy_indices(filter_text, &self.input)
                 {
@@ -430,34 +421,18 @@ impl CompletionData {
                 .then_with(|| b.label_score.cmp(&a.label_score))
                 .then_with(|| a.item.label.len().cmp(&b.item.label.len()))
         });
-        self.filtered_items = Arc::new(items);
+        self.completion_list.items = items;
+    }
+
+    pub fn run_focus_command(&mut self, ctx: &mut EventCtx, command: &FocusCommand) {
+        self.completion_list.run_focus_command(ctx, command);
     }
 }
 
-impl Default for CompletionData {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-pub struct Completion {}
-
-impl Completion {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for Completion {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct ScoredCompletionItem {
     pub item: CompletionItem,
-
+    pub plugin_id: PluginId,
     pub score: i64,
     pub label_score: i64,
     pub indices: Vec<usize>,

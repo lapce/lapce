@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use druid::{
     kurbo::BezPath,
@@ -8,15 +8,20 @@ use druid::{
     WidgetExt, WidgetId,
 };
 use lapce_data::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_COMMAND, LAPCE_UI_COMMAND,
+    },
     config::LapceTheme,
-    data::{FocusArea, LapceTabData, PanelKind},
+    data::{FocusArea, LapceTabData},
+    panel::PanelKind,
 };
 use lapce_rpc::source_control::FileDiff;
 
 use crate::{
+    button::Button,
     editor::view::LapceEditorView,
-    panel::{LapcePanel, PanelHeaderKind},
+    panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     svg::{file_svg, get_svg},
 };
 
@@ -32,25 +37,48 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
             .hide_gutter()
             .set_placeholder("Commit Message".to_string())
             .padding((15.0, 15.0));
+
+    let commit_button = Button::new(data, "Commit")
+        .on_click(|ctx, data, _env| {
+            ctx.submit_command(Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::SourceControlCommit,
+                    ),
+                    data: None,
+                },
+                Target::Widget(data.id),
+            ));
+        })
+        .expand_width()
+        .with_id(data.source_control.commit_button_id)
+        .padding((10.0, 0.0, 10.0, 10.0));
+
     let content = SourceControlFileList::new(data.source_control.file_list_id);
+
     LapcePanel::new(
         PanelKind::SourceControl,
         data.source_control.widget_id,
         data.source_control.split_id,
-        data.source_control.split_direction,
-        PanelHeaderKind::Simple("Source Control".into()),
         vec![
             (
                 editor_data.view_id,
                 PanelHeaderKind::None,
                 input.boxed(),
-                Some(300.0),
+                PanelSizing::Size(300.0),
+            ),
+            (
+                data.source_control.commit_button_id,
+                PanelHeaderKind::None,
+                commit_button.boxed(),
+                PanelSizing::Flex(false),
             ),
             (
                 data.source_control.file_list_id,
                 PanelHeaderKind::Simple("Changes".into()),
                 content.boxed(),
-                None,
+                PanelSizing::Flex(false),
             ),
         ],
     )
@@ -76,7 +104,7 @@ impl SourceControlFileList {
         let source_control = Arc::make_mut(&mut data.source_control);
         source_control.active = self.widget_id;
         data.focus_area = FocusArea::Panel(PanelKind::SourceControl);
-        data.focus = self.widget_id;
+        data.focus = Arc::new(self.widget_id);
     }
 }
 
@@ -95,7 +123,6 @@ impl Widget<LapceTabData> for SourceControlFileList {
         match event {
             Event::MouseMove(_mouse_event) => {
                 ctx.set_cursor(&druid::Cursor::Pointer);
-                ctx.set_handled();
             }
             Event::MouseUp(mouse_event) => {
                 let y = mouse_event.pos.y;
@@ -231,7 +258,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
             }
             let y = self.line_height * line as f64;
             let (diff, checked) = diffs[line].clone();
-            let mut path = diff.path().clone();
+            let mut path: PathBuf = diff.path().clone();
             if let Some(workspace_path) = data.workspace.path.as_ref() {
                 path = path
                     .strip_prefix(workspace_path)
@@ -256,14 +283,14 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     ctx.stroke(path, &Color::rgb8(0, 0, 0), 2.0);
                 }
             }
-            let svg = file_svg(&path);
+            let (svg, svg_color) = file_svg(&path);
             let width = 13.0;
             let height = 13.0;
             let rect = Size::new(width, height).to_rect().with_origin(Point::new(
                 (self.line_height - width) / 2.0 + self.line_height,
                 (self.line_height - height) / 2.0 + y,
             ));
-            ctx.draw_svg(&svg, rect, None);
+            ctx.draw_svg(&svg, rect, svg_color);
 
             let file_name = path
                 .file_name()
@@ -289,7 +316,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 &text_layout,
                 Point::new(
                     self.line_height * 2.0,
-                    y + (self.line_height - text_layout.size().height) / 2.0,
+                    y + text_layout.y_offset(self.line_height),
                 ),
             );
             let folder = path
@@ -318,7 +345,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     &text_layout,
                     Point::new(
                         self.line_height * 2.0 + x + 5.0,
-                        y + (self.line_height - text_layout.size().height) / 2.0,
+                        y + text_layout.y_offset(self.line_height),
                     ),
                 );
             }

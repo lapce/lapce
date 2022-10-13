@@ -1,11 +1,12 @@
 use std::{
     cell::RefCell,
+    collections::HashMap,
     rc::Rc,
     sync::{atomic, Arc},
 };
 
 use druid::{
-    piet::{PietText, PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
+    piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
     Target,
 };
 use lapce_core::{
@@ -14,15 +15,15 @@ use lapce_core::{
     syntax::Syntax,
 };
 use lapce_rpc::{
-    buffer::BufferHeadResponse,
+    proxy::ProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
 use xi_rope::{spans::Spans, Rope};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
-    document::{BufferContent, Document, TextLayoutCache},
+    config::{LapceConfig, LapceTheme},
+    document::{BufferContent, Document, TextLayoutCache, TextLayoutLine},
 };
 
 #[derive(Clone)]
@@ -79,18 +80,35 @@ impl DocumentHistory {
         &self,
         text: &mut PietText,
         line: usize,
-        config: &Config,
-    ) -> Arc<PietTextLayout> {
+        config: &LapceConfig,
+    ) -> Arc<TextLayoutLine> {
+        let font_size = 0;
         self.text_layouts.borrow_mut().check_attributes(config.id);
-        if self.text_layouts.borrow().layouts.get(&line).is_none() {
+        if self.text_layouts.borrow().layouts.get(&font_size).is_none() {
+            let mut cache = self.text_layouts.borrow_mut();
+            cache.layouts.insert(font_size, HashMap::new());
+        }
+        if self
+            .text_layouts
+            .borrow()
+            .layouts
+            .get(&font_size)
+            .unwrap()
+            .get(&line)
+            .is_none()
+        {
             self.text_layouts
                 .borrow_mut()
                 .layouts
+                .get_mut(&font_size)
+                .unwrap()
                 .insert(line, Arc::new(self.new_text_layout(text, line, config)));
         }
         self.text_layouts
             .borrow()
             .layouts
+            .get(&font_size)
+            .unwrap()
             .get(&line)
             .cloned()
             .unwrap()
@@ -100,8 +118,8 @@ impl DocumentHistory {
         &self,
         text: &mut PietText,
         line: usize,
-        config: &Config,
-    ) -> PietTextLayout {
+        config: &LapceConfig,
+    ) -> TextLayoutLine {
         let line_content = self.buffer.as_ref().unwrap().line_content(line);
         let font_family = config.editor.font_family();
         let font_size = config.editor.font_size;
@@ -129,7 +147,11 @@ impl DocumentHistory {
             }
         }
 
-        layout_builder.build().unwrap()
+        TextLayoutLine {
+            text: layout_builder.build().unwrap(),
+            extra_style: Vec::new(),
+            whitespace: None,
+        }
     }
 
     fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
@@ -154,27 +176,25 @@ impl DocumentHistory {
             let proxy = doc.proxy.clone();
             let event_sink = doc.event_sink.clone();
             std::thread::spawn(move || {
-                proxy.get_buffer_head(
-                    id,
-                    path.clone(),
-                    Box::new(move |result| {
-                        if let Ok(res) = result {
-                            if let Ok(resp) =
-                                serde_json::from_value::<BufferHeadResponse>(res)
-                            {
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::LoadBufferHead {
-                                        path,
-                                        content: Rope::from(resp.content),
-                                        version: resp.version,
-                                    },
-                                    Target::Widget(tab_id),
-                                );
-                            }
+                proxy
+                    .proxy_rpc
+                    .get_buffer_head(id, path.clone(), move |result| {
+                        if let Ok(ProxyResponse::BufferHeadResponse {
+                            version,
+                            content,
+                        }) = result
+                        {
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::LoadBufferHead {
+                                    path,
+                                    content: Rope::from(content),
+                                    version,
+                                },
+                                Target::Widget(tab_id),
+                            );
                         }
-                    }),
-                )
+                    })
             });
         }
     }
@@ -247,9 +267,8 @@ impl DocumentHistory {
 
             let content = self.buffer.as_ref().unwrap().text().clone();
             rayon::spawn(move || {
-                if let Some(syntax) =
-                    Syntax::init(&path).map(|s| s.parse(0, content, None))
-                {
+                if let Some(mut syntax) = Syntax::init(&path) {
+                    syntax.parse(0, content, None);
                     if let Some(styles) = syntax.styles {
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,

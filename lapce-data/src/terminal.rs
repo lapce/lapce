@@ -11,14 +11,15 @@ use alacritty_terminal::{
     Term,
 };
 use druid::{
-    keyboard_types::Key, Application, Color, Command, Env, EventCtx, ExtEventSink,
-    KeyEvent, Modifiers, Target, WidgetId,
+    keyboard_types::Key, Color, Command, Env, EventCtx, ExtEventSink, KeyEvent,
+    Modifiers, Target, WidgetId,
 };
 use hashbrown::HashMap;
 use lapce_core::{
     command::{EditCommand, FocusCommand},
     mode::{Mode, VisualMode},
     movement::{LinePosition, Movement},
+    register::Clipboard,
 };
 use lapce_rpc::terminal::TermId;
 use parking_lot::Mutex;
@@ -27,8 +28,9 @@ use crate::{
     command::{
         CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::LapceWorkspace,
+    document::SystemClipboard,
     find::Find,
     keypress::KeyPressFocus,
     proxy::LapceProxy,
@@ -95,7 +97,7 @@ impl TerminalSplitData {
         &self,
         color: &ansi::Color,
         colors: &alacritty_terminal::term::color::Colors,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Color {
         match color {
             ansi::Color::Named(color) => self.get_named_color(color, config),
@@ -131,7 +133,11 @@ impl TerminalSplitData {
         }
     }
 
-    fn get_named_color(&self, color: &ansi::NamedColor, config: &Config) -> Color {
+    fn get_named_color(
+        &self,
+        color: &ansi::NamedColor,
+        config: &LapceConfig,
+    ) -> Color {
         let (color, alpha) = match color {
             ansi::NamedColor::Cursor => (LapceTheme::TERMINAL_CURSOR, 1.0),
             ansi::NamedColor::Foreground => (LapceTheme::TERMINAL_FOREGROUND, 1.0),
@@ -183,7 +189,7 @@ impl TerminalSplitData {
 
 pub struct LapceTerminalViewData {
     pub terminal: Arc<LapceTerminalData>,
-    pub config: Arc<Config>,
+    pub config: Arc<LapceConfig>,
     pub find: Arc<Find>,
 }
 
@@ -193,7 +199,7 @@ impl LapceTerminalViewData {
     }
 
     fn toggle_visual(&mut self, visual_mode: VisualMode) {
-        if !self.config.lapce.modal {
+        if !self.config.core.modal {
             return;
         }
 
@@ -239,7 +245,9 @@ impl LapceTerminalViewData {
         if let Some(command) = LapceTerminalData::resolve_key_event(key) {
             self.terminal
                 .proxy
+                .proxy_rpc
                 .terminal_write(self.terminal.term_id, command.as_ref());
+            self.terminal.raw.lock().term.scroll_display(Scroll::Bottom);
         }
     }
 }
@@ -261,6 +269,7 @@ impl KeyPressFocus for LapceTerminalViewData {
         _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
+        let mut clipboard = SystemClipboard {};
         ctx.request_paint();
         match &command.kind {
             CommandKind::Move(cmd) => {
@@ -317,7 +326,7 @@ impl KeyPressFocus for LapceTerminalViewData {
             }
             CommandKind::Edit(cmd) => match cmd {
                 EditCommand::NormalMode => {
-                    if !self.config.lapce.modal {
+                    if !self.config.core.modal {
                         return CommandExecuted::Yes;
                     }
                     self.terminal_mut().mode = Mode::Normal;
@@ -355,12 +364,19 @@ impl KeyPressFocus for LapceTerminalViewData {
                     let mut raw = self.terminal.raw.lock();
                     let term = &mut raw.term;
                     if let Some(content) = term.selection_to_string() {
-                        Application::global().clipboard().put_string(content);
+                        clipboard.put_string(content);
                     }
-                    self.terminal.clear_selection(term);
+                    if self.terminal.mode != Mode::Terminal {
+                        self.terminal.clear_selection(term);
+                    }
                 }
                 EditCommand::ClipboardPaste => {
-                    if let Some(s) = Application::global().clipboard().get_string() {
+                    if self.terminal.mode == Mode::Terminal {
+                        let mut raw = self.terminal.raw.lock();
+                        let term = &mut raw.term;
+                        self.terminal.clear_selection(term);
+                    }
+                    if let Some(s) = clipboard.get_string() {
                         self.receive_char(ctx, &s);
                     }
                 }
@@ -454,7 +470,11 @@ impl KeyPressFocus for LapceTerminalViewData {
 
     fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
         if self.terminal.mode == Mode::Terminal {
-            self.terminal.proxy.terminal_write(self.terminal.term_id, c);
+            self.terminal
+                .proxy
+                .proxy_rpc
+                .terminal_write(self.terminal.term_id, c);
+            self.terminal.raw.lock().term.scroll_display(Scroll::Bottom);
         }
     }
 }
@@ -519,7 +539,7 @@ impl LapceTerminalData {
         split_id: WidgetId,
         event_sink: ExtEventSink,
         proxy: Arc<LapceProxy>,
-        config: &Config,
+        config: &LapceConfig,
     ) -> Self {
         let cwd = workspace.path.as_ref().cloned();
         let widget_id = WidgetId::next();
@@ -560,7 +580,7 @@ impl LapceTerminalData {
         let term_id = self.term_id;
         std::thread::spawn(move || {
             raw.lock().term.resize(size);
-            proxy.terminal_resize(term_id, width, height);
+            proxy.proxy_rpc.terminal_resize(term_id, width, height);
         });
     }
 
@@ -582,7 +602,7 @@ impl LapceTerminalData {
         search_string: &str,
         direction: Direction,
     ) {
-        if let Ok(dfas) = RegexSearch::new(search_string) {
+        if let Ok(dfas) = RegexSearch::new(&regex::escape(search_string)) {
             let mut point = term.renderable_content().cursor.point;
             if direction == Direction::Right {
                 if point.column.0 < term.last_column() {
@@ -777,8 +797,10 @@ impl LapceTerminalData {
             Key::Backspace => {
                 Some(if key.mods.ctrl() {
                     "\x08" // backspace
+                } else if key.mods.alt() {
+                    "\x1b\x7f"
                 } else {
-                    "\x7f" // DEL
+                    "\x7f"
                 })
             }
 
@@ -813,7 +835,7 @@ impl EventListener for EventProxy {
     fn send_event(&self, event: alacritty_terminal::event::Event) {
         match event {
             alacritty_terminal::event::Event::PtyWrite(s) => {
-                self.proxy.terminal_write(self.term_id, &s);
+                self.proxy.proxy_rpc.terminal_write(self.term_id, &s);
             }
             alacritty_terminal::event::Event::Title(title) => {
                 let _ = self.event_sink.submit_command(

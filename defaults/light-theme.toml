@@ -26,7 +26,6 @@ magenta = "#A626A4"
 
 [theme.syntax]
 "comment" = "#A0A1A7"
-
 "constant" = "$yellow"
 "type" = "$yellow"
 "typeAlias" = "$yellow"
@@ -49,18 +48,26 @@ magenta = "#A626A4"
 "property" = "$red"
 "enumMember" = "$red"
 "enum-member" = "$red"
-"variable.other.member" = "$red"
 
 "string" = "$green"
+"string.escape" = "$cyan"
 
 "type.builtin" = "$cyan"
 "builtinType" = "$cyan"
 "escape" = "$cyan"
 "embedded" = "$cyan"
 
+"punctuation.delimiter" = "$yellow"
+"text.title" = "$orange"
+"text.uri" = "$cyan"
+"text.reference" = "$yellow"
+"variable" = "$red"
+"variable.other.member" = "$green"
+"tag" = "$blue"
+
 [theme.ui]
-"lapce.active_tab" = "$white"
-"lapce.inactive_tab" = "$grey"
+"lapce.active_tab" = "#526FFF"
+"lapce.inactive_tab" = "#A0A1A7"
 "lapce.error" = "#E51400"
 "lapce.warn" = "#E9A700"
 "lapce.dropdown_shadow" = "#B4B4B4"
@@ -94,7 +101,18 @@ magenta = "#A626A4"
 "editor.caret" = "#526FFF"
 "editor.selection" = "$grey"
 "editor.current_line" = "#F2F2F2"
-"editor.link" = "$cyan"
+"editor.link" = "$blue"
+"editor.visible_whitespace" = "$grey"
+
+"inlay_hint.foreground" = "$black"
+"inlay_hint.background" = "#528bFF55"
+
+"error_lens.error.foreground" = "$red"
+"error_lens.error.background" = "#E4564920"
+"error_lens.warning.foreground" = "$yellow"
+"error_lens.warning.background" = "#C1840120"
+"error_lens.other.foreground" = "#A0A1A7"
+"error_lens.other.background" = "#A0A1A720"
 
 "source_control.added" = "#50A14F32"
 "source_control.removed" = "#FF526632"

@@ -11,9 +11,12 @@ use std::{
 
 use lsp_types::Position;
 use xi_rope::{
+    delta::InsertDelta,
     diff::{Diff, LineHashDiff},
-    multiset::Subset,
-    Cursor, Delta, DeltaBuilder, Interval, Rope, RopeDelta,
+    interval::IntervalBounds,
+    multiset::{CountMatcher, Subset},
+    tree::{Node, NodeInfo},
+    Cursor, Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta, RopeInfo,
 };
 
 use crate::{
@@ -22,9 +25,13 @@ use crate::{
     indent::{auto_detect_indent_style, IndentStyle},
     mode::Mode,
     selection::Selection,
-    syntax::Syntax,
+    syntax::{self, edit::SyntaxEdit, Syntax},
     word::WordCursor,
 };
+
+pub mod rope_text;
+
+use rope_text::*;
 
 #[derive(Clone)]
 enum Contents {
@@ -90,6 +97,12 @@ pub struct Buffer {
     max_len_line: usize,
 }
 
+impl ToString for Buffer {
+    fn to_string(&self) -> String {
+        self.text().to_string()
+    }
+}
+
 impl Buffer {
     pub fn new(text: &str) -> Self {
         Self {
@@ -131,7 +144,7 @@ impl Buffer {
     }
 
     pub fn set_pristine(&mut self) {
-        self.pristine_rev_id = self.rev()
+        self.pristine_rev_id = self.rev();
     }
 
     pub fn is_pristine(&self) -> bool {
@@ -179,14 +192,14 @@ impl Buffer {
     }
 
     pub fn num_lines(&self) -> usize {
-        self.line_of_offset(self.text.len()) + 1
+        RopeText::new(&self.text).num_lines()
     }
 
     fn get_max_line_len(&self) -> (usize, usize) {
         let mut pre_offset = 0;
         let mut max_len = 0;
         let mut max_len_line = 0;
-        for line in 0..self.num_lines() + 1 {
+        for line in 0..=self.num_lines() {
             let offset = self.offset_of_line(line);
             let line_len = offset - pre_offset;
             pre_offset = offset;
@@ -231,14 +244,14 @@ impl Buffer {
         self.max_len
     }
 
-    fn line_len(&self, line: usize) -> usize {
-        self.offset_of_line(line + 1) - self.offset_of_line(line)
+    pub fn line_len(&self, line: usize) -> usize {
+        RopeText::new(&self.text).line_len(line)
     }
 
     pub fn init_content(&mut self, content: Rope) {
         if !content.is_empty() {
             let delta = Delta::simple_edit(Interval::new(0, 0), content, 0);
-            let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
+            let (new_rev, new_text, new_tombstones, new_deletes_from_union, _) =
                 self.mk_new_rev(0, delta.clone());
             self.apply_edit(
                 &delta,
@@ -255,14 +268,14 @@ impl Buffer {
         &mut self,
         content: Rope,
         set_pristine: bool,
-    ) -> (RopeDelta, InvalLines) {
+    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
         let delta = LineHashDiff::compute_delta(&self.text, &content);
         self.this_edit_type = EditType::Other;
-        let (delta, inval_lines) = self.add_delta(delta);
+        let (delta, inval_lines, edits) = self.add_delta(delta);
         if set_pristine {
             self.set_pristine();
         }
-        (delta, inval_lines)
+        (delta, inval_lines, edits)
     }
 
     pub fn detect_indent(&mut self, syntax: Option<&Syntax>) {
@@ -279,14 +292,14 @@ impl Buffer {
     }
 
     pub fn reset_edit_type(&mut self) {
-        self.last_edit_type = EditType::Other
+        self.last_edit_type = EditType::Other;
     }
 
     pub fn edit(
         &mut self,
         edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
-    ) -> (RopeDelta, InvalLines) {
+    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
         let mut builder = DeltaBuilder::new(self.len());
         let mut interval_rope = Vec::new();
         for (selection, content) in edits {
@@ -312,11 +325,14 @@ impl Buffer {
         self.add_delta(delta)
     }
 
-    fn add_delta(&mut self, delta: RopeDelta) -> (RopeDelta, InvalLines) {
+    fn add_delta(
+        &mut self,
+        delta: RopeDelta,
+    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
         let undo_group = self.calculate_undo_group();
         self.last_edit_type = self.this_edit_type;
 
-        let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
+        let (new_rev, new_text, new_tombstones, new_deletes_from_union, edits) =
             self.mk_new_rev(undo_group, delta.clone());
 
         let inval_lines = self.apply_edit(
@@ -327,7 +343,7 @@ impl Buffer {
             new_deletes_from_union,
         );
 
-        (delta, inval_lines)
+        (delta, inval_lines, edits)
     }
 
     fn apply_edit(
@@ -380,12 +396,53 @@ impl Buffer {
         }
     }
 
+    fn generate_edits(
+        &self,
+        ins_delta: &InsertDelta<RopeInfo>,
+        deletes: &Subset,
+    ) -> SyntaxEdit {
+        let mut edits = Vec::new();
+        let mut text = self.text.clone();
+
+        for insert in InsertsValueIter::new(ins_delta) {
+            // We may not need the inserted text in order to calculate the new end position
+            // but I was sufficiently uncertain, and so continued with how we did it previously
+            let start = insert.old_offset;
+            let inserted = insert.node;
+            edits.push(syntax::edit::create_insert_edit(&text, start, inserted));
+
+            // Create a delta of this specific part of the insert
+            // We have to apply it because future inserts assume it already happened
+            let insert_delta = RopeDelta::simple_edit(
+                Interval::new(start, start),
+                inserted.clone(),
+                text.len(),
+            );
+            text = insert_delta.apply(&text);
+        }
+
+        for (start, end) in deletes.range_iter(CountMatcher::NonZero) {
+            edits.push(syntax::edit::create_delete_edit(&text, start, end));
+
+            let delete_delta = RopeDelta::simple_edit(
+                Interval::new(start, end),
+                Rope::default(),
+                text.len(),
+            );
+            text = delete_delta.apply(&text);
+        }
+
+        SyntaxEdit::new(edits)
+    }
+
     fn mk_new_rev(
         &self,
         undo_group: usize,
         delta: RopeDelta,
-    ) -> (Revision, Rope, Rope, Subset) {
+    ) -> (Revision, Rope, Rope, Subset, SyntaxEdit) {
         let (ins_delta, deletes) = delta.factor();
+
+        let edits = self.generate_edits(&ins_delta, &deletes);
 
         let deletes_at_rev = &self.deletes_from_union;
 
@@ -416,7 +473,7 @@ impl Buffer {
             &new_deletes_from_union,
         );
 
-        let head_rev = &self.revs.last().unwrap();
+        let head_rev = self.revs.last().unwrap();
         self.atomic_rev
             .store(self.rev_counter, atomic::Ordering::Release);
         (
@@ -434,6 +491,7 @@ impl Buffer {
             new_text,
             new_tombstones,
             new_deletes_from_union,
+            edits,
         )
     }
 
@@ -567,7 +625,7 @@ impl Buffer {
                 Contents::Undo { .. } => None,
             })
             .and_then(|group| {
-                let mut cursor: Option<&CursorMode> = None;
+                let mut cursor = None;
                 for rev in &self.revs[first_candidate..] {
                     if let Contents::Edit { ref undo_group, .. } = rev.edit {
                         if group == undo_group {
@@ -605,6 +663,7 @@ impl Buffer {
     ) -> (
         RopeDelta,
         InvalLines,
+        SyntaxEdit,
         Option<CursorMode>,
         Option<CursorMode>,
     ) {
@@ -614,6 +673,10 @@ impl Buffer {
             &self.deletes_from_union,
             &new_deletes_from_union,
         );
+        let edits = {
+            let (ins_delta, deletes) = delta.clone().factor();
+            self.generate_edits(&ins_delta, &deletes)
+        };
         let new_text = delta.apply(&self.text);
         let new_tombstones = shuffle_tombstones(
             &self.text,
@@ -634,154 +697,100 @@ impl Buffer {
             new_deletes_from_union,
         );
 
-        (delta, inval_lines, cursor_before, cursor_after)
+        (delta, inval_lines, edits, cursor_before, cursor_after)
     }
 
     pub fn do_undo(
         &mut self,
-    ) -> Option<(RopeDelta, InvalLines, Option<CursorMode>)> {
-        if self.cur_undo > 1 {
-            self.cur_undo -= 1;
-            self.undos.insert(self.live_undos[self.cur_undo]);
-            self.last_edit_type = EditType::Undo;
-            let (delta, inval_lines, cursor_before, _cursor_after) =
-                self.undo(self.undos.clone());
-            Some((delta, inval_lines, cursor_before))
-        } else {
-            None
+    ) -> Option<(RopeDelta, InvalLines, SyntaxEdit, Option<CursorMode>)> {
+        if self.cur_undo <= 1 {
+            return None;
         }
+
+        self.cur_undo -= 1;
+        self.undos.insert(self.live_undos[self.cur_undo]);
+        self.last_edit_type = EditType::Undo;
+        let (delta, inval_lines, edits, cursor_before, _cursor_after) =
+            self.undo(self.undos.clone());
+
+        Some((delta, inval_lines, edits, cursor_before))
     }
 
     pub fn do_redo(
         &mut self,
-    ) -> Option<(RopeDelta, InvalLines, Option<CursorMode>)> {
-        if self.cur_undo < self.live_undos.len() {
-            self.undos.remove(&self.live_undos[self.cur_undo]);
-            self.cur_undo += 1;
-            self.last_edit_type = EditType::Redo;
-            let (delta, inval_lines, _cursor_before, cursor_after) =
-                self.undo(self.undos.clone());
-            Some((delta, inval_lines, cursor_after))
-        } else {
-            None
+    ) -> Option<(RopeDelta, InvalLines, SyntaxEdit, Option<CursorMode>)> {
+        if self.cur_undo >= self.live_undos.len() {
+            return None;
         }
+
+        self.undos.remove(&self.live_undos[self.cur_undo]);
+        self.cur_undo += 1;
+        self.last_edit_type = EditType::Redo;
+        let (delta, inval_lines, edits, _cursor_before, cursor_after) =
+            self.undo(self.undos.clone());
+
+        Some((delta, inval_lines, edits, cursor_after))
+    }
+
+    pub fn rope_text(&self) -> RopeText {
+        RopeText::new(&self.text)
     }
 
     pub fn last_line(&self) -> usize {
-        self.line_of_offset(self.text.len())
+        RopeText::new(&self.text).last_line()
     }
 
     pub fn offset_of_line(&self, line: usize) -> usize {
-        let last_line = self.last_line();
-        let line = if line > last_line + 1 {
-            last_line + 1
-        } else {
-            line
-        };
-        self.text.offset_of_line(line)
+        RopeText::new(&self.text).offset_of_line(line)
     }
 
     pub fn offset_line_end(&self, offset: usize, caret: bool) -> usize {
-        let line = self.line_of_offset(offset);
-        self.line_end_offset(line, caret)
+        RopeText::new(&self.text).offset_line_end(offset, caret)
     }
 
     pub fn line_of_offset(&self, offset: usize) -> usize {
-        let max = self.len();
-        let offset = if offset > max { max } else { offset };
-        self.text.line_of_offset(offset)
+        RopeText::new(&self.text).line_of_offset(offset)
     }
 
+    /// Converts a UTF8 offset to a UTF16 LSP position
     pub fn offset_to_position(&self, offset: usize) -> Position {
-        let (line, col) = self.offset_to_line_col(offset);
-        Position {
-            line: line as u32,
-            character: col as u32,
-        }
+        RopeText::new(&self.text).offset_to_position(offset)
     }
 
     pub fn offset_of_position(&self, pos: &Position) -> usize {
-        self.offset_of_line_col(pos.line as usize, pos.character as usize)
+        RopeText::new(&self.text).offset_of_position(pos)
+    }
+
+    pub fn position_to_line_col(&self, pos: &Position) -> (usize, usize) {
+        RopeText::new(&self.text).position_to_line_col(pos)
     }
 
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
-        let max = self.len();
-        let offset = if offset > max { max } else { offset };
-        let line = self.line_of_offset(offset);
-        let line_start = self.offset_of_line(line);
-        if offset == line_start {
-            return (line, 0);
-        }
-
-        let col = offset - line_start;
-        (line, col)
+        RopeText::new(&self.text).offset_to_line_col(offset)
     }
 
     pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
-        let mut pos = 0;
-        let mut offset = self.offset_of_line(line);
-        for c in self
-            .slice_to_cow(offset..self.offset_of_line(line + 1))
-            .chars()
-        {
-            if c == '\n' {
-                return offset;
-            }
-
-            let char_len = c.len_utf8();
-            if pos + char_len > col {
-                return offset;
-            }
-            pos += char_len;
-            offset += char_len;
-        }
-        offset
+        RopeText::new(&self.text).offset_of_line_col(line, col)
     }
 
     pub fn line_end_col(&self, line: usize, caret: bool) -> usize {
-        let line_start = self.offset_of_line(line);
-        let offset = self.line_end_offset(line, caret);
-        offset - line_start
+        RopeText::new(&self.text).line_end_col(line, caret)
     }
 
     pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
-        let last_line = self.last_line();
-        let line = if line > last_line + 1 {
-            last_line
-        } else {
-            line
-        };
-        let line_start_offset = self.text.offset_of_line(line);
-        WordCursor::new(&self.text, line_start_offset).next_non_blank_char()
+        RopeText::new(&self.text).first_non_blank_character_on_line(line)
     }
 
     pub fn indent_on_line(&self, line: usize) -> String {
-        let line_start_offset = self.text.offset_of_line(line);
-        let word_boundary =
-            WordCursor::new(&self.text, line_start_offset).next_non_blank_char();
-        let indent = self.text.slice_to_cow(line_start_offset..word_boundary);
-        indent.to_string()
+        RopeText::new(&self.text).indent_on_line(line)
     }
 
     pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
-        let mut offset = self.offset_of_line(line + 1);
-        let mut line_content: &str = &self.line_content(line);
-        if line_content.ends_with("\r\n") {
-            offset -= 2;
-            line_content = &line_content[..line_content.len() - 2];
-        } else if line_content.ends_with('\n') {
-            offset -= 1;
-            line_content = &line_content[..line_content.len() - 1];
-        }
-        if !caret && !line_content.is_empty() {
-            offset = self.prev_grapheme_offset(offset, 1, 0);
-        }
-        offset
+        RopeText::new(&self.text).line_end_offset(line, caret)
     }
 
     pub fn line_content(&self, line: usize) -> Cow<str> {
-        self.text
-            .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
+        RopeText::new(&self.text).line_content(line)
     }
 
     pub fn prev_grapheme_offset(
@@ -790,20 +799,7 @@ impl Buffer {
         count: usize,
         limit: usize,
     ) -> usize {
-        let mut cursor = Cursor::new(&self.text, offset);
-        let mut new_offset = offset;
-        for _i in 0..count {
-            if let Some(prev_offset) = cursor.prev_grapheme() {
-                if prev_offset < limit {
-                    return new_offset;
-                }
-                new_offset = prev_offset;
-                cursor.set(prev_offset);
-            } else {
-                return new_offset;
-            }
-        }
-        new_offset
+        RopeText::new(&self.text).prev_grapheme_offset(offset, count, limit)
     }
 
     pub fn prev_code_boundary(&self, offset: usize) -> usize {
@@ -815,24 +811,20 @@ impl Buffer {
     }
 
     pub fn move_left(&self, offset: usize, mode: Mode, count: usize) -> usize {
-        let line = self.line_of_offset(offset);
-        let line_start_offset = self.offset_of_line(line);
         let min_offset = if mode == Mode::Insert {
             0
         } else {
-            line_start_offset
+            let line = self.line_of_offset(offset);
+            self.offset_of_line(line)
         };
-
         self.prev_grapheme_offset(offset, count, min_offset)
     }
 
     pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
-        let line_end = self.offset_line_end(offset, mode != Mode::Normal);
-
         let max_offset = if mode == Mode::Insert {
             self.len()
         } else {
-            line_end
+            self.offset_line_end(offset, mode != Mode::Normal)
         };
 
         self.next_grapheme_offset(offset, count, max_offset)
@@ -908,6 +900,15 @@ impl Buffer {
             .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
     }
 
+    /// Iterate over (utf8_offset, char) values in the given range  
+    /// This uses `iter_chunks` and so does not allocate, compared to `slice_to_cow` which can
+    pub fn char_indices_iter<T: IntervalBounds>(
+        &self,
+        range: T,
+    ) -> impl Iterator<Item = (usize, char)> + '_ {
+        CharIndicesJoin::new(self.text.iter_chunks(range).map(str::char_indices))
+    }
+
     pub fn len(&self) -> usize {
         self.text.len()
     }
@@ -963,6 +964,10 @@ impl Buffer {
     pub fn move_n_words_backward(&self, offset: usize, count: usize) -> usize {
         self.find_nth_word(offset, count, |cursor| cursor.prev_boundary())
     }
+
+    pub fn move_word_backward_deletion(&self, offset: usize) -> usize {
+        self.find_nth_word(offset, 1, |cursor| cursor.prev_deletion_boundary())
+    }
 }
 
 fn shuffle_tombstones(
@@ -1006,7 +1011,7 @@ fn shuffle(
     )
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DiffResult<T> {
     Left(T),
     Both(T, T),
@@ -1205,6 +1210,55 @@ pub fn rope_diff(
         }
     }
     Some(changes)
+}
+
+pub struct DeltaValueRegion<'a, N: NodeInfo + 'a> {
+    pub old_offset: usize,
+    pub new_offset: usize,
+    pub len: usize,
+    pub node: &'a Node<N>,
+}
+
+/// Modified version of `xi_rope::delta::InsertsIter` which includes the node
+pub struct InsertsValueIter<'a, N: NodeInfo + 'a> {
+    pos: usize,
+    last_end: usize,
+    els_iter: std::slice::Iter<'a, DeltaElement<N>>,
+}
+impl<'a, N: NodeInfo + 'a> InsertsValueIter<'a, N> {
+    pub fn new(delta: &'a Delta<N>) -> InsertsValueIter<'a, N> {
+        InsertsValueIter {
+            pos: 0,
+            last_end: 0,
+            els_iter: delta.els.iter(),
+        }
+    }
+}
+impl<'a, N: NodeInfo> Iterator for InsertsValueIter<'a, N> {
+    type Item = DeltaValueRegion<'a, N>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for elem in &mut self.els_iter {
+            match *elem {
+                DeltaElement::Copy(b, e) => {
+                    self.pos += e - b;
+                    self.last_end = e;
+                }
+                DeltaElement::Insert(ref n) => {
+                    let result = Some(DeltaValueRegion {
+                        old_offset: self.last_end,
+                        new_offset: self.pos,
+                        len: n.len(),
+                        node: n,
+                    });
+                    self.pos += n.len();
+                    self.last_end += n.len();
+                    return result;
+                }
+            }
+        }
+        None
+    }
 }
 
 #[cfg(test)]

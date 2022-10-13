@@ -2,16 +2,13 @@ use std::{collections::HashMap, ffi::OsStr, path::Path, str::FromStr};
 
 use druid::{piet::Svg, Color};
 use include_dir::{include_dir, Dir};
-use lazy_static::lazy_static;
+use lapce_data::config::{LapceConfig, LOGO};
 use lsp_types::{CompletionItemKind, SymbolKind};
-
-use lapce_data::config::{Config, LOGO};
+use once_cell::sync::Lazy;
 
 const ICONS_DIR: Dir = include_dir!("../icons");
 
-lazy_static! {
-    static ref SVG_STORE: SvgStore = SvgStore::new();
-}
+static SVG_STORE: Lazy<SvgStore> = Lazy::new(SvgStore::new);
 
 struct SvgStore {
     svgs: HashMap<&'static str, Option<Svg>>,
@@ -48,64 +45,100 @@ pub fn get_svg(name: &'static str) -> Option<Svg> {
     SVG_STORE.get_svg(name)
 }
 
-pub fn file_svg(path: &Path) -> Svg {
-    let file_type = if path.file_name().and_then(OsStr::to_str) == Some("LICENSE") {
-        "file_type_license.svg"
-    } else {
-        path.extension()
-            .and_then(OsStr::to_str)
-            .and_then(|extension| {
-                const TYPES: &[(&[&str], &str)] = &[
-                    (&["c"], "file_type_c.svg"),
-                    (&["cxx", "cc", "c++", "cpp"], "file_type_cpp.svg"),
-                    (&["go"], "file_type_go.svg"),
-                    (&["json"], "file_type_json.svg"),
-                    (&["markdown", "md"], "file_type_markdown.svg"),
-                    (&["rs"], "file_type_rust.svg"),
-                    (&["toml"], "file_type_toml.svg"),
-                    (&["yaml"], "file_type_yaml.svg"),
+pub fn file_svg(path: &Path) -> (Svg, Option<&Color>) {
+    let icon_name: Option<&str>;
+    let icon_color: Option<&Color>;
+    (icon_name, icon_color) = match path.extension().and_then(OsStr::to_str) {
+        Some(extension) => {
+            const TYPES: &[(&[&str], &str, Option<&Color>)] = &[
+                (&["c"], "file_type_c.svg", None),
+                (&["h"], "file_type_c.svg", None),
+                (&["cxx", "cc", "c++", "cpp"], "file_type_cpp.svg", None),
+                (&["hxx", "hh", "h++", "hpp"], "file_type_cpp.svg", None),
+                (&["go"], "file_type_go.svg", None),
+                (&["json"], "file_type_json.svg", None),
+                (&["markdown", "md"], "file_type_markdown.svg", None),
+                (&["rs"], "file_type_rust.svg", None),
+                (&["toml"], "file_type_toml.svg", None),
+                (&["yaml"], "file_type_yaml.svg", None),
+                (&["py"], "file_type_python.svg", None),
+                (&["lua"], "file_type_lua.svg", None),
+                (&["html", "htm"], "file_type_html.svg", None),
+                (&["zip"], "file_type_zip.svg", None),
+                (&["js"], "file_type_js.svg", None),
+                (&["ts"], "file_type_ts.svg", None),
+                (&["css"], "file_type_css.svg", None),
+            ];
+
+            let (mut icon, mut color) = (None, None);
+
+            for (exts, file_type, col) in TYPES {
+                for ext in exts.iter() {
+                    if extension.eq_ignore_ascii_case(ext) {
+                        (icon, color) = (Some(*file_type), *col)
+                    }
+                }
+            }
+
+            (icon, color)
+        }
+        None => match path.file_name().and_then(OsStr::to_str) {
+            Some(file_name) => {
+                const FILES: &[(&[&str], &str, Option<&Color>)] = &[
+                    (&["LICENSE", "LICENCE"], "file_type_license.svg", None),
+                    (&["COPYRIGHT"], "file_type_license.svg", None),
+                    (&["NOTICE"], "file_type_license.svg", None),
                 ];
 
-                for (exts, file_type) in TYPES {
-                    for ext in exts.iter() {
-                        if extension.eq_ignore_ascii_case(ext) {
-                            return Some(*file_type);
+                let (mut icon, mut color) = (None, None);
+
+                for (filenames, file_type, col) in FILES {
+                    for filename in filenames.iter() {
+                        if file_name.to_lowercase().starts_with(filename) {
+                            (icon, color) = (Some(*file_type), *col)
                         }
                     }
                 }
 
-                None
-            })
-            .unwrap_or("default_file.svg")
+                (icon, color)
+            }
+            None => (Some("default_file.svg"), None),
+        },
     };
 
-    get_svg(file_type).unwrap()
+    match icon_name {
+        Some(icon_name) => match get_svg(icon_name) {
+            Some(svg) => (svg, icon_color),
+            None => (get_svg("default_file.svg").unwrap(), None),
+        },
+        None => (get_svg("default_file.svg").unwrap(), None),
+    }
 }
 
 pub fn symbol_svg(kind: &SymbolKind) -> Option<Svg> {
-    let kind_str = match kind {
-        SymbolKind::Array => "symbol-array.svg",
-        SymbolKind::Boolean => "symbol-boolean.svg",
-        SymbolKind::Class => "symbol-class.svg",
-        SymbolKind::Constant => "symbol-constant.svg",
-        SymbolKind::EnumMember => "symbol-enum-member.svg",
-        SymbolKind::Enum => "symbol-enum.svg",
-        SymbolKind::Event => "symbol-event.svg",
-        SymbolKind::Field => "symbol-field.svg",
-        SymbolKind::File => "symbol-file.svg",
-        SymbolKind::Interface => "symbol-interface.svg",
-        SymbolKind::Key => "symbol-key.svg",
-        SymbolKind::Function => "symbol-method.svg",
-        SymbolKind::Method => "symbol-method.svg",
-        SymbolKind::Object => "symbol-namespace.svg",
-        SymbolKind::Namespace => "symbol-namespace.svg",
-        SymbolKind::Number => "symbol-numeric.svg",
-        SymbolKind::Operator => "symbol-operator.svg",
-        SymbolKind::TypeParameter => "symbol-parameter.svg",
-        SymbolKind::Property => "symbol-property.svg",
-        SymbolKind::String => "symbol-string.svg",
-        SymbolKind::Struct => "symbol-structure.svg",
-        SymbolKind::Variable => "symbol-variable.svg",
+    let kind_str = match *kind {
+        SymbolKind::ARRAY => "symbol-array.svg",
+        SymbolKind::BOOLEAN => "symbol-boolean.svg",
+        SymbolKind::CLASS => "symbol-class.svg",
+        SymbolKind::CONSTANT => "symbol-constant.svg",
+        SymbolKind::ENUM_MEMBER => "symbol-enum-member.svg",
+        SymbolKind::ENUM => "symbol-enum.svg",
+        SymbolKind::EVENT => "symbol-event.svg",
+        SymbolKind::FIELD => "symbol-field.svg",
+        SymbolKind::FILE => "symbol-file.svg",
+        SymbolKind::INTERFACE => "symbol-interface.svg",
+        SymbolKind::KEY => "symbol-key.svg",
+        SymbolKind::FUNCTION => "symbol-method.svg",
+        SymbolKind::METHOD => "symbol-method.svg",
+        SymbolKind::OBJECT => "symbol-namespace.svg",
+        SymbolKind::NAMESPACE => "symbol-namespace.svg",
+        SymbolKind::NUMBER => "symbol-numeric.svg",
+        SymbolKind::OPERATOR => "symbol-operator.svg",
+        SymbolKind::TYPE_PARAMETER => "symbol-parameter.svg",
+        SymbolKind::PROPERTY => "symbol-property.svg",
+        SymbolKind::STRING => "symbol-string.svg",
+        SymbolKind::STRUCT => "symbol-structure.svg",
+        SymbolKind::VARIABLE => "symbol-variable.svg",
         _ => return None,
     };
 
@@ -114,41 +147,41 @@ pub fn symbol_svg(kind: &SymbolKind) -> Option<Svg> {
 
 pub fn completion_svg(
     kind: Option<CompletionItemKind>,
-    config: &Config,
+    config: &LapceConfig,
 ) -> Option<(Svg, Option<Color>)> {
     let kind = kind?;
     let kind_str = match kind {
-        CompletionItemKind::Method => "symbol-method.svg",
-        CompletionItemKind::Function => "symbol-method.svg",
-        CompletionItemKind::Enum => "symbol-enum.svg",
-        CompletionItemKind::EnumMember => "symbol-enum-member.svg",
-        CompletionItemKind::Class => "symbol-class.svg",
-        CompletionItemKind::Variable => "symbol-variable.svg",
-        CompletionItemKind::Struct => "symbol-structure.svg",
-        CompletionItemKind::Keyword => "symbol-keyword.svg",
-        CompletionItemKind::Constant => "symbol-constant.svg",
-        CompletionItemKind::Property => "symbol-property.svg",
-        CompletionItemKind::Field => "symbol-field.svg",
-        CompletionItemKind::Interface => "symbol-interface.svg",
-        CompletionItemKind::Snippet => "symbol-snippet.svg",
-        CompletionItemKind::Module => "symbol-namespace.svg",
+        CompletionItemKind::METHOD => "symbol-method.svg",
+        CompletionItemKind::FUNCTION => "symbol-method.svg",
+        CompletionItemKind::ENUM => "symbol-enum.svg",
+        CompletionItemKind::ENUM_MEMBER => "symbol-enum-member.svg",
+        CompletionItemKind::CLASS => "symbol-class.svg",
+        CompletionItemKind::VARIABLE => "symbol-variable.svg",
+        CompletionItemKind::STRUCT => "symbol-structure.svg",
+        CompletionItemKind::KEYWORD => "symbol-keyword.svg",
+        CompletionItemKind::CONSTANT => "symbol-constant.svg",
+        CompletionItemKind::PROPERTY => "symbol-property.svg",
+        CompletionItemKind::FIELD => "symbol-field.svg",
+        CompletionItemKind::INTERFACE => "symbol-interface.svg",
+        CompletionItemKind::SNIPPET => "symbol-snippet.svg",
+        CompletionItemKind::MODULE => "symbol-namespace.svg",
         _ => "symbol-string.svg",
     };
     let theme_str = match kind {
-        CompletionItemKind::Method => "method",
-        CompletionItemKind::Function => "method",
-        CompletionItemKind::Enum => "enum",
-        CompletionItemKind::EnumMember => "enum-member",
-        CompletionItemKind::Class => "class",
-        CompletionItemKind::Variable => "field",
-        CompletionItemKind::Struct => "structure",
-        CompletionItemKind::Keyword => "keyword",
-        CompletionItemKind::Constant => "constant",
-        CompletionItemKind::Property => "property",
-        CompletionItemKind::Field => "field",
-        CompletionItemKind::Interface => "interface",
-        CompletionItemKind::Snippet => "snippet",
-        CompletionItemKind::Module => "builtinType",
+        CompletionItemKind::METHOD => "method",
+        CompletionItemKind::FUNCTION => "method",
+        CompletionItemKind::ENUM => "enum",
+        CompletionItemKind::ENUM_MEMBER => "enum-member",
+        CompletionItemKind::CLASS => "class",
+        CompletionItemKind::VARIABLE => "field",
+        CompletionItemKind::STRUCT => "structure",
+        CompletionItemKind::KEYWORD => "keyword",
+        CompletionItemKind::CONSTANT => "constant",
+        CompletionItemKind::PROPERTY => "property",
+        CompletionItemKind::FIELD => "field",
+        CompletionItemKind::INTERFACE => "interface",
+        CompletionItemKind::SNIPPET => "snippet",
+        CompletionItemKind::MODULE => "builtinType",
         _ => "string",
     };
 

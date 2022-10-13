@@ -1,7 +1,7 @@
 use std::{iter::Iterator, path::PathBuf};
 
 use druid::{
-    piet::{Text, TextAttribute, TextLayout as TextLayoutTrait, TextLayoutBuilder},
+    piet::{Text, TextAttribute, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetId,
@@ -148,7 +148,7 @@ impl LapceEditorHeader {
 
             ctx.with_save(|ctx| {
                 ctx.clip(clip_rect);
-                let svg = file_svg(&path);
+                let (svg, svg_color) = file_svg(&path);
 
                 let font_size = data.config.ui.font_size() as f64;
 
@@ -159,7 +159,7 @@ impl LapceEditorHeader {
                         (size.height - width) / 2.0,
                         (size.height - height) / 2.0,
                     ));
-                ctx.draw_svg(&svg, rect, None);
+                ctx.draw_svg(&svg, rect, svg_color);
 
                 let mut file_name = path
                     .file_name()
@@ -209,10 +209,7 @@ impl LapceEditorHeader {
                 let text_layout = text_layout.build().unwrap();
                 ctx.draw_text(
                     &text_layout,
-                    Point::new(
-                        size.height,
-                        (size.height - text_layout.size().height) / 2.0,
-                    ),
+                    Point::new(size.height, text_layout.y_offset(size.height)),
                 );
             });
         }
@@ -254,10 +251,8 @@ impl Widget<LapceTabData> for LapceEditorHeader {
                 self.mouse_pos = mouse_event.pos;
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                 } else {
                     ctx.clear_cursor();
-                    ctx.request_paint();
                 }
             }
             Event::MouseDown(mouse_event) => {

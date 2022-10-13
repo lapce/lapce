@@ -1,19 +1,14 @@
-use std::time::Duration;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use druid::Cursor;
 use druid::{
     kurbo::{Affine, Point, Rect, Size, Vec2},
-    Insets, WidgetId,
+    theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, Insets, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, RenderContext, TimerToken, UpdateCtx, Widget,
+    WidgetId, WidgetPod,
 };
-use druid::{
-    theme, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, RenderContext, TimerToken, UpdateCtx, Widget, WidgetPod,
-};
-
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, GetConfig, LapceTheme},
+    config::{GetConfig, LapceConfig, LapceTheme},
 };
 
 /// Minimum length for any scrollbar to be when measured on that
@@ -348,7 +343,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for ClipBox<T, W> {
         let viewport = ctx.size().to_rect();
         let offset = self.viewport_origin().to_vec2();
         ctx.with_save(|ctx| {
-            ctx.clip(viewport.inflate(1.0, 0.0));
+            ctx.clip(viewport + self.child.paint_insets());
             ctx.transform(Affine::translate(-offset));
 
             let mut visible = ctx.region().clone();
@@ -413,7 +408,7 @@ impl ScrollComponent {
     pub fn calc_vertical_bar_bounds(
         &self,
         port: &Viewport,
-        config: &Config,
+        config: &LapceConfig,
         env: &Env,
     ) -> Option<Rect> {
         let viewport_size = port.rect.size();
@@ -452,7 +447,7 @@ impl ScrollComponent {
     pub fn calc_horizontal_bar_bounds(
         &self,
         port: &Viewport,
-        config: &Config,
+        config: &LapceConfig,
         env: &Env,
     ) -> Option<Rect> {
         let viewport_size = port.rect.size();
@@ -503,7 +498,7 @@ impl ScrollComponent {
         ctx: &mut PaintCtx,
         port: &Viewport,
         env: &Env,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let scroll_offset = port.rect.origin().to_vec2();
         if self.opacity <= 0.0 {
@@ -526,19 +521,23 @@ impl ScrollComponent {
         let _radius = env.get(theme::SCROLLBAR_RADIUS);
         let edge_width = env.get(theme::SCROLLBAR_EDGE_WIDTH);
 
-        // Vertical bar
-        if let Some(bounds) = self.calc_vertical_bar_bounds(port, config, env) {
-            let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
-            ctx.render_ctx.fill(rect, &brush);
-            ctx.render_ctx.stroke(rect, &border_brush, edge_width);
-        }
+        ctx.with_save(|ctx| {
+            ctx.incr_alpha_depth();
+            // Vertical bar
+            if let Some(bounds) = self.calc_vertical_bar_bounds(port, config, env) {
+                let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
+                ctx.render_ctx.fill(rect, &brush);
+                ctx.render_ctx.stroke(rect, &border_brush, edge_width);
+            }
 
-        // Horizontal bar
-        if let Some(bounds) = self.calc_horizontal_bar_bounds(port, config, env) {
-            let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
-            ctx.render_ctx.fill(rect, &brush);
-            ctx.render_ctx.stroke(rect, &border_brush, edge_width);
-        }
+            // Horizontal bar
+            if let Some(bounds) = self.calc_horizontal_bar_bounds(port, config, env)
+            {
+                let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
+                ctx.render_ctx.fill(rect, &brush);
+                ctx.render_ctx.stroke(rect, &border_brush, edge_width);
+            }
+        })
     }
 
     /// Tests if the specified point overlaps the vertical scrollbar
@@ -548,7 +547,7 @@ impl ScrollComponent {
         &self,
         port: &Viewport,
         pos: Point,
-        config: &Config,
+        config: &LapceConfig,
         env: &Env,
     ) -> bool {
         let viewport_size = port.rect.size();
@@ -570,7 +569,7 @@ impl ScrollComponent {
         &self,
         port: &Viewport,
         pos: Point,
-        config: &Config,
+        config: &LapceConfig,
         env: &Env,
     ) -> bool {
         let viewport_size = port.rect.size();
@@ -594,7 +593,7 @@ impl ScrollComponent {
         port: &mut Viewport,
         ctx: &mut EventCtx,
         event: &Event,
-        config: &Config,
+        config: &LapceConfig,
         env: &Env,
     ) {
         let viewport_size = port.rect.size();
@@ -612,6 +611,8 @@ impl ScrollComponent {
 
         if scrollbar_is_hovered || ctx.is_active() {
             ctx.set_cursor(&Cursor::Arrow);
+        } else {
+            ctx.clear_cursor();
         }
 
         if self.are_bars_held() {
@@ -676,6 +677,7 @@ impl ScrollComponent {
                     let pos = event.pos + scroll_offset;
 
                     if self.point_hits_vertical_bar(port, pos, config, env) {
+                        ctx.set_handled();
                         ctx.set_active(true);
                         self.held = BarHeldState::Vertical(
                             // The bounds must be non-empty, because the point hits the scrollbar.
@@ -684,6 +686,7 @@ impl ScrollComponent {
                         );
                     } else if self.point_hits_horizontal_bar(port, pos, config, env)
                     {
+                        ctx.set_handled();
                         ctx.set_active(true);
                         self.held = BarHeldState::Horizontal(
                             // The bounds must be non-empty, because the point hits the scrollbar.
@@ -692,8 +695,6 @@ impl ScrollComponent {
                         );
                     } else {
                     }
-
-                    ctx.set_handled();
                 }
                 // if the mouse was downed elsewhere, moved over a scroll bar and released: noop.
                 Event::MouseUp(_) => (),
@@ -783,6 +784,7 @@ impl ScrollComponent {
 pub struct LapceScroll<T, W> {
     clip: ClipBox<T, W>,
     scroll_component: ScrollComponent,
+    hide_bar: bool,
 }
 
 impl<T, W: Widget<T>> LapceScroll<T, W> {
@@ -795,6 +797,7 @@ impl<T, W: Widget<T>> LapceScroll<T, W> {
         Self {
             clip: ClipBox::new(child),
             scroll_component: ScrollComponent::new(),
+            hide_bar: false,
         }
     }
 
@@ -815,6 +818,11 @@ impl<T, W: Widget<T>> LapceScroll<T, W> {
             .constrain_vertical(true)
             .constrain_horizontal(false);
 
+        self
+    }
+
+    pub fn hide_bar(mut self) -> Self {
+        self.hide_bar = true;
         self
     }
 
@@ -946,12 +954,14 @@ impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
         self.clip.paint(ctx, data, env);
-        self.scroll_component.draw_bars(
-            ctx,
-            &self.clip.viewport(),
-            env,
-            data.get_config(),
-        );
+        if !self.hide_bar {
+            self.scroll_component.draw_bars(
+                ctx,
+                &self.clip.viewport(),
+                env,
+                data.get_config(),
+            );
+        }
     }
 }
 

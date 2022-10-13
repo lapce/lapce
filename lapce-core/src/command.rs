@@ -8,6 +8,7 @@ use crate::movement::{LinePosition, Movement};
     EnumIter,
     Clone,
     PartialEq,
+    Eq,
     Debug,
     EnumMessage,
     IntoStaticStr,
@@ -66,6 +67,8 @@ pub enum EditCommand {
     Yank,
     #[strum(serialize = "paste")]
     Paste,
+    #[strum(serialize = "paste_before")]
+    PasteBefore,
 
     #[strum(serialize = "normal_mode")]
     NormalMode,
@@ -83,6 +86,10 @@ pub enum EditCommand {
     ToggleLinewiseVisualMode,
     #[strum(serialize = "toggle_blockwise_visual_mode")]
     ToggleBlockwiseVisualMode,
+    #[strum(serialize = "duplicate_line_up")]
+    DuplicateLineUp,
+    #[strum(serialize = "duplicate_line_down")]
+    DuplicateLineDown,
 }
 
 #[derive(
@@ -91,6 +98,7 @@ pub enum EditCommand {
     EnumIter,
     Clone,
     PartialEq,
+    Eq,
     Debug,
     EnumMessage,
     IntoStaticStr,
@@ -177,6 +185,7 @@ impl MoveCommand {
     EnumIter,
     Clone,
     PartialEq,
+    Eq,
     Debug,
     EnumMessage,
     IntoStaticStr,
@@ -204,6 +213,8 @@ pub enum FocusCommand {
     SearchForward,
     #[strum(serialize = "search_backward")]
     SearchBackward,
+    #[strum(serialize = "toggle_case_sensitive_search")]
+    ToggleCaseSensitive,
     #[strum(serialize = "global_search_refresh")]
     GlobalSearchRefresh,
     #[strum(serialize = "clear_search")]
@@ -214,8 +225,12 @@ pub enum FocusCommand {
     ListSelect,
     #[strum(serialize = "list.next")]
     ListNext,
+    #[strum(serialize = "list.next_page")]
+    ListNextPage,
     #[strum(serialize = "list.previous")]
     ListPrevious,
+    #[strum(serialize = "list.previous_page")]
+    ListPreviousPage,
     #[strum(serialize = "list.expand")]
     ListExpand,
     #[strum(serialize = "jump_to_next_snippet_placeholder")]
@@ -247,10 +262,14 @@ pub enum FocusCommand {
     #[strum(message = "Go to Definition")]
     #[strum(serialize = "goto_definition")]
     GotoDefinition,
+    #[strum(message = "Go to Type Definition")]
+    #[strum(serialize = "goto_type_definition")]
+    GotoTypeDefinition,
     #[strum(serialize = "jump_location_backward")]
     JumpLocationBackward,
     #[strum(serialize = "jump_location_forward")]
     JumpLocationForward,
+    #[strum(message = "Next Error in Workspace")]
     #[strum(serialize = "next_error")]
     NextError,
     #[strum(serialize = "previous_error")]
@@ -282,6 +301,15 @@ pub enum FocusCommand {
     SaveAndExit,
     #[strum(serialize = "force_exit")]
     ForceExit,
+    #[strum(serialize = "rename_symbol")]
+    #[strum(message = "Rename Symbol")]
+    Rename,
+    #[strum(serialize = "confirm_rename")]
+    ConfirmRename,
+    #[strum(serialize = "select_next_syntax_item")]
+    SelectNextSyntaxItem,
+    #[strum(serialize = "select_previous_syntax_item")]
+    SelectPreviousSyntaxItem,
 }
 
 #[derive(
@@ -290,6 +318,7 @@ pub enum FocusCommand {
     EnumIter,
     Clone,
     PartialEq,
+    Eq,
     Debug,
     EnumMessage,
     IntoStaticStr,
@@ -311,6 +340,7 @@ pub enum MotionModeCommand {
     EnumIter,
     Clone,
     PartialEq,
+    Eq,
     Debug,
     EnumMessage,
     IntoStaticStr,

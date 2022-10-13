@@ -4,7 +4,7 @@ use std::{
 };
 
 use druid::{ExtEventSink, Target, WidgetId};
-use lapce_rpc::{file::FileNodeItem, proxy::ReadDirResponse};
+use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -87,23 +87,16 @@ impl FilePickerData {
     ) {
         let path = PathBuf::from(path);
         let local_path = path.clone();
-        proxy.read_dir(
-            &local_path,
-            Box::new(move |result| {
-                if let Ok(res) = result {
-                    let path = path.clone();
-                    let resp: Result<ReadDirResponse, serde_json::Error> =
-                        serde_json::from_value(res);
-                    if let Ok(resp) = resp {
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdatePickerItems(path, resp.items),
-                            Target::Widget(tab_id),
-                        );
-                    }
-                }
-            }),
-        );
+        proxy.proxy_rpc.read_dir(local_path, move |result| {
+            if let Ok(ProxyResponse::ReadDirResponse { items }) = result {
+                let path = path.clone();
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdatePickerItems(path, items),
+                    Target::Widget(tab_id),
+                );
+            }
+        });
     }
 }
 

@@ -9,7 +9,7 @@ use druid::{
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     data::LapceTabData,
     picker::FilePickerData,
 };
@@ -216,10 +216,8 @@ impl Widget<LapceTabData> for FilePickerPwd {
                 ctx.set_handled();
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                 } else {
                     ctx.clear_cursor();
-                    ctx.request_paint();
                 }
             }
             Event::MouseDown(mouse_event) => {
@@ -257,7 +255,7 @@ impl Widget<LapceTabData> for FilePickerPwd {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = data.config.editor.line_height() as f64;
         let input_bc = BoxConstraints::tight(Size::new(
             bc.max().width - 20.0 - line_height - 30.0,
             bc.max().height,
@@ -396,7 +394,10 @@ impl FilePickerExplorer {
                             self.last_left_click = None;
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::OpenFile(node.path_buf.clone()),
+                                LapceUICommand::OpenFile(
+                                    node.path_buf.clone(),
+                                    false,
+                                ),
                                 Target::Widget(data.id),
                             ));
                             picker.active = false;
@@ -546,7 +547,7 @@ pub fn paint_file_node_item_by_index(
     current: usize,
     active: usize,
     hovered: Option<usize>,
-    config: &Config,
+    config: &LapceConfig,
     toggle_rects: &mut HashMap<usize, Rect>,
 ) -> usize {
     if current > max {
@@ -608,11 +609,11 @@ pub fn paint_file_node_item_by_index(
                 .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
             ctx.draw_svg(&svg, rect, None);
         } else {
-            let svg = file_svg(&item.path_buf);
+            let (svg, svg_color) = file_svg(&item.path_buf);
             let rect = Size::new(svg_size, svg_size)
                 .to_rect()
                 .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
-            ctx.draw_svg(&svg, rect, None);
+            ctx.draw_svg(&svg, rect, svg_color);
         }
         let text_layout = ctx
             .text()
@@ -634,10 +635,7 @@ pub fn paint_file_node_item_by_index(
             .unwrap();
         ctx.draw_text(
             &text_layout,
-            Point::new(
-                38.0 + padding,
-                y + (line_height - text_layout.size().height) / 2.0,
-            ),
+            Point::new(38.0 + padding, y + text_layout.y_offset(line_height)),
         );
     }
     let mut i = current;
@@ -716,6 +714,7 @@ impl FilePickerControl {
                                         LAPCE_UI_COMMAND,
                                         LapceUICommand::OpenFile(
                                             node.path_buf.clone(),
+                                            false,
                                         ),
                                         Target::Widget(data.id),
                                     ));
@@ -753,10 +752,8 @@ impl Widget<LapceTabData> for FilePickerControl {
                 ctx.set_handled();
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
-                    ctx.request_paint();
                 } else {
                     ctx.clear_cursor();
-                    ctx.request_paint();
                 }
             }
             Event::MouseDown(mouse_event) => {
@@ -878,7 +875,7 @@ impl Widget<LapceTabData> for FilePickerControl {
             let text_size = btn.text_layout.size();
             let btn_size = btn.rect.size();
             let x = btn.rect.x0 + (btn_size.width - text_size.width) / 2.0;
-            let y = btn.rect.y0 + (btn_size.height - text_size.height) / 2.0;
+            let y = btn.rect.y0 + btn.text_layout.y_offset(btn_size.height);
             ctx.draw_text(&btn.text_layout, Point::new(x, y));
         }
     }

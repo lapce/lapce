@@ -6,7 +6,7 @@ use druid::{
 };
 
 use crate::{
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     keypress::paint_key,
 };
 
@@ -46,11 +46,22 @@ impl KeyPress {
         false
     }
 
+    pub fn to_lowercase(&self) -> Self {
+        let key = match &self.key {
+            druid::KbKey::Character(c) => druid::KbKey::Character(c.to_lowercase()),
+            _ => self.key.clone(),
+        };
+        Self {
+            key,
+            mods: self.mods,
+        }
+    }
+
     pub fn paint(
         &self,
         ctx: &mut PaintCtx,
         origin: Point,
-        config: &Config,
+        config: &LapceConfig,
     ) -> (Point, Vec<(Option<Rect>, PietTextLayout, Point)>) {
         let mut origin = origin;
         let mut keys = Vec::new();

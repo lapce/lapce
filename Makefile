@@ -1,5 +1,7 @@
 TARGET = lapce
 
+CODESIGN_IDENTITY = FAC8FBEA99169DC1980731029648F110628D6A32
+
 ASSETS_DIR = extra
 RELEASE_DIR = target/release-lto
 
@@ -31,7 +33,7 @@ $(TARGET)-universal:
 	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --profile release-lto --target=x86_64-apple-darwin
 	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --profile release-lto --target=aarch64-apple-darwin
 	@lipo target/{x86_64,aarch64}-apple-darwin/release-lto/$(TARGET) -create -output $(APP_BINARY)
-	/usr/bin/codesign -vvv --deep --entitlements $(ASSETS_DIR)/entitlements.plist --strict --options=runtime --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(APP_BINARY)
+	/usr/bin/codesign -vvv --deep --entitlements $(ASSETS_DIR)/entitlements.plist --strict --options=runtime --force -s $(CODESIGN_IDENTITY) $(APP_BINARY)
 
 app: $(APP_NAME)-native ## Create a Lapce.app
 app-universal: $(APP_NAME)-universal ## Create a universal Lapce.app
@@ -44,7 +46,7 @@ $(APP_NAME)-%: $(TARGET)-%
 	@echo "Created '$(APP_NAME)' in '$(APP_DIR)'"
 	xattr -c $(APP_DIR)/$(APP_NAME)/Contents/Info.plist
 	xattr -c $(APP_DIR)/$(APP_NAME)/Contents/Resources/lapce.icns
-	/usr/bin/codesign -vvv --deep  --entitlements $(ASSETS_DIR)/entitlements.plist --strict --options=runtime --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(APP_DIR)/$(APP_NAME)
+	/usr/bin/codesign -vvv --deep  --entitlements $(ASSETS_DIR)/entitlements.plist --strict --options=runtime --force -s $(CODESIGN_IDENTITY) $(APP_DIR)/$(APP_NAME)
 
 dmg: $(DMG_NAME)-native ## Create a Lapce.dmg
 dmg-universal: $(DMG_NAME)-universal ## Create a universal Lapce.dmg
@@ -57,7 +59,7 @@ $(DMG_NAME)-%: $(APP_NAME)-%
 		-srcfolder $(APP_DIR) \
 		-ov -format UDZO
 	@echo "Packed '$(APP_NAME)' in '$(APP_DIR)'"
-	/usr/bin/codesign -vvv --deep  --entitlements $(ASSETS_DIR)/entitlements.plist --strict --options=runtime --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(DMG_DIR)/$(DMG_NAME)
+	/usr/bin/codesign -vvv --deep  --entitlements $(ASSETS_DIR)/entitlements.plist --strict --options=runtime --force -s $(CODESIGN_IDENTITY) $(DMG_DIR)/$(DMG_NAME)
 
 install: $(INSTALL)-native ## Mount disk image
 install-universal: $(INSTALL)-native ## Mount universal disk image

@@ -1,5 +1,4 @@
-use lsp_types::ParameterLabel;
-use lsp_types::SignatureHelp;
+use lsp_types::{ParameterLabel, SignatureHelp};
 
 #[derive(Clone)]
 pub struct SignatureState {

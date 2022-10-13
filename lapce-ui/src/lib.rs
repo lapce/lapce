@@ -1,13 +1,17 @@
-pub mod activity;
+pub mod about;
 pub mod alert;
 pub mod app;
+pub mod button;
 pub mod completion;
 pub mod editor;
 pub mod explorer;
 pub mod find;
 pub mod hover;
+pub mod ime;
 pub mod keymap;
+pub mod list;
 mod logging;
+pub mod message;
 pub mod palette;
 pub mod panel;
 pub mod picker;

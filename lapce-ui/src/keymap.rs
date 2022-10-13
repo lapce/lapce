@@ -28,9 +28,9 @@ pub struct LapceKeymap {
 }
 
 impl LapceKeymap {
-    pub fn new_split(data: &LapceTabData) -> LapceSplit {
+    pub fn new_split(keymap_input_view_id: WidgetId) -> LapceSplit {
         let keymap = Self {
-            widget_id: data.settings.keymap_widget_id,
+            widget_id: WidgetId::next(),
             active_keymap: None,
             line_height: 35.0,
             keymap_confirm: Rect::ZERO,
@@ -38,20 +38,17 @@ impl LapceKeymap {
         };
         let keymap = LapceScroll::new(keymap);
 
-        let input = LapceEditorView::new(
-            data.settings.keymap_view_id,
-            WidgetId::next(),
-            None,
-        )
-        .hide_header()
-        .hide_gutter()
-        .padding((15.0, 15.0));
+        let input =
+            LapceEditorView::new(keymap_input_view_id, WidgetId::next(), None)
+                .hide_header()
+                .hide_gutter()
+                .padding((15.0, 15.0));
         let header = LapceKeymapHeader::new();
-        let split = LapceSplit::new(data.settings.keymap_split_id)
+        let split = LapceSplit::new(WidgetId::next())
             .horizontal()
             .with_child(input.boxed(), None, 100.0)
             .with_child(header.boxed(), None, 100.0)
-            .with_flex_child(keymap.boxed(), None, 1.0);
+            .with_flex_child(keymap.boxed(), None, 1.0, false);
 
         split
     }
@@ -106,7 +103,7 @@ impl LapceKeymap {
     }
 
     fn request_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
-        data.focus = self.widget_id;
+        data.focus = Arc::new(self.widget_id);
         ctx.request_focus();
     }
 }
@@ -141,7 +138,10 @@ impl Widget<LapceTabData> for LapceKeymap {
             }
             Event::KeyDown(key_event) => {
                 if let Some((_keymap, keys)) = self.active_keymap.as_mut() {
-                    if let Some(keypress) = KeyPressData::keypress(key_event) {
+                    if let Some(mut keypress) = KeyPressData::keypress(key_event) {
+                        keypress.key = druid::KbKey::Character(
+                            keypress.key.to_string().to_lowercase(),
+                        );
                         if keys.len() == 2 {
                             keys.clear();
                         }
@@ -290,13 +290,12 @@ impl Widget<LapceTabData> for LapceKeymap {
                             )
                             .build()
                             .unwrap();
-                        let text_size = text_layout.size();
                         ctx.draw_text(
                             &text_layout,
                             Point::new(
                                 10.0,
                                 i as f64 * self.line_height
-                                    + (self.line_height - text_size.height) / 2.0,
+                                    + text_layout.y_offset(self.line_height),
                             ),
                         );
                     });
@@ -323,24 +322,23 @@ impl Widget<LapceTabData> for LapceKeymap {
                         )
                         .build()
                         .unwrap();
-                    let text_size = text_layout.size();
                     ctx.draw_text(
                         &text_layout,
                         Point::new(
                             size.width / 2.0
                                 + 10.0
-                                + if data.config.lapce.modal {
+                                + if data.config.core.modal {
                                     keypress_width
                                 } else {
                                     0.0
                                 },
                             i as f64 * self.line_height
-                                + (self.line_height - text_size.height) / 2.0,
+                                + text_layout.y_offset(self.line_height),
                         ),
                     )
                 }
 
-                if data.config.lapce.modal && !keymap.modes.is_empty() {
+                if data.config.core.modal && !keymap.modes.is_empty() {
                     let mut origin = Point::new(
                         size.width / 2.0 + 10.0,
                         i as f64 * self.line_height + self.line_height / 2.0,
@@ -423,7 +421,7 @@ impl Widget<LapceTabData> for LapceKeymap {
             data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
             1.0,
         );
-        if data.config.lapce.modal {
+        if data.config.core.modal {
             let x = size.width / 2.0 + keypress_width;
             ctx.stroke(
                 Line::new(Point::new(x, 0.0), Point::new(x, size.height)),
@@ -716,7 +714,7 @@ impl Widget<LapceTabData> for LapceKeymapHeader {
             Point::new(
                 size.width / 2.0
                     + 10.0
-                    + if data.config.lapce.modal {
+                    + if data.config.core.modal {
                         keypress_width
                     } else {
                         0.0
@@ -725,7 +723,7 @@ impl Widget<LapceTabData> for LapceKeymapHeader {
             ),
         );
 
-        if data.config.lapce.modal {
+        if data.config.core.modal {
             let text_layout = ctx
                 .text()
                 .new_text_layout("Modes")
@@ -763,7 +761,7 @@ impl Widget<LapceTabData> for LapceKeymapHeader {
             data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
             1.0,
         );
-        if data.config.lapce.modal {
+        if data.config.core.modal {
             let x = size.width / 2.0 + keypress_width;
             ctx.stroke(
                 Line::new(Point::new(x, 0.0), Point::new(x, size.height)),

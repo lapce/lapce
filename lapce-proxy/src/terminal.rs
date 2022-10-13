@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+use std::process::Command;
 use std::{
     borrow::Cow,
     collections::VecDeque,
@@ -13,7 +15,7 @@ use alacritty_terminal::{
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
 use directories::BaseDirs;
-use lapce_rpc::terminal::TermId;
+use lapce_rpc::{core::CoreRpcHandler, terminal::TermId};
 #[cfg(not(windows))]
 use mio::unix::UnixReady;
 #[allow(deprecated)]
@@ -21,9 +23,6 @@ use mio::{
     channel::{channel, Receiver, Sender},
     Events, PollOpt, Ready,
 };
-use serde_json::json;
-
-use crate::dispatch::Dispatcher;
 
 const READ_BUFFER_SIZE: usize = 0x10_0000;
 
@@ -52,16 +51,44 @@ impl Terminal {
         let poll = mio::Poll::new().unwrap();
         let mut config = TermConfig::default();
         config.pty_config.working_directory =
-            cwd.or_else(|| BaseDirs::new().map(|d| PathBuf::from(d.home_dir())));
+            if cwd.is_some() && cwd.clone().unwrap().exists() {
+                cwd
+            } else {
+                BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
+            };
         let shell = shell.trim();
-        if !shell.is_empty() {
+        let flatpak_use_host_terminal = flatpak_should_use_host_terminal();
+
+        if !shell.is_empty() || flatpak_use_host_terminal {
             let mut parts = shell.split(' ');
-            let program = parts.next().unwrap();
-            if let Ok(p) = which::which(program) {
+
+            if flatpak_use_host_terminal {
+                let flatpak_spawn_path = "/usr/bin/flatpak-spawn".to_string();
+                let host_shell = flatpak_get_default_host_shell();
+
+                let args = if shell.is_empty() {
+                    vec!["--host".to_string(), host_shell]
+                } else {
+                    vec![
+                        "--host".to_string(),
+                        host_shell,
+                        "-c".to_string(),
+                        shell.to_string(),
+                    ]
+                };
+
                 config.pty_config.shell = Some(Program::WithArgs {
-                    program: p.to_str().unwrap().to_string(),
-                    args: parts.map(|p| p.to_string()).collect::<Vec<String>>(),
+                    program: flatpak_spawn_path,
+                    args,
                 })
+            } else {
+                let program = parts.next().unwrap();
+                if let Ok(p) = which::which(program) {
+                    config.pty_config.shell = Some(Program::WithArgs {
+                        program: p.to_str().unwrap().to_string(),
+                        args: parts.map(|p| p.to_string()).collect::<Vec<String>>(),
+                    })
+                }
             }
         }
         setup_env(&config);
@@ -86,7 +113,7 @@ impl Terminal {
         }
     }
 
-    pub fn run(&mut self, dispatcher: Dispatcher) {
+    pub fn run(&mut self, core_rpc: CoreRpcHandler) {
         let mut tokens = (0..).map(Into::into);
         let poll_opts = PollOpt::edge() | PollOpt::oneshot();
 
@@ -117,12 +144,7 @@ impl Terminal {
                         if let Some(tty::ChildEvent::Exited) =
                             self.pty.next_child_event()
                         {
-                            dispatcher.send_notification(
-                                "close_terminal",
-                                json!({
-                                    "term_id": self.term_id,
-                                }),
-                            );
+                            core_rpc.close_terminal(self.term_id);
                             break 'event_loop;
                         }
                     }
@@ -139,12 +161,9 @@ impl Terminal {
                         if event.readiness().is_readable() {
                             match self.pty.reader().read(&mut buf) {
                                 Ok(n) => {
-                                    dispatcher.send_notification(
-                                        "update_terminal",
-                                        json!({
-                                            "term_id": self.term_id,
-                                            "content": base64::encode(&buf[..n]),
-                                        }),
+                                    core_rpc.update_terminal(
+                                        self.term_id,
+                                        base64::encode(&buf[..n]),
                                     );
                                 }
                                 Err(_e) => (),
@@ -313,4 +332,65 @@ fn set_locale_environment() {
         .to_string()
         .replace('-', "_");
     std::env::set_var("LC_ALL", locale + ".UTF-8");
+}
+
+#[inline]
+#[cfg(not(target_os = "linux"))]
+fn flatpak_get_default_host_shell() -> String {
+    panic!(
+        "This should never be reached. If it is, ensure you don't have a file
+        called .flatpak-info in your root directory"
+    );
+}
+
+#[inline]
+#[cfg(target_os = "linux")]
+fn flatpak_get_default_host_shell() -> String {
+    let env_string = Command::new("flatpak-spawn")
+        .arg("--host")
+        .arg("printenv")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let env_string = String::from_utf8(env_string).unwrap();
+
+    for env_pair in env_string.split('\n') {
+        let name_value: Vec<&str> = env_pair.split('=').collect();
+
+        if name_value[0] == "SHELL" {
+            return name_value[1].to_string();
+        }
+    }
+
+    // In case SHELL isn't set for whatever reason, fall back to this
+    "/bin/sh".to_string()
+}
+
+#[inline]
+#[cfg(not(target_os = "linux"))]
+fn flatpak_should_use_host_terminal() -> bool {
+    false // Flatpak is only available on Linux
+}
+
+#[inline]
+#[cfg(target_os = "linux")]
+fn flatpak_should_use_host_terminal() -> bool {
+    use std::path::Path;
+
+    const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
+
+    // The de-facto way of checking whether one is inside of a Flatpak container is by checking for
+    // the presence of /.flatpak-info in the filesystem
+    if !Path::new(FLATPAK_INFO_PATH).exists() {
+        return false;
+    }
+
+    // Ensure flatpak-spawn --host can execute a basic command
+    Command::new("flatpak-spawn")
+        .arg("--host")
+        .arg("true")
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
 }

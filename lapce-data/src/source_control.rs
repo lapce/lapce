@@ -24,9 +24,10 @@ pub struct SourceControlData {
     pub file_list_id: WidgetId,
     pub file_list_index: usize,
     pub editor_view_id: WidgetId,
+    pub commit_button_id: WidgetId,
     pub file_diffs: Vec<(FileDiff, bool)>,
     pub branch: String,
-    pub branches: Vec<String>,
+    pub branches: im::Vector<String>,
 }
 
 impl SourceControlData {
@@ -39,11 +40,12 @@ impl SourceControlData {
             editor_view_id,
             file_list_id,
             file_list_index: 0,
+            commit_button_id: WidgetId::next(),
             split_id: WidgetId::next(),
             split_direction: SplitDirection::Horizontal,
             file_diffs: Vec::new(),
             branch: "".to_string(),
-            branches: Vec::new(),
+            branches: im::Vector::new(),
         }
     }
 }
