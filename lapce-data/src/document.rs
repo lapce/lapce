@@ -1860,16 +1860,7 @@ impl Document {
         font_size: usize,
         config: &LapceConfig,
     ) -> TextLayoutLine {
-        let line_content_original = self.buffer.line_content(line);
-
-        let line_content_original =
-            if let Some(s) = line_content_original.strip_suffix("\r\n") {
-                format!("{s}  ")
-            } else if let Some(s) = line_content_original.strip_suffix('\n') {
-                format!("{s} ",)
-            } else {
-                line_content_original.to_string()
-            };
+        let line_content_original = self.buffer.line_content(line).to_string();
 
         let phantom_text = self.line_phantom_text(config, line);
         let line_content = phantom_text.combine_with_text(line_content_original);
