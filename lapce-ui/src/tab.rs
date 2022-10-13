@@ -703,6 +703,14 @@ impl LapceTab {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::UpdateStarted => {
+                        ctx.set_handled();
+                        ctx.request_layout();
+                    }
+                    LapceUICommand::UpdateFailed => {
+                        ctx.set_handled();
+                        ctx.request_layout();
+                    }
                     LapceUICommand::RequestPaint => {
                         ctx.request_paint();
                         ctx.set_handled();

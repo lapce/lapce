@@ -373,6 +373,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                 let mut window_data = LapceWindowData::new(
                     data.keypress.clone(),
                     data.latest_release.clone(),
+                    data.update_in_process,
                     data.panel_orders.clone(),
                     ctx.get_external_handle(),
                     &info,
@@ -427,10 +428,17 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                             Some(release.clone());
                         return druid::Handled::Yes;
                     }
+                    LapceUICommand::UpdateStarted => {
+                        data.update_in_process = true;
+                    }
+                    LapceUICommand::UpdateFailed => {
+                        data.update_in_process = false;
+                    }
                     LapceUICommand::RestartToUpdate(process_path, release) => {
                         let _ = data.db.save_app(data);
                         let process_path = process_path.clone();
                         let release = release.clone();
+                        let event_sink = ctx.get_external_handle();
                         std::thread::spawn(move || {
                             let do_update = || -> anyhow::Result<()> {
                                 log::info!("start to down new versoin");
@@ -449,8 +457,18 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                                 Ok(())
                             };
 
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdateStarted,
+                                Target::Global,
+                            );
                             if let Err(err) = do_update() {
                                 log::error!("Failed to update: {err}");
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::UpdateFailed,
+                                    Target::Global,
+                                );
                             }
                         });
                         return druid::Handled::Yes;
@@ -552,6 +570,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                         let mut window_data = LapceWindowData::new(
                             data.keypress.clone(),
                             data.latest_release.clone(),
+                            data.update_in_process,
                             data.panel_orders.clone(),
                             ctx.get_external_handle(),
                             &info,
