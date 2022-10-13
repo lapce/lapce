@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Now use `esc` to close searchbar regarless of the current focus
+
 ### Features/Changes
 
 - [#1483](https://github.com/lapce/lapce/pull/1483): Fix showing the close icon for the first tab when opening multiple tab
