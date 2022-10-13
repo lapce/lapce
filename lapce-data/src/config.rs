@@ -175,6 +175,10 @@ pub struct EditorConfig {
     #[field_names(desc = "If the editor can scroll beyond the last line")]
     pub scroll_beyond_last_line: bool,
     #[field_names(
+        desc = "Set the minimum number of visible lines above and below the cursor"
+    )]
+    pub cursor_surrounding_lines: usize,
+    #[field_names(
         desc = "Show code context like functions and classes at the top of editor when scroll"
     )]
     pub sticky_header: bool,

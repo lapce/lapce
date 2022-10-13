@@ -46,6 +46,7 @@
 - [#1441](https://github.com/lapce/lapce/pull/1441): Button for Case-Sensitive search
 - [#1471](https://github.com/lapce/lapce/pull/1471): Add command to (un)install Lapce from/to PATH
 - [#1419](https://github.com/lapce/lapce/pull/1419): Add atomic soft tabs: now you can move your cursor over four spaces as if it was a single block
+- [#1475](https://github.com/lapce/lapce/pull/1475): Add editor setting: "Cursor Surrounding Lines" which sets minimum number of lines above and below cursor
 
 ### Syntax / Extensions
 - [#957](https://github.com/lapce/lapce/pull/957): Replace existing tree-sitter syntax highlighting code with part of Helix's better implementation

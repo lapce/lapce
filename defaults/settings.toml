@@ -13,6 +13,7 @@ tab-width = 4
 show-tab = true
 show-bread-crumbs = true
 scroll-beyond-last-line = true
+cursor-surrounding-lines = 1
 sticky-header = true
 completion-show-documentation = true
 auto-closing-matching-pairs = true
