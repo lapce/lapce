@@ -300,7 +300,7 @@ mode = "niv"
 when = "!search_focus && !modal_focus"
 
 [[keymaps]]
-key="ctrl+c"
+key = "ctrl+c"
 command = "normal_mode"
 mode = "niv"
 when = "!search_focus && !modal_focus"
@@ -655,3 +655,8 @@ mode = "v"
 key = "<"
 command = "outdent_line"
 mode = "v"
+
+[[keymaps]]
+key = "shift+c"
+command = "delete_to_end_and_insert"
+mode = "n"

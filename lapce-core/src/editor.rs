@@ -40,6 +40,7 @@ pub enum EditType {
     Undo,
     Redo,
     Other,
+    DeleteToEndOfLineAndInsert,
 }
 
 impl EditType {
@@ -1274,6 +1275,24 @@ impl Editor {
             }
             DeleteForwardAndInsert => {
                 let selection = cursor.edit_selection(buffer);
+                let (delta, inval_lines, edits) =
+                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                let selection =
+                    selection.apply_delta(&delta, true, InsertDrift::Default);
+                cursor.mode = CursorMode::Insert(selection);
+                vec![(delta, inval_lines, edits)]
+            }
+            DeleteToEndOfLineAndInsert => {
+                let mut selection = cursor.edit_selection(buffer);
+
+                let cursor_offset = cursor.offset();
+                let line = buffer.line_of_offset(cursor_offset);
+                let end_of_line_offset = buffer.line_end_offset(line, true);
+
+                let new_region =
+                    SelRegion::new(cursor_offset, end_of_line_offset, None);
+                selection.add_region(new_region);
+
                 let (delta, inval_lines, edits) =
                     buffer.edit(&[(&selection, "")], EditType::Delete);
                 let selection =
