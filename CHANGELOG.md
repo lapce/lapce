@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- [#1491](https://github.com/lapce/lapce/pull/1491): Added Vim shift+c to delete remainder of line
+
 ### Bug Fixes
 
 - [#1505](https://github.com/lapce/lapce/pull/1505): Fix proxy download for hosts with curl without -Z flag
@@ -98,8 +100,6 @@
 - Many more fixes!
 
 ### Other
-
-
 
 - [#1191](https://github.com/lapce/lapce/pull/1191): Tone down default inlay hint background color in Lapce dark theme
 - [#1227](https://github.com/lapce/lapce/pull/1227): Don't restore cursor mode on undo

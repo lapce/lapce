@@ -120,7 +120,14 @@ impl LapceEditorTab {
                     if let Some(editor) = data.main_split.editors.remove(&view_id) {
                         if let BufferContent::Scratch(buffer_id, _) = editor.content
                         {
-                            data.main_split.scratch_docs.remove(&buffer_id);
+                            let exits_in_other_edits =
+                                data.main_split.editors.iter().any(|(_, e)| {
+                                    e.view_id != editor.view_id
+                                        && e.content == editor.content
+                                });
+                            if !exits_in_other_edits {
+                                data.main_split.scratch_docs.remove(&buffer_id);
+                            }
                         }
                     }
                 }

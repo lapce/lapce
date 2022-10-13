@@ -402,34 +402,19 @@ impl Buffer {
         deletes: &Subset,
     ) -> SyntaxEdit {
         let mut edits = Vec::new();
-        let mut text = self.text.clone();
 
         for insert in InsertsValueIter::new(ins_delta) {
             // We may not need the inserted text in order to calculate the new end position
             // but I was sufficiently uncertain, and so continued with how we did it previously
             let start = insert.old_offset;
             let inserted = insert.node;
-            edits.push(syntax::edit::create_insert_edit(&text, start, inserted));
-
-            // Create a delta of this specific part of the insert
-            // We have to apply it because future inserts assume it already happened
-            let insert_delta = RopeDelta::simple_edit(
-                Interval::new(start, start),
-                inserted.clone(),
-                text.len(),
-            );
-            text = insert_delta.apply(&text);
+            edits.push(syntax::edit::create_insert_edit(
+                &self.text, start, inserted,
+            ));
         }
 
         for (start, end) in deletes.range_iter(CountMatcher::NonZero) {
-            edits.push(syntax::edit::create_delete_edit(&text, start, end));
-
-            let delete_delta = RopeDelta::simple_edit(
-                Interval::new(start, end),
-                Rope::default(),
-                text.len(),
-            );
-            text = delete_delta.apply(&text);
+            edits.push(syntax::edit::create_delete_edit(&self.text, start, end));
         }
 
         SyntaxEdit::new(edits)
