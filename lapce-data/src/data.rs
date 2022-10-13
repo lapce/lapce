@@ -1622,6 +1622,54 @@ impl LapceTabData {
                     }
                 }
             }
+            LapceWorkbenchCommand::SourceControlDiscardTargetFileChanges => {
+                if let Ok(v) = serde_json::from_value::<FileDiff>(data.unwrap()) {
+                    match v {
+                        FileDiff::Added(path) => {
+                            self.proxy.proxy_rpc.trash_path(
+                                path,
+                                Box::new(move |res| {
+                                    if let Err(err) = res {
+                                        log::warn!(
+                                            "Failed to trash path: {:?}",
+                                            err
+                                        );
+                                    }
+                                }),
+                            );
+                        }
+                        FileDiff::Deleted(path) => {
+                            self.proxy
+                                .proxy_rpc
+                                .git_discard_files_changes(vec![path]);
+                        }
+                        FileDiff::Modified(path) => {
+                            self.proxy
+                                .proxy_rpc
+                                .git_discard_files_changes(vec![path]);
+                        }
+                        FileDiff::Renamed(old_path, new_path) => {
+                            self.proxy
+                                .proxy_rpc
+                                .git_discard_files_changes(vec![old_path]);
+
+                            self.proxy.proxy_rpc.trash_path(
+                                new_path,
+                                Box::new(move |res| {
+                                    if let Err(err) = res {
+                                        log::warn!(
+                                            "Failed to trash path: {:?}",
+                                            err
+                                        );
+                                    }
+                                }),
+                            );
+                        }
+                    }
+                } else {
+                    log::error!("discard target file called without a target file");
+                }
+            }
             LapceWorkbenchCommand::SourceControlDiscardWorkspaceChanges => {
                 self.proxy.proxy_rpc.git_discard_workspace_changes();
             }

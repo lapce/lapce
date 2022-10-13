@@ -10,7 +10,7 @@ use std::{
 use alacritty_terminal::{event::WindowSize, event_loop::Msg};
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
-use git2::{build::CheckoutBuilder, DiffOptions, Repository};
+use git2::{build::CheckoutBuilder, DiffOptions, Repository, Status};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{sinks::UTF8, SearcherBuilder};
@@ -939,6 +939,7 @@ fn git_commit(
     let tree = repo.find_tree(tree)?;
     let signature = repo.signature()?;
     let parent = repo.head()?.peel_to_commit()?;
+
     repo.commit(
         Some("HEAD"),
         &signature,
@@ -969,7 +970,7 @@ fn git_discard_files_changes<'a>(
     let repo = Repository::open(workspace_path)?;
 
     let mut checkout_b = CheckoutBuilder::new();
-    checkout_b.update_only(true).force();
+    checkout_b.update_only(false).force();
 
     let mut had_path = false;
     for path in files {

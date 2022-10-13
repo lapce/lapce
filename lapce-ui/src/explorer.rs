@@ -11,7 +11,8 @@ use itertools::Itertools;
 use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
-        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{LapceConfig, LapceIcons, LapceTheme},
     data::{EditorTabChild, LapceData, LapceEditorData, LapceTabData},
@@ -105,6 +106,7 @@ fn paint_single_file_node_item(
             .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
         ctx.draw_svg(&svg, rect, svg_color);
     }
+
     let text_layout = ctx
         .text()
         .new_text_layout(
