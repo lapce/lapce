@@ -2,15 +2,14 @@
 
 ## Unreleased
 
-- Now use `esc` to close searchbar regarless of the current focus
-
 ### Features/Changes
-
-- [#1483](https://github.com/lapce/lapce/pull/1483): Fix showing the close icon for the first tab when opening multiple tab
 
 ### Bug Fixes
 
 - [#1505](https://github.com/lapce/lapce/pull/1505): Fix proxy download for hosts with curl without -Z flag
+- [#1483](https://github.com/lapce/lapce/pull/1483): Fix showing the close icon for the first tab when opening multiple tab
+- [#1477](https://github.com/lapce/lapce/pull/1477): Now use `esc` to close searchbar regarless of the current focus
+- [#1507](https://github.com/lapce/lapce/pull/1507): Fixed a crash when scratch buffer is closed
 
 ## 0.2.1
 
@@ -100,7 +99,9 @@
 
 ### Other
 
+
+
 - [#1191](https://github.com/lapce/lapce/pull/1191): Tone down default inlay hint background color in Lapce dark theme
 - [#1227](https://github.com/lapce/lapce/pull/1227): Don't restore cursor mode on undo
 - [#1413](https://github.com/lapce/lapce/pull/1413): Disable format-on-save by default. Remember to re-enable this if you want it!
-- [#1404](https://github.com/lapce/lapce/pull/1404): Log panics with full backtrace as errors
+- [#1404](https://github.com/lapce/lapce/pull/1404): Log panics with full backtrace as error
