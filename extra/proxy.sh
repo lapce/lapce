@@ -65,7 +65,7 @@ _URL="https://github.com/lapce/lapce/releases/download/${_VER}/lapce-proxy-${_OS
 if test_cmd 'curl'; then
   # How old curl has these options? we'll find out
   printf 'Downloading using curl\n'
-  curl --proto '=https' --tlsv1.2 -LZfS -O "${_URL}"
+  curl --proto '=https' --tlsv1.2 -LfS -O "${_URL}"
   # curl --proto '=https' --tlsv1.2 -LZfS -o "${_TMP}/lapce-proxy-${_OS}-${_ARCH}.gz" "${_URL}"
 elif test_cmd 'wget'; then
   printf 'Downloading using wget\n'

@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+- [#1505](https://github.com/lapce/lapce/pull/1505): Fix proxy download for hosts with curl without -Z flag
+
 ## 0.2.1
 
 ### Features/Changes
