@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, iter::Iterator, path::PathBuf, sync::Arc};
+use std::{collections::HashSet, iter::Iterator, path::PathBuf, sync::Arc};
 
 use druid::{
     kurbo::Line,
@@ -7,7 +7,6 @@ use druid::{
     LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetId,
 };
-use hashbrown::HashMap;
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{
@@ -321,9 +320,8 @@ impl LapceEditorTabHeaderContent {
                 // file_path.truncate(20);
                 let file_path = file_path
                     .to_string_lossy()
-                    .char_indices()
-                    .filter(|(i, _)| *i < 20)
-                    .map(|(_, ch)| ch)
+                    .chars()
+                    .take(20)
                     .collect::<String>();
                 return file_path;
             }
@@ -437,28 +435,29 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
 
         self.rects.clear();
         let mut x = 0.0;
-        let mut name_count: HashMap<String, i32> = HashMap::new();
-        for (_i, child) in editor_tab.children.iter().enumerate() {
-            match child {
-                EditorTabChild::Editor(view_id, _, _) => {
-                    let editor = data.main_split.editors.get(view_id).unwrap();
-                    if let BufferContent::File(path) = &editor.content {
-                        if let Some(file_name) = path.file_name() {
-                            let name = file_name.to_str().unwrap();
-                            let nb = match name_count.get(name) {
-                                Some(name) => *name,
-                                None => 0,
-                            };
 
-                            name_count.insert(String::from(name), nb + 1);
+        // Collect all the filenames we currently have
+        let name_count = editor_tab
+            .children
+            .iter()
+            .flat_map(|child| {
+                match child {
+                    EditorTabChild::Editor(view_id, _, _) => {
+                        let editor = data.main_split.editors.get(view_id).unwrap();
+                        if let BufferContent::File(path) = &editor.content {
+                            if let Some(file_name) = path.file_name() {
+                                let name = file_name.to_str().unwrap();
+                                return Some(name);
+                            }
                         }
                     }
+                    _ => {}
                 }
-                EditorTabChild::Settings(_, _) => {}
-            }
-        }
+                return None;
+            })
+            .collect::<HashSet<&str>>();
 
-        for (_i, child) in editor_tab.children.iter().enumerate() {
+        for child in editor_tab.children.iter() {
             let mut text = "".to_string();
             let mut svg = get_svg("default_file.svg").unwrap();
             let mut file_path = "".to_string();
@@ -470,10 +469,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                         if let Some(file_name) = path.file_name() {
                             if let Some(s) = file_name.to_str() {
                                 text = s.to_string();
-                                let nb = name_count
-                                    .get(file_name.to_str().unwrap())
-                                    .unwrap();
-                                if *nb > 1 {
+                                if name_count.contains(s) {
                                     file_path = format!(
                                         " {}",
                                         self.get_effective_path(
@@ -535,7 +531,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     .with_origin(Point::new(x + width - height, 0.0))
                     .inflate(-inflate, -inflate),
                 text_layout,
-                path_layout,
+                path_layout: Some(path_layout),
             };
             x += width;
             self.rects.push(tab_rect);
@@ -578,8 +574,13 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
     }
 }
 
+#[allow(unused_imports)]
 mod test {
-    use super::*;
+    use std::path::PathBuf;
+
+    use druid::WidgetId;
+
+    use crate::editor::tab_header_content::LapceEditorTabHeaderContent;
 
     #[test]
     fn test_effective_path() {
