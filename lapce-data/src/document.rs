@@ -74,17 +74,20 @@ impl Clipboard for SystemClipboard {
     }
 }
 
+#[derive(Clone)]
 pub struct LineExtraStyle {
     pub bg_color: Option<Color>,
     pub under_line: Option<Color>,
 }
 
+#[derive(Clone)]
 pub struct TextLayoutLine {
     /// Extra styling that should be applied to the text
     /// (x0, x1 or line display end, style)
     pub extra_style: Vec<(f64, Option<f64>, LineExtraStyle)>,
     pub text: PietTextLayout,
     pub whitespaces: Option<Vec<(char, (f64, f64))>>,
+    pub indent: f64,
 }
 
 #[derive(Clone, Default)]
@@ -1821,18 +1824,18 @@ impl Document {
             let mut cache = self.text_layouts.borrow_mut();
             cache.layouts.insert(font_size, HashMap::new());
         }
-        if self
+        let cache_exits = self
             .text_layouts
             .borrow()
             .layouts
             .get(&font_size)
             .unwrap()
             .get(&line)
-            .is_none()
-        {
-            let mut cache = self.text_layouts.borrow_mut();
+            .is_some();
+        if !cache_exits {
             let text_layout =
                 Arc::new(self.new_text_layout(text, line, font_size, config));
+            let mut cache = self.text_layouts.borrow_mut();
             let width = text_layout.text.size().width;
             if width > cache.max_width {
                 cache.max_width = width;
@@ -1994,10 +1997,36 @@ impl Document {
             config,
         );
 
+        let indent_line = if line_content_original.trim().is_empty() {
+            let offset = self.buffer.offset_of_line(line);
+            if let Some(offset) = self
+                .syntax
+                .as_ref()
+                .and_then(|syntax| syntax.parent_offset(offset))
+            {
+                self.buffer.line_of_offset(offset)
+            } else {
+                line
+            }
+        } else {
+            line
+        };
+
+        let indent = if indent_line != line {
+            self.get_text_layout(text, indent_line, font_size, config)
+                .indent
+                + 1.0
+        } else {
+            let offset = self.buffer.first_non_blank_character_on_line(indent_line);
+            let (_, col) = self.buffer.offset_to_line_col(offset);
+            text_layout.hit_test_text_position(col).point.x
+        };
+
         TextLayoutLine {
             text: text_layout,
             extra_style,
             whitespaces: new_whitespaces,
+            indent,
         }
     }
 

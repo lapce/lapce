@@ -893,6 +893,27 @@ impl LapceEditor {
         let space_text_shift =
             tab_text.y_offset(data.config.editor.line_height() as f64);
 
+        let tab_width = data.config.tab_width(
+            ctx.text(),
+            data.config.editor.font_family(),
+            data.config.editor.font_size,
+        );
+        let indent_unit = data.doc.buffer().indent_unit();
+        let indent_text = ctx
+            .text()
+            .new_text_layout(format!("{}a", indent_unit))
+            .font(
+                data.config.editor.font_family(),
+                data.config.editor.font_size as f64,
+            )
+            .set_tab_width(tab_width)
+            .build()
+            .unwrap();
+        let indent_text_width = indent_text
+            .hit_test_text_position(indent_unit.len())
+            .point
+            .x;
+
         for line in &screen_lines.lines {
             let line = *line;
             let last_line = data.doc.buffer().last_line();
@@ -947,6 +968,22 @@ impl LapceEditor {
                             }
                             _ => {}
                         }
+                    }
+                }
+                if data.config.editor.show_indent_guide {
+                    let mut x = 0.0;
+                    while x + 0.5 < text_layout.indent {
+                        ctx.stroke(
+                            Line::new(
+                                Point::new(x, info.y),
+                                Point::new(x, info.y + info.line_height),
+                            ),
+                            data.config.get_color_unchecked(
+                                LapceTheme::EDITOR_INDENT_GUIDE,
+                            ),
+                            1.0,
+                        );
+                        x += indent_text_width;
                     }
                 }
             }
