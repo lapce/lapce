@@ -549,6 +549,8 @@ fn get_truncated_path(full_paths: &[PathBuf]) -> Vec<PathBuf> {
         }
     }
 
+    let skip_left = if skip_left == 1 { 0 } else { skip_left };
+
     let truncated_paths = full_paths
         .iter()
         .map(|p| {
@@ -563,7 +565,7 @@ fn get_truncated_path(full_paths: &[PathBuf]) -> Vec<PathBuf> {
                 result = PathBuf::from_str("...").unwrap().join(result);
             }
 
-            if skip_right > 0 {
+            if skip_right > 1 {
                 result.push("...")
             }
 
@@ -585,38 +587,44 @@ mod test {
     };
 
     #[test]
-    fn test_truncated_path() {
+    fn test_all_truncated_paths() {
         let f1 = PathBuf::from("/home/user/myproject/folder1/file.rs");
         let f2 = PathBuf::from("/home/user/myproject/folder2/file.rs");
         let f3 = PathBuf::from("/file.rs");
         let f4 = PathBuf::from("/home/user/proj/file.rs");
         let f5 = PathBuf::from("/home/user/toolongprojectshouldtruncate/file.rs");
         let f6 = PathBuf::from("/home/user/myproject/file.rs");
-        let f7 = PathBuf::from(
-            "/home/user/myproject/🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆",
-        );
-        let f8 = PathBuf::from(
-            "/home/user/proj/🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆",
-        );
-        let f9 = PathBuf::from(
-            "/home/user/myproject/🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆/🎉🎉🎉🎉🎉🎉🎉/🎊",
-        );
 
-        let tab = LapceEditorTabHeaderContent::new(WidgetId::next());
+        let result = get_truncated_path(&vec![f1, f2, f3, f4, f5, f6]);
 
-        let result = get_truncated_path(&vec![f1, f2, f3, f4, f5, f6, f7, f8, f9]);
-
-        assert_eq!(result[0], PathBuf::from_str("folder1").unwrap());
-        assert_eq!(result[1], PathBuf::from_str("folder2").unwrap());
+        assert_eq!(
+            result[0],
+            PathBuf::from_str("/home/user/myproject/folder1").unwrap()
+        );
+        assert_eq!(
+            result[1],
+            PathBuf::from_str("/home/user/myproject/folder2").unwrap()
+        );
         assert_eq!(result[2], PathBuf::from_str("/").unwrap());
         assert_eq!(result[3], PathBuf::from_str("/home/user/proj").unwrap());
-        assert_eq!(result[4], PathBuf::from_str("/home/user").unwrap());
-        assert_eq!(result[5], PathBuf::from_str("./").unwrap());
-        assert_eq!(result[6], PathBuf::from_str("./").unwrap());
-        assert_eq!(result[7], PathBuf::from_str("/home/user/proj").unwrap());
         assert_eq!(
-            result[8],
-            PathBuf::from_str("🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆/🎉🎉🎉🎉🎉🎉🎉").unwrap()
+            result[4],
+            PathBuf::from_str("/home/user/toolongprojectshouldtruncate").unwrap()
         );
+        assert_eq!(
+            result[5],
+            PathBuf::from_str("/home/user/myproject/").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_almost_same_paths() {
+        let f1 = PathBuf::from("/home/user/myproject/folder1/file.rs");
+        let f2 = PathBuf::from("/home/user/myproject/folder2/file.rs");
+
+        let result = get_truncated_path(&vec![f1, f2]);
+
+        assert_eq!(result[0], PathBuf::from_str(".../folder1").unwrap());
+        assert_eq!(result[1], PathBuf::from_str(".../folder2").unwrap());
     }
 }
