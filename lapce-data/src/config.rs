@@ -52,6 +52,7 @@ impl LapceTheme {
     pub const EDITOR_CURRENT_LINE: &str = "editor.current_line";
     pub const EDITOR_LINK: &str = "editor.link";
     pub const EDITOR_VISIBLE_WHITESPACE: &str = "editor.visible_whitespace";
+    pub const EDITOR_INDENT_GUIDE: &str = "editor.indent_guide";
 
     pub const INLAY_HINT_FOREGROUND: &str = "inlay_hint.foreground";
     pub const INLAY_HINT_BACKGROUND: &str = "inlay_hint.background";
@@ -242,6 +243,8 @@ pub struct EditorConfig {
         desc = "How the editor should render whitespace characters.\nOptions: none, all, boundary, trailing."
     )]
     pub render_whitespace: String,
+    #[field_names(desc = "Whether the editor show indent guide.")]
+    pub show_indent_guide: bool,
     #[field_names(
         desc = "Set the auto save delay (in milliseconds), Set to 0 to completely disable"
     )]

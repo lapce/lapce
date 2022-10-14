@@ -32,6 +32,7 @@ blink-interval = 500 # ms
 multicursor-case-sensitive = true
 multicursor-whole-words = true
 render-whitespace = "none"
+show-indent-guide = true
 atomic-soft-tabs = false
 
 [terminal]
@@ -117,6 +118,7 @@ magenta = "#C678DD"
 "editor.current_line" = "#2C313C"
 "editor.link" = "$blue"
 "editor.visible_whitespace" = "#5C6370"
+"editor.indent_guide" = "$grey"
 
 "inlay_hint.foreground" = "$white"
 "inlay_hint.background" = "#528bFF88"

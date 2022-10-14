@@ -699,6 +699,15 @@ impl Syntax {
         None
     }
 
+    pub fn parent_offset(&self, offset: usize) -> Option<usize> {
+        let tree = self.layers.try_tree()?;
+        let node = tree
+            .root_node()
+            .descendant_for_byte_range(offset, offset + 1)?;
+        let parent = node.parent()?;
+        Some(parent.start_byte())
+    }
+
     pub fn find_tag(
         &self,
         offset: usize,

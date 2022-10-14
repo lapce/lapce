@@ -151,6 +151,7 @@ impl DocumentHistory {
             text: layout_builder.build().unwrap(),
             extra_style: Vec::new(),
             whitespaces: None,
+            indent: 0.0,
         }
     }
 
