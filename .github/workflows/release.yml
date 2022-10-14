@@ -249,9 +249,39 @@ jobs:
             ./target/release-lto/macos/lapce-proxy-darwin-*.gz
             ./target/release-lto/macos/Lapce-macos.dmg
           retention-days: 1
-          
+
+  msrv:
+    name: MSRV
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            toolchain: 1.62-x86_64-unknown-linux-gnu
+          - os: windows-latest
+            toolchain: 1.62-x86_64-pc-windows-msvc
+          - os: macos-latest
+            toolchain: 1.62-x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Use MSRV toolchain
+        run: rustup toolchain install 1.62
+
+      - name: Install dependencies on Ubuntu
+        if: startsWith(matrix.os, 'ubuntu')
+        run: sudo apt-get update && sudo apt-get install cmake pkg-config libgtk-3-dev
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v1
+
+      - name: Build
+        run: cargo +${{ matrix.toolchain }} build
+
   publish:
-    needs: [linux, linux-musl, windows, macos]
+    needs: [linux, linux-musl, windows, macos, msrv]
     runs-on: ubuntu-latest
     env:
       GH_REPO: ${{ github.repository }}

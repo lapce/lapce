@@ -39,88 +39,95 @@ static DEFAULT_LAPCE_CONFIG: Lazy<LapceConfig> =
 pub struct LapceTheme {}
 
 impl LapceTheme {
-    pub const LAPCE_WARN: &str = "lapce.warn";
-    pub const LAPCE_ERROR: &str = "lapce.error";
-    pub const LAPCE_ACTIVE_TAB: &str = "lapce.active_tab";
-    pub const LAPCE_INACTIVE_TAB: &str = "lapce.inactive_tab";
-    pub const LAPCE_DROPDOWN_SHADOW: &str = "lapce.dropdown_shadow";
-    pub const LAPCE_BORDER: &str = "lapce.border";
-    pub const LAPCE_SCROLL_BAR: &str = "lapce.scroll_bar";
-    pub const LAPCE_ICON_ACTIVE: &str = "lapce.icon_active";
-    pub const LAPCE_ICON_INACTIVE: &str = "lapce.icon_inactive";
+    pub const LAPCE_WARN: &'static str = "lapce.warn";
+    pub const LAPCE_ERROR: &'static str = "lapce.error";
+    pub const LAPCE_ACTIVE_TAB: &'static str = "lapce.active_tab";
+    pub const LAPCE_INACTIVE_TAB: &'static str = "lapce.inactive_tab";
+    pub const LAPCE_DROPDOWN_SHADOW: &'static str = "lapce.dropdown_shadow";
+    pub const LAPCE_BORDER: &'static str = "lapce.border";
+    pub const LAPCE_SCROLL_BAR: &'static str = "lapce.scroll_bar";
+    pub const LAPCE_ICON_ACTIVE: &'static str = "lapce.icon_active";
+    pub const LAPCE_ICON_INACTIVE: &'static str = "lapce.icon_inactive";
 
-    pub const LAPCE_REMOTE_LOCAL: &str = "lapce.remote.local";
-    pub const LAPCE_REMOTE_CONNECTED: &str = "lapce.remote.connected";
-    pub const LAPCE_REMOTE_CONNECTING: &str = "lapce.remote.connecting";
-    pub const LAPCE_REMOTE_DISCONNECTED: &str = "lapce.remote.disconnected";
+    pub const LAPCE_REMOTE_LOCAL: &'static str = "lapce.remote.local";
+    pub const LAPCE_REMOTE_CONNECTED: &'static str = "lapce.remote.connected";
+    pub const LAPCE_REMOTE_CONNECTING: &'static str = "lapce.remote.connecting";
+    pub const LAPCE_REMOTE_DISCONNECTED: &'static str = "lapce.remote.disconnected";
 
-    pub const EDITOR_BACKGROUND: &str = "editor.background";
-    pub const EDITOR_FOREGROUND: &str = "editor.foreground";
-    pub const EDITOR_DIM: &str = "editor.dim";
-    pub const EDITOR_FOCUS: &str = "editor.focus";
-    pub const EDITOR_CARET: &str = "editor.caret";
-    pub const EDITOR_SELECTION: &str = "editor.selection";
-    pub const EDITOR_CURRENT_LINE: &str = "editor.current_line";
-    pub const EDITOR_LINK: &str = "editor.link";
-    pub const EDITOR_VISIBLE_WHITESPACE: &str = "editor.visible_whitespace";
-    pub const EDITOR_INDENT_GUIDE: &str = "editor.indent_guide";
-    pub const EDITOR_DRAG_DROP_BACKGROUND: &str = "editor.drag_drop_background";
+    pub const EDITOR_BACKGROUND: &'static str = "editor.background";
+    pub const EDITOR_FOREGROUND: &'static str = "editor.foreground";
+    pub const EDITOR_DIM: &'static str = "editor.dim";
+    pub const EDITOR_FOCUS: &'static str = "editor.focus";
+    pub const EDITOR_CARET: &'static str = "editor.caret";
+    pub const EDITOR_SELECTION: &'static str = "editor.selection";
+    pub const EDITOR_CURRENT_LINE: &'static str = "editor.current_line";
+    pub const EDITOR_LINK: &'static str = "editor.link";
+    pub const EDITOR_VISIBLE_WHITESPACE: &'static str = "editor.visible_whitespace";
+    pub const EDITOR_INDENT_GUIDE: &'static str = "editor.indent_guide";
+    pub const EDITOR_DRAG_DROP_BACKGROUND: &'static str =
+        "editor.drag_drop_background";
 
-    pub const INLAY_HINT_FOREGROUND: &str = "inlay_hint.foreground";
-    pub const INLAY_HINT_BACKGROUND: &str = "inlay_hint.background";
+    pub const INLAY_HINT_FOREGROUND: &'static str = "inlay_hint.foreground";
+    pub const INLAY_HINT_BACKGROUND: &'static str = "inlay_hint.background";
 
-    pub const ERROR_LENS_ERROR_FOREGROUND: &str = "error_lens.error.foreground";
-    pub const ERROR_LENS_ERROR_BACKGROUND: &str = "error_lens.error.background";
-    pub const ERROR_LENS_WARNING_FOREGROUND: &str = "error_lens.warning.foreground";
-    pub const ERROR_LENS_WARNING_BACKGROUND: &str = "error_lens.warning.background";
-    pub const ERROR_LENS_OTHER_FOREGROUND: &str = "error_lens.other.foreground";
-    pub const ERROR_LENS_OTHER_BACKGROUND: &str = "error_lens.other.background";
+    pub const ERROR_LENS_ERROR_FOREGROUND: &'static str =
+        "error_lens.error.foreground";
+    pub const ERROR_LENS_ERROR_BACKGROUND: &'static str =
+        "error_lens.error.background";
+    pub const ERROR_LENS_WARNING_FOREGROUND: &'static str =
+        "error_lens.warning.foreground";
+    pub const ERROR_LENS_WARNING_BACKGROUND: &'static str =
+        "error_lens.warning.background";
+    pub const ERROR_LENS_OTHER_FOREGROUND: &'static str =
+        "error_lens.other.foreground";
+    pub const ERROR_LENS_OTHER_BACKGROUND: &'static str =
+        "error_lens.other.background";
 
-    pub const SOURCE_CONTROL_ADDED: &str = "source_control.added";
-    pub const SOURCE_CONTROL_REMOVED: &str = "source_control.removed";
-    pub const SOURCE_CONTROL_MODIFIED: &str = "source_control.modified";
+    pub const SOURCE_CONTROL_ADDED: &'static str = "source_control.added";
+    pub const SOURCE_CONTROL_REMOVED: &'static str = "source_control.removed";
+    pub const SOURCE_CONTROL_MODIFIED: &'static str = "source_control.modified";
 
-    pub const TERMINAL_CURSOR: &str = "terminal.cursor";
-    pub const TERMINAL_BACKGROUND: &str = "terminal.background";
-    pub const TERMINAL_FOREGROUND: &str = "terminal.foreground";
-    pub const TERMINAL_RED: &str = "terminal.red";
-    pub const TERMINAL_BLUE: &str = "terminal.blue";
-    pub const TERMINAL_GREEN: &str = "terminal.green";
-    pub const TERMINAL_YELLOW: &str = "terminal.yellow";
-    pub const TERMINAL_BLACK: &str = "terminal.black";
-    pub const TERMINAL_WHITE: &str = "terminal.white";
-    pub const TERMINAL_CYAN: &str = "terminal.cyan";
-    pub const TERMINAL_MAGENTA: &str = "terminal.magenta";
+    pub const TERMINAL_CURSOR: &'static str = "terminal.cursor";
+    pub const TERMINAL_BACKGROUND: &'static str = "terminal.background";
+    pub const TERMINAL_FOREGROUND: &'static str = "terminal.foreground";
+    pub const TERMINAL_RED: &'static str = "terminal.red";
+    pub const TERMINAL_BLUE: &'static str = "terminal.blue";
+    pub const TERMINAL_GREEN: &'static str = "terminal.green";
+    pub const TERMINAL_YELLOW: &'static str = "terminal.yellow";
+    pub const TERMINAL_BLACK: &'static str = "terminal.black";
+    pub const TERMINAL_WHITE: &'static str = "terminal.white";
+    pub const TERMINAL_CYAN: &'static str = "terminal.cyan";
+    pub const TERMINAL_MAGENTA: &'static str = "terminal.magenta";
 
-    pub const TERMINAL_BRIGHT_RED: &str = "terminal.bright_red";
-    pub const TERMINAL_BRIGHT_BLUE: &str = "terminal.bright_blue";
-    pub const TERMINAL_BRIGHT_GREEN: &str = "terminal.bright_green";
-    pub const TERMINAL_BRIGHT_YELLOW: &str = "terminal.bright_yellow";
-    pub const TERMINAL_BRIGHT_BLACK: &str = "terminal.bright_black";
-    pub const TERMINAL_BRIGHT_WHITE: &str = "terminal.bright_white";
-    pub const TERMINAL_BRIGHT_CYAN: &str = "terminal.bright_cyan";
-    pub const TERMINAL_BRIGHT_MAGENTA: &str = "terminal.bright_magenta";
+    pub const TERMINAL_BRIGHT_RED: &'static str = "terminal.bright_red";
+    pub const TERMINAL_BRIGHT_BLUE: &'static str = "terminal.bright_blue";
+    pub const TERMINAL_BRIGHT_GREEN: &'static str = "terminal.bright_green";
+    pub const TERMINAL_BRIGHT_YELLOW: &'static str = "terminal.bright_yellow";
+    pub const TERMINAL_BRIGHT_BLACK: &'static str = "terminal.bright_black";
+    pub const TERMINAL_BRIGHT_WHITE: &'static str = "terminal.bright_white";
+    pub const TERMINAL_BRIGHT_CYAN: &'static str = "terminal.bright_cyan";
+    pub const TERMINAL_BRIGHT_MAGENTA: &'static str = "terminal.bright_magenta";
 
-    pub const PALETTE_BACKGROUND: &str = "palette.background";
-    pub const PALETTE_CURRENT: &str = "palette.current";
+    pub const PALETTE_BACKGROUND: &'static str = "palette.background";
+    pub const PALETTE_CURRENT: &'static str = "palette.current";
 
-    pub const COMPLETION_BACKGROUND: &str = "completion.background";
-    pub const COMPLETION_CURRENT: &str = "completion.current";
+    pub const COMPLETION_BACKGROUND: &'static str = "completion.background";
+    pub const COMPLETION_CURRENT: &'static str = "completion.current";
 
-    pub const HOVER_BACKGROUND: &str = "hover.background";
+    pub const HOVER_BACKGROUND: &'static str = "hover.background";
 
-    pub const ACTIVITY_BACKGROUND: &str = "activity.background";
-    pub const ACTIVITY_CURRENT: &str = "activity.current";
+    pub const ACTIVITY_BACKGROUND: &'static str = "activity.background";
+    pub const ACTIVITY_CURRENT: &'static str = "activity.current";
 
-    pub const PANEL_BACKGROUND: &str = "panel.background";
-    pub const PANEL_CURRENT: &str = "panel.current";
-    pub const PANEL_HOVERED: &str = "panel.hovered";
+    pub const PANEL_BACKGROUND: &'static str = "panel.background";
+    pub const PANEL_CURRENT: &'static str = "panel.current";
+    pub const PANEL_HOVERED: &'static str = "panel.hovered";
 
-    pub const STATUS_BACKGROUND: &str = "status.background";
-    pub const STATUS_MODAL_NORMAL: &str = "status.modal.normal";
-    pub const STATUS_MODAL_INSERT: &str = "status.modal.insert";
-    pub const STATUS_MODAL_VISUAL: &str = "status.modal.visual";
-    pub const STATUS_MODAL_TERMINAL: &str = "status.modal.terminal";
+    pub const STATUS_BACKGROUND: &'static str = "status.background";
+    pub const STATUS_MODAL_NORMAL: &'static str = "status.modal.normal";
+    pub const STATUS_MODAL_INSERT: &'static str = "status.modal.insert";
+    pub const STATUS_MODAL_VISUAL: &'static str = "status.modal.visual";
+    pub const STATUS_MODAL_TERMINAL: &'static str = "status.modal.terminal";
 
     pub const PALETTE_INPUT_LINE_HEIGHT: druid::Key<f64> =
         druid::Key::new("lapce.palette_input_line_height");
@@ -152,60 +159,60 @@ pub enum LoadThemeError {
 pub struct LapceIcons {}
 
 impl LapceIcons {
-    pub const WINDOW_CLOSE: &str = "window.close";
-    pub const WINDOW_RESTORE: &str = "window.restore";
-    pub const WINDOW_MAXIMIZE: &str = "window.maximize";
-    pub const WINDOW_MINIMIZE: &str = "window.minimize";
+    pub const WINDOW_CLOSE: &'static str = "window.close";
+    pub const WINDOW_RESTORE: &'static str = "window.restore";
+    pub const WINDOW_MAXIMIZE: &'static str = "window.maximize";
+    pub const WINDOW_MINIMIZE: &'static str = "window.minimize";
 
-    pub const LINK: &str = "link";
-    pub const ERROR: &str = "error";
-    pub const CLOSE: &str = "close";
-    pub const REMOTE: &str = "remote";
-    pub const PROBLEM: &str = "error";
-    pub const UNSAVED: &str = "unsaved";
-    pub const WARNING: &str = "warning";
-    pub const TERMINAL: &str = "terminal";
-    pub const SETTINGS: &str = "settings";
-    pub const LIGHTBULB: &str = "lightbulb";
-    pub const EXTENSIONS: &str = "extensions";
-    pub const BREADCRUMB_SEPARATOR: &str = "breadcrumb_separator";
+    pub const LINK: &'static str = "link";
+    pub const ERROR: &'static str = "error";
+    pub const CLOSE: &'static str = "close";
+    pub const REMOTE: &'static str = "remote";
+    pub const PROBLEM: &'static str = "error";
+    pub const UNSAVED: &'static str = "unsaved";
+    pub const WARNING: &'static str = "warning";
+    pub const TERMINAL: &'static str = "terminal";
+    pub const SETTINGS: &'static str = "settings";
+    pub const LIGHTBULB: &'static str = "lightbulb";
+    pub const EXTENSIONS: &'static str = "extensions";
+    pub const BREADCRUMB_SEPARATOR: &'static str = "breadcrumb_separator";
 
-    pub const FILE: &str = "file";
-    pub const FILE_EXPLORER: &str = "file_explorer";
-    pub const FILE_PICKER_UP: &str = "file_picker_up";
+    pub const FILE: &'static str = "file";
+    pub const FILE_EXPLORER: &'static str = "file_explorer";
+    pub const FILE_PICKER_UP: &'static str = "file_picker_up";
 
-    pub const SCM: &str = "scm.icon";
-    pub const SCM_DIFF_MODIFIED: &str = "scm.diff.modified";
-    pub const SCM_DIFF_ADDED: &str = "scm.diff.added";
-    pub const SCM_DIFF_REMOVED: &str = "scm.diff.removed";
-    pub const SCM_DIFF_RENAMED: &str = "scm.diff.renamed";
+    pub const SCM: &'static str = "scm.icon";
+    pub const SCM_DIFF_MODIFIED: &'static str = "scm.diff.modified";
+    pub const SCM_DIFF_ADDED: &'static str = "scm.diff.added";
+    pub const SCM_DIFF_REMOVED: &'static str = "scm.diff.removed";
+    pub const SCM_DIFF_RENAMED: &'static str = "scm.diff.renamed";
 
-    pub const PALETTE_MENU: &str = "palette.menu";
+    pub const PALETTE_MENU: &'static str = "palette.menu";
 
-    pub const LOCATION_BACKWARD: &str = "location.backward";
-    pub const LOCATION_FORWARD: &str = "location.forward";
+    pub const LOCATION_BACKWARD: &'static str = "location.backward";
+    pub const LOCATION_FORWARD: &'static str = "location.forward";
 
-    pub const ITEM_OPENED: &str = "item.opened";
-    pub const ITEM_CLOSED: &str = "item.closed";
+    pub const ITEM_OPENED: &'static str = "item.opened";
+    pub const ITEM_CLOSED: &'static str = "item.closed";
 
-    pub const DIRECTORY_CLOSED: &str = "directory.closed";
-    pub const DIRECTORY_OPENED: &str = "directory.opened";
+    pub const DIRECTORY_CLOSED: &'static str = "directory.closed";
+    pub const DIRECTORY_OPENED: &'static str = "directory.opened";
 
-    pub const PANEL_RESTORE: &str = "panel.restore";
-    pub const PANEL_MAXIMISE: &str = "panel.maximise";
+    pub const PANEL_RESTORE: &'static str = "panel.restore";
+    pub const PANEL_MAXIMISE: &'static str = "panel.maximise";
 
-    pub const SPLIT_HORIZONTAL: &str = "split.horizontal";
+    pub const SPLIT_HORIZONTAL: &'static str = "split.horizontal";
 
-    pub const TAB_PREVIOUS: &str = "tab.previous";
-    pub const TAB_NEXT: &str = "tab.next";
+    pub const TAB_PREVIOUS: &'static str = "tab.previous";
+    pub const TAB_NEXT: &'static str = "tab.next";
 
-    pub const SIDEBAR_LEFT: &str = "sidebar.left.on";
-    pub const SIDEBAR_LEFT_OFF: &str = "sidebar.left.off";
-    pub const SIDEBAR_RIGHT: &str = "sidebar.right.on";
-    pub const SIDEBAR_RIGHT_OFF: &str = "sidebar.right.off";
+    pub const SIDEBAR_LEFT: &'static str = "sidebar.left.on";
+    pub const SIDEBAR_LEFT_OFF: &'static str = "sidebar.left.off";
+    pub const SIDEBAR_RIGHT: &'static str = "sidebar.right.on";
+    pub const SIDEBAR_RIGHT_OFF: &'static str = "sidebar.right.off";
 
-    pub const LAYOUT_PANEL: &str = "layout.panel.on";
-    pub const LAYOUT_PANEL_OFF: &str = "layout.panel.off";
+    pub const LAYOUT_PANEL: &'static str = "layout.panel.on";
+    pub const LAYOUT_PANEL_OFF: &'static str = "layout.panel.off";
 
     pub const SEARCH: &'static str = "search.icon";
     pub const SEARCH_CLEAR: &'static str = "search.clear";
@@ -213,54 +220,67 @@ impl LapceIcons {
     pub const SEARCH_BACKWARD: &'static str = "search.backward";
     pub const SEARCH_CASE_SENSITIVE: &'static str = "search.case_sensitive";
 
-    pub const FILE_TYPE_CODE: &str = "file-code";
-    pub const FILE_TYPE_MEDIA: &str = "file-media";
-    pub const FILE_TYPE_BINARY: &str = "file-binary";
-    pub const FILE_TYPE_ARCHIVE: &str = "file-zip";
-    pub const FILE_TYPE_SUBMODULE: &str = "file-submodule";
-    pub const FILE_TYPE_SYMLINK_FILE: &str = "file-symlink-file";
-    pub const FILE_TYPE_SYMLINK_DIRECTORY: &str = "file-symlink-directory";
+    pub const FILE_TYPE_CODE: &'static str = "file-code";
+    pub const FILE_TYPE_MEDIA: &'static str = "file-media";
+    pub const FILE_TYPE_BINARY: &'static str = "file-binary";
+    pub const FILE_TYPE_ARCHIVE: &'static str = "file-zip";
+    pub const FILE_TYPE_SUBMODULE: &'static str = "file-submodule";
+    pub const FILE_TYPE_SYMLINK_FILE: &'static str = "file-symlink-file";
+    pub const FILE_TYPE_SYMLINK_DIRECTORY: &'static str = "file-symlink-directory";
 
-    pub const SYMBOL_KIND_ARRAY: &str = "symbol_kind.array";
-    pub const SYMBOL_KIND_BOOLEAN: &str = "symbol_kind.boolean";
-    pub const SYMBOL_KIND_CLASS: &str = "symbol_kind.class";
-    pub const SYMBOL_KIND_CONSTANT: &str = "symbol_kind.constant";
-    pub const SYMBOL_KIND_ENUM_MEMBER: &str = "symbol_kind.enum_member";
-    pub const SYMBOL_KIND_ENUM: &str = "symbol_kind.enum";
-    pub const SYMBOL_KIND_EVENT: &str = "symbol_kind.event";
-    pub const SYMBOL_KIND_FIELD: &str = "symbol_kind.field";
-    pub const SYMBOL_KIND_FILE: &str = "symbol_kind.file";
-    pub const SYMBOL_KIND_FUNCTION: &str = "symbol_kind.function";
-    pub const SYMBOL_KIND_INTERFACE: &str = "symbol_kind.interface";
-    pub const SYMBOL_KIND_KEY: &str = "symbol_kind.key";
-    pub const SYMBOL_KIND_METHOD: &str = "symbol_kind.method";
-    pub const SYMBOL_KIND_NAMESPACE: &str = "symbol_kind.namespace";
-    pub const SYMBOL_KIND_NUMBER: &str = "symbol_kind.number";
-    pub const SYMBOL_KIND_OBJECT: &str = "symbol_kind.namespace";
-    pub const SYMBOL_KIND_OPERATOR: &str = "symbol_kind.operator";
-    pub const SYMBOL_KIND_PROPERTY: &str = "symbol_kind.property";
-    pub const SYMBOL_KIND_STRING: &str = "symbol_kind.string";
-    pub const SYMBOL_KIND_STRUCT: &str = "symbol_kind.struct";
-    pub const SYMBOL_KIND_TYPE_PARAMETER: &str = "symbol_kind.type_parameter";
-    pub const SYMBOL_KIND_VARIABLE: &str = "symbol_kind.variable";
+    pub const SYMBOL_KIND_ARRAY: &'static str = "symbol_kind.array";
+    pub const SYMBOL_KIND_BOOLEAN: &'static str = "symbol_kind.boolean";
+    pub const SYMBOL_KIND_CLASS: &'static str = "symbol_kind.class";
+    pub const SYMBOL_KIND_CONSTANT: &'static str = "symbol_kind.constant";
+    pub const SYMBOL_KIND_ENUM_MEMBER: &'static str = "symbol_kind.enum_member";
+    pub const SYMBOL_KIND_ENUM: &'static str = "symbol_kind.enum";
+    pub const SYMBOL_KIND_EVENT: &'static str = "symbol_kind.event";
+    pub const SYMBOL_KIND_FIELD: &'static str = "symbol_kind.field";
+    pub const SYMBOL_KIND_FILE: &'static str = "symbol_kind.file";
+    pub const SYMBOL_KIND_FUNCTION: &'static str = "symbol_kind.function";
+    pub const SYMBOL_KIND_INTERFACE: &'static str = "symbol_kind.interface";
+    pub const SYMBOL_KIND_KEY: &'static str = "symbol_kind.key";
+    pub const SYMBOL_KIND_METHOD: &'static str = "symbol_kind.method";
+    pub const SYMBOL_KIND_NAMESPACE: &'static str = "symbol_kind.namespace";
+    pub const SYMBOL_KIND_NUMBER: &'static str = "symbol_kind.number";
+    pub const SYMBOL_KIND_OBJECT: &'static str = "symbol_kind.namespace";
+    pub const SYMBOL_KIND_OPERATOR: &'static str = "symbol_kind.operator";
+    pub const SYMBOL_KIND_PROPERTY: &'static str = "symbol_kind.property";
+    pub const SYMBOL_KIND_STRING: &'static str = "symbol_kind.string";
+    pub const SYMBOL_KIND_STRUCT: &'static str = "symbol_kind.struct";
+    pub const SYMBOL_KIND_TYPE_PARAMETER: &'static str =
+        "symbol_kind.type_parameter";
+    pub const SYMBOL_KIND_VARIABLE: &'static str = "symbol_kind.variable";
 
-    pub const COMPLETION_ITEM_KIND_CLASS: &str = "completion_item_kind.class";
-    pub const COMPLETION_ITEM_KIND_CONSTANT: &str = "completion_item_kind.constant";
-    pub const COMPLETION_ITEM_KIND_ENUM_MEMBER: &str =
+    pub const COMPLETION_ITEM_KIND_CLASS: &'static str =
+        "completion_item_kind.class";
+    pub const COMPLETION_ITEM_KIND_CONSTANT: &'static str =
+        "completion_item_kind.constant";
+    pub const COMPLETION_ITEM_KIND_ENUM_MEMBER: &'static str =
         "completion_item_kind.enum_member";
-    pub const COMPLETION_ITEM_KIND_ENUM: &str = "completion_item_kind.enum";
-    pub const COMPLETION_ITEM_KIND_FIELD: &str = "completion_item_kind.field";
-    pub const COMPLETION_ITEM_KIND_FUNCTION: &str = "completion_item_kind.function";
-    pub const COMPLETION_ITEM_KIND_INTERFACE: &str =
+    pub const COMPLETION_ITEM_KIND_ENUM: &'static str = "completion_item_kind.enum";
+    pub const COMPLETION_ITEM_KIND_FIELD: &'static str =
+        "completion_item_kind.field";
+    pub const COMPLETION_ITEM_KIND_FUNCTION: &'static str =
+        "completion_item_kind.function";
+    pub const COMPLETION_ITEM_KIND_INTERFACE: &'static str =
         "completion_item_kind.interface";
-    pub const COMPLETION_ITEM_KIND_KEYWORD: &str = "completion_item_kind.keyword";
-    pub const COMPLETION_ITEM_KIND_METHOD: &str = "completion_item_kind.method";
-    pub const COMPLETION_ITEM_KIND_MODULE: &str = "completion_item_kind.module";
-    pub const COMPLETION_ITEM_KIND_PROPERTY: &str = "completion_item_kind.property";
-    pub const COMPLETION_ITEM_KIND_SNIPPET: &str = "completion_item_kind.snippet";
-    pub const COMPLETION_ITEM_KIND_STRING: &str = "completion_item_kind.string";
-    pub const COMPLETION_ITEM_KIND_STRUCT: &str = "completion_item_kind.struct";
-    pub const COMPLETION_ITEM_KIND_VARIABLE: &str = "completion_item_kind.variable";
+    pub const COMPLETION_ITEM_KIND_KEYWORD: &'static str =
+        "completion_item_kind.keyword";
+    pub const COMPLETION_ITEM_KIND_METHOD: &'static str =
+        "completion_item_kind.method";
+    pub const COMPLETION_ITEM_KIND_MODULE: &'static str =
+        "completion_item_kind.module";
+    pub const COMPLETION_ITEM_KIND_PROPERTY: &'static str =
+        "completion_item_kind.property";
+    pub const COMPLETION_ITEM_KIND_SNIPPET: &'static str =
+        "completion_item_kind.snippet";
+    pub const COMPLETION_ITEM_KIND_STRING: &'static str =
+        "completion_item_kind.string";
+    pub const COMPLETION_ITEM_KIND_STRUCT: &'static str =
+        "completion_item_kind.struct";
+    pub const COMPLETION_ITEM_KIND_VARIABLE: &'static str =
+        "completion_item_kind.variable";
 }
 
 pub trait GetConfig {
