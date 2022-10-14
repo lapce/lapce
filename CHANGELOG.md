@@ -4,6 +4,7 @@
 
 ### Features/Changes
 
+- [#272](https://github.com/lapce/lapce/issues/272) Added SQL language support
 - [#1491](https://github.com/lapce/lapce/pull/1491): Added Vim shift+c to delete remainder of line
 - [#1508](https://github.com/lapce/lapce/pull/1508): Show in progress when Lapce is self updating
 - [#1475](https://github.com/lapce/lapce/pull/1475): Add editor setting: "Cursor Surrounding Lines" which sets minimum number of lines above and below cursor

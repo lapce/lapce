@@ -2560,6 +2560,7 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-scheme",
  "tree-sitter-scss",
+ "tree-sitter-sql",
  "tree-sitter-svelte",
  "tree-sitter-swift",
  "tree-sitter-toml",
@@ -5165,6 +5166,15 @@ dependencies = [
 name = "tree-sitter-scss"
 version = "0.0.1"
 source = "git+https://github.com/VixieTSQ/tree-sitter-scss?branch=patch-1#3aac3391ede5098edbf4cc8a9f6d0cfdfe28e5dc"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-sql"
+version = "0.0.2"
+source = "git+https://github.com/oknozor/tree-sitter-sql?branch=main#15dad0f3cae8a094a7dac17d712ea8fb25228011"
 dependencies = [
  "cc",
  "tree-sitter",
