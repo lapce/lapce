@@ -16,7 +16,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest, windows-latest, macos-latest ]
-        toolchain: [ stable ]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repo
@@ -26,36 +25,25 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: sudo apt-get update && sudo apt-get install cmake pkg-config libgtk-3-dev
 
-      - name: Install latest toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: ${{ matrix.toolchain }}
-          override: true
-          components: llvm-tools-preview
+      - name: Update toolchain & add llvm-tools
+        run: |
+          rustup update
+          rustup components add llvm-tools-preview
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v1
 
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
+        run: cargo build
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - uses: actions-rs/cargo@v1
-        name: Run tests and coverage
-        with:
-          command: llvm-cov
-          args: --all-features --workspace --lcov --output-path lcov.info
+      - name: Run tests and coverage
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
           
-      - uses: actions-rs/cargo@v1
-        name: Run doc tests
-        with:
-          command: test
-          args: --doc --workspace
+      - name: Run doc tests
+        run: cargo test --doc --workspace
 
       - name: Upload coverage
         uses: codecov/codecov-action@v2
@@ -69,19 +57,13 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Install latest toolchain with rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-          components: rustfmt
+      - name: Update toolchain & add rustfmt
+        run: |
+          rustup update
+          rustup components add rustfmt
 
       - name: Run rustfmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all --check
 
   clippy:
     name: Clippy (${{ matrix.toolchain }}) on ${{ matrix.os }}
@@ -89,19 +71,15 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest, windows-latest, macos-latest ]
-        toolchain: [ stable ]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Install latest toolchain with clippy
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: ${{ matrix.toolchain }}
-          override: true
-          components: clippy
+      - name: Update toolchain & add clippy
+        run: |
+          rustup update
+          rustup components add clippy
 
       - name: Install dependencies on Ubuntu
         if: startsWith(matrix.os, 'ubuntu')
@@ -111,7 +89,4 @@ jobs:
         uses: Swatinem/rust-cache@v1
 
       - name: Run clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings
+        run: cargo clippy -D warnings
