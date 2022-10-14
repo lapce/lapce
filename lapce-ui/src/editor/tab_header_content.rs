@@ -1,4 +1,7 @@
-use std::{collections::HashSet, iter::Iterator, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashSet, iter::Iterator, ops::Sub, path::PathBuf, str::FromStr,
+    sync::Arc,
+};
 
 use druid::{
     kurbo::Line,
@@ -7,6 +10,7 @@ use druid::{
     LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetId,
 };
+use im::HashMap;
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{
@@ -36,6 +40,7 @@ pub struct LapceEditorTabHeaderContent {
     pub rects: Vec<TabRect>,
     mouse_pos: Point,
     mouse_down_target: Option<(MouseAction, usize)>,
+    dedup_paths: HashMap<PathBuf, PathBuf>,
 }
 
 impl LapceEditorTabHeaderContent {
@@ -45,6 +50,7 @@ impl LapceEditorTabHeaderContent {
             rects: Vec::new(),
             mouse_pos: Point::ZERO,
             mouse_down_target: None,
+            dedup_paths: HashMap::default(),
         }
     }
 
@@ -308,78 +314,6 @@ impl LapceEditorTabHeaderContent {
             ));
         }
     }
-
-    fn get_effective_path(
-        &mut self,
-        workspace_path: Option<PathBuf>,
-        file_path: &PathBuf,
-    ) -> String {
-        let workspace_path = match workspace_path {
-            Some(p) => p,
-            None => {
-                // file_path.truncate(20);
-                let file_path = file_path
-                    .to_string_lossy()
-                    .chars()
-                    .take(20)
-                    .collect::<String>();
-                return file_path;
-            }
-        };
-
-        // file is a workspace file: we can truncate to workspace folders
-        if file_path.starts_with(&workspace_path) {
-            let mut reversed_path: Vec<String> = Vec::<String>::new();
-            // let mut parent = file_path.parent();
-            let mut file_path_mut = file_path.clone();
-
-            // We dont need to keep the file name, only the parents.
-            file_path_mut.pop();
-
-            while file_path_mut != workspace_path {
-                let file_name = file_path_mut.file_name().unwrap();
-                let file_name_str = file_name.to_str().unwrap().to_string();
-
-                reversed_path.push(file_name_str);
-                if !file_path_mut.pop() {
-                    break;
-                }
-            }
-
-            // File is at workspace root
-            if reversed_path.len() == 0 {
-                return "./".to_string();
-            }
-
-            reversed_path.reverse();
-            let mut new_path = PathBuf::new();
-
-            for i in reversed_path.iter() {
-                new_path.push(i);
-            }
-
-            return new_path.to_str().unwrap().to_string();
-        }
-
-        // file is not a workspace file: we keep root but we try to declutter
-        // as much as possible by clamping to 20 character length
-        let components = match file_path.parent() {
-            Some(v) => v.components(),
-            None => return "/".to_string(),
-        };
-
-        let mut new_path = PathBuf::new();
-
-        for c in components {
-            if new_path.as_os_str().len() + c.as_os_str().len() > 20 {
-                break;
-            }
-
-            new_path.push(c);
-        }
-
-        return new_path.to_str().unwrap().to_string();
-    }
 }
 
 impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
@@ -417,9 +351,42 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
         &mut self,
         _ctx: &mut UpdateCtx,
         _old_data: &LapceTabData,
-        _data: &LapceTabData,
+        data: &LapceTabData,
         _env: &Env,
     ) {
+        let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+
+        // Collect all the filenames we currently have
+        let mut dup_filenames: HashMap<&str, Vec<PathBuf>> = HashMap::default();
+        for child in &editor_tab.children {
+            if let EditorTabChild::Editor(view_id, _, _) = child {
+                let editor = data.main_split.editors.get(view_id).unwrap();
+                if let BufferContent::File(path) = &editor.content {
+                    if let Some(file_name) = path.file_name() {
+                        dup_filenames
+                            .entry(file_name.to_str().unwrap())
+                            .and_modify(|v| v.push(path.clone()))
+                            .or_insert(vec![path.clone()]);
+                    }
+                }
+            }
+        }
+
+        // Clear dedup paths so that we dont store closed files
+        // TODO: Can be optimized by listening to close file events?
+        self.dedup_paths.clear();
+
+        // Resolve each group of duplicates and insert into `self.dedup_paths`.
+        for (_, dup_paths) in dup_filenames.iter().filter(|v| v.1.len() > 1) {
+            for (original_path, truncated_path) in
+                dup_paths.iter().zip(get_truncated_path(dup_paths).iter())
+            {
+                self.dedup_paths.insert(
+                    original_path.to_path_buf(),
+                    truncated_path.to_path_buf(),
+                );
+            }
+        }
     }
 
     fn layout(
@@ -430,34 +397,15 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
         _env: &Env,
     ) -> Size {
         let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
-        let _child_min_width = 200.0;
         let height = bc.max().height;
 
         self.rects.clear();
         let mut x = 0.0;
 
-        // Collect all the filenames we currently have
-        let name_count = editor_tab
-            .children
-            .iter()
-            .flat_map(|child| {
-                if let EditorTabChild::Editor(view_id, _, _) = child {
-                    let editor = data.main_split.editors.get(view_id).unwrap();
-                    if let BufferContent::File(path) = &editor.content {
-                        if let Some(file_name) = path.file_name() {
-                            let name = file_name.to_str().unwrap();
-                            return Some(name);
-                        }
-                    }
-                }
-                return None;
-            })
-            .collect::<HashSet<&str>>();
-
         for child in editor_tab.children.iter() {
             let mut text = "".to_string();
             let mut svg = get_svg("default_file.svg").unwrap();
-            let mut file_path = "".to_string();
+            let mut file_path = None;
             match child {
                 EditorTabChild::Editor(view_id, _, _) => {
                     let editor = data.main_split.editors.get(view_id).unwrap();
@@ -466,13 +414,10 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                         if let Some(file_name) = path.file_name() {
                             if let Some(s) = file_name.to_str() {
                                 text = s.to_string();
-                                if name_count.contains(s) {
-                                    file_path = format!(
-                                        " {}",
-                                        self.get_effective_path(
-                                            data.workspace.path.clone(),
-                                            path
-                                        )
+                                if let Some(dedup_path) = self.dedup_paths.get(path)
+                                {
+                                    file_path = Some(
+                                        dedup_path.to_string_lossy().to_string(),
                                     );
                                 }
                             }
@@ -500,19 +445,21 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 )
                 .build()
                 .unwrap();
-            let path_layout = ctx
-                .text()
-                .new_text_layout(file_path)
-                .default_attribute(FontStyle::Italic)
-                .font(data.config.ui.font_family(), font_size)
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            let text_size = text_layout.size() + path_layout.size();
+            let path_layout = file_path.map(|f| {
+                ctx.text()
+                    .new_text_layout(f)
+                    .default_attribute(FontStyle::Italic)
+                    .font(data.config.ui.font_family(), font_size.sub(2.0).max(1.0))
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap()
+            });
+            let text_size = text_layout.size()
+                + path_layout.as_ref().map(|p| p.size()).unwrap_or(Size::ZERO);
             let width =
                 (text_size.width + height + (height - font_size) / 2.0 + font_size)
                     .max(data.config.ui.tab_min_width() as f64);
@@ -528,7 +475,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     .with_origin(Point::new(x + width - height, 0.0))
                     .inflate(-inflate, -inflate),
                 text_layout,
-                path_layout: Some(path_layout),
+                path_layout,
             };
             x += width;
             self.rects.push(tab_rect);
@@ -571,17 +518,74 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
     }
 }
 
+fn get_truncated_path(full_paths: &Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut skip_left = 0;
+    'stop_left: loop {
+        if full_paths
+            .iter()
+            .map(|p| p.iter().skip(skip_left).next())
+            .collect::<Option<HashSet<_>>>()
+            .map(|h| h.len() == 1)
+            .unwrap_or(false)
+        {
+            skip_left += 1;
+        } else {
+            break 'stop_left;
+        }
+    }
+
+    let mut skip_right = 0;
+    'stop_right: loop {
+        if full_paths
+            .iter()
+            .map(|p| p.iter().rev().skip(skip_right).next())
+            .collect::<Option<HashSet<_>>>()
+            .map(|h| h.len() == 1)
+            .unwrap_or(false)
+        {
+            skip_right += 1;
+        } else {
+            break 'stop_right;
+        }
+    }
+
+    let truncated_paths = full_paths
+        .iter()
+        .map(|p| {
+            let length = p.iter().count();
+            let mut result = p
+                .iter()
+                .skip(skip_left)
+                .take(length - skip_left - skip_right)
+                .collect::<PathBuf>();
+
+            if skip_left > 0 {
+                result = PathBuf::from_str("...").unwrap().join(result);
+            }
+
+            if skip_right > 0 {
+                result.push("...")
+            }
+
+            result
+        })
+        .collect::<Vec<_>>();
+
+    truncated_paths
+}
+
 #[allow(unused_imports)]
 mod test {
-    use std::path::PathBuf;
+    use std::{path::PathBuf, str::FromStr};
 
     use druid::WidgetId;
 
-    use crate::editor::tab_header_content::LapceEditorTabHeaderContent;
+    use crate::editor::tab_header_content::{
+        get_truncated_path, LapceEditorTabHeaderContent,
+    };
 
     #[test]
-    fn test_effective_path() {
-        let workspace_path = Some(PathBuf::from("/home/user/myproject/"));
+    fn test_truncated_path() {
         let f1 = PathBuf::from("/home/user/myproject/folder1/file.rs");
         let f2 = PathBuf::from("/home/user/myproject/folder2/file.rs");
         let f3 = PathBuf::from("/file.rs");
@@ -598,26 +602,21 @@ mod test {
             "/home/user/myproject/🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆/🎉🎉🎉🎉🎉🎉🎉/🎊",
         );
 
-        let mut tab = LapceEditorTabHeaderContent::new(WidgetId::next());
+        let tab = LapceEditorTabHeaderContent::new(WidgetId::next());
 
-        let r1 = tab.get_effective_path(workspace_path.clone(), &f1);
-        let r2 = tab.get_effective_path(workspace_path.clone(), &f2);
-        let r3 = tab.get_effective_path(workspace_path.clone(), &f3);
-        let r4 = tab.get_effective_path(workspace_path.clone(), &f4);
-        let r5 = tab.get_effective_path(workspace_path.clone(), &f5);
-        let r6 = tab.get_effective_path(workspace_path.clone(), &f6);
-        let r7 = tab.get_effective_path(workspace_path.clone(), &f7);
-        let r8 = tab.get_effective_path(workspace_path.clone(), &f8);
-        let r9 = tab.get_effective_path(workspace_path.clone(), &f9);
+        let result = get_truncated_path(&vec![f1, f2, f3, f4, f5, f6, f7, f8, f9]);
 
-        assert_eq!(r1, "folder1");
-        assert_eq!(r2, "folder2");
-        assert_eq!(r3, "/");
-        assert_eq!(r4, "/home/user/proj");
-        assert_eq!(r5, "/home/user");
-        assert_eq!(r6, "./");
-        assert_eq!(r7, "./");
-        assert_eq!(r8, "/home/user/proj");
-        assert_eq!(r9, "🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆/🎉🎉🎉🎉🎉🎉🎉");
+        assert_eq!(result[0], PathBuf::from_str("folder1").unwrap());
+        assert_eq!(result[1], PathBuf::from_str("folder2").unwrap());
+        assert_eq!(result[2], PathBuf::from_str("/").unwrap());
+        assert_eq!(result[3], PathBuf::from_str("/home/user/proj").unwrap());
+        assert_eq!(result[4], PathBuf::from_str("/home/user").unwrap());
+        assert_eq!(result[5], PathBuf::from_str("./").unwrap());
+        assert_eq!(result[6], PathBuf::from_str("./").unwrap());
+        assert_eq!(result[7], PathBuf::from_str("/home/user/proj").unwrap());
+        assert_eq!(
+            result[8],
+            PathBuf::from_str("🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆🎆/🎉🎉🎉🎉🎉🎉🎉").unwrap()
+        );
     }
 }

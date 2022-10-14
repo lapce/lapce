@@ -657,8 +657,8 @@ impl TabRectRenderer for TabRect {
             ctx.draw_text(
                 path_layout,
                 Point::new(
-                    rect.x1 + self.text_layout.layout.width() as f64 + 5.0,
-                    self.text_layout.y_offset(size.height),
+                    rect.x1 + 5.0 + self.text_layout.layout.width() as f64 + 5.0,
+                    path_layout.y_offset(size.height),
                 ),
             );
         }
