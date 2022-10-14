@@ -49,7 +49,7 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Update rust
         run: rustup update
       - name: Build
@@ -95,7 +95,7 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install dependencies
         run: |
           apt-get -y update
@@ -143,7 +143,7 @@ jobs:
           - triple: aarch64-unknown-linux-musl
             platform: aarch64
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Set up Alpine Linux for ${{ matrix.platform }} (target arch)
         id: alpine-target
@@ -216,7 +216,7 @@ jobs:
       NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install ARM target
         run: rustup update && rustup target add aarch64-apple-darwin
       - name: Import Certificate
