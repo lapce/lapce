@@ -518,12 +518,12 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
     }
 }
 
-fn get_truncated_path(full_paths: &Vec<PathBuf>) -> Vec<PathBuf> {
+fn get_truncated_path(full_paths: &[PathBuf]) -> Vec<PathBuf> {
     let mut skip_left = 0;
     'stop_left: loop {
         if full_paths
             .iter()
-            .map(|p| p.iter().skip(skip_left).next())
+            .map(|p| p.iter().nth(skip_left))
             .collect::<Option<HashSet<_>>>()
             .map(|h| h.len() == 1)
             .unwrap_or(false)
@@ -538,7 +538,7 @@ fn get_truncated_path(full_paths: &Vec<PathBuf>) -> Vec<PathBuf> {
     'stop_right: loop {
         if full_paths
             .iter()
-            .map(|p| p.iter().rev().skip(skip_right).next())
+            .map(|p| p.iter().rev().nth(skip_right))
             .collect::<Option<HashSet<_>>>()
             .map(|h| h.len() == 1)
             .unwrap_or(false)
