@@ -314,6 +314,41 @@ impl LapceEditorTabHeaderContent {
             ));
         }
     }
+
+    pub fn update_dedup_paths(&mut self, data: &LapceTabData) {
+        let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+        // Collect all the filenames we currently have
+        let mut dup_filenames: HashMap<&str, Vec<PathBuf>> = HashMap::default();
+        for child in &editor_tab.children {
+            if let EditorTabChild::Editor(view_id, _, _) = child {
+                let editor = data.main_split.editors.get(view_id).unwrap();
+                if let BufferContent::File(path) = &editor.content {
+                    if let Some(file_name) = path.file_name() {
+                        dup_filenames
+                            .entry(file_name.to_str().unwrap())
+                            .and_modify(|v| v.push(path.clone()))
+                            .or_insert(vec![path.clone()]);
+                    }
+                }
+            }
+        }
+
+        // Clear dedup paths so that we dont store closed files
+        // TODO: Can be optimized by listening to close file events?
+        self.dedup_paths.clear();
+
+        // Resolve each group of duplicates and insert into `self.dedup_paths`.
+        for (_, dup_paths) in dup_filenames.iter().filter(|v| v.1.len() > 1) {
+            for (original_path, truncated_path) in
+                dup_paths.iter().zip(get_truncated_path(dup_paths).iter())
+            {
+                self.dedup_paths.insert(
+                    original_path.to_path_buf(),
+                    truncated_path.to_path_buf(),
+                );
+            }
+        }
+    }
 }
 
 impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
@@ -350,42 +385,19 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
     fn update(
         &mut self,
         _ctx: &mut UpdateCtx,
-        _old_data: &LapceTabData,
+        old_data: &LapceTabData,
         data: &LapceTabData,
         _env: &Env,
     ) {
         let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+        let old_editor_tab = old_data
+            .main_split
+            .editor_tabs
+            .get(&self.widget_id)
+            .unwrap();
 
-        // Collect all the filenames we currently have
-        let mut dup_filenames: HashMap<&str, Vec<PathBuf>> = HashMap::default();
-        for child in &editor_tab.children {
-            if let EditorTabChild::Editor(view_id, _, _) = child {
-                let editor = data.main_split.editors.get(view_id).unwrap();
-                if let BufferContent::File(path) = &editor.content {
-                    if let Some(file_name) = path.file_name() {
-                        dup_filenames
-                            .entry(file_name.to_str().unwrap())
-                            .and_modify(|v| v.push(path.clone()))
-                            .or_insert(vec![path.clone()]);
-                    }
-                }
-            }
-        }
-
-        // Clear dedup paths so that we dont store closed files
-        // TODO: Can be optimized by listening to close file events?
-        self.dedup_paths.clear();
-
-        // Resolve each group of duplicates and insert into `self.dedup_paths`.
-        for (_, dup_paths) in dup_filenames.iter().filter(|v| v.1.len() > 1) {
-            for (original_path, truncated_path) in
-                dup_paths.iter().zip(get_truncated_path(dup_paths).iter())
-            {
-                self.dedup_paths.insert(
-                    original_path.to_path_buf(),
-                    truncated_path.to_path_buf(),
-                );
-            }
+        if !editor_tab.children.ptr_eq(&old_editor_tab.children) {
+            self.update_dedup_paths(data);
         }
     }
 
@@ -596,7 +608,7 @@ mod test {
         let f5 = PathBuf::from("/home/user/toolongprojectshouldtruncate/file.rs");
         let f6 = PathBuf::from("/home/user/myproject/file.rs");
 
-        let result = get_truncated_path(&vec![f1, f2, f3, f4, f5, f6]);
+        let result = get_truncated_path(&[f1, f2, f3, f4, f5, f6]);
 
         assert_eq!(
             result[0],
@@ -623,7 +635,7 @@ mod test {
         let f1 = PathBuf::from("/home/user/myproject/folder1/file.rs");
         let f2 = PathBuf::from("/home/user/myproject/folder2/file.rs");
 
-        let result = get_truncated_path(&vec![f1, f2]);
+        let result = get_truncated_path(&[f1, f2]);
 
         assert_eq!(result[0], PathBuf::from_str(".../folder1").unwrap());
         assert_eq!(result[1], PathBuf::from_str(".../folder2").unwrap());

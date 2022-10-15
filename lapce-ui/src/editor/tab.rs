@@ -202,7 +202,7 @@ impl LapceEditorTab {
                                     widget_id: new_editor_tab_id,
                                     split: split_id,
                                     active: 0,
-                                    children: vec![child.clone()],
+                                    children: vec![child.clone()].into(),
                                     layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                                     content_is_hot: Rc::new(RefCell::new(false)),
                                 };
@@ -331,6 +331,14 @@ impl Widget<LapceTabData> for LapceEditorTab {
                 ctx.set_handled();
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::EditorContentChanged => {
+                        self.header
+                            .widget_mut()
+                            .content
+                            .widget_mut()
+                            .child_mut()
+                            .update_dedup_paths(data);
+                    }
                     LapceUICommand::EditorTabAdd(index, content) => {
                         self.children.insert(
                             *index,

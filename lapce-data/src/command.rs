@@ -685,6 +685,7 @@ pub enum LapceUICommand {
     EditorTabAdd(usize, EditorTabChild),
     EditorTabRemove(usize, bool, bool),
     EditorTabSwap(usize, usize),
+    EditorContentChanged,
     JumpToPosition(Option<WidgetId>, Position, bool),
     JumpToLine(Option<WidgetId>, usize),
     JumpToLocation(Option<WidgetId>, EditorLocation, bool),
