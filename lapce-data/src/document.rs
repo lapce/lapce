@@ -2557,7 +2557,8 @@ impl Document {
                 (new_offset, None)
             }
             Movement::WordBackward => {
-                let new_offset = self.buffer.move_n_words_backward(offset, count);
+                let new_offset =
+                    self.buffer.move_n_words_backward(offset, count, mode);
                 (new_offset, None)
             }
             Movement::NextUnmatched(c) => {

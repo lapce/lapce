@@ -19,6 +19,8 @@ mod editing {
 }
 
 mod motion {
+    use crate::mode::Mode;
+
     use super::*;
 
     #[test]
@@ -27,8 +29,8 @@ mod motion {
         assert_eq!(buffer.move_word_forward(0), 0);
         assert_eq!(buffer.move_n_words_forward(0, 2), 0);
 
-        assert_eq!(buffer.move_word_backward(0), 0);
-        assert_eq!(buffer.move_n_words_backward(0, 2), 0);
+        assert_eq!(buffer.move_word_backward(0, Mode::Insert), 0);
+        assert_eq!(buffer.move_n_words_backward(0, 2, Mode::Insert), 0);
 
         assert_eq!(buffer.move_n_wordends_forward(0, 2, false), 0);
         assert_eq!(buffer.move_n_wordends_forward(0, 2, true), 0);
@@ -41,15 +43,15 @@ mod motion {
 
         // 0 count does not move.
         assert_eq!(buffer.move_n_words_forward(0, 0), 0);
-        assert_eq!(buffer.move_n_words_backward(0, 0), 0);
+        assert_eq!(buffer.move_n_words_backward(0, 0, Mode::Insert), 0);
 
         for offset in 0..4 {
             assert_eq!(buffer.move_word_forward(offset), 4);
-            assert_eq!(buffer.move_word_backward(offset), 0);
+            assert_eq!(buffer.move_word_backward(offset, Mode::Insert), 0);
         }
 
         assert_eq!(buffer.move_word_forward(4), 8);
-        assert_eq!(buffer.move_word_backward(4), 0);
+        assert_eq!(buffer.move_word_backward(4, Mode::Insert), 0);
 
         let end = buffer.len() - 1;
         for offset in 0..4 {
@@ -57,14 +59,17 @@ mod motion {
         }
         assert_eq!(buffer.move_n_words_forward(4, 2), 15);
         for offset in 0..5 {
-            assert_eq!(buffer.move_n_words_backward(end - offset, 2), 8)
+            assert_eq!(
+                buffer.move_n_words_backward(end - offset, 2, Mode::Insert),
+                8
+            )
         }
-        assert_eq!(buffer.move_n_words_backward(end - 6, 2), 4);
+        assert_eq!(buffer.move_n_words_backward(end - 6, 2, Mode::Insert), 4);
 
         assert_eq!(buffer.move_n_words_forward(0, 2), 8);
         assert_eq!(buffer.move_n_words_forward(0, 3), 15);
-        assert_eq!(buffer.move_n_words_backward(end, 2), 8);
-        assert_eq!(buffer.move_n_words_backward(end, 3), 4);
+        assert_eq!(buffer.move_n_words_backward(end, 2, Mode::Insert), 8);
+        assert_eq!(buffer.move_n_words_backward(end, 3, Mode::Insert), 4);
 
         // FIXME: see #501 for possible issues in WordCursor::next_boundary()
         //
@@ -75,7 +80,10 @@ mod motion {
 
         // In the other direction.
         for offset in 0..end {
-            assert_eq!(buffer.move_n_words_backward(end - offset, 100), 0);
+            assert_eq!(
+                buffer.move_n_words_backward(end - offset, 100, Mode::Insert),
+                0
+            );
         }
     }
 

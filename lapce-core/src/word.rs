@@ -1,6 +1,9 @@
 use xi_rope::{Cursor, Rope, RopeInfo};
 
-use crate::syntax::util::{matching_char, matching_pair_direction};
+use crate::{
+    mode::Mode,
+    syntax::util::{matching_char, matching_pair_direction},
+};
 
 /// Describe char classifications used to compose word boundaries
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -59,17 +62,21 @@ impl<'a> WordCursor<'a> {
     }
 
     /// Get the previous start boundary of a word, and set the cursor position to the boundary found.
+    /// The behaviour diffs a bit on new line character with modal and non modal,
+    /// while on modal, it will ignore the new line character and on non-modal,
+    /// it will stop at the new line character
     /// **Example:**
     ///
     /// ```rust
     /// # use lapce_core::word::WordCursor;
+    /// # use lapce_core::mode::Mode;
     /// # use xi_rope::Rope;
     /// let rope = Rope::from("Hello world");
     /// let mut cursor = WordCursor::new(&rope, 4);
-    /// let boundary = cursor.prev_boundary();
+    /// let boundary = cursor.prev_boundary(Mode::Insert);
     /// assert_eq!(boundary, Some(0));
     ///```
-    pub fn prev_boundary(&mut self) -> Option<usize> {
+    pub fn prev_boundary(&mut self, mode: Mode) -> Option<usize> {
         if let Some(ch) = self.inner.prev_codepoint() {
             let mut prop = get_char_property(ch);
             let mut candidate = self.inner.pos();
@@ -80,7 +87,8 @@ impl<'a> WordCursor<'a> {
                 }
 
                 // Stop if line beginning reached, without any non-whitespace characters
-                if prop_prev == CharClassification::Lf
+                if mode == Mode::Insert
+                    && prop_prev == CharClassification::Lf
                     && prop == CharClassification::Space
                 {
                     break;
@@ -451,13 +459,15 @@ fn classify_boundary(
 mod test {
     use xi_rope::Rope;
 
+    use crate::mode::Mode;
+
     use super::WordCursor;
 
     #[test]
     fn prev_boundary_should_be_none_at_position_zero() {
         let rope = Rope::from("Hello world");
         let mut cursor = WordCursor::new(&rope, 0);
-        let boudary = cursor.prev_boundary();
+        let boudary = cursor.prev_boundary(Mode::Insert);
         assert!(boudary.is_none())
     }
 
@@ -465,7 +475,7 @@ mod test {
     fn prev_boundary_should_be_zero_when_cursor_on_first_word() {
         let rope = Rope::from("Hello world");
         let mut cursor = WordCursor::new(&rope, 4);
-        let boundary = cursor.prev_boundary();
+        let boundary = cursor.prev_boundary(Mode::Insert);
         assert_eq!(boundary, Some(0));
     }
 
@@ -473,16 +483,24 @@ mod test {
     fn prev_boundary_should_be_at_word_start() {
         let rope = Rope::from("Hello world");
         let mut cursor = WordCursor::new(&rope, 9);
-        let boundary = cursor.prev_boundary();
+        let boundary = cursor.prev_boundary(Mode::Insert);
         assert_eq!(boundary, Some(6));
     }
 
     #[test]
-    fn on_whitespace_prev_boundary_should_be_at_line_start() {
+    fn on_whitespace_prev_boundary_should_be_at_line_start_for_non_modal() {
         let rope = Rope::from("Hello\n    world");
         let mut cursor = WordCursor::new(&rope, 10);
-        let boundary = cursor.prev_boundary();
+        let boundary = cursor.prev_boundary(Mode::Insert);
         assert_eq!(boundary, Some(6));
+    }
+
+    #[test]
+    fn on_whitespace_prev_boundary_should_cross_line_for_modal() {
+        let rope = Rope::from("Hello\n    world");
+        let mut cursor = WordCursor::new(&rope, 10);
+        let boundary = cursor.prev_boundary(Mode::Normal);
+        assert_eq!(boundary, Some(0));
     }
 
     #[test]
