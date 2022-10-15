@@ -78,6 +78,14 @@ impl<'a> WordCursor<'a> {
                 if classify_boundary(prop_prev, prop).is_start() {
                     break;
                 }
+
+                // Stop if line beginning reached, without any non-whitespace characters
+                if prop_prev == CharClassification::Lf
+                    && prop == CharClassification::Space
+                {
+                    break;
+                }
+
                 prop = prop_prev;
                 candidate = self.inner.pos();
             }
@@ -465,6 +473,14 @@ mod test {
     fn prev_boundary_should_be_at_word_start() {
         let rope = Rope::from("Hello world");
         let mut cursor = WordCursor::new(&rope, 9);
+        let boundary = cursor.prev_boundary();
+        assert_eq!(boundary, Some(6));
+    }
+
+    #[test]
+    fn on_whitespace_prev_boundary_should_be_at_line_start() {
+        let rope = Rope::from("Hello\n    world");
+        let mut cursor = WordCursor::new(&rope, 10);
         let boundary = cursor.prev_boundary();
         assert_eq!(boundary, Some(6));
     }
