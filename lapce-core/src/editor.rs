@@ -91,6 +91,27 @@ impl Editor {
                         None
                     };
 
+                    // when text is selected, and [,{,(,'," is inserted
+                    // wrap the text with that char and its corresponding closing pair
+                    if region.start != region.end && matching_pair_type == Some(true)
+                        || c == '"'
+                        || c == '\''
+                    {
+                        edits.push((
+                            Selection::region(region.min(), region.min()),
+                            c.to_string(),
+                        ));
+                        edits_after.push((
+                            idx,
+                            match c {
+                                '"' => '"',
+                                '\'' => '\'',
+                                _ => matching_char(c).unwrap(),
+                            },
+                        ));
+                        continue;
+                    }
+
                     if auto_closing_matching_pairs {
                         if (c == '"' || c == '\'') && cursor_char == Some(c) {
                             // Skip the closing character
@@ -212,7 +233,7 @@ impl Editor {
                     .map(|(idx, content)| {
                         let region = &selection.regions()[*idx];
                         (
-                            Selection::region(region.start, region.end),
+                            Selection::region(region.max(), region.max()),
                             content.to_string(),
                         )
                     })
