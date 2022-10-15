@@ -93,9 +93,10 @@ impl Editor {
 
                     // when text is selected, and [,{,(,'," is inserted
                     // wrap the text with that char and its corresponding closing pair
-                    if region.start != region.end && matching_pair_type == Some(true)
-                        || c == '"'
-                        || c == '\''
+                    if region.start != region.end
+                        && (matching_pair_type == Some(true)
+                            || c == '"'
+                            || c == '\'')
                     {
                         edits.push((
                             Selection::region(region.min(), region.min()),
@@ -1492,6 +1493,17 @@ mod test {
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
         Editor::insert(&mut cursor, &mut buffer, "}", None, true);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
+    }
+
+    #[test]
+    fn test_insert_pair_with_selection() {
+        let mut buffer = Buffer::new("a bc\ne fg\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::new(0, 4, None));
+        selection.add_region(SelRegion::new(5, 9, None));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+        Editor::insert(&mut cursor, &mut buffer, "{", None, true);
+        assert_eq!("{a bc}\n{e fg}\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
     #[test]

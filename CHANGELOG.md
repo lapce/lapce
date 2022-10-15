@@ -10,6 +10,7 @@
 - [#1475](https://github.com/lapce/lapce/pull/1475): Add editor setting: "Cursor Surrounding Lines" which sets minimum number of lines above and below cursor
 - [#1525](https://github.com/lapce/lapce/pull/1525): Add editor indent guide
 - [#1521](https://github.com/lapce/lapce/pull/1521): Show unique paths to disambiguate same file names
+- [#1452](https://github.com/lapce/lapce/pull/1452): Wrap selected text with brackets/quotes
 
 ### Bug Fixes
 
