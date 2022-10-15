@@ -17,6 +17,7 @@ use druid::{
     piet::PietText, theme, Command, Data, Env, EventCtx, ExtEventSink,
     FileDialogOptions, Lens, Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
+use im::Vector;
 use itertools::Itertools;
 use lapce_core::{
     command::{FocusCommand, MultiSelectionCommand},
@@ -2336,7 +2337,7 @@ impl LapceMainSplitData {
                 widget_id: WidgetId::next(),
                 split: *self.split_id,
                 active: 0,
-                children: vec![],
+                children: Vector::new(),
                 layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                 content_is_hot: Rc::new(RefCell::new(false)),
             };
@@ -2378,7 +2379,7 @@ impl LapceMainSplitData {
             widget_id: editor_tab_id,
             split: split_id,
             active: 0,
-            children: vec![],
+            children: Vector::new(),
             layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             content_is_hot: Rc::new(RefCell::new(false)),
         };
@@ -2421,7 +2422,7 @@ impl LapceMainSplitData {
             editor_tab_id,
             keymap_input_view_id,
         };
-        editor_tab.children.push(child.clone());
+        editor_tab.children.push_back(child.clone());
         child.widget_id()
     }
 
@@ -2440,7 +2441,7 @@ impl LapceMainSplitData {
             BufferContent::Local(LocalBufferKind::Empty),
             config,
         ));
-        editor_tab.children.push(EditorTabChild::Editor(
+        editor_tab.children.push_back(EditorTabChild::Editor(
             editor.view_id,
             editor.editor_id,
             editor.find_view_id,
@@ -3695,7 +3696,8 @@ impl LapceMainSplitData {
                 editor_tab_id: new_editor_tab_id,
                 volt_id,
                 volt_name,
-            }],
+            }]
+            .into(),
             layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             content_is_hot: Rc::new(RefCell::new(false)),
         };
@@ -3749,7 +3751,8 @@ impl LapceMainSplitData {
                 settings_widget_id: WidgetId::next(),
                 editor_tab_id: new_editor_tab_id,
                 keymap_input_view_id,
-            }],
+            }]
+            .into(),
             layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             content_is_hot: Rc::new(RefCell::new(false)),
         };
@@ -3829,7 +3832,8 @@ impl LapceMainSplitData {
                     new_editor.view_id,
                     new_editor.editor_id,
                     new_editor.find_view_id,
-                )],
+                )]
+                .into(),
                 layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                 content_is_hot: Rc::new(RefCell::new(false)),
             };
@@ -3941,7 +3945,7 @@ pub struct LapceEditorTabData {
     pub widget_id: WidgetId,
     pub split: WidgetId,
     pub active: usize,
-    pub children: Vec<EditorTabChild>,
+    pub children: Vector<EditorTabChild>,
     pub layout_rect: Rc<RefCell<Rect>>,
     pub content_is_hot: Rc<RefCell<bool>>,
 }

@@ -1003,6 +1003,13 @@ impl Widget<LapceTabData> for LapceEditorView {
 
         if editor_data.editor.content != old_editor_data.editor.content {
             ctx.request_layout();
+            if let Some(editor_tab_id) = editor_data.editor.tab_id.as_ref() {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EditorContentChanged,
+                    Target::Widget(*editor_tab_id),
+                ));
+            }
         }
         if editor_data.editor.view != old_editor_data.editor.view {
             ctx.request_layout();

@@ -91,6 +91,28 @@ impl Editor {
                         None
                     };
 
+                    // when text is selected, and [,{,(,'," is inserted
+                    // wrap the text with that char and its corresponding closing pair
+                    if region.start != region.end
+                        && (matching_pair_type == Some(true)
+                            || c == '"'
+                            || c == '\'')
+                    {
+                        edits.push((
+                            Selection::region(region.min(), region.min()),
+                            c.to_string(),
+                        ));
+                        edits_after.push((
+                            idx,
+                            match c {
+                                '"' => '"',
+                                '\'' => '\'',
+                                _ => matching_char(c).unwrap(),
+                            },
+                        ));
+                        continue;
+                    }
+
                     if auto_closing_matching_pairs {
                         if (c == '"' || c == '\'') && cursor_char == Some(c) {
                             // Skip the closing character
@@ -212,7 +234,7 @@ impl Editor {
                     .map(|(idx, content)| {
                         let region = &selection.regions()[*idx];
                         (
-                            Selection::region(region.start, region.end),
+                            Selection::region(region.max(), region.max()),
                             content.to_string(),
                         )
                     })
@@ -1471,6 +1493,17 @@ mod test {
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
         Editor::insert(&mut cursor, &mut buffer, "}", None, true);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
+    }
+
+    #[test]
+    fn test_insert_pair_with_selection() {
+        let mut buffer = Buffer::new("a bc\ne fg\n");
+        let mut selection = Selection::new();
+        selection.add_region(SelRegion::new(0, 4, None));
+        selection.add_region(SelRegion::new(5, 9, None));
+        let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
+        Editor::insert(&mut cursor, &mut buffer, "{", None, true);
+        assert_eq!("{a bc}\n{e fg}\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
     #[test]

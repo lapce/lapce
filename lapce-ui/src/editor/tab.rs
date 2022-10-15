@@ -202,7 +202,7 @@ impl LapceEditorTab {
                                     widget_id: new_editor_tab_id,
                                     split: split_id,
                                     active: 0,
-                                    children: vec![child.clone()],
+                                    children: vec![child.clone()].into(),
                                     layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                                     content_is_hot: Rc::new(RefCell::new(false)),
                                 };
@@ -331,6 +331,14 @@ impl Widget<LapceTabData> for LapceEditorTab {
                 ctx.set_handled();
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::EditorContentChanged => {
+                        self.header
+                            .widget_mut()
+                            .content
+                            .widget_mut()
+                            .child_mut()
+                            .update_dedup_paths(data);
+                    }
                     LapceUICommand::EditorTabAdd(index, content) => {
                         self.children.insert(
                             *index,
@@ -660,6 +668,15 @@ impl TabRectRenderer for TabRect {
             &self.text_layout,
             Point::new(rect.x1 + 5.0, self.text_layout.y_offset(size.height)),
         );
+        if let Some(path_layout) = &self.path_layout {
+            ctx.draw_text(
+                path_layout,
+                Point::new(
+                    rect.x1 + 5.0 + self.text_layout.layout.width() as f64 + 5.0,
+                    path_layout.y_offset(size.height),
+                ),
+            );
+        }
         let x = self.rect.x1;
         ctx.stroke(
             Line::new(

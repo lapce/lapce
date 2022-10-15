@@ -606,7 +606,10 @@ fn create_settings_item(
         ),
         serde_json::Value::Array(_)
         | serde_json::Value::Object(_)
-        | serde_json::Value::Null => panic!("Unknown setting value kind"),
+        | serde_json::Value::Null => WidgetPod::new(
+            LapcePadding::new(insets, EmptySettingsItem::new(key, kind, desc))
+                .boxed(),
+        ),
     }
 }
 
@@ -824,6 +827,65 @@ impl SettingsItemInfo {
         ctx.draw_text(desc, Point::new(extra_width, y));
 
         desc_y
+    }
+}
+
+/// An uneditable settings item. Typically this is because it must
+/// be edited directly in the `settings.toml` file.
+struct EmptySettingsItem {
+    info: SettingsItemInfo,
+}
+impl EmptySettingsItem {
+    fn new(key: String, kind: String, desc: String) -> Self {
+        EmptySettingsItem {
+            info: SettingsItemInfo::new(key, kind, desc),
+        }
+    }
+}
+impl Widget<LapceTabData> for EmptySettingsItem {
+    fn event(
+        &mut self,
+        _ctx: &mut EventCtx,
+        _event: &Event,
+        _data: &mut LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+        if let LifeCycle::HotChanged(_) = event {
+            ctx.request_paint();
+        }
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        self.info.update(ctx, old_data, data, env);
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        self.info.layout(ctx, bc, data, env, 0.0)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        self.info.paint(ctx, data, env, 0.0);
     }
 }
 

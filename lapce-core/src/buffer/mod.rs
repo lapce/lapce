@@ -819,8 +819,8 @@ impl Buffer {
         self.move_n_words_forward(offset, 1)
     }
 
-    pub fn move_word_backward(&self, offset: usize) -> usize {
-        self.move_n_words_backward(offset, 1)
+    pub fn move_word_backward(&self, offset: usize, mode: Mode) -> usize {
+        self.move_n_words_backward(offset, 1, mode)
     }
 
     pub fn next_grapheme_offset(
@@ -946,8 +946,13 @@ impl Buffer {
         new_offset
     }
 
-    pub fn move_n_words_backward(&self, offset: usize, count: usize) -> usize {
-        self.find_nth_word(offset, count, |cursor| cursor.prev_boundary())
+    pub fn move_n_words_backward(
+        &self,
+        offset: usize,
+        count: usize,
+        mode: Mode,
+    ) -> usize {
+        self.find_nth_word(offset, count, |cursor| cursor.prev_boundary(mode))
     }
 
     pub fn move_word_backward_deletion(&self, offset: usize) -> usize {

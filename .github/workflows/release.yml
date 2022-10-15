@@ -49,7 +49,7 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Update rust
         run: rustup update
       - name: Build
@@ -95,26 +95,24 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install dependencies
         run: |
           apt-get -y update
           apt-get -y install cmake pkg-config libfontconfig-dev libgtk-3-dev
 
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: x86_64-unknown-linux-gnu
-          profile: minimal
+      - name: Update Rust toolchain
+        run: rustup update
 
       - name: Build
         run: cargo build --profile release-lto --bin lapce
+
       - name: Gzip
         run: |
           mkdir Lapce
           cp ./target/release-lto/lapce Lapce/
           tar -zcvf ./Lapce-linux.tar.gz Lapce
+
       - uses: actions/upload-artifact@v3
         with:
           name: lapce-linux
@@ -143,7 +141,7 @@ jobs:
           - triple: aarch64-unknown-linux-musl
             platform: aarch64
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Set up Alpine Linux for ${{ matrix.platform }} (target arch)
         id: alpine-target
@@ -216,7 +214,7 @@ jobs:
       NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install ARM target
         run: rustup update && rustup target add aarch64-apple-darwin
       - name: Import Certificate

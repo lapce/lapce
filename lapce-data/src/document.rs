@@ -74,17 +74,20 @@ impl Clipboard for SystemClipboard {
     }
 }
 
+#[derive(Clone)]
 pub struct LineExtraStyle {
     pub bg_color: Option<Color>,
     pub under_line: Option<Color>,
 }
 
+#[derive(Clone)]
 pub struct TextLayoutLine {
     /// Extra styling that should be applied to the text
     /// (x0, x1 or line display end, style)
     pub extra_style: Vec<(f64, Option<f64>, LineExtraStyle)>,
     pub text: PietTextLayout,
-    pub whitespace: Option<PietTextLayout>,
+    pub whitespaces: Option<Vec<(char, (f64, f64))>>,
+    pub indent: f64,
 }
 
 #[derive(Clone, Default)]
@@ -1821,18 +1824,18 @@ impl Document {
             let mut cache = self.text_layouts.borrow_mut();
             cache.layouts.insert(font_size, HashMap::new());
         }
-        if self
+        let cache_exits = self
             .text_layouts
             .borrow()
             .layouts
             .get(&font_size)
             .unwrap()
             .get(&line)
-            .is_none()
-        {
-            let mut cache = self.text_layouts.borrow_mut();
+            .is_some();
+        if !cache_exits {
             let text_layout =
                 Arc::new(self.new_text_layout(text, line, font_size, config));
+            let mut cache = self.text_layouts.borrow_mut();
             let width = text_layout.text.size().width;
             if width > cache.max_width {
                 cache.max_width = width;
@@ -1860,10 +1863,27 @@ impl Document {
         font_size: usize,
         config: &LapceConfig,
     ) -> TextLayoutLine {
-        let line_content_original = self.buffer.line_content(line).to_string();
+        let line_content_original = self.buffer.line_content(line);
 
+        let (line_content, line_content_original) =
+            if let Some(s) = line_content_original.strip_suffix("\r\n") {
+                (
+                    format!("{s}  "),
+                    &line_content_original[..line_content_original.len() - 2],
+                )
+            } else if let Some(s) = line_content_original.strip_suffix('\n') {
+                (
+                    format!("{s} ",),
+                    &line_content_original[..line_content_original.len() - 1],
+                )
+            } else {
+                (
+                    line_content_original.to_string(),
+                    &line_content_original[..],
+                )
+            };
         let phantom_text = self.line_phantom_text(config, line);
-        let line_content = phantom_text.combine_with_text(line_content_original);
+        let line_content = phantom_text.combine_with_text(line_content);
 
         let tab_width =
             config.tab_width(text, config.editor.font_family(), font_size);
@@ -1925,14 +1945,14 @@ impl Document {
             }
         }
 
-        let layout_text = layout_builder.build().unwrap();
+        let text_layout = layout_builder.build().unwrap();
         let mut extra_style = Vec::new();
         for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
             if phantom.bg.is_some() || phantom.under_line.is_some() {
                 let start = col + offset;
                 let end = start + size;
-                let x0 = layout_text.hit_test_text_position(start).point.x;
-                let x1 = layout_text.hit_test_text_position(end).point.x;
+                let x0 = text_layout.hit_test_text_position(start).point.x;
+                let x1 = text_layout.hit_test_text_position(end).point.x;
                 extra_style.push((
                     x0,
                     Some(x1),
@@ -1954,7 +1974,7 @@ impl Document {
             };
 
             let x1 = (!config.editor.error_lens_end_of_line).then(|| {
-                layout_text
+                text_layout
                     .hit_test_text_position(line_content.len())
                     .point
                     .x
@@ -1970,37 +1990,55 @@ impl Document {
             ));
         }
 
-        let whitespace = Self::new_layout_whitespace(
-            &layout_text,
-            &line_content,
+        let new_whitespaces = Self::new_whitespace_layout(
+            line_content_original,
+            &text_layout,
+            &phantom_text,
             config,
-            tab_width,
-            text,
-            font_size,
         );
 
+        let indent_line = if line_content_original.trim().is_empty() {
+            let offset = self.buffer.offset_of_line(line);
+            if let Some(offset) = self
+                .syntax
+                .as_ref()
+                .and_then(|syntax| syntax.parent_offset(offset))
+            {
+                self.buffer.line_of_offset(offset)
+            } else {
+                line
+            }
+        } else {
+            line
+        };
+
+        let indent = if indent_line != line {
+            self.get_text_layout(text, indent_line, font_size, config)
+                .indent
+                + 1.0
+        } else {
+            let offset = self.buffer.first_non_blank_character_on_line(indent_line);
+            let (_, col) = self.buffer.offset_to_line_col(offset);
+            text_layout.hit_test_text_position(col).point.x
+        };
+
         TextLayoutLine {
-            text: layout_text,
+            text: text_layout,
             extra_style,
-            whitespace,
+            whitespaces: new_whitespaces,
+            indent,
         }
     }
 
     /// Create rendable whitespace layout by creating a new text layout
     /// with invicible spaces and special utf8 characters that display
     /// the different white space characters.
-    fn new_layout_whitespace(
-        layout_text: &PietTextLayout,
+    fn new_whitespace_layout(
         line_content: &str,
+        text_layout: &PietTextLayout,
+        phantom: &PhantomTextLine,
         config: &LapceConfig,
-        tab_width: f64,
-        text: &mut PietText,
-        font_size: usize,
-    ) -> Option<PietTextLayout> {
-        if config.editor.render_whitespace == "none" {
-            return None;
-        }
-
+    ) -> Option<Vec<(char, (f64, f64))>> {
         let mut render_leading = false;
         let mut render_boundary = false;
         let mut render_between = false;
@@ -2020,63 +2058,46 @@ impl Document {
             _ => return None,
         }
 
-        // Create new line, replacing whitespaces with visible characters
-        // and replacing visible characters with spaces.
-        let line_count = line_content.chars().count();
-        let space = tab_width / config.editor.tab_width as f64;
-        let mut whitespace_buffer: Vec<char> = Vec::new();
-        let mut rendered_whitespaces = String::new();
+        let mut whitespace_buffer = Vec::new();
+        let mut rendered_whitespaces: Vec<(char, (f64, f64))> = Vec::new();
         let mut char_found = false;
-        for (ii, c) in line_content.chars().enumerate() {
-            if c == '\t' {
-                whitespace_buffer.push('→');
-                if ii < line_count - 1 {
-                    // Make sure that tab spaces are rendered the same way
-                    // as the source code layout
-                    let start = layout_text.hit_test_text_position(ii).point.x;
-                    let end = layout_text.hit_test_text_position(ii + 1).point.x;
-                    let spaces = ((end - start) / space) as usize;
-                    let buffer_len = whitespace_buffer.len() + (spaces - 1);
-                    whitespace_buffer.resize(buffer_len, ' ');
+        let mut col = 0;
+        for c in line_content.chars() {
+            match c {
+                '\t' => {
+                    let col_left = phantom.col_after(col, true);
+                    let col_right = phantom.col_after(col + 1, false);
+                    let x0 = text_layout.hit_test_text_position(col_left).point.x;
+                    let x1 = text_layout.hit_test_text_position(col_right).point.x;
+                    whitespace_buffer.push(('\t', (x0, x1)));
                 }
-            } else if c == ' ' {
-                whitespace_buffer.push('·');
-            } else if c != '\n' && c != '\r' {
-                if (char_found && render_between)
-                    || (char_found && render_boundary && whitespace_buffer.len() > 1)
-                    || (!char_found && render_leading)
-                {
-                    rendered_whitespaces.extend(whitespace_buffer.iter());
-                } else {
-                    // Replace all the unused whitespaces with empty spaces
-                    for _ in 0..whitespace_buffer.len() {
-                        rendered_whitespaces.push(' ');
+                ' ' => {
+                    let col_left = phantom.col_after(col, true);
+                    let col_right = phantom.col_after(col + 1, false);
+                    let x0 = text_layout.hit_test_text_position(col_left).point.x;
+                    let x1 = text_layout.hit_test_text_position(col_right).point.x;
+                    whitespace_buffer.push((' ', (x0, x1)));
+                }
+                _ => {
+                    if (char_found && render_between)
+                        || (char_found
+                            && render_boundary
+                            && whitespace_buffer.len() > 1)
+                        || (!char_found && render_leading)
+                    {
+                        rendered_whitespaces.extend(whitespace_buffer.iter());
+                    } else {
                     }
+
+                    char_found = true;
+                    whitespace_buffer.clear();
                 }
-
-                rendered_whitespaces.push(' ');
-                char_found = true;
-                whitespace_buffer.clear();
             }
+            col += c.len_utf8();
         }
-
-        // Finally add all the trailing spaces if there are spaces left
         rendered_whitespaces.extend(whitespace_buffer.iter());
 
-        let whitespace_color = config
-            .get_style_color(LapceTheme::EDITOR_VISIBLE_WHITESPACE)
-            .unwrap_or(&Color::rgb8(0x5c, 0x63, 0x70)) // dark theme comment color
-            .clone();
-        let whitespace_color = whitespace_color.with_alpha(0.5);
-
-        let whitespace = text
-            .new_text_layout(rendered_whitespaces)
-            .font(config.editor.font_family(), font_size as f64)
-            .text_color(whitespace_color)
-            .build()
-            .unwrap();
-
-        Some(whitespace)
+        Some(rendered_whitespaces)
     }
 
     pub fn line_horiz_col(
@@ -2536,7 +2557,8 @@ impl Document {
                 (new_offset, None)
             }
             Movement::WordBackward => {
-                let new_offset = self.buffer.move_n_words_backward(offset, count);
+                let new_offset =
+                    self.buffer.move_n_words_backward(offset, count, mode);
                 (new_offset, None)
             }
             Movement::NextUnmatched(c) => {

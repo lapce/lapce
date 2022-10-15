@@ -820,7 +820,7 @@ impl LapceEditor {
         Self::paint_current_line(ctx, data, &screen_lines);
         Self::paint_cursor_new(ctx, data, &screen_lines, is_focused, env);
         Self::paint_find(ctx, data, &screen_lines);
-        Self::paint_text(ctx, data, &screen_lines, env);
+        Self::paint_text(ctx, data, &screen_lines);
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
         Self::paint_sticky_headers(ctx, data, env);
@@ -857,9 +857,62 @@ impl LapceEditor {
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
         screen_lines: &ScreenLines,
-        _env: &Env,
     ) {
         let self_size = ctx.size();
+
+        let tab_text = ctx
+            .text()
+            .new_text_layout("→")
+            .font(
+                data.config.editor.font_family(),
+                data.config.editor.font_size as f64,
+            )
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_VISIBLE_WHITESPACE)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        let tab_text_shift =
+            tab_text.y_offset(data.config.editor.line_height() as f64);
+        let space_text = ctx
+            .text()
+            .new_text_layout("·")
+            .font(
+                data.config.editor.font_family(),
+                data.config.editor.font_size as f64,
+            )
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_VISIBLE_WHITESPACE)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        let space_text_shift =
+            tab_text.y_offset(data.config.editor.line_height() as f64);
+
+        let tab_width = data.config.tab_width(
+            ctx.text(),
+            data.config.editor.font_family(),
+            data.config.editor.font_size,
+        );
+        let indent_unit = data.doc.buffer().indent_unit();
+        let indent_text = ctx
+            .text()
+            .new_text_layout(format!("{}a", indent_unit))
+            .font(
+                data.config.editor.font_family(),
+                data.config.editor.font_size as f64,
+            )
+            .set_tab_width(tab_width)
+            .build()
+            .unwrap();
+        let indent_text_width = indent_text
+            .hit_test_text_position(indent_unit.len())
+            .point
+            .x;
 
         for line in &screen_lines.lines {
             let line = *line;
@@ -895,8 +948,44 @@ impl LapceEditor {
                 }
             }
 
-            if let Some(whitespace) = &text_layout.whitespace {
-                ctx.draw_text(whitespace, Point::new(info.x, y));
+            if !data.editor.content.is_special()
+                && info.font_size == data.config.editor.font_size
+            {
+                if let Some(whitespaces) = &text_layout.whitespaces {
+                    for (c, (x0, _x1)) in whitespaces.iter() {
+                        match *c {
+                            '\t' => {
+                                ctx.draw_text(
+                                    &tab_text,
+                                    Point::new(*x0, info.y + tab_text_shift),
+                                );
+                            }
+                            ' ' => {
+                                ctx.draw_text(
+                                    &space_text,
+                                    Point::new(*x0, info.y + space_text_shift),
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                if data.config.editor.show_indent_guide {
+                    let mut x = 0.0;
+                    while x + 0.5 < text_layout.indent {
+                        ctx.stroke(
+                            Line::new(
+                                Point::new(x, info.y),
+                                Point::new(x, info.y + info.line_height),
+                            ),
+                            data.config.get_color_unchecked(
+                                LapceTheme::EDITOR_INDENT_GUIDE,
+                            ),
+                            1.0,
+                        );
+                        x += indent_text_width;
+                    }
+                }
             }
 
             ctx.draw_text(&text_layout.text, Point::new(info.x, y));
