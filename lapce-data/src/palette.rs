@@ -1,4 +1,12 @@
-use std::{cmp::Ordering, collections::HashSet, path::PathBuf, sync::Arc};
+use std::{
+    cell::RefCell,
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    rc::Rc,
+    sync::Arc,
+    time::Instant,
+};
 
 use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
 use anyhow::Result;
@@ -360,6 +368,7 @@ pub struct PaletteData {
     pub total_items: im::Vector<PaletteItem>,
     pub preview_editor: WidgetId,
     pub input_editor: WidgetId,
+    pub executed_commands: Rc<RefCell<HashMap<String, Instant>>>,
 }
 
 impl KeyPressFocus for PaletteViewData {
@@ -444,6 +453,7 @@ impl PaletteData {
             total_items: im::Vector::new(),
             preview_editor,
             input_editor: WidgetId::next(),
+            executed_commands: Rc::new(RefCell::new(HashMap::new())),
         }
     }
 
@@ -706,6 +716,12 @@ impl PaletteViewData {
         }
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.list_data.current_selected_item() {
+            if let PaletteItemContent::Command(cmd) = &item.content {
+                palette
+                    .executed_commands
+                    .borrow_mut()
+                    .insert(cmd.kind.str().to_string(), Instant::now());
+            }
             if item.content.select(ctx, false, palette.preview_editor) {
                 self.cancel(ctx);
             }
@@ -910,24 +926,48 @@ impl PaletteViewData {
     fn get_commands(&mut self, _ctx: &mut EventCtx) {
         const EXCLUDED_ITEMS: &[&str] = &["palette.command"];
 
-        let palette = Arc::make_mut(&mut self.palette);
-        palette.total_items = self
-            .keypress
-            .commands
+        let mut items: im::Vector<PaletteItem> = self
+            .palette
+            .executed_commands
+            .borrow()
             .iter()
-            .filter_map(|(_, c)| {
-                if EXCLUDED_ITEMS.contains(&c.kind.str()) {
-                    return None;
-                }
-
-                c.kind.desc().as_ref().map(|m| PaletteItem {
-                    content: PaletteItemContent::Command(c.clone()),
-                    filter_text: m.to_string(),
-                    score: 0,
-                    indices: vec![],
+            .sorted_by_key(|(_, i)| *i)
+            .rev()
+            .filter_map(|(key, _)| {
+                self.keypress.commands.get(key).and_then(|c| {
+                    c.kind.desc().as_ref().map(|m| PaletteItem {
+                        content: PaletteItemContent::Command(c.clone()),
+                        filter_text: m.to_string(),
+                        score: 0,
+                        indices: vec![],
+                    })
                 })
             })
             .collect();
+        items.extend(self.keypress.commands.iter().filter_map(|(_, c)| {
+            if EXCLUDED_ITEMS.contains(&c.kind.str()) {
+                return None;
+            }
+
+            if self
+                .palette
+                .executed_commands
+                .borrow()
+                .contains_key(c.kind.str())
+            {
+                return None;
+            }
+
+            c.kind.desc().as_ref().map(|m| PaletteItem {
+                content: PaletteItemContent::Command(c.clone()),
+                filter_text: m.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+        }));
+
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.total_items = items;
     }
 
     fn get_lines(&mut self, _ctx: &mut EventCtx) {
