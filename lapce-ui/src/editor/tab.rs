@@ -91,7 +91,7 @@ impl LapceEditorTab {
             editor_tab.children.remove(i)
         } else if editor_tab.active == i {
             if i >= editor_tab.children.len() - 1 {
-                editor_tab.active = i - 1;
+                editor_tab.active -= 1;
             };
             if focus {
                 ctx.submit_command(Command::new(
@@ -117,7 +117,19 @@ impl LapceEditorTab {
         if delete {
             match removed_child {
                 EditorTabChild::Editor(view_id, _, _) => {
-                    data.main_split.editors.remove(&view_id);
+                    if let Some(editor) = data.main_split.editors.remove(&view_id) {
+                        if let BufferContent::Scratch(buffer_id, _) = editor.content
+                        {
+                            let exits_in_other_edits =
+                                data.main_split.editors.iter().any(|(_, e)| {
+                                    e.view_id != editor.view_id
+                                        && e.content == editor.content
+                                });
+                            if !exits_in_other_edits {
+                                data.main_split.scratch_docs.remove(&buffer_id);
+                            }
+                        }
+                    }
                 }
                 EditorTabChild::Settings { .. } => {}
                 EditorTabChild::Plugin { .. } => {}
@@ -190,7 +202,7 @@ impl LapceEditorTab {
                                     widget_id: new_editor_tab_id,
                                     split: split_id,
                                     active: 0,
-                                    children: vec![child.clone()],
+                                    children: vec![child.clone()].into(),
                                     layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                                     content_is_hot: Rc::new(RefCell::new(false)),
                                 };
@@ -319,6 +331,14 @@ impl Widget<LapceTabData> for LapceEditorTab {
                 ctx.set_handled();
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::EditorContentChanged => {
+                        self.header
+                            .widget_mut()
+                            .content
+                            .widget_mut()
+                            .child_mut()
+                            .update_dedup_paths(data);
+                    }
                     LapceUICommand::EditorTabAdd(index, content) => {
                         self.children.insert(
                             *index,
@@ -598,7 +618,7 @@ pub trait TabRectRenderer {
         widget_id: WidgetId,
         tab_idx: usize,
         size: Size,
-        mouse_pos: Point,
+        mouse_pos: Option<Point>,
     );
 }
 
@@ -610,7 +630,7 @@ impl TabRectRenderer for TabRect {
         widget_id: WidgetId,
         tab_idx: usize,
         size: Size,
-        mouse_pos: Point,
+        mouse_pos: Option<Point>,
     ) {
         let font_size = data.config.ui.font_size() as f64;
         let width = font_size;
@@ -619,8 +639,8 @@ impl TabRectRenderer for TabRect {
         let editor_tab = data.main_split.editor_tabs.get(&widget_id).unwrap();
 
         let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-            self.rect.x0 + (size.height - width) / 2.0,
-            (size.height - height) / 2.0,
+            self.rect.x0 + (width) / 2.0,
+            self.rect.y0 + (size.height - height) / 2.0,
         ));
 
         let is_active_tab = tab_idx == editor_tab.active;
@@ -648,6 +668,15 @@ impl TabRectRenderer for TabRect {
             &self.text_layout,
             Point::new(rect.x1 + 5.0, self.text_layout.y_offset(size.height)),
         );
+        if let Some(path_layout) = &self.path_layout {
+            ctx.draw_text(
+                path_layout,
+                Point::new(
+                    rect.x1 + 5.0 + self.text_layout.layout.width() as f64 + 5.0,
+                    path_layout.y_offset(size.height),
+                ),
+            );
+        }
         let x = self.rect.x1;
         ctx.stroke(
             Line::new(
@@ -672,7 +701,7 @@ impl TabRectRenderer for TabRect {
         }
 
         // Only show background of close button on hover
-        if self.close_rect.contains(mouse_pos) {
+        if mouse_pos.map(|s| self.rect.contains(s)).unwrap_or(false) {
             ctx.fill(
                 &self.close_rect,
                 data.config
@@ -682,10 +711,11 @@ impl TabRectRenderer for TabRect {
 
         // See if any of the children have unsaved changes
         let is_pristine = match &editor_tab.children[tab_idx] {
-            EditorTabChild::Editor(editor_id, _, _) => {
-                let doc = data.main_split.editor_doc(*editor_id);
-                doc.buffer().is_pristine()
-            }
+            EditorTabChild::Editor(editor_id, _, _) => data
+                .main_split
+                .editor_doc(*editor_id)
+                .buffer()
+                .is_pristine(),
             EditorTabChild::Settings { .. } => true,
             EditorTabChild::Plugin { .. } => true,
         };
@@ -701,8 +731,10 @@ impl TabRectRenderer for TabRect {
             );
         };
 
-        if is_pristine || self.close_rect.contains(mouse_pos) {
-            if self.rect.contains(mouse_pos) || is_active_tab {
+        if is_pristine {
+            if mouse_pos.map(|s| self.rect.contains(s)).unwrap_or(false)
+                || is_active_tab
+            {
                 draw_icon("close.svg")
             }
         } else {

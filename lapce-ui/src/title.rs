@@ -414,13 +414,15 @@ impl Title {
             }),
             MenuKind::Separator,
             MenuKind::Item(MenuItem {
-                desc: Some(
-                    if latest_version.is_some() && latest_version != Some(*VERSION) {
-                        format!("Restart to update ({})", latest_version.unwrap())
-                    } else {
-                        "No update available".to_string()
-                    },
-                ),
+                desc: Some(if data.update_in_progress && latest_version.is_some() {
+                    format!("Update in progress ({}) ", latest_version.unwrap())
+                } else if latest_version.is_some()
+                    && latest_version != Some(*VERSION)
+                {
+                    format!("Restart to update ({})", latest_version.unwrap())
+                } else {
+                    "No update available".to_string()
+                }),
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::RestartToUpdate,
@@ -428,7 +430,8 @@ impl Title {
                     data: None,
                 },
                 enabled: latest_version.is_some()
-                    && latest_version != Some(*VERSION),
+                    && latest_version != Some(*VERSION)
+                    && !data.update_in_progress,
             }),
             MenuKind::Separator,
             MenuKind::Item(MenuItem {

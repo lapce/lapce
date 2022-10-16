@@ -23,8 +23,8 @@ use lapce_rpc::{
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
-    InlayHint, Location, Position, ProgressParams, PublishDiagnosticsParams,
-    SelectionRange, TextEdit, WorkspaceEdit,
+    InlayHint, Location, MessageType, Position, ProgressParams,
+    PublishDiagnosticsParams, SelectionRange, TextEdit, WorkspaceEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
@@ -46,6 +46,7 @@ use crate::{
     rich_text::RichText,
     search::Match,
     selection_range::SelectionRangeDirection,
+    settings::LapceSettingsKind,
     split::{SplitDirection, SplitMoveDirection},
     update::ReleaseInfo,
 };
@@ -454,6 +455,16 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "save_all")]
     SaveAll,
 
+    #[cfg(target_os = "macos")]
+    #[strum(message = "Install Lapce to PATH")]
+    #[strum(serialize = "install_to_path")]
+    InstallToPATH,
+
+    #[cfg(target_os = "macos")]
+    #[strum(message = "Uninstall Lapce from PATH")]
+    #[strum(serialize = "uninstall_from_path")]
+    UninstallFromPATH,
+
     #[strum(serialize = "quit")]
     #[strum(message = "Quit Editor")]
     Quit,
@@ -514,6 +525,10 @@ pub enum LapceUICommand {
     },
     UpdateSearchInput(String),
     UpdateSearch(String),
+    UpdateSearchWithCaseSensitivity {
+        pattern: String,
+        case_sensitive: bool,
+    },
     GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),
     CancelFilePicker,
     SetWorkspace(LapceWorkspace),
@@ -538,9 +553,16 @@ pub enum LapceUICommand {
         rev: u64,
         hints: Spans<InlayHint>,
     },
-    UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
+    UpdateCodeActions {
+        path: PathBuf,
+        plugin_id: PluginId,
+        rev: u64,
+        offset: usize,
+        resp: CodeActionResponse,
+    },
     CancelPalette,
-    RunCodeAction(CodeActionOrCommand),
+    RunCommand(String, Vec<String>),
+    RunCodeAction(CodeActionOrCommand, PluginId),
     ApplyWorkspaceEdit(WorkspaceEdit),
     ShowCodeActions(Option<Point>),
     Hide,
@@ -552,6 +574,7 @@ pub enum LapceUICommand {
     FocusSourceControl,
     ShowSettings,
     ShowKeybindings,
+    ShowSettingsKind(LapceSettingsKind),
     FocusEditor,
     RunPalette(Option<PaletteType>),
     RunPaletteReferences(Vec<EditorLocation<Position>>),
@@ -593,6 +616,8 @@ pub enum LapceUICommand {
     PreviousEditorTab,
     FilterItems,
     RestartToUpdate(PathBuf, ReleaseInfo),
+    UpdateStarted,
+    UpdateFailed,
     NewWindow(WindowId),
     CloseWindow(WindowId),
     ReloadWindow,
@@ -660,6 +685,7 @@ pub enum LapceUICommand {
     EditorTabAdd(usize, EditorTabChild),
     EditorTabRemove(usize, bool, bool),
     EditorTabSwap(usize, usize),
+    EditorContentChanged,
     JumpToPosition(Option<WidgetId>, Position, bool),
     JumpToLine(Option<WidgetId>, usize),
     JumpToLocation(Option<WidgetId>, EditorLocation, bool),
@@ -746,6 +772,12 @@ pub enum LapceUICommand {
     /// An item in a list was chosen  
     /// This is typically targeted at the widget which contains the list
     ListItemSelected,
+    NewMessage {
+        kind: MessageType,
+        title: String,
+        message: String,
+    },
+    CloseMessage(WidgetId),
 }
 
 /// This can't be an `FnOnce` because we only ever get a reference to

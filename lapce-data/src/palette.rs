@@ -697,7 +697,7 @@ impl PaletteViewData {
             let pattern = self.palette.get_input().to_string();
             let find = Arc::make_mut(&mut self.find);
             find.visual = true;
-            find.set_find(&pattern, false, false, false);
+            find.set_find(&pattern, false, false);
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::UpdateSearchInput(pattern),

@@ -157,7 +157,6 @@ impl Widget<LapceTabData> for HoverContainer {
         self.content_size = self.hover.layout(ctx, &bc, data, env);
         *data.hover.content_size.borrow_mut() = self.content_size;
         self.hover.set_origin(ctx, data, env, Point::ZERO);
-        ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
         size
     }
 

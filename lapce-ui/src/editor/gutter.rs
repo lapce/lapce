@@ -44,7 +44,7 @@ impl Widget<LapceTabData> for LapceEditorGutter {
             }
             Event::MouseUp(mouse_event) => {
                 let data = data.editor_view_content(self.view_id);
-                if let Some(actions) = data.current_code_actions() {
+                if let Some((_plugin_id, actions)) = data.current_code_actions() {
                     if !actions.is_empty() {
                         let rect = self.code_actions_rect(ctx.text(), &data);
                         if rect.contains(self.mouse_down_pos)
@@ -505,7 +505,7 @@ impl LapceEditorGutter {
         data: &LapceEditorBufferData,
         ctx: &mut PaintCtx,
     ) {
-        if let Some(actions) = data.current_code_actions() {
+        if let Some((_plugin_id, actions)) = data.current_code_actions() {
             if !actions.is_empty() {
                 let svg = get_svg("lightbulb.svg").unwrap();
                 let rect = self.code_actions_rect(ctx.text(), data);

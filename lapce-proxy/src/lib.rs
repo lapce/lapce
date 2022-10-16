@@ -67,7 +67,11 @@ pub fn mainloop() {
     let cli = Cli::parse();
     if !cli.proxy {
         let pwd = std::env::current_dir().unwrap_or_default();
-        let paths: Vec<_> = cli.paths.iter().map(|p| pwd.join(p)).collect();
+        let paths: Vec<_> = cli
+            .paths
+            .iter()
+            .map(|p| pwd.join(p).canonicalize().unwrap_or_default())
+            .collect();
         let _ = try_open_in_existing_process(&paths);
         return;
     }
@@ -135,7 +139,15 @@ pub fn mainloop() {
         if let Some(path) = path.parent() {
             if let Some(path) = path.to_str() {
                 if let Ok(current_path) = std::env::var("PATH") {
-                    std::env::set_var("PATH", &format!("{path}:{current_path}"));
+                    let mut paths = vec![PathBuf::from(path)];
+                    paths.append(
+                        &mut std::env::split_paths(&current_path)
+                            .collect::<Vec<_>>(),
+                    );
+                    std::env::set_var(
+                        "PATH",
+                        std::env::join_paths(paths).expect("Couldn't join PATH"),
+                    );
                 }
             }
         }

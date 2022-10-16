@@ -986,6 +986,16 @@ fn status_on_click(ctx: &mut EventCtx, data: &LapceTabData, id: &str, pos: Point
             menu = menu.separator();
         }
 
+        let proxy = data.proxy.clone();
+        let local_meta = meta.clone();
+        let item = druid::MenuItem::new("Reload Plugin").on_activate(
+            move |_ctx, _data, _env| {
+                proxy.proxy_rpc.reload_volt(local_meta.clone());
+            },
+        );
+        menu = menu.entry(item);
+        menu = menu.separator();
+
         let local_volt = meta.info();
         let tab_id = data.id;
         let item = druid::MenuItem::new("Enable")

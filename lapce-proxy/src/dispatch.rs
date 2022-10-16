@@ -137,6 +137,9 @@ impl ProxyHandler for Dispatcher {
                     buffer.rope.clone(),
                 );
             }
+            UpdatePluginConfigs { configs } => {
+                let _ = self.catalog_rpc.update_plugin_configs(configs);
+            }
             NewTerminal {
                 term_id,
                 cwd,
@@ -185,6 +188,9 @@ impl ProxyHandler for Dispatcher {
             InstallVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();
                 let _ = catalog_rpc.install_volt(volt);
+            }
+            ReloadVolt { volt } => {
+                let _ = self.catalog_rpc.reload_volt(volt);
             }
             RemoveVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();
@@ -286,7 +292,10 @@ impl ProxyHandler for Dispatcher {
                 };
                 self.respond_rpc(id, result);
             }
-            GlobalSearch { pattern } => {
+            GlobalSearch {
+                pattern,
+                case_sensitive,
+            } => {
                 let workspace = self.workspace.clone();
                 let proxy_rpc = self.proxy_rpc.clone();
                 thread::spawn(move || {
@@ -294,7 +303,7 @@ impl ProxyHandler for Dispatcher {
                         let mut matches = HashMap::new();
                         let pattern = regex::escape(&pattern);
                         if let Ok(matcher) = RegexMatcherBuilder::new()
-                            .case_insensitive(true)
+                            .case_insensitive(!case_sensitive)
                             .build_literals(&[&pattern])
                         {
                             let mut searcher = SearcherBuilder::new().build();
@@ -488,9 +497,9 @@ impl ProxyHandler for Dispatcher {
                 self.catalog_rpc.get_code_actions(
                     &path,
                     position,
-                    move |_, result| {
+                    move |plugin_id, result| {
                         let result = result.map(|resp| {
-                            ProxyResponse::GetCodeActionsResponse { resp }
+                            ProxyResponse::GetCodeActionsResponse { plugin_id, resp }
                         });
                         proxy_rpc.handle_response(id, result);
                     },
@@ -720,6 +729,24 @@ impl ProxyHandler for Dispatcher {
                     move |_, result| {
                         let result = result.map(|ranges| {
                             ProxyResponse::GetSelectionRange { ranges }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
+            CodeActionResolve {
+                action_item,
+                plugin_id,
+            } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.action_resolve(
+                    *action_item,
+                    plugin_id,
+                    move |result| {
+                        let result = result.map(|item| {
+                            ProxyResponse::CodeActionResolveResponse {
+                                item: Box::new(item),
+                            }
                         });
                         proxy_rpc.handle_response(id, result);
                     },

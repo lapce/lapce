@@ -131,7 +131,7 @@ mode = "i"
 [[keymaps]]
 key = "esc"
 command = "clear_search"
-when = "search_focus"
+when = "search_active"
 
 [[keymaps]]
 key = "ctrl+shift+up"
@@ -295,21 +295,26 @@ mode = "i"
 
 [[keymaps]]
 key = "esc"
-command = "normal_mode"
-mode = "niv"
-when = "!search_focus && !modal_focus"
+command = "clear_search"
+when = "!modal_focus"
 
 [[keymaps]]
-key="ctrl+c"
+key = "esc"
 command = "normal_mode"
 mode = "niv"
-when = "!search_focus && !modal_focus"
+when = "!search_focus && !modal_focus && !search_active"
+
+[[keymaps]]
+key = "ctrl+c"
+command = "normal_mode"
+mode = "niv"
+when = "!search_focus && !modal_focus && !search_active"
 
 [[keymaps]]
 key = "ctrl+["
 command = "normal_mode"
 mode = "niv"
-when = "!search_focus"
+when = "!search_focus && !search_active"
 
 [[keymaps]]
 key = ":"
@@ -655,3 +660,8 @@ mode = "v"
 key = "<"
 command = "outdent_line"
 mode = "v"
+
+[[keymaps]]
+key = "shift+c"
+command = "delete_to_end_and_insert"
+mode = "n"

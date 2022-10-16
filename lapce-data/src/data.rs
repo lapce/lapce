@@ -1,9 +1,8 @@
-#[cfg(target_os = "windows")]
-use std::env;
 use std::{
     cell::RefCell,
     cmp::Ordering,
     collections::{HashMap, HashSet},
+    env,
     io::{BufReader, Read, Write},
     path::{Path, PathBuf},
     rc::Rc,
@@ -18,6 +17,7 @@ use druid::{
     piet::PietText, theme, Command, Data, Env, EventCtx, ExtEventSink,
     FileDialogOptions, Lens, Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
+use im::Vector;
 use itertools::Itertools;
 use lapce_core::{
     command::{FocusCommand, MultiSelectionCommand},
@@ -100,6 +100,8 @@ pub struct LapceData {
     pub panel_orders: PanelOrder,
     /// The latest release information
     pub latest_release: Arc<Option<ReleaseInfo>>,
+    /// whether the update is in progress
+    pub update_in_process: bool,
     /// The window on focus
     pub active_window: Arc<WindowId>,
 }
@@ -155,6 +157,7 @@ impl LapceData {
                 let window = LapceWindowData::new(
                     keypress.clone(),
                     latest_release.clone(),
+                    false,
                     panel_orders.clone(),
                     event_sink.clone(),
                     &info,
@@ -168,6 +171,7 @@ impl LapceData {
                     let window = LapceWindowData::new(
                         keypress.clone(),
                         latest_release.clone(),
+                        false,
                         panel_orders.clone(),
                         event_sink.clone(),
                         info,
@@ -195,6 +199,7 @@ impl LapceData {
             let window = LapceWindowData::new(
                 keypress.clone(),
                 latest_release.clone(),
+                false,
                 panel_orders.clone(),
                 event_sink.clone(),
                 &info,
@@ -246,6 +251,7 @@ impl LapceData {
             db,
             panel_orders,
             latest_release,
+            update_in_process: false,
         }
     }
 
@@ -280,11 +286,15 @@ impl LapceData {
     }
 
     fn listen_local_socket(event_sink: ExtEventSink) -> Result<()> {
-        if let Ok(path) = std::env::current_exe() {
+        if let Ok(path) = env::current_exe() {
             if let Some(path) = path.parent() {
                 if let Some(path) = path.to_str() {
-                    if let Ok(current_path) = std::env::var("PATH") {
-                        std::env::set_var("PATH", format!("{path}:{current_path}"));
+                    if let Ok(current_path) = env::var("PATH") {
+                        let mut paths = vec![PathBuf::from(path)];
+                        paths.append(
+                            &mut env::split_paths(&current_path).collect::<Vec<_>>(),
+                        );
+                        env::set_var("PATH", env::join_paths(paths)?);
                     }
                 }
             }
@@ -415,12 +425,14 @@ pub struct LapceWindowData {
     pub pos: Point,
     pub panel_orders: PanelOrder,
     pub latest_release: Arc<Option<ReleaseInfo>>,
+    pub update_in_progress: bool,
 }
 
 impl LapceWindowData {
     pub fn new(
         keypress: Arc<KeyPressData>,
         latest_release: Arc<Option<ReleaseInfo>>,
+        update_in_progress: bool,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
         info: &WindowInfo,
@@ -441,6 +453,7 @@ impl LapceWindowData {
                 db.clone(),
                 keypress.clone(),
                 latest_release.clone(),
+                update_in_progress,
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -461,6 +474,7 @@ impl LapceWindowData {
                 db.clone(),
                 keypress.clone(),
                 latest_release.clone(),
+                update_in_progress,
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -513,6 +527,7 @@ impl LapceWindowData {
             maximised: info.maximised,
             panel_orders,
             latest_release,
+            update_in_progress,
         }
     }
 
@@ -603,6 +618,7 @@ pub struct LapceTabData {
     pub settings: Arc<LapceSettingsPanelData>,
     pub about: Arc<AboutData>,
     pub alert: Arc<AlertData>,
+    pub message_widget_id: Arc<WidgetId>,
     #[data(ignore)]
     pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
     #[data(ignore)]
@@ -618,6 +634,7 @@ pub struct LapceTabData {
     pub progresses: Arc<Vec<WorkProgress>>,
     pub drag: Arc<Option<(Vec2, Vec2, DragContent)>>,
     pub latest_release: Arc<Option<ReleaseInfo>>,
+    pub update_in_progress: bool,
 }
 
 impl GetConfig for LapceTabData {
@@ -635,6 +652,7 @@ impl LapceTabData {
         db: Arc<LapceDb>,
         keypress: Arc<KeyPressData>,
         latest_release: Arc<Option<ReleaseInfo>>,
+        update_in_progress: bool,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
     ) -> Self {
@@ -794,6 +812,7 @@ impl LapceTabData {
             settings,
             about,
             alert,
+            message_widget_id: Arc::new(WidgetId::next()),
             proxy_status: Arc::new(ProxyStatus::Connecting),
             keypress,
             window_origin: Rc::new(RefCell::new(Point::ZERO)),
@@ -804,6 +823,7 @@ impl LapceTabData {
             progresses: Arc::new(Vec::new()),
             drag: Arc::new(None),
             latest_release,
+            update_in_progress,
         };
         tab.start_update_process(event_sink);
         tab
@@ -1137,7 +1157,7 @@ impl LapceTabData {
             LapceWorkbenchCommand::RestartToUpdate => {
                 if let Some(release) = (*self.latest_release).clone() {
                     if release.version != *VERSION {
-                        if let Ok(process_path) = std::env::current_exe() {
+                        if let Ok(process_path) = env::current_exe() {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::RestartToUpdate(
@@ -1684,6 +1704,32 @@ impl LapceTabData {
                     }
                 }
             }
+            #[cfg(target_os = "macos")]
+            LapceWorkbenchCommand::InstallToPATH => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunCommand(
+                        String::from("osascript"),
+                        vec![
+                            String::from("-e"),
+                            format!("do shell script \"ln -sf '{}' /usr/local/bin/lapce\" with administrator privileges", std::env::args().next().unwrap())
+                        ]),
+                    Target::Widget(self.id),
+                ));
+            }
+            #[cfg(target_os = "macos")]
+            LapceWorkbenchCommand::UninstallFromPATH => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunCommand(
+                        String::from("osascript"),
+                        vec![
+                            String::from("-e"),
+                            String::from("do shell script \"rm /usr/local/bin/lapce\" with administrator privileges")
+                        ]),
+                    Target::Widget(self.id),
+                ));
+            }
             LapceWorkbenchCommand::Quit => {
                 ctx.submit_command(druid::commands::QUIT_APP);
             }
@@ -1928,6 +1974,7 @@ impl Lens<LapceWindowData, LapceTabData> for LapceTabLens {
         let mut tab = data.tabs.get(&self.0).unwrap().clone();
         tab.keypress = data.keypress.clone();
         tab.latest_release = data.latest_release.clone();
+        tab.update_in_progress = data.update_in_progress;
         tab.multiple_tab = data.tabs.len() > 1;
         if !tab.panel.order.same(&data.panel_orders) {
             Arc::make_mut(&mut tab.panel).order = data.panel_orders.clone();
@@ -1964,6 +2011,7 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
         let mut win = data.windows.get(&self.0).unwrap().clone();
         win.keypress = data.keypress.clone();
         win.latest_release = data.latest_release.clone();
+        win.update_in_progress = data.update_in_process;
         win.panel_orders = data.panel_orders.clone();
         let result = f(&mut win);
         data.keypress = win.keypress.clone();
@@ -2115,6 +2163,20 @@ impl LapceMainSplitData {
         }
     }
 
+    pub fn content_doc_mut(
+        &mut self,
+        content: &BufferContent,
+    ) -> &mut Arc<Document> {
+        match content {
+            BufferContent::File(path) => self.open_docs.get_mut(path).unwrap(),
+            BufferContent::Local(kind) => self.local_docs.get_mut(kind).unwrap(),
+            BufferContent::SettingsValue(name, ..) => {
+                self.value_docs.get_mut(name).unwrap()
+            }
+            BufferContent::Scratch(id, _) => self.scratch_docs.get_mut(id).unwrap(),
+        }
+    }
+
     pub fn editor_doc(&self, editor_view_id: WidgetId) -> Arc<Document> {
         let editor = self.editors.get(&editor_view_id).unwrap();
         self.content_doc(&editor.content)
@@ -2256,7 +2318,7 @@ impl LapceMainSplitData {
             }
         }
 
-        let (delta, _) = Arc::make_mut(doc).do_raw_edit(edits, edit_type);
+        let (delta, _, _) = Arc::make_mut(doc).do_raw_edit(edits, edit_type);
         if move_cursor {
             self.cursor_apply_delta(path, &delta);
         }
@@ -2275,7 +2337,7 @@ impl LapceMainSplitData {
                 widget_id: WidgetId::next(),
                 split: *self.split_id,
                 active: 0,
-                children: vec![],
+                children: Vector::new(),
                 layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                 content_is_hot: Rc::new(RefCell::new(false)),
             };
@@ -2317,7 +2379,7 @@ impl LapceMainSplitData {
             widget_id: editor_tab_id,
             split: split_id,
             active: 0,
-            children: vec![],
+            children: Vector::new(),
             layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             content_is_hot: Rc::new(RefCell::new(false)),
         };
@@ -2360,7 +2422,7 @@ impl LapceMainSplitData {
             editor_tab_id,
             keymap_input_view_id,
         };
-        editor_tab.children.push(child.clone());
+        editor_tab.children.push_back(child.clone());
         child.widget_id()
     }
 
@@ -2379,7 +2441,7 @@ impl LapceMainSplitData {
             BufferContent::Local(LocalBufferKind::Empty),
             config,
         ));
-        editor_tab.children.push(EditorTabChild::Editor(
+        editor_tab.children.push_back(EditorTabChild::Editor(
             editor.view_id,
             editor.editor_id,
             editor.find_view_id,
@@ -3358,12 +3420,11 @@ impl LapceMainSplitData {
         editor_tab_id: WidgetId,
     ) {
         let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
-        let mut index = 0;
-        for (i, child) in editor_tab.children.iter().enumerate() {
-            if child.widget_id() == widget_id {
-                index = i;
-            }
-        }
+        let index = editor_tab
+            .children
+            .iter()
+            .position(|child| child.widget_id() == widget_id)
+            .unwrap_or(0);
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::EditorTabRemove(index, true, true),
@@ -3635,7 +3696,8 @@ impl LapceMainSplitData {
                 editor_tab_id: new_editor_tab_id,
                 volt_id,
                 volt_name,
-            }],
+            }]
+            .into(),
             layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             content_is_hot: Rc::new(RefCell::new(false)),
         };
@@ -3689,7 +3751,8 @@ impl LapceMainSplitData {
                 settings_widget_id: WidgetId::next(),
                 editor_tab_id: new_editor_tab_id,
                 keymap_input_view_id,
-            }],
+            }]
+            .into(),
             layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             content_is_hot: Rc::new(RefCell::new(false)),
         };
@@ -3769,7 +3832,8 @@ impl LapceMainSplitData {
                     new_editor.view_id,
                     new_editor.editor_id,
                     new_editor.find_view_id,
-                )],
+                )]
+                .into(),
                 layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                 content_is_hot: Rc::new(RefCell::new(false)),
             };
@@ -3881,7 +3945,7 @@ pub struct LapceEditorTabData {
     pub widget_id: WidgetId,
     pub split: WidgetId,
     pub active: usize,
-    pub children: Vec<EditorTabChild>,
+    pub children: Vector<EditorTabChild>,
     pub layout_rect: Rc<RefCell<Rect>>,
     pub content_is_hot: Rc<RefCell<bool>>,
 }

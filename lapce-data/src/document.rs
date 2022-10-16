@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     cell::RefCell,
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -11,7 +10,7 @@ use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    Color, ExtEventSink, Point, Size, Target, Vec2, WidgetId,
+    Color, ExtEventSink, FontFamily, Point, Size, Target, Vec2, WidgetId,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -26,6 +25,7 @@ use lapce_core::{
     selection::{SelRegion, Selection},
     style::line_styles,
     syntax::{util::matching_pair_direction, Syntax},
+    syntax::{edit::SyntaxEdit, Syntax},
     word::WordCursor,
 };
 use lapce_rpc::{
@@ -45,6 +45,7 @@ use xi_rope::{
 };
 
 use crate::{
+    atomic_soft_tabs::{snap_to_soft_tab, snap_to_soft_tab_line_col, SnapDirection},
     command::{InitBufferContentCb, LapceUICommand, LAPCE_UI_COMMAND},
     config::{LapceConfig, LapceTheme},
     data::{EditorDiagnostic, EditorView},
@@ -53,8 +54,8 @@ use crate::{
     history::DocumentHistory,
     proxy::LapceProxy,
     selection_range::{SelectionRangeDirection, SyntaxSelectionRanges},
-    settings::SettingsValueKind,
 };
+use lapce_rpc::plugin::PluginId;
 
 pub struct SystemClipboard {}
 
@@ -74,17 +75,20 @@ impl Clipboard for SystemClipboard {
     }
 }
 
+#[derive(Clone)]
 pub struct LineExtraStyle {
     pub bg_color: Option<Color>,
     pub under_line: Option<Color>,
 }
 
+#[derive(Clone)]
 pub struct TextLayoutLine {
     /// Extra styling that should be applied to the text
     /// (x0, x1 or line display end, style)
     pub extra_style: Vec<(f64, Option<f64>, LineExtraStyle)>,
     pub text: PietTextLayout,
-    pub whitespace: Option<PietTextLayout>,
+    pub whitespaces: Option<Vec<(char, (f64, f64))>>,
+    pub indent: f64,
 }
 
 #[derive(Clone, Default)]
@@ -132,7 +136,8 @@ pub enum LocalBufferKind {
 pub enum BufferContent {
     File(PathBuf),
     Local(LocalBufferKind),
-    SettingsValue(String, SettingsValueKind, String, String),
+    /// A setting input; with its name.
+    SettingsValue(String),
     Scratch(BufferId, String),
 }
 
@@ -224,22 +229,35 @@ impl BufferContent {
     }
 }
 
-#[derive(Default)]
-pub struct PhantomTextLine<'hint, 'diag> {
-    // TODO: This could be made more general
-    /// These are entries that have an order within the text
-    ordered_text: SmallVec<[(usize, &'hint InlayHint); 6]>,
-    // TODO: This could be made more general (ex: for things like showing the commit information
-    // for that line)
-    /// These are entries that are always at the end of the text
-    end_text: SmallVec<[&'diag EditorDiagnostic; 3]>,
+pub struct PhantomText {
+    kind: PhantomTextKind,
+    col: usize,
+    text: String,
+    font_size: Option<usize>,
+    font_family: Option<FontFamily>,
+    fg: Option<Color>,
+    bg: Option<Color>,
+    under_line: Option<Color>,
 }
 
-impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
+#[derive(Ord, Eq, PartialEq, PartialOrd)]
+pub enum PhantomTextKind {
+    Ime,
+    InlayHint,
+    Diagnostic,
+}
+
+#[derive(Default)]
+pub struct PhantomTextLine {
+    text: SmallVec<[PhantomText; 6]>,
+    max_severity: Option<DiagnosticSeverity>,
+}
+
+impl PhantomTextLine {
     /// Translate a column position into the text into what it would be after combining
     pub fn col_at(&self, pre_col: usize) -> usize {
         let mut last = pre_col;
-        for (col_shift, size, _, col) in self.offset_size_iter() {
+        for (col_shift, size, col, _) in self.offset_size_iter() {
             if pre_col >= col {
                 last = pre_col + col_shift + size;
             }
@@ -252,7 +270,7 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
     /// If before_cursor is false and the cursor is right at the start then it will stay there
     pub fn col_after(&self, pre_col: usize, before_cursor: bool) -> usize {
         let mut last = pre_col;
-        for (col_shift, size, _, col) in self.offset_size_iter() {
+        for (col_shift, size, col, _) in self.offset_size_iter() {
             if pre_col > col || (pre_col == col && before_cursor) {
                 last = pre_col + col_shift + size;
             }
@@ -264,7 +282,7 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
     /// Translate a column position into the position it would be before combining
     pub fn before_col(&self, col: usize) -> usize {
         let mut last = col;
-        for (col_shift, size, _, hint_col) in self.offset_size_iter() {
+        for (col_shift, size, hint_col, _) in self.offset_size_iter() {
             let shifted_start = hint_col + col_shift;
             let shifted_end = shifted_start + size;
             if col >= shifted_start {
@@ -279,62 +297,23 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
     }
 
     /// Insert the hints at their positions in the text
-    pub fn combine_with_text<'b>(&self, mut text: Cow<'b, str>) -> Cow<'b, str> {
+    pub fn combine_with_text(&self, text: String) -> String {
+        let mut text = text;
         let mut col_shift = 0;
-        for (col, hint) in self.ordered_text.iter() {
-            let mut otext = text.into_owned();
 
-            let location = col + col_shift;
+        for phantom in self.text.iter() {
+            let location = phantom.col + col_shift;
 
             // Stop iterating if the location is bad
-            if otext.get(location..).is_none() {
-                return Cow::Owned(otext);
+            if text.get(location..).is_none() {
+                return text;
             }
 
-            // Insert the right padding. This will be shifted to the right
-            // after we insert the text at location
-            if hint.padding_right == Some(true) {
-                otext.insert(location, ' ');
-                col_shift += 1;
-            }
-
-            match &hint.label {
-                InlayHintLabel::String(label) => {
-                    otext.insert_str(location, label.as_str());
-                    col_shift += label.len();
-                }
-                InlayHintLabel::LabelParts(parts) => {
-                    for part in parts.iter().rev() {
-                        otext.insert_str(location, part.value.as_str());
-                        col_shift += part.value.len();
-                    }
-                }
-            };
-
-            if hint.padding_left == Some(true) {
-                otext.insert(location, ' ');
-                col_shift += 1;
-            }
-
-            text = Cow::Owned(otext);
+            text.insert_str(location, &phantom.text);
+            col_shift += phantom.text.len();
         }
 
-        // If there are end text entries then trim any whitespace at the end
-        if !self.end_text.is_empty() {
-            text = Cow::Owned(text.into_owned().trim_end().to_string());
-        }
-
-        let mut otext = text.into_owned();
-        for entry in self.end_text.iter() {
-            // TODO: allow customization of padding. Remember to update end_offset_size_iter
-            otext.push_str("    ");
-            otext.extend(itertools::intersperse(
-                entry.diagnostic.message.lines(),
-                " ",
-            ));
-        }
-
-        Cow::Owned(otext)
+        text
     }
 
     /// Iterator over (col_shift, size, hint, pre_column)
@@ -342,58 +321,18 @@ impl<'hint, 'diag> PhantomTextLine<'hint, 'diag> {
     /// they'll be positioned
     pub fn offset_size_iter(
         &self,
-    ) -> impl Iterator<Item = (usize, usize, &'hint InlayHint, usize)> + '_ {
+    ) -> impl Iterator<Item = (usize, usize, usize, &PhantomText)> + '_ {
         let mut col_shift = 0;
-        self.ordered_text.iter().map(move |(col, hint)| {
+
+        self.text.iter().map(move |phantom| {
             let pre_col_shift = col_shift;
-            match &hint.label {
-                InlayHintLabel::String(label) => {
-                    col_shift += label.len();
-                }
-                InlayHintLabel::LabelParts(parts) => {
-                    for part in parts {
-                        col_shift += part.value.len();
-                    }
-                }
-            }
-
-            if hint.padding_right == Some(true) {
-                col_shift += 1;
-            }
-
-            if hint.padding_left == Some(true) {
-                col_shift += 1;
-            }
-
-            (pre_col_shift, col_shift - pre_col_shift, *hint, *col)
-        })
-    }
-
-    /// Iterator over (column, size, diagnostic)
-    pub fn end_offset_size_iter(
-        &self,
-        pre_text: &str,
-    ) -> impl Iterator<Item = (usize, usize, &'diag EditorDiagnostic)> + '_ {
-        const PADDING: usize = 4;
-
-        // Trim because the text would be trimmed for any end text that existed
-        let column = pre_text.trim_end().len();
-        // Move the column to be after the shifts by any of the ordered texts
-        let mut column = self.col_at(column);
-
-        self.end_text.iter().map(move |entry| {
-            let text_size = itertools::intersperse(
-                entry.diagnostic.message.lines().map(str::len),
-                1,
+            col_shift += phantom.text.len();
+            (
+                pre_col_shift,
+                col_shift - pre_col_shift,
+                phantom.col,
+                phantom,
             )
-            .sum::<usize>();
-            let size = PADDING + text_size;
-
-            let column_pre = column;
-
-            column += size;
-
-            (column_pre, size, *entry)
         })
     }
 }
@@ -414,9 +353,11 @@ pub struct Document {
     histories: im::HashMap<String, DocumentHistory>,
     pub cursor_offset: usize,
     pub scroll_offset: Vec2,
-    pub code_actions: im::HashMap<usize, CodeActionResponse>,
+    pub code_actions: im::HashMap<usize, (PluginId, CodeActionResponse)>,
     pub inlay_hints: Option<Spans<InlayHint>>,
     pub diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
+    ime_text: Option<Arc<String>>,
+    ime_pos: (usize, usize, usize),
     pub syntax_selection_range: Option<SyntaxSelectionRanges>,
     pub find: Rc<RefCell<Find>>,
     find_progress: Rc<RefCell<FindProgress>>,
@@ -460,6 +401,8 @@ impl Document {
             code_actions: im::HashMap::new(),
             inlay_hints: None,
             diagnostics: None,
+            ime_text: None,
+            ime_pos: (0, 0, 0),
             find: Rc::new(RefCell::new(Find::new(0))),
             find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             event_sink,
@@ -778,29 +721,23 @@ impl Document {
 
                             let styles = styles_span.build();
 
-                            let merged_styles;
-
-                            if let Some(syntactic_styles) = syntactic_styles {
-                                merged_styles = Arc::new(syntactic_styles.merge(
-                                    &styles,
-                                    |a, b| {
+                            let styles =
+                                if let Some(syntactic_styles) = syntactic_styles {
+                                    syntactic_styles.merge(&styles, |a, b| {
                                         if let Some(b) = b {
                                             return b.clone();
                                         }
                                         a.clone()
-                                    },
-                                ));
-                            } else {
-                                merged_styles = Arc::new(styles);
-                            }
+                                    })
+                                } else {
+                                    styles
+                                };
+                            let styles = Arc::new(styles);
 
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::UpdateSemanticStyles(
-                                    buffer_id,
-                                    path,
-                                    rev,
-                                    merged_styles,
+                                    buffer_id, path, rev, styles,
                                 ),
                                 Target::Widget(tab_id),
                             );
@@ -857,12 +794,12 @@ impl Document {
         }
     }
 
-    fn on_update(&mut self, deltas: Option<SmallVec<[RopeDelta; 3]>>) {
+    fn on_update(&mut self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.get_inlay_hints();
         self.clear_style_cache();
-        self.trigger_syntax_change(deltas);
+        self.trigger_syntax_change(edits);
         self.get_semantic_styles();
         self.clear_sticky_headers_cache();
         self.trigger_head_change();
@@ -952,13 +889,13 @@ impl Document {
 
     pub fn trigger_syntax_change(
         &mut self,
-        deltas: Option<SmallVec<[RopeDelta; 3]>>,
+        edits: Option<SmallVec<[SyntaxEdit; 3]>>,
     ) {
         if let Some(syntax) = self.syntax.as_mut() {
             let rev = self.buffer.rev();
             let text = self.buffer.text().clone();
 
-            syntax.parse(rev, text, deltas.as_deref());
+            syntax.parse(rev, text, edits.as_deref());
         }
     }
 
@@ -1002,6 +939,30 @@ impl Document {
         }
     }
 
+    pub fn set_ime_pos(&mut self, line: usize, col: usize, shift: usize) {
+        self.ime_pos = (line, col, shift);
+    }
+
+    pub fn ime_text(&self) -> Option<&Arc<String>> {
+        self.ime_text.as_ref()
+    }
+
+    pub fn ime_pos(&self) -> (usize, usize, usize) {
+        self.ime_pos
+    }
+
+    pub fn set_ime_text(&mut self, text: String) {
+        self.ime_text = Some(Arc::new(text));
+        self.clear_text_layout_cache();
+    }
+
+    pub fn clear_ime_text(&mut self) {
+        if self.ime_text.is_some() {
+            self.ime_text = None;
+            self.clear_text_layout_cache();
+        }
+    }
+
     pub fn line_phantom_text(
         &self,
         config: &LapceConfig,
@@ -1009,49 +970,164 @@ impl Document {
     ) -> PhantomTextLine {
         let start_offset = self.buffer.offset_of_line(line);
         let end_offset = self.buffer.offset_of_line(line + 1);
-        let hints = if config.editor.enable_inlay_hints {
-            self.inlay_hints.as_ref().map(|hints| {
-                hints.iter_chunks(start_offset..end_offset).filter_map(
-                    |(interval, inlay_hint)| {
-                        if interval.start >= start_offset
-                            && interval.start < end_offset
-                        {
+
+        let hints = config
+            .editor
+            .enable_inlay_hints
+            .then_some(())
+            .and_then(|_| {
+                self.inlay_hints.as_ref().map(|hints| {
+                    let chunks = hints.iter_chunks(start_offset..end_offset);
+                    chunks.filter_map(|(interval, inlay_hint)| {
+                        let on_line = interval.start >= start_offset
+                            && interval.start < end_offset;
+                        on_line.then(|| {
                             let (_, col) =
                                 self.buffer.offset_to_line_col(interval.start);
-                            Some((col, inlay_hint))
-                        } else {
-                            None
-                        }
-                    },
-                )
-            })
-        } else {
-            None
-        };
-
-        let diagnostics = if config.editor.enable_error_lens {
-            // Is end line a good place to use?
-            self.diagnostics.as_ref().map(|diags| {
-                diags.iter().filter(|diag| {
-                    diag.diagnostic.range.end.line as usize == line
-                        && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
+                            let text = match &inlay_hint.label {
+                                InlayHintLabel::String(label) => label.to_string(),
+                                InlayHintLabel::LabelParts(parts) => {
+                                    parts.iter().map(|p| &p.value).join("")
+                                }
+                            };
+                            PhantomText {
+                                kind: PhantomTextKind::InlayHint,
+                                col,
+                                text,
+                                fg: Some(
+                                    config
+                                        .get_color_unchecked(
+                                            LapceTheme::INLAY_HINT_FOREGROUND,
+                                        )
+                                        .clone(),
+                                ),
+                                font_family: Some(
+                                    config.editor.inlay_hint_font_family(),
+                                ),
+                                font_size: Some(
+                                    config.editor.inlay_hint_font_size(),
+                                ),
+                                bg: Some(
+                                    config
+                                        .get_color_unchecked(
+                                            LapceTheme::INLAY_HINT_BACKGROUND,
+                                        )
+                                        .clone(),
+                                ),
+                                under_line: None,
+                            }
+                        })
+                    })
                 })
-            })
-        } else {
-            None
-        };
+            });
+        let mut text: SmallVec<[PhantomText; 6]> =
+            hints.into_iter().flatten().collect();
 
-        let ordered_text = hints.into_iter().flatten().collect();
-        let end_text = diagnostics.into_iter().flatten().collect();
-        PhantomTextLine {
-            ordered_text,
-            end_text,
+        let mut max_severity = None;
+        let diag_text =
+            config.editor.enable_error_lens.then_some(()).and_then(|_| {
+                self.diagnostics.as_ref().map(|diags| {
+                    diags
+                        .iter()
+                        .filter(|diag| {
+                            diag.diagnostic.range.end.line as usize == line
+                                && diag.diagnostic.severity
+                                    < Some(DiagnosticSeverity::HINT)
+                        })
+                        .map(|diag| {
+                            match (diag.diagnostic.severity, max_severity) {
+                                (Some(severity), Some(max)) => {
+                                    if severity < max {
+                                        max_severity = Some(severity);
+                                    }
+                                }
+                                (Some(severity), None) => {
+                                    max_severity = Some(severity);
+                                }
+                                _ => {}
+                            }
+
+                            let rope_text = self.buffer.rope_text();
+                            let col = rope_text.offset_of_line(line + 1)
+                                - rope_text.offset_of_line(line);
+                            let fg = {
+                                let severity = diag
+                                    .diagnostic
+                                    .severity
+                                    .unwrap_or(DiagnosticSeverity::WARNING);
+                                let theme_prop = if severity
+                                    == DiagnosticSeverity::ERROR
+                                {
+                                    LapceTheme::ERROR_LENS_ERROR_FOREGROUND
+                                } else if severity == DiagnosticSeverity::WARNING {
+                                    LapceTheme::ERROR_LENS_WARNING_FOREGROUND
+                                } else {
+                                    // information + hint (if we keep that) + things without a severity
+                                    LapceTheme::ERROR_LENS_OTHER_FOREGROUND
+                                };
+
+                                config.get_color_unchecked(theme_prop).clone()
+                            };
+                            let text = format!(
+                                "    {}",
+                                diag.diagnostic.message.lines().join(" ")
+                            );
+                            PhantomText {
+                                kind: PhantomTextKind::Diagnostic,
+                                col,
+                                text,
+                                fg: Some(fg),
+                                font_size: Some(
+                                    config.editor.error_lens_font_size(),
+                                ),
+                                font_family: Some(
+                                    config.editor.error_lens_font_family(),
+                                ),
+                                bg: None,
+                                under_line: None,
+                            }
+                        })
+                })
+            });
+        let mut diag_text: SmallVec<[PhantomText; 6]> =
+            diag_text.into_iter().flatten().collect();
+
+        text.append(&mut diag_text);
+
+        if let Some(ime_text) = self.ime_text.as_ref() {
+            let (ime_line, col, _) = self.ime_pos;
+            if line == ime_line {
+                text.push(PhantomText {
+                    kind: PhantomTextKind::Ime,
+                    text: ime_text.to_string(),
+                    col,
+                    font_size: None,
+                    font_family: None,
+                    fg: None,
+                    bg: None,
+                    under_line: Some(
+                        config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    ),
+                });
+            }
         }
+
+        text.sort_by(|a, b| {
+            if a.col == b.col {
+                a.kind.cmp(&b.kind)
+            } else {
+                a.col.cmp(&b.col)
+            }
+        });
+
+        PhantomTextLine { text, max_severity }
     }
 
-    fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines)]) {
+    fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
         let rev = self.rev() - deltas.len() as u64;
-        for (i, (delta, _)) in deltas.iter().enumerate() {
+        for (i, (delta, _, _)) in deltas.iter().enumerate() {
             self.update_styles(delta);
             self.update_inlay_hints(delta);
             self.update_diagnostics(delta);
@@ -1067,8 +1143,8 @@ impl Document {
         // TODO(minor): We could avoid this potential allocation since most apply_delta callers are actually using a Vec
         // which we could reuse.
         // We use a smallvec because there is unlikely to be more than a couple of deltas
-        let deltas_iter = deltas.iter().map(|(delta, _)| delta.clone()).collect();
-        self.on_update(Some(deltas_iter));
+        let edits = deltas.iter().map(|(_, _, edits)| edits.clone()).collect();
+        self.on_update(Some(edits));
     }
 
     pub fn do_insert(
@@ -1076,7 +1152,7 @@ impl Document {
         cursor: &mut Cursor,
         s: &str,
         config: &LapceConfig,
-    ) -> Vec<(RopeDelta, InvalLines)> {
+    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let old_cursor = cursor.mode.clone();
         let deltas = Editor::insert(
             cursor,
@@ -1095,10 +1171,10 @@ impl Document {
         &mut self,
         edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
-    ) -> (RopeDelta, InvalLines) {
-        let (delta, inval_lines) = self.buffer.edit(edits, edit_type);
-        self.apply_deltas(&[(delta.clone(), inval_lines.clone())]);
-        (delta, inval_lines)
+    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
+        let (delta, inval_lines, edits) = self.buffer.edit(edits, edit_type);
+        self.apply_deltas(&[(delta.clone(), inval_lines.clone(), edits.clone())]);
+        (delta, inval_lines, edits)
     }
 
     pub fn do_edit(
@@ -1107,7 +1183,7 @@ impl Document {
         cmd: &EditCommand,
         modal: bool,
         register: &mut Register,
-    ) -> Vec<(RopeDelta, InvalLines)> {
+    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let mut clipboard = SystemClipboard {};
         let old_cursor = cursor.mode.clone();
         let deltas = Editor::do_edit(
@@ -1231,17 +1307,16 @@ impl Document {
                             (first.min(), first.max())
                         };
                         let search_str = self.buffer.slice_to_cow(start..end);
-                        let search_case_sensitive =
+                        let case_sensitive = self.find.borrow().case_sensitive();
+                        let multicursor_case_sensitive =
                             config.editor.multicursor_case_sensitive;
+                        let case_sensitive =
+                            multicursor_case_sensitive || case_sensitive;
                         let search_whole_word =
                             config.editor.multicursor_whole_words;
                         let mut find = Find::new(0);
-                        find.set_find(
-                            &search_str,
-                            search_case_sensitive,
-                            false,
-                            search_whole_word,
-                        );
+                        find.set_case_sensitive(case_sensitive);
+                        find.set_find(&search_str, false, search_whole_word);
                         let mut offset = 0;
                         while let Some((start, end)) =
                             find.next(self.buffer.text(), offset, false, false)
@@ -1270,17 +1345,15 @@ impl Document {
                             let r = selection.last_inserted().unwrap();
                             let search_str =
                                 self.buffer.slice_to_cow(r.min()..r.max());
-                            let search_case_sensitive =
-                                config.editor.multicursor_case_sensitive;
+                            let case_sensitive = self.find.borrow().case_sensitive();
+                            let case_sensitive =
+                                config.editor.multicursor_case_sensitive
+                                    || case_sensitive;
                             let search_whole_word =
                                 config.editor.multicursor_whole_words;
                             let mut find = Find::new(0);
-                            find.set_find(
-                                &search_str,
-                                search_case_sensitive,
-                                false,
-                                search_whole_word,
-                            );
+                            find.set_case_sensitive(case_sensitive);
+                            find.set_find(&search_str, false, search_whole_word);
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) =
@@ -1319,8 +1392,10 @@ impl Document {
                         } else {
                             let search_str =
                                 self.buffer.slice_to_cow(r.min()..r.max());
+                            let case_sensitive = self.find.borrow().case_sensitive();
                             let mut find = Find::new(0);
-                            find.set_find(&search_str, false, false, false);
+                            find.set_case_sensitive(case_sensitive);
+                            find.set_find(&search_str, false, false);
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) =
@@ -1517,7 +1592,18 @@ impl Document {
         let phantom_text = self.line_phantom_text(config, line);
         let col = phantom_text.before_col(hit_point.idx);
         let max_col = self.buffer.line_end_col(line, mode != Mode::Normal);
-        let col = col.min(max_col);
+        let mut col = col.min(max_col);
+
+        if config.editor.atomic_soft_tabs && config.editor.tab_width > 1 {
+            col = snap_to_soft_tab_line_col(
+                &self.buffer,
+                line,
+                col,
+                SnapDirection::Nearest,
+                config.editor.tab_width,
+            );
+        }
+
         ((line, col), hit_point.is_inside)
     }
 
@@ -1616,7 +1702,7 @@ impl Document {
         let line = line.min(self.buffer.last_line());
 
         let phantom_text = self.line_phantom_text(config, line);
-        let col = phantom_text.col_after(col, true);
+        let col = phantom_text.col_after(col, false);
 
         let mut x_shift = 0.0;
         if font_size < config.editor.font_size {
@@ -1739,18 +1825,18 @@ impl Document {
             let mut cache = self.text_layouts.borrow_mut();
             cache.layouts.insert(font_size, HashMap::new());
         }
-        if self
+        let cache_exits = self
             .text_layouts
             .borrow()
             .layouts
             .get(&font_size)
             .unwrap()
             .get(&line)
-            .is_none()
-        {
-            let mut cache = self.text_layouts.borrow_mut();
+            .is_some();
+        if !cache_exits {
             let text_layout =
                 Arc::new(self.new_text_layout(text, line, font_size, config));
+            let mut cache = self.text_layouts.borrow_mut();
             let width = text_layout.text.size().width;
             if width > cache.max_width {
                 cache.max_width = width;
@@ -1780,9 +1866,25 @@ impl Document {
     ) -> TextLayoutLine {
         let line_content_original = self.buffer.line_content(line);
 
+        let (line_content, line_content_original) =
+            if let Some(s) = line_content_original.strip_suffix("\r\n") {
+                (
+                    format!("{s}  "),
+                    &line_content_original[..line_content_original.len() - 2],
+                )
+            } else if let Some(s) = line_content_original.strip_suffix('\n') {
+                (
+                    format!("{s} ",),
+                    &line_content_original[..line_content_original.len() - 1],
+                )
+            } else {
+                (
+                    line_content_original.to_string(),
+                    &line_content_original[..],
+                )
+            };
         let phantom_text = self.line_phantom_text(config, line);
-        let line_content =
-            phantom_text.combine_with_text(line_content_original.clone());
+        let line_content = phantom_text.combine_with_text(line_content);
 
         let tab_width =
             config.tab_width(text, config.editor.font_family(), font_size);
@@ -1822,118 +1924,48 @@ impl Document {
             }
         }
 
-        // Give the inlay hints their styling
-        for (offset, size, _, col) in phantom_text.offset_size_iter() {
+        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
             let start = col + offset;
             let end = start + size;
 
-            layout_builder = layout_builder.range_attribute(
-                start..end,
-                TextAttribute::FontSize(
-                    config.editor.inlay_hint_font_size().min(font_size) as f64,
-                ),
-            );
-            layout_builder = layout_builder.range_attribute(
-                start..end,
-                TextAttribute::FontFamily(config.editor.inlay_hint_font_family()),
-            );
-            layout_builder = layout_builder.range_attribute(
-                start..end,
-                TextAttribute::TextColor(
-                    config
-                        .get_color_unchecked(LapceTheme::INLAY_HINT_FOREGROUND)
-                        .clone(),
-                ),
-            );
+            if let Some(fg) = phantom.fg.clone() {
+                layout_builder = layout_builder
+                    .range_attribute(start..end, TextAttribute::TextColor(fg));
+            }
+            if let Some(phantom_font_size) = phantom.font_size {
+                layout_builder = layout_builder.range_attribute(
+                    start..end,
+                    TextAttribute::FontSize(phantom_font_size.min(font_size) as f64),
+                );
+            }
+            if let Some(font_family) = phantom.font_family.clone() {
+                layout_builder = layout_builder.range_attribute(
+                    start..end,
+                    TextAttribute::FontFamily(font_family),
+                );
+            }
         }
 
-        // Add styling to all the diagnostics that appear at the end of the line
-        for (column, size, entry) in
-            phantom_text.end_offset_size_iter(&line_content_original)
-        {
-            let end = column + size;
-
-            let text_color = {
-                let severity = entry
-                    .diagnostic
-                    .severity
-                    .unwrap_or(DiagnosticSeverity::WARNING);
-                let theme_prop = if severity == DiagnosticSeverity::ERROR {
-                    LapceTheme::ERROR_LENS_ERROR_FOREGROUND
-                } else if severity == DiagnosticSeverity::WARNING {
-                    LapceTheme::ERROR_LENS_WARNING_FOREGROUND
-                } else {
-                    // information + hint (if we keep that) + things without a severity
-                    LapceTheme::ERROR_LENS_OTHER_FOREGROUND
-                };
-
-                config.get_color_unchecked(theme_prop).clone()
-            };
-
-            layout_builder = layout_builder.range_attribute(
-                column..end,
-                TextAttribute::FontSize(
-                    config.editor.error_lens_font_size().min(font_size) as f64,
-                ),
-            );
-            layout_builder = layout_builder.range_attribute(
-                column..end,
-                TextAttribute::FontFamily(config.editor.error_lens_font_family()),
-            );
-            layout_builder = layout_builder
-                .range_attribute(column..end, TextAttribute::TextColor(text_color));
-        }
-
-        // TODO: error lens background colors
-        // We could provide an option for whether they should just be around the diagnostic or over the entire line?
-
-        let layout_text = layout_builder.build().unwrap();
+        let text_layout = layout_builder.build().unwrap();
         let mut extra_style = Vec::new();
-        for (offset, size, _, col) in phantom_text.offset_size_iter() {
-            let start = col + offset;
-            let end = start + size;
-            let x0 = layout_text.hit_test_text_position(start).point.x;
-            let x1 = layout_text.hit_test_text_position(end).point.x;
-            extra_style.push((
-                x0,
-                Some(x1),
-                LineExtraStyle {
-                    bg_color: Some(
-                        config
-                            .get_color_unchecked(LapceTheme::INLAY_HINT_BACKGROUND)
-                            .clone(),
-                    ),
-                    under_line: None,
-                },
-            ));
-        }
-
-        let is_error_lens_to_eol = config.editor.error_lens_end_of_line;
-
-        let mut max_severity = None;
-        let mut end_column = None;
-        for (column, size, entry) in
-            phantom_text.end_offset_size_iter(&line_content_original)
-        {
-            match (entry.diagnostic.severity, max_severity) {
-                (Some(severity), Some(max)) => {
-                    if severity < max {
-                        max_severity = Some(severity);
-                    }
-                }
-                (Some(severity), None) => {
-                    max_severity = Some(severity);
-                }
-                _ => {}
-            }
-
-            if !is_error_lens_to_eol {
-                end_column = Some(column + size);
+        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
+            if phantom.bg.is_some() || phantom.under_line.is_some() {
+                let start = col + offset;
+                let end = start + size;
+                let x0 = text_layout.hit_test_text_position(start).point.x;
+                let x1 = text_layout.hit_test_text_position(end).point.x;
+                extra_style.push((
+                    x0,
+                    Some(x1),
+                    LineExtraStyle {
+                        bg_color: phantom.bg.clone(),
+                        under_line: phantom.under_line.clone(),
+                    },
+                ));
             }
         }
 
-        if !phantom_text.end_text.is_empty() {
-            let max_severity = max_severity.unwrap_or(DiagnosticSeverity::WARNING);
+        if let Some(max_severity) = phantom_text.max_severity {
             let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
                 LapceTheme::ERROR_LENS_ERROR_BACKGROUND
             } else if max_severity == DiagnosticSeverity::WARNING {
@@ -1942,10 +1974,12 @@ impl Document {
                 LapceTheme::ERROR_LENS_OTHER_BACKGROUND
             };
 
-            // Use the end of the diagnostics if end column exists (which it only will if the config setting is false)
-            // otherwise None, which is the end of the line in the view
-            let x1 = end_column
-                .map(|col| layout_text.hit_test_text_position(col).point.x);
+            let x1 = (!config.editor.error_lens_end_of_line).then(|| {
+                text_layout
+                    .hit_test_text_position(line_content.len())
+                    .point
+                    .x
+            });
 
             extra_style.push((
                 0.0,
@@ -1957,37 +1991,55 @@ impl Document {
             ));
         }
 
-        let whitespace = Self::new_layout_whitespace(
-            &layout_text,
-            &line_content,
+        let new_whitespaces = Self::new_whitespace_layout(
+            line_content_original,
+            &text_layout,
+            &phantom_text,
             config,
-            tab_width,
-            text,
-            font_size,
         );
 
+        let indent_line = if line_content_original.trim().is_empty() {
+            let offset = self.buffer.offset_of_line(line);
+            if let Some(offset) = self
+                .syntax
+                .as_ref()
+                .and_then(|syntax| syntax.parent_offset(offset))
+            {
+                self.buffer.line_of_offset(offset)
+            } else {
+                line
+            }
+        } else {
+            line
+        };
+
+        let indent = if indent_line != line {
+            self.get_text_layout(text, indent_line, font_size, config)
+                .indent
+                + 1.0
+        } else {
+            let offset = self.buffer.first_non_blank_character_on_line(indent_line);
+            let (_, col) = self.buffer.offset_to_line_col(offset);
+            text_layout.hit_test_text_position(col).point.x
+        };
+
         TextLayoutLine {
-            text: layout_text,
+            text: text_layout,
             extra_style,
-            whitespace,
+            whitespaces: new_whitespaces,
+            indent,
         }
     }
 
     /// Create rendable whitespace layout by creating a new text layout
     /// with invicible spaces and special utf8 characters that display
     /// the different white space characters.
-    fn new_layout_whitespace(
-        layout_text: &PietTextLayout,
+    fn new_whitespace_layout(
         line_content: &str,
+        text_layout: &PietTextLayout,
+        phantom: &PhantomTextLine,
         config: &LapceConfig,
-        tab_width: f64,
-        text: &mut PietText,
-        font_size: usize,
-    ) -> Option<PietTextLayout> {
-        if config.editor.render_whitespace == "none" {
-            return None;
-        }
-
+    ) -> Option<Vec<(char, (f64, f64))>> {
         let mut render_leading = false;
         let mut render_boundary = false;
         let mut render_between = false;
@@ -2007,63 +2059,46 @@ impl Document {
             _ => return None,
         }
 
-        // Create new line, replacing whitespaces with visible characters
-        // and replacing visible characters with spaces.
-        let line_count = line_content.chars().count();
-        let space = tab_width / config.editor.tab_width as f64;
-        let mut whitespace_buffer: Vec<char> = Vec::new();
-        let mut rendered_whitespaces = String::new();
+        let mut whitespace_buffer = Vec::new();
+        let mut rendered_whitespaces: Vec<(char, (f64, f64))> = Vec::new();
         let mut char_found = false;
-        for (ii, c) in line_content.chars().enumerate() {
-            if c == '\t' {
-                whitespace_buffer.push('→');
-                if ii < line_count - 1 {
-                    // Make sure that tab spaces are rendered the same way
-                    // as the source code layout
-                    let start = layout_text.hit_test_text_position(ii).point.x;
-                    let end = layout_text.hit_test_text_position(ii + 1).point.x;
-                    let spaces = ((end - start) / space) as usize;
-                    let buffer_len = whitespace_buffer.len() + (spaces - 1);
-                    whitespace_buffer.resize(buffer_len, ' ');
+        let mut col = 0;
+        for c in line_content.chars() {
+            match c {
+                '\t' => {
+                    let col_left = phantom.col_after(col, true);
+                    let col_right = phantom.col_after(col + 1, false);
+                    let x0 = text_layout.hit_test_text_position(col_left).point.x;
+                    let x1 = text_layout.hit_test_text_position(col_right).point.x;
+                    whitespace_buffer.push(('\t', (x0, x1)));
                 }
-            } else if c == ' ' {
-                whitespace_buffer.push('·');
-            } else if c != '\n' && c != '\r' {
-                if (char_found && render_between)
-                    || (char_found && render_boundary && whitespace_buffer.len() > 1)
-                    || (!char_found && render_leading)
-                {
-                    rendered_whitespaces.extend(whitespace_buffer.iter());
-                } else {
-                    // Replace all the unused whitespaces with empty spaces
-                    for _ in 0..whitespace_buffer.len() {
-                        rendered_whitespaces.push(' ');
+                ' ' => {
+                    let col_left = phantom.col_after(col, true);
+                    let col_right = phantom.col_after(col + 1, false);
+                    let x0 = text_layout.hit_test_text_position(col_left).point.x;
+                    let x1 = text_layout.hit_test_text_position(col_right).point.x;
+                    whitespace_buffer.push((' ', (x0, x1)));
+                }
+                _ => {
+                    if (char_found && render_between)
+                        || (char_found
+                            && render_boundary
+                            && whitespace_buffer.len() > 1)
+                        || (!char_found && render_leading)
+                    {
+                        rendered_whitespaces.extend(whitespace_buffer.iter());
+                    } else {
                     }
+
+                    char_found = true;
+                    whitespace_buffer.clear();
                 }
-
-                rendered_whitespaces.push(' ');
-                char_found = true;
-                whitespace_buffer.clear();
             }
+            col += c.len_utf8();
         }
-
-        // Finally add all the trailing spaces if there are spaces left
         rendered_whitespaces.extend(whitespace_buffer.iter());
 
-        let whitespace_color = config
-            .get_style_color(LapceTheme::EDITOR_VISIBLE_WHITESPACE)
-            .unwrap_or(&Color::rgb8(0x5c, 0x63, 0x70)) // dark theme comment color
-            .clone();
-        let whitespace_color = whitespace_color.with_alpha(0.5);
-
-        let whitespace = text
-            .new_text_layout(rendered_whitespaces)
-            .font(config.editor.font_family(), font_size as f64)
-            .text_color(whitespace_color)
-            .build()
-            .unwrap();
-
-        Some(whitespace)
+        Some(rendered_whitespaces)
     }
 
     pub fn line_horiz_col(
@@ -2254,11 +2289,31 @@ impl Document {
     ) -> (usize, Option<ColPosition>) {
         match movement {
             Movement::Left => {
-                let new_offset = self.buffer.move_left(offset, mode, count);
+                let mut new_offset = self.buffer.move_left(offset, mode, count);
+
+                if config.editor.atomic_soft_tabs && config.editor.tab_width > 1 {
+                    new_offset = snap_to_soft_tab(
+                        &self.buffer,
+                        new_offset,
+                        SnapDirection::Left,
+                        config.editor.tab_width,
+                    );
+                }
+
                 (new_offset, None)
             }
             Movement::Right => {
-                let new_offset = self.buffer.move_right(offset, mode, count);
+                let mut new_offset = self.buffer.move_right(offset, mode, count);
+
+                if config.editor.atomic_soft_tabs && config.editor.tab_width > 1 {
+                    new_offset = snap_to_soft_tab(
+                        &self.buffer,
+                        new_offset,
+                        SnapDirection::Right,
+                        config.editor.tab_width,
+                    );
+                }
+
                 (new_offset, None)
             }
             Movement::Up => {
@@ -2503,7 +2558,8 @@ impl Document {
                 (new_offset, None)
             }
             Movement::WordBackward => {
-                let new_offset = self.buffer.move_n_words_backward(offset, count);
+                let new_offset =
+                    self.buffer.move_n_words_backward(offset, count, mode);
                 (new_offset, None)
             }
             Movement::NextUnmatched(c) => {
@@ -2555,7 +2611,11 @@ impl Document {
     ) -> Size {
         let prev_offset = self.buffer.prev_code_boundary(offset);
         let empty_vec = Vec::new();
-        let code_actions = self.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+        let code_actions = self
+            .code_actions
+            .get(&prev_offset)
+            .map(|(_plugin_id, code_actions)| code_actions)
+            .unwrap_or(&empty_vec);
 
         let action_text_layouts: Vec<PietTextLayout> = code_actions
             .iter()

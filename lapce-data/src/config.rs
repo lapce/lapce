@@ -52,6 +52,7 @@ impl LapceTheme {
     pub const EDITOR_CURRENT_LINE: &str = "editor.current_line";
     pub const EDITOR_LINK: &str = "editor.link";
     pub const EDITOR_VISIBLE_WHITESPACE: &str = "editor.visible_whitespace";
+    pub const EDITOR_INDENT_GUIDE: &str = "editor.indent_guide";
 
     pub const INLAY_HINT_FOREGROUND: &str = "inlay_hint.foreground";
     pub const INLAY_HINT_BACKGROUND: &str = "inlay_hint.background";
@@ -175,6 +176,10 @@ pub struct EditorConfig {
     #[field_names(desc = "If the editor can scroll beyond the last line")]
     pub scroll_beyond_last_line: bool,
     #[field_names(
+        desc = "Set the minimum number of visible lines above and below the cursor"
+    )]
+    pub cursor_surrounding_lines: usize,
+    #[field_names(
         desc = "Show code context like functions and classes at the top of editor when scroll"
     )]
     pub sticky_header: bool,
@@ -238,10 +243,16 @@ pub struct EditorConfig {
         desc = "How the editor should render whitespace characters.\nOptions: none, all, boundary, trailing."
     )]
     pub render_whitespace: String,
+    #[field_names(desc = "Whether the editor show indent guide.")]
+    pub show_indent_guide: bool,
     #[field_names(
         desc = "Set the auto save delay (in milliseconds), Set to 0 to completely disable"
     )]
     pub autosave_interval: u64,
+    #[field_names(
+        desc = "If enabled the cursor treats leading soft tabs as if they are hard tabs."
+    )]
+    pub atomic_soft_tabs: bool,
 }
 
 impl EditorConfig {
@@ -338,6 +349,9 @@ pub struct UIConfig {
     hover_font_family: String,
     #[field_names(desc = "Set the hover font size. If 0, uses the UI font size")]
     hover_font_size: usize,
+
+    #[field_names(desc = "Trim whitespace from search results")]
+    trim_search_results_whitespace: bool,
 }
 
 impl UIConfig {
@@ -393,6 +407,10 @@ impl UIConfig {
         } else {
             self.hover_font_size
         }
+    }
+
+    pub fn trim_search_results_whitespace(&self) -> bool {
+        self.trim_search_results_whitespace
     }
 }
 
@@ -595,7 +613,7 @@ pub struct LapceConfig {
     pub terminal: TerminalConfig,
     pub theme: ThemeConfig,
     #[serde(flatten)]
-    pub plugins: HashMap<String, serde_json::Value>,
+    pub plugins: HashMap<String, HashMap<String, serde_json::Value>>,
     #[serde(skip)]
     pub default_theme: ThemeConfig,
     #[serde(skip)]
@@ -995,14 +1013,13 @@ impl LapceConfig {
 
     /// Calculate the width of the character "W" (being the widest character)
     /// in the editor's current font family at the specified font size.
-    pub fn char_width(&self, text: &mut PietText, font_size: f64) -> f64 {
-        Self::editor_text_size_internal(
-            self.editor.font_family(),
-            font_size,
-            text,
-            "W",
-        )
-        .width
+    pub fn char_width(
+        &self,
+        text: &mut PietText,
+        font_size: f64,
+        font_family: FontFamily,
+    ) -> f64 {
+        Self::text_size_internal(font_family, font_size, text, "W").width
     }
 
     pub fn terminal_font_family(&self) -> FontFamily {
@@ -1032,7 +1049,11 @@ impl LapceConfig {
     /// Calculate the width of the character "W" (being the widest character)
     /// in the editor's current font family and current font size.
     pub fn editor_char_width(&self, text: &mut PietText) -> f64 {
-        self.char_width(text, self.editor.font_size as f64)
+        self.char_width(
+            text,
+            self.editor.font_size as f64,
+            self.editor.font_family(),
+        )
     }
 
     /// Calculate the width of `text_to_measure` in the editor's current font family and font size.
@@ -1041,7 +1062,7 @@ impl LapceConfig {
         text: &mut PietText,
         text_to_measure: &str,
     ) -> f64 {
-        Self::editor_text_size_internal(
+        Self::text_size_internal(
             self.editor.font_family(),
             self.editor.font_size as f64,
             text,
@@ -1056,7 +1077,7 @@ impl LapceConfig {
         text: &mut PietText,
         text_to_measure: &str,
     ) -> Size {
-        Self::editor_text_size_internal(
+        Self::text_size_internal(
             self.editor.font_family(),
             self.editor.font_size as f64,
             text,
@@ -1064,9 +1085,48 @@ impl LapceConfig {
         )
     }
 
+    /// Calculate the width of the character "W" (being the widest character)
+    /// in the editor's current font family and current font size.
+    pub fn terminal_char_width(&self, text: &mut PietText) -> f64 {
+        self.char_width(
+            text,
+            self.terminal_font_size() as f64,
+            self.terminal_font_family(),
+        )
+    }
+
+    /// Calculate the width of `text_to_measure` in the editor's current font family and font size.
+    pub fn terminal_text_width(
+        &self,
+        text: &mut PietText,
+        text_to_measure: &str,
+    ) -> f64 {
+        Self::text_size_internal(
+            self.terminal_font_family(),
+            self.terminal_font_size() as f64,
+            text,
+            text_to_measure,
+        )
+        .width
+    }
+
+    /// Calculate the size of `text_to_measure` in the terminal's current font family and font size.
+    pub fn terminal_text_size(
+        &self,
+        text: &mut PietText,
+        text_to_measure: &str,
+    ) -> Size {
+        Self::text_size_internal(
+            self.terminal_font_family(),
+            self.terminal_font_size() as f64,
+            text,
+            text_to_measure,
+        )
+    }
+
     /// Efficiently calculate the size of a piece of text, without allocating.
     /// This function should not be made public, use one of the public wrapper functions instead.
-    fn editor_text_size_internal(
+    fn text_size_internal(
         font_family: FontFamily,
         font_size: f64,
         text: &mut PietText,

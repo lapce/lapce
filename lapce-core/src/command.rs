@@ -38,6 +38,8 @@ pub enum EditCommand {
     DeleteWordBackward,
     #[strum(serialize = "delete_to_beginning_of_line")]
     DeleteToBeginningOfLine,
+    #[strum(serialize = "delete_to_end_and_insert")]
+    DeleteToEndOfLineAndInsert,
     #[strum(message = "Join Lines")]
     #[strum(serialize = "join_lines")]
     JoinLines,
@@ -213,6 +215,8 @@ pub enum FocusCommand {
     SearchForward,
     #[strum(serialize = "search_backward")]
     SearchBackward,
+    #[strum(serialize = "toggle_case_sensitive_search")]
+    ToggleCaseSensitive,
     #[strum(serialize = "global_search_refresh")]
     GlobalSearchRefresh,
     #[strum(serialize = "clear_search")]

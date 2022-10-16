@@ -13,6 +13,8 @@ use lapce_data::{
 
 use crate::{editor::view::LapceEditorView, svg::get_svg, tab::LapceIcon};
 
+const CASE_SENSITIVE_ICON: &str = "case-sensitive.svg";
+
 pub struct FindBox {
     parent_view_id: WidgetId,
     input_width: f64,
@@ -52,6 +54,18 @@ impl FindBox {
                     LAPCE_COMMAND,
                     LapceCommand {
                         kind: CommandKind::Focus(FocusCommand::SearchForward),
+                        data: None,
+                    },
+                    Target::Widget(parent_view_id),
+                ),
+            },
+            LapceIcon {
+                icon: CASE_SENSITIVE_ICON,
+                rect: Rect::ZERO,
+                command: Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::ToggleCaseSensitive),
                         data: None,
                     },
                     Target::Widget(parent_view_id),
@@ -136,16 +150,17 @@ impl Widget<LapceTabData> for FindBox {
             BoxConstraints::tight(Size::new(self.input_width, bc.max().height));
         let mut input_size = self.input.layout(ctx, &input_bc, data, env);
         self.input.set_origin(ctx, data, env, Point::ZERO);
+        let icons_len = self.icons.len() as f64;
         let height = input_size.height;
-        let mut width = input_size.width + self.result_width + height * 3.0;
+        let mut width = input_size.width + self.result_width + height * icons_len;
 
         if width - 20.0 > bc.max().width {
             let input_bc = BoxConstraints::tight(Size::new(
-                bc.max().width - height * 3.0 - 20.0 - self.result_width,
+                bc.max().width - height * icons_len - 20.0 - self.result_width,
                 bc.max().height,
             ));
             input_size = self.input.layout(ctx, &input_bc, data, env);
-            width = input_size.width + self.result_width + height * 3.0;
+            width = input_size.width + self.result_width + height * icons_len;
         }
 
         for (i, icon) in self.icons.iter_mut().enumerate() {
@@ -260,8 +275,25 @@ impl Widget<LapceTabData> for FindBox {
             Point::new(input_size.width, text_layout.y_offset(input_size.height)),
         );
 
+        let case_sensitive = data
+            .main_split
+            .active_editor()
+            .map(|editor| {
+                let editor_data = data.editor_view_content(editor.view_id);
+                editor_data.find.case_sensitive()
+            })
+            .unwrap_or_default();
+
         for icon in self.icons.iter() {
-            if icon.rect.contains(self.mouse_pos) {
+            if icon.icon == CASE_SENSITIVE_ICON && case_sensitive {
+                ctx.fill(
+                    &icon.rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
+                );
+            } else if icon.rect.contains(self.mouse_pos)
+                && icon.icon != CASE_SENSITIVE_ICON
+            {
                 ctx.fill(
                     &icon.rect,
                     data.config

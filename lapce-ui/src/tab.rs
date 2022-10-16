@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, process, sync::Arc};
 
 use druid::{
     kurbo::Line,
@@ -24,8 +24,9 @@ use lapce_data::{
     completion::CompletionStatus,
     config::{LapceConfig, LapceTheme},
     data::{
-        DragContent, EditorDiagnostic, FocusArea, LapceData, LapceTabData,
-        LapceWindowData, LapceWorkspace, LapceWorkspaceType, WorkProgress,
+        DragContent, EditorDiagnostic, EditorTabChild, FocusArea, LapceData,
+        LapceTabData, LapceWindowData, LapceWorkspace, LapceWorkspaceType,
+        WorkProgress,
     },
     document::{BufferContent, LocalBufferKind},
     editor::EditorLocation,
@@ -47,10 +48,11 @@ use xi_rope::Rope;
 use crate::{
     about::AboutBox, alert::AlertBox, completion::CompletionContainer,
     editor::view::LapceEditorView, explorer::FileExplorer, hover::HoverContainer,
-    panel::PanelContainer, picker::FilePicker, plugin::Plugin,
-    problem::new_problem_panel, search::new_search_panel,
-    source_control::new_source_control_panel, split::split_data_widget,
-    status::LapceStatus, svg::get_svg, terminal::TerminalPanel, title::Title,
+    message::LapceMessage, panel::PanelContainer, picker::FilePicker,
+    plugin::Plugin, problem::new_problem_panel, scroll::LapceScroll,
+    search::new_search_panel, source_control::new_source_control_panel,
+    split::split_data_widget, status::LapceStatus, svg::get_svg,
+    terminal::TerminalPanel, title::Title,
 };
 
 pub const LAPCE_TAB_META: Selector<SingleUse<LapceTabMeta>> =
@@ -84,6 +86,7 @@ pub struct LapceTab {
     picker: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     about: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     alert: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    message: WidgetPod<LapceTabData, LapceScroll<LapceTabData, LapceMessage>>,
     panel_left: WidgetPod<LapceTabData, PanelContainer>,
     panel_bottom: WidgetPod<LapceTabData, PanelContainer>,
     panel_right: WidgetPod<LapceTabData, PanelContainer>,
@@ -117,6 +120,7 @@ impl LapceTab {
 
         let about = AboutBox::new(data);
         let alert = AlertBox::new(data);
+        let message = LapceScroll::new(LapceMessage::new(*data.message_widget_id));
 
         let mut panel_left = PanelContainer::new(PanelContainerPosition::Left);
         let mut panel_bottom = PanelContainer::new(PanelContainerPosition::Bottom);
@@ -187,6 +191,7 @@ impl LapceTab {
             status: WidgetPod::new(status.boxed()),
             about: WidgetPod::new(about.boxed()),
             alert: WidgetPod::new(alert.boxed()),
+            message: WidgetPod::new(message),
             panel_left: WidgetPod::new(panel_left),
             panel_right: WidgetPod::new(panel_right),
             panel_bottom: WidgetPod::new(panel_bottom),
@@ -698,6 +703,14 @@ impl LapceTab {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::UpdateStarted => {
+                        ctx.set_handled();
+                        ctx.request_layout();
+                    }
+                    LapceUICommand::UpdateFailed => {
+                        ctx.set_handled();
+                        ctx.request_layout();
+                    }
                     LapceUICommand::RequestPaint => {
                         ctx.request_paint();
                         ctx.set_handled();
@@ -783,14 +796,18 @@ impl LapceTab {
                             Arc::make_mut(doc).reload(Rope::from(pattern), true);
                         }
                     }
-                    LapceUICommand::UpdateSearch(pattern) => {
+                    LapceUICommand::UpdateSearchWithCaseSensitivity {
+                        pattern,
+                        case_sensitive,
+                    } => {
                         if pattern.is_empty() {
                             Arc::make_mut(&mut data.find).unset();
                             Arc::make_mut(&mut data.search).matches =
                                 Arc::new(HashMap::new());
                         } else {
                             let find = Arc::make_mut(&mut data.find);
-                            find.set_find(pattern, false, false, false);
+                            find.set_case_sensitive(*case_sensitive);
+                            find.set_find(pattern, false, false);
                             find.visual = true;
                             if data.focus_area == FocusArea::Panel(PanelKind::Search)
                             {
@@ -812,6 +829,7 @@ impl LapceTab {
                             let tab_id = data.id;
                             data.proxy.proxy_rpc.global_search(
                                 pattern.clone(),
+                                find.case_sensitive(),
                                 Box::new(move |result| {
                                     if let Ok(
                                         ProxyResponse::GlobalSearchResponse {
@@ -831,6 +849,17 @@ impl LapceTab {
                                 }),
                             )
                         }
+                    }
+                    LapceUICommand::UpdateSearch(pattern) => {
+                        let case_sensitive = data.find.case_sensitive();
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateSearchWithCaseSensitivity {
+                                pattern: pattern.clone(),
+                                case_sensitive,
+                            },
+                            Target::Widget(self.id),
+                        ))
                     }
                     LapceUICommand::OpenPluginInfo(volt) => {
                         data.main_split.open_plugin_info(ctx, volt);
@@ -953,6 +982,25 @@ impl LapceTab {
 
                         if !(*only_installing) {
                             plugin.installed.insert(volt.id(), volt.clone());
+
+                            for (_, tabs) in data.main_split.editor_tabs.iter() {
+                                for child in tabs.children.iter() {
+                                    if let EditorTabChild::Settings {
+                                        settings_widget_id,
+                                        ..
+                                    } = child
+                                    {
+                                        ctx.submit_command(Command::new(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::VoltInstalled(
+                                                volt.clone(),
+                                                false,
+                                            ),
+                                            Target::Widget(*settings_widget_id),
+                                        ));
+                                    }
+                                }
+                            }
                         }
                     }
                     LapceUICommand::VoltInstalling(volt, error) => {
@@ -1010,6 +1058,25 @@ impl LapceTab {
                                 let _ = data.db.save_disabled_volts(
                                     plugin.workspace_disabled.iter().collect(),
                                 );
+                            }
+
+                            for (_, tabs) in data.main_split.editor_tabs.iter() {
+                                for child in tabs.children.iter() {
+                                    if let EditorTabChild::Settings {
+                                        settings_widget_id,
+                                        ..
+                                    } = child
+                                    {
+                                        ctx.submit_command(Command::new(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::VoltRemoved(
+                                                volt.clone(),
+                                                false,
+                                            ),
+                                            Target::Widget(*settings_widget_id),
+                                        ));
+                                    }
+                                }
                             }
                         }
                     }
@@ -1505,12 +1572,18 @@ impl LapceTab {
                             }
                         }
                     }
-                    LapceUICommand::UpdateCodeActions(path, rev, offset, resp) => {
+                    LapceUICommand::UpdateCodeActions {
+                        path,
+                        plugin_id,
+                        rev,
+                        offset,
+                        resp,
+                    } => {
                         if let Some(doc) = data.main_split.open_docs.get_mut(path) {
                             if doc.rev() == *rev {
                                 Arc::make_mut(doc)
                                     .code_actions
-                                    .insert(*offset, resp.clone());
+                                    .insert(*offset, (*plugin_id, resp.clone()));
                             }
                         }
                     }
@@ -1656,7 +1729,7 @@ impl LapceTab {
                             BufferContent::Local(kind) => {
                                 data.main_split.local_docs.get_mut(kind).unwrap()
                             }
-                            BufferContent::SettingsValue(name, _, _, _) => {
+                            BufferContent::SettingsValue(name) => {
                                 data.main_split.value_docs.get_mut(name).unwrap()
                             }
                             BufferContent::Scratch(id, _) => {
@@ -1672,15 +1745,16 @@ impl LapceTab {
                     }
                     LapceUICommand::SetLanguage(name) => {
                         ctx.set_handled();
-                        let editor =
-                            if let Some(editor) = data.main_split.active_editor() {
-                                editor
-                            } else {
-                                return;
-                            };
+                        let editor = if let Some(editor) =
+                            data.main_split.active_editor().cloned()
+                        {
+                            editor
+                        } else {
+                            return;
+                        };
 
-                        let mut doc = data.main_split.content_doc(&editor.content);
-                        let doc = Arc::make_mut(&mut doc);
+                        let doc = data.main_split.content_doc_mut(&editor.content);
+                        let doc = Arc::make_mut(doc);
 
                         if name.is_empty() || name.to_lowercase().eq("plain text") {
                             doc.set_syntax(None);
@@ -1862,6 +1936,26 @@ impl LapceTab {
                         let mut clipboard = druid::Application::global().clipboard();
                         clipboard.put_string(relative_path.to_str().unwrap());
                     }
+                    LapceUICommand::NewMessage {
+                        kind,
+                        title,
+                        message,
+                    } => {
+                        ctx.set_handled();
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::NewMessage {
+                                kind: *kind,
+                                title: title.clone(),
+                                message: message.clone(),
+                            },
+                            Target::Widget(*data.message_widget_id),
+                        ));
+                    }
+                    LapceUICommand::RunCommand(cmd, args) => {
+                        ctx.set_handled();
+                        let _ = process::Command::new(cmd).args(args).spawn();
+                    }
                     _ => (),
                 }
             }
@@ -1894,6 +1988,7 @@ impl Widget<LapceTabData> for LapceTab {
             self.picker.event(ctx, event, data, env);
         }
         self.title.event(ctx, event, data, env);
+        self.message.event(ctx, event, data, env);
         if data.completion.status == CompletionStatus::Started
             || event.should_propagate_to_hidden()
         {
@@ -1947,6 +2042,10 @@ impl Widget<LapceTabData> for LapceTab {
             }) {
                 Arc::make_mut(&mut data.hover).cancel();
             }
+        }
+
+        if ctx.is_handled() {
+            return;
         }
 
         match event {
@@ -2058,6 +2157,7 @@ impl Widget<LapceTabData> for LapceTab {
         self.picker.lifecycle(ctx, event, data, env);
         self.about.lifecycle(ctx, event, data, env);
         self.alert.lifecycle(ctx, event, data, env);
+        self.message.lifecycle(ctx, event, data, env);
         self.panel_left.lifecycle(ctx, event, data, env);
         self.panel_right.lifecycle(ctx, event, data, env);
         self.panel_bottom.lifecycle(ctx, event, data, env);
@@ -2134,6 +2234,7 @@ impl Widget<LapceTabData> for LapceTab {
         self.picker.update(ctx, data, env);
         self.about.update(ctx, data, env);
         self.alert.update(ctx, data, env);
+        self.message.update(ctx, data, env);
         self.panel_left.update(ctx, data, env);
         self.panel_right.update(ctx, data, env);
         self.panel_bottom.update(ctx, data, env);
@@ -2146,7 +2247,6 @@ impl Widget<LapceTabData> for LapceTab {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        // ctx.set_paint_insets((0.0, 10.0, 0.0, 0.0));
         let self_size = bc.max();
         self.height = self_size.height;
         self.width = self_size.width;
@@ -2311,6 +2411,28 @@ impl Widget<LapceTabData> for LapceTab {
             self.alert.set_origin(ctx, data, env, Point::ZERO);
         }
 
+        let message_size = self.message.layout(
+            ctx,
+            &BoxConstraints::new(
+                Size::ZERO,
+                Size::new(
+                    self_size.width,
+                    self_size.height - title_height - status_size.height - 20.0,
+                ),
+            ),
+            data,
+            env,
+        );
+        self.message.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new(
+                (self_size.width - message_size.width - 10.0).max(0.0),
+                title_height + 10.0,
+            ),
+        );
+
         self_size
     }
 
@@ -2430,6 +2552,9 @@ impl Widget<LapceTabData> for LapceTab {
         ctx.incr_alpha_depth();
         self.about.paint(ctx, data, env);
         self.alert.paint(ctx, data, env);
+        if self.message.widget().child().has_items() {
+            self.message.paint(ctx, data, env);
+        }
     }
 }
 

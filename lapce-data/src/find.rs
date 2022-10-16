@@ -107,6 +107,26 @@ impl Find {
         self.hls_dirty = is_dirty
     }
 
+    /// Returns `true` if case sensitive, otherwise `false`
+    pub fn case_sensitive(&self) -> bool {
+        match self.case_matching {
+            CaseMatching::Exact => true,
+            CaseMatching::CaseInsensitive => false,
+        }
+    }
+
+    /// FLips the current case sensitivity and return the new sensitivity
+    /// `true` for case_sensitive, `false` for case insensitive.
+    pub fn toggle_case_sensitive(&mut self) -> bool {
+        let case_matching = match self.case_matching {
+            CaseMatching::Exact => CaseMatching::CaseInsensitive,
+            CaseMatching::CaseInsensitive => CaseMatching::Exact,
+        };
+
+        self.case_matching = case_matching;
+        self.case_sensitive()
+    }
+
     /// Returns `true` if the search query is a multi-line regex.
     pub(crate) fn is_multiline_regex(&self) -> bool {
         self.regex.is_some()
@@ -120,40 +140,42 @@ impl Find {
         self.hls_dirty = true;
     }
 
-    /// Sets find parameters and search query. Returns `true` if parameters have been updated.
-    /// Returns `false` to indicate that parameters haven't change.
-    pub fn set_find(
-        &mut self,
-        search_string: &str,
-        case_sensitive: bool,
-        is_regex: bool,
-        whole_words: bool,
-    ) -> bool {
-        if search_string.is_empty() {
-            self.unset();
-        }
-
+    /// Sets find case sensitivity.
+    pub fn set_case_sensitive(&mut self, case_sensitive: bool) {
         let case_matching = if case_sensitive {
             CaseMatching::Exact
         } else {
             CaseMatching::CaseInsensitive
         };
 
+        if self.case_matching != case_matching {
+            self.case_matching = case_matching;
+        }
+    }
+
+    /// Sets find parameters and search query. Returns `true` if parameters have been updated.
+    /// Returns `false` to indicate that parameters haven't change.
+    pub fn set_find(
+        &mut self,
+        search_string: &str,
+        is_regex: bool,
+        whole_words: bool,
+    ) {
+        if search_string.is_empty() {
+            self.unset();
+        }
         if let Some(ref s) = self.search_string {
             if s == search_string
-                && case_matching == self.case_matching
                 && self.regex.is_some() == is_regex
                 && self.whole_words == whole_words
             {
                 // search parameters did not change
-                return false;
             }
         }
 
         self.unset();
 
         self.search_string = Some(search_string.to_string());
-        self.case_matching = case_matching;
         self.whole_words = whole_words;
 
         // create regex from untrusted input
@@ -161,12 +183,10 @@ impl Find {
             false => None,
             true => RegexBuilder::new(search_string)
                 .size_limit(REGEX_SIZE_LIMIT)
-                .case_insensitive(case_matching == CaseMatching::CaseInsensitive)
+                .case_insensitive(!self.case_sensitive())
                 .build()
                 .ok(),
         };
-
-        true
     }
 
     pub fn next(

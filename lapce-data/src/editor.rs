@@ -24,13 +24,15 @@ use lapce_core::{
     editor::EditType,
     mode::{Mode, MotionMode},
     selection::{InsertDrift, Selection},
+    syntax::edit::SyntaxEdit,
 };
+use lapce_rpc::plugin::PluginId;
 use lapce_rpc::proxy::ProxyResponse;
 use lsp_types::{
-    request::GotoTypeDefinitionResponse, CodeActionOrCommand, CodeActionResponse,
-    CompletionItem, CompletionTextEdit, DiagnosticSeverity, DocumentChangeOperation,
-    DocumentChanges, GotoDefinitionResponse, Location, OneOf, Position, ResourceOp,
-    TextEdit, Url, WorkspaceEdit,
+    request::GotoTypeDefinitionResponse, CodeAction, CodeActionOrCommand,
+    CodeActionResponse, CompletionItem, CompletionTextEdit, DiagnosticSeverity,
+    DocumentChangeOperation, DocumentChanges, GotoDefinitionResponse, Location,
+    OneOf, Position, ResourceOp, TextEdit, Url, WorkspaceEdit,
 };
 use xi_rope::{Rope, RopeDelta, Transformer};
 
@@ -293,17 +295,20 @@ impl LapceEditorBufferData {
                     path.clone(),
                     position,
                     move |result| {
-                        if let Ok(ProxyResponse::GetCodeActionsResponse { resp }) =
-                            result
+                        if let Ok(ProxyResponse::GetCodeActionsResponse {
+                            plugin_id,
+                            resp,
+                        }) = result
                         {
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::UpdateCodeActions(
+                                LapceUICommand::UpdateCodeActions {
                                     path,
+                                    plugin_id,
                                     rev,
-                                    prev_offset,
+                                    offset: prev_offset,
                                     resp,
-                                ),
+                                },
                                 Target::Auto,
                             );
                         }
@@ -409,15 +414,47 @@ impl LapceEditorBufferData {
         &mut self,
         ctx: &mut EventCtx,
         action: &CodeActionOrCommand,
+        plugin_id: &PluginId,
     ) {
         match action {
             CodeActionOrCommand::Command(_cmd) => {}
             CodeActionOrCommand::CodeAction(action) => {
+                // If the action contains a workspace edit we can apply it right away
+                // otherwise we need to use 'codeAction/resolve'
+                // (see: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_codeAction)
                 if let Some(edit) = action.edit.as_ref() {
                     self.apply_workspace_edit(ctx, edit);
+                } else {
+                    self.resolve_code_action(ctx, action, plugin_id)
                 }
             }
         }
+    }
+
+    fn resolve_code_action(
+        &mut self,
+        ctx: &mut EventCtx,
+        action: &CodeAction,
+        plugin_id: &PluginId,
+    ) {
+        let event_sink = ctx.get_external_handle();
+        let view_id = self.view_id;
+        self.proxy.proxy_rpc.code_action_resolve(
+            action.clone(),
+            *plugin_id,
+            move |result| {
+                if let Ok(ProxyResponse::CodeActionResolveResponse { item }) = result
+                {
+                    if let Some(edit) = item.edit {
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ApplyWorkspaceEdit(edit),
+                            Target::Widget(view_id),
+                        );
+                    }
+                }
+            },
+        )
     }
 
     pub fn apply_completion_item(&mut self, item: &CompletionItem) -> Result<()> {
@@ -462,8 +499,8 @@ impl LapceEditorBufferData {
                     );
                     match text_format {
                         lsp_types::InsertTextFormat::PLAIN_TEXT => {
-                            let (delta, inval_lines) = Arc::make_mut(&mut self.doc)
-                                .do_raw_edit(
+                            let (delta, inval_lines, edits) =
+                                Arc::make_mut(&mut self.doc).do_raw_edit(
                                     &[
                                         &[(&selection, edit.new_text.as_str())][..],
                                         &additional_edit[..],
@@ -479,14 +516,14 @@ impl LapceEditorBufferData {
                             Arc::make_mut(&mut self.editor)
                                 .cursor
                                 .update_selection(self.doc.buffer(), selection);
-                            self.apply_deltas(&[(delta, inval_lines)]);
+                            self.apply_deltas(&[(delta, inval_lines, edits)]);
                             return Ok(());
                         }
                         lsp_types::InsertTextFormat::SNIPPET => {
                             let snippet = Snippet::from_str(&edit.new_text)?;
                             let text = snippet.text();
-                            let (delta, inval_lines) = Arc::make_mut(&mut self.doc)
-                                .do_raw_edit(
+                            let (delta, inval_lines, edits) =
+                                Arc::make_mut(&mut self.doc).do_raw_edit(
                                     &[
                                         &[(&selection, text.as_str())][..],
                                         &additional_edit[..],
@@ -518,7 +555,7 @@ impl LapceEditorBufferData {
                                 Arc::make_mut(&mut self.editor)
                                     .cursor
                                     .update_selection(self.doc.buffer(), selection);
-                                self.apply_deltas(&[(delta, inval_lines)]);
+                                self.apply_deltas(&[(delta, inval_lines, edits)]);
                                 return Ok(());
                             }
 
@@ -532,7 +569,7 @@ impl LapceEditorBufferData {
                             Arc::make_mut(&mut self.editor)
                                 .cursor
                                 .set_insert(selection);
-                            self.apply_deltas(&[(delta, inval_lines)]);
+                            self.apply_deltas(&[(delta, inval_lines, edits)]);
                             Arc::make_mut(&mut self.editor)
                                 .add_snippet_placeholders(snippet_tabs);
                             return Ok(());
@@ -549,7 +586,7 @@ impl LapceEditorBufferData {
         let end_offset = self.doc.buffer().next_code_boundary(offset);
         let selection = Selection::region(start_offset, end_offset);
 
-        let (delta, inval_lines) = Arc::make_mut(&mut self.doc).do_raw_edit(
+        let (delta, inval_lines, edits) = Arc::make_mut(&mut self.doc).do_raw_edit(
             &[
                 &[(
                     &selection,
@@ -564,7 +601,7 @@ impl LapceEditorBufferData {
         Arc::make_mut(&mut self.editor)
             .cursor
             .update_selection(self.doc.buffer(), selection);
-        self.apply_deltas(&[(delta, inval_lines)]);
+        self.apply_deltas(&[(delta, inval_lines, edits)]);
         Ok(())
     }
 
@@ -1087,7 +1124,7 @@ impl LapceEditorBufferData {
         ));
     }
 
-    pub fn current_code_actions(&self) -> Option<&CodeActionResponse> {
+    pub fn current_code_actions(&self) -> Option<&(PluginId, CodeActionResponse)> {
         let offset = self.editor.cursor.offset();
         let prev_offset = self.doc.buffer().prev_code_boundary(offset);
         self.doc.code_actions.get(&prev_offset)
@@ -1124,7 +1161,14 @@ impl LapceEditorBufferData {
                 )
             };
 
-            (line, config.char_width(text, font_size as f64))
+            (
+                line,
+                config.char_width(
+                    text,
+                    font_size as f64,
+                    config.editor.font_family(),
+                ),
+            )
         } else if let Some(compare) = self.editor.compare.as_ref() {
             let line = (pos.y / config.editor.line_height() as f64).floor() as usize;
             let line = self.doc.history_actual_line_from_visual(compare, line);
@@ -1248,8 +1292,8 @@ impl LapceEditorBufferData {
         );
     }
 
-    fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines)]) {
-        for (delta, _) in deltas {
+    fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
+        for (delta, _, _) in deltas {
             self.inactive_apply_delta(delta);
             self.update_snippet_offset(delta);
         }
@@ -1516,7 +1560,8 @@ impl LapceEditorBufferData {
                     LapceUICommand::UpdateSearchInput(word.clone()),
                     Target::Widget(*self.main_split.tab_id),
                 ));
-                Arc::make_mut(&mut self.find).set_find(&word, false, false, true);
+
+                Arc::make_mut(&mut self.find).set_find(&word, false, true);
                 let next =
                     self.find
                         .next(self.doc.buffer().text(), offset, false, true);
@@ -1590,6 +1635,22 @@ impl LapceEditorBufferData {
                         );
                     }
                 }
+            }
+            ToggleCaseSensitive => {
+                let tab_id = *self.main_split.tab_id;
+                let find = Arc::make_mut(&mut self.find);
+                if let Some(pattern) = find.search_string.clone() {
+                    let case_sensitive = find.toggle_case_sensitive();
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateSearchWithCaseSensitivity {
+                            pattern,
+                            case_sensitive,
+                        },
+                        Target::Widget(tab_id),
+                    ));
+                }
+                return CommandExecuted::No;
             }
             GlobalSearchRefresh => {
                 let tab_id = *self.main_split.tab_id;
@@ -1859,9 +1920,9 @@ impl LapceEditorBufferData {
                         position,
                         move |result| {
                             if let Ok(ProxyResponse::GetDefinitionResponse {
-                                definition,
-                                ..
-                            }) = result
+                                          definition,
+                                          ..
+                                      }) = result
                             {
                                 if let Some(location) = match definition {
                                     GotoDefinitionResponse::Scalar(location) => {
@@ -1885,8 +1946,8 @@ impl LapceEditorBufferData {
                                             move |result| {
                                                 if let Ok(ProxyResponse::GetReferencesResponse { references }) = result {
                                                     process_get_references(
-                                                    offset, references, event_sink,
-                                                );
+                                                        offset, references, event_sink,
+                                                    );
                                                 }
                                             },
                                         );
@@ -1928,9 +1989,9 @@ impl LapceEditorBufferData {
                         position,
                         move |result| {
                             if let Ok(ProxyResponse::GetTypeDefinition {
-                                definition,
-                                ..
-                            }) = result
+                                          definition,
+                                          ..
+                                      }) = result
                             {
                                 match definition {
                                     GotoTypeDefinitionResponse::Scalar(location) => {
@@ -1980,12 +2041,12 @@ impl LapceEditorBufferData {
                                             }
                                             _ if len > 1 => {
                                                 let _ = event_sink.submit_command(
-                                                LAPCE_UI_COMMAND,
-                                                LapceUICommand::PaletteReferences(
-                                                    offset, locations,
-                                                ),
-                                                Target::Auto,
-                                            );
+                                                    LAPCE_UI_COMMAND,
+                                                    LapceUICommand::PaletteReferences(
+                                                        offset, locations,
+                                                    ),
+                                                    Target::Auto,
+                                                );
                                             }
                                             _ => (),
                                         }
@@ -2042,13 +2103,13 @@ impl LapceEditorBufferData {
                                 |v| {
                                     v.map_err(|e| anyhow!("{:?}", e)).and_then(|r| {
                                         if let ProxyResponse::GetDocumentFormatting {
-                                    edits,
-                                } = r
-                                {
-                                    Ok(edits)
-                                } else {
-                                    Err(anyhow!("wrong response"))
-                                }
+                                            edits,
+                                        } = r
+                                        {
+                                            Ok(edits)
+                                        } else {
+                                            Err(anyhow!("wrong response"))
+                                        }
                                     })
                                 },
                             );
@@ -2093,8 +2154,7 @@ impl LapceEditorBufferData {
                         .to_string()
                 };
                 if !pattern.contains('\n') {
-                    Arc::make_mut(&mut self.find)
-                        .set_find(&pattern, false, false, false);
+                    Arc::make_mut(&mut self.find).set_find(&pattern, false, false);
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateSearchInput(pattern),
@@ -2326,6 +2386,13 @@ impl KeyPressFocus for LapceEditorBufferData {
 
     fn check_condition(&self, condition: &str) -> bool {
         match condition {
+            "search_active" => {
+                if self.config.core.modal && !self.editor.cursor.is_normal() {
+                    false
+                } else {
+                    self.find.visual
+                }
+            }
             "search_focus" => {
                 self.editor.content == BufferContent::Local(LocalBufferKind::Search)
                     && self.editor.parent_view_id.is_some()
@@ -2425,6 +2492,7 @@ pub struct TabRect {
     pub rect: Rect,
     pub close_rect: Rect,
     pub text_layout: PietTextLayout,
+    pub path_layout: Option<PietTextLayout>,
 }
 
 #[derive(Clone)]
@@ -2611,7 +2679,7 @@ fn apply_edit(main_split: &mut LapceMainSplitData, path: &Path, edits: &[TextEdi
 fn show_completion(
     cmd: &EditCommand,
     doc: &Rope,
-    deltas: &[(RopeDelta, InvalLines)],
+    deltas: &[(RopeDelta, InvalLines, SyntaxEdit)],
 ) -> bool {
     let show_completion = match cmd {
         EditCommand::DeleteBackward

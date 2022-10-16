@@ -148,11 +148,7 @@ impl<T: Clone + ListPaint<D> + PartialEq + 'static, D: Data> Widget<ListData<T, 
 
         let content_size = self.content.layout(ctx, &bc, data, env);
         self.content.set_origin(ctx, data, env, Point::ZERO);
-        let mut content_height = content_size.height;
-        // Add padding to the bottom
-        if content_height > 0.0 {
-            content_height += 5.0;
-        }
+        let content_height = content_size.height;
 
         let self_size = Size::new(content_size.width, content_height);
 
@@ -162,23 +158,6 @@ impl<T: Clone + ListPaint<D> + PartialEq + 'static, D: Data> Widget<ListData<T, 
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &ListData<T, D>, env: &Env) {
-        let rect = self.content_rect;
-        // TODO: Put whether shadows should appear on the list behind a variable
-        let shadow_width = data.config.ui.drop_shadow_width() as f64;
-        if shadow_width > 0.0 {
-            ctx.blurred_rect(
-                rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
-        } else {
-            ctx.stroke(
-                rect.inflate(0.5, 0.5),
-                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                1.0,
-            );
-        }
         // TODO: We could have the user of this provide a custom color
         // Or we could say that they have to fill it? Since something like
         // palette also wants to draw their background behind the other bits

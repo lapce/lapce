@@ -12,11 +12,15 @@ use crate::{
     rich_text::{AttributesAdder, RichText, RichTextBuilder},
 };
 
-pub fn parse_markdown(text: &str, config: &LapceConfig) -> RichText {
+pub fn parse_markdown(
+    text: &str,
+    line_height: f64,
+    config: &LapceConfig,
+) -> RichText {
     use pulldown_cmark::{CowStr, Event, Options, Parser};
 
     let mut builder = RichTextBuilder::new();
-    builder.set_line_height(1.5);
+    builder.set_line_height(line_height);
 
     // Our position within the text
     let mut pos = 0;
@@ -150,13 +154,14 @@ pub fn parse_markdown(text: &str, config: &LapceConfig) -> RichText {
 
 pub fn from_marked_string(text: MarkedString, config: &LapceConfig) -> RichText {
     match text {
-        MarkedString::String(text) => parse_markdown(&text, config),
+        MarkedString::String(text) => parse_markdown(&text, 1.5, config),
         // This is a short version of a code block
         MarkedString::LanguageString(code) => {
             // TODO: We could simply construct the MarkdownText directly
             // Simply construct the string as if it was written directly
             parse_markdown(
                 &format!("```{}\n{}\n```", code.language, code.value),
+                1.5,
                 config,
             )
         }

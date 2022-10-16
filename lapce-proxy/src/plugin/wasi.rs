@@ -1,5 +1,5 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     fs,
     io::{Read, Seek, Write},
     path::{Path, PathBuf},
@@ -80,7 +80,7 @@ pub struct Plugin {
     #[allow(dead_code)]
     id: PluginId,
     host: PluginHostHandler,
-    configurations: Option<serde_json::Value>,
+    configurations: Option<HashMap<String, serde_json::Value>>,
 }
 
 impl PluginServerHandler for Plugin {
@@ -172,7 +172,7 @@ impl Plugin {
     fn initialize(&mut self) {
         let server_rpc = self.host.server_rpc.clone();
         let workspace = self.host.workspace.clone();
-        let configurations = self.configurations.clone();
+        let configurations = self.configurations.as_ref().map(unflatten_map);
         thread::spawn(move || {
             let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
             let _ = server_rpc.server_request(
@@ -282,7 +282,7 @@ pub fn enable_volt(
 
 pub fn start_volt(
     workspace: Option<PathBuf>,
-    configurations: Option<serde_json::Value>,
+    configurations: Option<HashMap<String, serde_json::Value>>,
     plugin_rpc: PluginCatalogRpcHandler,
     meta: VoltMetadata,
 ) -> Result<()> {
@@ -399,6 +399,7 @@ pub fn start_volt(
             workspace,
             meta.dir.clone(),
             meta.id(),
+            meta.display_name.clone(),
             Vec::new(),
             rpc.clone(),
             plugin_rpc.clone(),
@@ -420,4 +421,53 @@ fn wasi_read_string(stdout: &Arc<RwLock<WasiPipe>>) -> Result<String> {
     let mut buf = String::new();
     stdout.write().unwrap().read_to_string(&mut buf)?;
     Ok(buf)
+}
+
+fn unflatten_map(map: &HashMap<String, serde_json::Value>) -> serde_json::Value {
+    let mut new = serde_json::json!({});
+    for (key, value) in map.iter() {
+        let mut current = new.as_object_mut().unwrap();
+        let parts: Vec<&str> = key.split('.').collect();
+        let total_parts = parts.len();
+        for (i, part) in parts.into_iter().enumerate() {
+            if i + 1 < total_parts {
+                if !current.get(part).map(|v| v.is_object()).unwrap_or(false) {
+                    current.insert(part.to_string(), serde_json::json!({}));
+                }
+                current = current.get_mut(part).unwrap().as_object_mut().unwrap();
+            } else {
+                current.insert(part.to_string(), value.clone());
+            }
+        }
+    }
+    new
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+
+    use serde_json::{json, Value};
+
+    use crate::plugin::wasi::unflatten_map;
+
+    #[test]
+    fn test_unflatten_map() {
+        let map: HashMap<String, Value> = serde_json::from_value(json!({
+            "a.b.c": "d",
+            "a.d": ["e"],
+        }))
+        .unwrap();
+        assert_eq!(
+            unflatten_map(&map),
+            json!({
+                "a": {
+                    "b": {
+                        "c": "d",
+                    },
+                    "d": ["e"],
+                }
+            })
+        );
+    }
 }

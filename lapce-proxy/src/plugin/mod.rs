@@ -25,6 +25,7 @@ use lapce_rpc::{
     style::LineStyle,
     RequestId, RpcError,
 };
+use lsp_types::request::CodeActionResolveRequest;
 use lsp_types::{
     request::{
         CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
@@ -33,8 +34,8 @@ use lsp_types::{
         PrepareRenameRequest, References, Rename, Request, ResolveCompletionItem,
         SelectionRangeRequest, SemanticTokensFullRequest, WorkspaceSymbol,
     },
-    CodeActionContext, CodeActionParams, CodeActionResponse, CompletionItem,
-    CompletionParams, CompletionResponse, DocumentFormattingParams,
+    CodeAction, CodeActionContext, CodeActionParams, CodeActionResponse,
+    CompletionItem, CompletionParams, CompletionResponse, DocumentFormattingParams,
     DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions,
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint,
     InlayHintParams, Location, PartialResultParams, Position, PrepareRenameResponse,
@@ -101,11 +102,13 @@ pub enum PluginCatalogRpc {
 }
 
 pub enum PluginCatalogNotification {
+    UpdatePluginConfigs(HashMap<String, HashMap<String, serde_json::Value>>),
     UnactivatedVolts(Vec<VoltMetadata>),
     PluginServerLoaded(PluginServerRpcHandler),
     InstallVolt(VoltInfo),
     StopVolt(VoltInfo),
     EnableVolt(VoltInfo),
+    ReloadVolt(VoltMetadata),
     Shutdown,
 }
 
@@ -811,6 +814,41 @@ impl PluginCatalogRpcHandler {
         );
     }
 
+    pub fn action_resolve(
+        &self,
+        item: CodeAction,
+        plugin_id: PluginId,
+        cb: impl FnOnce(Result<CodeAction, RpcError>) + Send + Clone + 'static,
+    ) {
+        let method = CodeActionResolveRequest::METHOD;
+        self.send_request(
+            Some(plugin_id),
+            None,
+            method,
+            item,
+            None,
+            None,
+            move |_, result| {
+                let result = match result {
+                    Ok(value) => {
+                        if let Ok(item) = serde_json::from_value::<CodeAction>(value)
+                        {
+                            Ok(item)
+                        } else {
+                            Err(RpcError {
+                                code: 0,
+                                message: "code_action item deserialize error"
+                                    .to_string(),
+                            })
+                        }
+                    }
+                    Err(e) => Err(e),
+                };
+                cb(result)
+            },
+        );
+    }
+
     pub fn did_open_document(
         &self,
         path: &Path,
@@ -841,12 +879,25 @@ impl PluginCatalogRpcHandler {
         ))
     }
 
+    pub fn update_plugin_configs(
+        &self,
+        configs: HashMap<String, HashMap<String, serde_json::Value>>,
+    ) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::UpdatePluginConfigs(
+            configs,
+        ))
+    }
+
     pub fn install_volt(&self, volt: VoltInfo) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::InstallVolt(volt))
     }
 
     pub fn stop_volt(&self, volt: VoltInfo) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::StopVolt(volt))
+    }
+
+    pub fn reload_volt(&self, volt: VoltMetadata) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::ReloadVolt(volt))
     }
 
     pub fn enable_volt(&self, volt: VoltInfo) -> Result<()> {
@@ -942,7 +993,7 @@ pub fn download_volt(
 pub fn install_volt(
     catalog_rpc: PluginCatalogRpcHandler,
     workspace: Option<PathBuf>,
-    configurations: Option<serde_json::Value>,
+    configurations: Option<HashMap<String, serde_json::Value>>,
     volt: VoltInfo,
 ) -> Result<()> {
     let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;

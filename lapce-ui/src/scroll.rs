@@ -343,7 +343,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for ClipBox<T, W> {
         let viewport = ctx.size().to_rect();
         let offset = self.viewport_origin().to_vec2();
         ctx.with_save(|ctx| {
-            ctx.clip(viewport.inflate(1.0, 0.0));
+            ctx.clip(viewport + self.child.paint_insets());
             ctx.transform(Affine::translate(-offset));
 
             let mut visible = ctx.region().clone();

@@ -174,6 +174,18 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
+            LogMessage { .. } => {}
+            ShowMessage { title, message } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::NewMessage {
+                        kind: message.typ,
+                        title,
+                        message: message.message,
+                    },
+                    Target::Widget(self.tab_id),
+                );
+            }
             HomeDir { path } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -267,7 +279,7 @@ impl LapceProxy {
         tab_id: WidgetId,
         workspace: LapceWorkspace,
         disabled_volts: Vec<String>,
-        plugin_configurations: HashMap<String, serde_json::Value>,
+        plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         term_tx: Sender<(TermId, TermEvent)>,
         event_sink: ExtEventSink,
     ) -> Self {
@@ -310,7 +322,7 @@ impl LapceProxy {
         &self,
         workspace: LapceWorkspace,
         disabled_volts: Vec<String>,
-        plugin_configurations: HashMap<String, serde_json::Value>,
+        plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
     ) -> Result<()> {

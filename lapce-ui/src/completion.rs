@@ -443,8 +443,7 @@ impl Widget<LapceTabData> for CompletionContainer {
             .set_origin(ctx, &completion_list, env, Point::ZERO);
 
         // Position the documentation over the current completion item to the right
-        let documentation_size = data.completion.documentation_size;
-        let bc = BoxConstraints::new(Size::ZERO, documentation_size);
+        let bc = BoxConstraints::new(Size::ZERO, data.completion.documentation_size);
         self.documentation_content_size =
             self.documentation.layout(ctx, &bc, data, env);
         self.documentation.set_origin(
@@ -454,13 +453,12 @@ impl Widget<LapceTabData> for CompletionContainer {
             Point::new(self.completion_content_size.width, 0.0),
         );
 
-        ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
-
         Size::new(
-            self.completion_content_size.width + documentation_size.width,
+            self.completion_content_size.width
+                + self.documentation_content_size.width,
             self.completion_content_size
                 .height
-                .max(documentation_size.height),
+                .max(self.documentation_content_size.height),
         )
     }
 
@@ -641,6 +639,10 @@ impl Widget<LapceTabData> for CompletionDocumentation {
         _data: &LapceTabData,
         env: &Env,
     ) -> Size {
+        if !self.has_text() {
+            return Size::ZERO;
+        }
+
         let width = bc.max().width;
         let max_width = width
             - CompletionDocumentation::STARTING_X
@@ -697,7 +699,7 @@ fn parse_documentation(doc: &Documentation, config: &LapceConfig) -> RichText {
                 builder.push(&content.value);
                 builder.build()
             }
-            MarkupKind::Markdown => parse_markdown(&content.value, config),
+            MarkupKind::Markdown => parse_markdown(&content.value, 1.5, config),
         },
     }
 }

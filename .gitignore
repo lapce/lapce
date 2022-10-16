@@ -1,6 +1,7 @@
 .vscode
 .lapce
 .idea
+.fleet
 lib/
 target/
 core/languages/

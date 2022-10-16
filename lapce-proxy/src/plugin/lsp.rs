@@ -150,6 +150,7 @@ impl LspClient {
         document_selector: DocumentSelector,
         workspace: Option<PathBuf>,
         volt_id: String,
+        volt_display_name: String,
         pwd: Option<PathBuf>,
         server_uri: Url,
         args: Vec<String>,
@@ -234,6 +235,7 @@ impl LspClient {
             workspace.clone(),
             pwd,
             volt_id,
+            volt_display_name,
             document_selector,
             server_rpc.clone(),
             plugin_rpc.clone(),
@@ -255,6 +257,7 @@ impl LspClient {
         document_selector: DocumentSelector,
         workspace: Option<PathBuf>,
         volt_id: String,
+        volt_display_name: String,
         pwd: Option<PathBuf>,
         server_uri: Url,
         args: Vec<String>,
@@ -265,6 +268,7 @@ impl LspClient {
             document_selector,
             workspace,
             volt_id,
+            volt_display_name,
             pwd,
             server_uri,
             args,
@@ -312,6 +316,10 @@ impl LspClient {
                     ..Default::default()
                 }),
                 code_action: Some(CodeActionClientCapabilities {
+                    data_support: Some(true),
+                    resolve_support: Some(CodeActionCapabilityResolveSupport {
+                        properties: vec!["edit".to_string()],
+                    }),
                     code_action_literal_support: Some(CodeActionLiteralSupport {
                         code_action_kind: CodeActionKindLiteralSupport {
                             value_set: vec![

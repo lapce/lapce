@@ -39,9 +39,19 @@ pub fn build_window(data: &mut LapceWindowData) -> impl Widget<LapceData> {
 }
 
 pub fn launch() {
+    // if PWD is not set, then we are not being launched via a terminal
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    if std::env::var("PWD").is_err() {
+        load_shell_env();
+    }
+
     let cli = Cli::parse();
     let pwd = std::env::current_dir().unwrap_or_default();
-    let paths: Vec<PathBuf> = cli.paths.iter().map(|p| pwd.join(p)).collect();
+    let paths: Vec<PathBuf> = cli
+        .paths
+        .iter()
+        .map(|p| pwd.join(p).canonicalize().unwrap_or_default())
+        .collect();
     if !cli.new && LapceData::try_open_in_existing_process(&paths).is_ok() {
         return;
     }
@@ -237,6 +247,40 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
     })
 }
 
+/// Uses a login shell to load the correct shell environment for the current user.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn load_shell_env() {
+    use std::process::Command;
+
+    let shell = match std::env::var("SHELL") {
+        Ok(s) => s,
+        Err(_) => {
+            // Shell variable is not set, so we can't determine the correct shell executable.
+            // Silently failing, since logger is not set up yet.
+            return;
+        }
+    };
+
+    let mut command = Command::new(shell);
+
+    command.args(["--login"]).args(["-c", "printenv"]);
+
+    let env = match command.output() {
+        Ok(output) => String::from_utf8(output.stdout).unwrap_or_default(),
+
+        Err(_) => {
+            // sliently ignoring since logger is not yet available
+            return;
+        }
+    };
+
+    env.split('\n')
+        .filter_map(|line| line.split_once('='))
+        .for_each(|(key, value)| {
+            std::env::set_var(key, value);
+        })
+}
+
 /// The delegate handler for Top-Level Druid events (terminate, new window, etc.)
 struct LapceAppDelegate {}
 
@@ -329,6 +373,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                 let mut window_data = LapceWindowData::new(
                     data.keypress.clone(),
                     data.latest_release.clone(),
+                    data.update_in_process,
                     data.panel_orders.clone(),
                     ctx.get_external_handle(),
                     &info,
@@ -383,10 +428,17 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                             Some(release.clone());
                         return druid::Handled::Yes;
                     }
+                    LapceUICommand::UpdateStarted => {
+                        data.update_in_process = true;
+                    }
+                    LapceUICommand::UpdateFailed => {
+                        data.update_in_process = false;
+                    }
                     LapceUICommand::RestartToUpdate(process_path, release) => {
                         let _ = data.db.save_app(data);
                         let process_path = process_path.clone();
                         let release = release.clone();
+                        let event_sink = ctx.get_external_handle();
                         std::thread::spawn(move || {
                             let do_update = || -> anyhow::Result<()> {
                                 log::info!("start to down new versoin");
@@ -405,8 +457,18 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                                 Ok(())
                             };
 
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdateStarted,
+                                Target::Global,
+                            );
                             if let Err(err) = do_update() {
                                 log::error!("Failed to update: {err}");
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::UpdateFailed,
+                                    Target::Global,
+                                );
                             }
                         });
                         return druid::Handled::Yes;
@@ -508,6 +570,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                         let mut window_data = LapceWindowData::new(
                             data.keypress.clone(),
                             data.latest_release.clone(),
+                            data.update_in_process,
                             data.panel_orders.clone(),
                             ctx.get_external_handle(),
                             &info,

@@ -9,10 +9,10 @@ use std::{
 
 use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
-    request::GotoTypeDefinitionResponse, CodeActionResponse, CompletionItem,
-    DocumentSymbolResponse, GotoDefinitionResponse, Hover, InlayHint, Location,
-    Position, PrepareRenameResponse, SelectionRange, SymbolInformation,
-    TextDocumentItem, TextEdit, WorkspaceEdit,
+    request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
+    CompletionItem, DocumentSymbolResponse, GotoDefinitionResponse, Hover,
+    InlayHint, Location, Position, PrepareRenameResponse, SelectionRange,
+    SymbolInformation, TextDocumentItem, TextEdit, WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,7 @@ use crate::{
     RequestId, RpcError, RpcMessage,
 };
 
+#[allow(clippy::large_enum_variant)]
 pub enum ProxyRpc {
     Request(RequestId, ProxyRequest),
     Notification(ProxyNotification),
@@ -47,10 +48,15 @@ pub enum ProxyRequest {
     },
     GlobalSearch {
         pattern: String,
+        case_sensitive: bool,
     },
     CompletionResolve {
         plugin_id: PluginId,
         completion_item: Box<CompletionItem>,
+    },
+    CodeActionResolve {
+        plugin_id: PluginId,
+        action_item: Box<CodeAction>,
     },
     GetHover {
         request_id: usize,
@@ -146,7 +152,7 @@ pub enum ProxyNotification {
     Initialize {
         workspace: Option<PathBuf>,
         disabled_volts: Vec<String>,
-        plugin_configurations: HashMap<String, serde_json::Value>,
+        plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
     },
@@ -169,6 +175,9 @@ pub enum ProxyNotification {
         delta: RopeDelta,
         rev: u64,
     },
+    UpdatePluginConfigs {
+        configs: HashMap<String, HashMap<String, serde_json::Value>>,
+    },
     NewTerminal {
         term_id: TermId,
         cwd: Option<PathBuf>,
@@ -178,6 +187,9 @@ pub enum ProxyNotification {
         volt: VoltInfo,
     },
     RemoveVolt {
+        volt: VoltMetadata,
+    },
+    ReloadVolt {
         volt: VoltMetadata,
     },
     DisableVolt {
@@ -229,6 +241,9 @@ pub enum ProxyResponse {
     CompletionResolveResponse {
         item: Box<CompletionItem>,
     },
+    CodeActionResolveResponse {
+        item: Box<CodeAction>,
+    },
     HoverResponse {
         request_id: usize,
         hover: Hover,
@@ -245,6 +260,7 @@ pub enum ProxyResponse {
         references: Vec<Location>,
     },
     GetCodeActionsResponse {
+        plugin_id: PluginId,
         resp: CodeActionResponse,
     },
     GetFilesResponse {
@@ -418,6 +434,10 @@ impl ProxyRpcHandler {
         self.notification(ProxyNotification::InstallVolt { volt });
     }
 
+    pub fn reload_volt(&self, volt: VoltMetadata) {
+        self.notification(ProxyNotification::ReloadVolt { volt });
+    }
+
     pub fn remove_volt(&self, volt: VoltMetadata) {
         self.notification(ProxyNotification::RemoveVolt { volt });
     }
@@ -439,7 +459,7 @@ impl ProxyRpcHandler {
         &self,
         workspace: Option<PathBuf>,
         disabled_volts: Vec<String>,
-        plugin_configurations: HashMap<String, serde_json::Value>,
+        plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
     ) {
@@ -557,8 +577,19 @@ impl ProxyRpcHandler {
         );
     }
 
-    pub fn global_search(&self, pattern: String, f: impl ProxyCallback + 'static) {
-        self.request_async(ProxyRequest::GlobalSearch { pattern }, f);
+    pub fn global_search(
+        &self,
+        pattern: String,
+        case_sensitive: bool,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::GlobalSearch {
+                pattern,
+                case_sensitive,
+            },
+            f,
+        );
     }
 
     pub fn save(&self, rev: u64, path: PathBuf, f: impl ProxyCallback + 'static) {
@@ -592,6 +623,21 @@ impl ProxyRpcHandler {
             ProxyRequest::CompletionResolve {
                 plugin_id,
                 completion_item: Box::new(completion_item),
+            },
+            f,
+        );
+    }
+
+    pub fn code_action_resolve(
+        &self,
+        action_item: CodeAction,
+        plugin_id: PluginId,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::CodeActionResolve {
+                action_item: Box::new(action_item),
+                plugin_id,
             },
             f,
         );
@@ -730,6 +776,13 @@ impl ProxyRpcHandler {
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {
         self.notification(ProxyNotification::Update { path, delta, rev });
+    }
+
+    pub fn update_plugin_configs(
+        &self,
+        configs: HashMap<String, HashMap<String, serde_json::Value>>,
+    ) {
+        self.notification(ProxyNotification::UpdatePluginConfigs { configs });
     }
 
     pub fn git_discard_files_changes(&self, files: Vec<PathBuf>) {
