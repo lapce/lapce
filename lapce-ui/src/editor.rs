@@ -10,7 +10,6 @@ use druid::{
 };
 use lapce_core::buffer::DiffLines;
 use lapce_core::command::EditCommand;
-use lapce_core::syntax::util::{is_bracket, matching_pair_direction};
 use lapce_core::{
     command::FocusCommand,
     cursor::{ColPosition, CursorMode},
@@ -1798,54 +1797,19 @@ impl LapceEditor {
 
         let cursor_offset = data.editor.cursor.offset();
 
-        let char_at_cursor = match data.doc.buffer().char_at_offset(cursor_offset) {
-            Some(c) => c,
-            None => return,
-        };
+        let start_line = *screen_lines.lines.first().unwrap();
+        let end_line = *screen_lines.lines.last().unwrap();
+        let start = data.doc.buffer().offset_of_line(start_line);
+        let end = data.doc.buffer().offset_of_line(end_line + 1);
 
-        let syntax = match data.doc.syntax() {
-            Some(syntax) => syntax,
-            None => return,
-        };
-
-        if is_bracket(char_at_cursor) {
-            if let Some(new_offset) = syntax.find_matching_pair(cursor_offset) {
-                Self::highlight_char(ctx, data, screen_lines, cursor_offset);
-                Self::highlight_char(ctx, data, screen_lines, new_offset);
+        if let Some((start_offset, end_offset)) = data.doc.find_scope(cursor_offset) {
+            if start_offset > start && start_offset < end {
+                Self::highlight_char(ctx, data, screen_lines, start_offset);
             }
-        } else {
-            let end_line = *screen_lines.lines.last().unwrap();
-            let end = data.doc.buffer().offset_of_line(end_line + 1);
-
-            for (index, c) in data.doc.buffer().char_indices_iter(cursor_offset..end)
-            {
-                if is_bracket(c) && matching_pair_direction(c) == Some(false) {
-                    let closing_bracket_offset = index + cursor_offset;
-
-                    if let Some(opening_bracket_offset) =
-                        syntax.find_matching_pair(closing_bracket_offset)
-                    {
-                        if opening_bracket_offset < cursor_offset
-                            && cursor_offset < closing_bracket_offset
-                        {
-                            Self::highlight_char(
-                                ctx,
-                                data,
-                                screen_lines,
-                                opening_bracket_offset,
-                            );
-                            Self::highlight_char(
-                                ctx,
-                                data,
-                                screen_lines,
-                                closing_bracket_offset,
-                            );
-                            break;
-                        }
-                    }
-                }
+            if end_offset > start && end_offset < end {
+                Self::highlight_char(ctx, data, screen_lines, end_offset);
             }
-        }
+        };
     }
 
     /// Highlights a character at the given position

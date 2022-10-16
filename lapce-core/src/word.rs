@@ -1,6 +1,9 @@
 use xi_rope::{Cursor, Rope, RopeInfo};
 
-use crate::syntax::util::{matching_char, matching_pair_direction};
+use crate::{
+    buffer::Buffer,
+    syntax::util::{matching_char, matching_pair_direction},
+};
 
 /// Describe char classifications used to compose word boundaries
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -390,6 +393,39 @@ impl<'a> WordCursor<'a> {
         self.inner.set(initial);
         let start = self.prev_code_boundary();
         (start, end)
+    }
+
+    pub fn find_pair(
+        &mut self,
+        offset: usize,
+        buffer: &Buffer,
+    ) -> Option<(usize, usize)> {
+        while let Some(closing_bracket_offset) = self.find_next_closing_bracket() {
+            if let Some(bracket) = buffer.char_at_offset(closing_bracket_offset) {
+                if let Some(opening_bracket_offset) =
+                    self.previous_unmatched(bracket)
+                {
+                    if (opening_bracket_offset..closing_bracket_offset)
+                        .contains(&offset)
+                    {
+                        return Some((
+                            opening_bracket_offset,
+                            closing_bracket_offset,
+                        ));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn find_next_closing_bracket(&mut self) -> Option<usize> {
+        while let Some(current) = self.inner.next_codepoint() {
+            if matching_pair_direction(current) == Some(false) {
+                return Some(self.inner.pos());
+            }
+        }
+        None
     }
 }
 

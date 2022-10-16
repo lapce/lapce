@@ -3,8 +3,6 @@ use std::collections::HashMap;
 use tree_sitter::TextProvider;
 use xi_rope::{rope::ChunkIter, Rope};
 
-const PAIRS: &[(char, char)] = &[('(', ')'), ('{', '}'), ('[', ']')];
-
 pub struct RopeChunksIterBytes<'a> {
     chunks: ChunkIter<'a>,
 }
@@ -97,8 +95,4 @@ pub fn str_matching_pair(c: &str) -> Option<char> {
         return matching_char(c);
     }
     None
-}
-
-pub fn is_bracket(c: char) -> bool {
-    PAIRS.iter().any(|(l, r)| *l == c || *r == c)
 }
