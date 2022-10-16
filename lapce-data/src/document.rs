@@ -25,7 +25,7 @@ use lapce_core::{
     selection::{SelRegion, Selection},
     style::line_styles,
     syntax::{util::matching_pair_direction, Syntax},
-    syntax::{edit::SyntaxEdit, Syntax},
+    syntax::edit::SyntaxEdit,
     word::WordCursor,
 };
 use lapce_rpc::{
