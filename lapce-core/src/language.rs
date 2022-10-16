@@ -50,7 +50,7 @@ use crate::syntax::highlight::HighlightConfiguration;
 //        },
 //    ];
 //
-// 5. In `syntax.rs`, add `Foo: "lang-foo",` to the list in the
+// 5. In `syntax/highlight.rs`, add `Foo: "lang-foo",` to the list in the
 //    `declare_language_highlights` macro.
 //
 // 6. Add a new feature, say "lang-foo", to the lapce-ui crate (see
@@ -186,6 +186,8 @@ pub enum LapceLanguage {
     Scheme,
     #[cfg(feature = "lang-scss")]
     Scss,
+    #[cfg(feature = "lang-sql")]
+    Sql,
     #[cfg(feature = "lang-svelte")]
     Svelte,
     #[cfg(feature = "lang-swift")]
@@ -694,6 +696,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["scss"],
+    },
+    #[cfg(feature = "lang-sql")]
+    SyntaxProperties {
+        id: LapceLanguage::Sql,
+        language: tree_sitter_sql::language,
+        highlight: tree_sitter_sql::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "--",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["sql"],
     },
     #[cfg(feature = "lang-svelte")]
     SyntaxProperties {

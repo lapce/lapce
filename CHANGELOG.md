@@ -4,6 +4,7 @@
 
 ### Features/Changes
 
+- [#272](https://github.com/lapce/lapce/issues/272) Added SQL language support
 - [#1531](https://github.com/lapce/lapce/pull/1531): Improved Ctrl+Left command on spaces at the beginning of a line
 - [#1491](https://github.com/lapce/lapce/pull/1491): Added Vim shift+c to delete remainder of line
 - [#1508](https://github.com/lapce/lapce/pull/1508): Show in progress when Lapce is self updating

@@ -90,6 +90,7 @@ declare_language_highlights!(
     Rust: "lang-rust",
     Scheme: "lang-scheme",
     Scss: "lang-scss",
+    Sql: "lang-sql",
     Svelte: "lang-svelte",
     Swift: "lang-swift",
     Toml: "lang-toml",

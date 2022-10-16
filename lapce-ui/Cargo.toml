@@ -91,6 +91,7 @@ all-languages = [
     "lang-wgsl",
     "lang-yaml",
     "lang-zig",
+    "lang-sql",
 ]
 
 lang-bash = ["lapce-core/lang-bash"]
@@ -128,6 +129,7 @@ lang-ruby = ["lapce-core/lang-ruby"]
 lang-rust = ["lapce-core/lang-rust"]
 lang-scheme = ["lapce-core/lang-scheme"]
 lang-scss = ["lapce-core/lang-scss"]
+lang-sql = ["lapce-core/lang-sql"]
 lang-svelte = ["lapce-core/lang-svelte"]
 lang-swift = ["lapce-core/lang-swift"]
 lang-toml = ["lapce-core/lang-toml"]
