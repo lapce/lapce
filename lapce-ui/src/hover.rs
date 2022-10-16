@@ -295,9 +295,14 @@ impl Widget<LapceTabData> for Hover {
             - env.get(theme::SCROLLBAR_WIDTH)
             - env.get(theme::SCROLLBAR_PAD);
 
+        let mut max_layout_width = 0.0;
         for layout in self.active_layout.iter_mut() {
             layout.set_wrap_width(max_width);
             layout.rebuild_if_needed(ctx.text(), env);
+            let layout_width = layout.size().width;
+            if layout_width > max_layout_width {
+                max_layout_width = layout_width;
+            }
         }
 
         self.active_diagnostic_layout.set_wrap_width(max_width);
@@ -319,13 +324,27 @@ impl Widget<LapceTabData> for Hover {
             height
         };
 
-        let diagnostic_height = if self.active_diagnostic_layout.size().is_empty() {
+        let diagnostic_size = self.active_diagnostic_layout.size();
+        let diagnostic_height = if diagnostic_size.is_empty() {
             0.0
         } else {
             let diagnostic_text_metrics =
                 self.active_diagnostic_layout.layout_metrics();
 
             diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0
+        };
+
+        if diagnostic_size.width > max_layout_width {
+            max_layout_width = diagnostic_size.width;
+        }
+
+        let width = if max_layout_width < max_width {
+            max_layout_width
+                + Hover::STARTING_X
+                + env.get(theme::SCROLLBAR_WIDTH)
+                + env.get(theme::SCROLLBAR_PAD)
+        } else {
+            width
         };
 
         Size::new(

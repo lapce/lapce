@@ -1103,25 +1103,19 @@ impl LapceTabData {
             BufferContent::File(_) | BufferContent::Scratch(..) => {
                 let doc = self.main_split.editor_doc(editor.view_id);
                 let offset = self.hover.offset;
-                let (line, col) = doc.buffer().offset_to_line_col(offset);
-                let point = doc.line_point_of_line_col(
-                    text,
-                    line,
-                    col,
-                    config.editor.font_size,
-                    config,
-                );
+                let (point, _) =
+                    doc.points_of_offset(text, offset, &editor.view, config);
                 let x = point.x;
-                let y = line as f64 * line_height;
+                let y = point.y;
+                let hover_size = *self.hover.content_size.borrow();
                 let mut origin = *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
-                    + Vec2::new(x, y - self.hover.content_size.borrow().height);
+                    + Vec2::new(x, y - hover_size.height);
                 if origin.y < 0.0 {
-                    origin.y +=
-                        self.hover.content_size.borrow().height + line_height;
+                    origin.y += hover_size.height + line_height;
                 }
-                if origin.x + self.hover.size.width + 1.0 > tab_size.width {
-                    origin.x = tab_size.width - self.hover.size.width - 1.0;
+                if origin.x + hover_size.width + 1.0 > tab_size.width {
+                    origin.x = tab_size.width - hover_size.width - 1.0;
                 }
                 if origin.x <= 0.0 {
                     origin.x = 0.0;
