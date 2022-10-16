@@ -11,6 +11,7 @@
 - [#1525](https://github.com/lapce/lapce/pull/1525): Add editor indent guide
 - [#1521](https://github.com/lapce/lapce/pull/1521): Show unique paths to disambiguate same file names
 - [#1452](https://github.com/lapce/lapce/pull/1452): Wrap selected text with brackets/quotes
+- [#1541](https://github.com/lapce/lapce/pull/1541): Order palette items according to last execute time
 
 ### Bug Fixes
 
