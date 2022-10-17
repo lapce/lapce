@@ -2599,6 +2599,16 @@ impl Document {
                     (new_offset, None)
                 }
             }
+            Movement::ParagraphForward => {
+                let new_offset =
+                    self.buffer.move_n_paragraphs_forward(offset, count);
+                (new_offset, None)
+            }
+            Movement::ParagraphBackward => {
+                let new_offset =
+                    self.buffer.move_n_paragraphs_backward(offset, count);
+                (new_offset, None)
+            }
         }
     }
 

@@ -24,6 +24,7 @@ use crate::{
     editor::EditType,
     indent::{auto_detect_indent_style, IndentStyle},
     mode::Mode,
+    paragraph::ParagraphCursor,
     selection::Selection,
     syntax::{self, edit::SyntaxEdit, Syntax},
     word::WordCursor,
@@ -896,6 +897,37 @@ impl Buffer {
 
     pub fn len(&self) -> usize {
         self.text.len()
+    }
+
+    fn find_nth_paragraph<F>(
+        &self,
+        offset: usize,
+        mut count: usize,
+        mut find_next: F,
+    ) -> usize
+    where
+        F: FnMut(&mut ParagraphCursor) -> Option<usize>,
+    {
+        let mut cursor = ParagraphCursor::new(self.text(), offset);
+        let mut new_offset = offset;
+        while count != 0 {
+            // FIXME: wait for if-let-chain
+            if let Some(offset) = find_next(&mut cursor) {
+                new_offset = offset;
+            } else {
+                break;
+            }
+            count -= 1;
+        }
+        new_offset
+    }
+
+    pub fn move_n_paragraphs_forward(&self, offset: usize, count: usize) -> usize {
+        self.find_nth_paragraph(offset, count, |cursor| cursor.next_boundary())
+    }
+
+    pub fn move_n_paragraphs_backward(&self, offset: usize, count: usize) -> usize {
+        self.find_nth_paragraph(offset, count, |cursor| cursor.prev_boundary())
     }
 
     /// Find the nth (`count`) word starting at `offset` in either direction
