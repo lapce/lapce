@@ -131,7 +131,7 @@ mode = "i"
 [[keymaps]]
 key = "esc"
 command = "clear_search"
-when = "search_active"
+when = "search_active || search_focus"
 
 [[keymaps]]
 key = "ctrl+shift+up"
@@ -292,11 +292,6 @@ command = "duplicate_line_down"
 mode = "i"
 
 # ------------------------------------ Modal -----------------------------------------
-
-[[keymaps]]
-key = "esc"
-command = "clear_search"
-when = "!modal_focus"
 
 [[keymaps]]
 key = "esc"
