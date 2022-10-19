@@ -202,6 +202,8 @@ pub enum LapceLanguage {
     Vue,
     #[cfg(feature = "lang-wgsl")]
     Wgsl,
+    #[cfg(feature = "lang-xml")]
+    Xml,
     #[cfg(feature = "lang-yaml")]
     Yaml,
     #[cfg(feature = "lang-zig")]
@@ -792,6 +794,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["wgsl"],
+    },
+    #[cfg(feature = "lang-xml")]
+    SyntaxProperties {
+        id: LapceLanguage::Xml,
+        language: tree_sitter_xml::language,
+        highlight: tree_sitter_xml::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["xml"],
     },
     #[cfg(feature = "lang-yaml")]
     SyntaxProperties {
