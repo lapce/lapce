@@ -18,6 +18,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
+use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
     plugin::{PluginId, VoltInfo, VoltMetadata},
@@ -55,7 +56,7 @@ use self::{
     psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback},
     wasi::{load_volt, start_volt},
 };
-use crate::{buffer::language_id_from_path, directory::Directory};
+use crate::buffer::language_id_from_path;
 
 pub type PluginName = String;
 

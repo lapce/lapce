@@ -10,8 +10,8 @@ use druid::{
     Color, ExtEventSink, FontFamily, Size, Target,
 };
 use indexmap::IndexMap;
-pub use lapce_proxy::APPLICATION_NAME;
-use lapce_proxy::{directory::Directory, plugin::wasi::find_all_volts};
+use lapce_core::directory::Directory;
+use lapce_proxy::plugin::wasi::find_all_volts;
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};

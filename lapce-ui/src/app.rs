@@ -8,6 +8,7 @@ use druid::{
 };
 #[cfg(target_os = "macos")]
 use druid::{Menu, MenuItem, SysMods};
+use lapce_core::meta;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceConfig,
@@ -16,7 +17,6 @@ use lapce_data::{
         LapceWorkspaceType,
     },
     db::{TabsInfo, WindowInfo},
-    proxy::VERSION,
 };
 
 use crate::{
@@ -27,7 +27,7 @@ use crate::{
 
 #[derive(Parser)]
 #[clap(name = "Lapce")]
-#[clap(version=*VERSION)]
+#[clap(version=*meta::VERSION)]
 struct Cli {
     #[clap(short, long, action)]
     new: bool,

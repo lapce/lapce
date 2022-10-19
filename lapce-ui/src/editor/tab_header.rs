@@ -7,7 +7,7 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     TimerToken, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
-use lapce_core::command::FocusCommand;
+use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
@@ -15,7 +15,6 @@ use lapce_data::{
     config::LapceTheme,
     data::{EditorTabChild, LapceTabData},
     document::BufferContent,
-    proxy::VERSION,
 };
 
 use crate::{
@@ -136,7 +135,7 @@ impl LapceEditorTabHeader {
                 }
                 EditorTabChild::Settings { .. } => {
                     text = "Settings".to_string();
-                    hint = format!("ver. {}", *VERSION);
+                    hint = format!("ver. {}", *meta::VERSION);
                 }
                 EditorTabChild::Plugin { volt_name, .. } => {
                     text = format!("Plugin: {volt_name}");

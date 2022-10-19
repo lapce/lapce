@@ -6,7 +6,7 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     TextAlignment, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
-use lapce_core::command::FocusCommand;
+use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     about::AboutFocusData,
     command::{
@@ -14,7 +14,6 @@ use lapce_data::{
     },
     config::LapceTheme,
     data::LapceTabData,
-    proxy::VERSION,
 };
 
 use crate::svg::get_svg;
@@ -377,7 +376,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
 
         let ver_layout = ctx
             .text()
-            .new_text_layout(format!("Version: {}", *VERSION))
+            .new_text_layout(format!("Version: {}", *meta::VERSION))
             .set_line_height(1.2)
             .alignment(TextAlignment::Center)
             .max_width(self.width - self.padding * 2.0)

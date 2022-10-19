@@ -14,8 +14,8 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use druid::{ExtEventSink, Target, WidgetId, WindowId};
 use flate2::read::GzDecoder;
-pub use lapce_proxy::VERSION;
-use lapce_proxy::{directory::Directory, dispatch::Dispatcher, APPLICATION_NAME};
+use lapce_core::{directory::Directory, meta};
+use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler},
     proxy::{ProxyRpc, ProxyRpcHandler},
@@ -364,10 +364,9 @@ impl LapceProxy {
     }
 
     fn start_remote(&self, remote: impl Remote) -> Result<()> {
-        let proxy_version = match *VERSION {
-            "debug" => "nightly".to_string(),
-            s if s.starts_with("nightly") => "nightly".to_string(),
-            _ => format!("v{}", *VERSION),
+        let proxy_version = match *meta::RELEASE {
+            "Debug" | "Nightly" => "nightly".to_string(),
+            _ => format!("v{}", *meta::VERSION),
         };
 
         // start ssh CM connection in case where it doesn't handle
@@ -407,14 +406,14 @@ impl LapceProxy {
         let remote_proxy_path = match platform {
             Windows => format!(
                 "%HOMEDRIVE%%HOMEPATH%\\AppData\\Local\\lapce\\{}\\data\\proxy",
-                *APPLICATION_NAME
+                *meta::NAME
             ),
             Darwin => format!(
                 "~/Library/Application\\ Support/dev.lapce.{}/proxy",
-                *APPLICATION_NAME
+                *meta::NAME
             ),
             _ => {
-                format!("~/.local/share/{}/proxy", *APPLICATION_NAME).to_lowercase()
+                format!("~/.local/share/{}/proxy", (*meta::NAME).to_lowercase())
             }
         };
 

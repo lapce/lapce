@@ -8,7 +8,7 @@ use druid::{
     Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
 };
 use itertools::Itertools;
-use lapce_core::command::FocusCommand;
+use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
@@ -18,7 +18,7 @@ use lapce_data::{
     document::{BufferContent, LocalBufferKind},
     explorer::{FileExplorerData, Naming},
     panel::PanelKind,
-    proxy::{LapceProxy, VERSION},
+    proxy::LapceProxy,
 };
 use lapce_rpc::file::FileNodeItem;
 
@@ -1051,7 +1051,7 @@ impl OpenEditorList {
             }
             EditorTabChild::Settings { .. } => {
                 text = "Settings".to_string();
-                hint = format!("ver. {}", *VERSION);
+                hint = format!("ver. {}", *meta::VERSION);
             }
             EditorTabChild::Plugin { volt_name, .. } => {
                 text = format!("Plugin: {volt_name}");

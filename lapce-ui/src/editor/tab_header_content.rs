@@ -11,7 +11,7 @@ use druid::{
     Target, UpdateCtx, Widget, WidgetId,
 };
 use im::HashMap;
-use lapce_core::command::FocusCommand;
+use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
@@ -20,7 +20,6 @@ use lapce_data::{
     data::{DragContent, EditorTabChild, LapceTabData},
     document::BufferContent,
     editor::TabRect,
-    proxy::VERSION,
 };
 
 use crate::{
@@ -439,7 +438,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     }
                 }
                 EditorTabChild::Settings { .. } => {
-                    text = format!("Settings (ver. {})", *VERSION);
+                    text = format!("Settings (ver. {})", *meta::VERSION);
                 }
                 EditorTabChild::Plugin { volt_name, .. } => {
                     text = format!("Plugin: {volt_name}");

@@ -10,6 +10,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, Params};
+use lapce_core::directory::Directory;
 use lapce_rpc::{
     plugin::{PluginId, VoltInfo, VoltMetadata},
     style::LineStyle,
@@ -34,7 +35,7 @@ use super::{
     },
     PluginCatalogRpcHandler,
 };
-use crate::{directory::Directory, plugin::psp::PluginServerRpcHandler};
+use crate::plugin::psp::PluginServerRpcHandler;
 
 #[derive(Default)]
 pub struct WasiPipe {
