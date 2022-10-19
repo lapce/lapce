@@ -99,7 +99,7 @@ impl Widget<LapceTabData> for Palette {
                     LapceUICommand::RunPalette(palette_type) => {
                         ctx.set_handled();
                         let mut palette_data = data.palette_view_data();
-                        palette_data.run(ctx, palette_type.to_owned(), None);
+                        palette_data.run(ctx, palette_type.to_owned(), None, true);
                         data.palette = palette_data.palette.clone();
                         data.keypress = palette_data.keypress.clone();
                         data.workspace = palette_data.workspace.clone();

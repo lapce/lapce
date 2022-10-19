@@ -21,6 +21,7 @@
 - [#1483](https://github.com/lapce/lapce/pull/1483): Fix showing the close icon for the first tab when opening multiple tab
 - [#1477](https://github.com/lapce/lapce/pull/1477): Now use `esc` to close searchbar regarless of the current focus
 - [#1507](https://github.com/lapce/lapce/pull/1507): Fixed a crash when scratch buffer is closed
+- [#1547](https://github.com/lapce/lapce/pull/1547): Fix infinite cycle in workspace symbol search
 
 ## 0.2.1
 
