@@ -401,21 +401,28 @@ impl Buffer {
         ins_delta: &InsertDelta<RopeInfo>,
         deletes: &Subset,
     ) -> SyntaxEdit {
+        let deletes = deletes.transform_expand(&ins_delta.inserted_subset());
+
         let mut edits = Vec::new();
 
-        for insert in InsertsValueIter::new(ins_delta) {
-            // We may not need the inserted text in order to calculate the new end position
-            // but I was sufficiently uncertain, and so continued with how we did it previously
-            let start = insert.old_offset;
-            let inserted = insert.node;
-            edits.push(syntax::edit::create_insert_edit(
-                &self.text, start, inserted,
-            ));
-        }
+        let mut insert_edits: Vec<tree_sitter::InputEdit> =
+            InsertsValueIter::new(ins_delta)
+                .map(|insert| {
+                    let start = insert.old_offset;
+                    let inserted = insert.node;
+                    syntax::edit::create_insert_edit(&self.text, start, inserted)
+                })
+                .collect();
+        insert_edits.reverse();
+        edits.append(&mut insert_edits);
 
-        for (start, end) in deletes.range_iter(CountMatcher::NonZero) {
-            edits.push(syntax::edit::create_delete_edit(&self.text, start, end));
-        }
+        let text = ins_delta.apply(&self.text);
+        let mut delete_edits: Vec<tree_sitter::InputEdit> = deletes
+            .range_iter(CountMatcher::NonZero)
+            .map(|(start, end)| syntax::edit::create_delete_edit(&text, start, end))
+            .collect();
+        delete_edits.reverse();
+        edits.append(&mut delete_edits);
 
         SyntaxEdit::new(edits)
     }
