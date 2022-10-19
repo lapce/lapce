@@ -2567,6 +2567,7 @@ dependencies = [
  "tree-sitter-typescript",
  "tree-sitter-vue",
  "tree-sitter-wgsl",
+ "tree-sitter-xml",
  "tree-sitter-yaml",
  "tree-sitter-zig",
  "xi-rope",
@@ -5233,6 +5234,15 @@ dependencies = [
 name = "tree-sitter-wgsl"
 version = "0.0.1"
 source = "git+https://github.com/szebniok/tree-sitter-wgsl?branch=master#272e89ef2aeac74178edb9db4a83c1ffef80a463"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-xml"
+version = "0.0.1"
+source = "git+https://github.com/RenjiSann/tree-sitter-xml?branch=main#422528a43630db6dcc1e222d1c5ee3babd559473"
 dependencies = [
  "cc",
  "tree-sitter",

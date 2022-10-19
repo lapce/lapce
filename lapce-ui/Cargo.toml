@@ -89,6 +89,7 @@ all-languages = [
     "lang-typescript",
     "lang-vue",
     "lang-wgsl",
+    "lang-xml",
     "lang-yaml",
     "lang-zig",
     "lang-sql",
@@ -136,5 +137,6 @@ lang-toml = ["lapce-core/lang-toml"]
 lang-typescript = ["lapce-core/lang-typescript"]
 lang-vue = ["lapce-core/lang-vue"]
 lang-wgsl = ["lapce-core/lang-wgsl"]
+lang-xml = ["lapce-core/lang-xml"]
 lang-yaml = ["lapce-core/lang-yaml"]
 lang-zig = ["lapce-core/lang-zig"]

@@ -66,6 +66,7 @@ tree-sitter-toml = { version = "0.20.0", optional = true }
 tree-sitter-typescript = { version = "0.20.0", optional = true }
 tree-sitter-vue = { version = "0.0.3", optional = true }
 tree-sitter-wgsl = { git = "https://github.com/szebniok/tree-sitter-wgsl", branch = "master", optional = true }
+tree-sitter-xml = { git = "https://github.com/RenjiSann/tree-sitter-xml", branch = "main", optional = true}
 tree-sitter-yaml = { git = "https://github.com/panekj/tree-sitter-yaml", branch = "master", optional = true }
 tree-sitter-zig = { git = "https://github.com/maxxnino/tree-sitter-zig", branch = "main", optional = true }
 # switch to upstream version after this is merged  https://github.com/m-novikov/tree-sitter-sql/pull/68
@@ -118,5 +119,6 @@ lang-typescript = ["dep:tree-sitter-typescript"]
 lang-vue = ["dep:tree-sitter-vue"]
 lang-wgsl = ["dep:tree-sitter-wgsl"]
 lang-yaml = ["dep:tree-sitter-yaml"]
+lang-xml = ["dep:tree-sitter-xml"]
 lang-zig = ["dep:tree-sitter-zig"]
 lang-sql = ["dep:tree-sitter-sql"]

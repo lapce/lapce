@@ -98,6 +98,7 @@ declare_language_highlights!(
     Typescript: "lang-typescript",
     Vue: "lang-vue",
     Wgsl: "lang-wgsl",
+    Xml: "lang-xml",
     Yaml: "lang-yaml",
     Zig: "lang-zig",
 );
