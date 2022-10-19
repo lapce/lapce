@@ -84,6 +84,7 @@ impl LapceWindow {
             data.keypress.clone(),
             data.latest_release.clone(),
             data.update_in_progress,
+            data.log_file.clone(),
             data.panel_orders.clone(),
             ctx.get_external_handle(),
         );

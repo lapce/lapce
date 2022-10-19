@@ -80,9 +80,8 @@ pub fn launch() {
                 .chain(std::io::stderr()),
         ));
 
-    if let Some(log_file) =
-        LapceConfig::log_file().and_then(|f| fern::log_file(f).ok())
-    {
+    let log_file = LapceConfig::log_file();
+    if let Some(log_file) = log_file.clone().and_then(|f| fern::log_file(f).ok()) {
         log_dispatch = log_dispatch.chain(
             fern::Dispatch::new()
                 .level(log::LevelFilter::Debug)
@@ -109,7 +108,8 @@ pub fn launch() {
         .install_panic_hook();
 
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
-    let mut data = LapceData::load(launcher.get_external_handle(), paths);
+    let mut data = LapceData::load(launcher.get_external_handle(), paths, log_file);
+
     for (_window_id, window_data) in data.windows.iter_mut() {
         let root = build_window(window_data);
         let window = new_window_desc(
@@ -374,6 +374,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                     data.keypress.clone(),
                     data.latest_release.clone(),
                     data.update_in_process,
+                    data.log_file.clone(),
                     data.panel_orders.clone(),
                     ctx.get_external_handle(),
                     &info,
@@ -571,6 +572,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                             data.keypress.clone(),
                             data.latest_release.clone(),
                             data.update_in_process,
+                            data.log_file.clone(),
                             data.panel_orders.clone(),
                             ctx.get_external_handle(),
                             &info,
