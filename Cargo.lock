@@ -48,10 +48,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "alacritty_config_derive"
+name = "alacritty_config"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77044c45bdb871e501b5789ad16293ecb619e5733b60f4bb01d1cb31c463c336"
+checksum = "b0c9edf2a6899fc12e9f8718485fa70f2c311bc86c25ff329783b16de7227dfd"
+dependencies = [
+ "log 0.4.17",
+ "serde",
+ "serde_yaml",
+]
+
+[[package]]
+name = "alacritty_config_derive"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37164df1dc70b36db94e2df45b121c1f57b2946778d5f7e56f4b0d1c118e1b54"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -60,14 +71,15 @@ dependencies = [
 
 [[package]]
 name = "alacritty_terminal"
-version = "0.16.1"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02fb5d4af84e39f9754d039ff6de2233c8996dbae0af74910156e559e5766e2f"
+checksum = "043d0bc52432b59149ca25e45ea617cc4cfd2e34acc00d2f7ea976b9934be477"
 dependencies = [
+ "alacritty_config",
  "alacritty_config_derive",
  "base64 0.13.0",
  "bitflags",
- "dirs 3.0.2",
+ "dirs",
  "libc",
  "log 0.4.17",
  "mio 0.6.23",
@@ -75,7 +87,7 @@ dependencies = [
  "mio-extras",
  "miow 0.3.7",
  "nix",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.1",
  "regex-automata",
  "serde",
  "serde_yaml",
@@ -934,15 +946,6 @@ checksum = "339ee130d97a610ea5a5872d2bbb130fdf68884ff09d3028b81bec8a1ac23bbc"
 dependencies = [
  "cfg-if 1.0.0",
  "dirs-sys-next",
-]
-
-[[package]]
-name = "dirs"
-version = "3.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30baa043103c9d0c2a57cf537cc2f35623889dc0d405e6c3cccfadbc81c71309"
-dependencies = [
- "dirs-sys",
 ]
 
 [[package]]
@@ -2843,6 +2846,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
 dependencies = [
  "cfg-if 1.0.0",
+ "serde",
 ]
 
 [[package]]
@@ -3145,12 +3149,11 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.22.3"
+version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4916f159ed8e5de0082076562152a76b7a1f64a01fd9d1e0fea002c37624faf"
+checksum = "195cdbc1741b8134346d515b3a56a1c94b0912758009cfd53f99ea0f57b065fc"
 dependencies = [
  "bitflags",
- "cc",
  "cfg-if 1.0.0",
  "libc",
  "memoffset",
@@ -4210,7 +4213,7 @@ version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ccc8076840c4da029af4f87e4e8daeb0fca6b87bbb02e10cb60b791450e11e4"
 dependencies = [
- "dirs 4.0.0",
+ "dirs",
 ]
 
 [[package]]

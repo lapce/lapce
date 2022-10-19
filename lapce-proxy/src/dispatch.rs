@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use alacritty_terminal::{event_loop::Msg, term::SizeInfo};
+use alacritty_terminal::{event::WindowSize, event_loop::Msg};
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
 use git2::{build::CheckoutBuilder, DiffOptions, Repository};
@@ -165,15 +165,12 @@ impl ProxyHandler for Dispatcher {
                 height,
             } => {
                 if let Some(tx) = self.terminals.get(&term_id) {
-                    let size = SizeInfo::new(
-                        width as f32,
-                        height as f32,
-                        1.0,
-                        1.0,
-                        0.0,
-                        0.0,
-                        true,
-                    );
+                    let size = WindowSize {
+                        num_lines: height as u16,
+                        num_cols: width as u16,
+                        cell_width: 1,
+                        cell_height: 1,
+                    };
 
                     #[allow(deprecated)]
                     let _ = tx.send(Msg::Resize(size));
