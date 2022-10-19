@@ -994,6 +994,27 @@ fn status_on_click(ctx: &mut EventCtx, data: &LapceTabData, id: &str, pos: Point
             },
         );
         menu = menu.entry(item);
+        if !data.workspace.kind.is_remote() {
+            let tab_id = data.id;
+            let local_meta = meta.clone();
+            let item = druid::MenuItem::new("Open Plugin Directory").on_activate(
+                move |ctx, _data, _env| {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::OpenURI(
+                            local_meta
+                                .clone()
+                                .dir
+                                .unwrap()
+                                .to_string_lossy()
+                                .to_string(),
+                        ),
+                        Target::Widget(tab_id),
+                    ));
+                },
+            );
+            menu = menu.entry(item);
+        }
         menu = menu.separator();
 
         let local_volt = meta.info();

@@ -532,7 +532,7 @@ impl PaletteViewData {
         ctx: &mut EventCtx,
         locations: &[EditorLocation<Position>],
     ) {
-        self.run(ctx, Some(PaletteType::Reference), None);
+        self.run(ctx, Some(PaletteType::Reference), None, true);
         let items = locations
             .iter()
             .map(|l| {
@@ -564,16 +564,24 @@ impl PaletteViewData {
         ctx: &mut EventCtx,
         palette_type: Option<PaletteType>,
         input: Option<String>,
+        should_init_input: bool,
     ) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.status = PaletteStatus::Started;
         palette.palette_type = palette_type.unwrap_or(PaletteType::File);
         palette.input = input.unwrap_or_else(|| palette.palette_type.string());
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::InitPaletteInput(palette.input.clone()),
-            Target::Widget(*self.main_split.tab_id),
-        ));
+
+        // Most usages of `run` will want to initialize the input
+        // However, special types like workspace-symbol-search want to avoid it
+        // so that they do not cause loops, because they cause run when their
+        // input changes.
+        if should_init_input {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::InitPaletteInput(palette.input.clone()),
+                Target::Widget(*self.main_split.tab_id),
+            ));
+        }
         palette.total_items.clear();
         palette.list_data.clear_items();
         palette.run_id = Uuid::new_v4().to_string();
@@ -758,7 +766,7 @@ impl PaletteViewData {
         let palette_type =
             PaletteType::get_palette_type(&palette.palette_type, &input);
         if input != palette.input && palette_type == PaletteType::WorkspaceSymbol {
-            self.run(ctx, Some(PaletteType::WorkspaceSymbol), Some(input));
+            self.run(ctx, Some(PaletteType::WorkspaceSymbol), Some(input), false);
             return;
         }
 
@@ -780,7 +788,7 @@ impl PaletteViewData {
             &self.palette.input,
         );
         if self.palette.palette_type != palette_type {
-            self.run(ctx, Some(palette_type), None);
+            self.run(ctx, Some(palette_type), None, true);
             return;
         }
 
