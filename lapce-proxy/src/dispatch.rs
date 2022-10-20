@@ -391,7 +391,7 @@ impl ProxyHandler for Dispatcher {
             }
             GitGetRemoteFileUrl { file } => {
                 if let Some(workspace) = self.workspace.as_ref() {
-                    match git_do_thing(workspace, &file) {
+                    match git_get_remote_file_url(workspace, &file) {
                         Ok(s) => self.proxy_rpc.handle_response(
                             id,
                             Ok(ProxyResponse::GitGetRemoteFileUrl { file_url: s }),
@@ -1138,7 +1138,7 @@ fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)>
     Ok((id, content))
 }
 
-fn git_do_thing(workspace_path: &Path, file: &Path) -> Result<String> {
+fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String> {
     let repo = Repository::open(
         workspace_path
             .to_str()
