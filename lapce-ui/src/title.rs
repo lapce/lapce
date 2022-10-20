@@ -184,7 +184,7 @@ impl Title {
             Size::new(size.height, size.height)
                 .to_rect()
                 .with_origin(Point::new(x + 5.0, 0.0))
-                .inflate(-3.0, -3.0),
+                .inflate(-5.0, -5.0),
             Some(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
@@ -266,7 +266,7 @@ impl Title {
                 .with_origin(Point::new(x, 0.0));
             self.svgs.push((
                 folder_svg,
-                folder_rect.inflate(-8.5, -8.5),
+                folder_rect.inflate(-10.5, -10.5),
                 Some(
                     data.config
                         .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)

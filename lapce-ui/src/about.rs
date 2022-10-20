@@ -304,7 +304,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
 
         let title_layout = ctx
             .text()
-            .new_text_layout(format!("Lapce {}", *meta::RELEASE,))
+            .new_text_layout("Lapce")
             .font(
                 data.config.ui.font_family(),
                 data.config.ui.font_size() as f64,

@@ -56,7 +56,6 @@ trim-search-results-whitespace = true
 
 [color-theme]
 name = ""
-color-preference = ""
 
 [color-theme.base]
 white = "#ABB2BF"

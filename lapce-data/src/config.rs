@@ -565,7 +565,7 @@ pub struct ColorThemeConfig {
     #[serde(skip)]
     pub path: PathBuf,
     pub name: String,
-    pub color_preference: String,
+    pub high_contrast: Option<bool>,
     pub base: ThemeBaseConfig,
     pub syntax: IndexMap<String, String>,
     pub ui: IndexMap<String, String>,
@@ -998,16 +998,20 @@ impl LapceConfig {
             default_config.map(|c| &c.color.syntax),
         );
 
-        #[allow(clippy::wildcard_in_or_patterns)]
-        {
-            self.color.color_preference =
-                match self.color_theme.color_preference.to_lowercase().as_str() {
-                    "highcontrastdark" => ThemeColorPreference::HighContrastDark,
-                    "highcontrastlight" => ThemeColorPreference::HighContrastLight,
-                    "light" => ThemeColorPreference::Light,
-                    "dark" | _ => ThemeColorPreference::Dark,
-                };
-        }
+        let fg = self
+            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+            .as_rgba();
+        let bg = self
+            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+            .as_rgba();
+        let is_light = fg.0 + fg.1 + fg.2 > bg.0 + bg.1 + bg.2;
+        let high_contrast = self.color_theme.high_contrast.unwrap_or(false);
+        self.color.color_preference = match (is_light, high_contrast) {
+            (true, true) => ThemeColorPreference::HighContrastLight,
+            (false, true) => ThemeColorPreference::HighContrastDark,
+            (true, false) => ThemeColorPreference::Light,
+            (false, false) => ThemeColorPreference::Dark,
+        };
     }
 
     fn load_color_themes(
