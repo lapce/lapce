@@ -1,7 +1,7 @@
 [core]
 modal = false
 color-theme = "Lapce Dark"
-icon-theme = ""
+icon-theme = "Lapce Codicons"
 custom-titlebar = true
 
 [editor]
@@ -54,10 +54,11 @@ hover-font-family = ""
 hover-font-size = 0
 trim-search-results-whitespace = true
 
-[theme]
+[color-theme]
 name = ""
+color-preference = ""
 
-[theme.base]
+[color-theme.base]
 white = "#ABB2BF"
 black = "#282C34"
 grey = "#3E4451"
@@ -70,7 +71,7 @@ purple = "#C678DD"
 cyan = "#56B6C2"
 magenta = "#C678DD"
 
-[theme.syntax]
+[color-theme.syntax]
 "comment" = "#5C6370"
 "constant" = "$yellow"
 "type" = "$yellow"
@@ -100,7 +101,7 @@ magenta = "#C678DD"
 "embedded" = "$cyan"
 "symbol" = "$yellow"
 
-[theme.ui]
+[color-theme.ui]
 "lapce.active_tab" = "#528BFF"
 "lapce.inactive_tab" = "#5C6370"
 "lapce.error" = "$red"
@@ -108,6 +109,13 @@ magenta = "#C678DD"
 "lapce.dropdown_shadow" = "#000000"
 "lapce.border" = "#000000"
 "lapce.scroll_bar" = "$grey"
+"lapce.icon_active" = "$white"
+"lapce.icon_inactive" = "$grey"
+
+"lapce.remote.local" = "#4078F2"
+"lapce.remote.connected" = "#50A14F"
+"lapce.remote.connecting" = "#C18401"
+"lapce.remote.discconnected" = "#E45649"
 
 "editor.background" = "$black"
 "editor.foreground" = "$white"
@@ -176,3 +184,113 @@ magenta = "#C678DD"
 "terminal.bright_cyan" = "$cyan"
 "terminal.bright_magenta" = "$magenta"
 "terminal.bright_black" = "#545862"
+
+[icon-theme]
+name = ""
+
+[icon-theme.ui]
+"logo" = "lapce_logo"
+"link" = "link"
+"error" = "error"
+"close" = "close"
+"remote" = "lapce_remote"
+"unsaved" = "circle-filled"
+"warning" = "warning"
+"problem" = "problem"
+"settings" = "settings-gear"
+"terminal" = "terminal"
+"lightbuld" = "lightbult"
+"extensions" = "extensions"
+"breadcrumb_separator" = "chevron-right"
+
+"window.close" = "chrome-close"
+"window.restore" = "chrome-restore"
+"window.maximise" = "chrome-maximize"
+"window.minimise" = "chrome-minimise"
+
+"file" = "file"
+"file_explorer" = "files"
+"file_picker_up" = "arrow-up"
+
+"scm.icon" = "source-control"
+"scm.diff.modified" = "diff-modified"
+"scm.diff.added" = "diff-added"
+"scm.diff.removed" = "diff-removed"
+"scm.diff.renamed" = "diff-renamed"
+
+"palette.previous" = "arrow-left"
+"palette.next" = "arrow-right"
+"palette.menu" = "chevron-down"
+
+"location.forward" = "arrow-left"
+"location.backward" = "arrow-right"
+
+"item.opened" = "chevron-down"
+"item.closed" = "chevron-right"
+
+"directory.closed" = "folder"
+"directory.opened" = "folder-opened"
+
+"panel.restore" = "chevron-down"
+"panel.maximise" = "chevron-up"
+
+"split.horizontal" = "split-horizontal"
+
+"tab.previous" = "chevron-left"
+"tab.next" = "chevron-right"
+
+"sidebar.left.on" = "layout-sidebar-left"
+"sidebar.left.off" = "layout-sidebar-left-off"
+"sidebar.right.on" = "layout-sidebar-right"
+"sidebar.right.off" = "layout-sidebar-right-off"
+
+"layout.panel.on" = "layout-panel"
+"layout.panel.off" = "layout-panel-off"
+
+"search.icon" = "search"
+"search.clear" = "close"
+"search.forward" = "arrow-down"
+"search.backward" = "arrow-up"
+"search.case_sensitive" = "case-sensitive"
+
+"symbol_kind.array" = "symbol-array"
+"symbol_kind.boolean" = "symbol-boolean"
+"symbol_kind.class" = "symbol-class"
+"symbol_kind.constant" = "symbol-constant"
+"symbol_kind.enum_member" = "symbol-enum-member"
+"symbol_kind.enum" = "symbol-enum"
+"symbol_kind.event" = "symbol-event"
+"symbol_kind.field" = "symbol-field"
+"symbol_kind.file" = "symbol-file"
+"symbol_kind.function" = "symbol-method"
+"symbol_kind.interface" = "symbol-interface"
+"symbol_kind.key" = "symbol-key"
+"symbol_kind.method" = "symbol-method"
+"symbol_kind.namespace" = "symbol-namespace"
+"symbol_kind.number" = "symbol-numeric"
+"symbol_kind.object" = "symbol-namespace"
+"symbol_kind.operator" = "symbol-operator"
+"symbol_kind.property" = "symbol-property"
+"symbol_kind.string" = "symbol-string"
+"symbol_kind.struct" = "symbol-structure"
+"symbol_kind.type_parameter" = "symbol-parameter"
+"symbol_kind.variable" = "symbol-variable"
+
+"completion_item_kind.class" = "symbol-class"
+"completion_item_kind.constant" = "symbol-constant"
+"completion_item_kind.enum_member" = "symbol-enum-member"
+"completion_item_kind.enum" = "symbol-enum"
+"completion_item_kind.field" = "symbol-field"
+"completion_item_kind.function" = "symbol-method"
+"completion_item_kind.interface" = "symbol-interface"
+"completion_item_kind.keyword" = "symbol-keyword"
+"completion_item_kind.method" = "symbol-method"
+"completion_item_kind.module" = "symbol-namespace"
+"completion_item_kind.property" = "symbol-property"
+"completion_item_kind.snippet" = "symbol-snippet"
+"completion_item_kind.string" = "symbol-string"
+"completion_item_kind.struct" = "symbol-structure"
+"completion_item_kind.variable" = "symbol-variable"
+
+[icon-theme.filename]
+[icon-theme.extension]

@@ -11,16 +11,15 @@ use druid::{
     Target, UpdateCtx, Widget, WidgetId,
 };
 use im::HashMap;
-use lapce_core::command::FocusCommand;
+use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{DragContent, EditorTabChild, LapceTabData},
     document::BufferContent,
     editor::TabRect,
-    proxy::VERSION,
 };
 
 use crate::{
@@ -416,13 +415,13 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
 
         for child in editor_tab.children.iter() {
             let mut text = "".to_string();
-            let mut svg = get_svg("default_file.svg").unwrap();
+            let mut svg = get_svg(LapceIcons::FILE, &data.config).unwrap();
             let mut file_path = None;
             match child {
                 EditorTabChild::Editor(view_id, _, _) => {
                     let editor = data.main_split.editors.get(view_id).unwrap();
                     if let BufferContent::File(path) = &editor.content {
-                        (svg, _) = file_svg(path);
+                        (svg, _) = file_svg(path, &data.config);
                         if let Some(file_name) = path.file_name() {
                             if let Some(s) = file_name.to_str() {
                                 text = s.to_string();
@@ -439,7 +438,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     }
                 }
                 EditorTabChild::Settings { .. } => {
-                    text = format!("Settings (ver. {})", *VERSION);
+                    text = format!("Settings (ver. {})", *meta::VERSION);
                 }
                 EditorTabChild::Plugin { volt_name, .. } => {
                     text = format!("Plugin: {volt_name}");

@@ -4,8 +4,15 @@
 
 ### Features/Changes
 
-- [#272](https://github.com/lapce/issue/272): Added XML language support
-- [#1472](https://github.com/lapce/lapce/pull/1472) Added SQL language support
+- [#1459](https://github.com/lapce/lapce/pull/1459): Implement icon theme system
+  - **This is a breaking change for colour themes!**
+  - Colour themes should now use `[color-theme]` table format in theme TOML
+  - `volt.toml` now use `color-themes` and `icon-themes` keys. `themes` key is not used anymore.
+  - Colour themes now must specify colour preference via `[color-theme.color-preference]` key.
+    Available values are `Dark`, `Light`, `HighContrastDark` and `HighContrastLight`.
+    This is used to automatically calculate UI icons and background colours for hover/click events.
+- [#1554](https://github.com/lapce/lapce/pull/1554): Added XML language support
+- [#1472](https://github.com/lapce/lapce/pull/1472): Added SQL language support
 - [#1531](https://github.com/lapce/lapce/pull/1531): Improved Ctrl+Left command on spaces at the beginning of a line
 - [#1491](https://github.com/lapce/lapce/pull/1491): Added Vim shift+c to delete remainder of line
 - [#1508](https://github.com/lapce/lapce/pull/1508): Show in progress when Lapce is self updating
@@ -17,6 +24,7 @@
 
 ### Bug Fixes
 
+- [#1459](https://github.com/lapce/lapce/pull/1459): Fix opening currently used logfile
 - [#1505](https://github.com/lapce/lapce/pull/1505): Fix proxy download for hosts with curl without -Z flag
 - [#1483](https://github.com/lapce/lapce/pull/1483): Fix showing the close icon for the first tab when opening multiple tab
 - [#1477](https://github.com/lapce/lapce/pull/1477): Now use `esc` to close searchbar regarless of the current focus

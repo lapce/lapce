@@ -1,5 +1,6 @@
-[theme]
+[color-theme]
 name = "Lapce Light"
+color-preference = "light"
 
 [ui]
 font-family = ""
@@ -11,7 +12,7 @@ activity-width = 50
 scroll-width = 10
 drop-shadow-width = 0
 
-[theme.base]
+[color-theme.base]
 white = "#FAFAFA"
 black = "#383A42"
 grey = "#E5E5E6"
@@ -24,7 +25,7 @@ purple = "#A626A4"
 cyan = "#0184BC"
 magenta = "#A626A4"
 
-[theme.syntax]
+[color-theme.syntax]
 "comment" = "#A0A1A7"
 "constant" = "$yellow"
 "type" = "$yellow"
@@ -65,7 +66,7 @@ magenta = "#A626A4"
 "variable.other.member" = "$green"
 "tag" = "$blue"
 
-[theme.ui]
+[color-theme.ui]
 "lapce.active_tab" = "#526FFF"
 "lapce.inactive_tab" = "#A0A1A7"
 "lapce.error" = "#E51400"
@@ -73,6 +74,13 @@ magenta = "#A626A4"
 "lapce.dropdown_shadow" = "#B4B4B4"
 "lapce.border" = "#B4B4B4"
 "lapce.scroll_bar" = "#B4B4B4"
+"lapce.icon_active" = "$black"
+"lapce.icon_inactive" = "$grey"
+
+"lapce.remote.local" = "#4078F2"
+"lapce.remote.connected" = "#50A14F"
+"lapce.remote.connecting" = "#C18401"
+"lapce.remote.discconnected" = "#E45649"
 
 "terminal.cursor" = "$black"
 "terminal.foreground" = "$black"

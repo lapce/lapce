@@ -8,7 +8,7 @@ use druid::{
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceTheme},
+    config::{LapceConfig, LapceIcons, LapceTheme},
     data::LapceTabData,
 };
 use lsp_types::MessageType;
@@ -379,12 +379,12 @@ impl Widget<LapceTabData> for LapceMessageItem {
         let inflate =
             (self.text_padding - data.config.ui.font_size() as f64) / 2.0 - 1.0;
         let svg = match self.kind {
-            MessageType::ERROR => "error.svg",
-            MessageType::WARNING => "warning.svg",
-            _ => "warning.svg",
+            MessageType::ERROR => LapceIcons::ERROR,
+            MessageType::WARNING => LapceIcons::WARNING,
+            _ => LapceIcons::WARNING,
         };
         ctx.draw_svg(
-            &get_svg(svg).unwrap(),
+            &get_svg(svg, &data.config).unwrap(),
             self.icon_rect.inflate(-inflate, -inflate),
             Some(
                 data.config
@@ -393,7 +393,7 @@ impl Widget<LapceTabData> for LapceMessageItem {
         );
 
         ctx.draw_svg(
-            &get_svg("close.svg").unwrap(),
+            &get_svg(LapceIcons::CLOSE, &data.config).unwrap(),
             self.close_rect.inflate(-inflate, -inflate),
             Some(
                 data.config

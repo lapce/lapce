@@ -7,15 +7,14 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     TimerToken, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
-use lapce_core::command::FocusCommand;
+use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{EditorTabChild, LapceTabData},
     document::BufferContent,
-    proxy::VERSION,
 };
 
 use crate::{
@@ -96,7 +95,11 @@ impl LapceEditorTabHeader {
         let child = editor_tab.active_child();
         let mut text = "".to_string();
         let mut hint = "".to_string();
-        let mut svg = get_svg("default_file.svg").unwrap();
+        let mut svg = get_svg(LapceIcons::FILE, &data.config).unwrap();
+        let mut svg_color = Some(
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+        );
         if let Some(child) = child {
             match child {
                 EditorTabChild::Editor(view_id, _, _) => {
@@ -104,7 +107,7 @@ impl LapceEditorTabHeader {
 
                     if let BufferContent::File(path) = &editor_buffer.editor.content
                     {
-                        (svg, _) = file_svg(path);
+                        (svg, svg_color) = file_svg(path, &data.config);
                         if let Some(file_name) = path.file_name() {
                             if let Some(s) = file_name.to_str() {
                                 text = s.to_string();
@@ -136,7 +139,7 @@ impl LapceEditorTabHeader {
                 }
                 EditorTabChild::Settings { .. } => {
                     text = "Settings".to_string();
-                    hint = format!("ver. {}", *VERSION);
+                    hint = format!("ver. {}", *meta::VERSION);
                 }
                 EditorTabChild::Plugin { volt_name, .. } => {
                     text = format!("Plugin: {volt_name}");
@@ -153,7 +156,7 @@ impl LapceEditorTabHeader {
                     (size.height - font_size) / 2.0,
                     (size.height - font_size) / 2.0,
                 ));
-        ctx.draw_svg(&svg, svg_rect, None);
+        ctx.draw_svg(&svg, svg_rect, svg_color);
 
         if !hint.is_empty() {
             text = format!("{} {}", text, hint);
@@ -270,7 +273,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
         let gap = (header_height - icon_size) / 2.0;
         let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
         let icon = LapceIcon {
-            icon: "close.svg",
+            icon: LapceIcons::CLOSE,
             rect: Size::new(icon_size, icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
@@ -284,7 +287,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
 
         let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
         let icon = LapceIcon {
-            icon: "split-horizontal.svg",
+            icon: LapceIcons::SPLIT_HORIZONTAL,
             rect: Size::new(icon_size, icon_size)
                 .to_rect()
                 .with_origin(Point::new(x + gap, gap)),
@@ -301,7 +304,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
 
         if data.config.editor.show_tab {
             let icon = LapceIcon {
-                icon: "chevron-left.svg",
+                icon: LapceIcons::TAB_PREVIOUS,
                 rect: Size::new(icon_size, icon_size)
                     .to_rect()
                     .with_origin(Point::new(gap, gap)),
@@ -314,7 +317,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             self.icons.push(icon);
 
             let icon = LapceIcon {
-                icon: "chevron-right.svg",
+                icon: LapceIcons::TAB_NEXT,
                 rect: Size::new(icon_size, icon_size)
                     .to_rect()
                     .with_origin(Point::new(gap + icon_size, gap)),
@@ -444,17 +447,19 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
                     &icon.rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                    &data.config.get_hover_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                    ),
                 );
             }
-            if let Some(svg) = get_svg(icon.icon) {
+            if let Some(svg) = get_svg(icon.icon, &data.config) {
                 ctx.draw_svg(
                     &svg,
                     icon.rect.inflate(-svg_padding, -svg_padding),
                     Some(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                     ),
                 );
             }

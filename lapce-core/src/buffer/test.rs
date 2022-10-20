@@ -19,9 +19,8 @@ mod editing {
 }
 
 mod motion {
-    use crate::mode::Mode;
-
     use super::*;
+    use crate::mode::Mode;
 
     #[test]
     fn cannot_move_in_empty_buffer() {

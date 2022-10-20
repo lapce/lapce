@@ -12,7 +12,7 @@ use lapce_data::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{DragContent, LapceTabData},
     panel::{PanelContainerPosition, PanelKind, PanelPosition},
 };
@@ -1246,12 +1246,13 @@ impl Widget<LapceTabData> for PanelSwitcher {
             if mouse_rect.contains(self.mouse_pos) {
                 ctx.fill(
                     mouse_rect,
-                    if is_bottom {
+                    &data.config.get_hover_color(if is_bottom {
                         data.config
-                            .get_color_unchecked(LapceTheme::HOVER_BACKGROUND)
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
                     } else {
-                        data.config.get_color_unchecked(LapceTheme::PANEL_HOVERED)
-                    },
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_BACKGROUND)
+                    }),
                 );
             }
             if active_kinds.contains(kind) {
@@ -1302,13 +1303,13 @@ impl Widget<LapceTabData> for PanelSwitcher {
                     }
                 }
             }
-            let svg = get_svg(icon.icon).unwrap();
+            let svg = get_svg(icon.icon, &data.config).unwrap();
             ctx.draw_svg(
                 &svg,
                 icon.rect,
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                 ),
             );
         }
@@ -1330,25 +1331,26 @@ impl Widget<LapceTabData> for PanelSwitcher {
             if mouse_rect.contains(self.mouse_pos) {
                 ctx.fill(
                     mouse_rect,
-                    if is_bottom {
+                    &data.config.get_hover_color(if is_bottom {
                         data.config
-                            .get_color_unchecked(LapceTheme::HOVER_BACKGROUND)
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
                     } else {
-                        data.config.get_color_unchecked(LapceTheme::PANEL_HOVERED)
-                    },
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_BACKGROUND)
+                    }),
                 );
             }
             let svg = if maximized {
-                get_svg("chevron-down.svg").unwrap()
+                get_svg(LapceIcons::PANEL_RESTORE, &data.config).unwrap()
             } else {
-                get_svg("chevron-up.svg").unwrap()
+                get_svg(LapceIcons::PANEL_MAXIMISE, &data.config).unwrap()
             };
             ctx.draw_svg(
                 &svg,
                 rect,
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                 ),
             );
         }

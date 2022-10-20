@@ -22,13 +22,14 @@ use itertools::Itertools;
 use lapce_core::{
     command::{FocusCommand, MultiSelectionCommand},
     cursor::{Cursor, CursorMode},
+    directory::Directory,
     editor::EditType,
+    meta,
     mode::MotionMode,
     movement::Movement,
     register::Register,
     selection::Selection,
 };
-use lapce_proxy::{directory::Directory, VERSION};
 use lapce_rpc::{
     buffer::BufferId,
     core::{CoreMessage, CoreNotification},
@@ -102,6 +103,9 @@ pub struct LapceData {
     pub latest_release: Arc<Option<ReleaseInfo>>,
     /// whether the update is in progress
     pub update_in_process: bool,
+    /// log file path
+    #[data(ignore)]
+    pub log_file: Arc<Option<PathBuf>>,
     /// The window on focus
     pub active_window: Arc<WindowId>,
 }
@@ -109,7 +113,12 @@ pub struct LapceData {
 impl LapceData {
     /// Create a new `LapceData` struct by loading configuration, and state
     /// previously written to the Lapce database.
-    pub fn load(event_sink: ExtEventSink, paths: Vec<PathBuf>) -> Self {
+    pub fn load(
+        event_sink: ExtEventSink,
+        paths: Vec<PathBuf>,
+        log_file: Option<PathBuf>,
+    ) -> Self {
+        let log_file = Arc::new(log_file);
         let db = Arc::new(LapceDb::new().unwrap());
         let mut windows = im::HashMap::new();
         let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
@@ -158,6 +167,7 @@ impl LapceData {
                     keypress.clone(),
                     latest_release.clone(),
                     false,
+                    log_file.clone(),
                     panel_orders.clone(),
                     event_sink.clone(),
                     &info,
@@ -172,6 +182,7 @@ impl LapceData {
                         keypress.clone(),
                         latest_release.clone(),
                         false,
+                        log_file.clone(),
                         panel_orders.clone(),
                         event_sink.clone(),
                         info,
@@ -200,6 +211,7 @@ impl LapceData {
                 keypress.clone(),
                 latest_release.clone(),
                 false,
+                log_file.clone(),
                 panel_orders.clone(),
                 event_sink.clone(),
                 &info,
@@ -252,6 +264,7 @@ impl LapceData {
             panel_orders,
             latest_release,
             update_in_process: false,
+            log_file,
         }
     }
 
@@ -426,13 +439,17 @@ pub struct LapceWindowData {
     pub panel_orders: PanelOrder,
     pub latest_release: Arc<Option<ReleaseInfo>>,
     pub update_in_progress: bool,
+    #[data(ignore)]
+    pub log_file: Arc<Option<PathBuf>>,
 }
 
 impl LapceWindowData {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         keypress: Arc<KeyPressData>,
         latest_release: Arc<Option<ReleaseInfo>>,
         update_in_progress: bool,
+        log_file: Arc<Option<PathBuf>>,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
         info: &WindowInfo,
@@ -454,6 +471,7 @@ impl LapceWindowData {
                 keypress.clone(),
                 latest_release.clone(),
                 update_in_progress,
+                log_file.clone(),
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -475,6 +493,7 @@ impl LapceWindowData {
                 keypress.clone(),
                 latest_release.clone(),
                 update_in_progress,
+                log_file.clone(),
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -528,6 +547,7 @@ impl LapceWindowData {
             panel_orders,
             latest_release,
             update_in_progress,
+            log_file,
         }
     }
 
@@ -635,6 +655,8 @@ pub struct LapceTabData {
     pub drag: Arc<Option<(Vec2, Vec2, DragContent)>>,
     pub latest_release: Arc<Option<ReleaseInfo>>,
     pub update_in_progress: bool,
+    #[data(ignore)]
+    pub log_file: Arc<Option<PathBuf>>,
 }
 
 impl GetConfig for LapceTabData {
@@ -653,6 +675,7 @@ impl LapceTabData {
         keypress: Arc<KeyPressData>,
         latest_release: Arc<Option<ReleaseInfo>>,
         update_in_progress: bool,
+        log_file: Arc<Option<PathBuf>>,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
     ) -> Self {
@@ -824,6 +847,7 @@ impl LapceTabData {
             drag: Arc::new(None),
             latest_release,
             update_in_progress,
+            log_file,
         };
         tab.start_update_process(event_sink);
         tab
@@ -1150,7 +1174,7 @@ impl LapceTabData {
         match command {
             LapceWorkbenchCommand::RestartToUpdate => {
                 if let Some(release) = (*self.latest_release).clone() {
-                    if release.version != *VERSION {
+                    if release.version != *meta::VERSION {
                         if let Ok(process_path) = env::current_exe() {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
@@ -1258,10 +1282,17 @@ impl LapceTabData {
                     toml_edit::Value::from(false),
                 );
             }
-            LapceWorkbenchCommand::ChangeTheme => {
+            LapceWorkbenchCommand::ChangeColorTheme => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::RunPalette(Some(PaletteType::Theme)),
+                    LapceUICommand::RunPalette(Some(PaletteType::ColorTheme)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
+            LapceWorkbenchCommand::ChangeIconTheme => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::IconTheme)),
                     Target::Widget(self.palette.widget_id),
                 ));
             }
@@ -1269,7 +1300,7 @@ impl LapceTabData {
                 self.main_split.new_file(ctx, &self.config);
             }
             LapceWorkbenchCommand::OpenLogFile => {
-                if let Some(path) = LapceConfig::log_file() {
+                if let Some(path) = (*self.log_file).clone() {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
@@ -1968,7 +1999,9 @@ impl Lens<LapceWindowData, LapceTabData> for LapceTabLens {
         let mut tab = data.tabs.get(&self.0).unwrap().clone();
         tab.keypress = data.keypress.clone();
         tab.latest_release = data.latest_release.clone();
+        tab.log_file = data.log_file.clone();
         tab.update_in_progress = data.update_in_progress;
+        tab.log_file = data.log_file.clone();
         tab.multiple_tab = data.tabs.len() > 1;
         if !tab.panel.order.same(&data.panel_orders) {
             Arc::make_mut(&mut tab.panel).order = data.panel_orders.clone();

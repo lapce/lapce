@@ -12,7 +12,7 @@ use druid::{
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{CommandKind, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceTheme},
+    config::{LapceConfig, LapceIcons, LapceTheme},
     data::{LapceData, LapceTabData},
     panel::PanelKind,
     plugin::{
@@ -291,13 +291,9 @@ impl Plugin {
                 y + self.line_height * 2.2,
             ));
             ctx.draw_svg(
-                &get_svg("settings.svg").unwrap(),
+                &get_svg(LapceIcons::SETTINGS, config).unwrap(),
                 rect,
-                Some(
-                    &config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                ),
+                Some(config.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)),
             );
 
             let color = match status {

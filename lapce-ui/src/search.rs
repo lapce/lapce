@@ -7,23 +7,23 @@ use druid::{
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_core::command::FocusCommand;
-use lapce_data::command::{CommandKind, LapceCommand, LAPCE_COMMAND};
 use lapce_data::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
+    command::{
+        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
+    },
+    config::{LapceIcons, LapceTheme},
     data::LapceTabData,
     editor::{EditorLocation, LineCol},
     panel::PanelKind,
 };
 
-use crate::svg::get_svg;
-use crate::tab::LapceIcon;
 use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapceScroll,
     split::LapceSplit,
-    svg::file_svg,
+    svg::{file_svg, get_svg},
+    tab::LapceIcon,
 };
 
 pub struct SearchInput {
@@ -46,7 +46,7 @@ impl SearchInput {
             .padding((search_input_padding, search_input_padding));
 
         let icons = vec![LapceIcon {
-            icon: "case-sensitive.svg",
+            icon: LapceIcons::SEARCH_CASE_SENSITIVE,
             rect: Rect::ZERO,
             command: Command::new(
                 LAPCE_COMMAND,
@@ -237,14 +237,14 @@ impl Widget<LapceTabData> for SearchInput {
             .unwrap_or_default();
 
         for icon in self.icons.iter() {
-            if icon.icon == "case-sensitive.svg" && case_sensitive {
+            if icon.icon == LapceIcons::SEARCH_CASE_SENSITIVE && case_sensitive {
                 ctx.fill(
                     &icon.rect,
                     data.config
                         .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
                 );
             } else if icon.rect.contains(self.mouse_pos)
-                && icon.icon != "case-sensitive.svg"
+                && icon.icon != LapceIcons::SEARCH_CASE_SENSITIVE
             {
                 ctx.fill(
                     &icon.rect,
@@ -253,7 +253,7 @@ impl Widget<LapceTabData> for SearchInput {
                 );
             }
 
-            let svg = get_svg(icon.icon).unwrap();
+            let svg = get_svg(icon.icon, &data.config).unwrap();
             ctx.draw_svg(
                 &svg,
                 icon.rect.inflate(-7.0, -7.0),
@@ -449,7 +449,7 @@ impl Widget<LapceTabData> for SearchContent {
                 continue;
             }
 
-            let (svg, svg_color) = file_svg(path);
+            let (svg, svg_color) = file_svg(path, &data.config);
             let rect = Size::new(self.line_height, self.line_height)
                 .to_rect()
                 .with_origin(Point::new(0.0, self.line_height * i as f64))

@@ -1,5 +1,4 @@
 pub mod buffer;
-pub mod directory;
 pub mod dispatch;
 pub mod plugin;
 pub mod terminal;
@@ -14,49 +13,18 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use directory::Directory;
 use dispatch::Dispatcher;
+use lapce_core::{directory::Directory, meta};
 use lapce_rpc::{
     core::{CoreRpc, CoreRpcHandler},
     proxy::{ProxyMessage, ProxyNotification, ProxyRpcHandler},
     stdio::stdio_transport,
     RpcMessage,
 };
-use once_cell::sync::Lazy;
-
-pub static APPLICATION_NAME: Lazy<&str> = Lazy::new(application_name);
-
-fn application_name() -> &'static str {
-    if cfg!(debug_assertions) {
-        "Lapce-Debug"
-    } else if option_env!("RELEASE_TAG_NAME")
-        .unwrap_or("")
-        .starts_with("nightly")
-    {
-        "Lapce-Nightly"
-    } else {
-        "Lapce-Stable"
-    }
-}
-
-pub static VERSION: Lazy<&str> = Lazy::new(version);
-
-fn version() -> &'static str {
-    if cfg!(debug_assertions) {
-        "debug"
-    } else if option_env!("RELEASE_TAG_NAME")
-        .unwrap_or("")
-        .starts_with("nightly")
-    {
-        option_env!("RELEASE_TAG_NAME").unwrap()
-    } else {
-        env!("CARGO_PKG_VERSION")
-    }
-}
 
 #[derive(Parser)]
 #[clap(name = "Lapce")]
-#[clap(version=*VERSION)]
+#[clap(version=*meta::VERSION)]
 struct Cli {
     #[clap(short, long, action)]
     proxy: bool,

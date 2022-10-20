@@ -2517,6 +2517,7 @@ version = "0.2.1"
 dependencies = [
  "arc-swap",
  "bitflags",
+ "directories",
  "itertools",
  "lapce-rpc",
  "log 0.4.17",

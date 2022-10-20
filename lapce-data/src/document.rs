@@ -29,6 +29,7 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::BufferId,
+    plugin::PluginId,
     proxy::ProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
@@ -54,7 +55,6 @@ use crate::{
     proxy::LapceProxy,
     selection_range::{SelectionRangeDirection, SyntaxSelectionRanges},
 };
-use lapce_rpc::plugin::PluginId;
 
 pub struct SystemClipboard {}
 

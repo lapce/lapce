@@ -18,6 +18,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
+use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
     plugin::{PluginId, VoltInfo, VoltMetadata},
@@ -25,14 +26,14 @@ use lapce_rpc::{
     style::LineStyle,
     RequestId, RpcError,
 };
-use lsp_types::request::CodeActionResolveRequest;
 use lsp_types::{
     request::{
-        CodeActionRequest, Completion, DocumentSymbolRequest, Formatting,
-        GotoDefinition, GotoTypeDefinition, GotoTypeDefinitionParams,
-        GotoTypeDefinitionResponse, HoverRequest, InlayHintRequest,
-        PrepareRenameRequest, References, Rename, Request, ResolveCompletionItem,
-        SelectionRangeRequest, SemanticTokensFullRequest, WorkspaceSymbol,
+        CodeActionRequest, CodeActionResolveRequest, Completion,
+        DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
+        GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
+        InlayHintRequest, PrepareRenameRequest, References, Rename, Request,
+        ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest,
+        WorkspaceSymbol,
     },
     CodeAction, CodeActionContext, CodeActionParams, CodeActionResponse,
     CompletionItem, CompletionParams, CompletionResponse, DocumentFormattingParams,
@@ -55,7 +56,7 @@ use self::{
     psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback},
     wasi::{load_volt, start_volt},
 };
-use crate::{buffer::language_id_from_path, directory::Directory};
+use crate::buffer::language_id_from_path;
 
 pub type PluginName = String;
 
@@ -971,7 +972,21 @@ pub fn download_volt(
             std::io::copy(&mut resp, &mut file)?;
         }
     }
-    if let Some(themes) = meta.themes.as_ref() {
+    if let Some(themes) = meta.color_themes.as_ref() {
+        for theme in themes {
+            let url = url.join(theme)?;
+            {
+                let mut resp = reqwest::blocking::get(url)?;
+                let mut file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open(path.join(&theme))?;
+                std::io::copy(&mut resp, &mut file)?;
+            }
+        }
+    }
+    if let Some(themes) = meta.icon_themes.as_ref() {
         for theme in themes {
             let url = url.join(theme)?;
             {

@@ -110,7 +110,8 @@ impl LapceCommand {
                 | LapceWorkbenchCommand::PaletteSymbol
                 | LapceWorkbenchCommand::PaletteCommand
                 | LapceWorkbenchCommand::ChangeFileLanguage
-                | LapceWorkbenchCommand::ChangeTheme
+                | LapceWorkbenchCommand::ChangeColorTheme
+                | LapceWorkbenchCommand::ChangeIconTheme
                 | LapceWorkbenchCommand::ConnectSshHost
                 | LapceWorkbenchCommand::ConnectWsl
                 | LapceWorkbenchCommand::PaletteWorkspace => return true,
@@ -218,9 +219,13 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Reveal Active File in File Explorer")]
     RevealActiveFileInFileExplorer,
 
-    #[strum(serialize = "change_theme")]
-    #[strum(message = "Change Theme")]
-    ChangeTheme,
+    #[strum(serialize = "change_color_theme")]
+    #[strum(message = "Change Color Theme")]
+    ChangeColorTheme,
+
+    #[strum(serialize = "change_icon_theme")]
+    #[strum(message = "Change Icon Theme")]
+    ChangeIconTheme,
 
     #[strum(serialize = "open_settings")]
     #[strum(message = "Open Settings")]
@@ -532,7 +537,8 @@ pub enum LapceUICommand {
     GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),
     CancelFilePicker,
     SetWorkspace(LapceWorkspace),
-    SetTheme(String, bool),
+    SetColorTheme(String, bool),
+    SetIconTheme(String, bool),
     UpdateKeymap(KeyMap, Vec<KeyPress>),
     OpenURI(String),
     OpenPaths {

@@ -459,9 +459,8 @@ fn classify_boundary(
 mod test {
     use xi_rope::Rope;
 
-    use crate::mode::Mode;
-
     use super::WordCursor;
+    use crate::mode::Mode;
 
     #[test]
     fn prev_boundary_should_be_none_at_position_zero() {

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
-use lapce_proxy::{directory::Directory, VERSION};
+use lapce_core::{directory::Directory, meta};
 use serde::Deserialize;
 
 #[derive(Clone, Deserialize)]
@@ -20,12 +20,11 @@ pub struct ReleaseAsset {
 }
 
 pub fn get_latest_release() -> Result<ReleaseInfo> {
-    let version = *VERSION;
-    let url = match version {
-        "debug" => {
+    let url = match *meta::RELEASE {
+        "Debug" => {
             return Err(anyhow!("no release for debug"));
         }
-        version if version.starts_with("nightly") => {
+        "Nightly" => {
             "https://api.github.com/repos/lapce/lapce/releases/tags/nightly"
         }
         _ => "https://api.github.com/repos/lapce/lapce/releases/latest",
