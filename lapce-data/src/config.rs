@@ -178,8 +178,6 @@ impl LapceIcons {
     pub const SCM_DIFF_REMOVED: &str = "scm.diff.removed";
     pub const SCM_DIFF_RENAMED: &str = "scm.diff.renamed";
 
-    pub const PALETTE_PREVIOUS: &str = "palette.previous";
-    pub const PALETTE_NEXT: &str = "palette.next";
     pub const PALETTE_MENU: &str = "palette.menu";
 
     pub const LOCATION_BACKWARD: &str = "location.backward";
