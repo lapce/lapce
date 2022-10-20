@@ -1145,19 +1145,12 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
             .ok_or_else(|| anyhow!("can't to str"))?,
     )?;
 
-    let remotes = repo.remotes()?;
-
-    for r in remotes.iter() {
-        if let Some(r) = r {
-            println!("r {}", r);
-        }
-    }
-
     let head = repo.head()?;
 
     let target_remote = repo.find_remote("origin")?;
 
-    let target_remote_file_url = target_remote.url().unwrap();
+    let target_remote_file_url =
+        target_remote.url().ok_or_else(|| anyhow!("can't to str"))?;
 
     // This Regex isn't perfect, but it's good enough for now
     // git@github.com:rust-lang/rust.git
@@ -1170,9 +1163,18 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
 
     let (host, org, repo) =
         if let Some(v) = git_repo_remote_regex.captures(target_remote_file_url) {
-            let host = v.name("host").unwrap().as_str();
-            let org = v.name("org").unwrap().as_str();
-            let repo = v.name("repo").unwrap().as_str();
+            let host = v
+                .name("host")
+                .ok_or_else(|| anyhow!("can't to str"))?
+                .as_str();
+            let org = v
+                .name("org")
+                .ok_or_else(|| anyhow!("can't to str"))?
+                .as_str();
+            let repo = v
+                .name("repo")
+                .ok_or_else(|| anyhow!("can't to str"))?
+                .as_str();
             (host, org, repo)
         } else {
             return Err(anyhow!("can't parse remote url"));
