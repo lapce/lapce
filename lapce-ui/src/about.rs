@@ -134,10 +134,10 @@ impl AboutBoxContent {
         Self {
             mouse_pos: Point::ZERO,
             widget_id: data.about.widget_id,
-            width: 384.0,
+            width: 320.0,
             height: 384.0,
-            padding: 20.0,
-            svg_size: 50.0,
+            padding: 40.0,
+            svg_size: 80.0,
             close_rect: Rect::ZERO,
             commands: vec![],
             mouse_down_point: Point::ZERO,
@@ -299,18 +299,15 @@ impl Widget<LapceTabData> for AboutBoxContent {
             Some(data.config.get_color_unchecked(LapceTheme::EDITOR_DIM)),
         );
 
-        let mut y = self.padding * 2.0 + self.svg_size;
+        let title_padding = 20.0;
+        let mut y = self.padding + self.svg_size + title_padding;
 
         let title_layout = ctx
             .text()
-            .new_text_layout(format!(
-                "Lapce {} (ver. {})",
-                *meta::RELEASE,
-                *meta::VERSION
-            ))
+            .new_text_layout(format!("Lapce {}", *meta::RELEASE,))
             .font(
                 data.config.ui.font_family(),
-                (data.config.ui.font_size() as f64 * 1.2).round(),
+                data.config.ui.font_size() as f64,
             )
             .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
             .alignment(TextAlignment::Center)
@@ -322,10 +319,27 @@ impl Widget<LapceTabData> for AboutBoxContent {
             )
             .build()
             .unwrap();
-
         ctx.draw_text(&title_layout, Point::new(self.padding, y));
-
         y += title_layout.layout.height() as f64 * 2.0;
+
+        let version_layout = ctx
+            .text()
+            .new_text_layout(format!("Version: {}", *meta::VERSION))
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
+            .alignment(TextAlignment::Center)
+            .max_width(self.width - self.padding * 2.0)
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        ctx.draw_text(&version_layout, Point::new(self.padding, y));
+        y += version_layout.size().height * 2.0;
 
         for (msg, link) in [
             ("Website", AboutUri::LAPCE),
@@ -342,7 +356,6 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 )
                 .alignment(TextAlignment::Center)
                 .max_width(self.width - self.padding * 2.0)
-                .set_line_height(1.2)
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_LINK)
@@ -373,25 +386,21 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 ),
             ));
 
-            y += row_item.size().height + 5.0;
+            y += row_item.size().height * 2.0;
         }
 
         let row_item = ctx
             .text()
-            .new_text_layout(format!("Version: {}", *meta::VERSION))
-            .set_line_height(1.2)
-            .alignment(TextAlignment::Center)
-            .max_width(self.width - self.padding * 2.0)
+            .new_text_layout("Attributes")
             .font(
                 data.config.ui.font_family(),
                 (data.config.ui.font_size()) as f64,
             )
             .alignment(TextAlignment::Center)
-            .set_line_height(1.2)
             .max_width(self.width - self.padding * 2.0)
             .text_color(
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
                     .clone(),
             )
             .build()
@@ -401,19 +410,18 @@ impl Widget<LapceTabData> for AboutBoxContent {
             &row_item,
             Point::new(
                 self.padding,
-                rect.y1 - row_item.layout.height() as f64 * 3.0,
+                rect.y1 - row_item.layout.height() as f64 * 4.0,
             ),
         );
 
         let row_item = ctx
             .text()
-            .new_text_layout(AboutUri::CODICONS)
+            .new_text_layout("Codicons (CC-BY-4.0)")
             .font(
                 data.config.ui.font_family(),
                 (data.config.ui.font_size()) as f64,
             )
             .alignment(TextAlignment::Center)
-            .set_line_height(1.2)
             .max_width(self.width - self.padding * 2.0)
             .text_color(
                 data.config
