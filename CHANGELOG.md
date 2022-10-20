@@ -4,6 +4,7 @@
 
 ### Features/Changes
 
+- [#1510](https://github.com/lapce/lapce/1510): Added support to discard changes to a file
 - [#1459](https://github.com/lapce/lapce/pull/1459): Implement icon theme system
   - **This is a breaking change for colour themes!**
   - Colour themes should now use `[color-theme]` table format in theme TOML

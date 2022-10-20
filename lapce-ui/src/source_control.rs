@@ -3,9 +3,9 @@ use std::{path::PathBuf, sync::Arc};
 use druid::{
     kurbo::BezPath,
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, BoxConstraints, Color, Command, Env, Event, EventCtx, LayoutCtx,
-    LifeCycle, LifeCycleCtx, MouseButton, PaintCtx, Point, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt, WidgetId,
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, MouseButton, PaintCtx, Point, RenderContext, Size, Target,
+    UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_data::{
     command::{
@@ -14,7 +14,6 @@ use lapce_data::{
     },
     config::{LapceIcons, LapceTheme},
     data::{FocusArea, LapceData, LapceTabData},
-    data::{FocusArea, LapceTabData},
     panel::PanelKind,
 };
 use lapce_rpc::source_control::FileDiff;

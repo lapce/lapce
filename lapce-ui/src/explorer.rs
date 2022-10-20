@@ -11,8 +11,7 @@ use itertools::Itertools;
 use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
-        CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
-        LAPCE_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{LapceConfig, LapceIcons, LapceTheme},
     data::{EditorTabChild, LapceData, LapceEditorData, LapceTabData},
