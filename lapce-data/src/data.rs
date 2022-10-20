@@ -1616,6 +1616,8 @@ impl LapceTabData {
             LapceWorkbenchCommand::SourceControlCopyActiveFileRemoteUrl => {
                 if let Some(editor) = self.main_split.active_editor() {
                     if let BufferContent::File(path) = &editor.content {
+                        let event_sink = ctx.get_external_handle();
+
                         self.proxy.proxy_rpc.git_get_remote_file_url(
                             path.clone(),
                             move |result| {
@@ -1623,9 +1625,11 @@ impl LapceTabData {
                                     file_url,
                                 }) = result
                                 {
-                                    let mut clipboard =
-                                        druid::Application::global().clipboard();
-                                    clipboard.put_string(file_url);
+                                    let _ = event_sink.submit_command(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::CopyString(file_url),
+                                        Target::Auto,
+                                    );
                                 }
                             },
                         )

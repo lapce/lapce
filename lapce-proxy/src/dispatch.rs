@@ -1145,8 +1145,6 @@ fn git_do_thing(workspace_path: &Path, file: &Path) -> Result<String> {
             .ok_or_else(|| anyhow!("can't to str"))?,
     )?;
 
-    // println!("REMOTES {:?}", repo.remotes());
-
     let remotes = repo.remotes()?;
 
     for r in remotes.iter() {
@@ -1156,36 +1154,36 @@ fn git_do_thing(workspace_path: &Path, file: &Path) -> Result<String> {
     }
 
     let head = repo.head()?;
-    // println!("HEAD: {:#?}", head;
 
     let target_remote = repo.find_remote("origin")?;
 
-    // target_remote.url()
-
     let target_remote_file_url = target_remote.url().unwrap();
 
-    let re = Regex::new(r"^git@([\w\.]+):(.+)").unwrap();
+    // This Regex isn't perfect, but it's good enough for now
+    // git@github.com:rust-lang/rust.git
+    // https://github.com/rust-lang/rust.git
 
-    let mut target_url = "https://".to_string();
+    let git_repo_remote_regex = Regex::new(
+        r"^(?:git@|https://)(?P<host>[^:/]+)[:/](?P<org>[^/]+)/(?P<repo>.+)$",
+    )
+    .unwrap();
 
-    for cap in re.captures_iter(target_remote_file_url) {
-        let host = &cap[1];
-        let reop = cap[2].trim_end_matches(".git");
-        target_url = target_url + host + "/" + reop;
-    }
-    println!("CAP: {:?}", target_url);
+    let (host, org, repo) =
+        if let Some(v) = git_repo_remote_regex.captures(target_remote_file_url) {
+            let host = v.name("host").unwrap().as_str();
+            let org = v.name("org").unwrap().as_str();
+            let repo = v.name("repo").unwrap().as_str();
+            (host, org, repo)
+        } else {
+            return Err(anyhow!("can't parse remote url"));
+        };
 
-    let s = format!(
-        "{}/blob/{}/{}",
-        target_url,
+    Ok(format!(
+        "https://{}/{}/{}/blob/{}/{}",
+        host,
+        org,
+        repo,
         head.peel_to_commit()?.id(),
         file.strip_prefix(workspace_path)?.to_str().unwrap()
-    );
-
-    println!("{}", s);
-    Ok(s)
+    ))
 }
-
-// TARGET:
-// https://github.com/openfin/workspace/blob/19c1bddac2d7086113dc98d8f738b33f4e91ffbd/.eslintrc
-//
