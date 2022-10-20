@@ -206,7 +206,7 @@ name = ""
 "window.close" = "chrome-close"
 "window.restore" = "chrome-restore"
 "window.maximise" = "chrome-maximize"
-"window.minimise" = "chrome-minimise"
+"window.minimise" = "chrome-minimize"
 
 "file" = "file"
 "file_explorer" = "files"
@@ -218,12 +218,10 @@ name = ""
 "scm.diff.removed" = "diff-removed"
 "scm.diff.renamed" = "diff-renamed"
 
-"palette.previous" = "arrow-left"
-"palette.next" = "arrow-right"
 "palette.menu" = "chevron-down"
 
-"location.forward" = "arrow-left"
-"location.backward" = "arrow-right"
+"location.forward" = "arrow-right"
+"location.backward" = "arrow-left"
 
 "item.opened" = "chevron-down"
 "item.closed" = "chevron-right"
