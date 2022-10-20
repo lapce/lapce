@@ -28,6 +28,7 @@ use lapce_rpc::{
 };
 use lsp_types::{Position, Range, TextDocumentItem, Url};
 use parking_lot::Mutex;
+use regex::Regex;
 use xi_rope::Rope;
 
 use crate::{
@@ -387,6 +388,17 @@ impl ProxyHandler for Dispatcher {
                         proxy_rpc.handle_response(id, result);
                     },
                 );
+            }
+            GitGetRemoteFileUrl { file } => {
+                if let Some(workspace) = self.workspace.as_ref() {
+                    match git_do_thing(workspace, &file) {
+                        Ok(s) => self.proxy_rpc.handle_response(
+                            id,
+                            Ok(ProxyResponse::GitGetRemoteFileUrl { file_url: s }),
+                        ),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
             }
             GetDefinition {
                 request_id,
@@ -1125,3 +1137,55 @@ fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)>
         .to_string();
     Ok((id, content))
 }
+
+fn git_do_thing(workspace_path: &Path, file: &Path) -> Result<String> {
+    let repo = Repository::open(
+        workspace_path
+            .to_str()
+            .ok_or_else(|| anyhow!("can't to str"))?,
+    )?;
+
+    // println!("REMOTES {:?}", repo.remotes());
+
+    let remotes = repo.remotes()?;
+
+    for r in remotes.iter() {
+        if let Some(r) = r {
+            println!("r {}", r);
+        }
+    }
+
+    let head = repo.head()?;
+    // println!("HEAD: {:#?}", head;
+
+    let target_remote = repo.find_remote("origin")?;
+
+    // target_remote.url()
+
+    let target_remote_file_url = target_remote.url().unwrap();
+
+    let re = Regex::new(r"^git@([\w\.]+):(.+)").unwrap();
+
+    let mut target_url = "https://".to_string();
+
+    for cap in re.captures_iter(target_remote_file_url) {
+        let host = &cap[1];
+        let reop = cap[2].trim_end_matches(".git");
+        target_url = target_url + host + "/" + reop;
+    }
+    println!("CAP: {:?}", target_url);
+
+    let s = format!(
+        "{}/blob/{}/{}",
+        target_url,
+        head.peel_to_commit()?.id(),
+        file.strip_prefix(workspace_path)?.to_str().unwrap()
+    );
+
+    println!("{}", s);
+    Ok(s)
+}
+
+// TARGET:
+// https://github.com/openfin/workspace/blob/19c1bddac2d7086113dc98d8f738b33f4e91ffbd/.eslintrc
+//

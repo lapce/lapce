@@ -1613,6 +1613,25 @@ impl LapceTabData {
                     Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
                 };
             }
+            LapceWorkbenchCommand::SourceControlCopyActiveFileRemoteUrl => {
+                if let Some(editor) = self.main_split.active_editor() {
+                    if let BufferContent::File(path) = &editor.content {
+                        self.proxy.proxy_rpc.git_get_remote_file_url(
+                            path.clone(),
+                            move |result| {
+                                if let Ok(ProxyResponse::GitGetRemoteFileUrl {
+                                    file_url,
+                                }) = result
+                                {
+                                    let mut clipboard =
+                                        druid::Application::global().clipboard();
+                                    clipboard.put_string(file_url);
+                                }
+                            },
+                        )
+                    }
+                }
+            }
             LapceWorkbenchCommand::SourceControlDiscardActiveFileChanges => {
                 if let Some(editor) = self.main_split.active_editor() {
                     if let BufferContent::File(path) = &editor.content {
