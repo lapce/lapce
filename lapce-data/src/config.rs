@@ -62,6 +62,7 @@ impl LapceTheme {
     pub const EDITOR_LINK: &str = "editor.link";
     pub const EDITOR_VISIBLE_WHITESPACE: &str = "editor.visible_whitespace";
     pub const EDITOR_INDENT_GUIDE: &str = "editor.indent_guide";
+    pub const EDITOR_SPLIT_DROP_BACKGROUND: &str = "editor.split.drop_background";
 
     pub const INLAY_HINT_FOREGROUND: &str = "inlay_hint.foreground";
     pub const INLAY_HINT_BACKGROUND: &str = "inlay_hint.background";
@@ -151,8 +152,8 @@ pub struct LapceIcons {}
 impl LapceIcons {
     pub const WINDOW_CLOSE: &str = "window.close";
     pub const WINDOW_RESTORE: &str = "window.restore";
-    pub const WINDOW_MAXIMISE: &str = "window.maximize";
-    pub const WINDOW_MINIMISE: &str = "window.minimize";
+    pub const WINDOW_MAXIMIZE: &str = "window.maximize";
+    pub const WINDOW_MINIMIZE: &str = "window.minimize";
 
     pub const LOGO: &str = "logo";
     pub const LINK: &str = "link";
@@ -1002,7 +1003,7 @@ impl LapceConfig {
             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
             .as_rgba();
         let bg = self
-            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
             .as_rgba();
         let is_light = fg.0 + fg.1 + fg.2 > bg.0 + bg.1 + bg.2;
         let high_contrast = self.color_theme.high_contrast.unwrap_or(false);

@@ -24,6 +24,7 @@
 
 ### Bug Fixes
 
+- [#1565](https://github.com/lapce/lapce/pull/1565): Use separate colour for split drop background
 - [#1459](https://github.com/lapce/lapce/pull/1459): Fix opening currently used logfile
 - [#1505](https://github.com/lapce/lapce/pull/1505): Fix proxy download for hosts with curl without -Z flag
 - [#1483](https://github.com/lapce/lapce/pull/1483): Fix showing the close icon for the first tab when opening multiple tab
