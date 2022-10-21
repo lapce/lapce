@@ -886,7 +886,7 @@ pub fn window_controls(
         .with_origin(Point::new(x, 0.0))
         .inflate(-10.0, -10.0);
     svgs.push((
-        get_svg(LapceIcons::WINDOW_MINIMISE, config).unwrap(),
+        get_svg(LapceIcons::WINDOW_MINIMIZE, config).unwrap(),
         minimize_rect,
         hover_color.clone(),
     ));
@@ -896,7 +896,7 @@ pub fn window_controls(
         .with_origin(Point::new(x + width, 0.0))
         .inflate(-10.0, -10.0);
     let max_res_svg = if window_state == &WindowState::Restored {
-        get_svg(LapceIcons::WINDOW_MAXIMISE, config).unwrap()
+        get_svg(LapceIcons::WINDOW_MAXIMIZE, config).unwrap()
     } else {
         get_svg(LapceIcons::WINDOW_RESTORE, config).unwrap()
     };

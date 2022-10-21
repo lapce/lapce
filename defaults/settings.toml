@@ -204,8 +204,8 @@ name = ""
 
 "window.close" = "chrome-close"
 "window.restore" = "chrome-restore"
-"window.maximise" = "chrome-maximize"
-"window.minimise" = "chrome-minimize"
+"window.maximize" = "chrome-maximize"
+"window.minimize" = "chrome-minimize"
 
 "file" = "file"
 "file_explorer" = "files"

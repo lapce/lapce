@@ -151,8 +151,8 @@ pub struct LapceIcons {}
 impl LapceIcons {
     pub const WINDOW_CLOSE: &str = "window.close";
     pub const WINDOW_RESTORE: &str = "window.restore";
-    pub const WINDOW_MAXIMISE: &str = "window.maximize";
-    pub const WINDOW_MINIMISE: &str = "window.minimize";
+    pub const WINDOW_MAXIMIZE: &str = "window.maximize";
+    pub const WINDOW_MINIMIZE: &str = "window.minimize";
 
     pub const LOGO: &str = "logo";
     pub const LINK: &str = "link";
