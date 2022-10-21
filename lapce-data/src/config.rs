@@ -1003,7 +1003,7 @@ impl LapceConfig {
             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
             .as_rgba();
         let bg = self
-            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
             .as_rgba();
         let is_light = fg.0 + fg.1 + fg.2 > bg.0 + bg.1 + bg.2;
         let high_contrast = self.color_theme.high_contrast.unwrap_or(false);
