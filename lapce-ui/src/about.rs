@@ -115,7 +115,7 @@ impl Widget<LapceTabData> for AboutBox {
 }
 
 pub struct AboutBoxContent {
-    mouse_pos: Point,
+    mouse_pos: Option<Point>,
     widget_id: WidgetId,
 
     width: f64,
@@ -123,24 +123,24 @@ pub struct AboutBoxContent {
     padding: f64,
     svg_size: f64,
 
-    close_rect: Rect,
+    close_rect: Option<Rect>,
 
     commands: Vec<(Rect, Command)>,
-    mouse_down_point: Point,
+    mouse_down_point: Option<Point>,
 }
 
 impl AboutBoxContent {
     pub fn new(data: &LapceTabData) -> Self {
         Self {
-            mouse_pos: Point::ZERO,
+            mouse_pos: None,
             widget_id: data.about.widget_id,
             width: 320.0,
             height: 384.0,
             padding: 40.0,
             svg_size: 80.0,
-            close_rect: Rect::ZERO,
+            close_rect: None,
             commands: vec![],
-            mouse_down_point: Point::ZERO,
+            mouse_down_point: None,
         }
     }
 
@@ -150,7 +150,11 @@ impl AboutBoxContent {
                 return true;
             }
         }
-        if self.close_rect.contains(mouse_event.pos) {
+        if self
+            .close_rect
+            .map(|c| c.contains(mouse_event.pos))
+            .unwrap_or(false)
+        {
             return true;
         }
         false
@@ -186,7 +190,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
                     .key_down(ctx, key_event, &mut focus, env);
             }
             Event::MouseMove(mouse_event) => {
-                self.mouse_pos = mouse_event.pos;
+                self.mouse_pos = Some(mouse_event.pos);
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
                 } else {
@@ -196,15 +200,18 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 ctx.set_handled();
             }
             Event::MouseDown(mouse_event) => {
-                self.mouse_down_point = mouse_event.pos;
+                self.mouse_down_point = Some(mouse_event.pos);
                 if mouse_event.button.is_left() {
                     self.mouse_down(ctx, mouse_event);
                 }
                 ctx.request_paint();
             }
             Event::MouseUp(mouse_event) => {
-                if self.close_rect.contains(self.mouse_down_point)
-                    && self.close_rect.contains(mouse_event.pos)
+                if self
+                    .close_rect
+                    .zip(self.mouse_down_point)
+                    .map(|(c, m)| c.contains(m) && c.contains(mouse_event.pos))
+                    .unwrap_or(false)
                 {
                     ctx.submit_command(Command::new(
                         LAPCE_COMMAND,
@@ -215,7 +222,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
                         Target::Widget(self.widget_id),
                     ));
                 }
-                self.mouse_down_point = Point::ZERO;
+                self.mouse_down_point = None;
                 ctx.request_paint();
                 ctx.set_handled();
             }
@@ -319,6 +326,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
             )
             .build()
             .unwrap();
+
         ctx.draw_text(&title_layout, Point::new(self.padding, y));
         y += title_layout.layout.height() as f64 * 2.0;
 
@@ -338,6 +346,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
             )
             .build()
             .unwrap();
+
         ctx.draw_text(&version_layout, Point::new(self.padding, y));
         y += version_layout.size().height * 2.0;
 
@@ -364,8 +373,6 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 .build()
                 .unwrap();
 
-            ctx.draw_text(&row_item, Point::new(self.padding, y));
-
             let site_rect = Size::new(
                 row_item.layout.width() as f64,
                 row_item.layout.height() as f64,
@@ -386,7 +393,8 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 ),
             ));
 
-            y += row_item.size().height * 2.0;
+            ctx.draw_text(&row_item, Point::new(self.padding, y));
+            y += row_item.size().height * 1.5;
         }
 
         let row_item = ctx
@@ -406,13 +414,8 @@ impl Widget<LapceTabData> for AboutBoxContent {
             .build()
             .unwrap();
 
-        ctx.draw_text(
-            &row_item,
-            Point::new(
-                self.padding,
-                rect.y1 - row_item.layout.height() as f64 * 4.0,
-            ),
-        );
+        ctx.draw_text(&row_item, Point::new(self.padding, y));
+        y += row_item.size().height * 2.0;
 
         let row_item = ctx
             .text()
@@ -430,13 +433,6 @@ impl Widget<LapceTabData> for AboutBoxContent {
             )
             .build()
             .unwrap();
-        ctx.draw_text(
-            &row_item,
-            Point::new(
-                self.padding,
-                rect.y1 - row_item.layout.height() as f64 * 2.0,
-            ),
-        );
 
         let site_rect = Size::new(
             row_item.layout.width() as f64,
@@ -446,8 +442,15 @@ impl Widget<LapceTabData> for AboutBoxContent {
         .with_origin(Point::new(
             self.width / 2.0 + (row_item.layout.width() as f64 / 2.0)
                 - row_item.layout.width() as f64,
-            rect.y1 - row_item.layout.height() as f64 * 2.0,
+            y,
         ));
+
+        ctx.fill(
+            site_rect,
+            &data.config.get_hover_color(
+                data.config.get_color_unchecked(LapceTheme::TERMINAL_RED),
+            ),
+        );
 
         self.commands.push((
             site_rect,
@@ -458,13 +461,19 @@ impl Widget<LapceTabData> for AboutBoxContent {
             ),
         ));
 
-        self.close_rect = Size::new(20.0, 20.0)
+        ctx.draw_text(&row_item, Point::new(self.padding, y));
+
+        let close_rect = Size::new(20.0, 20.0)
             .to_rect()
             .with_origin(Point::new(self.width - 20.0, 0.0));
 
-        if self.close_rect.contains(self.mouse_pos) {
+        if self
+            .mouse_pos
+            .map(|m| close_rect.contains(m))
+            .unwrap_or(false)
+        {
             ctx.fill(
-                self.close_rect,
+                close_rect,
                 &data.config.get_hover_color(
                     data.config
                         .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
@@ -474,11 +483,13 @@ impl Widget<LapceTabData> for AboutBoxContent {
 
         ctx.draw_svg(
             &get_svg(LapceIcons::WINDOW_CLOSE, &data.config).unwrap(),
-            self.close_rect.inflate(-2.5, -2.5),
+            close_rect.inflate(-2.5, -2.5),
             Some(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
             ),
         );
+
+        self.close_rect = Some(close_rect);
     }
 }
