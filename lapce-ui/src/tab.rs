@@ -1924,15 +1924,7 @@ impl LapceTab {
                     }
                     LapceUICommand::PutToClipboard(target_string) => {
                         let mut clipboard = druid::Application::global().clipboard();
-                        clipboard.put_string(target_string)
-                    }
-                    LapceUICommand::CopyPath(absolute_path) => {
-                        let mut clipboard = druid::Application::global().clipboard();
-                        clipboard.put_string(absolute_path.to_str().unwrap())
-                    }
-                    LapceUICommand::CopyRelativePath(relative_path) => {
-                        let mut clipboard = druid::Application::global().clipboard();
-                        clipboard.put_string(relative_path.to_str().unwrap());
+                        clipboard.put_string(target_string);
                     }
                     LapceUICommand::NewMessage {
                         kind,
