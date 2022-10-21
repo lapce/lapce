@@ -1922,7 +1922,7 @@ impl LapceTab {
                             file_explorer.cancel_naming();
                         }
                     }
-                    LapceUICommand::CopyString(target_string) => {
+                    LapceUICommand::PutToClipboard(target_string) => {
                         let mut clipboard = druid::Application::global().clipboard();
                         clipboard.put_string(target_string)
                     }

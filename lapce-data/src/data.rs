@@ -1627,7 +1627,7 @@ impl LapceTabData {
                                 {
                                     let _ = event_sink.submit_command(
                                         LAPCE_UI_COMMAND,
-                                        LapceUICommand::CopyString(file_url),
+                                        LapceUICommand::PutToClipboard(file_url),
                                         Target::Auto,
                                     );
                                 }
