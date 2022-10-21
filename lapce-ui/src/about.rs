@@ -194,7 +194,6 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 } else {
                     ctx.clear_cursor();
                 }
-                ctx.request_paint();
                 ctx.set_handled();
             }
             Event::MouseDown(mouse_event) => {
@@ -347,7 +346,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
             .unwrap();
 
         ctx.draw_text(&version_layout, Point::new(self.padding, y));
-        y += version_layout.size().height * 2.0;
+        y += version_layout.size().height + title_padding;
 
         self.commands.clear();
 
@@ -393,6 +392,8 @@ impl Widget<LapceTabData> for AboutBoxContent {
                     Target::Auto,
                 ),
             ));
+
+            ctx.draw_text(&row_item, Point::new(self.padding, y));
 
             y += row_item.size().height + line_gap;
         }
@@ -465,8 +466,6 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 Target::Auto,
             ),
         ));
-
-        ctx.draw_text(&row_item, Point::new(self.padding, y));
 
         let close_rect = Size::new(20.0, 20.0)
             .to_rect()
