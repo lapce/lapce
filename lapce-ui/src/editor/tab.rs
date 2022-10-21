@@ -594,7 +594,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
                     ctx.fill(
                         rect,
                         data.config.get_color_unchecked(
-                            LapceTheme::EDITOR_SPLIT_DROP_BACKGROUND,
+                            LapceTheme::EDITOR_DRAG_DROP_BACKGROUND,
                         ),
                     );
                 });

@@ -111,7 +111,7 @@ magenta = "#A626A4"
 "editor.link" = "$blue"
 "editor.visible_whitespace" = "$grey"
 "editor.indent_guide" = "$grey"
-"editor.split.drop_background" = "#79c1fc33"
+"editor.drag_drop_background" = "#79c1fc33"
 
 "inlay_hint.foreground" = "$black"
 "inlay_hint.background" = "#528bFF55"

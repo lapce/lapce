@@ -504,11 +504,9 @@ impl LapceTab {
 
                 ctx.fill(
                     rect,
-                    &data
-                        .config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                        .clone()
-                        .with_alpha(0.8),
+                    data.config.get_color_unchecked(
+                        LapceTheme::EDITOR_DRAG_DROP_BACKGROUND,
+                    ),
                 );
                 break;
             }
@@ -546,11 +544,9 @@ impl LapceTab {
                     }
                     ctx.fill(
                         rect,
-                        &data
-                            .config
-                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                            .clone()
-                            .with_alpha(0.8),
+                        data.config.get_color_unchecked(
+                            LapceTheme::EDITOR_DRAG_DROP_BACKGROUND,
+                        ),
                     );
 
                     let width = 13.0;
@@ -595,11 +591,9 @@ impl LapceTab {
                     }
                     ctx.fill(
                         rect,
-                        &data
-                            .config
-                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                            .clone()
-                            .with_alpha(0.8),
+                        data.config.get_color_unchecked(
+                            LapceTheme::EDITOR_DRAG_DROP_BACKGROUND,
+                        ),
                     );
                     let svg = data.config.ui_svg(kind.svg_name());
                     ctx.draw_svg(
