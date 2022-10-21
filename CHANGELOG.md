@@ -24,7 +24,7 @@
 
 ### Bug Fixes
 
-- [#1565](https://github.com/lapce/lapce/pull/1565): Use separate colour for split drop background
+- [#1566](https://github.com/lapce/lapce/pull/1565)|[#1568](https://github.com/lapce/lapce/pull/1568): Use separate colour for drag and drop background
 - [#1459](https://github.com/lapce/lapce/pull/1459): Fix opening currently used logfile
 - [#1505](https://github.com/lapce/lapce/pull/1505): Fix proxy download for hosts with curl without -Z flag
 - [#1483](https://github.com/lapce/lapce/pull/1483): Fix showing the close icon for the first tab when opening multiple tab
@@ -82,7 +82,7 @@
 - [#1104](https://github.com/lapce/lapce/pull/1104): Add syntax highlighting for Dockerfile, C#, and Nix
 - [#1118](https://github.com/lapce/lapce/pull/1118): Recognize `pyi, pyc, pyd, pyw` extensions for Python
 - [#1122](https://github.com/lapce/lapce/pull/1122): Recognize extensions for DLang
-  - [#1335](https://github.com/lapce/lapce/pull/1335): Highlighting for DLang
+- [#1335](https://github.com/lapce/lapce/pull/1335): Highlighting for DLang
 - [#1153](https://github.com/lapce/lapce/pull/1050): Recognize and add highlighting for Dart
 - [#1161](https://github.com/lapce/lapce/pull/1161): Recognize and add highlighting for Svelte and LaTeX files
 - [#1299](https://github.com/lapce/lapce/pull/1299): Recognize and add highlighting for Kotlin
