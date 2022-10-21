@@ -13,8 +13,6 @@ use lapce_data::{
 };
 use lsp_types::MessageType;
 
-use crate::svg::get_svg;
-
 pub struct LapceMessage {
     widget_id: WidgetId,
     items: Vec<WidgetPod<LapceTabData, LapceMessageItem>>,
@@ -384,7 +382,7 @@ impl Widget<LapceTabData> for LapceMessageItem {
             _ => LapceIcons::WARNING,
         };
         ctx.draw_svg(
-            &get_svg(svg, &data.config).unwrap(),
+            &data.config.ui_svg(svg),
             self.icon_rect.inflate(-inflate, -inflate),
             Some(
                 data.config
@@ -393,7 +391,7 @@ impl Widget<LapceTabData> for LapceMessageItem {
         );
 
         ctx.draw_svg(
-            &get_svg(LapceIcons::CLOSE, &data.config).unwrap(),
+            &data.config.ui_svg(LapceIcons::CLOSE),
             self.close_rect.inflate(-inflate, -inflate),
             Some(
                 data.config

@@ -26,7 +26,6 @@ use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapceScroll,
-    svg::{file_svg, get_svg},
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -63,17 +62,21 @@ fn paint_single_file_node_item(
         );
     }
 
+    let font_size = config.ui.font_size() as f64;
+
     let y = current as f64 * line_height - line_height;
-    let svg_y = y + 4.0;
-    let svg_size = 15.0;
+    let svg_size = font_size;
+    let svg_y = y + (line_height - svg_size) / 2.0;
     let padding = 15.0 * level as f64;
+
     if item.is_dir {
         let icon_name = if item.open {
             LapceIcons::ITEM_OPENED
         } else {
             LapceIcons::ITEM_CLOSED
         };
-        let svg = get_svg(icon_name, config).unwrap();
+        let svg = config.ui_svg(icon_name);
+
         let rect = Size::new(svg_size, svg_size)
             .to_rect()
             .with_origin(Point::new(1.0 + padding, svg_y));
@@ -84,27 +87,33 @@ fn paint_single_file_node_item(
         );
         toggle_rects.insert(current, rect);
 
-        let icon_name = if item.open {
-            LapceIcons::DIRECTORY_OPENED
-        } else {
-            LapceIcons::DIRECTORY_CLOSED
-        };
-        let svg = get_svg(icon_name, config).unwrap();
+        let (svg, svg_color) =
+            if let Some((svg, svg_color)) = config.folder_svg(&item.path_buf) {
+                (svg, svg_color)
+            } else {
+                let icon_name = if item.open {
+                    LapceIcons::DIRECTORY_OPENED
+                } else {
+                    LapceIcons::DIRECTORY_CLOSED
+                };
+                let svg = config.ui_svg(icon_name);
+                (
+                    svg,
+                    Some(config.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)),
+                )
+            };
         let rect = Size::new(svg_size, svg_size)
             .to_rect()
             .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
-        ctx.draw_svg(
-            &svg,
-            rect,
-            Some(config.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)),
-        );
+        ctx.draw_svg(&svg, rect, svg_color);
     } else {
-        let (svg, svg_color) = file_svg(&item.path_buf, config);
+        let (svg, svg_color) = config.file_svg(&item.path_buf);
         let rect = Size::new(svg_size, svg_size)
             .to_rect()
             .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
         ctx.draw_svg(&svg, rect, svg_color);
     }
+
     let text_layout = ctx
         .text()
         .new_text_layout(
@@ -115,7 +124,7 @@ fn paint_single_file_node_item(
                 .unwrap()
                 .to_string(),
         )
-        .font(config.ui.font_family(), config.ui.font_size() as f64)
+        .font(config.ui.font_family(), font_size)
         .text_color(
             config
                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -1018,7 +1027,7 @@ impl OpenEditorList {
         let size = ctx.size();
         let mut text = "".to_string();
         let mut hint = "".to_string();
-        let mut svg = get_svg(LapceIcons::FILE, &data.config).unwrap();
+        let mut svg = data.config.ui_svg(LapceIcons::FILE);
         let mut svg_color = Some(
             data.config
                 .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
@@ -1030,7 +1039,7 @@ impl OpenEditorList {
                 pristine = editor_buffer.doc.buffer().is_pristine();
 
                 if let BufferContent::File(path) = &editor_buffer.editor.content {
-                    (svg, svg_color) = file_svg(path, &data.config);
+                    (svg, svg_color) = data.config.file_svg(path);
                     if let Some(file_name) = path.file_name() {
                         if let Some(s) = file_name.to_str() {
                             text = s.to_string();
@@ -1105,11 +1114,11 @@ impl OpenEditorList {
                 close_rect.inflate(2.0, 2.0),
                 data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
             );
-            Some(get_svg(LapceIcons::CLOSE, &data.config).unwrap())
+            Some(data.config.ui_svg(LapceIcons::CLOSE))
         } else if pristine {
             None
         } else {
-            Some(get_svg(LapceIcons::UNSAVED, &data.config).unwrap())
+            Some(data.config.ui_svg(LapceIcons::UNSAVED))
         };
         if let Some(close_svg) = close_svg {
             ctx.draw_svg(

@@ -24,7 +24,7 @@ use lapce_data::{
 
 #[cfg(not(target_os = "macos"))]
 use crate::window::window_controls;
-use crate::{list::List, palette::Palette, svg::get_svg};
+use crate::{list::List, palette::Palette};
 
 pub struct Title {
     widget_id: WidgetId,
@@ -178,7 +178,7 @@ impl Title {
             }
         };
         self.rects.push((remote_rect, color.clone()));
-        let remote_svg = get_svg(LapceIcons::REMOTE, &data.config).unwrap();
+        let remote_svg = data.config.ui_svg(LapceIcons::REMOTE);
         self.svgs.push((
             remote_svg,
             Size::new(size.height, size.height)
@@ -260,7 +260,7 @@ impl Title {
             let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
 
             x += 5.0;
-            let folder_svg = get_svg(LapceIcons::SCM, &data.config).unwrap();
+            let folder_svg = data.config.ui_svg(LapceIcons::SCM);
             let folder_rect = Size::new(size.height, size.height)
                 .to_rect()
                 .with_origin(Point::new(x, 0.0));
@@ -348,7 +348,7 @@ impl Title {
         let settings_rect = Size::new(size.height, size.height)
             .to_rect()
             .with_origin(Point::new(x, 0.0));
-        let settings_svg = get_svg(LapceIcons::SETTINGS, &data.config).unwrap();
+        let settings_svg = data.config.ui_svg(LapceIcons::SETTINGS);
         self.svgs.push((
             settings_svg,
             settings_rect.inflate(-10.0, -10.0),
@@ -551,12 +551,12 @@ impl Title {
             .with_origin(Point::new(x - size.height, 0.0));
         let (folder_svg, folder_rect) = if data.workspace.path.is_none() {
             (
-                get_svg(LapceIcons::DIRECTORY_CLOSED, &data.config).unwrap(),
+                data.config.ui_svg(LapceIcons::DIRECTORY_CLOSED),
                 folder_rect.inflate(-9.0, -9.0),
             )
         } else {
             (
-                get_svg(LapceIcons::SEARCH, &data.config).unwrap(),
+                data.config.ui_svg(LapceIcons::SEARCH),
                 folder_rect.inflate(-12.0, -12.0),
             )
         };
@@ -595,7 +595,7 @@ impl Title {
             .to_rect()
             .with_origin(Point::new(x + text_size.width - 8.0, 0.0));
         self.svgs.push((
-            get_svg(LapceIcons::PALETTE_MENU, &data.config).unwrap(),
+            data.config.ui_svg(LapceIcons::PALETTE_MENU),
             command_rect.inflate(-12.0, -12.0),
             Some(
                 data.config
@@ -880,7 +880,7 @@ impl Widget<LapceTabData> for Title {
             )
         };
         self.svgs.push((
-            get_svg(LapceIcons::LOCATION_BACKWARD, &data.config).unwrap(),
+            data.config.ui_svg(LapceIcons::LOCATION_BACKWARD),
             arrow_left_rect.inflate(-10.5, -10.5),
             arrow_left_svg_color,
             arrow_left_svg_hover_color,
@@ -928,7 +928,7 @@ impl Widget<LapceTabData> for Title {
             )
         };
         self.svgs.push((
-            get_svg(LapceIcons::LOCATION_FORWARD, &data.config).unwrap(),
+            data.config.ui_svg(LapceIcons::LOCATION_FORWARD),
             arrow_right_rect.inflate(-10.5, -10.5),
             arrow_right_svg_color,
             arrow_right_svg_hover_color,

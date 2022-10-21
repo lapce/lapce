@@ -3,9 +3,9 @@ use std::{path::Path, sync::Arc};
 use druid::{
     kurbo::{Line, Rect},
     piet::{Svg, Text, TextAttribute, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontWeight, LayoutCtx,
-    LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, FontWeight,
+    LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext,
+    Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
@@ -23,7 +23,6 @@ use lsp_types::SymbolKind;
 use crate::{
     editor::view::LapceEditorView,
     list::{List, ListPaint},
-    svg::{file_svg, symbol_svg},
 };
 
 pub struct Palette {
@@ -604,16 +603,19 @@ impl Widget<PaletteViewData> for PalettePreview {
 
 struct PaletteItemPaintInfo {
     svg: Option<Svg>,
+    svg_color: Option<Color>,
     text: String,
     text_indices: Vec<usize>,
     hint: String,
     hint_indices: Vec<usize>,
 }
+
 impl PaletteItemPaintInfo {
     /// Construct paint info when there is only known text and text indices
     fn new_text(text: String, text_indices: Vec<usize>) -> PaletteItemPaintInfo {
         PaletteItemPaintInfo {
             svg: None,
+            svg_color: None,
             text,
             text_indices,
             hint: String::new(),
@@ -632,6 +634,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
     ) {
         let PaletteItemPaintInfo {
             svg,
+            svg_color,
             text,
             text_indices,
             hint,
@@ -673,7 +676,8 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     })
                     .collect();
                 PaletteItemPaintInfo {
-                    svg: symbol_svg(kind, &data.config),
+                    svg: data.config.symbol_svg(kind),
+                    svg_color: None,
                     text,
                     text_indices,
                     hint,
@@ -758,14 +762,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 (line_height - width) / 2.0 + 5.0,
                 (line_height - height) / 2.0 + line_height * line as f64,
             ));
-            ctx.draw_svg(
-                svg,
-                rect,
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
-                ),
-            );
+            ctx.draw_svg(svg, rect, svg_color.as_ref());
         }
 
         let svg_x = match &self.content {
@@ -896,7 +893,8 @@ fn file_paint_symbols(
         })
         .collect();
     PaletteItemPaintInfo {
-        svg: symbol_svg(&kind, config),
+        svg: config.symbol_svg(&kind),
+        svg_color: None,
         text,
         text_indices,
         hint,
@@ -909,7 +907,7 @@ fn file_paint_items(
     indices: &[usize],
     data: &ListData<PaletteItem, PaletteListData>,
 ) -> PaletteItemPaintInfo {
-    let (svg, _) = file_svg(path, &data.config);
+    let (svg, svg_color) = data.config.file_svg(path);
     let file_name = path
         .file_name()
         .and_then(|s| s.to_str())
@@ -949,6 +947,7 @@ fn file_paint_items(
         .collect();
     PaletteItemPaintInfo {
         svg: Some(svg),
+        svg_color: svg_color.cloned(),
         text: file_name,
         text_indices,
         hint: folder,

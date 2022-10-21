@@ -572,6 +572,9 @@ impl LapceTerminalData {
     }
 
     pub fn resize(&self, width: usize, height: usize) {
+        let width = width.max(1);
+        let height = height.max(1);
+
         let size = TermSize::new(width, height);
 
         let raw = self.raw.clone();

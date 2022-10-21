@@ -51,8 +51,8 @@ use crate::{
     message::LapceMessage, panel::PanelContainer, picker::FilePicker,
     plugin::Plugin, problem::new_problem_panel, scroll::LapceScroll,
     search::new_search_panel, source_control::new_source_control_panel,
-    split::split_data_widget, status::LapceStatus, svg::get_svg,
-    terminal::TerminalPanel, title::Title,
+    split::split_data_widget, status::LapceStatus, terminal::TerminalPanel,
+    title::Title,
 };
 
 pub const LAPCE_TAB_META: Selector<SingleUse<LapceTabMeta>> =
@@ -601,7 +601,7 @@ impl LapceTab {
                             .clone()
                             .with_alpha(0.8),
                     );
-                    let svg = get_svg(kind.svg_name(), &data.config).unwrap();
+                    let svg = data.config.ui_svg(kind.svg_name());
                     ctx.draw_svg(
                         &svg,
                         icon_rect,
@@ -2799,7 +2799,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
         ctx.draw_text(&text_layout, Point::new(x, y));
 
         if ctx.is_hot() || self.drag_start.is_some() {
-            let svg = get_svg(LapceIcons::CLOSE, &data.config).unwrap();
+            let svg = data.config.ui_svg(LapceIcons::CLOSE);
             ctx.draw_svg(
                 &svg,
                 self.close_icon_rect,

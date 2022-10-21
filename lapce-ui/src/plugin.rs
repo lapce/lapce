@@ -25,7 +25,6 @@ use lapce_data::{
 use crate::{
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapceScroll,
-    svg::{get_svg, logo_svg},
 };
 
 pub struct Plugin {
@@ -156,7 +155,7 @@ impl Plugin {
         let y = (3.0 * self.line_height + self.gap) * i as f64 + self.gap / 2.0;
         let x = 3.0 * self.line_height;
 
-        let svg = logo_svg();
+        let svg = config.logo_svg();
         ctx.draw_svg(
             &svg,
             Rect::ZERO
@@ -291,7 +290,7 @@ impl Plugin {
                 y + self.line_height * 2.2,
             ));
             ctx.draw_svg(
-                &get_svg(LapceIcons::SETTINGS, config).unwrap(),
+                &config.ui_svg(LapceIcons::SETTINGS),
                 rect,
                 Some(config.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)),
             );
@@ -865,7 +864,7 @@ impl Widget<LapceTabData> for PluginInfo {
                 ))
                 .inflate(self.icon_width / 2.0 * 0.8, self.icon_width / 2.0 * 0.8);
             ctx.draw_svg(
-                &logo_svg(),
+                &data.config.logo_svg(),
                 icon_rect,
                 Some(data.config.get_color_unchecked(LapceTheme::EDITOR_DIM)),
             );

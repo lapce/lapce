@@ -11,8 +11,6 @@ use lapce_data::{
     document::BufferContent,
 };
 
-use crate::svg::get_svg;
-
 pub struct LapceEditorBreadCrumb {
     pub view_id: WidgetId,
     text_layouts: Vec<(Point, PietTextLayout)>,
@@ -111,11 +109,7 @@ impl Widget<LapceTabData> for LapceEditorBreadCrumb {
                                         line_height / 2.0,
                                     ))
                                     .inflate(font_size / 2.0, font_size / 2.0),
-                                get_svg(
-                                    LapceIcons::BREADCRUMB_SEPARATOR,
-                                    &data.config,
-                                )
-                                .unwrap(),
+                                data.config.ui_svg(LapceIcons::BREADCRUMB_SEPARATOR),
                             ));
                             x += font_size;
                         }

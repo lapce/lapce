@@ -13,8 +13,8 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{self, bounded};
 use druid::{
     piet::{PietText, PietTextLayout, Svg},
-    Command, Env, EventCtx, ExtEventSink, FileDialogOptions, Modifiers, MouseEvent,
-    Point, Rect, Target, Vec2, WidgetId,
+    Color, Command, Env, EventCtx, ExtEventSink, FileDialogOptions, Modifiers,
+    MouseEvent, Point, Rect, Target, Vec2, WidgetId,
 };
 use indexmap::IndexMap;
 pub use lapce_core::syntax::Syntax;
@@ -2488,6 +2488,7 @@ impl KeyPressFocus for LapceEditorBufferData {
 #[derive(Clone)]
 pub struct TabRect {
     pub svg: Svg,
+    pub svg_color: Option<Color>,
     pub rect: Rect,
     pub close_rect: Rect,
     pub text_layout: PietTextLayout,

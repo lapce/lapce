@@ -16,8 +16,6 @@ use lapce_data::{
     data::LapceTabData,
 };
 
-use crate::svg::get_svg;
-
 struct AboutUri {}
 
 impl AboutUri {
@@ -196,7 +194,6 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 } else {
                     ctx.clear_cursor();
                 }
-                ctx.request_paint();
                 ctx.set_handled();
             }
             Event::MouseDown(mouse_event) => {
@@ -296,7 +293,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
         );
 
         ctx.draw_svg(
-            &get_svg(LapceIcons::LOGO, &data.config).unwrap(),
+            &data.config.logo_svg(),
             Rect::ZERO
                 .with_origin(Point::new(
                     self.width / 2.0,
@@ -307,6 +304,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
         );
 
         let title_padding = 20.0;
+        let line_gap = 12.0;
         let mut y = self.padding + self.svg_size + title_padding;
 
         let title_layout = ctx
@@ -328,7 +326,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
             .unwrap();
 
         ctx.draw_text(&title_layout, Point::new(self.padding, y));
-        y += title_layout.layout.height() as f64 * 2.0;
+        y += title_layout.layout.height() as f64 + line_gap;
 
         let version_layout = ctx
             .text()
@@ -348,7 +346,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
             .unwrap();
 
         ctx.draw_text(&version_layout, Point::new(self.padding, y));
-        y += version_layout.size().height * 2.0;
+        y += version_layout.size().height + title_padding;
 
         self.commands.clear();
 
@@ -396,7 +394,8 @@ impl Widget<LapceTabData> for AboutBoxContent {
             ));
 
             ctx.draw_text(&row_item, Point::new(self.padding, y));
-            y += row_item.size().height * 1.5;
+
+            y += row_item.size().height + line_gap;
         }
 
         let row_item = ctx
@@ -416,8 +415,13 @@ impl Widget<LapceTabData> for AboutBoxContent {
             .build()
             .unwrap();
 
-        ctx.draw_text(&row_item, Point::new(self.padding, y));
-        y += row_item.size().height * 2.0;
+        ctx.draw_text(
+            &row_item,
+            Point::new(
+                self.padding,
+                rect.y1 - (row_item.layout.height() as f64 + line_gap) * 2.0,
+            ),
+        );
 
         let row_item = ctx
             .text()
@@ -435,6 +439,13 @@ impl Widget<LapceTabData> for AboutBoxContent {
             )
             .build()
             .unwrap();
+        ctx.draw_text(
+            &row_item,
+            Point::new(
+                self.padding,
+                rect.y1 - row_item.layout.height() as f64 - line_gap,
+            ),
+        );
 
         let site_rect = Size::new(
             row_item.layout.width() as f64,
@@ -444,7 +455,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
         .with_origin(Point::new(
             self.width / 2.0 + (row_item.layout.width() as f64 / 2.0)
                 - row_item.layout.width() as f64,
-            y,
+            rect.y1 - row_item.layout.height() as f64 - line_gap,
         ));
 
         self.commands.push((
@@ -455,8 +466,6 @@ impl Widget<LapceTabData> for AboutBoxContent {
                 Target::Auto,
             ),
         ));
-
-        ctx.draw_text(&row_item, Point::new(self.padding, y));
 
         let close_rect = Size::new(20.0, 20.0)
             .to_rect()
@@ -477,7 +486,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
         }
 
         ctx.draw_svg(
-            &get_svg(LapceIcons::WINDOW_CLOSE, &data.config).unwrap(),
+            &data.config.ui_svg(LapceIcons::WINDOW_CLOSE),
             close_rect.inflate(-2.5, -2.5),
             Some(
                 data.config

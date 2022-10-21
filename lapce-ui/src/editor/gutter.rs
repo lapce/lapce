@@ -12,8 +12,6 @@ use lapce_data::{
     editor::{LapceEditorBufferData, Syntax},
 };
 
-use crate::svg::get_svg;
-
 pub struct LapceEditorGutter {
     view_id: WidgetId,
     width: f64,
@@ -507,7 +505,7 @@ impl LapceEditorGutter {
     ) {
         if let Some((_plugin_id, actions)) = data.current_code_actions() {
             if !actions.is_empty() {
-                let svg = get_svg(LapceIcons::LIGHTBULB, &data.config).unwrap();
+                let svg = data.config.ui_svg(LapceIcons::LIGHTBULB);
                 let rect = self.code_actions_rect(ctx.text(), data);
                 ctx.draw_svg(
                     &svg,

@@ -22,7 +22,6 @@ use crate::{
     button::Button,
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
-    svg::{file_svg, get_svg},
 };
 
 pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
@@ -293,21 +292,14 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     );
                 }
             }
-            let (svg, _svg_color) = file_svg(&path, &data.config);
+            let (svg, svg_color) = data.config.file_svg(&path);
             let width = 13.0;
             let height = 13.0;
             let rect = Size::new(width, height).to_rect().with_origin(Point::new(
                 (self.line_height - width) / 2.0 + self.line_height,
                 (self.line_height - height) / 2.0 + y,
             ));
-            ctx.draw_svg(
-                &svg,
-                rect,
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
-                ),
-            );
+            ctx.draw_svg(&svg, rect, svg_color);
 
             let file_name = path
                 .file_name()
@@ -389,7 +381,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_MODIFIED),
                 ),
             };
-            let svg = get_svg(svg, &data.config).unwrap();
+            let svg = data.config.ui_svg(svg);
 
             let svg_size = 15.0;
             let rect =

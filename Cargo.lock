@@ -2595,6 +2595,7 @@ dependencies = [
  "fuzzy-matcher",
  "hashbrown 0.11.2",
  "im",
+ "include_dir",
  "indexmap",
  "interprocess",
  "itertools",
@@ -3539,7 +3540,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu?branch=shell_opengl#e5d9c4d5a69b3f9b0d34054d2a6a23df0724205e"
+source = "git+https://github.com/lapce/piet-wgpu?branch=shell_opengl#bcc134e00834af23c67ac087dc445f4872c2d497"
 dependencies = [
  "bytemuck",
  "glam",
