@@ -417,6 +417,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "source_control_commit")]
     SourceControlCommit,
 
+    #[strum(message = "Source Control: Copy Remote File Url")]
+    #[strum(serialize = "source_control_copy_active_file_remote_url")]
+    SourceControlCopyActiveFileRemoteUrl,
+
     #[strum(message = "Source Control: Discard File Changes")]
     #[strum(serialize = "source_control_discard_active_file_changes")]
     SourceControlDiscardActiveFileChanges,
@@ -762,6 +766,7 @@ pub enum LapceUICommand {
         apply_naming: bool,
     },
     FileExplorerRefresh,
+    PutToClipboard(String),
     CopyPath(PathBuf),
     CopyRelativePath(PathBuf),
     SetLanguage(String),

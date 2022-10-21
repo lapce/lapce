@@ -703,7 +703,9 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         let item =
                             druid::MenuItem::new("Copy Path").command(Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::CopyPath(path_to_file),
+                                LapceUICommand::PutToClipboard(
+                                    path_to_file.to_str().unwrap().to_string(),
+                                ),
                                 Target::Auto,
                             ));
                         menu = menu.entry(item);
@@ -716,7 +718,9 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         let item = druid::MenuItem::new("Copy Relative Path")
                             .command(Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::CopyRelativePath(relative_path),
+                                LapceUICommand::PutToClipboard(
+                                    relative_path.to_str().unwrap().to_string(),
+                                ),
                                 Target::Auto,
                             ));
                         menu = menu.entry(item);
