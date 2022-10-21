@@ -62,6 +62,7 @@ impl LapceTheme {
     pub const EDITOR_LINK: &str = "editor.link";
     pub const EDITOR_VISIBLE_WHITESPACE: &str = "editor.visible_whitespace";
     pub const EDITOR_INDENT_GUIDE: &str = "editor.indent_guide";
+    pub const EDITOR_SPLIT_DROP_BACKGROUND: &str = "editor.split.drop_background";
 
     pub const INLAY_HINT_FOREGROUND: &str = "inlay_hint.foreground";
     pub const INLAY_HINT_BACKGROUND: &str = "inlay_hint.background";

@@ -594,11 +594,9 @@ impl Widget<LapceTabData> for LapceEditorTab {
                     ctx.incr_alpha_depth();
                     ctx.fill(
                         rect,
-                        &data
-                            .config
-                            .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
-                            .clone()
-                            .with_alpha(0.8),
+                        data.config.get_color_unchecked(
+                            LapceTheme::EDITOR_SPLIT_DROP_BACKGROUND,
+                        ),
                     );
                 });
             }
