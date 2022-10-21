@@ -17,7 +17,7 @@ use lapce_data::{
     panel::{PanelContainerPosition, PanelKind, PanelPosition},
 };
 
-use crate::{scroll::LapceScroll, split::LapceSplit, svg::get_svg, tab::LapceIcon};
+use crate::{scroll::LapceScroll, split::LapceSplit, tab::LapceIcon};
 
 pub enum PanelSizing {
     Size(f64),
@@ -1303,7 +1303,7 @@ impl Widget<LapceTabData> for PanelSwitcher {
                     }
                 }
             }
-            let svg = get_svg(icon.icon, &data.config).unwrap();
+            let svg = data.config.ui_svg(icon.icon);
             ctx.draw_svg(
                 &svg,
                 icon.rect,
@@ -1341,9 +1341,9 @@ impl Widget<LapceTabData> for PanelSwitcher {
                 );
             }
             let svg = if maximized {
-                get_svg(LapceIcons::PANEL_RESTORE, &data.config).unwrap()
+                data.config.ui_svg(LapceIcons::PANEL_RESTORE)
             } else {
-                get_svg(LapceIcons::PANEL_MAXIMISE, &data.config).unwrap()
+                data.config.ui_svg(LapceIcons::PANEL_MAXIMISE)
             };
             ctx.draw_svg(
                 &svg,

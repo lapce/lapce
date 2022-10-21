@@ -6,12 +6,13 @@ use std::{
 };
 
 use druid::{
-    piet::{PietText, Text, TextLayout, TextLayoutBuilder},
+    piet::{PietText, Svg, Text, TextLayout, TextLayoutBuilder},
     Color, ExtEventSink, FontFamily, Size, Target,
 };
 use indexmap::IndexMap;
 use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
+use lsp_types::{CompletionItemKind, SymbolKind};
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,7 @@ use toml_edit::easy as toml;
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     data::{LapceWorkspace, LapceWorkspaceType},
+    svg::SvgStore,
 };
 
 pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
@@ -155,7 +157,6 @@ impl LapceIcons {
     pub const WINDOW_MAXIMIZE: &str = "window.maximize";
     pub const WINDOW_MINIMIZE: &str = "window.minimize";
 
-    pub const LOGO: &str = "logo";
     pub const LINK: &str = "link";
     pub const ERROR: &str = "error";
     pub const CLOSE: &str = "close";
@@ -667,38 +668,21 @@ impl ThemeBaseConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
 pub struct IconThemeConfig {
     #[serde(skip)]
     pub path: PathBuf,
     pub name: String,
+    pub use_editor_color: Option<bool>,
     pub ui: IndexMap<String, String>,
+    pub foldername: IndexMap<String, String>,
     pub filename: IndexMap<String, String>,
     pub extension: IndexMap<String, String>,
 }
 
 impl IconThemeConfig {
-    pub fn resolve_ui_icon(&self, icon: &str) -> (Option<String>, Option<PathBuf>) {
-        if let Some(icon_or_path) = self.ui.get(icon) {
-            let path = self.path.join(icon_or_path);
-            if path.extension().unwrap_or_default().is_empty() {
-                (Some(icon_or_path.to_owned()), None)
-            } else {
-                (None, Some(path))
-            }
-        } else {
-            (Some("blank".to_string()), None)
-        }
-    }
-
     pub fn resolve_path_to_icon(&self, path: &Path) -> Option<PathBuf> {
         if let Some((_, icon)) = self.filename.get_key_value(
-            path.file_stem()
-                .unwrap_or_default()
-                .to_str()
-                .unwrap_or_default(),
-        ) {
-            Some(self.path.join(icon))
-        } else if let Some((_, icon)) = self.filename.get_key_value(
             path.file_name()
                 .unwrap_or_default()
                 .to_str()
@@ -794,7 +778,7 @@ impl ThemeBaseColor {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Clone, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct LapceConfig {
     #[serde(skip)]
@@ -820,6 +804,8 @@ pub struct LapceConfig {
         HashMap<String, (String, config::Config, Option<PathBuf>)>,
     #[serde(skip)]
     tab_layout_info: Arc<RwLock<HashMap<(FontFamily, usize), f64>>>,
+    #[serde(skip)]
+    svg_store: Arc<RwLock<SvgStore>>,
 }
 
 pub struct ConfigWatcher {
@@ -1644,11 +1630,148 @@ impl LapceConfig {
         self.editor.tab_width as f64 * width
     }
 
-    pub fn resolve_ui_icon(&self, icon: &str) -> (Option<String>, Option<PathBuf>) {
-        self.icon_theme.resolve_ui_icon(icon)
+    pub fn logo_svg(&self) -> Svg {
+        self.svg_store.read().logo_svg()
     }
 
-    pub fn resolve_file_icon(&self, path: &Path) -> Option<PathBuf> {
-        self.icon_theme.resolve_path_to_icon(path)
+    pub fn ui_svg(&self, icon: &'static str) -> Svg {
+        let svg = self.icon_theme.ui.get(icon).and_then(|path| {
+            let path = self.icon_theme.path.join(path);
+            self.svg_store.write().get_svg_on_disk(&path)
+        });
+
+        svg.unwrap_or_else(|| {
+            let name = self.default_icon_theme.ui.get(icon).unwrap();
+            self.svg_store.write().get_default_svg(name)
+        })
+    }
+
+    pub fn folder_svg(&self, path: &Path) -> Option<(Svg, Option<&Color>)> {
+        self.icon_theme
+            .foldername
+            .get_key_value(
+                path.file_name()
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or_default(),
+            )
+            .and_then(|(_, path)| {
+                let path = self.icon_theme.path.join(path);
+                self.svg_store.write().get_svg_on_disk(&path)
+            })
+            .map(|svg| {
+                let color = if self.icon_theme.use_editor_color.unwrap_or(false) {
+                    Some(self.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE))
+                } else {
+                    None
+                };
+                (svg, color)
+            })
+    }
+
+    pub fn file_svg(&self, path: &Path) -> (Svg, Option<&Color>) {
+        let svg = self
+            .icon_theme
+            .resolve_path_to_icon(path)
+            .and_then(|p| self.svg_store.write().get_svg_on_disk(&p));
+        if let Some(svg) = svg {
+            let color = if self.icon_theme.use_editor_color.unwrap_or(false) {
+                Some(self.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE))
+            } else {
+                None
+            };
+            (svg, color)
+        } else {
+            (
+                self.ui_svg(LapceIcons::FILE),
+                Some(self.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)),
+            )
+        }
+    }
+
+    pub fn symbol_svg(&self, kind: &SymbolKind) -> Option<Svg> {
+        let kind_str = match *kind {
+            SymbolKind::ARRAY => LapceIcons::SYMBOL_KIND_ARRAY,
+            SymbolKind::BOOLEAN => LapceIcons::SYMBOL_KIND_BOOLEAN,
+            SymbolKind::CLASS => LapceIcons::SYMBOL_KIND_CLASS,
+            SymbolKind::CONSTANT => LapceIcons::SYMBOL_KIND_CONSTANT,
+            SymbolKind::ENUM_MEMBER => LapceIcons::SYMBOL_KIND_ENUM_MEMBER,
+            SymbolKind::ENUM => LapceIcons::SYMBOL_KIND_ENUM,
+            SymbolKind::EVENT => LapceIcons::SYMBOL_KIND_EVENT,
+            SymbolKind::FIELD => LapceIcons::SYMBOL_KIND_FIELD,
+            SymbolKind::FILE => LapceIcons::SYMBOL_KIND_FILE,
+            SymbolKind::INTERFACE => LapceIcons::SYMBOL_KIND_INTERFACE,
+            SymbolKind::KEY => LapceIcons::SYMBOL_KIND_KEY,
+            SymbolKind::FUNCTION => LapceIcons::SYMBOL_KIND_FUNCTION,
+            SymbolKind::METHOD => LapceIcons::SYMBOL_KIND_METHOD,
+            SymbolKind::OBJECT => LapceIcons::SYMBOL_KIND_OBJECT,
+            SymbolKind::NAMESPACE => LapceIcons::SYMBOL_KIND_NAMESPACE,
+            SymbolKind::NUMBER => LapceIcons::SYMBOL_KIND_NUMBER,
+            SymbolKind::OPERATOR => LapceIcons::SYMBOL_KIND_OPERATOR,
+            SymbolKind::TYPE_PARAMETER => LapceIcons::SYMBOL_KIND_TYPE_PARAMETER,
+            SymbolKind::PROPERTY => LapceIcons::SYMBOL_KIND_PROPERTY,
+            SymbolKind::STRING => LapceIcons::SYMBOL_KIND_STRING,
+            SymbolKind::STRUCT => LapceIcons::SYMBOL_KIND_STRUCT,
+            SymbolKind::VARIABLE => LapceIcons::SYMBOL_KIND_VARIABLE,
+            _ => return None,
+        };
+
+        Some(self.ui_svg(kind_str))
+    }
+
+    pub fn completion_svg(
+        &self,
+        kind: Option<CompletionItemKind>,
+    ) -> Option<(Svg, Option<Color>)> {
+        let kind = kind?;
+        let kind_str = match kind {
+            CompletionItemKind::METHOD => LapceIcons::COMPLETION_ITEM_KIND_METHOD,
+            CompletionItemKind::FUNCTION => {
+                LapceIcons::COMPLETION_ITEM_KIND_FUNCTION
+            }
+            CompletionItemKind::ENUM => LapceIcons::COMPLETION_ITEM_KIND_ENUM,
+            CompletionItemKind::ENUM_MEMBER => {
+                LapceIcons::COMPLETION_ITEM_KIND_ENUM_MEMBER
+            }
+            CompletionItemKind::CLASS => LapceIcons::COMPLETION_ITEM_KIND_CLASS,
+            CompletionItemKind::VARIABLE => LapceIcons::SYMBOL_KIND_VARIABLE,
+            CompletionItemKind::STRUCT => LapceIcons::SYMBOL_KIND_STRUCT,
+            CompletionItemKind::KEYWORD => LapceIcons::COMPLETION_ITEM_KIND_KEYWORD,
+            CompletionItemKind::CONSTANT => {
+                LapceIcons::COMPLETION_ITEM_KIND_CONSTANT
+            }
+            CompletionItemKind::PROPERTY => {
+                LapceIcons::COMPLETION_ITEM_KIND_PROPERTY
+            }
+            CompletionItemKind::FIELD => LapceIcons::COMPLETION_ITEM_KIND_FIELD,
+            CompletionItemKind::INTERFACE => {
+                LapceIcons::COMPLETION_ITEM_KIND_INTERFACE
+            }
+            CompletionItemKind::SNIPPET => LapceIcons::COMPLETION_ITEM_KIND_SNIPPET,
+            CompletionItemKind::MODULE => LapceIcons::COMPLETION_ITEM_KIND_MODULE,
+            _ => LapceIcons::COMPLETION_ITEM_KIND_STRING,
+        };
+        let theme_str = match kind {
+            CompletionItemKind::METHOD => "method",
+            CompletionItemKind::FUNCTION => "method",
+            CompletionItemKind::ENUM => "enum",
+            CompletionItemKind::ENUM_MEMBER => "enum-member",
+            CompletionItemKind::CLASS => "class",
+            CompletionItemKind::VARIABLE => "field",
+            CompletionItemKind::STRUCT => "structure",
+            CompletionItemKind::KEYWORD => "keyword",
+            CompletionItemKind::CONSTANT => "constant",
+            CompletionItemKind::PROPERTY => "property",
+            CompletionItemKind::FIELD => "field",
+            CompletionItemKind::INTERFACE => "interface",
+            CompletionItemKind::SNIPPET => "snippet",
+            CompletionItemKind::MODULE => "builtinType",
+            _ => "string",
+        };
+
+        Some((
+            self.ui_svg(kind_str),
+            self.get_style_color(theme_str).cloned(),
+        ))
     }
 }

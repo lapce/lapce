@@ -12,7 +12,7 @@ use lapce_data::{
     panel::{PanelContainerPosition, PanelKind},
 };
 
-use crate::{svg::get_svg, tab::LapceIcon};
+use crate::tab::LapceIcon;
 
 pub struct LapceStatus {
     panel_icons: Vec<LapceIcon>,
@@ -148,7 +148,8 @@ impl LapceStatus {
 
         let mut left = left;
 
-        let svg = if let Some(warnings_icon) = get_svg(icon, config) {
+        let svg = {
+            let warnings_icon = config.ui_svg(icon);
             let rect = Size::new(height, height)
                 .to_rect()
                 .inflate(-icon_padding, -icon_padding)
@@ -156,8 +157,6 @@ impl LapceStatus {
 
             left += icon_padding + height;
             Some((rect, warnings_icon))
-        } else {
-            None
         };
 
         let point = Point::new(left, text_layout.y_offset(height));
@@ -168,7 +167,7 @@ impl LapceStatus {
         &self,
         right: f64,
         height: f64,
-        icon: &'static str,
+        icon: Option<&'static str>,
         label: String,
         ctx: &mut PaintCtx,
         config: &LapceConfig,
@@ -187,7 +186,8 @@ impl LapceStatus {
 
         let mut right = right;
 
-        let svg = if let Some(warnings_icon) = get_svg(icon, config) {
+        let svg = if let Some(icon) = icon {
+            let warnings_icon = config.ui_svg(icon);
             let rect = Size::new(height, height)
                 .to_rect()
                 .inflate(-icon_padding, -icon_padding)
@@ -472,7 +472,8 @@ impl Widget<LapceTabData> for LapceStatus {
                     data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
                 );
             }
-            if let Some(svg) = get_svg(icon.icon, &data.config) {
+            {
+                let svg = data.config.ui_svg(icon.icon);
                 ctx.draw_svg(
                     &svg,
                     icon.rect.inflate(-icon_padding, -icon_padding),
@@ -495,7 +496,7 @@ impl Widget<LapceTabData> for LapceStatus {
                 .paint_icon_with_label_from_right(
                     right - 5.0,
                     size.height,
-                    "",
+                    None,
                     lang,
                     ctx,
                     &data.config,
@@ -566,7 +567,7 @@ impl Widget<LapceTabData> for LapceStatus {
                     .paint_icon_with_label_from_right(
                         right - text_layout.size().width,
                         size.height,
-                        "",
+                        None,
                         string,
                         ctx,
                         &data.config,

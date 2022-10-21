@@ -22,7 +22,6 @@ use crate::{
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapceScroll,
     split::LapceSplit,
-    svg::{file_svg, get_svg},
     tab::LapceIcon,
 };
 
@@ -253,7 +252,7 @@ impl Widget<LapceTabData> for SearchInput {
                 );
             }
 
-            let svg = get_svg(icon.icon, &data.config).unwrap();
+            let svg = data.config.ui_svg(icon.icon);
             ctx.draw_svg(
                 &svg,
                 icon.rect.inflate(-7.0, -7.0),
@@ -449,7 +448,7 @@ impl Widget<LapceTabData> for SearchContent {
                 continue;
             }
 
-            let (svg, svg_color) = file_svg(path, &data.config);
+            let (svg, svg_color) = data.config.file_svg(path);
             let rect = Size::new(self.line_height, self.line_height)
                 .to_rect()
                 .with_origin(Point::new(0.0, self.line_height * i as f64))

@@ -22,10 +22,7 @@ use lapce_data::{
     editor::TabRect,
 };
 
-use crate::{
-    editor::tab::TabRectRenderer,
-    svg::{file_svg, get_svg},
-};
+use crate::editor::tab::TabRectRenderer;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MouseAction {
@@ -415,13 +412,17 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
 
         for child in editor_tab.children.iter() {
             let mut text = "".to_string();
-            let mut svg = get_svg(LapceIcons::FILE, &data.config).unwrap();
+            let mut svg = data.config.ui_svg(LapceIcons::FILE);
+            let mut svg_color = Some(
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+            );
             let mut file_path = None;
             match child {
                 EditorTabChild::Editor(view_id, _, _) => {
                     let editor = data.main_split.editors.get(view_id).unwrap();
                     if let BufferContent::File(path) = &editor.content {
-                        (svg, _) = file_svg(path, &data.config);
+                        (svg, svg_color) = data.config.file_svg(path);
                         if let Some(file_name) = path.file_name() {
                             if let Some(s) = file_name.to_str() {
                                 text = s.to_string();
@@ -478,6 +479,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             let inflate = (height - close_size) / 2.0;
             let tab_rect = TabRect {
                 svg,
+                svg_color: svg_color.cloned(),
                 rect: Size::new(width, height)
                     .to_rect()
                     .with_origin(Point::new(x, 0.0)),

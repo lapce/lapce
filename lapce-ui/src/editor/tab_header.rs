@@ -18,9 +18,7 @@ use lapce_data::{
 };
 
 use crate::{
-    editor::tab_header_content::LapceEditorTabHeaderContent,
-    scroll::LapceScroll,
-    svg::{file_svg, get_svg},
+    editor::tab_header_content::LapceEditorTabHeaderContent, scroll::LapceScroll,
     tab::LapceIcon,
 };
 
@@ -95,7 +93,7 @@ impl LapceEditorTabHeader {
         let child = editor_tab.active_child();
         let mut text = "".to_string();
         let mut hint = "".to_string();
-        let mut svg = get_svg(LapceIcons::FILE, &data.config).unwrap();
+        let mut svg = data.config.ui_svg(LapceIcons::FILE);
         let mut svg_color = Some(
             data.config
                 .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
@@ -107,7 +105,7 @@ impl LapceEditorTabHeader {
 
                     if let BufferContent::File(path) = &editor_buffer.editor.content
                     {
-                        (svg, svg_color) = file_svg(path, &data.config);
+                        (svg, svg_color) = data.config.file_svg(path);
                         if let Some(file_name) = path.file_name() {
                             if let Some(s) = file_name.to_str() {
                                 text = s.to_string();
@@ -453,7 +451,8 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                     ),
                 );
             }
-            if let Some(svg) = get_svg(icon.icon, &data.config) {
+            {
+                let svg = data.config.ui_svg(icon.icon);
                 ctx.draw_svg(
                     &svg,
                     icon.rect.inflate(-svg_padding, -svg_padding),

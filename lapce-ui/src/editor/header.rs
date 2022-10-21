@@ -15,10 +15,7 @@ use lapce_data::{
     editor::LapceEditorBufferData,
 };
 
-use crate::{
-    svg::{file_svg, get_svg},
-    tab::LapceIcon,
-};
+use crate::tab::LapceIcon;
 
 pub struct LapceEditorHeader {
     view_id: WidgetId,
@@ -148,7 +145,7 @@ impl LapceEditorHeader {
 
             ctx.with_save(|ctx| {
                 ctx.clip(clip_rect);
-                let (svg, _svg_color) = file_svg(&path, &data.config);
+                let (svg, svg_color) = data.config.file_svg(&path);
 
                 let font_size = data.config.ui.font_size() as f64;
 
@@ -159,14 +156,7 @@ impl LapceEditorHeader {
                         (size.height - width) / 2.0,
                         (size.height - height) / 2.0,
                     ));
-                ctx.draw_svg(
-                    &svg,
-                    rect,
-                    Some(
-                        data.config
-                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
-                    ),
-                );
+                ctx.draw_svg(&svg, rect, svg_color);
 
                 let mut file_name = path
                     .file_name()
@@ -230,7 +220,8 @@ impl LapceEditorHeader {
                             .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
                     );
                 }
-                if let Some(svg) = get_svg(icon.icon, &data.config) {
+                {
+                    let svg = data.config.ui_svg(icon.icon);
                     ctx.draw_svg(
                         &svg,
                         icon.rect.inflate(-self.svg_padding, -self.svg_padding),

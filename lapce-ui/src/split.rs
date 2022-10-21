@@ -26,7 +26,6 @@ use crate::{
         tab::LapceEditorTab,
         view::{editor_tab_child_widget, LapceEditorView},
     },
-    svg::logo_svg,
     terminal::LapceTerminalView,
 };
 
@@ -1432,7 +1431,7 @@ impl Widget<LapceTabData> for LapceSplit {
             );
             ctx.with_save(|ctx| {
                 ctx.clip(rect);
-                let svg = logo_svg();
+                let svg = data.config.logo_svg();
                 let size = ctx.size();
                 let svg_size = 100.0;
                 let rect = Size::ZERO

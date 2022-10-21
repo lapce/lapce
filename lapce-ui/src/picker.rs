@@ -19,7 +19,6 @@ use crate::{
     editor::view::LapceEditorView,
     explorer::{get_item_children, get_item_children_mut},
     scroll::LapceScroll,
-    svg::{file_svg, get_svg},
     tab::LapceButton,
 };
 
@@ -277,7 +276,7 @@ impl Widget<LapceTabData> for FilePickerPwd {
         let rect = Size::new(icon_size, icon_size)
             .to_rect()
             .with_origin(Point::new(x, gap));
-        let svg = get_svg(LapceIcons::FILE_PICKER_UP, &data.config).unwrap();
+        let svg = data.config.ui_svg(LapceIcons::FILE_PICKER_UP);
         self.icons.push((rect, svg));
 
         self_size
@@ -587,7 +586,7 @@ pub fn paint_file_node_item_by_index(
             } else {
                 LapceIcons::ITEM_CLOSED
             };
-            let svg = get_svg(icon_name, config).unwrap();
+            let svg = config.ui_svg(icon_name);
             let rect = Size::new(svg_size, svg_size)
                 .to_rect()
                 .with_origin(Point::new(1.0 + padding, svg_y));
@@ -603,13 +602,13 @@ pub fn paint_file_node_item_by_index(
             } else {
                 LapceIcons::DIRECTORY_CLOSED
             };
-            let svg = get_svg(icon_name, config).unwrap();
+            let svg = config.ui_svg(icon_name);
             let rect = Size::new(svg_size, svg_size)
                 .to_rect()
                 .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
             ctx.draw_svg(&svg, rect, None);
         } else {
-            let (svg, svg_color) = file_svg(&item.path_buf, config);
+            let (svg, svg_color) = config.file_svg(&item.path_buf);
             let rect = Size::new(svg_size, svg_size)
                 .to_rect()
                 .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));

@@ -28,7 +28,6 @@ use crate::{
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapcePadding,
     split::LapceSplit,
-    svg::get_svg,
     tab::LapceIcon,
 };
 
@@ -408,7 +407,7 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
 
         ctx.with_save(|ctx| {
             ctx.clip(clip_rect);
-            let svg = get_svg(LapceIcons::TERMINAL, &data.config).unwrap();
+            let svg = data.config.ui_svg(LapceIcons::TERMINAL);
             let width = data.config.terminal_font_size() as f64;
             let height = data.config.terminal_font_size() as f64;
             let rect = Size::new(width, height).to_rect().with_origin(Point::new(
@@ -452,7 +451,8 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
                             .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
                     );
                 }
-                if let Some(svg) = get_svg(icon.icon, &data.config) {
+                {
+                    let svg = data.config.ui_svg(icon.icon);
                     ctx.draw_svg(
                         &svg,
                         icon.rect.inflate(-self.icon_padding, -self.icon_padding),

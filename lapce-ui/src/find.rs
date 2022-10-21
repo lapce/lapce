@@ -11,7 +11,7 @@ use lapce_data::{
     data::LapceTabData,
 };
 
-use crate::{editor::view::LapceEditorView, svg::get_svg, tab::LapceIcon};
+use crate::{editor::view::LapceEditorView, tab::LapceIcon};
 
 pub struct FindBox {
     parent_view_id: WidgetId,
@@ -299,7 +299,7 @@ impl Widget<LapceTabData> for FindBox {
                 );
             }
 
-            let svg = get_svg(icon.icon, &data.config).unwrap();
+            let svg = data.config.ui_svg(icon.icon);
             ctx.draw_svg(
                 &svg,
                 icon.rect.inflate(-7.0, -7.0),

@@ -17,10 +17,7 @@ use lapce_data::{
 };
 use lsp_types::DiagnosticSeverity;
 
-use crate::{
-    panel::{LapcePanel, PanelHeaderKind, PanelSizing},
-    svg::{file_svg, get_svg},
-};
+use crate::panel::{LapcePanel, PanelHeaderKind, PanelSizing};
 
 pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
     LapcePanel::new(
@@ -325,19 +322,12 @@ impl Widget<LapceTabData> for ProblemContent {
                 continue;
             }
 
-            let (svg, _svg_color) = file_svg(path, &data.config);
+            let (svg, svg_color) = data.config.file_svg(path);
             let rect = Size::new(line_height, line_height)
                 .to_rect()
                 .with_origin(Point::new(0.0, line_height * current_line as f64))
                 .inflate(-padding, -padding);
-            ctx.draw_svg(
-                &svg,
-                rect,
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
-                ),
-            );
+            ctx.draw_svg(&svg, rect, svg_color);
 
             let text_layout = ctx
                 .text()
@@ -430,9 +420,9 @@ impl Widget<LapceTabData> for ProblemContent {
 
                 let svg = match self.severity {
                     DiagnosticSeverity::ERROR => {
-                        get_svg(LapceIcons::ERROR, &data.config).unwrap()
+                        data.config.ui_svg(LapceIcons::ERROR)
                     }
-                    _ => get_svg(LapceIcons::WARNING, &data.config).unwrap(),
+                    _ => data.config.ui_svg(LapceIcons::WARNING),
                 };
                 let rect = Size::new(line_height, line_height)
                     .to_rect()
@@ -495,7 +485,7 @@ impl Widget<LapceTabData> for ProblemContent {
                         }
                     }
 
-                    let svg = get_svg(LapceIcons::LINK, &data.config).unwrap();
+                    let svg = data.config.ui_svg(LapceIcons::LINK);
                     let rect = Size::new(line_height, line_height)
                         .to_rect()
                         .with_origin(Point::new(

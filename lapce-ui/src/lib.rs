@@ -23,7 +23,6 @@ pub mod settings;
 pub mod source_control;
 pub mod split;
 pub mod status;
-mod svg;
 mod tab;
 pub mod terminal;
 pub mod title;
