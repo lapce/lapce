@@ -440,7 +440,6 @@ impl Widget<LapceTabData> for SearchContent {
         let max = (rect.y1 / self.line_height) as usize + 2;
 
         let focus_color = data.config.get_color_unchecked(LapceTheme::EDITOR_FOCUS);
-        let padding = (self.line_height - 14.0) / 2.0;
         let mut i = 0;
         for (path, matches) in data.search.matches.iter() {
             if matches.len() + 1 + i < min {
@@ -448,11 +447,16 @@ impl Widget<LapceTabData> for SearchContent {
                 continue;
             }
 
+            let svg_size = data.config.ui.icon_size() as f64;
             let (svg, svg_color) = data.config.file_svg(path);
-            let rect = Size::new(self.line_height, self.line_height)
-                .to_rect()
-                .with_origin(Point::new(0.0, self.line_height * i as f64))
-                .inflate(-padding, -padding);
+            let rect =
+                Size::new(svg_size, svg_size)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        (self.line_height - svg_size) / 2.0,
+                        self.line_height * i as f64
+                            + (self.line_height - svg_size) / 2.0,
+                    ));
             ctx.draw_svg(&svg, rect, svg_color);
 
             let text_layout = ctx

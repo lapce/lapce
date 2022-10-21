@@ -495,6 +495,10 @@ impl UIConfig {
         self.font_size.max(6).min(32)
     }
 
+    pub fn icon_size(&self) -> usize {
+        self.font_size + 2
+    }
+
     pub fn header_height(&self) -> usize {
         let font_size = self.font_size();
         self.header_height.max(font_size)

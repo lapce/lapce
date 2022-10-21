@@ -292,13 +292,15 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     );
                 }
             }
+            let svg_size = data.config.ui.icon_size() as f64;
             let (svg, svg_color) = data.config.file_svg(&path);
-            let width = 13.0;
-            let height = 13.0;
-            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-                (self.line_height - width) / 2.0 + self.line_height,
-                (self.line_height - height) / 2.0 + y,
-            ));
+            let rect =
+                Size::new(svg_size, svg_size)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        (self.line_height - svg_size) / 2.0 + self.line_height,
+                        (self.line_height - svg_size) / 2.0 + y,
+                    ));
             ctx.draw_svg(&svg, rect, svg_color);
 
             let file_name = path

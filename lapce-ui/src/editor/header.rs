@@ -149,13 +149,14 @@ impl LapceEditorHeader {
 
                 let font_size = data.config.ui.font_size() as f64;
 
-                let width = font_size;
-                let height = font_size;
+                let svg_size = data.config.ui.icon_size() as f64;
                 let rect =
-                    Size::new(width, height).to_rect().with_origin(Point::new(
-                        (size.height - width) / 2.0,
-                        (size.height - height) / 2.0,
-                    ));
+                    Size::new(svg_size, svg_size)
+                        .to_rect()
+                        .with_origin(Point::new(
+                            (size.height - svg_size) / 2.0,
+                            (size.height - svg_size) / 2.0,
+                        ));
                 ctx.draw_svg(&svg, rect, svg_color);
 
                 let mut file_name = path

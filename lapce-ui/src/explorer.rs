@@ -65,7 +65,7 @@ fn paint_single_file_node_item(
     let font_size = config.ui.font_size() as f64;
 
     let y = current as f64 * line_height - line_height;
-    let svg_size = font_size;
+    let svg_size = config.ui.icon_size() as f64;
     let svg_y = y + (line_height - svg_size) / 2.0;
     let padding = 15.0 * level as f64;
 
@@ -1095,13 +1095,14 @@ impl OpenEditorList {
             );
         }
 
+        let svg_size = data.config.ui.icon_size() as f64;
         let close_rect =
-            Size::new(font_size, font_size)
+            Size::new(svg_size, svg_size)
                 .to_rect()
                 .with_origin(Point::new(
-                    10.0 + (self.line_height - font_size) / 2.0,
+                    10.0 + (self.line_height - svg_size) / 2.0,
                     i as f64 * self.line_height
-                        + (self.line_height - font_size) / 2.0,
+                        + (self.line_height - svg_size) / 2.0,
                 ));
 
         self.in_view_tab_children
@@ -1132,12 +1133,12 @@ impl OpenEditorList {
         }
 
         let svg_rect =
-            Size::new(font_size, font_size)
+            Size::new(svg_size, svg_size)
                 .to_rect()
                 .with_origin(Point::new(
                     10.0 + self.line_height,
                     i as f64 * self.line_height
-                        + (self.line_height - font_size) / 2.0,
+                        + (self.line_height - svg_size) / 2.0,
                 ));
         ctx.draw_svg(&svg, svg_rect, svg_color);
 

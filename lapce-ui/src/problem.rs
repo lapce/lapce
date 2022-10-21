@@ -322,11 +322,16 @@ impl Widget<LapceTabData> for ProblemContent {
                 continue;
             }
 
+            let svg_size = data.config.ui.icon_size() as f64;
             let (svg, svg_color) = data.config.file_svg(path);
-            let rect = Size::new(line_height, line_height)
-                .to_rect()
-                .with_origin(Point::new(0.0, line_height * current_line as f64))
-                .inflate(-padding, -padding);
+            let rect =
+                Size::new(svg_size, svg_size)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        (line_height - svg_size) / 2.0,
+                        line_height * current_line as f64
+                            + (line_height - svg_size) / 2.0,
+                    ));
             ctx.draw_svg(&svg, rect, svg_color);
 
             let text_layout = ctx

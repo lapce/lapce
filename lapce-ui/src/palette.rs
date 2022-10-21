@@ -756,12 +756,14 @@ impl ListPaint<PaletteListData> for PaletteItem {
         let line_height = data.line_height() as f64;
 
         if let Some(svg) = svg.as_ref() {
-            let width = 14.0;
-            let height = 14.0;
-            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-                (line_height - width) / 2.0 + 5.0,
-                (line_height - height) / 2.0 + line_height * line as f64,
-            ));
+            let svg_size = data.config.ui.icon_size() as f64;
+            let rect =
+                Size::new(svg_size, svg_size)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        (line_height - svg_size) / 2.0 + 5.0,
+                        (line_height - svg_size) / 2.0 + line_height * line as f64,
+                    ));
             ctx.draw_svg(svg, rect, svg_color.as_ref());
         }
 

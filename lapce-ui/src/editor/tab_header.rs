@@ -146,13 +146,14 @@ impl LapceEditorTabHeader {
         }
         let font_size = data.config.ui.font_size() as f64;
 
+        let svg_size = data.config.ui.icon_size() as f64;
         let size = ctx.size();
         let svg_rect =
-            Size::new(font_size, font_size)
+            Size::new(svg_size, svg_size)
                 .to_rect()
                 .with_origin(Point::new(
-                    (size.height - font_size) / 2.0,
-                    (size.height - font_size) / 2.0,
+                    (size.height - svg_size) / 2.0,
+                    (size.height - svg_size) / 2.0,
                 ));
         ctx.draw_svg(&svg, svg_rect, svg_color);
 

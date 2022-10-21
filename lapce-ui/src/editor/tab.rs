@@ -629,16 +629,17 @@ impl TabRectRenderer for TabRect {
         size: Size,
         mouse_pos: Option<Point>,
     ) {
-        let font_size = data.config.ui.font_size() as f64;
-        let width = font_size;
-        let height = font_size;
+        let svg_size = data.config.ui.icon_size() as f64;
         let padding = 4.0;
         let editor_tab = data.main_split.editor_tabs.get(&widget_id).unwrap();
 
-        let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-            self.rect.x0 + (width) / 2.0,
-            self.rect.y0 + (size.height - height) / 2.0,
-        ));
+        let svg_rect =
+            Size::new(svg_size, svg_size)
+                .to_rect()
+                .with_origin(Point::new(
+                    self.rect.x0 + (svg_size) / 2.0,
+                    self.rect.y0 + (size.height - svg_size) / 2.0,
+                ));
 
         let is_active_tab = tab_idx == editor_tab.active;
         if is_active_tab {
@@ -660,16 +661,16 @@ impl TabRectRenderer for TabRect {
                 2.0,
             );
         }
-        ctx.draw_svg(&self.svg, rect, self.svg_color.as_ref());
+        ctx.draw_svg(&self.svg, svg_rect, self.svg_color.as_ref());
         ctx.draw_text(
             &self.text_layout,
-            Point::new(rect.x1 + 5.0, self.text_layout.y_offset(size.height)),
+            Point::new(svg_rect.x1 + 5.0, self.text_layout.y_offset(size.height)),
         );
         if let Some(path_layout) = &self.path_layout {
             ctx.draw_text(
                 path_layout,
                 Point::new(
-                    rect.x1 + 5.0 + self.text_layout.layout.width() as f64 + 5.0,
+                    svg_rect.x1 + 5.0 + self.text_layout.layout.width() as f64 + 5.0,
                     path_layout.y_offset(size.height),
                 ),
             );
