@@ -639,7 +639,7 @@ impl<'a> LapceEditorTabHeaderContextMenu<'a> {
         let entry_close_tabs_left = druid::MenuItem::new("Close Tabs to the Left")
             .on_activate(self.create_close_tabs_left_callback());
 
-        let entry_close_tabs_right = druid::MenuItem::new("Close Tabs To The Right")
+        let entry_close_tabs_right = druid::MenuItem::new("Close Tabs to the Right")
             .on_activate(self.create_close_tabs_right_callback());
 
         druid::Menu::<LapceData>::new("Tab Header")
