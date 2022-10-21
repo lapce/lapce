@@ -445,13 +445,6 @@ impl Widget<LapceTabData> for AboutBoxContent {
             y,
         ));
 
-        ctx.fill(
-            site_rect,
-            &data.config.get_hover_color(
-                data.config.get_color_unchecked(LapceTheme::TERMINAL_RED),
-            ),
-        );
-
         self.commands.push((
             site_rect,
             Command::new(
