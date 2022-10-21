@@ -4,8 +4,8 @@ use druid::{
     kurbo::BezPath,
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
-    WidgetExt, WidgetId,
+    LifeCycleCtx, MouseButton, PaintCtx, Point, RenderContext, Size, Target,
+    UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_data::{
     command::{
@@ -13,7 +13,7 @@ use lapce_data::{
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{LapceIcons, LapceTheme},
-    data::{FocusArea, LapceTabData},
+    data::{FocusArea, LapceData, LapceTabData},
     panel::PanelKind,
 };
 use lapce_rpc::source_control::FileDiff;
@@ -144,29 +144,67 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 ctx.set_handled();
             }
             Event::MouseDown(mouse_event) => {
-                self.mouse_down = None;
-                let source_control = Arc::make_mut(&mut data.source_control);
-                let y = mouse_event.pos.y;
-                if y > 0.0 {
-                    let line = (y / self.line_height).floor() as usize;
-                    if line < source_control.file_diffs.len() {
-                        source_control.file_list_index = line;
-                        if mouse_event.pos.x < self.line_height {
-                            self.mouse_down = Some(line);
-                        } else {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::OpenFileDiff(
-                                    source_control.file_diffs[line].0.path().clone(),
-                                    "head".to_string(),
-                                ),
-                                Target::Widget(data.id),
-                            ));
-                        }
-                    }
+                if mouse_event.pos.y < 0.0 {
+                    return;
                 }
-                self.request_focus(ctx, data);
-                ctx.set_handled();
+
+                let target_line =
+                    (mouse_event.pos.y / self.line_height).floor() as usize;
+
+                match mouse_event.button {
+                    MouseButton::Left => {
+                        self.mouse_down = None;
+                        let source_control = Arc::make_mut(&mut data.source_control);
+
+                        if target_line < source_control.file_diffs.len() {
+                            source_control.file_list_index = target_line;
+                            if mouse_event.pos.x < self.line_height {
+                                self.mouse_down = Some(target_line);
+                            } else {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::OpenFileDiff(
+                                        source_control.file_diffs[target_line]
+                                            .0
+                                            .path()
+                                            .clone(),
+                                        "head".to_string(),
+                                    ),
+                                    Target::Widget(data.id),
+                                ));
+                            }
+                        }
+
+                        self.request_focus(ctx, data);
+                        ctx.set_handled();
+                    }
+                    MouseButton::Right => {
+                        let source_control = data.source_control.clone();
+                        let target_file_diff =
+                            source_control.file_diffs[target_line].0.clone();
+
+                        let mut menu = druid::Menu::<LapceData>::new("");
+                        let item = druid::MenuItem::new("Discard Changes")
+
+                            .on_activate(move |ctx, _, _| {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_COMMAND,
+                                    LapceCommand {
+                                        kind: CommandKind::Workbench(
+                                             LapceWorkbenchCommand::SourceControlDiscardTargetFileChanges
+                                        ),
+                                        data: Some(serde_json::json!(target_file_diff))
+                                    },
+                                    Target::Auto,
+                                ));
+                            });
+
+                        menu = menu.entry(item);
+
+                        ctx.show_context_menu(menu, mouse_event.window_pos)
+                    }
+                    _ => {}
+                }
             }
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
