@@ -97,7 +97,7 @@ impl Title {
                 .to_rect()
                 .with_origin(Point::new(x + 2.0, 0.0))
                 .inflate(-9.0, -9.0);
-            let logo_svg = crate::svg::logo_svg();
+            let logo_svg = data.config.logo_svg();
             self.svgs.push((
                 logo_svg,
                 logo_rect,

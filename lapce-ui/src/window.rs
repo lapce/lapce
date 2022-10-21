@@ -829,8 +829,6 @@ pub fn window_controls(
     use druid::Color;
     use lapce_data::config::LapceIcons;
 
-    use crate::svg::get_svg;
-
     let mut commands = Vec::new();
 
     let minimise_rect = Size::new(width, width)
@@ -886,7 +884,7 @@ pub fn window_controls(
         .with_origin(Point::new(x, 0.0))
         .inflate(-10.0, -10.0);
     svgs.push((
-        get_svg(LapceIcons::WINDOW_MINIMIZE, config).unwrap(),
+        config.ui_svg(LapceIcons::WINDOW_MINIMIZE),
         minimize_rect,
         hover_color.clone(),
     ));
@@ -896,9 +894,9 @@ pub fn window_controls(
         .with_origin(Point::new(x + width, 0.0))
         .inflate(-10.0, -10.0);
     let max_res_svg = if window_state == &WindowState::Restored {
-        get_svg(LapceIcons::WINDOW_MAXIMIZE, config).unwrap()
+        config.ui_svg(LapceIcons::WINDOW_MAXIMIZE)
     } else {
-        get_svg(LapceIcons::WINDOW_RESTORE, config).unwrap()
+        config.ui_svg(LapceIcons::WINDOW_RESTORE)
     };
     svgs.push((max_res_svg, max_res_rect, hover_color));
 
@@ -907,7 +905,7 @@ pub fn window_controls(
         .with_origin(Point::new(x + 2.0 * width, 0.0))
         .inflate(-10.0, -10.0);
     svgs.push((
-        get_svg(LapceIcons::WINDOW_CLOSE, config).unwrap(),
+        config.ui_svg(LapceIcons::WINDOW_CLOSE),
         close_rect,
         Color::rgb8(210, 16, 33),
     ));
