@@ -341,6 +341,8 @@ impl Widget<LapceTabData> for AboutBoxContent {
         ctx.draw_text(&version_layout, Point::new(self.padding, y));
         y += version_layout.size().height * 2.0;
 
+        self.commands.clear();
+
         for (msg, link) in [
             ("Website", AboutUri::LAPCE),
             ("GitHub", AboutUri::GITHUB),
