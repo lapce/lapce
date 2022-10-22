@@ -176,7 +176,17 @@ impl PluginData {
     ) -> Result<()> {
         let url = Url::parse(&volt.meta)?;
         let url = url.join("./README.md")?;
-        let text = reqwest::blocking::get(url)?.text()?;
+        let resp = reqwest::blocking::get(url)?;
+        if resp.status() != 200 {
+            let text = parse_markdown("Plugin doesn't have a README", 2.0, config);
+            let _ = event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdateVoltReadme(text),
+                Target::Widget(widget_id),
+            );
+            return Ok(());
+        }
+        let text = resp.text()?;
         let text = parse_markdown(&text, 2.0, config);
         let _ = event_sink.submit_command(
             LAPCE_UI_COMMAND,
