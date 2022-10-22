@@ -572,7 +572,7 @@ fn get_truncated_path(full_paths: &[PathBuf]) -> Vec<PathBuf> {
             let mut result = p
                 .iter()
                 .skip(skip_left)
-                .take(length - skip_left - skip_right)
+                .take(length.saturating_sub(skip_left).saturating_sub(skip_right))
                 .collect::<PathBuf>();
 
             if skip_left > 0 {
