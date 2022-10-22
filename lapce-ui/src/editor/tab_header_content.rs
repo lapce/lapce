@@ -5,6 +5,7 @@ use std::{
 
 use druid::{
     kurbo::Line,
+    menu::MenuEventCtx,
     piet::{Text, TextLayout as TextLayoutTrait, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, FontStyle, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, RenderContext, Size,
@@ -17,7 +18,9 @@ use lapce_data::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{LapceIcons, LapceTheme},
-    data::{DragContent, EditorTabChild, LapceTabData},
+    data::{
+        DragContent, EditorTabChild, LapceData, LapceEditorTabData, LapceTabData,
+    },
     document::BufferContent,
     editor::TabRect,
 };
@@ -116,6 +119,23 @@ impl LapceEditorTabHeaderContent {
                 ctx.request_paint();
 
                 return;
+            }
+
+            if mouse_event.button.is_right() {
+                let file_explorer_id = data.file_explorer.widget_id;
+                let editor_tab =
+                    data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+
+                let menu = LapceEditorTabHeaderContextMenu::new(
+                    tab_idx,
+                    editor_tab,
+                    file_explorer_id,
+                )
+                .to_menu();
+                ctx.show_context_menu::<LapceData>(
+                    menu,
+                    ctx.to_window(mouse_event.pos),
+                );
             }
 
             if mouse_event.button.is_middle() {
@@ -588,6 +608,151 @@ fn get_truncated_path(full_paths: &[PathBuf]) -> Vec<PathBuf> {
         .collect::<Vec<_>>();
 
     truncated_paths
+}
+
+struct LapceEditorTabHeaderContextMenu<'a> {
+    tab_idx: usize,
+    editor_tab: &'a Arc<LapceEditorTabData>,
+    file_explorer_id: WidgetId,
+}
+
+impl<'a> LapceEditorTabHeaderContextMenu<'a> {
+    fn new(
+        tab_idx: usize,
+        editor_tab: &'a Arc<LapceEditorTabData>,
+        file_explorer_id: WidgetId,
+    ) -> Self {
+        Self {
+            tab_idx,
+            editor_tab,
+            file_explorer_id,
+        }
+    }
+
+    fn to_menu(&self) -> druid::Menu<LapceData> {
+        let entry_close_tab = druid::MenuItem::new("Close Tab")
+            .on_activate(self.create_close_tab_callback());
+
+        let entry_close_tabs_other = druid::MenuItem::new("Close Other Tabs")
+            .on_activate(self.create_close_all_tabs_callback());
+
+        let entry_close_tabs_left = druid::MenuItem::new("Close Tabs to the Left")
+            .on_activate(self.create_close_tabs_left_callback());
+
+        let entry_close_tabs_right = druid::MenuItem::new("Close Tabs to the Right")
+            .on_activate(self.create_close_tabs_right_callback());
+
+        druid::Menu::<LapceData>::new("Tab Header")
+            .entry(entry_close_tab)
+            .entry(entry_close_tabs_other)
+            .entry(entry_close_tabs_left)
+            .entry(entry_close_tabs_right)
+    }
+
+    fn create_close_tab_callback(
+        &self,
+    ) -> impl FnMut(&mut MenuEventCtx, &mut LapceData, &Env) + 'static {
+        let editor_tab = self.editor_tab.clone();
+        let file_explorer_id = self.file_explorer_id;
+        let tab_idx = self.tab_idx;
+
+        move |ctx, _, _| {
+            if editor_tab.active == tab_idx {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ActiveFileChanged { path: None },
+                    Target::Widget(file_explorer_id),
+                ));
+            }
+
+            ctx.submit_command(Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Focus(FocusCommand::SplitClose),
+                    data: None,
+                },
+                Target::Widget(editor_tab.children[tab_idx].widget_id()),
+            ));
+        }
+    }
+
+    fn create_close_all_tabs_callback(
+        &self,
+    ) -> impl FnMut(&mut MenuEventCtx, &mut LapceData, &Env) + 'static {
+        let editor_tab = self.editor_tab.clone();
+        let tab_idx = self.tab_idx;
+
+        move |ctx, _, _| {
+            editor_tab
+                .children
+                .iter()
+                .enumerate()
+                .rev()
+                .filter_map(
+                    |(idx, tab)| if idx != tab_idx { Some(tab) } else { None },
+                )
+                .for_each(|tab| {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::SplitClose),
+                            data: None,
+                        },
+                        Target::Widget(tab.widget_id()),
+                    ))
+                })
+        }
+    }
+
+    fn create_close_tabs_left_callback(
+        &self,
+    ) -> impl FnMut(&mut MenuEventCtx, &mut LapceData, &Env) + 'static {
+        let editor_tab = self.editor_tab.clone();
+        let tab_idx = self.tab_idx;
+
+        move |ctx, _, _| {
+            editor_tab
+                .children
+                .iter()
+                .take(tab_idx)
+                .rev()
+                .for_each(|tab| {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::SplitClose),
+                            data: None,
+                        },
+                        Target::Widget(tab.widget_id()),
+                    ));
+                });
+        }
+    }
+
+    fn create_close_tabs_right_callback(
+        &self,
+    ) -> impl FnMut(&mut MenuEventCtx, &mut LapceData, &Env) + 'static {
+        let editor_tab = self.editor_tab.clone();
+        let tab_idx = self.tab_idx;
+
+        move |ctx, _, _| {
+            editor_tab
+                .children
+                .iter()
+                .skip(tab_idx + 1)
+                .rev()
+                .for_each(|tab| {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::SplitClose),
+                            data: None,
+                        },
+                        Target::Widget(tab.widget_id()),
+                    ))
+                })
+        }
+    }
 }
 
 #[allow(unused_imports)]

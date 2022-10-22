@@ -4,6 +4,7 @@
 
 ### Features/Changes
 
+- [#1570](https://github.com/lapce/lapce/pull/1570): Added a basic tab context menu with common close actions
 - [#1560](https://github.com/lapce/lapce/pull/1560): Added ability to copy active editor remote file path to clipboard.
 - [#1510](https://github.com/lapce/lapce/1510): Added support to discard changes to a file
 - [#1459](https://github.com/lapce/lapce/pull/1459): Implement icon theme system
