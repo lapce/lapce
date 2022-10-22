@@ -690,7 +690,11 @@ impl LapceTabData {
         let workspace_info = if workspace.path.is_some() {
             db.get_workspace_info(&workspace).ok()
         } else {
-            None
+            let mut info = db.get_workspace_info(&workspace).ok();
+            if let Some(info) = info.as_mut() {
+                info.split.children.clear();
+            }
+            info
         };
 
         let (term_sender, term_receiver) = unbounded();
