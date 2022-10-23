@@ -565,7 +565,7 @@ impl Widget<LapceTabData> for LapceStatus {
             if !string.is_empty() {
                 let (_, _, (point, text_layout)) = self
                     .paint_icon_with_label_from_right(
-                        right - text_layout.size().width,
+                        right - 10.0,
                         size.height,
                         None,
                         string,
