@@ -182,10 +182,50 @@ impl Widget<LapceTabData> for SourceControlFileList {
                         let source_control = data.source_control.clone();
                         let target_file_diff =
                             source_control.file_diffs[target_line].0.clone();
+                        let target_file_path = target_file_diff.path().clone();
 
                         let mut menu = druid::Menu::<LapceData>::new("");
-                        let item = druid::MenuItem::new("Discard Changes")
+                        let mut item = druid::MenuItem::new("Open Changes").command(
+                            Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::OpenFileDiff(
+                                    source_control.file_diffs[target_line]
+                                        .0
+                                        .path()
+                                        .clone(),
+                                    "head".to_string(),
+                                ),
+                                Target::Auto,
+                            ),
+                        );
 
+                        menu = menu.entry(item);
+
+                        let enable_open_file =
+                            if let FileDiff::Deleted(_) = target_file_diff {
+                                false
+                            } else {
+                                true
+                            };
+
+                        item = druid::MenuItem::new("Open File")
+                            .enabled(enable_open_file)
+                            .on_activate(move |ctx, _, _| {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::OpenFile(
+                                        target_file_path.clone(),
+                                        true,
+                                    ),
+                                    Target::Auto,
+                                ));
+                            });
+
+                        menu = menu.entry(item);
+
+                        menu = menu.separator();
+
+                        item = druid::MenuItem::new("Discard Changes")
                             .on_activate(move |ctx, _, _| {
                                 ctx.submit_command(Command::new(
                                     LAPCE_COMMAND,
@@ -193,7 +233,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                                         kind: CommandKind::Workbench(
                                              LapceWorkbenchCommand::SourceControlDiscardTargetFileChanges
                                         ),
-                                        data: Some(serde_json::json!(target_file_diff))
+                                        data: Some(serde_json::json!(target_file_diff.clone()))
                                     },
                                     Target::Auto,
                                 ));
