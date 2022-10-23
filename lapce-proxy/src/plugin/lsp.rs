@@ -351,6 +351,9 @@ impl LspClient {
                     link_support: Some(false),
                     ..Default::default()
                 }),
+                definition: Some(GotoCapability {
+                    ..Default::default()
+                }),
                 ..Default::default()
             }),
             window: Some(WindowClientCapabilities {

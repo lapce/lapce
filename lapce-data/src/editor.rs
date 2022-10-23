@@ -1935,8 +1935,11 @@ impl LapceEditorBufferData {
                                         }
                                     }
                                     GotoDefinitionResponse::Link(
-                                        _location_links,
-                                    ) => None,
+                                        location_links,
+                                    ) => {
+                                        let location_link = location_links[0].clone();
+                                        Some(Location { uri: location_link.target_uri, range:location_link.target_selection_range  })
+                                    },
                                 } {
                                     if location.range.start == start_position {
                                         proxy.proxy_rpc.get_references(
@@ -2051,8 +2054,28 @@ impl LapceEditorBufferData {
                                         }
                                     }
                                     GotoTypeDefinitionResponse::Link(
-                                        _location_links,
-                                    ) => {}
+                                        location_links,
+                                    ) => {
+                                        let location_link = location_links[0].clone();
+                                        let _ = event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::GotoDefinition {
+                                                editor_view_id,
+                                                offset,
+                                                location: EditorLocation {
+                                                    path: path_from_url(
+                                                        &location_link.target_uri,
+                                                    ),
+                                                    position: Some(
+                                                        location_link.target_selection_range.start
+                                                    ),
+                                                    scroll_offset: None,
+                                                    history: None,
+                                                },
+                                            },
+                                            Target::Auto,
+                                        );
+                                    }
                                 }
                             }
                         },
