@@ -49,7 +49,7 @@ lapce-proxy = { path = "../lapce-proxy" }
 bytemuck = "1.8.0"
 # For parsing markdown data, such as in hovers
 pulldown-cmark = "0.9.1"
-smallvec = "1.8.0"
+smallvec = "1.10.0"
 
 [target.'cfg(target_os="macos")'.dependencies]
 dmg = "0.1.1"
