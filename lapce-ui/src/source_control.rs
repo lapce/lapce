@@ -202,11 +202,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                         menu = menu.entry(item);
 
                         let enable_open_file =
-                            if let FileDiff::Deleted(_) = target_file_diff {
-                                false
-                            } else {
-                                true
-                            };
+                            !matches!(target_file_diff, FileDiff::Deleted(_));
 
                         item = druid::MenuItem::new("Open File")
                             .enabled(enable_open_file)
