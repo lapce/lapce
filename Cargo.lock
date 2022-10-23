@@ -5197,9 +5197,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-swift"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acc22922ec4845df1c366dfa523d1ce3fffd7dfbd47850f4370138848b7c9bc4"
+checksum = "7fe0df6a792c4cd3066239195b65a322066c9ebbff58686a9de3e9ad9f25b510"
 dependencies = [
  "cc",
  "tree-sitter",
