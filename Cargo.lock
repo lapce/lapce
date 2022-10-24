@@ -5060,7 +5060,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-latex"
 version = "0.2.0"
-source = "git+https://github.com/latex-lsp/tree-sitter-latex?branch=master#b3b2cf27f33e71438ebe46934900b1153901c6f2"
+source = "git+https://github.com/latex-lsp/tree-sitter-latex?branch=master#2d5f17ebd12650bee06d4fb4333a205b0699ac40"
 dependencies = [
  "cc",
  "tree-sitter",
