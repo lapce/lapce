@@ -1,7 +1,6 @@
 use xi_rope::{Cursor, Rope, RopeInfo};
 
 use crate::{
-    buffer::Buffer,
     mode::Mode,
     syntax::util::{matching_char, matching_pair_direction},
 };
@@ -409,16 +408,27 @@ impl<'a> WordCursor<'a> {
         (start, end)
     }
 
-    pub fn find_pair(
-        &mut self,
-        offset: usize,
-        buffer: &Buffer,
-    ) -> Option<(usize, usize)> {
-        while let Some(closing_bracket_offset) = self.find_next_closing_bracket() {
-            if let Some(bracket) = buffer.char_at_offset(closing_bracket_offset) {
-                if let Some(opening_bracket_offset) =
-                    self.previous_unmatched(bracket)
-                {
+    /// Return the enclosing brackets of the current position
+    ///
+    /// **Example**:
+    ///
+    ///```rust
+    /// # use lapce_core::word::WordCursor;
+    /// # use xi_rope::Rope;
+    /// let text = "outer {inner} world";
+    /// let rope = Rope::from(text);
+    /// let mut cursor = WordCursor::new(&rope, 10);
+    /// let (start, end) = cursor.find_pair().unwrap();
+    /// assert_eq!(start, 6);
+    /// assert_eq!(end, 12)
+    ///```
+    pub fn find_pair(&mut self) -> Option<(usize, usize)> {
+        let offset = self.inner.pos();
+        while let Some(c) = self.inner.next_codepoint() {
+            if matching_pair_direction(c) == Some(false) {
+                let closing_bracket_offset = self.inner.pos() - 1;
+                self.inner.set(closing_bracket_offset);
+                if let Some(opening_bracket_offset) = self.match_pairs() {
                     if (opening_bracket_offset..closing_bracket_offset)
                         .contains(&offset)
                     {
@@ -426,17 +436,10 @@ impl<'a> WordCursor<'a> {
                             opening_bracket_offset,
                             closing_bracket_offset,
                         ));
+                    } else {
+                        return None;
                     }
                 }
-            }
-        }
-        None
-    }
-
-    fn find_next_closing_bracket(&mut self) -> Option<usize> {
-        while let Some(current) = self.inner.next_codepoint() {
-            if matching_pair_direction(current) == Some(false) {
-                return Some(self.inner.pos());
             }
         }
         None
@@ -673,5 +676,23 @@ mod test {
 
         assert_eq!(position, Some(7));
         assert_eq!(&text[..position.unwrap()], "violet ");
+    }
+
+    #[test]
+    fn find_pair_should_return_positions() {
+        let text = "{ }";
+        let rope = Rope::from(text);
+        let mut cursor = WordCursor::new(&rope, 1);
+        let position = cursor.find_pair();
+        assert_eq!(position, Some((0, 2)));
+    }
+
+    #[test]
+    fn find_pair_should_return_none() {
+        let text = "violet are blue";
+        let rope = Rope::from(text);
+        let mut cursor = WordCursor::new(&rope, 1);
+        let position = cursor.find_pair();
+        assert_eq!(position, None);
     }
 }

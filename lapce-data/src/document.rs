@@ -2805,7 +2805,7 @@ impl Document {
                     .unwrap_or(offset);
                 return Some((offset, new_offset));
             } else {
-                return cursor.find_pair(offset, &self.buffer);
+                return cursor.find_pair();
             }
         }
         None
