@@ -311,7 +311,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
-        extensions: &["dockerfile"],
+        extensions: &["containerfile", "dockerfile"],
     },
     #[cfg(feature = "lang-elixir")]
     SyntaxProperties {
@@ -1143,7 +1143,7 @@ mod test {
     }
     #[cfg(feature = "lang-dockerfile")]
     fn test_dockerfile_lang() {
-        assert_language(LapceLanguage::Dockerfile, &["dockerfile"]);
+        assert_language(LapceLanguage::Dockerfile, &["containerfile", "dockerfile"]);
     }
     #[cfg(feature = "lang-csharp")]
     fn test_csharp_lang() {
