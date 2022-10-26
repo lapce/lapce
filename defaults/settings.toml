@@ -114,7 +114,7 @@ magenta = "#C678DD"
 "lapce.remote.local" = "#4078F2"
 "lapce.remote.connected" = "#50A14F"
 "lapce.remote.connecting" = "#C18401"
-"lapce.remote.discconnected" = "#E45649"
+"lapce.remote.disconnected" = "#E45649"
 
 "editor.background" = "$black"
 "editor.foreground" = "$white"
