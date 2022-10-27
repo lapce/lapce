@@ -677,7 +677,11 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     .collect();
                 PaletteItemPaintInfo {
                     svg: data.config.symbol_svg(kind),
-                    svg_color: None,
+                    svg_color: Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
+                            .clone(),
+                    ),
                     text,
                     text_indices,
                     hint,
@@ -896,7 +900,11 @@ fn file_paint_symbols(
         .collect();
     PaletteItemPaintInfo {
         svg: config.symbol_svg(&kind),
-        svg_color: None,
+        svg_color: Some(
+            config
+                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
+                .clone(),
+        ),
         text,
         text_indices,
         hint,
