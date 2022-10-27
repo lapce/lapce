@@ -62,6 +62,7 @@ declare_language_highlights!(
     Dockerfile: "lang-dockerfile",
     Elixir: "lang-elixir",
     Elm: "lang-elm",
+    Erlang: "lang-erlang",
     Glimmer: "lang-glimmer",
     Go: "lang-go",
     Hare: "lang-hare",

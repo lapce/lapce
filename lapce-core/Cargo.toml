@@ -34,6 +34,7 @@ tree-sitter-dart = { git = "https://github.com/syntacti/tree-sitter-dart", branc
 tree-sitter-dockerfile = { git = "https://github.com/panekj/tree-sitter-dockerfile", branch = "queries", optional = true }
 tree-sitter-elixir = { git = "https://github.com/elixir-lang/tree-sitter-elixir.git", version = "0.19.0", optional = true }
 tree-sitter-elm = { version = "5.6.0", optional = true }
+tree-sitter-erlang = { git = "https://github.com/WhatsApp/tree-sitter-erlang", branch = "main", optional = true }
 tree-sitter-glimmer = { git = "https://github.com/VixieTSQ/tree-sitter-glimmer", version = "0.0.1", optional = true }
 tree-sitter-go = { version = "0.19.1", optional = true }
 tree-sitter-hare = { version = "0.20.7", optional = true }
@@ -88,6 +89,7 @@ lang-dart = ["dep:tree-sitter-dart"]
 lang-dockerfile = ["dep:tree-sitter-dockerfile"]
 lang-elixir = ["dep:tree-sitter-elixir"]
 lang-elm = ["dep:tree-sitter-elm"]
+lang-erlang = ["dep:tree-sitter-erlang"]
 lang-glimmer = ["dep:tree-sitter-glimmer"]
 lang-go = ["dep:tree-sitter-go"]
 lang-hare = ["dep:tree-sitter-hare"]

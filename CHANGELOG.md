@@ -4,6 +4,7 @@
 
 ### Features/Changes
 
+- [#1609](https://github.com/lapce/lapce/pull/1609): Add syntax highlighting for erlang
 - [#1590](https://github.com/lapce/lapce/pull/1590): Added ability to open file and file diff from source control context menu
 - [#1570](https://github.com/lapce/lapce/pull/1570): Added a basic tab context menu with common close actions
 - [#1560](https://github.com/lapce/lapce/pull/1560): Added ability to copy active editor remote file path to clipboard

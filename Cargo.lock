@@ -2539,6 +2539,7 @@ dependencies = [
  "tree-sitter-dockerfile",
  "tree-sitter-elixir",
  "tree-sitter-elm",
+ "tree-sitter-erlang",
  "tree-sitter-glimmer",
  "tree-sitter-go",
  "tree-sitter-hare",
@@ -4940,6 +4941,15 @@ name = "tree-sitter-elm"
 version = "5.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22b9408ad250aa27774132baf20c4f107faad16841aa45568c6900a27895093b"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-erlang"
+version = "0.0.1"
+source = "git+https://github.com/WhatsApp/tree-sitter-erlang?branch=main#a8b8b0e16c4f5552f5e85af3dec976a5d16af8b9"
 dependencies = [
  "cc",
  "tree-sitter",

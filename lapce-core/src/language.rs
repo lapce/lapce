@@ -128,6 +128,8 @@ pub enum LapceLanguage {
     Elixir,
     #[cfg(feature = "lang-elm")]
     Elm,
+    #[cfg(feature = "lang-erlang")]
+    Erlang,
     #[cfg(feature = "lang-glimmer")]
     Glimmer,
     #[cfg(feature = "lang-go")]
@@ -336,6 +338,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["elm"],
+    },
+    #[cfg(feature = "lang-erlang")]
+    SyntaxProperties {
+        id: LapceLanguage::Erlang,
+        language: tree_sitter_erlang::language,
+        highlight: include_str!("../queries/erlang/highlights.scm"),
+        injection: None,
+        comment: "%",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["erl", "hrl"],
     },
     #[cfg(feature = "lang-glimmer")]
     SyntaxProperties {
@@ -1016,6 +1030,12 @@ mod test {
     #[cfg(feature = "lang-elixir")]
     fn test_elixir_lang() {
         assert_language(LapceLanguage::Elixir, &["ex"]);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-erlang")]
+    fn test_erlang_lang() {
+        assert_language(LapceLanguage::Erlang, &["erl", "hrl"]);
     }
 
     #[test]
