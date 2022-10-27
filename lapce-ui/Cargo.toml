@@ -58,6 +58,7 @@ all-languages = [
     "lang-dockerfile",
     "lang-elixir",
     "lang-elm",
+    "lang-erlang",
     "lang-glimmer",
     "lang-go",
     "lang-hare",
@@ -105,6 +106,7 @@ lang-dart = ["lapce-core/lang-dart"]
 lang-dockerfile = ["lapce-core/lang-dockerfile"]
 lang-elixir = ["lapce-core/lang-elixir"]
 lang-elm = ["lapce-core/lang-elm"]
+lang-erlang = ["lapce-core/lang-erlang"]
 lang-glimmer = ["lapce-core/lang-glimmer"]
 lang-go = ["lapce-core/lang-go"]
 lang-hare = ["lapce-core/lang-hare"]
