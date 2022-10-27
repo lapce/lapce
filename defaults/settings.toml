@@ -44,6 +44,7 @@ shell = ""
 [ui]
 font-family = ""
 font-size = 13
+icon-size = 0
 header-height = 35
 status-height = 25
 tab-min-width = 100

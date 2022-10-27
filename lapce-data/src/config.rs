@@ -451,6 +451,9 @@ pub struct UIConfig {
     #[field_names(desc = "Set the UI base font size")]
     font_size: usize,
 
+    #[field_names(desc = "Set the icon size in the UI")]
+    icon_size: usize,
+
     #[field_names(
         desc = "Set the header height for panel header and editor tab header"
     )]
@@ -496,7 +499,11 @@ impl UIConfig {
     }
 
     pub fn icon_size(&self) -> usize {
-        self.font_size + 2
+        if self.icon_size == 0 {
+            self.font_size() + 2
+        } else {
+            self.icon_size.max(6).min(32)
+        }
     }
 
     pub fn header_height(&self) -> usize {
