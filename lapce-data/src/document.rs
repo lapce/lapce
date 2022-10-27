@@ -24,8 +24,8 @@ use lapce_core::{
     register::{Clipboard, Register, RegisterData},
     selection::{SelRegion, Selection},
     style::line_styles,
-    syntax::{util::matching_pair_direction, Syntax},
     syntax::edit::SyntaxEdit,
+    syntax::{util::matching_pair_direction, Syntax},
     word::WordCursor,
 };
 use lapce_rpc::{
@@ -2783,7 +2783,7 @@ impl Document {
         }
     }
 
-    pub fn find_scope(&self, offset: usize) -> Option<(usize, usize)> {
+    pub fn find_enclosing_brackets(&self, offset: usize) -> Option<(usize, usize)> {
         let char_at_cursor = match self.buffer().char_at_offset(offset) {
             Some(c) => c,
             None => return None,
@@ -2800,9 +2800,7 @@ impl Document {
         } else {
             let mut cursor = WordCursor::new(self.buffer.text(), offset);
             if matching_pair_direction(char_at_cursor).is_some() {
-                let new_offset = cursor
-                    .match_pairs()
-                    .unwrap_or(offset);
+                let new_offset = cursor.match_pairs().unwrap_or(offset);
                 return Some((offset, new_offset));
             } else {
                 return cursor.find_pair();

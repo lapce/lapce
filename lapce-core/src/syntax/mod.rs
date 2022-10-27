@@ -789,51 +789,28 @@ impl Syntax {
     }
 
     pub fn find_pair(&self, offset: usize) -> Option<(usize, usize)> {
-        let mut new_offset = offset;
-        while let Some(closing_bracket_offset) =
-            self.find_next_closing_bracket(new_offset)
-        {
-            if let Some(opening_bracket_offset) =
-                self.find_matching_pair(closing_bracket_offset)
-            {
-                if (opening_bracket_offset..closing_bracket_offset).contains(&offset)
-                {
-                    return Some((opening_bracket_offset, closing_bracket_offset));
-                }
-            }
-            new_offset = closing_bracket_offset + 1;
-        }
-        None
-    }
-
-    fn find_next_closing_bracket(&self, offset: usize) -> Option<usize> {
         let tree = self.layers.try_tree()?;
-        let mut node = tree
-            .root_node()
-            .descendant_for_byte_range(offset, offset + 1)?;
+        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
 
-        while let Some(char) = node.kind().chars().next() {
-            if matching_pair_direction(char) == Some(false) {
-                let offset = node.start_byte();
-                return Some(offset);
-            }
-
-            for i in 0..node.child_count() {
-                if let Some(child) = node.child(i) {
-                    if let Some(char) = child.kind().chars().next() {
-                        if matching_pair_direction(char) == Some(false) {
-                            let offset = child.start_byte();
-                            return Some(offset);
+        while let Some(parent) = node.parent() {
+            for closing_bracket_offset in node.byte_range() {
+                let char = self.text.byte_at(closing_bracket_offset) as char;
+                if matching_pair_direction(char) == Some(false) {
+                    if let Some(opening_bracket_offset) =
+                        self.find_matching_pair(closing_bracket_offset)
+                    {
+                        if (opening_bracket_offset..closing_bracket_offset)
+                            .contains(&offset)
+                        {
+                            return Some((
+                                opening_bracket_offset,
+                                closing_bracket_offset,
+                            ));
                         }
                     }
                 }
             }
-
-            if let Some(sibling) = node.next_sibling() {
-                node = sibling;
-            } else {
-                return None;
-            };
+            node = parent;
         }
         None
     }

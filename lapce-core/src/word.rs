@@ -415,22 +415,22 @@ impl<'a> WordCursor<'a> {
     ///```rust
     /// # use lapce_core::word::WordCursor;
     /// # use xi_rope::Rope;
-    /// let text = "outer {inner} world";
+    /// let text = "outer {{inner} world";
     /// let rope = Rope::from(text);
     /// let mut cursor = WordCursor::new(&rope, 10);
     /// let (start, end) = cursor.find_pair().unwrap();
-    /// assert_eq!(start, 6);
-    /// assert_eq!(end, 12)
+    /// assert_eq!(start, 7);
+    /// assert_eq!(end, 13)
     ///```
     pub fn find_pair(&mut self) -> Option<(usize, usize)> {
-        let offset = self.inner.pos();
+        let old_offset = self.inner.pos();
         while let Some(c) = self.inner.next_codepoint() {
             if matching_pair_direction(c) == Some(false) {
                 let closing_bracket_offset = self.inner.pos() - 1;
                 self.inner.set(closing_bracket_offset);
                 if let Some(opening_bracket_offset) = self.match_pairs() {
                     if (opening_bracket_offset..closing_bracket_offset)
-                        .contains(&offset)
+                        .contains(&old_offset)
                     {
                         return Some((
                             opening_bracket_offset,
@@ -680,19 +680,19 @@ mod test {
 
     #[test]
     fn find_pair_should_return_positions() {
-        let text = "{ }";
+        let text = "violet (are) blue";
         let rope = Rope::from(text);
-        let mut cursor = WordCursor::new(&rope, 1);
-        let position = cursor.find_pair();
-        assert_eq!(position, Some((0, 2)));
+        let mut cursor = WordCursor::new(&rope, 9);
+        let positions = cursor.find_pair();
+        assert_eq!(positions, Some((7, 11)));
     }
 
     #[test]
     fn find_pair_should_return_none() {
-        let text = "violet are blue";
+        let text = "violet (are) blue";
         let rope = Rope::from(text);
         let mut cursor = WordCursor::new(&rope, 1);
-        let position = cursor.find_pair();
-        assert_eq!(position, None);
+        let positions = cursor.find_pair();
+        assert_eq!(positions, None);
     }
 }

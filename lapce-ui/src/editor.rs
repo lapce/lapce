@@ -825,7 +825,7 @@ impl LapceEditor {
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
         Self::paint_sticky_headers(ctx, data, env);
-        Self::paint_bracket_highlight(ctx, data, &screen_lines);
+        Self::highlight_brackets(ctx, data, &screen_lines);
 
         if let Some(placeholder) = self.placeholder.as_ref() {
             if data.doc.buffer().is_empty() {
@@ -1896,7 +1896,7 @@ impl LapceEditor {
 
     /// Checks if the cursor is on a bracket and highlights the matching bracket if there is one.
     /// If the cursor is between brackets it highlights the enclosing brackets.
-    fn paint_bracket_highlight(
+    fn highlight_brackets(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
         screen_lines: &ScreenLines,
@@ -1912,18 +1912,20 @@ impl LapceEditor {
         let start = data.doc.buffer().offset_of_line(start_line);
         let end = data.doc.buffer().offset_of_line(end_line + 1);
 
-        if let Some((start_offset, end_offset)) = data.doc.find_scope(cursor_offset) {
+        if let Some((start_offset, end_offset)) =
+            data.doc.find_enclosing_brackets(cursor_offset)
+        {
             if start_offset > start && start_offset < end {
-                Self::highlight_char(ctx, data, screen_lines, start_offset);
+                Self::paint_bracket_highlight(ctx, data, screen_lines, start_offset);
             }
             if end_offset > start && end_offset < end {
-                Self::highlight_char(ctx, data, screen_lines, end_offset);
+                Self::paint_bracket_highlight(ctx, data, screen_lines, end_offset);
             }
         };
     }
 
     /// Highlights a character at the given position
-    fn highlight_char(
+    fn paint_bracket_highlight(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
         screen_lines: &ScreenLines,
@@ -1935,7 +1937,10 @@ impl LapceEditor {
             None => return,
         };
         let char_width = data.config.editor_char_width(ctx.text());
+
         let phantom_text = data.doc.line_phantom_text(&data.config, line);
+
+        let col = phantom_text.col_after(col, true);
 
         let x0 = data
             .doc
