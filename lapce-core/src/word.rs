@@ -418,7 +418,7 @@ impl<'a> WordCursor<'a> {
     /// let text = "outer {{inner} world";
     /// let rope = Rope::from(text);
     /// let mut cursor = WordCursor::new(&rope, 10);
-    /// let (start, end) = cursor.find_pair().unwrap();
+    /// let (start, end) = cursor.find_enclosing_pair().unwrap();
     /// assert_eq!(start, 7);
     /// assert_eq!(end, 13)
     ///```
