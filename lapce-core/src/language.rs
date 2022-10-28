@@ -1088,119 +1088,171 @@ mod test {
     fn test_java_lang() {
         assert_language(LapceLanguage::Java, &["java"]);
     }
+
     #[test]
     #[cfg(feature = "lang-elm")]
     fn test_elm_lang() {
         assert_language(LapceLanguage::Elm, &["elm"]);
     }
+
     #[test]
     #[cfg(feature = "lang-swift")]
     fn test_swift_lang() {
         assert_language(LapceLanguage::Swift, &["swift"]);
     }
+
     #[test]
     #[cfg(feature = "lang-ql")]
     fn test_ql_lang() {
         assert_language(LapceLanguage::Ql, &["ql"]);
     }
+
     #[test]
     #[cfg(feature = "lang-haskell")]
     fn test_haskell_lang() {
         assert_language(LapceLanguage::Haskell, &["hs"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-glimmer")]
     fn test_glimmer_lang() {
         assert_language(LapceLanguage::Glimmer, &["hbs"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-haxe")]
     fn test_haxe_lang() {
         assert_language(LapceLanguage::Haxe, &["hx"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-hcl")]
     fn test_hcl_lang() {
         assert_language(LapceLanguage::Hcl, &["hcl", "tf"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-ocaml")]
     fn test_ocaml_lang() {
         assert_language(LapceLanguage::Ocaml, &["ml"]);
         assert_language(LapceLanguage::OcamlInterface, &["mli"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-scheme")]
     fn test_scheme_lang() {
         assert_language(LapceLanguage::Scheme, &["scm", "ss"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-scss")]
     fn test_scss_lang() {
         assert_language(LapceLanguage::Scss, &["scss"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-hare")]
     fn test_hare_lang() {
         assert_language(LapceLanguage::Hare, &["ha"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-css")]
     fn test_css_lang() {
         assert_language(LapceLanguage::Css, &["css"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-zig")]
     fn test_zig_lang() {
         assert_language(LapceLanguage::Zig, &["zig"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-bash")]
     fn test_bash_lang() {
         assert_language(LapceLanguage::Bash, &["sh", "bash"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-yaml")]
     fn test_yaml_lang() {
         assert_language(LapceLanguage::Yaml, &["yml", "yaml"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-julia")]
     fn test_julia_lang() {
         assert_language(LapceLanguage::Julia, &["julia", "jl"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-wgsl")]
     fn test_wgsl_lang() {
         assert_language(LapceLanguage::Wgsl, &["wgsl"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-dockerfile")]
     fn test_dockerfile_lang() {
         assert_language(LapceLanguage::Dockerfile, &["containerfile", "dockerfile"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-csharp")]
     fn test_csharp_lang() {
         assert_language(LapceLanguage::Csharp, &["cs", "csx"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-nix")]
     fn test_nix_lang() {
         assert_language(LapceLanguage::Nix, &["nix"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-dart")]
     fn test_dart_lang() {
         assert_language(LapceLanguage::Dart, &["dart"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-svelte")]
     fn test_svelte_lang() {
         assert_language(LapceLanguage::Svelte, &["svelte"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-latex")]
     fn test_latex_lang() {
         assert_language(LapceLanguage::Latex, &["tex"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-kotlin")]
     fn test_kotlin_lang() {
         assert_language(LapceLanguage::Kotlin, &["kt"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-vue")]
     fn test_vue_lang() {
         assert_language(LapceLanguage::Vue, &["vue"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-d")]
     fn test_d_lang() {
         assert_language(LapceLanguage::D, &["d", "di", "dlang"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-lua")]
     fn test_lua_lang() {
         assert_language(LapceLanguage::Lua, &["lua"]);
     }
+
+    #[test]
     #[cfg(feature = "lang-r")]
     fn test_r_lang() {
         assert_language(LapceLanguage::R, &["r"]);
