@@ -592,7 +592,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     #[cfg(feature = "lang-ocaml")]
     SyntaxProperties {
-        id: LapceLanguage::Ocaml,
+        id: LapceLanguage::OcamlInterface,
         language: tree_sitter_ocaml::language_ocaml_interface,
         highlight: tree_sitter_ocaml::HIGHLIGHTS_QUERY,
         injection: None,
