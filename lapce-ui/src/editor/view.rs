@@ -465,8 +465,6 @@ impl LapceEditorView {
     fn cursor_region(data: &LapceEditorBufferData, text: &mut PietText) -> Rect {
         let offset = data.editor.cursor.offset();
         let (line, col) = data.doc.buffer().offset_to_line_col(offset);
-        let inlay_hints = data.doc.line_phantom_text(&data.config, line);
-        let col = inlay_hints.col_at(col);
 
         let width = data.config.editor_char_width(text);
         let cursor_x = data
