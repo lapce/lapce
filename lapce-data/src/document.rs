@@ -2795,7 +2795,7 @@ impl Document {
                     return Some((offset, new_offset));
                 }
             } else {
-                return syntax.find_pair(offset);
+                return syntax.find_enclosing_pair(offset);
             }
         } else {
             let mut cursor = WordCursor::new(self.buffer.text(), offset);
@@ -2803,7 +2803,7 @@ impl Document {
                 let new_offset = cursor.match_pairs().unwrap_or(offset);
                 return Some((offset, new_offset));
             } else {
-                return cursor.find_pair();
+                return cursor.find_enclosing_pair();
             }
         }
         None

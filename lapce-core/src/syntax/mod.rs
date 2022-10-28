@@ -788,7 +788,7 @@ impl Syntax {
         Some(offsets)
     }
 
-    pub fn find_pair(&self, offset: usize) -> Option<(usize, usize)> {
+    pub fn find_enclosing_pair(&self, offset: usize) -> Option<(usize, usize)> {
         let tree = self.layers.try_tree()?;
         let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
 

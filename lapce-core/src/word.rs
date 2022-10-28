@@ -422,7 +422,7 @@ impl<'a> WordCursor<'a> {
     /// assert_eq!(start, 7);
     /// assert_eq!(end, 13)
     ///```
-    pub fn find_pair(&mut self) -> Option<(usize, usize)> {
+    pub fn find_enclosing_pair(&mut self) -> Option<(usize, usize)> {
         let old_offset = self.inner.pos();
         while let Some(c) = self.inner.next_codepoint() {
             if matching_pair_direction(c) == Some(false) {
@@ -437,7 +437,7 @@ impl<'a> WordCursor<'a> {
                             closing_bracket_offset,
                         ));
                     } else {
-                        return None;
+                        self.inner.set(closing_bracket_offset + 1);
                     }
                 }
             }
@@ -683,8 +683,17 @@ mod test {
         let text = "violet (are) blue";
         let rope = Rope::from(text);
         let mut cursor = WordCursor::new(&rope, 9);
-        let positions = cursor.find_pair();
+        let positions = cursor.find_enclosing_pair();
         assert_eq!(positions, Some((7, 11)));
+    }
+
+    #[test]
+    fn find_pair_should_return_next_pair() {
+        let text = "violets {are (blue)}";
+        let rope = Rope::from(text);
+        let mut cursor = WordCursor::new(&rope, 11);
+        let positions = cursor.find_enclosing_pair();
+        assert_eq!(positions, Some((8, 19)))
     }
 
     #[test]
@@ -692,7 +701,7 @@ mod test {
         let text = "violet (are) blue";
         let rope = Rope::from(text);
         let mut cursor = WordCursor::new(&rope, 1);
-        let positions = cursor.find_pair();
+        let positions = cursor.find_enclosing_pair();
         assert_eq!(positions, None);
     }
 }
