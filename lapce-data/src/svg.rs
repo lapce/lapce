@@ -44,7 +44,9 @@ impl SvgStore {
             let file = if name == "lapce_remote.svg" {
                 LAPCE_ICONS_DIR.get_file(name).unwrap()
             } else {
-                CODICONS_ICONS_DIR.get_file(name).unwrap()
+                CODICONS_ICONS_DIR
+                    .get_file(name)
+                    .unwrap_or_else(|| panic!("Failed to unwrap {name}"))
             };
             let content = file.contents_utf8().unwrap();
             let svg = Svg::from_str(content).unwrap();
