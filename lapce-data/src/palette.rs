@@ -1277,7 +1277,9 @@ impl PaletteViewData {
         items: im::Vector<PaletteItem>,
         matcher: &SkimMatcherV2,
     ) -> im::Vector<PaletteItem> {
-        let mut items: im::Vector<PaletteItem> = items
+        // Collecting into a Vec to sort we as are hitting a worst case in
+        // `im::Vector` that leads to a stack overflow
+        let mut items: Vec<PaletteItem> = items
             .iter()
             .filter_map(|i| {
                 if let Some((score, indices)) =
@@ -1294,6 +1296,30 @@ impl PaletteViewData {
             .collect();
         items
             .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
-        items
+        items.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn filter_items_can_handle_large_number_of_items() {
+        let items: im::Vector<PaletteItem> = (0..100_000)
+            .map(|score| PaletteItem {
+                content: PaletteItemContent::ColorTheme("".to_string()),
+                filter_text: "s".to_string(),
+                score: score,
+                indices: vec![],
+            })
+            .collect();
+
+        let matcher = SkimMatcherV2::default().ignore_case();
+
+        // This should not trigger a stack overflow
+        // Previous implementation of this function would crash the program
+        let _view = PaletteViewData::filter_items("1", "s", items, &matcher);
     }
 }
