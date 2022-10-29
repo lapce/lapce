@@ -79,6 +79,8 @@ impl LapceTheme {
     pub const EDITOR_VISIBLE_WHITESPACE: &str = "editor.visible_whitespace";
     pub const EDITOR_INDENT_GUIDE: &str = "editor.indent_guide";
     pub const EDITOR_DRAG_DROP_BACKGROUND: &str = "editor.drag_drop_background";
+    pub const EDITOR_DRAG_DROP_TAB_BACKGROUND: &str =
+        "editor.drag_drop_tab_background";
 
     pub const INLAY_HINT_FOREGROUND: &str = "inlay_hint.foreground";
     pub const INLAY_HINT_BACKGROUND: &str = "inlay_hint.background";
@@ -193,6 +195,8 @@ impl LapceIcons {
     pub const SCM_DIFF_ADDED: &str = "scm.diff.added";
     pub const SCM_DIFF_REMOVED: &str = "scm.diff.removed";
     pub const SCM_DIFF_RENAMED: &str = "scm.diff.renamed";
+    pub const SCM_CHANGE_ADD: &str = "scm.change.add";
+    pub const SCM_CHANGE_REMOVE: &str = "scm.change.remove";
 
     pub const PALETTE_MENU: &str = "palette.menu";
 

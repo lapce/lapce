@@ -1,11 +1,10 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 use druid::{
-    kurbo::BezPath,
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, MouseButton, PaintCtx, Point, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetExt, WidgetId,
+    LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, Rect, RenderContext,
+    Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_data::{
     command::{
@@ -85,7 +84,9 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
 
 struct SourceControlFileList {
     widget_id: WidgetId,
+    mouse_pos: Option<Point>,
     mouse_down: Option<usize>,
+    line_rects: Vec<Rect>,
     line_height: f64,
 }
 
@@ -93,7 +94,9 @@ impl SourceControlFileList {
     pub fn new(widget_id: WidgetId) -> Self {
         Self {
             widget_id,
+            mouse_pos: None,
             mouse_down: None,
+            line_rects: vec![],
             line_height: 25.0,
         }
     }
@@ -104,6 +107,15 @@ impl SourceControlFileList {
         source_control.active = self.widget_id;
         data.focus_area = FocusArea::Panel(PanelKind::SourceControl);
         data.focus = Arc::new(self.widget_id);
+    }
+
+    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+        for rect in &self.line_rects {
+            if rect.contains(mouse_event.pos) {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -120,8 +132,14 @@ impl Widget<LapceTabData> for SourceControlFileList {
         env: &Env,
     ) {
         match event {
-            Event::MouseMove(_mouse_event) => {
-                ctx.set_cursor(&druid::Cursor::Pointer);
+            Event::MouseMove(mouse_event) => {
+                ctx.set_handled();
+                self.mouse_pos = Some(mouse_event.pos);
+                if self.icon_hit_test(mouse_event) {
+                    ctx.set_cursor(&druid::Cursor::Pointer);
+                } else {
+                    ctx.clear_cursor();
+                }
             }
             Event::MouseUp(mouse_event) => {
                 let y = mouse_event.pos.y;
@@ -325,19 +343,35 @@ impl Widget<LapceTabData> for SourceControlFileList {
         let rect = ctx.region().bounding_box();
         let start_line = (rect.y0 / self.line_height).floor() as usize;
         let end_line = (rect.y1 / self.line_height).ceil() as usize;
+        self.line_rects = vec![];
         for line in start_line..end_line {
             if line >= diffs.len() {
                 break;
             }
             let y = self.line_height * line as f64;
+
+            let current_line = Size::new(ctx.size().width, self.line_height)
+                .to_rect()
+                .with_origin(Point::new(0.0, y));
+            self.line_rects.push(current_line);
+            if let Some(mouse_pos) = self.mouse_pos {
+                if current_line.contains(mouse_pos) {
+                    ctx.fill(
+                        current_line,
+                        data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+                    );
+                }
+            }
+
             let (diff, checked) = diffs[line].clone();
-            let mut path: PathBuf = diff.path().clone();
+            let mut path = diff.path().clone();
             if let Some(workspace_path) = data.workspace.path.as_ref() {
                 path = path
                     .strip_prefix(workspace_path)
                     .unwrap_or(&path)
                     .to_path_buf();
             }
+
             {
                 let width = 13.0;
                 let height = 13.0;
@@ -346,26 +380,28 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     (self.line_height - height) / 2.0 + y,
                 );
                 let rect = Size::new(width, height).to_rect().with_origin(origin);
-                ctx.stroke(
-                    rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
-                    1.0,
-                );
 
                 if checked {
-                    let mut path = BezPath::new();
-                    path.move_to((origin.x + 3.0, origin.y + 7.0));
-                    path.line_to((origin.x + 6.0, origin.y + 9.5));
-                    path.line_to((origin.x + 10.0, origin.y + 3.0));
-                    ctx.stroke(
-                        path,
-                        data.config
-                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
-                        2.0,
+                    ctx.draw_svg(
+                        &data.config.ui_svg(LapceIcons::SCM_CHANGE_ADD),
+                        rect,
+                        Some(
+                            data.config
+                                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                        ),
+                    );
+                } else {
+                    ctx.draw_svg(
+                        &data.config.ui_svg(LapceIcons::SCM_CHANGE_REMOVE),
+                        rect,
+                        Some(
+                            data.config
+                                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                        ),
                     );
                 }
             }
+
             let svg_size = data.config.ui.icon_size() as f64;
             let (svg, svg_color) = data.config.file_svg(&path);
             let rect =
@@ -459,7 +495,6 @@ impl Widget<LapceTabData> for SourceControlFileList {
             };
             let svg = data.config.ui_svg(svg);
 
-            let svg_size = 15.0;
             let rect =
                 Size::new(svg_size, svg_size)
                     .to_rect()
@@ -468,7 +503,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                         line as f64 * self.line_height
                             + (self.line_height - svg_size) / 2.0,
                     ));
-            ctx.draw_svg(&svg, rect, Some(&color.clone().with_alpha(0.9)));
+            ctx.draw_svg(&svg, rect, Some(color));
         }
     }
 }
