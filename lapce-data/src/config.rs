@@ -41,13 +41,27 @@ pub struct LapceTheme {}
 impl LapceTheme {
     pub const LAPCE_WARN: &str = "lapce.warn";
     pub const LAPCE_ERROR: &str = "lapce.error";
-    pub const LAPCE_ACTIVE_TAB: &str = "lapce.active_tab";
-    pub const LAPCE_INACTIVE_TAB: &str = "lapce.inactive_tab";
     pub const LAPCE_DROPDOWN_SHADOW: &str = "lapce.dropdown_shadow";
     pub const LAPCE_BORDER: &str = "lapce.border";
     pub const LAPCE_SCROLL_BAR: &str = "lapce.scroll_bar";
-    pub const LAPCE_ICON_ACTIVE: &str = "lapce.icon_active";
-    pub const LAPCE_ICON_INACTIVE: &str = "lapce.icon_inactive";
+
+    pub const LAPCE_BUTTON_PRIMARY_BACKGROUND: &str =
+        "lapce.button.primary.background";
+    pub const LAPCE_BUTTON_PRIMARY_FOREGROUND: &str =
+        "lapce.button.primary.foreground";
+
+    pub const LAPCE_TAB_ACTIVE_BACKGROUND: &str = "lapce.tab.active.background";
+    pub const LAPCE_TAB_ACTIVE_FOREGROUND: &str = "lapce.tab.active.foreground";
+    pub const LAPCE_TAB_ACTIVE_UNDERLINE: &str = "lapce.tab.active.underline";
+
+    pub const LAPCE_TAB_INACTIVE_BACKGROUND: &str = "lapce.tab.inactive.background";
+    pub const LAPCE_TAB_INACTIVE_FOREGROUND: &str = "lapce.tab.inactive.foreground";
+    pub const LAPCE_TAB_INACTIVE_UNDERLINE: &str = "lapce.tab.inactive.underline";
+
+    pub const LAPCE_TAB_SEPARATOR: &str = "lapce.tab.separator";
+
+    pub const LAPCE_ICON_ACTIVE: &str = "lapce.icon.active";
+    pub const LAPCE_ICON_INACTIVE: &str = "lapce.icon.inactive";
 
     pub const LAPCE_REMOTE_LOCAL: &str = "lapce.remote.local";
     pub const LAPCE_REMOTE_CONNECTED: &str = "lapce.remote.connected";

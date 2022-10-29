@@ -66,15 +66,26 @@ magenta = "#A626A4"
 "tag" = "$blue"
 
 [color-theme.ui]
-"lapce.active_tab" = "#526FFF"
-"lapce.inactive_tab" = "#A0A1A7"
 "lapce.error" = "#E51400"
 "lapce.warn" = "#E9A700"
 "lapce.dropdown_shadow" = "#B4B4B4"
 "lapce.border" = "#B4B4B4"
 "lapce.scroll_bar" = "#B4B4B4"
-"lapce.icon_active" = "$black"
-"lapce.icon_inactive" = "$grey"
+
+"lapce.button.primary.background" = "#50a14f"
+"lapce.button.primary.foreground" = "$white"
+
+# tab
+"lapce.tab.active.background" = "$white"
+"lapce.tab.active.foreground" = "$black"
+"lapce.tab.active.underline" = "#528BFF"
+
+"lapce.tab.inactive.background" = "#d3d3d3"
+"lapce.tab.inactive.foreground" = "#17181c"
+"lapce.tab.inactive.underline" = ""
+
+"lapce.icon.active" = "$black"
+"lapce.icon.inactive" = "$grey"
 
 "lapce.remote.local" = "#4078F2"
 "lapce.remote.connected" = "#50A14F"
@@ -112,6 +123,7 @@ magenta = "#A626A4"
 "editor.visible_whitespace" = "$grey"
 "editor.indent_guide" = "$grey"
 "editor.drag_drop_background" = "#79c1fc33"
+"editor.drag_drop_tab_background" = "#0b0e14EE"
 
 "inlay_hint.foreground" = "$black"
 "inlay_hint.background" = "#528bFF55"

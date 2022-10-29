@@ -6,10 +6,10 @@ use druid::{
         PietTextLayout, Text, TextAttribute, TextLayout as TextLayoutTrait,
         TextLayoutBuilder,
     },
-    ArcStr, BoxConstraints, Color, Command, Cursor, Env, Event, EventCtx,
-    FontDescriptor, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx,
-    Widget, WidgetExt, WidgetId,
+    ArcStr, BoxConstraints, Command, Cursor, Env, Event, EventCtx, FontDescriptor,
+    FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
+    Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetExt,
+    WidgetId,
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
@@ -263,7 +263,9 @@ impl Plugin {
                 .font(config.ui.font_family(), config.ui.font_size() as f64)
                 .text_color(
                     config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        .get_color_unchecked(
+                            LapceTheme::LAPCE_BUTTON_PRIMARY_FOREGROUND,
+                        )
                         .clone(),
                 )
                 .build()
@@ -272,12 +274,16 @@ impl Plugin {
             let text_padding = 5.0;
             let x = size.width - text_size.width - text_padding * 2.0 - padding;
             let y = y + self.line_height * 2.0;
-            let color = Color::rgb8(80, 161, 79);
             let rect =
                 Size::new(text_size.width + text_padding * 2.0, self.line_height)
                     .to_rect()
                     .with_origin(Point::new(x, y));
-            ctx.fill(rect, &color);
+            ctx.fill(
+                rect,
+                config.get_color_unchecked(
+                    LapceTheme::LAPCE_BUTTON_PRIMARY_BACKGROUND,
+                ),
+            );
             ctx.draw_text(
                 &text_layout,
                 Point::new(
@@ -966,7 +972,9 @@ impl Widget<LapceTabData> for PluginInfo {
                 )
                 .text_color(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        .get_color_unchecked(
+                            LapceTheme::LAPCE_BUTTON_PRIMARY_FOREGROUND,
+                        )
                         .clone(),
                 )
                 .build()
@@ -983,7 +991,12 @@ impl Widget<LapceTabData> for PluginInfo {
                     button_y + self.line_height / 2.0,
                 ))
                 .inflate(0.0, self.line_height / 2.0);
-            ctx.fill(rect, &Color::rgb8(80, 161, 79));
+            ctx.fill(
+                rect,
+                data.config.get_color_unchecked(
+                    LapceTheme::LAPCE_BUTTON_PRIMARY_BACKGROUND,
+                ),
+            );
             self.status_rect = rect;
             ctx.draw_text(
                 &button_text_layout,

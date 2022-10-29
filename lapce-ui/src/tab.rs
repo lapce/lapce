@@ -505,7 +505,7 @@ impl LapceTab {
                 ctx.fill(
                     rect,
                     data.config.get_color_unchecked(
-                        LapceTheme::EDITOR_DRAG_DROP_BACKGROUND,
+                        LapceTheme::EDITOR_DRAG_DROP_TAB_BACKGROUND,
                     ),
                 );
                 break;
