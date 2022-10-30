@@ -88,6 +88,10 @@ magenta = "#C678DD"
 "lapce.remote.connecting" = "#C18401"
 "lapce.remote.disconnected" = "#E45649"
 
+"lapce.plugin.name" = "#DDDDDD"
+"lapce.plugin.description" = "$white"
+"lapce.plugin.author" = "#B0B0B0"
+
 "editor.background" = "$black"
 "editor.foreground" = "$white"
 "editor.dim" = "#5C6370"

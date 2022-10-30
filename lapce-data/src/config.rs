@@ -68,6 +68,10 @@ impl LapceTheme {
     pub const LAPCE_REMOTE_CONNECTING: &str = "lapce.remote.connecting";
     pub const LAPCE_REMOTE_DISCONNECTED: &str = "lapce.remote.disconnected";
 
+    pub const LAPCE_PLUGIN_NAME: &str = "lapce.plugin.name";
+    pub const LAPCE_PLUGIN_DESCRIPTION: &str = "lapce.plugin.description";
+    pub const LAPCE_PLUGIN_AUTHOR: &str = "lapce.plugin.author";
+
     pub const EDITOR_BACKGROUND: &str = "editor.background";
     pub const EDITOR_FOREGROUND: &str = "editor.foreground";
     pub const EDITOR_DIM: &str = "editor.dim";

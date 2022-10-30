@@ -172,7 +172,11 @@ impl Plugin {
             .new_text_layout(display_name.to_string())
             .font(config.ui.font_family(), config.ui.font_size() as f64)
             .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
-            .text_color(config.get_color_unchecked(LapceTheme::EDITOR_FOCUS).clone())
+            .text_color(
+                config
+                    .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_NAME)
+                    .clone(),
+            )
             .build()
             .unwrap();
         ctx.draw_text(
@@ -187,7 +191,7 @@ impl Plugin {
             .font(config.ui.font_family(), config.ui.font_size() as f64)
             .text_color(
                 config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_DESCRIPTION)
                     .clone(),
             )
             .build()
@@ -212,7 +216,7 @@ impl Plugin {
                 .font(config.ui.font_family(), config.ui.font_size() as f64)
                 .text_color(
                     config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_DESCRIPTION)
                         .clone(),
                 )
                 .build()
@@ -240,7 +244,7 @@ impl Plugin {
             .font(config.ui.font_family(), config.ui.font_size() as f64)
             .text_color(
                 config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_AUTHOR)
                     .clone(),
             )
             .build()
@@ -795,7 +799,7 @@ impl Widget<LapceTabData> for PluginInfo {
                     .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOCUS)
+                            .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_NAME)
                             .clone(),
                     )
                     .build()
@@ -810,7 +814,9 @@ impl Widget<LapceTabData> for PluginInfo {
                     )
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .get_color_unchecked(
+                                LapceTheme::LAPCE_PLUGIN_DESCRIPTION,
+                            )
                             .clone(),
                     )
                     .build()
@@ -825,7 +831,7 @@ impl Widget<LapceTabData> for PluginInfo {
                     )
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_AUTHOR)
                             .clone(),
                     )
                     .build()

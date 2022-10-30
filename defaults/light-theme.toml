@@ -92,6 +92,10 @@ magenta = "#A626A4"
 "lapce.remote.connecting" = "#C18401"
 "lapce.remote.disconnected" = "#E45649"
 
+"lapce.plugin.name" = "#444444"
+"lapce.plugin.description" = "$black"
+"lapce.plugin.author" = "#707070"
+
 "terminal.cursor" = "$black"
 "terminal.foreground" = "$black"
 "terminal.background" = "$white"
