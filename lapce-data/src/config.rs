@@ -41,18 +41,36 @@ pub struct LapceTheme {}
 impl LapceTheme {
     pub const LAPCE_WARN: &str = "lapce.warn";
     pub const LAPCE_ERROR: &str = "lapce.error";
-    pub const LAPCE_ACTIVE_TAB: &str = "lapce.active_tab";
-    pub const LAPCE_INACTIVE_TAB: &str = "lapce.inactive_tab";
     pub const LAPCE_DROPDOWN_SHADOW: &str = "lapce.dropdown_shadow";
     pub const LAPCE_BORDER: &str = "lapce.border";
     pub const LAPCE_SCROLL_BAR: &str = "lapce.scroll_bar";
-    pub const LAPCE_ICON_ACTIVE: &str = "lapce.icon_active";
-    pub const LAPCE_ICON_INACTIVE: &str = "lapce.icon_inactive";
+
+    pub const LAPCE_BUTTON_PRIMARY_BACKGROUND: &str =
+        "lapce.button.primary.background";
+    pub const LAPCE_BUTTON_PRIMARY_FOREGROUND: &str =
+        "lapce.button.primary.foreground";
+
+    pub const LAPCE_TAB_ACTIVE_BACKGROUND: &str = "lapce.tab.active.background";
+    pub const LAPCE_TAB_ACTIVE_FOREGROUND: &str = "lapce.tab.active.foreground";
+    pub const LAPCE_TAB_ACTIVE_UNDERLINE: &str = "lapce.tab.active.underline";
+
+    pub const LAPCE_TAB_INACTIVE_BACKGROUND: &str = "lapce.tab.inactive.background";
+    pub const LAPCE_TAB_INACTIVE_FOREGROUND: &str = "lapce.tab.inactive.foreground";
+    pub const LAPCE_TAB_INACTIVE_UNDERLINE: &str = "lapce.tab.inactive.underline";
+
+    pub const LAPCE_TAB_SEPARATOR: &str = "lapce.tab.separator";
+
+    pub const LAPCE_ICON_ACTIVE: &str = "lapce.icon.active";
+    pub const LAPCE_ICON_INACTIVE: &str = "lapce.icon.inactive";
 
     pub const LAPCE_REMOTE_LOCAL: &str = "lapce.remote.local";
     pub const LAPCE_REMOTE_CONNECTED: &str = "lapce.remote.connected";
     pub const LAPCE_REMOTE_CONNECTING: &str = "lapce.remote.connecting";
     pub const LAPCE_REMOTE_DISCONNECTED: &str = "lapce.remote.disconnected";
+
+    pub const LAPCE_PLUGIN_NAME: &str = "lapce.plugin.name";
+    pub const LAPCE_PLUGIN_DESCRIPTION: &str = "lapce.plugin.description";
+    pub const LAPCE_PLUGIN_AUTHOR: &str = "lapce.plugin.author";
 
     pub const EDITOR_BACKGROUND: &str = "editor.background";
     pub const EDITOR_FOREGROUND: &str = "editor.foreground";
@@ -65,6 +83,8 @@ impl LapceTheme {
     pub const EDITOR_VISIBLE_WHITESPACE: &str = "editor.visible_whitespace";
     pub const EDITOR_INDENT_GUIDE: &str = "editor.indent_guide";
     pub const EDITOR_DRAG_DROP_BACKGROUND: &str = "editor.drag_drop_background";
+    pub const EDITOR_DRAG_DROP_TAB_BACKGROUND: &str =
+        "editor.drag_drop_tab_background";
 
     pub const INLAY_HINT_FOREGROUND: &str = "inlay_hint.foreground";
     pub const INLAY_HINT_BACKGROUND: &str = "inlay_hint.background";
@@ -179,6 +199,8 @@ impl LapceIcons {
     pub const SCM_DIFF_ADDED: &str = "scm.diff.added";
     pub const SCM_DIFF_REMOVED: &str = "scm.diff.removed";
     pub const SCM_DIFF_RENAMED: &str = "scm.diff.renamed";
+    pub const SCM_CHANGE_ADD: &str = "scm.change.add";
+    pub const SCM_CHANGE_REMOVE: &str = "scm.change.remove";
 
     pub const PALETTE_MENU: &str = "palette.menu";
 
@@ -764,7 +786,7 @@ impl Default for ThemeBaseColor {
 }
 
 impl ThemeBaseColor {
-    fn get(&self, name: &str) -> Option<&Color> {
+    pub fn get(&self, name: &str) -> Option<&Color> {
         Some(match name {
             "white" => &self.white,
             "black" => &self.black,
@@ -1045,8 +1067,6 @@ impl LapceConfig {
         let (name, theme) =
             Self::load_icon_theme_from_str(DEFAULT_ICON_THEME).unwrap();
         themes.insert(name.to_lowercase(), (name, theme, None));
-
-        log::debug!("{themes:?}");
 
         themes
     }

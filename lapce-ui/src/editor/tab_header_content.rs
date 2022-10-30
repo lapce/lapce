@@ -472,7 +472,16 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 .font(data.config.ui.font_family(), font_size)
                 .text_color(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .get_color_unchecked(
+                            if editor_tab.active_child().is_some()
+                                && editor_tab.active_child().unwrap().widget_id()
+                                    == child.widget_id()
+                            {
+                                LapceTheme::LAPCE_TAB_ACTIVE_FOREGROUND
+                            } else {
+                                LapceTheme::LAPCE_TAB_INACTIVE_FOREGROUND
+                            },
+                        )
                         .clone(),
                 )
                 .build()
@@ -519,6 +528,12 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let size = ctx.size();
+
+        ctx.fill(
+            size.to_rect(),
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_BACKGROUND),
+        );
 
         for (tab_idx, tab_rect) in self.rects.iter().enumerate() {
             tab_rect.paint(ctx, data, self.widget_id, tab_idx, size, self.mouse_pos);

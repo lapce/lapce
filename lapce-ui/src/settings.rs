@@ -1557,7 +1557,7 @@ impl Widget<LapceTabData> for ThemeSettings {
                 }
             };
             if changed {
-                let x = input.layout_rect().x1 + 10.0;
+                let x = input.layout_rect().x1 + input.layout_rect().height() + 15.0;
                 let y0 = input.layout_rect().y0;
                 let y1 = input.layout_rect().y1;
                 let rect = Rect::new(x, y0, x + reset_size.width + 20.0, y1);
@@ -1593,15 +1593,57 @@ impl Widget<LapceTabData> for ThemeSettings {
 
         for (i, input) in self.inputs.iter_mut().enumerate() {
             let text_layout = &self.text_layouts.as_ref().unwrap()[i];
+            let layout_rect = input.layout_rect();
             ctx.draw_text(
                 text_layout,
                 Point::new(
                     0.0,
-                    input.layout_rect().y0
-                        + text_layout.y_offset(input.layout_rect().height()),
+                    layout_rect.y0 + text_layout.y_offset(layout_rect.height()),
                 ),
             );
             input.paint(ctx, data, env);
+            let preview_color_text = text_layout.text();
+            let preview_color = match self.kind {
+                ThemeKind::Base => data
+                    .config
+                    .color
+                    .base
+                    .get(preview_color_text)
+                    .unwrap_or_else(|| {
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                    }),
+                ThemeKind::UI => {
+                    data.config.color.ui.get(preview_color_text).unwrap_or_else(
+                        || {
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        },
+                    )
+                }
+                ThemeKind::Syntax => data
+                    .config
+                    .color
+                    .syntax
+                    .get(preview_color_text)
+                    .unwrap_or_else(|| {
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                    }),
+            };
+            let color_rect = Rect::new(
+                layout_rect.x1 + 5.0,
+                layout_rect.y0,
+                layout_rect.x1 + 5.0 + layout_rect.height(),
+                layout_rect.y1,
+            )
+            .inflate(-0.5, -0.5);
+            ctx.stroke(
+                color_rect,
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
+            ctx.fill(color_rect.inflate(-0.5, -0.5), preview_color);
         }
 
         let reset_text = ctx

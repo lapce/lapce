@@ -240,7 +240,7 @@ impl Widget<LapceTabData> for SearchInput {
                 ctx.fill(
                     &icon.rect,
                     data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
+                        .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_UNDERLINE),
                 );
             } else if icon.rect.contains(self.mouse_pos)
                 && icon.icon != LapceIcons::SEARCH_CASE_SENSITIVE

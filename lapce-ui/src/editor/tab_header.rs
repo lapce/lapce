@@ -357,6 +357,12 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let size = ctx.size();
         let rect = size.to_rect();
+        ctx.fill(
+            size.to_rect(),
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_BACKGROUND),
+        );
+
         let shadow_width = data.config.ui.drop_shadow_width() as f64;
         if shadow_width > 0.0 {
             ctx.with_save(|ctx| {
