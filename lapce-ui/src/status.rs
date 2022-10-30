@@ -440,8 +440,10 @@ impl Widget<LapceTabData> for LapceStatus {
         for progress in data.progresses.iter() {
             let mut text = progress.title.clone();
             if let Some(message) = progress.message.as_ref() {
-                text += ": ";
-                text += message;
+                if text.len() + message.len() < 48 {
+                    text += ": ";
+                    text += message;
+                }
             }
             let text_layout = ctx
                 .text()
