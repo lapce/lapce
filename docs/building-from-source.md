@@ -8,7 +8,7 @@ It is easy to build Lapce from source on a GNU/Linux distribution. Cargo handles
 
 #### Ubuntu
 ```sh
-sudo apt install cmake pkg-config libfontconfig-dev libgtk-3-dev
+sudo apt install cmake pkg-config libfontconfig-dev libgtk-3-dev g++
 ```
 #### Fedora
 ```sh
