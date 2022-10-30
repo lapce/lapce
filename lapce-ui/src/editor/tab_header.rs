@@ -405,16 +405,6 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                             .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
                     );
                 });
-                ctx.fill(
-                    Rect::new(
-                        0.0,
-                        content_rect.y0,
-                        content_rect.x0,
-                        content_rect.y1,
-                    ),
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-                );
             }
             if scroll_offset < child_size.width - content_rect.width() {
                 ctx.with_save(|ctx| {
@@ -432,16 +422,6 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                             .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
                     );
                 });
-                ctx.fill(
-                    Rect::new(
-                        content_rect.x1,
-                        content_rect.y0,
-                        rect.x1,
-                        content_rect.y1,
-                    ),
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-                );
             }
         } else {
             self.paint_header(ctx, data);

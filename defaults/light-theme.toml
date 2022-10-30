@@ -80,9 +80,11 @@ magenta = "#A626A4"
 "lapce.tab.active.foreground" = "$black"
 "lapce.tab.active.underline" = "#528BFF"
 
-"lapce.tab.inactive.background" = "#d3d3d3"
-"lapce.tab.inactive.foreground" = "#17181c"
-"lapce.tab.inactive.underline" = ""
+"lapce.tab.inactive.background" = "#EAEAEB"
+"lapce.tab.inactive.foreground" = "$black"
+"lapce.tab.inactive.underline" = "#528BFF77"
+
+"lapce.tab.separator" = "#B4B4B4"
 
 "lapce.icon.active" = "$black"
 "lapce.icon.inactive" = "$grey"
@@ -127,7 +129,7 @@ magenta = "#A626A4"
 "editor.visible_whitespace" = "$grey"
 "editor.indent_guide" = "$grey"
 "editor.drag_drop_background" = "#79c1fc33"
-"editor.drag_drop_tab_background" = "#0b0e14EE"
+"editor.drag_drop_tab_background" = "#0b0e1433"
 
 "inlay_hint.foreground" = "$black"
 "inlay_hint.background" = "#528bFF55"

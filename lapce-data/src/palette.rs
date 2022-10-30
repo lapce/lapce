@@ -1311,7 +1311,7 @@ mod tests {
             .map(|score| PaletteItem {
                 content: PaletteItemContent::ColorTheme("".to_string()),
                 filter_text: "s".to_string(),
-                score: score,
+                score,
                 indices: vec![],
             })
             .collect();

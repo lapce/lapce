@@ -642,6 +642,14 @@ impl TabRectRenderer for TabRect {
                 ));
 
         let is_active_tab = tab_idx == editor_tab.active;
+        let bg = if is_active_tab {
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_BACKGROUND)
+        } else {
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_BACKGROUND)
+        };
+        ctx.fill(self.rect, bg);
         if is_active_tab {
             let stroke = if data.focus_area == FocusArea::Editor
                 && Some(widget_id) == *data.main_split.active_tab
@@ -652,11 +660,6 @@ impl TabRectRenderer for TabRect {
                 data.config
                     .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_UNDERLINE)
             };
-            ctx.fill(
-                self.rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_BACKGROUND),
-            );
             ctx.stroke(
                 Line::new(
                     Point::new(self.rect.x0 + 2.0, self.rect.y1 - 1.0),
@@ -664,12 +667,6 @@ impl TabRectRenderer for TabRect {
                 ),
                 stroke,
                 2.0,
-            );
-        } else {
-            ctx.fill(
-                self.rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_BACKGROUND),
             );
         }
         ctx.draw_svg(&self.svg, svg_rect, self.svg_color.as_ref());
@@ -705,7 +702,8 @@ impl TabRectRenderer for TabRect {
                         size.height - (size.height * 0.8).round(),
                     ),
                 ),
-                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_TAB_SEPARATOR),
                 1.0,
             );
         }
@@ -721,35 +719,41 @@ impl TabRectRenderer for TabRect {
             EditorTabChild::Plugin { .. } => true,
         };
 
+        if mouse_pos
+            .map(|s| self.close_rect.contains(s))
+            .unwrap_or(false)
+        {
+            ctx.fill(
+                self.close_rect,
+                &data
+                    .config
+                    .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
+                    .clone()
+                    .with_alpha(0.1),
+            );
+        }
+
         let mut draw_icon = |name: &'static str| {
-            let close_color =
-                if mouse_pos.map(|s| self.rect.contains(s)).unwrap_or(false) {
-                    Some(druid::Color::rgba(1.0, 0.0, 0.0, 1.0))
-                } else {
-                    None
-                };
             ctx.draw_svg(
                 &data.config.ui_svg(name),
                 self.close_rect.inflate(-padding, -padding),
-                if close_color.is_some() {
-                    close_color.as_ref()
-                } else {
-                    Some(
-                        data.config
-                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
-                    )
-                },
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                ),
             );
         };
 
-        if is_pristine {
-            if mouse_pos.map(|s| self.rect.contains(s)).unwrap_or(false)
-                || is_active_tab
-            {
-                draw_icon(LapceIcons::CLOSE)
-            }
-        } else {
+        if mouse_pos.map(|s| self.rect.contains(s)).unwrap_or(false) {
+            draw_icon(LapceIcons::CLOSE)
+        } else if !is_pristine {
             draw_icon(LapceIcons::UNSAVED)
-        };
+        } else if is_active_tab {
+            if is_pristine {
+                draw_icon(LapceIcons::CLOSE)
+            } else {
+                draw_icon(LapceIcons::UNSAVED)
+            }
+        }
     }
 }

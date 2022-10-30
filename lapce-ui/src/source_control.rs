@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use druid::{
+    kurbo::BezPath,
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, Rect, RenderContext,
@@ -86,6 +87,7 @@ struct SourceControlFileList {
     widget_id: WidgetId,
     mouse_pos: Option<Point>,
     mouse_down: Option<usize>,
+    current_line: Option<usize>,
     line_rects: Vec<Rect>,
     line_height: f64,
 }
@@ -96,6 +98,7 @@ impl SourceControlFileList {
             widget_id,
             mouse_pos: None,
             mouse_down: None,
+            current_line: None,
             line_rects: vec![],
             line_height: 25.0,
         }
@@ -109,13 +112,13 @@ impl SourceControlFileList {
         data.focus = Arc::new(self.widget_id);
     }
 
-    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
-        for rect in &self.line_rects {
+    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> Option<usize> {
+        for (i, rect) in self.line_rects.iter().enumerate() {
             if rect.contains(mouse_event.pos) {
-                return true;
+                return Some(i);
             }
         }
-        false
+        None
     }
 }
 
@@ -135,10 +138,15 @@ impl Widget<LapceTabData> for SourceControlFileList {
             Event::MouseMove(mouse_event) => {
                 ctx.set_handled();
                 self.mouse_pos = Some(mouse_event.pos);
-                if self.icon_hit_test(mouse_event) {
+                let current_line = self.icon_hit_test(mouse_event);
+                if current_line.is_some() {
                     ctx.set_cursor(&druid::Cursor::Pointer);
                 } else {
                     ctx.clear_cursor();
+                }
+                if current_line != self.current_line {
+                    ctx.request_paint();
+                    self.current_line = current_line;
                 }
             }
             Event::MouseUp(mouse_event) => {
@@ -154,6 +162,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                                     Arc::make_mut(&mut data.source_control);
                                 source_control.file_diffs[line].1 =
                                     !source_control.file_diffs[line].1;
+                                ctx.request_paint();
                             }
                         }
                     }
@@ -380,24 +389,23 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     (self.line_height - height) / 2.0 + y,
                 );
                 let rect = Size::new(width, height).to_rect().with_origin(origin);
+                ctx.stroke(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                    1.0,
+                );
 
                 if checked {
-                    ctx.draw_svg(
-                        &data.config.ui_svg(LapceIcons::SCM_CHANGE_ADD),
-                        rect,
-                        Some(
-                            data.config
-                                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
-                        ),
-                    );
-                } else {
-                    ctx.draw_svg(
-                        &data.config.ui_svg(LapceIcons::SCM_CHANGE_REMOVE),
-                        rect,
-                        Some(
-                            data.config
-                                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
-                        ),
+                    let mut path = BezPath::new();
+                    path.move_to((origin.x + 3.0, origin.y + 7.0));
+                    path.line_to((origin.x + 6.0, origin.y + 9.5));
+                    path.line_to((origin.x + 10.0, origin.y + 3.0));
+                    ctx.stroke(
+                        path,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                        2.0,
                     );
                 }
             }
