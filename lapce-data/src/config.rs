@@ -782,7 +782,7 @@ impl Default for ThemeBaseColor {
 }
 
 impl ThemeBaseColor {
-    fn get(&self, name: &str) -> Option<&Color> {
+    pub fn get(&self, name: &str) -> Option<&Color> {
         Some(match name {
             "white" => &self.white,
             "black" => &self.black,
@@ -1063,8 +1063,6 @@ impl LapceConfig {
         let (name, theme) =
             Self::load_icon_theme_from_str(DEFAULT_ICON_THEME).unwrap();
         themes.insert(name.to_lowercase(), (name, theme, None));
-
-        log::debug!("{themes:?}");
 
         themes
     }

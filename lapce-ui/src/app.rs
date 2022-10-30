@@ -89,6 +89,7 @@ pub fn launch() {
                 .level_for("sled", log::LevelFilter::Off)
                 .level_for("tracing", log::LevelFilter::Off)
                 .level_for("druid::core", log::LevelFilter::Off)
+                .level_for("druid::window", log::LevelFilter::Off)
                 .level_for("druid::box_constraints", log::LevelFilter::Off)
                 .level_for("cranelift_codegen", log::LevelFilter::Off)
                 .level_for("wasmtime_cranelift", log::LevelFilter::Off)
