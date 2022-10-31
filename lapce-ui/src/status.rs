@@ -7,12 +7,12 @@ use druid::{
 use lapce_core::mode::Mode;
 use lapce_data::{
     command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
-    config::{LapceConfig, LapceTheme},
+    config::{LapceConfig, LapceIcons, LapceTheme},
     data::{FocusArea, LapceTabData},
     panel::{PanelContainerPosition, PanelKind},
 };
 
-use crate::{svg::get_svg, tab::LapceIcon};
+use crate::tab::LapceIcon;
 
 pub struct LapceStatus {
     panel_icons: Vec<LapceIcon>,
@@ -37,9 +37,9 @@ impl LapceStatus {
         let icons = [
             (
                 if data.panel.is_container_shown(&PanelContainerPosition::Left) {
-                    "layout-sidebar-left.svg"
+                    LapceIcons::SIDEBAR_LEFT
                 } else {
-                    "layout-sidebar-left-off.svg"
+                    LapceIcons::SIDEBAR_LEFT_OFF
                 },
                 LapceWorkbenchCommand::TogglePanelLeftVisual,
             ),
@@ -48,9 +48,9 @@ impl LapceStatus {
                     .panel
                     .is_container_shown(&PanelContainerPosition::Bottom)
                 {
-                    "layout-panel.svg"
+                    LapceIcons::LAYOUT_PANEL
                 } else {
-                    "layout-panel-off.svg"
+                    LapceIcons::LAYOUT_PANEL_OFF
                 },
                 LapceWorkbenchCommand::TogglePanelBottomVisual,
             ),
@@ -59,9 +59,9 @@ impl LapceStatus {
                     .panel
                     .is_container_shown(&PanelContainerPosition::Right)
                 {
-                    "layout-sidebar-right.svg"
+                    LapceIcons::SIDEBAR_RIGHT
                 } else {
-                    "layout-sidebar-right-off.svg"
+                    LapceIcons::SIDEBAR_RIGHT_OFF
                 },
                 LapceWorkbenchCommand::TogglePanelRightVisual,
             ),
@@ -148,7 +148,8 @@ impl LapceStatus {
 
         let mut left = left;
 
-        let svg = if let Some(warnings_icon) = get_svg(icon) {
+        let svg = {
+            let warnings_icon = config.ui_svg(icon);
             let rect = Size::new(height, height)
                 .to_rect()
                 .inflate(-icon_padding, -icon_padding)
@@ -156,8 +157,6 @@ impl LapceStatus {
 
             left += icon_padding + height;
             Some((rect, warnings_icon))
-        } else {
-            None
         };
 
         let point = Point::new(left, text_layout.y_offset(height));
@@ -168,7 +167,7 @@ impl LapceStatus {
         &self,
         right: f64,
         height: f64,
-        icon: &'static str,
+        icon: Option<&'static str>,
         label: String,
         ctx: &mut PaintCtx,
         config: &LapceConfig,
@@ -187,13 +186,14 @@ impl LapceStatus {
 
         let mut right = right;
 
-        let svg = if let Some(warnings_icon) = get_svg(icon) {
+        let svg = if let Some(icon) = icon {
+            let warnings_icon = config.ui_svg(icon);
             let rect = Size::new(height, height)
                 .to_rect()
                 .inflate(-icon_padding, -icon_padding)
                 .with_origin(Point::new(right - 2.0 * icon_padding, icon_padding));
 
-            right += icon_padding + height;
+            right -= icon_padding + height;
             Some((rect, warnings_icon))
         } else {
             None
@@ -375,7 +375,7 @@ impl Widget<LapceTabData> for LapceStatus {
             .paint_icon_with_label(
                 left,
                 size.height,
-                "error.svg",
+                LapceIcons::ERROR,
                 data.main_split.error_count.to_string(),
                 ctx,
                 &data.config,
@@ -385,7 +385,7 @@ impl Widget<LapceTabData> for LapceStatus {
             .paint_icon_with_label(
                 left - 5.0,
                 size.height,
-                "warning.svg",
+                LapceIcons::WARNING,
                 data.main_split.warning_count.to_string(),
                 ctx,
                 &data.config,
@@ -407,7 +407,7 @@ impl Widget<LapceTabData> for LapceStatus {
                 rect,
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                 ),
             );
         }
@@ -418,7 +418,7 @@ impl Widget<LapceTabData> for LapceStatus {
                 rect,
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                 ),
             );
         }
@@ -440,8 +440,10 @@ impl Widget<LapceTabData> for LapceStatus {
         for progress in data.progresses.iter() {
             let mut text = progress.title.clone();
             if let Some(message) = progress.message.as_ref() {
-                text += ": ";
-                text += message;
+                if text.len() + message.len() < 48 {
+                    text += ": ";
+                    text += message;
+                }
             }
             let text_layout = ctx
                 .text()
@@ -472,13 +474,14 @@ impl Widget<LapceTabData> for LapceStatus {
                     data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
                 );
             }
-            if let Some(svg) = get_svg(icon.icon) {
+            {
+                let svg = data.config.ui_svg(icon.icon);
                 ctx.draw_svg(
                     &svg,
                     icon.rect.inflate(-icon_padding, -icon_padding),
                     Some(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                     ),
                 );
             }
@@ -495,7 +498,7 @@ impl Widget<LapceTabData> for LapceStatus {
                 .paint_icon_with_label_from_right(
                     right - 5.0,
                     size.height,
-                    "",
+                    None,
                     lang,
                     ctx,
                     &data.config,
@@ -535,9 +538,7 @@ impl Widget<LapceTabData> for LapceStatus {
                     Target::Widget(data.id),
                 ),
             ));
-        }
 
-        if let Some(editor) = data.main_split.active_editor() {
             let mut string = "".to_string();
             let editor_content = data.editor_view_content(editor.view_id);
             if let Some(cursor_pos) =
@@ -566,9 +567,9 @@ impl Widget<LapceTabData> for LapceStatus {
             if !string.is_empty() {
                 let (_, _, (point, text_layout)) = self
                     .paint_icon_with_label_from_right(
-                        right - 10.0,
+                        right - text_layout.size().width,
                         size.height,
-                        "",
+                        None,
                         string,
                         ctx,
                         &data.config,

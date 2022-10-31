@@ -13,8 +13,8 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{self, bounded};
 use druid::{
     piet::{PietText, PietTextLayout, Svg},
-    Command, Env, EventCtx, ExtEventSink, FileDialogOptions, Modifiers, MouseEvent,
-    Point, Rect, Target, Vec2, WidgetId,
+    Color, Command, Env, EventCtx, ExtEventSink, FileDialogOptions, Modifiers,
+    MouseEvent, Point, Rect, Target, Vec2, WidgetId,
 };
 use indexmap::IndexMap;
 pub use lapce_core::syntax::Syntax;
@@ -26,8 +26,7 @@ use lapce_core::{
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
-use lapce_rpc::plugin::PluginId;
-use lapce_rpc::proxy::ProxyResponse;
+use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionOrCommand,
     CodeActionResponse, CompletionItem, CompletionTextEdit, DiagnosticSeverity,
@@ -1936,8 +1935,11 @@ impl LapceEditorBufferData {
                                         }
                                     }
                                     GotoDefinitionResponse::Link(
-                                        _location_links,
-                                    ) => None,
+                                        location_links,
+                                    ) => {
+                                        let location_link = location_links[0].clone();
+                                        Some(Location { uri: location_link.target_uri, range:location_link.target_selection_range  })
+                                    },
                                 } {
                                     if location.range.start == start_position {
                                         proxy.proxy_rpc.get_references(
@@ -2052,8 +2054,28 @@ impl LapceEditorBufferData {
                                         }
                                     }
                                     GotoTypeDefinitionResponse::Link(
-                                        _location_links,
-                                    ) => {}
+                                        location_links,
+                                    ) => {
+                                        let location_link = location_links[0].clone();
+                                        let _ = event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::GotoDefinition {
+                                                editor_view_id,
+                                                offset,
+                                                location: EditorLocation {
+                                                    path: path_from_url(
+                                                        &location_link.target_uri,
+                                                    ),
+                                                    position: Some(
+                                                        location_link.target_selection_range.start
+                                                    ),
+                                                    scroll_offset: None,
+                                                    history: None,
+                                                },
+                                            },
+                                            Target::Auto,
+                                        );
+                                    }
                                 }
                             }
                         },
@@ -2489,6 +2511,7 @@ impl KeyPressFocus for LapceEditorBufferData {
 #[derive(Clone)]
 pub struct TabRect {
     pub svg: Svg,
+    pub svg_color: Option<Color>,
     pub rect: Rect,
     pub close_rect: Rect,
     pub text_layout: PietTextLayout,

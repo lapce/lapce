@@ -110,7 +110,8 @@ impl LapceCommand {
                 | LapceWorkbenchCommand::PaletteSymbol
                 | LapceWorkbenchCommand::PaletteCommand
                 | LapceWorkbenchCommand::ChangeFileLanguage
-                | LapceWorkbenchCommand::ChangeTheme
+                | LapceWorkbenchCommand::ChangeColorTheme
+                | LapceWorkbenchCommand::ChangeIconTheme
                 | LapceWorkbenchCommand::ConnectSshHost
                 | LapceWorkbenchCommand::ConnectWsl
                 | LapceWorkbenchCommand::PaletteWorkspace => return true,
@@ -218,9 +219,13 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Reveal Active File in File Explorer")]
     RevealActiveFileInFileExplorer,
 
-    #[strum(serialize = "change_theme")]
-    #[strum(message = "Change Theme")]
-    ChangeTheme,
+    #[strum(serialize = "change_color_theme")]
+    #[strum(message = "Change Color Theme")]
+    ChangeColorTheme,
+
+    #[strum(serialize = "change_icon_theme")]
+    #[strum(message = "Change Icon Theme")]
+    ChangeIconTheme,
 
     #[strum(serialize = "open_settings")]
     #[strum(message = "Open Settings")]
@@ -412,9 +417,16 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "source_control_commit")]
     SourceControlCommit,
 
+    #[strum(message = "Source Control: Copy Remote File Url")]
+    #[strum(serialize = "source_control_copy_active_file_remote_url")]
+    SourceControlCopyActiveFileRemoteUrl,
+
     #[strum(message = "Source Control: Discard File Changes")]
     #[strum(serialize = "source_control_discard_active_file_changes")]
     SourceControlDiscardActiveFileChanges,
+
+    #[strum(serialize = "source_control_discard_target_file_changes")]
+    SourceControlDiscardTargetFileChanges,
 
     #[strum(message = "Source Control: Discard Workspace Changes")]
     #[strum(serialize = "source_control_discard_workspace_changes")]
@@ -532,7 +544,8 @@ pub enum LapceUICommand {
     GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),
     CancelFilePicker,
     SetWorkspace(LapceWorkspace),
-    SetTheme(String, bool),
+    SetColorTheme(String, bool),
+    SetIconTheme(String, bool),
     UpdateKeymap(KeyMap, Vec<KeyPress>),
     OpenURI(String),
     OpenPaths {
@@ -753,6 +766,7 @@ pub enum LapceUICommand {
         apply_naming: bool,
     },
     FileExplorerRefresh,
+    PutToClipboard(String),
     CopyPath(PathBuf),
     CopyRelativePath(PathBuf),
     SetLanguage(String),

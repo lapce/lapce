@@ -12,7 +12,7 @@ log = "0.4.14"
 fern = "0.6.0"
 Inflector = "0.11.4"
 rayon = "1.5.1"
-alacritty_terminal = "0.16"
+alacritty_terminal = "0.17.0"
 itertools = "0.10.1"
 log-panics = { version = "2.1.0", features = ["with-backtrace"] }
 unicode-width = "0.1.8"
@@ -58,6 +58,7 @@ all-languages = [
     "lang-dockerfile",
     "lang-elixir",
     "lang-elm",
+    "lang-erlang",
     "lang-glimmer",
     "lang-go",
     "lang-hare",
@@ -89,8 +90,10 @@ all-languages = [
     "lang-typescript",
     "lang-vue",
     "lang-wgsl",
+    "lang-xml",
     "lang-yaml",
     "lang-zig",
+    "lang-sql",
 ]
 
 lang-bash = ["lapce-core/lang-bash"]
@@ -103,6 +106,7 @@ lang-dart = ["lapce-core/lang-dart"]
 lang-dockerfile = ["lapce-core/lang-dockerfile"]
 lang-elixir = ["lapce-core/lang-elixir"]
 lang-elm = ["lapce-core/lang-elm"]
+lang-erlang = ["lapce-core/lang-erlang"]
 lang-glimmer = ["lapce-core/lang-glimmer"]
 lang-go = ["lapce-core/lang-go"]
 lang-hare = ["lapce-core/lang-hare"]
@@ -128,11 +132,13 @@ lang-ruby = ["lapce-core/lang-ruby"]
 lang-rust = ["lapce-core/lang-rust"]
 lang-scheme = ["lapce-core/lang-scheme"]
 lang-scss = ["lapce-core/lang-scss"]
+lang-sql = ["lapce-core/lang-sql"]
 lang-svelte = ["lapce-core/lang-svelte"]
 lang-swift = ["lapce-core/lang-swift"]
 lang-toml = ["lapce-core/lang-toml"]
 lang-typescript = ["lapce-core/lang-typescript"]
 lang-vue = ["lapce-core/lang-vue"]
 lang-wgsl = ["lapce-core/lang-wgsl"]
+lang-xml = ["lapce-core/lang-xml"]
 lang-yaml = ["lapce-core/lang-yaml"]
 lang-zig = ["lapce-core/lang-zig"]

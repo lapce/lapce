@@ -1,4 +1,12 @@
-use std::{cmp::Ordering, collections::HashSet, path::PathBuf, sync::Arc};
+use std::{
+    cell::RefCell,
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    rc::Rc,
+    sync::Arc,
+    time::Instant,
+};
 
 use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
 use anyhow::Result;
@@ -47,7 +55,8 @@ pub enum PaletteType {
     Workspace,
     Command,
     Reference,
-    Theme,
+    ColorTheme,
+    IconTheme,
     SshHost,
     Language,
 }
@@ -55,17 +64,18 @@ pub enum PaletteType {
 impl PaletteType {
     fn string(&self) -> String {
         match &self {
-            PaletteType::File => "".to_string(),
             PaletteType::Line => "/".to_string(),
             PaletteType::DocumentSymbol => "@".to_string(),
             PaletteType::WorkspaceSymbol => "#".to_string(),
             PaletteType::GlobalSearch => "?".to_string(),
             PaletteType::Workspace => ">".to_string(),
             PaletteType::Command => ":".to_string(),
-            PaletteType::Reference => "".to_string(),
-            PaletteType::Theme => "".to_string(),
-            PaletteType::SshHost => "".to_string(),
-            PaletteType::Language => "".to_string(),
+            PaletteType::File
+            | PaletteType::Reference
+            | PaletteType::ColorTheme
+            | PaletteType::IconTheme
+            | PaletteType::SshHost
+            | PaletteType::Language => "".to_string(),
         }
     }
 
@@ -86,7 +96,8 @@ impl PaletteType {
         match current_type {
             PaletteType::Reference
             | PaletteType::SshHost
-            | PaletteType::Theme
+            | PaletteType::ColorTheme
+            | PaletteType::IconTheme
             | PaletteType::Language => {
                 return current_type.clone();
             }
@@ -142,7 +153,8 @@ pub enum PaletteItemContent {
     Workspace(LapceWorkspace),
     SshHost(String, String),
     Command(LapceCommand),
-    Theme(String),
+    ColorTheme(String),
+    IconTheme(String),
     Language(String),
 }
 
@@ -228,10 +240,17 @@ impl PaletteItemContent {
                     ));
                 }
             }
-            PaletteItemContent::Theme(theme) => {
+            PaletteItemContent::ColorTheme(theme) => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::SetTheme(theme.to_string(), preview),
+                    LapceUICommand::SetColorTheme(theme.to_string(), preview),
+                    Target::Auto,
+                ));
+            }
+            PaletteItemContent::IconTheme(theme) => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SetIconTheme(theme.to_string(), preview),
                     Target::Auto,
                 ));
             }
@@ -360,6 +379,7 @@ pub struct PaletteData {
     pub total_items: im::Vector<PaletteItem>,
     pub preview_editor: WidgetId,
     pub input_editor: WidgetId,
+    pub executed_commands: Rc<RefCell<HashMap<String, Instant>>>,
 }
 
 impl KeyPressFocus for PaletteViewData {
@@ -444,6 +464,7 @@ impl PaletteData {
             total_items: im::Vector::new(),
             preview_editor,
             input_editor: WidgetId::next(),
+            executed_commands: Rc::new(RefCell::new(HashMap::new())),
         }
     }
 
@@ -471,29 +492,33 @@ impl PaletteData {
 
     pub fn get_input(&self) -> &str {
         match &self.palette_type {
-            PaletteType::File => &self.input,
-            PaletteType::Reference => &self.input,
-            PaletteType::Theme => &self.input,
-            PaletteType::Language => &self.input,
-            PaletteType::SshHost => &self.input,
-            PaletteType::Line => &self.input[1..],
-            PaletteType::DocumentSymbol => &self.input[1..],
-            PaletteType::WorkspaceSymbol => &self.input[1..],
-            PaletteType::Workspace => &self.input[1..],
-            PaletteType::Command => &self.input[1..],
-            PaletteType::GlobalSearch => &self.input[1..],
+            PaletteType::File
+            | PaletteType::Reference
+            | PaletteType::ColorTheme
+            | PaletteType::IconTheme
+            | PaletteType::Language
+            | PaletteType::SshHost => &self.input,
+            PaletteType::Line
+            | PaletteType::DocumentSymbol
+            | PaletteType::WorkspaceSymbol
+            | PaletteType::Workspace
+            | PaletteType::Command
+            | PaletteType::GlobalSearch => &self.input[1..],
         }
     }
 }
 
 impl PaletteViewData {
     pub fn cancel(&mut self, ctx: &mut EventCtx) {
-        if self.palette.palette_type == PaletteType::Theme {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::ReloadConfig,
-                Target::Auto,
-            ));
+        match self.palette.palette_type {
+            PaletteType::ColorTheme | PaletteType::IconTheme => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ReloadConfig,
+                    Target::Auto,
+                ));
+            }
+            _ => {}
         }
         let palette = Arc::make_mut(&mut self.palette);
         palette.status = PaletteStatus::Inactive;
@@ -522,7 +547,7 @@ impl PaletteViewData {
         ctx: &mut EventCtx,
         locations: &[EditorLocation<Position>],
     ) {
-        self.run(ctx, Some(PaletteType::Reference), None);
+        self.run(ctx, Some(PaletteType::Reference), None, true);
         let items = locations
             .iter()
             .map(|l| {
@@ -554,16 +579,24 @@ impl PaletteViewData {
         ctx: &mut EventCtx,
         palette_type: Option<PaletteType>,
         input: Option<String>,
+        should_init_input: bool,
     ) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.status = PaletteStatus::Started;
         palette.palette_type = palette_type.unwrap_or(PaletteType::File);
         palette.input = input.unwrap_or_else(|| palette.palette_type.string());
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::InitPaletteInput(palette.input.clone()),
-            Target::Widget(*self.main_split.tab_id),
-        ));
+
+        // Most usages of `run` will want to initialize the input
+        // However, special types like workspace-symbol-search want to avoid it
+        // so that they do not cause loops, because they cause run when their
+        // input changes.
+        if should_init_input {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::InitPaletteInput(palette.input.clone()),
+                Target::Widget(*self.main_split.tab_id),
+            ));
+        }
         palette.total_items.clear();
         palette.list_data.clear_items();
         palette.run_id = Uuid::new_v4().to_string();
@@ -608,10 +641,15 @@ impl PaletteViewData {
             PaletteType::Command => {
                 self.get_commands(ctx);
             }
-            PaletteType::Theme => {
+            PaletteType::ColorTheme => {
                 let config = self.config.clone();
-                self.get_themes(ctx, &config);
-                self.preselect_matching(ctx, &config.theme.name);
+                self.get_color_themes(ctx, &config);
+                self.preselect_matching(ctx, &config.color_theme.name);
+            }
+            PaletteType::IconTheme => {
+                let config = self.config.clone();
+                self.get_icon_themes(ctx, &config);
+                self.preselect_matching(ctx, &config.icon_theme.name);
             }
             PaletteType::Language => {
                 self.get_languages(ctx);
@@ -654,17 +692,18 @@ impl PaletteViewData {
         }
 
         let start = match palette.palette_type {
-            PaletteType::File => 0,
-            PaletteType::Reference => 0,
-            PaletteType::Theme => 0,
-            PaletteType::Language => 0,
-            PaletteType::SshHost => 0,
-            PaletteType::Line => 1,
-            PaletteType::DocumentSymbol => 1,
-            PaletteType::WorkspaceSymbol => 1,
-            PaletteType::Workspace => 1,
-            PaletteType::Command => 1,
-            PaletteType::GlobalSearch => 1,
+            PaletteType::File
+            | PaletteType::Reference
+            | PaletteType::ColorTheme
+            | PaletteType::IconTheme
+            | PaletteType::Language
+            | PaletteType::SshHost => 0,
+            PaletteType::Line
+            | PaletteType::DocumentSymbol
+            | PaletteType::WorkspaceSymbol
+            | PaletteType::Workspace
+            | PaletteType::Command
+            | PaletteType::GlobalSearch => 1,
         };
 
         if palette.cursor == start {
@@ -706,6 +745,12 @@ impl PaletteViewData {
         }
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.list_data.current_selected_item() {
+            if let PaletteItemContent::Command(cmd) = &item.content {
+                palette
+                    .executed_commands
+                    .borrow_mut()
+                    .insert(cmd.kind.str().to_string(), Instant::now());
+            }
             if item.content.select(ctx, false, palette.preview_editor) {
                 self.cancel(ctx);
             }
@@ -742,7 +787,7 @@ impl PaletteViewData {
         let palette_type =
             PaletteType::get_palette_type(&palette.palette_type, &input);
         if input != palette.input && palette_type == PaletteType::WorkspaceSymbol {
-            self.run(ctx, Some(PaletteType::WorkspaceSymbol), Some(input));
+            self.run(ctx, Some(PaletteType::WorkspaceSymbol), Some(input), false);
             return;
         }
 
@@ -764,7 +809,7 @@ impl PaletteViewData {
             &self.palette.input,
         );
         if self.palette.palette_type != palette_type {
-            self.run(ctx, Some(palette_type), None);
+            self.run(ctx, Some(palette_type), None, true);
             return;
         }
 
@@ -876,14 +921,29 @@ impl PaletteViewData {
             .collect();
     }
 
-    fn get_themes(&mut self, _ctx: &mut EventCtx, config: &LapceConfig) {
+    fn get_color_themes(&mut self, _ctx: &mut EventCtx, config: &LapceConfig) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.total_items = config
-            .available_themes
+            .available_color_themes
             .values()
             .sorted_by_key(|(n, _)| n)
             .map(|(n, _)| PaletteItem {
-                content: PaletteItemContent::Theme(n.to_string()),
+                content: PaletteItemContent::ColorTheme(n.to_string()),
+                filter_text: n.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+    }
+
+    fn get_icon_themes(&mut self, _ctx: &mut EventCtx, config: &LapceConfig) {
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.total_items = config
+            .available_icon_themes
+            .values()
+            .sorted_by_key(|(n, _, _)| n)
+            .map(|(n, _, _)| PaletteItem {
+                content: PaletteItemContent::IconTheme(n.to_string()),
                 filter_text: n.to_string(),
                 score: 0,
                 indices: vec![],
@@ -910,24 +970,48 @@ impl PaletteViewData {
     fn get_commands(&mut self, _ctx: &mut EventCtx) {
         const EXCLUDED_ITEMS: &[&str] = &["palette.command"];
 
-        let palette = Arc::make_mut(&mut self.palette);
-        palette.total_items = self
-            .keypress
-            .commands
+        let mut items: im::Vector<PaletteItem> = self
+            .palette
+            .executed_commands
+            .borrow()
             .iter()
-            .filter_map(|(_, c)| {
-                if EXCLUDED_ITEMS.contains(&c.kind.str()) {
-                    return None;
-                }
-
-                c.kind.desc().as_ref().map(|m| PaletteItem {
-                    content: PaletteItemContent::Command(c.clone()),
-                    filter_text: m.to_string(),
-                    score: 0,
-                    indices: vec![],
+            .sorted_by_key(|(_, i)| *i)
+            .rev()
+            .filter_map(|(key, _)| {
+                self.keypress.commands.get(key).and_then(|c| {
+                    c.kind.desc().as_ref().map(|m| PaletteItem {
+                        content: PaletteItemContent::Command(c.clone()),
+                        filter_text: m.to_string(),
+                        score: 0,
+                        indices: vec![],
+                    })
                 })
             })
             .collect();
+        items.extend(self.keypress.commands.iter().filter_map(|(_, c)| {
+            if EXCLUDED_ITEMS.contains(&c.kind.str()) {
+                return None;
+            }
+
+            if self
+                .palette
+                .executed_commands
+                .borrow()
+                .contains_key(c.kind.str())
+            {
+                return None;
+            }
+
+            c.kind.desc().as_ref().map(|m| PaletteItem {
+                content: PaletteItemContent::Command(c.clone()),
+                filter_text: m.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+        }));
+
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.total_items = items;
     }
 
     fn get_lines(&mut self, _ctx: &mut EventCtx) {
@@ -1193,7 +1277,9 @@ impl PaletteViewData {
         items: im::Vector<PaletteItem>,
         matcher: &SkimMatcherV2,
     ) -> im::Vector<PaletteItem> {
-        let mut items: im::Vector<PaletteItem> = items
+        // Collecting into a Vec to sort we as are hitting a worst case in
+        // `im::Vector` that leads to a stack overflow
+        let mut items: Vec<PaletteItem> = items
             .iter()
             .filter_map(|i| {
                 if let Some((score, indices)) =
@@ -1210,6 +1296,30 @@ impl PaletteViewData {
             .collect();
         items
             .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
-        items
+        items.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn filter_items_can_handle_large_number_of_items() {
+        let items: im::Vector<PaletteItem> = (0..100_000)
+            .map(|score| PaletteItem {
+                content: PaletteItemContent::ColorTheme("".to_string()),
+                filter_text: "s".to_string(),
+                score,
+                indices: vec![],
+            })
+            .collect();
+
+        let matcher = SkimMatcherV2::default().ignore_case();
+
+        // This should not trigger a stack overflow
+        // Previous implementation of this function would crash the program
+        let _view = PaletteViewData::filter_items("1", "s", items, &matcher);
     }
 }

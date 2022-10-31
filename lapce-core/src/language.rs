@@ -50,7 +50,7 @@ use crate::syntax::highlight::HighlightConfiguration;
 //        },
 //    ];
 //
-// 5. In `syntax.rs`, add `Foo: "lang-foo",` to the list in the
+// 5. In `syntax/highlight.rs`, add `Foo: "lang-foo",` to the list in the
 //    `declare_language_highlights` macro.
 //
 // 6. Add a new feature, say "lang-foo", to the lapce-ui crate (see
@@ -128,6 +128,8 @@ pub enum LapceLanguage {
     Elixir,
     #[cfg(feature = "lang-elm")]
     Elm,
+    #[cfg(feature = "lang-erlang")]
+    Erlang,
     #[cfg(feature = "lang-glimmer")]
     Glimmer,
     #[cfg(feature = "lang-go")]
@@ -186,6 +188,8 @@ pub enum LapceLanguage {
     Scheme,
     #[cfg(feature = "lang-scss")]
     Scss,
+    #[cfg(feature = "lang-sql")]
+    Sql,
     #[cfg(feature = "lang-svelte")]
     Svelte,
     #[cfg(feature = "lang-swift")]
@@ -200,6 +204,8 @@ pub enum LapceLanguage {
     Vue,
     #[cfg(feature = "lang-wgsl")]
     Wgsl,
+    #[cfg(feature = "lang-xml")]
+    Xml,
     #[cfg(feature = "lang-yaml")]
     Yaml,
     #[cfg(feature = "lang-zig")]
@@ -307,7 +313,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
-        extensions: &["dockerfile"],
+        extensions: &["containerfile", "dockerfile"],
     },
     #[cfg(feature = "lang-elixir")]
     SyntaxProperties {
@@ -332,6 +338,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["elm"],
+    },
+    #[cfg(feature = "lang-erlang")]
+    SyntaxProperties {
+        id: LapceLanguage::Erlang,
+        language: tree_sitter_erlang::language,
+        highlight: include_str!("../queries/erlang/highlights.scm"),
+        injection: None,
+        comment: "%",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["erl", "hrl"],
     },
     #[cfg(feature = "lang-glimmer")]
     SyntaxProperties {
@@ -695,6 +713,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         extensions: &["scss"],
     },
+    #[cfg(feature = "lang-sql")]
+    SyntaxProperties {
+        id: LapceLanguage::Sql,
+        language: tree_sitter_sql::language,
+        highlight: tree_sitter_sql::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "--",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["sql"],
+    },
     #[cfg(feature = "lang-svelte")]
     SyntaxProperties {
         id: LapceLanguage::Svelte,
@@ -778,6 +808,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["wgsl"],
+    },
+    #[cfg(feature = "lang-xml")]
+    SyntaxProperties {
+        id: LapceLanguage::Xml,
+        language: tree_sitter_xml::language,
+        highlight: tree_sitter_xml::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["xml"],
     },
     #[cfg(feature = "lang-yaml")]
     SyntaxProperties {
@@ -991,6 +1033,12 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "lang-erlang")]
+    fn test_erlang_lang() {
+        assert_language(LapceLanguage::Erlang, &["erl", "hrl"]);
+    }
+
+    #[test]
     #[cfg(feature = "lang-php")]
     fn test_php_lang() {
         assert_language(LapceLanguage::Php, &["php"]);
@@ -1115,7 +1163,7 @@ mod test {
     }
     #[cfg(feature = "lang-dockerfile")]
     fn test_dockerfile_lang() {
-        assert_language(LapceLanguage::Dockerfile, &["dockerfile"]);
+        assert_language(LapceLanguage::Dockerfile, &["containerfile", "dockerfile"]);
     }
     #[cfg(feature = "lang-csharp")]
     fn test_csharp_lang() {

@@ -15,6 +15,7 @@ pub struct TitleData {
     pub widget_id: WidgetId,
     pub branches: BranchListData,
 }
+
 impl TitleData {
     pub fn new(config: Arc<LapceConfig>) -> TitleData {
         let widget_id = WidgetId::next();
@@ -43,6 +44,7 @@ impl BranchListData {
         }
     }
 }
+
 impl KeyPressFocus for BranchListData {
     fn get_mode(&self) -> Mode {
         Mode::Insert

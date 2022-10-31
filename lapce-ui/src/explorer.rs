@@ -8,17 +8,17 @@ use druid::{
     Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
 };
 use itertools::Itertools;
-use lapce_core::command::FocusCommand;
+use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{LapceConfig, LapceTheme},
+    config::{LapceConfig, LapceIcons, LapceTheme},
     data::{EditorTabChild, LapceData, LapceEditorData, LapceTabData},
     document::{BufferContent, LocalBufferKind},
     explorer::{FileExplorerData, Naming},
     panel::PanelKind,
-    proxy::{LapceProxy, VERSION},
+    proxy::LapceProxy,
 };
 use lapce_rpc::file::FileNodeItem;
 
@@ -26,7 +26,6 @@ use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapceScroll,
-    svg::{file_svg, get_svg},
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -63,44 +62,58 @@ fn paint_single_file_node_item(
         );
     }
 
+    let font_size = config.ui.font_size() as f64;
+
     let y = current as f64 * line_height - line_height;
-    let svg_y = y + 4.0;
-    let svg_size = 15.0;
+    let svg_size = config.ui.icon_size() as f64;
+    let svg_y = y + (line_height - svg_size) / 2.0;
     let padding = 15.0 * level as f64;
+
     if item.is_dir {
         let icon_name = if item.open {
-            "chevron-down.svg"
+            LapceIcons::ITEM_OPENED
         } else {
-            "chevron-right.svg"
+            LapceIcons::ITEM_CLOSED
         };
-        let svg = get_svg(icon_name).unwrap();
+        let svg = config.ui_svg(icon_name);
+
         let rect = Size::new(svg_size, svg_size)
             .to_rect()
             .with_origin(Point::new(1.0 + padding, svg_y));
         ctx.draw_svg(
             &svg,
             rect,
-            Some(config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)),
+            Some(config.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)),
         );
         toggle_rects.insert(current, rect);
 
-        let icon_name = if item.open {
-            "default_folder_opened.svg"
-        } else {
-            "default_folder.svg"
-        };
-        let svg = get_svg(icon_name).unwrap();
+        let (svg, svg_color) =
+            if let Some((svg, svg_color)) = config.folder_svg(&item.path_buf) {
+                (svg, svg_color)
+            } else {
+                let icon_name = if item.open {
+                    LapceIcons::DIRECTORY_OPENED
+                } else {
+                    LapceIcons::DIRECTORY_CLOSED
+                };
+                let svg = config.ui_svg(icon_name);
+                (
+                    svg,
+                    Some(config.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)),
+                )
+            };
         let rect = Size::new(svg_size, svg_size)
             .to_rect()
             .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
-        ctx.draw_svg(&svg, rect, None);
+        ctx.draw_svg(&svg, rect, svg_color);
     } else {
-        let (svg, svg_color) = file_svg(&item.path_buf);
+        let (svg, svg_color) = config.file_svg(&item.path_buf);
         let rect = Size::new(svg_size, svg_size)
             .to_rect()
             .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
         ctx.draw_svg(&svg, rect, svg_color);
     }
+
     let text_layout = ctx
         .text()
         .new_text_layout(
@@ -111,7 +124,7 @@ fn paint_single_file_node_item(
                 .unwrap()
                 .to_string(),
         )
-        .font(config.ui.font_family(), config.ui.font_size() as f64)
+        .font(config.ui.font_family(), font_size)
         .text_color(
             config
                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -690,7 +703,9 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         let item =
                             druid::MenuItem::new("Copy Path").command(Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::CopyPath(path_to_file),
+                                LapceUICommand::PutToClipboard(
+                                    path_to_file.to_str().unwrap().to_string(),
+                                ),
                                 Target::Auto,
                             ));
                         menu = menu.entry(item);
@@ -703,7 +718,9 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         let item = druid::MenuItem::new("Copy Relative Path")
                             .command(Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::CopyRelativePath(relative_path),
+                                LapceUICommand::PutToClipboard(
+                                    relative_path.to_str().unwrap().to_string(),
+                                ),
                                 Target::Auto,
                             ));
                         menu = menu.entry(item);
@@ -1014,7 +1031,11 @@ impl OpenEditorList {
         let size = ctx.size();
         let mut text = "".to_string();
         let mut hint = "".to_string();
-        let mut svg = get_svg("default_file.svg").unwrap();
+        let mut svg = data.config.ui_svg(LapceIcons::FILE);
+        let mut svg_color = Some(
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+        );
         let mut pristine = true;
         match child {
             EditorTabChild::Editor(view_id, _, _) => {
@@ -1022,7 +1043,7 @@ impl OpenEditorList {
                 pristine = editor_buffer.doc.buffer().is_pristine();
 
                 if let BufferContent::File(path) = &editor_buffer.editor.content {
-                    (svg, _) = file_svg(path);
+                    (svg, svg_color) = data.config.file_svg(path);
                     if let Some(file_name) = path.file_name() {
                         if let Some(s) = file_name.to_str() {
                             text = s.to_string();
@@ -1051,7 +1072,7 @@ impl OpenEditorList {
             }
             EditorTabChild::Settings { .. } => {
                 text = "Settings".to_string();
-                hint = format!("ver. {}", *VERSION);
+                hint = format!("ver. {}", *meta::VERSION);
             }
             EditorTabChild::Plugin { volt_name, .. } => {
                 text = format!("Plugin: {volt_name}");
@@ -1078,13 +1099,14 @@ impl OpenEditorList {
             );
         }
 
+        let svg_size = data.config.ui.icon_size() as f64;
         let close_rect =
-            Size::new(font_size, font_size)
+            Size::new(svg_size, svg_size)
                 .to_rect()
                 .with_origin(Point::new(
-                    10.0 + (self.line_height - font_size) / 2.0,
+                    10.0 + (self.line_height - svg_size) / 2.0,
                     i as f64 * self.line_height
-                        + (self.line_height - font_size) / 2.0,
+                        + (self.line_height - svg_size) / 2.0,
                 ));
 
         self.in_view_tab_children
@@ -1097,25 +1119,32 @@ impl OpenEditorList {
                 close_rect.inflate(2.0, 2.0),
                 data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
             );
-            Some(get_svg("close.svg").unwrap())
+            Some(data.config.ui_svg(LapceIcons::CLOSE))
         } else if pristine {
             None
         } else {
-            Some(get_svg("unsaved.svg").unwrap())
+            Some(data.config.ui_svg(LapceIcons::UNSAVED))
         };
         if let Some(close_svg) = close_svg {
-            ctx.draw_svg(&close_svg, close_rect, None);
+            ctx.draw_svg(
+                &close_svg,
+                close_rect,
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                ),
+            );
         }
 
         let svg_rect =
-            Size::new(font_size, font_size)
+            Size::new(svg_size, svg_size)
                 .to_rect()
                 .with_origin(Point::new(
                     10.0 + self.line_height,
                     i as f64 * self.line_height
-                        + (self.line_height - font_size) / 2.0,
+                        + (self.line_height - svg_size) / 2.0,
                 ));
-        ctx.draw_svg(&svg, svg_rect, None);
+        ctx.draw_svg(&svg, svg_rect, svg_color);
 
         if !hint.is_empty() {
             text = format!("{} {}", text, hint);

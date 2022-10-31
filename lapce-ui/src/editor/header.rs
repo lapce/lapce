@@ -9,16 +9,13 @@ use druid::{
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{CommandKind, LapceCommand, LAPCE_COMMAND},
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{LapceTabData, LapceWorkspace},
     document::BufferContent,
     editor::LapceEditorBufferData,
 };
 
-use crate::{
-    svg::{file_svg, get_svg},
-    tab::LapceIcon,
-};
+use crate::tab::LapceIcon;
 
 pub struct LapceEditorHeader {
     view_id: WidgetId,
@@ -53,7 +50,7 @@ impl LapceEditorHeader {
         let x =
             self_size.width - ((icons.len() + 1) as f64) * (gap + self.icon_size);
         let icon = LapceIcon {
-            icon: "close.svg",
+            icon: LapceIcons::CLOSE,
             rect: Size::new(self.icon_size, self.icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
@@ -71,7 +68,7 @@ impl LapceEditorHeader {
         let x =
             self_size.width - ((icons.len() + 1) as f64) * (gap + self.icon_size);
         let icon = LapceIcon {
-            icon: "split-horizontal.svg",
+            icon: LapceIcons::SPLIT_HORIZONTAL,
             rect: Size::new(self.icon_size, self.icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
@@ -148,17 +145,18 @@ impl LapceEditorHeader {
 
             ctx.with_save(|ctx| {
                 ctx.clip(clip_rect);
-                let (svg, svg_color) = file_svg(&path);
+                let (svg, svg_color) = data.config.file_svg(&path);
 
                 let font_size = data.config.ui.font_size() as f64;
 
-                let width = font_size;
-                let height = font_size;
+                let svg_size = data.config.ui.icon_size() as f64;
                 let rect =
-                    Size::new(width, height).to_rect().with_origin(Point::new(
-                        (size.height - width) / 2.0,
-                        (size.height - height) / 2.0,
-                    ));
+                    Size::new(svg_size, svg_size)
+                        .to_rect()
+                        .with_origin(Point::new(
+                            (size.height - svg_size) / 2.0,
+                            (size.height - svg_size) / 2.0,
+                        ));
                 ctx.draw_svg(&svg, rect, svg_color);
 
                 let mut file_name = path
@@ -223,7 +221,8 @@ impl LapceEditorHeader {
                             .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
                     );
                 }
-                if let Some(svg) = get_svg(icon.icon) {
+                {
+                    let svg = data.config.ui_svg(icon.icon);
                     ctx.draw_svg(
                         &svg,
                         icon.rect.inflate(-self.svg_padding, -self.svg_padding),

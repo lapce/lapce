@@ -12,11 +12,9 @@ use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::LapceTabData,
 };
-
-use crate::svg::get_svg;
 
 pub struct AlertBox {
     content: WidgetPod<LapceTabData, AlertBoxContent>,
@@ -365,7 +363,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
                 .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
         );
 
-        let svg = get_svg("warning.svg").unwrap();
+        let svg = data.config.ui_svg(LapceIcons::WARNING);
         ctx.draw_svg(
             &svg,
             self.svg_rect,

@@ -1,19 +1,19 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 use druid::{
     kurbo::BezPath,
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
-    WidgetExt, WidgetId,
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, Rect, RenderContext,
+    Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
-    data::{FocusArea, LapceTabData},
+    config::{LapceIcons, LapceTheme},
+    data::{FocusArea, LapceData, LapceTabData},
     panel::PanelKind,
 };
 use lapce_rpc::source_control::FileDiff;
@@ -22,7 +22,6 @@ use crate::{
     button::Button,
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
-    svg::{file_svg, get_svg},
 };
 
 pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
@@ -86,7 +85,10 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
 
 struct SourceControlFileList {
     widget_id: WidgetId,
+    mouse_pos: Option<Point>,
     mouse_down: Option<usize>,
+    current_line: Option<usize>,
+    line_rects: Vec<Rect>,
     line_height: f64,
 }
 
@@ -94,7 +96,10 @@ impl SourceControlFileList {
     pub fn new(widget_id: WidgetId) -> Self {
         Self {
             widget_id,
+            mouse_pos: None,
             mouse_down: None,
+            current_line: None,
+            line_rects: vec![],
             line_height: 25.0,
         }
     }
@@ -105,6 +110,15 @@ impl SourceControlFileList {
         source_control.active = self.widget_id;
         data.focus_area = FocusArea::Panel(PanelKind::SourceControl);
         data.focus = Arc::new(self.widget_id);
+    }
+
+    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> Option<usize> {
+        for (i, rect) in self.line_rects.iter().enumerate() {
+            if rect.contains(mouse_event.pos) {
+                return Some(i);
+            }
+        }
+        None
     }
 }
 
@@ -121,8 +135,19 @@ impl Widget<LapceTabData> for SourceControlFileList {
         env: &Env,
     ) {
         match event {
-            Event::MouseMove(_mouse_event) => {
-                ctx.set_cursor(&druid::Cursor::Pointer);
+            Event::MouseMove(mouse_event) => {
+                ctx.set_handled();
+                self.mouse_pos = Some(mouse_event.pos);
+                let current_line = self.icon_hit_test(mouse_event);
+                if current_line.is_some() {
+                    ctx.set_cursor(&druid::Cursor::Pointer);
+                } else {
+                    ctx.clear_cursor();
+                }
+                if current_line != self.current_line {
+                    ctx.request_paint();
+                    self.current_line = current_line;
+                }
             }
             Event::MouseUp(mouse_event) => {
                 let y = mouse_event.pos.y;
@@ -137,6 +162,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                                     Arc::make_mut(&mut data.source_control);
                                 source_control.file_diffs[line].1 =
                                     !source_control.file_diffs[line].1;
+                                ctx.request_paint();
                             }
                         }
                     }
@@ -145,29 +171,103 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 ctx.set_handled();
             }
             Event::MouseDown(mouse_event) => {
-                self.mouse_down = None;
-                let source_control = Arc::make_mut(&mut data.source_control);
-                let y = mouse_event.pos.y;
-                if y > 0.0 {
-                    let line = (y / self.line_height).floor() as usize;
-                    if line < source_control.file_diffs.len() {
-                        source_control.file_list_index = line;
-                        if mouse_event.pos.x < self.line_height {
-                            self.mouse_down = Some(line);
-                        } else {
-                            ctx.submit_command(Command::new(
+                if mouse_event.pos.y < 0.0 {
+                    return;
+                }
+
+                let target_line =
+                    (mouse_event.pos.y / self.line_height).floor() as usize;
+
+                match mouse_event.button {
+                    MouseButton::Left => {
+                        self.mouse_down = None;
+                        let source_control = Arc::make_mut(&mut data.source_control);
+
+                        if target_line < source_control.file_diffs.len() {
+                            source_control.file_list_index = target_line;
+                            if mouse_event.pos.x < self.line_height {
+                                self.mouse_down = Some(target_line);
+                            } else {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::OpenFileDiff(
+                                        source_control.file_diffs[target_line]
+                                            .0
+                                            .path()
+                                            .clone(),
+                                        "head".to_string(),
+                                    ),
+                                    Target::Widget(data.id),
+                                ));
+                            }
+                        }
+
+                        self.request_focus(ctx, data);
+                        ctx.set_handled();
+                    }
+                    MouseButton::Right => {
+                        let source_control = data.source_control.clone();
+                        let target_file_diff =
+                            source_control.file_diffs[target_line].0.clone();
+                        let target_file_path = target_file_diff.path().clone();
+
+                        let mut menu = druid::Menu::<LapceData>::new("");
+                        let mut item = druid::MenuItem::new("Open Changes").command(
+                            Command::new(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::OpenFileDiff(
-                                    source_control.file_diffs[line].0.path().clone(),
+                                    source_control.file_diffs[target_line]
+                                        .0
+                                        .path()
+                                        .clone(),
                                     "head".to_string(),
                                 ),
-                                Target::Widget(data.id),
-                            ));
-                        }
+                                Target::Auto,
+                            ),
+                        );
+
+                        menu = menu.entry(item);
+
+                        let enable_open_file =
+                            !matches!(target_file_diff, FileDiff::Deleted(_));
+
+                        item = druid::MenuItem::new("Open File")
+                            .enabled(enable_open_file)
+                            .on_activate(move |ctx, _, _| {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::OpenFile(
+                                        target_file_path.clone(),
+                                        true,
+                                    ),
+                                    Target::Auto,
+                                ));
+                            });
+
+                        menu = menu.entry(item);
+
+                        menu = menu.separator();
+
+                        item = druid::MenuItem::new("Discard Changes")
+                            .on_activate(move |ctx, _, _| {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_COMMAND,
+                                    LapceCommand {
+                                        kind: CommandKind::Workbench(
+                                             LapceWorkbenchCommand::SourceControlDiscardTargetFileChanges
+                                        ),
+                                        data: Some(serde_json::json!(target_file_diff.clone()))
+                                    },
+                                    Target::Auto,
+                                ));
+                            });
+
+                        menu = menu.entry(item);
+
+                        ctx.show_context_menu(menu, mouse_event.window_pos)
                     }
+                    _ => {}
                 }
-                self.request_focus(ctx, data);
-                ctx.set_handled();
             }
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
@@ -252,19 +352,35 @@ impl Widget<LapceTabData> for SourceControlFileList {
         let rect = ctx.region().bounding_box();
         let start_line = (rect.y0 / self.line_height).floor() as usize;
         let end_line = (rect.y1 / self.line_height).ceil() as usize;
+        self.line_rects = vec![];
         for line in start_line..end_line {
             if line >= diffs.len() {
                 break;
             }
             let y = self.line_height * line as f64;
+
+            let current_line = Size::new(ctx.size().width, self.line_height)
+                .to_rect()
+                .with_origin(Point::new(0.0, y));
+            self.line_rects.push(current_line);
+            if let Some(mouse_pos) = self.mouse_pos {
+                if current_line.contains(mouse_pos) {
+                    ctx.fill(
+                        current_line,
+                        data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+                    );
+                }
+            }
+
             let (diff, checked) = diffs[line].clone();
-            let mut path: PathBuf = diff.path().clone();
+            let mut path = diff.path().clone();
             if let Some(workspace_path) = data.workspace.path.as_ref() {
                 path = path
                     .strip_prefix(workspace_path)
                     .unwrap_or(&path)
                     .to_path_buf();
             }
+
             {
                 let width = 13.0;
                 let height = 13.0;
@@ -273,23 +389,36 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     (self.line_height - height) / 2.0 + y,
                 );
                 let rect = Size::new(width, height).to_rect().with_origin(origin);
-                ctx.stroke(rect, &Color::rgb8(0, 0, 0), 1.0);
+                ctx.stroke(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                    1.0,
+                );
 
                 if checked {
                     let mut path = BezPath::new();
                     path.move_to((origin.x + 3.0, origin.y + 7.0));
                     path.line_to((origin.x + 6.0, origin.y + 9.5));
                     path.line_to((origin.x + 10.0, origin.y + 3.0));
-                    ctx.stroke(path, &Color::rgb8(0, 0, 0), 2.0);
+                    ctx.stroke(
+                        path,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                        2.0,
+                    );
                 }
             }
-            let (svg, svg_color) = file_svg(&path);
-            let width = 13.0;
-            let height = 13.0;
-            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-                (self.line_height - width) / 2.0 + self.line_height,
-                (self.line_height - height) / 2.0 + y,
-            ));
+
+            let svg_size = data.config.ui.icon_size() as f64;
+            let (svg, svg_color) = data.config.file_svg(&path);
+            let rect =
+                Size::new(svg_size, svg_size)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        (self.line_height - svg_size) / 2.0 + self.line_height,
+                        (self.line_height - svg_size) / 2.0 + y,
+                    ));
             ctx.draw_svg(&svg, rect, svg_color);
 
             let file_name = path
@@ -352,29 +481,28 @@ impl Widget<LapceTabData> for SourceControlFileList {
 
             let (svg, color) = match diff {
                 FileDiff::Modified(_) => (
-                    "diff-modified.svg",
+                    LapceIcons::SCM_DIFF_MODIFIED,
                     data.config
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_MODIFIED),
                 ),
                 FileDiff::Added(_) => (
-                    "diff-added.svg",
+                    LapceIcons::SCM_DIFF_ADDED,
                     data.config
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_ADDED),
                 ),
                 FileDiff::Deleted(_) => (
-                    "diff-removed.svg",
+                    LapceIcons::SCM_DIFF_REMOVED,
                     data.config
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_REMOVED),
                 ),
                 FileDiff::Renamed(_, _) => (
-                    "diff-renamed.svg",
+                    LapceIcons::SCM_DIFF_RENAMED,
                     data.config
                         .get_color_unchecked(LapceTheme::SOURCE_CONTROL_MODIFIED),
                 ),
             };
-            let svg = get_svg(svg).unwrap();
+            let svg = data.config.ui_svg(svg);
 
-            let svg_size = 15.0;
             let rect =
                 Size::new(svg_size, svg_size)
                     .to_rect()
@@ -383,7 +511,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                         line as f64 * self.line_height
                             + (self.line_height - svg_size) / 2.0,
                     ));
-            ctx.draw_svg(&svg, rect, Some(&color.clone().with_alpha(0.9)));
+            ctx.draw_svg(&svg, rect, Some(color));
         }
     }
 }

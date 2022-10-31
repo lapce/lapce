@@ -10,7 +10,7 @@ use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{
         DragContent, EditorTabChild, FocusArea, LapceEditorTabData, LapceTabData,
         SplitContent,
@@ -21,9 +21,8 @@ use lapce_data::{
     split::{SplitDirection, SplitMoveDirection},
 };
 
-use crate::{
-    editor::{tab_header::LapceEditorTabHeader, view::editor_tab_child_widget},
-    svg::get_svg,
+use crate::editor::{
+    tab_header::LapceEditorTabHeader, view::editor_tab_child_widget,
 };
 
 pub struct LapceEditorTab {
@@ -594,11 +593,9 @@ impl Widget<LapceTabData> for LapceEditorTab {
                     ctx.incr_alpha_depth();
                     ctx.fill(
                         rect,
-                        &data
-                            .config
-                            .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
-                            .clone()
-                            .with_alpha(0.8),
+                        data.config.get_color_unchecked(
+                            LapceTheme::EDITOR_DRAG_DROP_BACKGROUND,
+                        ),
                     );
                 });
             }
@@ -632,47 +629,56 @@ impl TabRectRenderer for TabRect {
         size: Size,
         mouse_pos: Option<Point>,
     ) {
-        let font_size = data.config.ui.font_size() as f64;
-        let width = font_size;
-        let height = font_size;
+        let svg_size = data.config.ui.icon_size() as f64;
         let padding = 4.0;
         let editor_tab = data.main_split.editor_tabs.get(&widget_id).unwrap();
 
-        let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-            self.rect.x0 + (width) / 2.0,
-            self.rect.y0 + (size.height - height) / 2.0,
-        ));
+        let svg_rect =
+            Size::new(svg_size, svg_size)
+                .to_rect()
+                .with_origin(Point::new(
+                    self.rect.x0 + (svg_size) / 2.0,
+                    self.rect.y0 + (size.height - svg_size) / 2.0,
+                ));
 
         let is_active_tab = tab_idx == editor_tab.active;
+        let bg = if is_active_tab {
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_BACKGROUND)
+        } else {
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_BACKGROUND)
+        };
+        ctx.fill(self.rect, bg);
         if is_active_tab {
-            let color = if data.focus_area == FocusArea::Editor
+            let stroke = if data.focus_area == FocusArea::Editor
                 && Some(widget_id) == *data.main_split.active_tab
             {
                 data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB)
+                    .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_UNDERLINE)
             } else {
                 data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_INACTIVE_TAB)
+                    .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_UNDERLINE)
             };
             ctx.stroke(
                 Line::new(
                     Point::new(self.rect.x0 + 2.0, self.rect.y1 - 1.0),
                     Point::new(self.rect.x1 - 2.0, self.rect.y1 - 1.0),
                 ),
-                color,
+                stroke,
                 2.0,
             );
         }
-        ctx.draw_svg(&self.svg, rect, None);
+        ctx.draw_svg(&self.svg, svg_rect, self.svg_color.as_ref());
         ctx.draw_text(
             &self.text_layout,
-            Point::new(rect.x1 + 5.0, self.text_layout.y_offset(size.height)),
+            Point::new(svg_rect.x1 + 5.0, self.text_layout.y_offset(size.height)),
         );
         if let Some(path_layout) = &self.path_layout {
             ctx.draw_text(
                 path_layout,
                 Point::new(
-                    rect.x1 + 5.0 + self.text_layout.layout.width() as f64 + 5.0,
+                    svg_rect.x1 + 5.0 + self.text_layout.layout.width() as f64 + 5.0,
                     path_layout.y_offset(size.height),
                 ),
             );
@@ -683,7 +689,8 @@ impl TabRectRenderer for TabRect {
                 Point::new(x - 0.5, (size.height * 0.8).round()),
                 Point::new(x - 0.5, size.height - (size.height * 0.8).round()),
             ),
-            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_TAB_SEPARATOR),
             1.0,
         );
         if tab_idx == 0 {
@@ -695,17 +702,9 @@ impl TabRectRenderer for TabRect {
                         size.height - (size.height * 0.8).round(),
                     ),
                 ),
-                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                1.0,
-            );
-        }
-
-        // Only show background of close button on hover
-        if mouse_pos.map(|s| self.rect.contains(s)).unwrap_or(false) {
-            ctx.fill(
-                &self.close_rect,
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                    .get_color_unchecked(LapceTheme::LAPCE_TAB_SEPARATOR),
+                1.0,
             );
         }
 
@@ -720,25 +719,41 @@ impl TabRectRenderer for TabRect {
             EditorTabChild::Plugin { .. } => true,
         };
 
+        if mouse_pos
+            .map(|s| self.close_rect.contains(s))
+            .unwrap_or(false)
+        {
+            ctx.fill(
+                self.close_rect,
+                &data
+                    .config
+                    .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
+                    .clone()
+                    .with_alpha(0.1),
+            );
+        }
+
         let mut draw_icon = |name: &'static str| {
             ctx.draw_svg(
-                &get_svg(name).unwrap(),
+                &data.config.ui_svg(name),
                 self.close_rect.inflate(-padding, -padding),
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                 ),
             );
         };
 
-        if is_pristine {
-            if mouse_pos.map(|s| self.rect.contains(s)).unwrap_or(false)
-                || is_active_tab
-            {
-                draw_icon("close.svg")
+        if mouse_pos.map(|s| self.rect.contains(s)).unwrap_or(false) {
+            draw_icon(LapceIcons::CLOSE)
+        } else if !is_pristine {
+            draw_icon(LapceIcons::UNSAVED)
+        } else if is_active_tab {
+            if is_pristine {
+                draw_icon(LapceIcons::CLOSE)
+            } else {
+                draw_icon(LapceIcons::UNSAVED)
             }
-        } else {
-            draw_icon("unsaved.svg")
-        };
+        }
     }
 }

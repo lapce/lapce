@@ -22,7 +22,7 @@ use lapce_data::{
         LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
-    config::{LapceConfig, LapceTheme},
+    config::{LapceConfig, LapceIcons, LapceTheme},
     data::{
         DragContent, EditorDiagnostic, EditorTabChild, FocusArea, LapceData,
         LapceTabData, LapceWindowData, LapceWorkspace, LapceWorkspaceType,
@@ -51,8 +51,8 @@ use crate::{
     message::LapceMessage, panel::PanelContainer, picker::FilePicker,
     plugin::Plugin, problem::new_problem_panel, scroll::LapceScroll,
     search::new_search_panel, source_control::new_source_control_panel,
-    split::split_data_widget, status::LapceStatus, svg::get_svg,
-    terminal::TerminalPanel, title::Title,
+    split::split_data_widget, status::LapceStatus, terminal::TerminalPanel,
+    title::Title,
 };
 
 pub const LAPCE_TAB_META: Selector<SingleUse<LapceTabMeta>> =
@@ -504,11 +504,9 @@ impl LapceTab {
 
                 ctx.fill(
                     rect,
-                    &data
-                        .config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
-                        .clone()
-                        .with_alpha(0.8),
+                    data.config.get_color_unchecked(
+                        LapceTheme::EDITOR_DRAG_DROP_TAB_BACKGROUND,
+                    ),
                 );
                 break;
             }
@@ -546,11 +544,9 @@ impl LapceTab {
                     }
                     ctx.fill(
                         rect,
-                        &data
-                            .config
-                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                            .clone()
-                            .with_alpha(0.8),
+                        data.config.get_color_unchecked(
+                            LapceTheme::EDITOR_DRAG_DROP_BACKGROUND,
+                        ),
                     );
 
                     let width = 13.0;
@@ -595,19 +591,17 @@ impl LapceTab {
                     }
                     ctx.fill(
                         rect,
-                        &data
-                            .config
-                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                            .clone()
-                            .with_alpha(0.8),
+                        data.config.get_color_unchecked(
+                            LapceTheme::EDITOR_DRAG_DROP_BACKGROUND,
+                        ),
                     );
-                    let svg = get_svg(kind.svg_name()).unwrap();
+                    let svg = data.config.ui_svg(kind.svg_name());
                     ctx.draw_svg(
                         &svg,
                         icon_rect,
                         Some(
                             data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                         ),
                     );
                 }
@@ -1928,13 +1922,9 @@ impl LapceTab {
                             file_explorer.cancel_naming();
                         }
                     }
-                    LapceUICommand::CopyPath(absolute_path) => {
+                    LapceUICommand::PutToClipboard(target_string) => {
                         let mut clipboard = druid::Application::global().clipboard();
-                        clipboard.put_string(absolute_path.to_str().unwrap())
-                    }
-                    LapceUICommand::CopyRelativePath(relative_path) => {
-                        let mut clipboard = druid::Application::global().clipboard();
-                        clipboard.put_string(relative_path.to_str().unwrap());
+                        clipboard.put_string(target_string);
                     }
                     LapceUICommand::NewMessage {
                         kind,
@@ -2799,7 +2789,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
         ctx.draw_text(&text_layout, Point::new(x, y));
 
         if ctx.is_hot() || self.drag_start.is_some() {
-            let svg = get_svg("close.svg").unwrap();
+            let svg = data.config.ui_svg(LapceIcons::CLOSE);
             ctx.draw_svg(
                 &svg,
                 self.close_icon_rect,

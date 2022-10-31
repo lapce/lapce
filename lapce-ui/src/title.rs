@@ -8,23 +8,23 @@ use druid::{
     RenderContext, Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
     WindowConfig, WindowState,
 };
-use lapce_core::command::FocusCommand;
+use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{FocusArea, LapceTabData, LapceWorkspaceType},
     list::ListData,
     menu::{MenuItem, MenuKind},
     palette::PaletteStatus,
-    proxy::{ProxyStatus, VERSION},
+    proxy::ProxyStatus,
 };
 
 #[cfg(not(target_os = "macos"))]
 use crate::window::window_controls;
-use crate::{list::List, palette::Palette, svg::get_svg};
+use crate::{list::List, palette::Palette};
 
 pub struct Title {
     widget_id: WidgetId,
@@ -97,7 +97,7 @@ impl Title {
                 .to_rect()
                 .with_origin(Point::new(x + 2.0, 0.0))
                 .inflate(-9.0, -9.0);
-            let logo_svg = crate::svg::logo_svg();
+            let logo_svg = data.config.logo_svg();
             self.svgs.push((
                 logo_svg,
                 logo_rect,
@@ -160,23 +160,31 @@ impl Title {
             .to_rect()
             .with_origin(Point::new(x, 0.0));
         let color = match &data.workspace.kind {
-            LapceWorkspaceType::Local => Color::rgb8(64, 120, 242),
+            LapceWorkspaceType::Local => data
+                .config
+                .get_color_unchecked(LapceTheme::LAPCE_REMOTE_LOCAL),
             LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL => {
                 match *data.proxy_status {
-                    ProxyStatus::Connecting => Color::rgb8(193, 132, 1),
-                    ProxyStatus::Connected => Color::rgb8(80, 161, 79),
-                    ProxyStatus::Disconnected => Color::rgb8(228, 86, 73),
+                    ProxyStatus::Connecting => data
+                        .config
+                        .get_color_unchecked(LapceTheme::LAPCE_REMOTE_CONNECTING),
+                    ProxyStatus::Connected => data
+                        .config
+                        .get_color_unchecked(LapceTheme::LAPCE_REMOTE_CONNECTED),
+                    ProxyStatus::Disconnected => data
+                        .config
+                        .get_color_unchecked(LapceTheme::LAPCE_REMOTE_DISCONNECTED),
                 }
             }
         };
-        self.rects.push((remote_rect, color));
-        let remote_svg = get_svg("remote.svg").unwrap();
+        self.rects.push((remote_rect, color.clone()));
+        let remote_svg = data.config.ui_svg(LapceIcons::REMOTE);
         self.svgs.push((
             remote_svg,
             Size::new(size.height, size.height)
                 .to_rect()
                 .with_origin(Point::new(x + 5.0, 0.0))
-                .inflate(-6.0, -6.0),
+                .inflate(-5.0, -5.0),
             Some(
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
@@ -252,16 +260,16 @@ impl Title {
             let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
 
             x += 5.0;
-            let folder_svg = get_svg("git-icon.svg").unwrap();
+            let folder_svg = data.config.ui_svg(LapceIcons::SCM);
             let folder_rect = Size::new(size.height, size.height)
                 .to_rect()
                 .with_origin(Point::new(x, 0.0));
             self.svgs.push((
                 folder_svg,
-                folder_rect.inflate(-8.5, -8.5),
+                folder_rect.inflate(-10.5, -10.5),
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
                         .clone(),
                 ),
                 None,
@@ -337,43 +345,24 @@ impl Title {
 
         let offset = x;
 
-        let hover_color = {
-            let (r, g, b, a) = data
-                .config
-                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND)
-                .to_owned()
-                .as_rgba8();
-            // TODO: hacky way to detect "lightness" of colour, should be fixed once we have dark/light themes
-            if r < 128 || g < 128 || b < 128 {
-                Color::rgba8(
-                    r.saturating_add(25),
-                    g.saturating_add(25),
-                    b.saturating_add(25),
-                    a,
-                )
-            } else {
-                Color::rgba8(
-                    r.saturating_sub(30),
-                    g.saturating_sub(30),
-                    b.saturating_sub(30),
-                    a,
-                )
-            }
-        };
-
         let settings_rect = Size::new(size.height, size.height)
             .to_rect()
             .with_origin(Point::new(x, 0.0));
-        let settings_svg = get_svg("settings.svg").unwrap();
+        let settings_svg = data.config.ui_svg(LapceIcons::SETTINGS);
         self.svgs.push((
             settings_svg,
             settings_rect.inflate(-10.0, -10.0),
             Some(
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
                     .clone(),
             ),
-            Some(hover_color),
+            Some(
+                data.config.get_hover_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                ),
+            ),
         ));
         let latest_version = data
             .latest_release
@@ -417,7 +406,7 @@ impl Title {
                 desc: Some(if data.update_in_progress && latest_version.is_some() {
                     format!("Update in progress ({}) ", latest_version.unwrap())
                 } else if latest_version.is_some()
-                    && latest_version != Some(*VERSION)
+                    && latest_version != Some(*meta::VERSION)
                 {
                     format!("Restart to update ({})", latest_version.unwrap())
                 } else {
@@ -430,7 +419,7 @@ impl Title {
                     data: None,
                 },
                 enabled: latest_version.is_some()
-                    && latest_version != Some(*VERSION)
+                    && latest_version != Some(*meta::VERSION)
                     && !data.update_in_progress,
             }),
             MenuKind::Separator,
@@ -443,7 +432,7 @@ impl Title {
                 enabled: true,
             }),
         ];
-        if latest_version.is_some() && latest_version != Some(*VERSION) {
+        if latest_version.is_some() && latest_version != Some(*meta::VERSION) {
             let text_layout = piet_text
                 .new_text_layout("1")
                 .font(data.config.ui.font_family(), 10.0)
@@ -562,12 +551,12 @@ impl Title {
             .with_origin(Point::new(x - size.height, 0.0));
         let (folder_svg, folder_rect) = if data.workspace.path.is_none() {
             (
-                get_svg("default_folder.svg").unwrap(),
+                data.config.ui_svg(LapceIcons::DIRECTORY_CLOSED),
                 folder_rect.inflate(-9.0, -9.0),
             )
         } else {
             (
-                get_svg("search.svg").unwrap(),
+                data.config.ui_svg(LapceIcons::SEARCH),
                 folder_rect.inflate(-12.0, -12.0),
             )
         };
@@ -577,8 +566,8 @@ impl Title {
             folder_rect,
             Some(
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
+                    .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
+                    .to_owned(),
             ),
             None,
         ));
@@ -606,12 +595,12 @@ impl Title {
             .to_rect()
             .with_origin(Point::new(x + text_size.width - 8.0, 0.0));
         self.svgs.push((
-            get_svg("chevron-down.svg").unwrap(),
+            data.config.ui_svg(LapceIcons::PALETTE_MENU),
             command_rect.inflate(-12.0, -12.0),
             Some(
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
+                    .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
+                    .to_owned(),
             ),
             None,
         ));
@@ -859,7 +848,7 @@ impl Widget<LapceTabData> for Title {
             (
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_INACTIVE)
                         .clone(),
                 ),
                 None,
@@ -879,18 +868,19 @@ impl Widget<LapceTabData> for Title {
             (
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
                         .clone(),
                 ),
                 Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::PANEL_CURRENT)
-                        .clone(),
+                    data.config.get_hover_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                    ),
                 ),
             )
         };
         self.svgs.push((
-            get_svg("arrow-left.svg").unwrap(),
+            data.config.ui_svg(LapceIcons::LOCATION_BACKWARD),
             arrow_left_rect.inflate(-10.5, -10.5),
             arrow_left_svg_color,
             arrow_left_svg_hover_color,
@@ -906,7 +896,7 @@ impl Widget<LapceTabData> for Title {
             (
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_INACTIVE)
                         .clone(),
                 ),
                 None,
@@ -926,18 +916,19 @@ impl Widget<LapceTabData> for Title {
             (
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
                         .clone(),
                 ),
                 Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::PANEL_CURRENT)
-                        .clone(),
+                    data.config.get_hover_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                    ),
                 ),
             )
         };
         self.svgs.push((
-            get_svg("arrow-right.svg").unwrap(),
+            data.config.ui_svg(LapceIcons::LOCATION_FORWARD),
             arrow_right_rect.inflate(-10.5, -10.5),
             arrow_right_svg_color,
             arrow_right_svg_hover_color,
@@ -997,13 +988,14 @@ impl Widget<LapceTabData> for Title {
             {
                 let bg_color = bg_color.to_owned().unwrap();
                 ctx.fill(hover_rect, &bg_color);
-
-                // TODO: hacky way to detect close button, should be fixed once we have dark/light themes
-                if bg_color.as_rgba8() == (210, 16, 33, 255) {
-                    ctx.draw_svg(svg, *rect, Some(&Color::WHITE));
-                } else {
-                    ctx.draw_svg(svg, *rect, color.as_ref());
-                }
+                ctx.draw_svg(
+                    svg,
+                    *rect,
+                    color
+                        .as_ref()
+                        .map(|color| data.config.get_hover_color(color))
+                        .as_ref(),
+                );
             } else {
                 ctx.draw_svg(svg, *rect, color.as_ref());
             }

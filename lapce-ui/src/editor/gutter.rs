@@ -7,12 +7,10 @@ use druid::{
 use lapce_core::buffer::DiffLines;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{EditorView, LapceTabData},
     editor::{LapceEditorBufferData, Syntax},
 };
-
-use crate::svg::get_svg;
 
 pub struct LapceEditorGutter {
     view_id: WidgetId,
@@ -507,7 +505,7 @@ impl LapceEditorGutter {
     ) {
         if let Some((_plugin_id, actions)) = data.current_code_actions() {
             if !actions.is_empty() {
-                let svg = get_svg("lightbulb.svg").unwrap();
+                let svg = data.config.ui_svg(LapceIcons::LIGHTBULB);
                 let rect = self.code_actions_rect(ctx.text(), data);
                 ctx.draw_svg(
                     &svg,

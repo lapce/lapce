@@ -1,4 +1,4 @@
-[theme]
+[color-theme]
 name = "Lapce Light"
 
 [ui]
@@ -11,7 +11,7 @@ activity-width = 50
 scroll-width = 10
 drop-shadow-width = 0
 
-[theme.base]
+[color-theme.base]
 white = "#FAFAFA"
 black = "#383A42"
 grey = "#E5E5E6"
@@ -24,7 +24,7 @@ purple = "#A626A4"
 cyan = "#0184BC"
 magenta = "#A626A4"
 
-[theme.syntax]
+[color-theme.syntax]
 "comment" = "#A0A1A7"
 "constant" = "$yellow"
 "type" = "$yellow"
@@ -65,14 +65,38 @@ magenta = "#A626A4"
 "variable.other.member" = "$green"
 "tag" = "$blue"
 
-[theme.ui]
-"lapce.active_tab" = "#526FFF"
-"lapce.inactive_tab" = "#A0A1A7"
+[color-theme.ui]
 "lapce.error" = "#E51400"
 "lapce.warn" = "#E9A700"
 "lapce.dropdown_shadow" = "#B4B4B4"
 "lapce.border" = "#B4B4B4"
 "lapce.scroll_bar" = "#B4B4B4"
+
+"lapce.button.primary.background" = "#50a14f"
+"lapce.button.primary.foreground" = "$white"
+
+# tab
+"lapce.tab.active.background" = "$white"
+"lapce.tab.active.foreground" = "$black"
+"lapce.tab.active.underline" = "#528BFF"
+
+"lapce.tab.inactive.background" = "#EAEAEB"
+"lapce.tab.inactive.foreground" = "$black"
+"lapce.tab.inactive.underline" = "#528BFF77"
+
+"lapce.tab.separator" = "#B4B4B4"
+
+"lapce.icon.active" = "$black"
+"lapce.icon.inactive" = "$grey"
+
+"lapce.remote.local" = "#4078F2"
+"lapce.remote.connected" = "#50A14F"
+"lapce.remote.connecting" = "#C18401"
+"lapce.remote.disconnected" = "#E45649"
+
+"lapce.plugin.name" = "#444444"
+"lapce.plugin.description" = "$black"
+"lapce.plugin.author" = "#707070"
 
 "terminal.cursor" = "$black"
 "terminal.foreground" = "$black"
@@ -104,6 +128,8 @@ magenta = "#A626A4"
 "editor.link" = "$blue"
 "editor.visible_whitespace" = "$grey"
 "editor.indent_guide" = "$grey"
+"editor.drag_drop_background" = "#79c1fc33"
+"editor.drag_drop_tab_background" = "#0b0e1433"
 
 "inlay_hint.foreground" = "$black"
 "inlay_hint.background" = "#528bFF55"

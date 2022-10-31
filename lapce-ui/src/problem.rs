@@ -8,7 +8,7 @@ use druid::{
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{EditorDiagnostic, LapceTabData},
     editor::EditorLocation,
     panel::PanelKind,
@@ -17,10 +17,7 @@ use lapce_data::{
 };
 use lsp_types::DiagnosticSeverity;
 
-use crate::{
-    panel::{LapcePanel, PanelHeaderKind, PanelSizing},
-    svg::{file_svg, get_svg},
-};
+use crate::panel::{LapcePanel, PanelHeaderKind, PanelSizing};
 
 pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
     LapcePanel::new(
@@ -325,11 +322,16 @@ impl Widget<LapceTabData> for ProblemContent {
                 continue;
             }
 
-            let (svg, svg_color) = file_svg(path);
-            let rect = Size::new(line_height, line_height)
-                .to_rect()
-                .with_origin(Point::new(0.0, line_height * current_line as f64))
-                .inflate(-padding, -padding);
+            let svg_size = data.config.ui.icon_size() as f64;
+            let (svg, svg_color) = data.config.file_svg(path);
+            let rect =
+                Size::new(svg_size, svg_size)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        (line_height - svg_size) / 2.0,
+                        line_height * current_line as f64
+                            + (line_height - svg_size) / 2.0,
+                    ));
             ctx.draw_svg(&svg, rect, svg_color);
 
             let text_layout = ctx
@@ -422,8 +424,10 @@ impl Widget<LapceTabData> for ProblemContent {
                 }
 
                 let svg = match self.severity {
-                    DiagnosticSeverity::ERROR => get_svg("error.svg").unwrap(),
-                    _ => get_svg("warning.svg").unwrap(),
+                    DiagnosticSeverity::ERROR => {
+                        data.config.ui_svg(LapceIcons::ERROR)
+                    }
+                    _ => data.config.ui_svg(LapceIcons::WARNING),
                 };
                 let rect = Size::new(line_height, line_height)
                     .to_rect()
@@ -437,7 +441,7 @@ impl Widget<LapceTabData> for ProblemContent {
                     rect,
                     Some(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                     ),
                 );
 
@@ -486,7 +490,7 @@ impl Widget<LapceTabData> for ProblemContent {
                         }
                     }
 
-                    let svg = get_svg("link.svg").unwrap();
+                    let svg = data.config.ui_svg(LapceIcons::LINK);
                     let rect = Size::new(line_height, line_height)
                         .to_rect()
                         .with_origin(Point::new(
@@ -499,7 +503,7 @@ impl Widget<LapceTabData> for ProblemContent {
                         rect,
                         Some(
                             data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                         ),
                     );
                     let path = path_from_url(&related.location.uri);

@@ -1219,9 +1219,9 @@ pub enum ThemeKind {
 impl Display for ThemeKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            ThemeKind::Base => "theme.base",
-            ThemeKind::UI => "theme.ui",
-            ThemeKind::Syntax => "theme.syntax",
+            ThemeKind::Base => "color-theme.base",
+            ThemeKind::UI => "color-theme.ui",
+            ThemeKind::Syntax => "color-theme.syntax",
         })
     }
 }
@@ -1327,10 +1327,12 @@ impl ThemeSettings {
             );
             doc.reload(
                 Rope::from(match self.kind {
-                    ThemeKind::Base => data.config.theme.base.get(color).unwrap(),
-                    ThemeKind::UI => data.config.theme.ui.get(color).unwrap(),
+                    ThemeKind::Base => {
+                        data.config.color_theme.base.get(color).unwrap()
+                    }
+                    ThemeKind::UI => data.config.color_theme.ui.get(color).unwrap(),
                     ThemeKind::Syntax => {
-                        data.config.theme.syntax.get(color).unwrap()
+                        data.config.color_theme.syntax.get(color).unwrap()
                     }
                 }),
                 true,
@@ -1515,22 +1517,24 @@ impl Widget<LapceTabData> for ThemeSettings {
                 ThemeKind::Base => {
                     let default = data
                         .config
-                        .default_theme
+                        .default_color_theme
                         .base
                         .get(&self.keys[i])
                         .unwrap()
                         .to_string();
                     (
-                        data.config.theme.base.get(&self.keys[i]) != Some(&default),
+                        data.config.color_theme.base.get(&self.keys[i])
+                            != Some(&default),
                         default,
                     )
                 }
                 ThemeKind::UI => {
                     if let Some(default) =
-                        data.config.default_theme.ui.get(&self.keys[i])
+                        data.config.default_color_theme.ui.get(&self.keys[i])
                     {
                         (
-                            data.config.theme.ui.get(&self.keys[i]) != Some(default),
+                            data.config.color_theme.ui.get(&self.keys[i])
+                                != Some(default),
                             default.to_string(),
                         )
                     } else {
@@ -1540,20 +1544,20 @@ impl Widget<LapceTabData> for ThemeSettings {
                 ThemeKind::Syntax => {
                     let default = data
                         .config
-                        .default_theme
+                        .default_color_theme
                         .syntax
                         .get(&self.keys[i])
                         .cloned()
                         .unwrap_or_else(|| "".to_string());
                     (
-                        data.config.theme.syntax.get(&self.keys[i])
+                        data.config.color_theme.syntax.get(&self.keys[i])
                             != Some(&default),
                         default,
                     )
                 }
             };
             if changed {
-                let x = input.layout_rect().x1 + 10.0;
+                let x = input.layout_rect().x1 + input.layout_rect().height() + 15.0;
                 let y0 = input.layout_rect().y0;
                 let y1 = input.layout_rect().y1;
                 let rect = Rect::new(x, y0, x + reset_size.width + 20.0, y1);
@@ -1589,15 +1593,57 @@ impl Widget<LapceTabData> for ThemeSettings {
 
         for (i, input) in self.inputs.iter_mut().enumerate() {
             let text_layout = &self.text_layouts.as_ref().unwrap()[i];
+            let layout_rect = input.layout_rect();
             ctx.draw_text(
                 text_layout,
                 Point::new(
                     0.0,
-                    input.layout_rect().y0
-                        + text_layout.y_offset(input.layout_rect().height()),
+                    layout_rect.y0 + text_layout.y_offset(layout_rect.height()),
                 ),
             );
             input.paint(ctx, data, env);
+            let preview_color_text = text_layout.text();
+            let preview_color = match self.kind {
+                ThemeKind::Base => data
+                    .config
+                    .color
+                    .base
+                    .get(preview_color_text)
+                    .unwrap_or_else(|| {
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                    }),
+                ThemeKind::UI => {
+                    data.config.color.ui.get(preview_color_text).unwrap_or_else(
+                        || {
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        },
+                    )
+                }
+                ThemeKind::Syntax => data
+                    .config
+                    .color
+                    .syntax
+                    .get(preview_color_text)
+                    .unwrap_or_else(|| {
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                    }),
+            };
+            let color_rect = Rect::new(
+                layout_rect.x1 + 5.0,
+                layout_rect.y0,
+                layout_rect.x1 + 5.0 + layout_rect.height(),
+                layout_rect.y1,
+            )
+            .inflate(-0.5, -0.5);
+            ctx.stroke(
+                color_rect,
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
+            ctx.fill(color_rect.inflate(-0.5, -0.5), preview_color);
         }
 
         let reset_text = ctx

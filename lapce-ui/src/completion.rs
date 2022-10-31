@@ -24,7 +24,6 @@ use regex::Regex;
 use crate::{
     list::{List, ListPaint},
     scroll::{LapceIdentityWrapper, LapceScroll},
-    svg::completion_svg,
 };
 
 #[derive(Debug)]
@@ -528,7 +527,7 @@ impl<D: Data> ListPaint<D> for ScoredCompletionItem {
             );
         }
 
-        if let Some((svg, color)) = completion_svg(self.item.kind, &data.config) {
+        if let Some((svg, color)) = data.config.completion_svg(self.item.kind) {
             let color = color.unwrap_or_else(|| {
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)

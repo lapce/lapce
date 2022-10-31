@@ -48,10 +48,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "alacritty_config_derive"
+name = "alacritty_config"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77044c45bdb871e501b5789ad16293ecb619e5733b60f4bb01d1cb31c463c336"
+checksum = "b0c9edf2a6899fc12e9f8718485fa70f2c311bc86c25ff329783b16de7227dfd"
+dependencies = [
+ "log 0.4.17",
+ "serde",
+ "serde_yaml",
+]
+
+[[package]]
+name = "alacritty_config_derive"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37164df1dc70b36db94e2df45b121c1f57b2946778d5f7e56f4b0d1c118e1b54"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -60,14 +71,15 @@ dependencies = [
 
 [[package]]
 name = "alacritty_terminal"
-version = "0.16.1"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02fb5d4af84e39f9754d039ff6de2233c8996dbae0af74910156e559e5766e2f"
+checksum = "043d0bc52432b59149ca25e45ea617cc4cfd2e34acc00d2f7ea976b9934be477"
 dependencies = [
+ "alacritty_config",
  "alacritty_config_derive",
  "base64 0.13.0",
  "bitflags",
- "dirs 3.0.2",
+ "dirs",
  "libc",
  "log 0.4.17",
  "mio 0.6.23",
@@ -75,7 +87,7 @@ dependencies = [
  "mio-extras",
  "miow 0.3.7",
  "nix",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.1",
  "regex-automata",
  "serde",
  "serde_yaml",
@@ -938,15 +950,6 @@ dependencies = [
 
 [[package]]
 name = "dirs"
-version = "3.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30baa043103c9d0c2a57cf537cc2f35623889dc0d405e6c3cccfadbc81c71309"
-dependencies = [
- "dirs-sys",
-]
-
-[[package]]
-name = "dirs"
 version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca3aa72a6f96ea37bbc5aa912f6788242832f75369bdfdadcb0e38423f100059"
@@ -1008,7 +1011,7 @@ dependencies = [
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#281fe4bc56a198c7b5da90f65d4047a88153170e"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#0b9c00fcda238e392e758382f25166cd748fd305"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -1031,7 +1034,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#281fe4bc56a198c7b5da90f65d4047a88153170e"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#0b9c00fcda238e392e758382f25166cd748fd305"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1041,7 +1044,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#281fe4bc56a198c7b5da90f65d4047a88153170e"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#0b9c00fcda238e392e758382f25166cd748fd305"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -2514,6 +2517,7 @@ version = "0.2.1"
 dependencies = [
  "arc-swap",
  "bitflags",
+ "directories",
  "itertools",
  "lapce-rpc",
  "log 0.4.17",
@@ -2535,6 +2539,7 @@ dependencies = [
  "tree-sitter-dockerfile",
  "tree-sitter-elixir",
  "tree-sitter-elm",
+ "tree-sitter-erlang",
  "tree-sitter-glimmer",
  "tree-sitter-go",
  "tree-sitter-hare",
@@ -2560,12 +2565,14 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-scheme",
  "tree-sitter-scss",
+ "tree-sitter-sql",
  "tree-sitter-svelte",
  "tree-sitter-swift",
  "tree-sitter-toml",
  "tree-sitter-typescript",
  "tree-sitter-vue",
  "tree-sitter-wgsl",
+ "tree-sitter-xml",
  "tree-sitter-yaml",
  "tree-sitter-zig",
  "xi-rope",
@@ -2589,6 +2596,7 @@ dependencies = [
  "fuzzy-matcher",
  "hashbrown 0.11.2",
  "im",
+ "include_dir",
  "indexmap",
  "interprocess",
  "itertools",
@@ -2842,6 +2850,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
 dependencies = [
  "cfg-if 1.0.0",
+ "serde",
 ]
 
 [[package]]
@@ -3144,12 +3153,11 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.22.3"
+version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4916f159ed8e5de0082076562152a76b7a1f64a01fd9d1e0fea002c37624faf"
+checksum = "195cdbc1741b8134346d515b3a56a1c94b0912758009cfd53f99ea0f57b065fc"
 dependencies = [
  "bitflags",
- "cc",
  "cfg-if 1.0.0",
  "libc",
  "memoffset",
@@ -3533,7 +3541,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu?branch=shell_opengl#e5d9c4d5a69b3f9b0d34054d2a6a23df0724205e"
+source = "git+https://github.com/lapce/piet-wgpu?branch=shell_opengl#bcc134e00834af23c67ac087dc445f4872c2d497"
 dependencies = [
  "bytemuck",
  "glam",
@@ -4137,9 +4145,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.85"
+version = "1.0.87"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e55a28e3aaef9d5ce0506d0a14dbba8054ddc7e499ef522dd8b26859ec9d4a44"
+checksum = "6ce777b7b150d76b9cf60d28b55f5847135a003f7d7350c6be7a773508ce7d45"
 dependencies = [
  "itoa",
  "ryu",
@@ -4209,7 +4217,7 @@ version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ccc8076840c4da029af4f87e4e8daeb0fca6b87bbb02e10cb60b791450e11e4"
 dependencies = [
- "dirs 4.0.0",
+ "dirs",
 ]
 
 [[package]]
@@ -4325,9 +4333,9 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.9.0"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fd0db749597d91ff862fd1d55ea87f7855a744a8425a64695b6fca237d1dad1"
+checksum = "a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0"
 
 [[package]]
 name = "socket2"
@@ -4939,6 +4947,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-erlang"
+version = "0.0.1"
+source = "git+https://github.com/WhatsApp/tree-sitter-erlang?branch=main#a8b8b0e16c4f5552f5e85af3dec976a5d16af8b9"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-glimmer"
 version = "0.0.1"
 source = "git+https://github.com/VixieTSQ/tree-sitter-glimmer#7281caca2ba114e1960c5d944a37860ef0841426"
@@ -5171,6 +5188,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-sql"
+version = "0.0.2"
+source = "git+https://github.com/oknozor/tree-sitter-sql?branch=main#15dad0f3cae8a094a7dac17d712ea8fb25228011"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-svelte"
 version = "0.10.2"
 source = "git+https://github.com/Himujjal/tree-sitter-svelte?branch=master#52e122ae68b316d3aa960a0a422d3645ba717f42"
@@ -5181,9 +5207,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-swift"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acc22922ec4845df1c366dfa523d1ce3fffd7dfbd47850f4370138848b7c9bc4"
+checksum = "7fe0df6a792c4cd3066239195b65a322066c9ebbff58686a9de3e9ad9f25b510"
 dependencies = [
  "cc",
  "tree-sitter",
@@ -5223,6 +5249,15 @@ dependencies = [
 name = "tree-sitter-wgsl"
 version = "0.0.1"
 source = "git+https://github.com/szebniok/tree-sitter-wgsl?branch=master#272e89ef2aeac74178edb9db4a83c1ffef80a463"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-xml"
+version = "0.0.1"
+source = "git+https://github.com/RenjiSann/tree-sitter-xml?branch=main#422528a43630db6dcc1e222d1c5ee3babd559473"
 dependencies = [
  "cc",
  "tree-sitter",

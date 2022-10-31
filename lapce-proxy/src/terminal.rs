@@ -9,9 +9,8 @@ use std::{
 
 use alacritty_terminal::{
     config::Program,
-    event::OnResize,
+    event::{OnResize, WindowSize},
     event_loop::Msg,
-    term::SizeInfo,
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
 use directories::BaseDirs;
@@ -96,10 +95,13 @@ impl Terminal {
         #[cfg(target_os = "macos")]
         set_locale_environment();
 
-        let size =
-            SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
-        let pty =
-            alacritty_terminal::tty::new(&config.pty_config, &size, None).unwrap();
+        let size = WindowSize {
+            num_lines: height as u16,
+            num_cols: width as u16,
+            cell_width: 1,
+            cell_height: 1,
+        };
+        let pty = alacritty_terminal::tty::new(&config.pty_config, size, 0).unwrap();
 
         #[allow(deprecated)]
         let (tx, rx) = channel();
@@ -201,7 +203,7 @@ impl Terminal {
             match msg {
                 Msg::Input(input) => state.write_list.push_back(input),
                 Msg::Shutdown => return false,
-                Msg::Resize(size) => self.pty.on_resize(&size),
+                Msg::Resize(size) => self.pty.on_resize(size),
             }
         }
 

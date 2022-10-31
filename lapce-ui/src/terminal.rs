@@ -15,7 +15,7 @@ use druid::{
 use lapce_core::{mode::Mode, register::Clipboard};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{FocusArea, LapceTabData},
     document::SystemClipboard,
     panel::PanelKind,
@@ -28,7 +28,6 @@ use crate::{
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapcePadding,
     split::LapceSplit,
-    svg::get_svg,
     tab::LapceIcon,
 };
 
@@ -290,7 +289,7 @@ impl LapceTerminalHeader {
         let x =
             self_size.width - ((icons.len() + 1) as f64) * (gap + self.icon_size);
         let icon = LapceIcon {
-            icon: "close.svg",
+            icon: LapceIcons::CLOSE,
             rect: Size::new(self.icon_size, self.icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
@@ -305,7 +304,7 @@ impl LapceTerminalHeader {
         let x =
             self_size.width - ((icons.len() + 1) as f64) * (gap + self.icon_size);
         let icon = LapceIcon {
-            icon: "split-horizontal.svg",
+            icon: LapceIcons::SPLIT_HORIZONTAL,
             rect: Size::new(self.icon_size, self.icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
@@ -408,7 +407,7 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
 
         ctx.with_save(|ctx| {
             ctx.clip(clip_rect);
-            let svg = get_svg("terminal.svg").unwrap();
+            let svg = data.config.ui_svg(LapceIcons::TERMINAL);
             let width = data.config.terminal_font_size() as f64;
             let height = data.config.terminal_font_size() as f64;
             let rect = Size::new(width, height).to_rect().with_origin(Point::new(
@@ -452,13 +451,14 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
                             .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
                     );
                 }
-                if let Some(svg) = get_svg(icon.icon) {
+                {
+                    let svg = data.config.ui_svg(icon.icon);
                     ctx.draw_svg(
                         &svg,
                         icon.rect.inflate(-self.icon_padding, -self.icon_padding),
                         Some(
                             data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                         ),
                     );
                 }

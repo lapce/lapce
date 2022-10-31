@@ -1,31 +1,33 @@
+use std::sync::Arc;
+
 use druid::{
     kurbo::Line,
     piet::{
         PietTextLayout, Text, TextAttribute, TextLayout as TextLayoutTrait,
         TextLayoutBuilder,
     },
-    ArcStr, BoxConstraints, Color, Command, Cursor, Env, Event, EventCtx,
-    FontDescriptor, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx,
-    Widget, WidgetExt, WidgetId,
+    ArcStr, BoxConstraints, Command, Cursor, Env, Event, EventCtx, FontDescriptor,
+    FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
+    Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetExt,
+    WidgetId,
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{CommandKind, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceTheme},
-    data::{LapceData, LapceTabData},
+    config::{LapceConfig, LapceIcons, LapceTheme},
+    data::{FocusArea, LapceData, LapceTabData},
     panel::PanelKind,
     plugin::{
         plugin_install_status::PluginInstallType, PluginData, PluginLoadStatus,
         PluginStatus,
     },
     rich_text::RichText,
+    settings::LapceSettingsFocusData,
 };
 
 use crate::{
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapceScroll,
-    svg::{get_svg, logo_svg},
 };
 
 pub struct Plugin {
@@ -156,7 +158,7 @@ impl Plugin {
         let y = (3.0 * self.line_height + self.gap) * i as f64 + self.gap / 2.0;
         let x = 3.0 * self.line_height;
 
-        let svg = logo_svg();
+        let svg = config.logo_svg();
         ctx.draw_svg(
             &svg,
             Rect::ZERO
@@ -170,7 +172,11 @@ impl Plugin {
             .new_text_layout(display_name.to_string())
             .font(config.ui.font_family(), config.ui.font_size() as f64)
             .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
-            .text_color(config.get_color_unchecked(LapceTheme::EDITOR_FOCUS).clone())
+            .text_color(
+                config
+                    .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_NAME)
+                    .clone(),
+            )
             .build()
             .unwrap();
         ctx.draw_text(
@@ -185,7 +191,7 @@ impl Plugin {
             .font(config.ui.font_family(), config.ui.font_size() as f64)
             .text_color(
                 config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_DESCRIPTION)
                     .clone(),
             )
             .build()
@@ -210,7 +216,7 @@ impl Plugin {
                 .font(config.ui.font_family(), config.ui.font_size() as f64)
                 .text_color(
                     config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_DESCRIPTION)
                         .clone(),
                 )
                 .build()
@@ -238,7 +244,7 @@ impl Plugin {
             .font(config.ui.font_family(), config.ui.font_size() as f64)
             .text_color(
                 config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_AUTHOR)
                     .clone(),
             )
             .build()
@@ -261,7 +267,9 @@ impl Plugin {
                 .font(config.ui.font_family(), config.ui.font_size() as f64)
                 .text_color(
                     config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        .get_color_unchecked(
+                            LapceTheme::LAPCE_BUTTON_PRIMARY_FOREGROUND,
+                        )
                         .clone(),
                 )
                 .build()
@@ -270,12 +278,16 @@ impl Plugin {
             let text_padding = 5.0;
             let x = size.width - text_size.width - text_padding * 2.0 - padding;
             let y = y + self.line_height * 2.0;
-            let color = Color::rgb8(80, 161, 79);
             let rect =
                 Size::new(text_size.width + text_padding * 2.0, self.line_height)
                     .to_rect()
                     .with_origin(Point::new(x, y));
-            ctx.fill(rect, &color);
+            ctx.fill(
+                rect,
+                config.get_color_unchecked(
+                    LapceTheme::LAPCE_BUTTON_PRIMARY_BACKGROUND,
+                ),
+            );
             ctx.draw_text(
                 &text_layout,
                 Point::new(
@@ -291,13 +303,9 @@ impl Plugin {
                 y + self.line_height * 2.2,
             ));
             ctx.draw_svg(
-                &get_svg("settings.svg").unwrap(),
+                &config.ui_svg(LapceIcons::SETTINGS),
                 rect,
-                Some(
-                    &config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                ),
+                Some(config.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)),
             );
 
             let color = match status {
@@ -630,6 +638,27 @@ impl PluginInfo {
 
         (actual_width - width) / 2.0
     }
+
+    fn request_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        let editor_tab = data
+            .main_split
+            .editor_tabs
+            .get_mut(&self.editor_tab_id)
+            .unwrap();
+        let editor_tab = Arc::make_mut(editor_tab);
+        if let Some(index) = editor_tab
+            .children
+            .iter()
+            .position(|child| child.widget_id() == self.widget_id)
+        {
+            editor_tab.active = index;
+        }
+
+        data.main_split.active_tab = Arc::new(Some(self.editor_tab_id));
+        data.focus = Arc::new(self.widget_id);
+        data.focus_area = FocusArea::Editor;
+        ctx.request_focus();
+    }
 }
 
 impl Widget<LapceTabData> for PluginInfo {
@@ -642,9 +671,28 @@ impl Widget<LapceTabData> for PluginInfo {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        _env: &Env,
+        env: &Env,
     ) {
         match event {
+            Event::KeyDown(key_event) => {
+                if ctx.is_focused() {
+                    let mut keypress = data.keypress.clone();
+                    let mut focus = LapceSettingsFocusData {
+                        widget_id: self.widget_id,
+                        editor_tab_id: self.editor_tab_id,
+                        main_split: data.main_split.clone(),
+                        config: data.config.clone(),
+                    };
+                    let mut_keypress = Arc::make_mut(&mut keypress);
+                    let performed_action =
+                        mut_keypress.key_down(ctx, key_event, &mut focus, env);
+                    data.keypress = keypress;
+                    data.main_split = focus.main_split;
+                    if performed_action {
+                        ctx.set_handled();
+                    }
+                }
+            }
             Event::MouseMove(mouse_event) => {
                 if self.status_rect.contains(mouse_event.pos) {
                     ctx.set_cursor(&Cursor::Pointer);
@@ -669,9 +717,16 @@ impl Widget<LapceTabData> for PluginInfo {
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let cmd = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                if let LapceUICommand::UpdateVoltReadme(text) = cmd {
-                    self.readme_layout.set_text(text.clone());
-                    ctx.request_layout();
+                match cmd {
+                    LapceUICommand::Focus => {
+                        ctx.set_handled();
+                        self.request_focus(ctx, data);
+                    }
+                    LapceUICommand::UpdateVoltReadme(text) => {
+                        self.readme_layout.set_text(text.clone());
+                        ctx.request_layout();
+                    }
+                    _ => {}
                 }
             }
             _ => {}
@@ -744,7 +799,7 @@ impl Widget<LapceTabData> for PluginInfo {
                     .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOCUS)
+                            .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_NAME)
                             .clone(),
                     )
                     .build()
@@ -759,7 +814,9 @@ impl Widget<LapceTabData> for PluginInfo {
                     )
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .get_color_unchecked(
+                                LapceTheme::LAPCE_PLUGIN_DESCRIPTION,
+                            )
                             .clone(),
                     )
                     .build()
@@ -774,7 +831,7 @@ impl Widget<LapceTabData> for PluginInfo {
                     )
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_AUTHOR)
                             .clone(),
                     )
                     .build()
@@ -869,7 +926,7 @@ impl Widget<LapceTabData> for PluginInfo {
                 ))
                 .inflate(self.icon_width / 2.0 * 0.8, self.icon_width / 2.0 * 0.8);
             ctx.draw_svg(
-                &logo_svg(),
+                &data.config.logo_svg(),
                 icon_rect,
                 Some(data.config.get_color_unchecked(LapceTheme::EDITOR_DIM)),
             );
@@ -921,7 +978,9 @@ impl Widget<LapceTabData> for PluginInfo {
                 )
                 .text_color(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        .get_color_unchecked(
+                            LapceTheme::LAPCE_BUTTON_PRIMARY_FOREGROUND,
+                        )
                         .clone(),
                 )
                 .build()
@@ -938,7 +997,12 @@ impl Widget<LapceTabData> for PluginInfo {
                     button_y + self.line_height / 2.0,
                 ))
                 .inflate(0.0, self.line_height / 2.0);
-            ctx.fill(rect, &Color::rgb8(80, 161, 79));
+            ctx.fill(
+                rect,
+                data.config.get_color_unchecked(
+                    LapceTheme::LAPCE_BUTTON_PRIMARY_BACKGROUND,
+                ),
+            );
             self.status_rect = rect;
             ctx.draw_text(
                 &button_text_layout,
@@ -994,6 +1058,27 @@ fn status_on_click(ctx: &mut EventCtx, data: &LapceTabData, id: &str, pos: Point
             },
         );
         menu = menu.entry(item);
+        if !data.workspace.kind.is_remote() {
+            let tab_id = data.id;
+            let local_meta = meta.clone();
+            let item = druid::MenuItem::new("Open Plugin Directory").on_activate(
+                move |ctx, _data, _env| {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::OpenURI(
+                            local_meta
+                                .clone()
+                                .dir
+                                .unwrap()
+                                .to_string_lossy()
+                                .to_string(),
+                        ),
+                        Target::Widget(tab_id),
+                    ));
+                },
+            );
+            menu = menu.entry(item);
+        }
         menu = menu.separator();
 
         let local_volt = meta.info();

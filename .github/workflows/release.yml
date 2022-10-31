@@ -107,7 +107,7 @@ jobs:
           toolchain: stable
           target: x86_64-unknown-linux-gnu
           profile: minimal
-
+          
       - name: Build
         run: cargo build --profile release-lto --bin lapce
 

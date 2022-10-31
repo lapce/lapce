@@ -31,7 +31,7 @@ jobs:
           rustup component add llvm-tools-preview
 
       - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
 
       - name: Build
         run: cargo build
@@ -46,7 +46,7 @@ jobs:
         run: cargo test --doc --workspace
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
         with:
           files: lcov.info
 
@@ -86,7 +86,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install cmake pkg-config libgtk-3-dev
 
       - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
 
       - name: Run clippy
         run: cargo clippy -- -D warnings

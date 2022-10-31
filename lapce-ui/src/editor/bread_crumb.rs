@@ -5,9 +5,11 @@ use druid::{
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
     PaintCtx, Point, Rect, RenderContext, Size, UpdateCtx, Widget, WidgetId,
 };
-use lapce_data::{config::LapceTheme, data::LapceTabData, document::BufferContent};
-
-use crate::svg::get_svg;
+use lapce_data::{
+    config::{LapceIcons, LapceTheme},
+    data::LapceTabData,
+    document::BufferContent,
+};
 
 pub struct LapceEditorBreadCrumb {
     pub view_id: WidgetId,
@@ -107,7 +109,7 @@ impl Widget<LapceTabData> for LapceEditorBreadCrumb {
                                         line_height / 2.0,
                                     ))
                                     .inflate(font_size / 2.0, font_size / 2.0),
-                                get_svg("chevron-right.svg").unwrap(),
+                                data.config.ui_svg(LapceIcons::BREADCRUMB_SEPARATOR),
                             ));
                             x += font_size;
                         }

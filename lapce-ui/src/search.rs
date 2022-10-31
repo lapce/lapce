@@ -7,23 +7,22 @@ use druid::{
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_core::command::FocusCommand;
-use lapce_data::command::{CommandKind, LapceCommand, LAPCE_COMMAND};
 use lapce_data::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
+    command::{
+        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
+    },
+    config::{LapceIcons, LapceTheme},
     data::LapceTabData,
     editor::{EditorLocation, LineCol},
     panel::PanelKind,
 };
 
-use crate::svg::get_svg;
-use crate::tab::LapceIcon;
 use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapceScroll,
     split::LapceSplit,
-    svg::file_svg,
+    tab::LapceIcon,
 };
 
 pub struct SearchInput {
@@ -46,7 +45,7 @@ impl SearchInput {
             .padding((search_input_padding, search_input_padding));
 
         let icons = vec![LapceIcon {
-            icon: "case-sensitive.svg",
+            icon: LapceIcons::SEARCH_CASE_SENSITIVE,
             rect: Rect::ZERO,
             command: Command::new(
                 LAPCE_COMMAND,
@@ -237,14 +236,14 @@ impl Widget<LapceTabData> for SearchInput {
             .unwrap_or_default();
 
         for icon in self.icons.iter() {
-            if icon.icon == "case-sensitive.svg" && case_sensitive {
+            if icon.icon == LapceIcons::SEARCH_CASE_SENSITIVE && case_sensitive {
                 ctx.fill(
                     &icon.rect,
                     data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
+                        .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_UNDERLINE),
                 );
             } else if icon.rect.contains(self.mouse_pos)
-                && icon.icon != "case-sensitive.svg"
+                && icon.icon != LapceIcons::SEARCH_CASE_SENSITIVE
             {
                 ctx.fill(
                     &icon.rect,
@@ -253,7 +252,7 @@ impl Widget<LapceTabData> for SearchInput {
                 );
             }
 
-            let svg = get_svg(icon.icon).unwrap();
+            let svg = data.config.ui_svg(icon.icon);
             ctx.draw_svg(
                 &svg,
                 icon.rect.inflate(-7.0, -7.0),
@@ -441,7 +440,6 @@ impl Widget<LapceTabData> for SearchContent {
         let max = (rect.y1 / self.line_height) as usize + 2;
 
         let focus_color = data.config.get_color_unchecked(LapceTheme::EDITOR_FOCUS);
-        let padding = (self.line_height - 14.0) / 2.0;
         let mut i = 0;
         for (path, matches) in data.search.matches.iter() {
             if matches.len() + 1 + i < min {
@@ -449,11 +447,16 @@ impl Widget<LapceTabData> for SearchContent {
                 continue;
             }
 
-            let (svg, svg_color) = file_svg(path);
-            let rect = Size::new(self.line_height, self.line_height)
-                .to_rect()
-                .with_origin(Point::new(0.0, self.line_height * i as f64))
-                .inflate(-padding, -padding);
+            let svg_size = data.config.ui.icon_size() as f64;
+            let (svg, svg_color) = data.config.file_svg(path);
+            let rect =
+                Size::new(svg_size, svg_size)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        (self.line_height - svg_size) / 2.0,
+                        self.line_height * i as f64
+                            + (self.line_height - svg_size) / 2.0,
+                    ));
             ctx.draw_svg(&svg, rect, svg_color);
 
             let text_layout = ctx

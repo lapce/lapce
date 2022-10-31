@@ -6,7 +6,7 @@ use alacritty_terminal::{
     grid::{Dimensions, Scroll},
     index::{Direction, Side},
     selection::{Selection, SelectionType},
-    term::{search::RegexSearch, SizeInfo, TermMode},
+    term::{search::RegexSearch, test::TermSize, TermMode},
     vi_mode::ViMotion,
     Term,
 };
@@ -502,14 +502,14 @@ impl RawTerminal {
         event_sink: ExtEventSink,
     ) -> Self {
         let config = TermConfig::default();
-        let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
         let event_proxy = EventProxy {
             proxy,
             event_sink,
             term_id,
         };
 
-        let term = Term::new(&config, size, event_proxy);
+        let size = TermSize::new(50, 30);
+        let term = Term::new(&config, &size, event_proxy);
         let parser = ansi::Processor::new();
 
         Self {
@@ -572,8 +572,10 @@ impl LapceTerminalData {
     }
 
     pub fn resize(&self, width: usize, height: usize) {
-        let size =
-            SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
+        let width = width.max(1);
+        let height = height.max(1);
+
+        let size = TermSize::new(width, height);
 
         let raw = self.raw.clone();
         let proxy = self.proxy.clone();

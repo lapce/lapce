@@ -62,6 +62,7 @@ declare_language_highlights!(
     Dockerfile: "lang-dockerfile",
     Elixir: "lang-elixir",
     Elm: "lang-elm",
+    Erlang: "lang-erlang",
     Glimmer: "lang-glimmer",
     Go: "lang-go",
     Hare: "lang-hare",
@@ -90,6 +91,7 @@ declare_language_highlights!(
     Rust: "lang-rust",
     Scheme: "lang-scheme",
     Scss: "lang-scss",
+    Sql: "lang-sql",
     Svelte: "lang-svelte",
     Swift: "lang-swift",
     Toml: "lang-toml",
@@ -97,6 +99,7 @@ declare_language_highlights!(
     Typescript: "lang-typescript",
     Vue: "lang-vue",
     Wgsl: "lang-wgsl",
+    Xml: "lang-xml",
     Yaml: "lang-yaml",
     Zig: "lang-zig",
 );

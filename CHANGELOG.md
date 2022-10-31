@@ -4,6 +4,28 @@
 
 ### Features/Changes
 
+- [#1619](https://github.com/lapce/lapce/pull/1619):
+  - Add active/inactive tab colours
+  - Add primary button colour
+  - Replace custom drawn checkboxes with icons in source control
+  - Add hover effect in source control panel
+  - Add colour preview in settings
+- [#1619](https://github.com/lapce/lapce/pull/1619): Add active/inactive tab colours, add primary button colour, replace custom drawn checkboxes with icons in source
+- [#1617](https://github.com/lapce/lapce/pull/1617): Fixed a stack overflow that would crash lapce when attempting to sort a large number of PaletteItems
+- [#1609](https://github.com/lapce/lapce/pull/1609): Add syntax highlighting for erlang
+- [#1590](https://github.com/lapce/lapce/pull/1590): Added ability to open file and file diff from source control context menu
+- [#1570](https://github.com/lapce/lapce/pull/1570): Added a basic tab context menu with common close actions
+- [#1560](https://github.com/lapce/lapce/pull/1560): Added ability to copy active editor remote file path to clipboard
+- [#1510](https://github.com/lapce/lapce/1510): Added support to discard changes to a file
+- [#1459](https://github.com/lapce/lapce/pull/1459): Implement icon theme system
+  - **This is a breaking change for colour themes!**
+  - Colour themes should now use `[color-theme]` table format in theme TOML
+  - `volt.toml` now use `color-themes` and `icon-themes` keys. `themes` key is not used anymore.
+  - Colour themes now must specify colour preference via `[color-theme.color-preference]` key.
+    Available values are `Dark`, `Light`, `HighContrastDark` and `HighContrastLight`.
+    This is used to automatically calculate UI icons and background colours for hover/click events.
+- [#1554](https://github.com/lapce/lapce/pull/1554): Added XML language support
+- [#1472](https://github.com/lapce/lapce/pull/1472): Added SQL language support
 - [#1531](https://github.com/lapce/lapce/pull/1531): Improved Ctrl+Left command on spaces at the beginning of a line
 - [#1491](https://github.com/lapce/lapce/pull/1491): Added Vim shift+c to delete remainder of line
 - [#1508](https://github.com/lapce/lapce/pull/1508): Show in progress when Lapce is self updating
@@ -12,13 +34,18 @@
 - [#1521](https://github.com/lapce/lapce/pull/1521): Show unique paths to disambiguate same file names
 - [#1452](https://github.com/lapce/lapce/pull/1452): Wrap selected text with brackets/quotes
 - [#1421](https://github.com/lapce/lapce/pull/1421): Add matching bracket highlighting
+- [#1541](https://github.com/lapce/lapce/pull/1541): Order palette items according to last execute time
+
 
 ### Bug Fixes
 
+- [#1566](https://github.com/lapce/lapce/pull/1565)|[#1568](https://github.com/lapce/lapce/pull/1568): Use separate colour for drag and drop background
+- [#1459](https://github.com/lapce/lapce/pull/1459): Fix opening currently used logfile
 - [#1505](https://github.com/lapce/lapce/pull/1505): Fix proxy download for hosts with curl without -Z flag
 - [#1483](https://github.com/lapce/lapce/pull/1483): Fix showing the close icon for the first tab when opening multiple tab
 - [#1477](https://github.com/lapce/lapce/pull/1477): Now use `esc` to close searchbar regarless of the current focus
 - [#1507](https://github.com/lapce/lapce/pull/1507): Fixed a crash when scratch buffer is closed
+- [#1547](https://github.com/lapce/lapce/pull/1547): Fix infinite cycle in workspace symbol search
 
 ## 0.2.1
 
@@ -70,7 +97,7 @@
 - [#1104](https://github.com/lapce/lapce/pull/1104): Add syntax highlighting for Dockerfile, C#, and Nix
 - [#1118](https://github.com/lapce/lapce/pull/1118): Recognize `pyi, pyc, pyd, pyw` extensions for Python
 - [#1122](https://github.com/lapce/lapce/pull/1122): Recognize extensions for DLang
-  - [#1335](https://github.com/lapce/lapce/pull/1335): Highlighting for DLang
+- [#1335](https://github.com/lapce/lapce/pull/1335): Highlighting for DLang
 - [#1153](https://github.com/lapce/lapce/pull/1050): Recognize and add highlighting for Dart
 - [#1161](https://github.com/lapce/lapce/pull/1161): Recognize and add highlighting for Svelte and LaTeX files
 - [#1299](https://github.com/lapce/lapce/pull/1299): Recognize and add highlighting for Kotlin

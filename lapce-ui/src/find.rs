@@ -7,13 +7,11 @@ use druid::{
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{CommandKind, LapceCommand, LAPCE_COMMAND},
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::LapceTabData,
 };
 
-use crate::{editor::view::LapceEditorView, svg::get_svg, tab::LapceIcon};
-
-const CASE_SENSITIVE_ICON: &str = "case-sensitive.svg";
+use crate::{editor::view::LapceEditorView, tab::LapceIcon};
 
 pub struct FindBox {
     parent_view_id: WidgetId,
@@ -36,7 +34,7 @@ impl FindBox {
             .padding((10.0, 5.0));
         let icons = vec![
             LapceIcon {
-                icon: "arrow-up.svg",
+                icon: LapceIcons::SEARCH_BACKWARD,
                 rect: Rect::ZERO,
                 command: Command::new(
                     LAPCE_COMMAND,
@@ -48,7 +46,7 @@ impl FindBox {
                 ),
             },
             LapceIcon {
-                icon: "arrow-down.svg",
+                icon: LapceIcons::SEARCH_FORWARD,
                 rect: Rect::ZERO,
                 command: Command::new(
                     LAPCE_COMMAND,
@@ -60,7 +58,7 @@ impl FindBox {
                 ),
             },
             LapceIcon {
-                icon: CASE_SENSITIVE_ICON,
+                icon: LapceIcons::SEARCH_CASE_SENSITIVE,
                 rect: Rect::ZERO,
                 command: Command::new(
                     LAPCE_COMMAND,
@@ -72,7 +70,7 @@ impl FindBox {
                 ),
             },
             LapceIcon {
-                icon: "close.svg",
+                icon: LapceIcons::CLOSE,
                 rect: Rect::ZERO,
                 command: Command::new(
                     LAPCE_COMMAND,
@@ -285,14 +283,14 @@ impl Widget<LapceTabData> for FindBox {
             .unwrap_or_default();
 
         for icon in self.icons.iter() {
-            if icon.icon == CASE_SENSITIVE_ICON && case_sensitive {
+            if icon.icon == LapceIcons::SEARCH_CASE_SENSITIVE && case_sensitive {
                 ctx.fill(
                     &icon.rect,
                     data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
+                        .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_UNDERLINE),
                 );
             } else if icon.rect.contains(self.mouse_pos)
-                && icon.icon != CASE_SENSITIVE_ICON
+                && icon.icon != LapceIcons::SEARCH_CASE_SENSITIVE
             {
                 ctx.fill(
                     &icon.rect,
@@ -301,7 +299,7 @@ impl Widget<LapceTabData> for FindBox {
                 );
             }
 
-            let svg = get_svg(icon.icon).unwrap();
+            let svg = data.config.ui_svg(icon.icon);
             ctx.draw_svg(
                 &svg,
                 icon.rect.inflate(-7.0, -7.0),

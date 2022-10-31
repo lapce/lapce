@@ -7,21 +7,18 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     TimerToken, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
-use lapce_core::command::FocusCommand;
+use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceIcons, LapceTheme},
     data::{EditorTabChild, LapceTabData},
     document::BufferContent,
-    proxy::VERSION,
 };
 
 use crate::{
-    editor::tab_header_content::LapceEditorTabHeaderContent,
-    scroll::LapceScroll,
-    svg::{file_svg, get_svg},
+    editor::tab_header_content::LapceEditorTabHeaderContent, scroll::LapceScroll,
     tab::LapceIcon,
 };
 
@@ -96,7 +93,11 @@ impl LapceEditorTabHeader {
         let child = editor_tab.active_child();
         let mut text = "".to_string();
         let mut hint = "".to_string();
-        let mut svg = get_svg("default_file.svg").unwrap();
+        let mut svg = data.config.ui_svg(LapceIcons::FILE);
+        let mut svg_color = Some(
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+        );
         if let Some(child) = child {
             match child {
                 EditorTabChild::Editor(view_id, _, _) => {
@@ -104,7 +105,7 @@ impl LapceEditorTabHeader {
 
                     if let BufferContent::File(path) = &editor_buffer.editor.content
                     {
-                        (svg, _) = file_svg(path);
+                        (svg, svg_color) = data.config.file_svg(path);
                         if let Some(file_name) = path.file_name() {
                             if let Some(s) = file_name.to_str() {
                                 text = s.to_string();
@@ -136,7 +137,7 @@ impl LapceEditorTabHeader {
                 }
                 EditorTabChild::Settings { .. } => {
                     text = "Settings".to_string();
-                    hint = format!("ver. {}", *VERSION);
+                    hint = format!("ver. {}", *meta::VERSION);
                 }
                 EditorTabChild::Plugin { volt_name, .. } => {
                     text = format!("Plugin: {volt_name}");
@@ -145,15 +146,16 @@ impl LapceEditorTabHeader {
         }
         let font_size = data.config.ui.font_size() as f64;
 
+        let svg_size = data.config.ui.icon_size() as f64;
         let size = ctx.size();
         let svg_rect =
-            Size::new(font_size, font_size)
+            Size::new(svg_size, svg_size)
                 .to_rect()
                 .with_origin(Point::new(
-                    (size.height - font_size) / 2.0,
-                    (size.height - font_size) / 2.0,
+                    (size.height - svg_size) / 2.0,
+                    (size.height - svg_size) / 2.0,
                 ));
-        ctx.draw_svg(&svg, svg_rect, None);
+        ctx.draw_svg(&svg, svg_rect, svg_color);
 
         if !hint.is_empty() {
             text = format!("{} {}", text, hint);
@@ -270,7 +272,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
         let gap = (header_height - icon_size) / 2.0;
         let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
         let icon = LapceIcon {
-            icon: "close.svg",
+            icon: LapceIcons::CLOSE,
             rect: Size::new(icon_size, icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
@@ -284,7 +286,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
 
         let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
         let icon = LapceIcon {
-            icon: "split-horizontal.svg",
+            icon: LapceIcons::SPLIT_HORIZONTAL,
             rect: Size::new(icon_size, icon_size)
                 .to_rect()
                 .with_origin(Point::new(x + gap, gap)),
@@ -301,7 +303,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
 
         if data.config.editor.show_tab {
             let icon = LapceIcon {
-                icon: "chevron-left.svg",
+                icon: LapceIcons::TAB_PREVIOUS,
                 rect: Size::new(icon_size, icon_size)
                     .to_rect()
                     .with_origin(Point::new(gap, gap)),
@@ -314,7 +316,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             self.icons.push(icon);
 
             let icon = LapceIcon {
-                icon: "chevron-right.svg",
+                icon: LapceIcons::TAB_NEXT,
                 rect: Size::new(icon_size, icon_size)
                     .to_rect()
                     .with_origin(Point::new(gap + icon_size, gap)),
@@ -355,6 +357,12 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let size = ctx.size();
         let rect = size.to_rect();
+        ctx.fill(
+            size.to_rect(),
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_BACKGROUND),
+        );
+
         let shadow_width = data.config.ui.drop_shadow_width() as f64;
         if shadow_width > 0.0 {
             ctx.with_save(|ctx| {
@@ -397,16 +405,6 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                             .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
                     );
                 });
-                ctx.fill(
-                    Rect::new(
-                        0.0,
-                        content_rect.y0,
-                        content_rect.x0,
-                        content_rect.y1,
-                    ),
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-                );
             }
             if scroll_offset < child_size.width - content_rect.width() {
                 ctx.with_save(|ctx| {
@@ -424,16 +422,6 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                             .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
                     );
                 });
-                ctx.fill(
-                    Rect::new(
-                        content_rect.x1,
-                        content_rect.y0,
-                        rect.x1,
-                        content_rect.y1,
-                    ),
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-                );
             }
         } else {
             self.paint_header(ctx, data);
@@ -444,17 +432,20 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
                     &icon.rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                    &data.config.get_hover_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                    ),
                 );
             }
-            if let Some(svg) = get_svg(icon.icon) {
+            {
+                let svg = data.config.ui_svg(icon.icon);
                 ctx.draw_svg(
                     &svg,
                     icon.rect.inflate(-svg_padding, -svg_padding),
                     Some(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
                     ),
                 );
             }
