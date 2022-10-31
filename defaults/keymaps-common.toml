@@ -392,6 +392,11 @@ command = "goto_definition"
 mode = "n"
 
 [[keymaps]]
+key = "g h"
+command = "show_hover"
+mode = "n"
+
+[[keymaps]]
 key = "p"
 command = "paste"
 mode = "nv"
