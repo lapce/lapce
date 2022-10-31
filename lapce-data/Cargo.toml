@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 interprocess = "1.1.1"
-zip = { version = "0.6.2", default-features = false, features = ["deflate"] }
+zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
 tar = "0.4.38"
 flate2 = "1.0.24"
 fs_extra = "1.2.0"
