@@ -20,6 +20,7 @@ auto-closing-matching-pairs = true
 hover-delay = 300                       # ms
 modal-mode-relative-line-numbers = true
 format-on-save = false
+highlight-matching-brackets = true
 autosave-interval = 0
 enable-inlay-hints = true
 inlay-hint-font-family = ""

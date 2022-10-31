@@ -353,8 +353,13 @@ pub struct EditorConfig {
         desc = "Whether it should format the document on save (if there is an available formatter)"
     )]
     pub format_on_save: bool,
+
+    #[field_names(desc = "If matching brackets are highlighted")]
+    pub highlight_matching_brackets: bool,
+
     #[field_names(desc = "If inlay hints should be displayed")]
     pub enable_inlay_hints: bool,
+
     #[field_names(
         desc = "Set the inlay hint font family. If empty, it uses the editor font family."
     )]

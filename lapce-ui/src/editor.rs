@@ -1901,6 +1901,10 @@ impl LapceEditor {
         data: &LapceEditorBufferData,
         screen_lines: &ScreenLines,
     ) {
+        if !data.config.editor.highlight_matching_brackets {
+            return;
+        }
+
         if screen_lines.lines.is_empty() {
             return;
         }
@@ -1978,7 +1982,7 @@ impl LapceEditor {
                 .config
                 .get_color_unchecked(LapceTheme::EDITOR_CARET)
                 .clone()
-                .with_alpha(0.5),
+                .with_alpha(0.2),
         );
     }
 
