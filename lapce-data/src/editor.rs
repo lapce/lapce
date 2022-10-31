@@ -2082,6 +2082,10 @@ impl LapceEditorBufferData {
                     );
                 }
             }
+            ShowHover => {
+                let offset = self.editor.cursor.offset();
+                self.update_hover(ctx, offset);
+            }
             JumpLocationBackward => {
                 self.jump_location_backward(ctx);
             }

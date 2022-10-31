@@ -267,6 +267,9 @@ pub enum FocusCommand {
     #[strum(message = "Go to Type Definition")]
     #[strum(serialize = "goto_type_definition")]
     GotoTypeDefinition,
+    #[strum(message = "Show Hover")]
+    #[strum(serialize = "show_hover")]
+    ShowHover,
     #[strum(serialize = "jump_location_backward")]
     JumpLocationBackward,
     #[strum(serialize = "jump_location_forward")]
