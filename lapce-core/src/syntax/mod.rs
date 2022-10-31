@@ -31,7 +31,7 @@ use self::{
         HighlightConfiguration, HighlightEvent, HighlightIter, HighlightIterLayer,
         IncludedChildren, LocalScope,
     },
-    util::{matching_char, RopeProvider},
+    util::{matching_char, matching_pair_direction, RopeProvider},
 };
 use crate::{
     language::LapceLanguage,
@@ -784,6 +784,33 @@ impl Syntax {
             }
         }
         Some(offsets)
+    }
+
+    pub fn find_enclosing_pair(&self, offset: usize) -> Option<(usize, usize)> {
+        let tree = self.layers.try_tree()?;
+        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
+
+        while let Some(parent) = node.parent() {
+            for closing_bracket_offset in node.byte_range() {
+                let char = self.text.byte_at(closing_bracket_offset) as char;
+                if matching_pair_direction(char) == Some(false) {
+                    if let Some(opening_bracket_offset) =
+                        self.find_matching_pair(closing_bracket_offset)
+                    {
+                        if (opening_bracket_offset..closing_bracket_offset)
+                            .contains(&offset)
+                        {
+                            return Some((
+                                opening_bracket_offset,
+                                closing_bracket_offset,
+                            ));
+                        }
+                    }
+                }
+            }
+            node = parent;
+        }
+        None
     }
 }
 

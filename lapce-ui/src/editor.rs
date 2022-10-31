@@ -8,9 +8,10 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, TimerToken, UpdateCtx,
     Widget, WidgetId,
 };
+use lapce_core::buffer::DiffLines;
+use lapce_core::command::EditCommand;
 use lapce_core::{
-    buffer::DiffLines,
-    command::{EditCommand, FocusCommand},
+    command::FocusCommand,
     cursor::{ColPosition, CursorMode},
     mode::{Mode, VisualMode},
 };
@@ -824,6 +825,7 @@ impl LapceEditor {
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
         Self::paint_sticky_headers(ctx, data, env);
+        Self::highlight_brackets(ctx, data, &screen_lines);
 
         if let Some(placeholder) = self.placeholder.as_ref() {
             if data.doc.buffer().is_empty() {
@@ -1890,6 +1892,94 @@ impl LapceEditor {
                 }
             }
         }
+    }
+
+    /// Checks if the cursor is on a bracket and highlights the matching bracket if there is one.
+    /// If the cursor is between brackets it highlights the enclosing brackets.
+    fn highlight_brackets(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        screen_lines: &ScreenLines,
+    ) {
+        if screen_lines.lines.is_empty() {
+            return;
+        }
+
+        let cursor_offset = data.editor.cursor.offset();
+
+        let start_line = *screen_lines.lines.first().unwrap();
+        let end_line = *screen_lines.lines.last().unwrap();
+        let start = data.doc.buffer().offset_of_line(start_line);
+        let end = data.doc.buffer().offset_of_line(end_line + 1);
+
+        if let Some((start_offset, end_offset)) =
+            data.doc.find_enclosing_brackets(cursor_offset)
+        {
+            if start_offset > start && start_offset < end {
+                Self::paint_bracket_highlight(ctx, data, screen_lines, start_offset);
+            }
+            if end_offset > start && end_offset < end {
+                Self::paint_bracket_highlight(ctx, data, screen_lines, end_offset);
+            }
+        };
+    }
+
+    /// Highlights a character at the given position
+    fn paint_bracket_highlight(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        screen_lines: &ScreenLines,
+        offset: usize,
+    ) {
+        let (line, col) = data.doc.buffer().offset_to_line_col(offset);
+        let info = match screen_lines.info.get(&line) {
+            Some(info) => info,
+            None => return,
+        };
+        let char_width = data.config.editor_char_width(ctx.text());
+
+        let phantom_text = data.doc.line_phantom_text(&data.config, line);
+
+        let col = phantom_text.col_after(col, true);
+
+        let x0 = data
+            .doc
+            .line_point_of_line_col(
+                ctx.text(),
+                line,
+                col,
+                info.font_size,
+                &data.config,
+            )
+            .x;
+
+        let right_offset = offset + 1;
+        let (_, right_col) = data.doc.buffer().offset_to_line_col(right_offset);
+        let right_col = phantom_text.col_after(right_col, false);
+
+        let x1 = data
+            .doc
+            .line_point_of_line_col(
+                ctx.text(),
+                line,
+                right_col,
+                info.font_size,
+                &data.config,
+            )
+            .x;
+        let char_width = if x1 > x0 { x1 - x0 } else { char_width };
+        let rect = Rect::from_origin_size(
+            Point::new(x0 + info.x, info.y),
+            Size::new(char_width, info.line_height),
+        );
+        ctx.fill(
+            rect,
+            &data
+                .config
+                .get_color_unchecked(LapceTheme::EDITOR_CARET)
+                .clone()
+                .with_alpha(0.5),
+        );
     }
 
     fn line_height(data: &LapceEditorBufferData, env: &Env) -> f64 {
