@@ -23,11 +23,11 @@ use lapce_rpc::{
     terminal::TermId,
     RequestId, RpcMessage,
 };
+use lapce_xi_rope::Rope;
 use lsp_types::Url;
 use parking_lot::Mutex;
 use serde_json::Value;
 use thiserror::Error;
-use xi_rope::Rope;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},

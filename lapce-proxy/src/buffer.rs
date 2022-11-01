@@ -13,8 +13,8 @@ use lapce_core::{
     buffer::rope_text::CharIndicesJoin, encoding::offset_utf8_to_utf16,
 };
 use lapce_rpc::buffer::BufferId;
+use lapce_xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 use lsp_types::*;
-use xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 
 #[derive(Clone)]
 pub struct Buffer {

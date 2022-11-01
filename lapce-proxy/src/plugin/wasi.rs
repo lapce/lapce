@@ -16,6 +16,7 @@ use lapce_rpc::{
     style::LineStyle,
     RpcError,
 };
+use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     request::Initialize, ClientCapabilities, InitializeParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
@@ -26,7 +27,6 @@ use psp_types::Request;
 use toml_edit::easy as toml;
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
-use xi_rope::{Rope, RopeDelta};
 
 use super::{
     psp::{

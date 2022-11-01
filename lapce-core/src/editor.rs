@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use itertools::Itertools;
-use xi_rope::RopeDelta;
+use lapce_xi_rope::RopeDelta;
 
 use crate::{
     buffer::{Buffer, InvalLines},

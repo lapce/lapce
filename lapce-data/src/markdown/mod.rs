@@ -2,10 +2,10 @@ use std::str::FromStr;
 
 use druid::{FontStyle, FontWeight};
 use lapce_core::{language::LapceLanguage, syntax::Syntax};
+use lapce_xi_rope::Rope;
 use lsp_types::MarkedString;
 use pulldown_cmark::{CodeBlockKind, Tag};
 use smallvec::SmallVec;
-use xi_rope::Rope;
 
 use crate::{
     config::{LapceConfig, LapceTheme},

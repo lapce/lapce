@@ -1,7 +1,7 @@
 use super::Buffer;
 
 mod editing {
-    use xi_rope::Rope;
+    use lapce_xi_rope::Rope;
 
     use super::*;
     use crate::{editor::EditType, selection::Selection};

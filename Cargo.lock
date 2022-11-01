@@ -2520,6 +2520,7 @@ dependencies = [
  "directories",
  "itertools",
  "lapce-rpc",
+ "lapce-xi-rope",
  "log 0.4.17",
  "lsp-types",
  "once_cell",
@@ -2575,7 +2576,6 @@ dependencies = [
  "tree-sitter-xml",
  "tree-sitter-yaml",
  "tree-sitter-zig",
- "xi-rope",
 ]
 
 [[package]]
@@ -2603,6 +2603,7 @@ dependencies = [
  "lapce-core",
  "lapce-proxy",
  "lapce-rpc",
+ "lapce-xi-rope",
  "log 0.4.17",
  "lsp-types",
  "notify",
@@ -2623,7 +2624,6 @@ dependencies = [
  "thiserror",
  "toml_edit",
  "uuid",
- "xi-rope",
  "zip",
 ]
 
@@ -2648,6 +2648,7 @@ dependencies = [
  "jsonrpc-lite",
  "lapce-core",
  "lapce-rpc",
+ "lapce-xi-rope",
  "locale_config",
  "log 0.4.17",
  "lsp-types",
@@ -2669,7 +2670,6 @@ dependencies = [
  "wasmtime",
  "wasmtime-wasi",
  "which",
- "xi-rope",
 ]
 
 [[package]]
@@ -2678,12 +2678,12 @@ version = "0.2.1"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
+ "lapce-xi-rope",
  "log 0.4.17",
  "lsp-types",
  "parking_lot 0.11.2",
  "serde",
  "serde_json",
- "xi-rope",
 ]
 
 [[package]]
@@ -2704,6 +2704,7 @@ dependencies = [
  "lapce-core",
  "lapce-data",
  "lapce-rpc",
+ "lapce-xi-rope",
  "log 0.4.17",
  "log-panics",
  "lsp-types",
@@ -2716,7 +2717,19 @@ dependencies = [
  "toml_edit",
  "unicode-width",
  "winres",
- "xi-rope",
+]
+
+[[package]]
+name = "lapce-xi-rope"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08ae23edb8cf91f01edd9a87c88623eae3977c8d647a31c57cb12f1a125ca10a"
+dependencies = [
+ "bytecount",
+ "memchr",
+ "regex",
+ "serde",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -6269,18 +6282,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d1526bbe5aaeb5eb06885f4d987bcdfa5e23187055de9b83fe00156a821fabc"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "xi-rope"
-version = "0.3.0"
-source = "git+https://github.com/lapce/xi-editor#06816cc92e97996c12ec048aa9190b4efc00d1a6"
-dependencies = [
- "bytecount",
- "memchr",
- "regex",
- "serde",
- "unicode-segmentation",
 ]
 
 [[package]]

@@ -2,8 +2,8 @@ use std::{path::PathBuf, sync::Arc};
 
 use druid::{Command, EventCtx, ExtEventSink, Target, WidgetId};
 use lapce_core::buffer::Buffer;
+use lapce_xi_rope::Rope;
 use lsp_types::{Position, PrepareRenameResponse};
-use xi_rope::Rope;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},

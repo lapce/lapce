@@ -28,8 +28,8 @@ use lapce_data::{
     keypress::KeyPressFocus,
     settings::{LapceSettingsFocusData, LapceSettingsKind, SettingsValueKind},
 };
+use lapce_xi_rope::Rope;
 use serde::Serialize;
-use xi_rope::Rope;
 
 use crate::{
     editor::view::LapceEditorView,

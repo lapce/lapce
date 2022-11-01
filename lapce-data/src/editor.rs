@@ -27,13 +27,13 @@ use lapce_core::{
     syntax::edit::SyntaxEdit,
 };
 use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
+use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionOrCommand,
     CodeActionResponse, CompletionItem, CompletionTextEdit, DiagnosticSeverity,
     DocumentChangeOperation, DocumentChanges, GotoDefinitionResponse, Location,
     OneOf, Position, ResourceOp, TextEdit, Url, WorkspaceEdit,
 };
-use xi_rope::{Rope, RopeDelta, Transformer};
 
 use crate::{
     command::{
@@ -2715,12 +2715,12 @@ fn show_completion(
         | EditCommand::DeleteWordForward
         | EditCommand::DeleteForwardAndInsert => {
             let start = match deltas.get(0).and_then(|delta| delta.0.els.get(0)) {
-                Some(xi_rope::DeltaElement::Copy(_, start)) => *start,
+                Some(lapce_xi_rope::DeltaElement::Copy(_, start)) => *start,
                 _ => 0,
             };
 
             let end = match deltas.get(0).and_then(|delta| delta.0.els.get(1)) {
-                Some(xi_rope::DeltaElement::Copy(end, _)) => *end,
+                Some(lapce_xi_rope::DeltaElement::Copy(end, _)) => *end,
                 _ => 0,
             };
 

@@ -1,7 +1,7 @@
 use std::cmp::{max, min, Ordering};
 
+use lapce_xi_rope::{RopeDelta, Transformer};
 use serde::{Deserialize, Serialize};
-use xi_rope::{RopeDelta, Transformer};
 
 use crate::cursor::ColPosition;
 

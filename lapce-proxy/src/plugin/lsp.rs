@@ -11,6 +11,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, Params};
 use lapce_rpc::{style::LineStyle, RpcError};
+use lapce_xi_rope::Rope;
 use lsp_types::{
     notification::{Initialized, Notification},
     request::{Initialize, Request},
@@ -18,7 +19,6 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde_json::{json, Value};
-use xi_rope::Rope;
 
 use super::psp::{
     handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
@@ -99,7 +99,7 @@ impl PluginServerHandler for LspClient {
         language_id: String,
         path: PathBuf,
         text_document: TextDocumentIdentifier,
-        text: xi_rope::Rope,
+        text: lapce_xi_rope::Rope,
     ) {
         self.host.handle_did_save_text_document(
             language_id,
@@ -113,9 +113,9 @@ impl PluginServerHandler for LspClient {
         &mut self,
         language_id: String,
         document: lsp_types::VersionedTextDocumentIdentifier,
-        delta: xi_rope::RopeDelta,
-        text: xi_rope::Rope,
-        new_text: xi_rope::Rope,
+        delta: lapce_xi_rope::RopeDelta,
+        text: lapce_xi_rope::Rope,
+        new_text: lapce_xi_rope::Rope,
         change: Arc<
             Mutex<(
                 Option<TextDocumentContentChangeEvent>,

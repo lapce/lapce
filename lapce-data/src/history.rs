@@ -18,7 +18,7 @@ use lapce_rpc::{
     proxy::ProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
-use xi_rope::{spans::Spans, Rope};
+use lapce_xi_rope::{spans::Spans, Rope};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},

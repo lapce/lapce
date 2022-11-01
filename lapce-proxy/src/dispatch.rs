@@ -26,10 +26,10 @@ use lapce_rpc::{
     terminal::TermId,
     RequestId, RpcError,
 };
+use lapce_xi_rope::Rope;
 use lsp_types::{Position, Range, TextDocumentItem, Url};
 use parking_lot::Mutex;
 use regex::Regex;
-use xi_rope::Rope;
 
 use crate::{
     buffer::{get_mod_time, load_file, Buffer},

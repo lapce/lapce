@@ -42,8 +42,8 @@ use lapce_data::{
     proxy::path_from_url,
 };
 use lapce_rpc::proxy::ProxyResponse;
+use lapce_xi_rope::Rope;
 use lsp_types::DiagnosticSeverity;
-use xi_rope::Rope;
 
 use crate::{
     about::AboutBox, alert::AlertBox, completion::CompletionContainer,

@@ -10,8 +10,8 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
 use lapce_core::directory::Directory;
+use lapce_xi_rope::Rope;
 use serde::{Deserialize, Serialize};
-use xi_rope::Rope;
 
 use crate::{
     config::LapceConfig,

@@ -34,16 +34,16 @@ use lapce_rpc::{
     proxy::ProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
+use lapce_xi_rope::{
+    spans::{Spans, SpansBuilder},
+    Interval, Rope, RopeDelta, Transformer,
+};
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, DiagnosticSeverity, InlayHint,
     InlayHintLabel,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use xi_rope::{
-    spans::{Spans, SpansBuilder},
-    Interval, Rope, RopeDelta, Transformer,
-};
 
 use crate::{
     atomic_soft_tabs::{snap_to_soft_tab, snap_to_soft_tab_line_col, SnapDirection},

@@ -1,7 +1,7 @@
 use std::{borrow::Cow, ops::Range};
 
+use lapce_xi_rope::{interval::IntervalBounds, Cursor, Rope};
 use lsp_types::Position;
-use xi_rope::{interval::IntervalBounds, Cursor, Rope};
 
 use crate::{
     encoding::{offset_utf16_to_utf8, offset_utf8_to_utf16},

@@ -81,7 +81,7 @@ fn snap_to_soft_tab_logic(
 
 /// Count the number of spaces found after a certain offset.
 fn count_spaces_from(buffer: &Buffer, from_offset: usize) -> usize {
-    let mut cursor = xi_rope::Cursor::new(buffer.text(), from_offset);
+    let mut cursor = lapce_xi_rope::Cursor::new(buffer.text(), from_offset);
     let mut space_count = 0usize;
     while let Some(next) = cursor.next_codepoint() {
         if next != ' ' {

@@ -15,10 +15,10 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
+use lapce_xi_rope::Rope;
 use tree_sitter::{
     Language, Point, Query, QueryCaptures, QueryCursor, QueryMatch, Tree,
 };
-use xi_rope::Rope;
 
 use super::{util::RopeProvider, PARSER};
 use crate::{language::LapceLanguage, style::SCOPES};

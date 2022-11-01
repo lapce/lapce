@@ -4,13 +4,13 @@ use lapce_core::{
     selection::{InsertDrift, SelRegion, Selection},
     word::WordCursor,
 };
-use regex::{Regex, RegexBuilder};
-use serde::{Deserialize, Serialize};
-use xi_rope::{
+use lapce_xi_rope::{
     delta::DeltaRegion,
     find::{find, is_multiline_regex, CaseMatching},
     Cursor, Interval, LinesMetric, Metric, Rope, RopeDelta,
 };
+use regex::{Regex, RegexBuilder};
+use serde::{Deserialize, Serialize};
 
 const REGEX_SIZE_LIMIT: usize = 1000000;
 

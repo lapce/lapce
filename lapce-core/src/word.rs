@@ -1,4 +1,4 @@
-use xi_rope::{Cursor, Rope, RopeInfo};
+use lapce_xi_rope::{Cursor, Rope, RopeInfo};
 
 use crate::{
     mode::Mode,
@@ -494,7 +494,7 @@ fn classify_boundary(
 
 #[cfg(test)]
 mod test {
-    use xi_rope::Rope;
+    use lapce_xi_rope::Rope;
 
     use super::WordCursor;
     use crate::mode::Mode;

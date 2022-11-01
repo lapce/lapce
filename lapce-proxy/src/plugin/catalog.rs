@@ -14,6 +14,7 @@ use lapce_rpc::{
     style::LineStyle,
     RpcError,
 };
+use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::DidOpenTextDocument, DidOpenTextDocumentParams, SemanticTokens,
     TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier,
@@ -21,7 +22,6 @@ use lsp_types::{
 use parking_lot::Mutex;
 use psp_types::Notification;
 use serde_json::Value;
-use xi_rope::{Rope, RopeDelta};
 
 use super::{
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},

@@ -21,6 +21,7 @@ use lapce_rpc::{
     style::Style,
     terminal::TermId,
 };
+use lapce_xi_rope::{spans::Spans, Rope};
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     InlayHint, Location, MessageType, Position, ProgressParams,
@@ -29,7 +30,6 @@ use lsp_types::{
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
-use xi_rope::{spans::Spans, Rope};
 
 use crate::{
     alert::AlertContentData,

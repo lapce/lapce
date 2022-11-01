@@ -16,13 +16,13 @@ use std::{
 
 use itertools::Itertools;
 use lapce_rpc::style::Style;
-use slotmap::{DefaultKey as LayerId, HopSlotMap};
-use thiserror::Error;
-use tree_sitter::{Node, Parser, Point, QueryCursor, Tree};
-use xi_rope::{
+use lapce_xi_rope::{
     spans::{Spans, SpansBuilder},
     Interval, Rope,
 };
+use slotmap::{DefaultKey as LayerId, HopSlotMap};
+use thiserror::Error;
+use tree_sitter::{Node, Parser, Point, QueryCursor, Tree};
 
 use self::{
     edit::SyntaxEdit,

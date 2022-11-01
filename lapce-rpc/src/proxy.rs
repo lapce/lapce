@@ -16,7 +16,7 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use xi_rope::RopeDelta;
+use lapce_xi_rope::RopeDelta;
 
 use crate::{
     buffer::BufferId,

@@ -26,6 +26,7 @@ use lapce_rpc::{
     style::LineStyle,
     RequestId, RpcError,
 };
+use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     request::{
         CodeActionRequest, CodeActionResolveRequest, Completion,
@@ -49,7 +50,6 @@ use lsp_types::{
 use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
-use xi_rope::{Rope, RopeDelta};
 
 use self::{
     catalog::PluginCatalog,
@@ -60,6 +60,7 @@ use crate::buffer::language_id_from_path;
 
 pub type PluginName = String;
 
+#[allow(clippy::large_enum_variant)]
 pub enum PluginCatalogRpc {
     ServerRequest {
         plugin_id: Option<PluginId>,
@@ -102,6 +103,7 @@ pub enum PluginCatalogRpc {
     Shutdown,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum PluginCatalogNotification {
     UpdatePluginConfigs(HashMap<String, HashMap<String, serde_json::Value>>),
     UnactivatedVolts(Vec<VoltMetadata>),

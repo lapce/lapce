@@ -9,8 +9,7 @@ use std::{
     },
 };
 
-use lsp_types::Position;
-use xi_rope::{
+use lapce_xi_rope::{
     delta::InsertDelta,
     diff::{Diff, LineHashDiff},
     interval::IntervalBounds,
@@ -18,6 +17,7 @@ use xi_rope::{
     tree::{Node, NodeInfo},
     Cursor, Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta, RopeInfo,
 };
+use lsp_types::Position;
 
 use crate::{
     cursor::CursorMode,

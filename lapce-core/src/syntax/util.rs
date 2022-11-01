@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
+use lapce_xi_rope::{rope::ChunkIter, Rope};
 use tree_sitter::TextProvider;
-use xi_rope::{rope::ChunkIter, Rope};
 
 pub struct RopeChunksIterBytes<'a> {
     chunks: ChunkIter<'a>,

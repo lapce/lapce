@@ -18,6 +18,7 @@ use lapce_rpc::{
     style::{LineStyle, Style},
     RpcError,
 };
+use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::{
         DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument,
@@ -46,7 +47,6 @@ use parking_lot::Mutex;
 use psp_types::{Request, StartLspServer, StartLspServerParams};
 use serde::Serialize;
 use serde_json::Value;
-use xi_rope::{Rope, RopeDelta};
 
 use super::{
     lsp::{DocumentFilter, LspClient},

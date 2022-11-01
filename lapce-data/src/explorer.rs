@@ -7,7 +7,7 @@ use std::{
 use druid::{Command, EventCtx, ExtEventSink, Target, WidgetId};
 use lapce_core::{cursor::CursorMode, selection::Selection};
 use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
-use xi_rope::Rope;
+use lapce_xi_rope::Rope;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},

@@ -39,11 +39,11 @@ use lapce_rpc::{
     terminal::TermId,
     RpcMessage,
 };
+use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdit};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use xi_rope::{Rope, RopeDelta};
 
 use crate::{
     about::AboutData,
