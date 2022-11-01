@@ -70,6 +70,7 @@ declare_language_highlights!(
     Haxe: "lang-haxe",
     Hcl: "lang-hcl",
     Html: "lang-html",
+    Ini: "lang-ini",
     Java: "lang-java",
     Javascript: "lang-javascript",
     Json: "lang-json",

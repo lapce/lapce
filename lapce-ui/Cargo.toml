@@ -66,6 +66,7 @@ all-languages = [
     "lang-haxe",
     "lang-hcl",
     "lang-html",
+    "lang-ini",
     "lang-java",
     "lang-javascript",
     "lang-json",
@@ -114,6 +115,7 @@ lang-haskell = ["lapce-core/lang-haskell"]
 lang-haxe = ["lapce-core/lang-haxe"]
 lang-hcl = ["lapce-core/lang-hcl"]
 lang-html = ["lapce-core/lang-html"]
+lang-ini = ["lapce-core/lang-ini"]
 lang-java = ["lapce-core/lang-java"]
 lang-javascript = ["lapce-core/lang-javascript"]
 lang-json = ["lapce-core/lang-json"]

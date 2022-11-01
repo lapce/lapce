@@ -96,6 +96,9 @@ struct SyntaxProperties {
     /// File name extensions to determine the language.  `["py"]` for python,
     /// `["rs"]` for rust, for example.
     extensions: &'static [&'static str],
+    /// Dotfile names to determine the language.  `[".editorconfig"]` for `.editorconfig` files,
+    /// `[".gitignore"]` for `.gitignore` files, for example.
+    dotfiles: &'static [&'static str],
 }
 
 // NOTE: Keep the enum variants "fieldless" so they can cast to usize as array
@@ -144,6 +147,8 @@ pub enum LapceLanguage {
     Hcl,
     #[cfg(feature = "lang-html")]
     Html,
+    #[cfg(feature = "lang-ini")]
+    Ini,
     #[cfg(feature = "lang-java")]
     Java,
     #[cfg(feature = "lang-javascript")]
@@ -226,6 +231,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["sh", "bash"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-c")]
     SyntaxProperties {
@@ -238,6 +244,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &["function_definition", "struct_specifier"],
         extensions: &["c", "h"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-cpp")]
     SyntaxProperties {
@@ -254,6 +261,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             "struct_specifier",
         ],
         extensions: &["cpp", "cxx", "cc", "c++", "hpp", "hxx", "hh", "h++"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-csharp")]
     SyntaxProperties {
@@ -266,6 +274,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["cs", "csx"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-css")]
     SyntaxProperties {
@@ -278,6 +287,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["css"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-d")]
     SyntaxProperties {
@@ -290,6 +300,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["d", "di", "dlang"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-dart")]
     SyntaxProperties {
@@ -302,6 +313,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["dart"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-dockerfile")]
     SyntaxProperties {
@@ -314,6 +326,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["containerfile", "dockerfile"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-elixir")]
     SyntaxProperties {
@@ -326,6 +339,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &["do_block"],
         extensions: &["ex", "exs", "eex", "heex", "sface"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-elm")]
     SyntaxProperties {
@@ -338,6 +352,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["elm"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-erlang")]
     SyntaxProperties {
@@ -350,6 +365,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["erl", "hrl"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-glimmer")]
     SyntaxProperties {
@@ -362,6 +378,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["hbs"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-go")]
     SyntaxProperties {
@@ -383,6 +400,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         ),
         sticky_headers: &[],
         extensions: &["go"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-hare")]
     SyntaxProperties {
@@ -395,6 +413,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["ha"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-haskell")]
     SyntaxProperties {
@@ -407,6 +426,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["hs"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-haxe")]
     SyntaxProperties {
@@ -419,6 +439,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["hx"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-hcl")]
     SyntaxProperties {
@@ -431,6 +452,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["hcl", "tf"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-html")]
     SyntaxProperties {
@@ -443,6 +465,20 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["html", "htm"],
+        dotfiles: &[],
+    },
+    #[cfg(feature = "lang-ini")]
+    SyntaxProperties {
+        id: LapceLanguage::Ini,
+        language: tree_sitter_ini::language,
+        highlight: include_str!("../queries/ini/highlights.scm"),
+        injection: None,
+        comment: ";",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["ini"],
+        dotfiles: &[".editorconfig"],
     },
     #[cfg(feature = "lang-java")]
     SyntaxProperties {
@@ -455,6 +491,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["java"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-javascript")]
     SyntaxProperties {
@@ -467,6 +504,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (&["source_file", "program"], &["source_file"]),
         sticky_headers: &[],
         extensions: &["js", "cjs", "mjs"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-json")]
     SyntaxProperties {
@@ -479,6 +517,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &["pair"],
         extensions: &["json"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-javascript")]
     SyntaxProperties {
@@ -492,6 +531,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (&["source_file", "program"], &["source_file"]),
         sticky_headers: &[],
         extensions: &["jsx"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-julia")]
     SyntaxProperties {
@@ -504,6 +544,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["julia", "jl"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-kotlin")]
     SyntaxProperties {
@@ -516,6 +557,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["kt", "kts"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-latex")]
     SyntaxProperties {
@@ -528,6 +570,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["tex"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-lua")]
     SyntaxProperties {
@@ -540,6 +583,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         extensions: &["lua"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-markdown")]
     SyntaxProperties {
@@ -552,6 +596,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["md"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-markdown")]
     SyntaxProperties {
@@ -565,6 +610,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         // markdown inline is only used as an injection by the Markdown language
         extensions: &[],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-nix")]
     SyntaxProperties {
@@ -577,6 +623,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["nix"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-ocaml")]
     SyntaxProperties {
@@ -589,6 +636,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["ml"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-ocaml")]
     SyntaxProperties {
@@ -601,6 +649,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["mli"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-php")]
     SyntaxProperties {
@@ -613,6 +662,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["php"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-python")]
     SyntaxProperties {
@@ -636,6 +686,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         ),
         sticky_headers: &[],
         extensions: &["py", "pyi", "pyc", "pyd", "pyw"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-ql")]
     SyntaxProperties {
@@ -648,6 +699,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["ql"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-r")]
     SyntaxProperties {
@@ -660,6 +712,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["r"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-ruby")]
     SyntaxProperties {
@@ -673,6 +726,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &["module", "class", "method", "do_block"],
 
         extensions: &["rb"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-rust")]
     SyntaxProperties {
@@ -688,6 +742,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         ),
         sticky_headers: &["struct_item", "enum_item", "function_item", "impl_item"],
         extensions: &["rs"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-scheme")]
     SyntaxProperties {
@@ -700,6 +755,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["scm", "ss"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-scss")]
     SyntaxProperties {
@@ -712,6 +768,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["scss"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-sql")]
     SyntaxProperties {
@@ -724,6 +781,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["sql"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-svelte")]
     SyntaxProperties {
@@ -736,6 +794,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["svelte"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-swift")]
     SyntaxProperties {
@@ -748,6 +807,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["swift"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-toml")]
     SyntaxProperties {
@@ -760,6 +820,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["toml"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-typescript")]
     SyntaxProperties {
@@ -772,6 +833,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (&["source_file", "program"], &["source_file"]),
         sticky_headers: &[],
         extensions: &["tsx"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-typescript")]
     SyntaxProperties {
@@ -784,6 +846,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (&["source_file", "program"], &["source_file"]),
         sticky_headers: &[],
         extensions: &["ts", "cts", "mts"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-vue")]
     SyntaxProperties {
@@ -796,6 +859,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["vue"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-wgsl")]
     SyntaxProperties {
@@ -808,6 +872,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["wgsl"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-xml")]
     SyntaxProperties {
@@ -820,6 +885,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["xml"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-yaml")]
     SyntaxProperties {
@@ -832,6 +898,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["yml", "yaml"],
+        dotfiles: &[],
     },
     #[cfg(feature = "lang-zig")]
     SyntaxProperties {
@@ -844,17 +911,28 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["zig"],
+        dotfiles: &[],
     },
 ];
 
 impl LapceLanguage {
     pub fn from_path(path: &Path) -> Option<LapceLanguage> {
-        let extension = path.extension()?.to_str()?.to_lowercase();
-        // NOTE: This is a linear search.  It is assumed that this function
+        // NOTE: Both of these are linear searchs.  It is assumed that this function
         // isn't called in any tight loop.
-        for properties in LANGUAGES {
-            if properties.extensions.contains(&extension.as_str()) {
-                return Some(properties.id);
+        let extension = path.extension();
+        let file_name = path.file_name()?.to_str()?.to_lowercase();
+        if extension.is_none() && file_name.starts_with('.') {
+            for properties in LANGUAGES {
+                if properties.dotfiles.contains(&file_name.as_str()) {
+                    return Some(properties.id);
+                }
+            }
+        } else {
+            let extension_name = extension?.to_str()?.to_lowercase();
+            for properties in LANGUAGES {
+                if properties.extensions.contains(&extension_name.as_str()) {
+                    return Some(properties.id);
+                }
             }
         }
         None
@@ -963,19 +1041,36 @@ mod test {
 
     fn assert_language(expected: LapceLanguage, exts: &[&str]) {
         for ext in exts {
-            let path = PathBuf::from(&format!("a.{ext}"));
-            let lang = LapceLanguage::from_path(&path).unwrap();
-
-            assert_eq!(lang, expected);
-            // In debug build, this assertion will never set off.  It
-            // nonetheless exercises the boundary check, and the debug
-            // assertion, in the `properties()` function.
-            assert_eq!(lang.properties().id, expected);
+            assert_lang(expected, ext, false)
         }
-
         // Hopefully there will not be such a file extension to support.
         let path = PathBuf::from("a.___");
         assert!(LapceLanguage::from_path(&path).is_none());
+    }
+
+    fn assert_dotfile_language(expected: LapceLanguage, dotfiles: &[&str]) {
+        for dotfile in dotfiles {
+            assert_lang(expected, dotfile, true)
+        }
+        // Hopefully there will not be such a dotfile to support.
+        let path = PathBuf::from(".___");
+        assert!(LapceLanguage::from_path(&path).is_none());
+    }
+
+    fn assert_lang(expected: LapceLanguage, name: &str, dotfile: bool) {
+        let path_name = if dotfile {
+            name.to_string()
+        } else {
+            format!("a.{name}").to_string()
+        };
+        let path = PathBuf::from(path_name);
+        let lang = LapceLanguage::from_path(&path).unwrap();
+
+        assert_eq!(lang, expected);
+        // In debug build, this assertion will never set off.  It
+        // nonetheless exercises the boundary check, and the debug
+        // assertion, in the `properties()` function.
+        assert_eq!(lang.properties().id, expected);
     }
 
     #[test]
@@ -1081,6 +1176,18 @@ mod test {
     #[cfg(feature = "lang-html")]
     fn test_html_lang() {
         assert_language(LapceLanguage::Html, &["html", "htm"]);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-ini")]
+    fn test_ini_lang() {
+        assert_language(LapceLanguage::Ini, &["ini"]);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-ini")]
+    fn test_ini_dotfile_lang() {
+        assert_dotfile_language(LapceLanguage::Ini, &[".editorconfig"]);
     }
 
     #[test]
