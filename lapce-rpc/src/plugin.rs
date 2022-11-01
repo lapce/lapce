@@ -62,6 +62,7 @@ pub struct VoltMetadata {
     pub author: String,
     pub description: String,
     pub icon: Option<String>,
+    pub repository: Option<String>,
     pub wasm: Option<String>,
     pub color_themes: Option<Vec<String>>,
     pub icon_themes: Option<Vec<String>>,

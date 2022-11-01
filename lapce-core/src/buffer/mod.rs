@@ -869,6 +869,7 @@ impl Buffer {
         if self.is_empty() {
             return None;
         }
+        let offset = offset.min(self.len());
         WordCursor::new(&self.text, offset)
             .inner
             .peek_next_codepoint()
