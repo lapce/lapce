@@ -8,6 +8,7 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender};
+use lapce_xi_rope::RopeDelta;
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
     CompletionItem, DocumentSymbolResponse, GotoDefinitionResponse, Hover,
@@ -16,7 +17,6 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use lapce_xi_rope::RopeDelta;
 
 use crate::{
     buffer::BufferId,
