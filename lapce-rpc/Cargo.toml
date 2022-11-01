@@ -1,5 +1,7 @@
 [package]
 name = "lapce-rpc"
+description = "Data formats between lapce components"
+license = "Apache-2.0"
 version = "0.2.1"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
