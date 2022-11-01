@@ -204,6 +204,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "jsx" => "javascriptreact",
                     "json" => "json",
                     "jl" => "julia",
+                    "kt" | "kts" => "kotlin",
                     "less" => "less",
                     "lua" => "lua",
                     "makefile" | "gnumakefile" => "makefile",

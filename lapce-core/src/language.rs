@@ -515,7 +515,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
-        extensions: &["kt"],
+        extensions: &["kt", "kts"],
     },
     #[cfg(feature = "lang-latex")]
     SyntaxProperties {
@@ -1187,7 +1187,7 @@ mod test {
     }
     #[cfg(feature = "lang-kotlin")]
     fn test_kotlin_lang() {
-        assert_language(LapceLanguage::Kotlin, &["kt"]);
+        assert_language(LapceLanguage::Kotlin, &["kt", "kts"]);
     }
     #[cfg(feature = "lang-vue")]
     fn test_vue_lang() {
