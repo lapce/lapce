@@ -877,7 +877,7 @@ impl Editor {
                         if indent < smallest_indent {
                             smallest_indent = indent;
                         }
-                        if !trimmed_content.starts_with(&comment_token) {
+                        if !trimmed_content.starts_with(comment_token) {
                             had_comment = false;
                             lines.insert((line, indent, 0));
                         } else {
@@ -888,7 +888,7 @@ impl Editor {
                                 line,
                                 indent,
                                 comment_token.len()
-                                    + if had_space_after_comment { 1 } else { 0 },
+                                    + usize::from(had_space_after_comment),
                             ));
                         }
                         line += 1;

@@ -445,7 +445,7 @@ impl LspClient {
     ) -> Result<Child> {
         let mut process = Command::new(server);
         if let Some(workspace) = workspace {
-            process.current_dir(&workspace);
+            process.current_dir(workspace);
         }
 
         process.args(args);

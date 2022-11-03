@@ -650,7 +650,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 ..
             } => {
                 let text = name.to_string();
-                let hint = container_name.clone().unwrap_or_else(|| "".to_string());
+                let hint = container_name.clone().unwrap_or_default();
                 let text_indices = self
                     .indices
                     .iter()

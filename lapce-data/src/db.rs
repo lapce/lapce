@@ -427,7 +427,7 @@ impl LapceDb {
         let key = "recent_workspaces";
         let sled_db = self.get_db()?;
         let workspaces = sled_db
-            .get(&key)?
+            .get(key)?
             .ok_or_else(|| anyhow!("can't find recent workspaces"))?;
         let workspaces = std::str::from_utf8(&workspaces)?;
         let workspaces: Vec<LapceWorkspace> = serde_json::from_str(workspaces)?;

@@ -961,7 +961,7 @@ pub fn download_volt(
         let url = url.join(wasm)?;
         {
             let mut resp = reqwest::blocking::get(url)?;
-            if let Some(path) = path.join(&wasm).parent() {
+            if let Some(path) = path.join(wasm).parent() {
                 if !path.exists() {
                     fs::DirBuilder::new().recursive(true).create(path)?;
                 }
@@ -970,7 +970,7 @@ pub fn download_volt(
                 .create(true)
                 .truncate(true)
                 .write(true)
-                .open(path.join(&wasm))?;
+                .open(path.join(wasm))?;
             std::io::copy(&mut resp, &mut file)?;
         }
     }
@@ -983,7 +983,7 @@ pub fn download_volt(
                     .create(true)
                     .truncate(true)
                     .write(true)
-                    .open(path.join(&theme))?;
+                    .open(path.join(theme))?;
                 std::io::copy(&mut resp, &mut file)?;
             }
         }
@@ -997,7 +997,7 @@ pub fn download_volt(
                     .create(true)
                     .truncate(true)
                     .write(true)
-                    .open(path.join(&theme))?;
+                    .open(path.join(theme))?;
                 std::io::copy(&mut resp, &mut file)?;
             }
         }

@@ -238,7 +238,7 @@ impl Widget<LapceTabData> for SearchInput {
         for icon in self.icons.iter() {
             if icon.icon == LapceIcons::SEARCH_CASE_SENSITIVE && case_sensitive {
                 ctx.fill(
-                    &icon.rect,
+                    icon.rect,
                     data.config
                         .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_UNDERLINE),
                 );
@@ -246,7 +246,7 @@ impl Widget<LapceTabData> for SearchInput {
                 && icon.icon != LapceIcons::SEARCH_CASE_SENSITIVE
             {
                 ctx.fill(
-                    &icon.rect,
+                    icon.rect,
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
                 );
