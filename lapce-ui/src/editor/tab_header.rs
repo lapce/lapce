@@ -431,7 +431,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
         for icon in self.icons.iter() {
             if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
-                    &icon.rect,
+                    icon.rect,
                     &data.config.get_hover_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),

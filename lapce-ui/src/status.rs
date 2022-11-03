@@ -470,7 +470,7 @@ impl Widget<LapceTabData> for LapceStatus {
         for icon in self.panel_icons.iter() {
             if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
-                    &icon.rect,
+                    icon.rect,
                     data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
                 );
             }

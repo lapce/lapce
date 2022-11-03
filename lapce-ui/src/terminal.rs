@@ -446,7 +446,7 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
             for icon in self.icons.iter() {
                 if icon.rect.contains(self.mouse_pos) {
                     ctx.fill(
-                        &icon.rect,
+                        icon.rect,
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
                     );

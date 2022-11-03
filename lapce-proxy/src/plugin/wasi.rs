@@ -235,7 +235,7 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
 }
 
 pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
-    let mut file = fs::File::open(&path)?;
+    let mut file = fs::File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
     let mut meta: VoltMetadata = toml::from_str(&contents)?;

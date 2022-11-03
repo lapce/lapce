@@ -7,7 +7,7 @@ pub struct Directory {}
 
 impl Directory {
     fn project_dirs() -> Option<ProjectDirs> {
-        ProjectDirs::from("dev", "lapce", *NAME)
+        ProjectDirs::from("dev", "lapce", &NAME)
     }
 
     // Get path of local data directory
