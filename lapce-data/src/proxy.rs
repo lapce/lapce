@@ -900,7 +900,7 @@ impl Remote for WslRemote {
 pub fn path_from_url(url: &Url) -> PathBuf {
     let path = url.path();
     if let Some(path) = path.strip_prefix('/') {
-        if let Some((maybe_drive_letter, _)) = path.split_once(&['/', '\\']) {
+        if let Some((maybe_drive_letter, _)) = path.split_once(['/', '\\']) {
             let b = maybe_drive_letter.as_bytes();
             if b.len() == 2
                 && matches!(
