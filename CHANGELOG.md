@@ -22,9 +22,6 @@
   - **This is a breaking change for colour themes!**
   - Colour themes should now use `[color-theme]` table format in theme TOML
   - `volt.toml` now use `color-themes` and `icon-themes` keys. `themes` key is not used anymore.
-  - Colour themes now must specify colour preference via `[color-theme.color-preference]` key.
-    Available values are `Dark`, `Light`, `HighContrastDark` and `HighContrastLight`.
-    This is used to automatically calculate UI icons and background colours for hover/click events.
 - [#1554](https://github.com/lapce/lapce/pull/1554): Added XML language support
 - [#1472](https://github.com/lapce/lapce/pull/1472): Added SQL language support
 - [#1531](https://github.com/lapce/lapce/pull/1531): Improved Ctrl+Left command on spaces at the beginning of a line
