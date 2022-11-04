@@ -4,6 +4,12 @@
 
 ### Features/Changes
 
+### Bug Fixes
+
+## 0.2.2
+
+### Features/Changes
+
 - [#1643](https://github.com/lapce/lapce/pull/1643): Use https://plugins.lapce.dev/ as the plugin registry
 - [#1620](https://github.com/lapce/lapce/pull/1620): Added "Show Hover" keybinding that will trigger the hover at the cursor location
 - [#1619](https://github.com/lapce/lapce/pull/1619):
@@ -33,7 +39,6 @@
 - [#1452](https://github.com/lapce/lapce/pull/1452): Wrap selected text with brackets/quotes
 - [#1421](https://github.com/lapce/lapce/pull/1421): Add matching bracket highlighting
 - [#1541](https://github.com/lapce/lapce/pull/1541): Order palette items according to last execute time
-
 
 ### Bug Fixes
 
