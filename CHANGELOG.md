@@ -4,6 +4,7 @@
 
 ### Features/Changes
 
+- [#1643](https://github.com/lapce/lapce/pull/1643): Use https://plugins.lapce.dev/ as the plugin registry
 - [#1620](https://github.com/lapce/lapce/pull/1620): Added "Show Hover" keybinding that will trigger the hover at the cursor location
 - [#1619](https://github.com/lapce/lapce/pull/1619):
   - Add active/inactive tab colours
