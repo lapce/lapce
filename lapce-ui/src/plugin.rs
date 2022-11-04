@@ -83,7 +83,9 @@ impl Plugin {
         config: &LapceConfig,
         i: usize,
     ) {
-        let y = self.line_height * i as f64;
+        let rect = ctx.region().bounding_box();
+
+        let y = self.line_height * i as f64 + rect.y0;
         let x = 0.0; //0.5 * self.line_height;
 
         let text_layout = ctx
@@ -310,7 +312,7 @@ impl Plugin {
 
             let color = match status {
                 PluginStatus::Installed => LapceTheme::EDITOR_FOCUS,
-                PluginStatus::Upgrade(_) => LapceTheme::LAPCE_WARN,
+                PluginStatus::Upgrade => LapceTheme::LAPCE_WARN,
                 _ => LapceTheme::EDITOR_DIM,
             };
 
@@ -594,6 +596,8 @@ pub struct PluginInfo {
     desc_text_layout: Option<PietTextLayout>,
     author_text_layout: Option<PietTextLayout>,
     version_text_layout: Option<PietTextLayout>,
+    repo_text_layout: Option<PietTextLayout>,
+    repo: Option<(Rect, String)>,
     line_height: f64,
     icon_width: f64,
     title_width: f64,
@@ -616,6 +620,8 @@ impl PluginInfo {
             desc_text_layout: None,
             author_text_layout: None,
             version_text_layout: None,
+            repo_text_layout: None,
+            repo: None,
             icon_width: 0.0,
             title_width: 0.0,
             readme_layout,
@@ -694,13 +700,27 @@ impl Widget<LapceTabData> for PluginInfo {
                 }
             }
             Event::MouseMove(mouse_event) => {
-                if self.status_rect.contains(mouse_event.pos) {
+                let on_repo = self
+                    .repo
+                    .as_ref()
+                    .map(|(r, _)| r.contains(mouse_event.pos))
+                    .unwrap_or(false);
+                if on_repo || self.status_rect.contains(mouse_event.pos) {
                     ctx.set_cursor(&Cursor::Pointer);
                 } else {
                     ctx.clear_cursor();
                 }
             }
             Event::MouseDown(mouse_event) => {
+                if let Some((r, s)) = self.repo.as_ref() {
+                    if r.contains(mouse_event.pos) {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::OpenURI(s.to_string()),
+                            Target::Widget(data.id),
+                        ));
+                    }
+                }
                 if self.status_rect.contains(mouse_event.pos) {
                     status_on_click(ctx, data, &self.volt_id, mouse_event.pos);
                 }
@@ -855,7 +875,7 @@ impl Widget<LapceTabData> for PluginInfo {
 
             self.icon_width = self.name_text_layout.as_ref().unwrap().size().height
                 * 2.0
-                + self.line_height * 3.0;
+                + self.line_height * 4.0;
             self.title_width = self
                 .name_text_layout
                 .as_ref()
@@ -892,10 +912,57 @@ impl Widget<LapceTabData> for PluginInfo {
                 + self.readme_layout.size().height
                 + self.gap;
 
+            self.repo_text_layout = {
+                let text = format!(
+                    "Repository: {}",
+                    volt.repository.as_deref().unwrap_or("")
+                );
+                let layout = ctx
+                    .text()
+                    .new_text_layout(text)
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .range_attribute(
+                        12..,
+                        TextAttribute::TextColor(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_LINK)
+                                .clone(),
+                        ),
+                    )
+                    .build()
+                    .unwrap();
+
+                if let Some(repo) = volt.repository.as_ref() {
+                    let padding = self.get_margin(bc.max().width.max(info_width));
+                    let shift = layout.hit_test_text_position(12).point.x;
+                    let x = padding + self.padding + self.icon_width + shift;
+                    let y = self.gap
+                        + self.name_text_layout.as_ref().unwrap().size().height
+                            * 2.0
+                        + self.line_height;
+                    let rect =
+                        Size::new(layout.size().width - shift, self.line_height)
+                            .to_rect()
+                            .with_origin(Point::new(x, y));
+                    self.repo = Some((rect, repo.to_string()));
+                }
+
+                Some(layout)
+            };
+
             (info_width, height)
         } else {
             (0.0, 0.0)
         };
+
         Size::new(bc.max().width.max(width), bc.max().height.max(height))
     }
 
@@ -910,6 +977,10 @@ impl Widget<LapceTabData> for PluginInfo {
 
             let desc_text_layout = self.desc_text_layout.as_ref().unwrap();
             let desc_y = y;
+            y += self.line_height;
+
+            let repo_text_layout = self.repo_text_layout.as_ref().unwrap();
+            let repo_y = y;
             y += self.line_height;
 
             let author_text_layout = self.author_text_layout.as_ref().unwrap();
@@ -952,6 +1023,13 @@ impl Widget<LapceTabData> for PluginInfo {
                 Point::new(
                     padding + self.padding + self.icon_width,
                     author_y + author_text_layout.y_offset(self.line_height),
+                ),
+            );
+            ctx.draw_text(
+                repo_text_layout,
+                Point::new(
+                    padding + self.padding + self.icon_width,
+                    repo_y + repo_text_layout.y_offset(self.line_height),
                 ),
             );
 
@@ -1037,9 +1115,8 @@ fn status_on_click(ctx: &mut EventCtx, data: &LapceTabData, id: &str, pos: Point
     if let Some(meta) = data.plugin.installed.get(id) {
         let mut menu = druid::Menu::<LapceData>::new("Plugin");
 
-        if let PluginStatus::Upgrade(meta_link) = status {
-            let mut info = meta.info();
-            info.meta = meta_link;
+        if let PluginStatus::Upgrade = status {
+            let info = meta.info();
             let proxy = data.proxy.clone();
             let item = druid::MenuItem::new("Upgrade Plugin").on_activate(
                 move |_ctx, _data, _env| {

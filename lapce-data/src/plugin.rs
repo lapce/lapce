@@ -7,8 +7,8 @@ use druid::{ExtEventSink, Target, WidgetId};
 use indexmap::IndexMap;
 use lapce_proxy::plugin::{download_volt, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
-use lsp_types::Url;
 use plugin_install_status::PluginInstallStatus;
+use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 
 use crate::{
@@ -86,6 +86,11 @@ pub enum PluginLoadStatus {
     Success,
 }
 
+#[derive(Deserialize, Serialize)]
+struct PluginsInfo {
+    plugins: Vec<VoltInfo>,
+}
+
 impl PluginData {
     pub fn new(
         tab_id: WidgetId,
@@ -152,7 +157,7 @@ impl PluginData {
                 if meta.version == volt.version {
                     PluginStatus::Installed
                 } else {
-                    PluginStatus::Upgrade(volt.meta.clone())
+                    PluginStatus::Upgrade
                 }
             } else {
                 PluginStatus::Installed
@@ -163,9 +168,10 @@ impl PluginData {
     }
 
     fn load_volts() -> Result<Vec<VoltInfo>> {
-        let volts: Vec<VoltInfo> =
-            reqwest::blocking::get("https://lapce.dev/volts2")?.json()?;
-        Ok(volts)
+        let plugins: PluginsInfo =
+            reqwest::blocking::get("https://plugins.lapce.dev/api/v1/plugins")?
+                .json()?;
+        Ok(plugins.plugins)
     }
 
     pub fn download_readme(
@@ -174,8 +180,10 @@ impl PluginData {
         config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> Result<()> {
-        let url = Url::parse(&volt.meta)?;
-        let url = url.join("./README.md")?;
+        let url = format!(
+            "https://plugins.lapce.dev/api/v1/plugins/{}/{}/{}/readme",
+            volt.author, volt.name, volt.version
+        );
         let resp = reqwest::blocking::get(url)?;
         if resp.status() != 200 {
             let text = parse_markdown("Plugin doesn't have a README", 2.0, config);
@@ -197,27 +205,19 @@ impl PluginData {
     }
 
     pub fn install_volt(proxy: Arc<LapceProxy>, volt: VoltInfo) -> Result<()> {
-        let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
-        let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
+        proxy.core_rpc.volt_installing(volt.clone(), "".to_string());
 
-        proxy.core_rpc.volt_installing(meta.clone(), "".to_string());
-
-        if meta.wasm.is_some() {
+        if volt.wasm {
             proxy.proxy_rpc.install_volt(volt);
         } else {
             std::thread::spawn(move || -> Result<()> {
-                let download_volt_result =
-                    download_volt(volt, false, &meta, &meta_str);
+                let download_volt_result = download_volt(&volt);
                 if let Err(err) = download_volt_result {
                     log::warn!("download_volt err: {err:?}");
                     proxy.core_rpc.volt_installing(
-                        meta.clone(),
-                        "Could not download Volt".to_string(),
+                        volt.clone(),
+                        "Could not download Plugin".to_string(),
                     );
-                    std::thread::spawn(move || {
-                        std::thread::sleep(std::time::Duration::from_secs(3));
-                        proxy.core_rpc.volt_installed(meta, true);
-                    });
                     return Ok(());
                 }
 
@@ -247,10 +247,6 @@ impl PluginData {
                         meta.clone(),
                         "Could not remove Plugin Directory".to_string(),
                     );
-                    std::thread::spawn(move || {
-                        std::thread::sleep(std::time::Duration::from_secs(3));
-                        proxy.core_rpc.volt_removed(meta.info(), true);
-                    });
                 } else {
                     proxy.core_rpc.volt_removed(meta.info(), false);
                 }
@@ -265,6 +261,6 @@ impl PluginData {
 pub enum PluginStatus {
     Installed,
     Install,
-    Upgrade(String),
+    Upgrade,
     Disabled,
 }

@@ -4,6 +4,7 @@
 
 ### Features/Changes
 
+- [#1643](https://github.com/lapce/lapce/pull/1643): Use https://plugins.lapce.dev/ as the plugin registry
 - [#1620](https://github.com/lapce/lapce/pull/1620): Added "Show Hover" keybinding that will trigger the hover at the cursor location
 - [#1619](https://github.com/lapce/lapce/pull/1619):
   - Add active/inactive tab colours
@@ -11,7 +12,6 @@
   - Replace custom drawn checkboxes with icons in source control
   - Add hover effect in source control panel
   - Add colour preview in settings
-- [#1619](https://github.com/lapce/lapce/pull/1619): Add active/inactive tab colours, add primary button colour, replace custom drawn checkboxes with icons in source
 - [#1617](https://github.com/lapce/lapce/pull/1617): Fixed a stack overflow that would crash lapce when attempting to sort a large number of PaletteItems
 - [#1609](https://github.com/lapce/lapce/pull/1609): Add syntax highlighting for erlang
 - [#1590](https://github.com/lapce/lapce/pull/1590): Added ability to open file and file diff from source control context menu

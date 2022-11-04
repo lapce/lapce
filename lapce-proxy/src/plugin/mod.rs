@@ -6,7 +6,6 @@ pub mod wasi;
 use std::{
     collections::HashMap,
     fs,
-    io::Write,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
@@ -18,6 +17,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
+use flate2::read::GzDecoder;
 use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
@@ -50,6 +50,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
+use tar::Archive;
 
 use self::{
     catalog::PluginCatalog,
@@ -930,79 +931,37 @@ pub enum PluginNotification {
     },
 }
 
-pub fn download_volt(
-    volt: VoltInfo,
-    wasm: bool,
-    meta: &VoltMetadata,
-    meta_str: &String,
-) -> Result<VoltMetadata> {
-    if meta.wasm.is_some() != wasm {
-        return Err(anyhow!("plugin type not fit"));
+pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
+    let url = format!(
+        "https://plugins.lapce.dev/api/v1/plugins/{}/{}/{}/download",
+        volt.author, volt.name, volt.version
+    );
+
+    let resp = reqwest::blocking::get(url)?;
+    if !resp.status().is_success() {
+        return Err(anyhow!("can't download plugin"));
+    }
+
+    // this is the s3 url
+    let url = resp.text()?;
+
+    let mut resp = reqwest::blocking::get(url)?;
+    if !resp.status().is_success() {
+        return Err(anyhow!("can't download plugin"));
     }
 
     let id = volt.id();
-    let path = Directory::plugins_directory()
+    let plugin_dir = Directory::plugins_directory()
         .ok_or_else(|| anyhow!("can't get plugin directory"))?
         .join(&id);
-    let _ = fs::remove_dir_all(&path);
+    let _ = fs::remove_dir_all(&plugin_dir);
+    fs::create_dir_all(&plugin_dir)?;
 
-    fs::create_dir_all(&path)?;
-    let meta_path = path.join("volt.toml");
-    {
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .truncate(true)
-            .write(true)
-            .open(&meta_path)?;
-        file.write_all(meta_str.as_bytes())?;
-    }
-    let url = url::Url::parse(&volt.meta)?;
-    if let Some(wasm) = meta.wasm.as_ref() {
-        let url = url.join(wasm)?;
-        {
-            let mut resp = reqwest::blocking::get(url)?;
-            if let Some(path) = path.join(wasm).parent() {
-                if !path.exists() {
-                    fs::DirBuilder::new().recursive(true).create(path)?;
-                }
-            }
-            let mut file = fs::OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(path.join(wasm))?;
-            std::io::copy(&mut resp, &mut file)?;
-        }
-    }
-    if let Some(themes) = meta.color_themes.as_ref() {
-        for theme in themes {
-            let url = url.join(theme)?;
-            {
-                let mut resp = reqwest::blocking::get(url)?;
-                let mut file = std::fs::OpenOptions::new()
-                    .create(true)
-                    .truncate(true)
-                    .write(true)
-                    .open(path.join(theme))?;
-                std::io::copy(&mut resp, &mut file)?;
-            }
-        }
-    }
-    if let Some(themes) = meta.icon_themes.as_ref() {
-        for theme in themes {
-            let url = url.join(theme)?;
-            {
-                let mut resp = reqwest::blocking::get(url)?;
-                let mut file = std::fs::OpenOptions::new()
-                    .create(true)
-                    .truncate(true)
-                    .write(true)
-                    .open(path.join(theme))?;
-                std::io::copy(&mut resp, &mut file)?;
-            }
-        }
-    }
+    let tar = GzDecoder::new(&mut resp);
+    let mut archive = Archive::new(tar);
+    archive.unpack(&plugin_dir)?;
 
+    let meta_path = plugin_dir.join("volt.toml");
     let meta = load_volt(&meta_path)?;
     Ok(meta)
 }
@@ -1013,31 +972,18 @@ pub fn install_volt(
     configurations: Option<HashMap<String, serde_json::Value>>,
     volt: VoltInfo,
 ) -> Result<()> {
-    let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
-    let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
+    let download_volt_result = download_volt(&volt);
+    if download_volt_result.is_err() {
+        catalog_rpc
+            .core_rpc
+            .volt_installing(volt, "Could not download Plugin".to_string());
+    }
+    let meta = download_volt_result?;
+    let local_catalog_rpc = catalog_rpc.clone();
+    let local_meta = meta.clone();
 
-    thread::spawn(move || -> Result<()> {
-        let download_volt_result = download_volt(volt, true, &meta, &meta_str);
-        if download_volt_result.is_err() {
-            catalog_rpc.core_rpc.volt_installing(
-                meta.clone(),
-                "Could not download Volt".to_string(),
-            );
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(3));
-                catalog_rpc.core_rpc.volt_installed(meta, true);
-            });
-            return Ok(());
-        }
-
-        let meta = download_volt_result?;
-        let local_catalog_rpc = catalog_rpc.clone();
-        let local_meta = meta.clone();
-
-        let _ = start_volt(workspace, configurations, local_catalog_rpc, local_meta);
-        catalog_rpc.core_rpc.volt_installed(meta, false);
-        Ok(())
-    });
+    let _ = start_volt(workspace, configurations, local_catalog_rpc, local_meta);
+    catalog_rpc.core_rpc.volt_installed(meta, false);
     Ok(())
 }
 
@@ -1058,10 +1004,6 @@ pub fn remove_volt(
                 volt.clone(),
                 "Could not remove Plugin Directory".to_string(),
             );
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(3));
-                catalog_rpc.core_rpc.volt_removed(volt.info(), true);
-            });
         } else {
             catalog_rpc.core_rpc.volt_removed(volt.info(), false);
         }

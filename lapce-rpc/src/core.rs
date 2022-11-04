@@ -76,7 +76,7 @@ pub enum CoreNotification {
         only_installing: bool,
     },
     VoltInstalling {
-        volt: VoltMetadata,
+        volt: VoltInfo,
         error: String,
     },
     VoltRemoving {
@@ -240,7 +240,7 @@ impl CoreRpcHandler {
         });
     }
 
-    pub fn volt_installing(&self, volt: VoltMetadata, error: String) {
+    pub fn volt_installing(&self, volt: VoltInfo, error: String) {
         self.notification(CoreNotification::VoltInstalling { volt, error });
     }
 
