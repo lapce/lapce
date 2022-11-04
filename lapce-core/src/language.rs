@@ -502,7 +502,12 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        sticky_headers: &[
+            "function_definition",
+            "module_definition",
+            "macro_definition",
+            "struct_definition",
+        ],
         extensions: &["julia", "jl"],
     },
     #[cfg(feature = "lang-kotlin")]
