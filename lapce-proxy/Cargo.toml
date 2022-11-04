@@ -5,6 +5,8 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+flate2 = "1.0.24"
+tar = "0.4.38"
 interprocess = "1.1.1"
 clap = { version = "3.2.17", features = ["derive"] }
 once_cell = "1.15"

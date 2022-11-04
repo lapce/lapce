@@ -1000,6 +1000,22 @@ impl LapceTab {
                     LapceUICommand::VoltInstalling(volt, error) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
 
+                        let event_sink = ctx.get_external_handle();
+                        let id = data.id;
+                        let volt_id = volt.id();
+                        if !error.is_empty() {
+                            std::thread::spawn(move || {
+                                std::thread::sleep(std::time::Duration::from_secs(
+                                    3,
+                                ));
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::VoltInstallStatusClear(volt_id),
+                                    Target::Widget(id),
+                                );
+                            });
+                        }
+
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
                             if !error.is_empty() {
                                 elem.set_error(error);
@@ -1018,6 +1034,22 @@ impl LapceTab {
                     LapceUICommand::VoltRemoving(volt, error) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
 
+                        let event_sink = ctx.get_external_handle();
+                        let id = data.id;
+                        let volt_id = volt.id();
+                        if !error.is_empty() {
+                            std::thread::spawn(move || {
+                                std::thread::sleep(std::time::Duration::from_secs(
+                                    3,
+                                ));
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::VoltInstallStatusClear(volt_id),
+                                    Target::Widget(id),
+                                );
+                            });
+                        }
+
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
                             if !error.is_empty() {
                                 elem.set_error(error);
@@ -1032,6 +1064,10 @@ impl LapceTab {
                                 ),
                             );
                         }
+                    }
+                    LapceUICommand::VoltInstallStatusClear(volt_id) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.installing.remove(volt_id);
                     }
                     LapceUICommand::VoltRemoved(volt, only_installing) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
@@ -2169,6 +2205,10 @@ impl Widget<LapceTabData> for LapceTab {
         }
 
         if !old_data.drag.same(&data.drag) {
+            ctx.request_paint();
+        }
+
+        if !old_data.plugin.same(&data.plugin) {
             ctx.request_paint();
         }
 
