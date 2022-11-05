@@ -52,7 +52,6 @@ pub fn launch() {
     if cli.should_fork {
         let mut args = std::env::args().collect::<Vec<_>>();
         args.push("--should_fork=false".to_string());
-        println!("args: {:?}", args);
         let _ = std::process::Command::new(&args[0])
             .args(&args[1..])
             .spawn();
