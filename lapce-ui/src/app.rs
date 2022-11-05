@@ -50,8 +50,6 @@ pub fn launch() {
     let cli = Cli::parse();
     // if should_fork is set to true, then launch the cli and fork it
     if cli.should_fork {
-        println!("forking");
-
         let mut args = std::env::args().collect::<Vec<_>>();
         args.push("--should_fork=false".to_string());
         println!("args: {:?}", args);
