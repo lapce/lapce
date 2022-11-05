@@ -51,7 +51,7 @@ pub fn launch() {
     }
 
     let cli = Cli::parse();
-    
+
     // small hack to unblock terminal if launched from it
     if !cli.wait {
         let mut args = std::env::args().collect::<Vec<_>>();
