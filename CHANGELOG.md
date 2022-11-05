@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- [#1646](https://github.com/lapce/lapce/pull/1646): Fork the process when started from terminal
+
 ### Bug Fixes
 
 ## 0.2.2
@@ -90,7 +92,6 @@
 - [#1441](https://github.com/lapce/lapce/pull/1441): Button for Case-Sensitive search
 - [#1471](https://github.com/lapce/lapce/pull/1471): Add command to (un)install Lapce from/to PATH
 - [#1419](https://github.com/lapce/lapce/pull/1419): Add atomic soft tabs: now you can move your cursor over four spaces as if it was a single block
-- [#1646](https://github.com/lapce/lapce/pull/1646): Fork the process when started from terminal
 
 ### Syntax / Extensions
 
