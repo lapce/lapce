@@ -960,9 +960,9 @@ impl LapceTab {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::LoadPlugins(volts) => {
+                    LapceUICommand::LoadPlugins(info) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
-                        plugin.volts.update_volts(volts);
+                        plugin.volts.update_volts(info);
                     }
                     LapceUICommand::LoadPluginsFailed => {
                         let plugin = Arc::make_mut(&mut data.plugin);

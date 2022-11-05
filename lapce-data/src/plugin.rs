@@ -7,6 +7,7 @@ use druid::{ExtEventSink, Target, WidgetId};
 use indexmap::IndexMap;
 use lapce_proxy::plugin::{download_volt, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
+use parking_lot::Mutex;
 use plugin_install_status::PluginInstallStatus;
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
@@ -20,55 +21,107 @@ use crate::{
 
 #[derive(Clone)]
 pub struct VoltsList {
+    pub total: usize,
     pub volts: IndexMap<String, VoltInfo>,
     pub status: PluginLoadStatus,
+    pub loading: Arc<Mutex<bool>>,
+    pub event_sink: ExtEventSink,
+    pub query: String,
 }
 
 impl VoltsList {
-    pub fn new() -> Self {
+    pub fn new(event_sink: ExtEventSink) -> Self {
         Self {
             volts: IndexMap::new(),
+            total: 0,
             status: PluginLoadStatus::Loading,
+            loading: Arc::new(Mutex::new(false)),
+            query: "".to_string(),
+            event_sink,
         }
     }
 
-    pub fn update_volts(&mut self, volts: &[VoltInfo]) {
+    pub fn update_query(&mut self, query: String) {
+        if self.query == query {
+            return;
+        }
+
+        self.query = query;
         self.volts.clear();
-        for v in volts {
+        self.total = 0;
+        self.status = PluginLoadStatus::Loading;
+
+        let event_sink = self.event_sink.clone();
+        let query = self.query.clone();
+        std::thread::spawn(move || match PluginData::load_volts(&query, 0) {
+            Ok(info) => {
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::LoadPlugins(info),
+                    Target::Auto,
+                );
+            }
+            Err(_) => {
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::LoadPluginsFailed,
+                    Target::Auto,
+                );
+            }
+        });
+    }
+
+    pub fn load_more(&self) {
+        if self.all_loaded() {
+            return;
+        }
+
+        let mut loading = self.loading.lock();
+        if *loading {
+            return;
+        }
+        *loading = true;
+
+        let offset = self.volts.len();
+        let local_loading = self.loading.clone();
+        let event_sink = self.event_sink.clone();
+        let query = self.query.clone();
+        std::thread::spawn(move || match PluginData::load_volts(&query, offset) {
+            Ok(info) => {
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::LoadPlugins(info),
+                    Target::Auto,
+                );
+            }
+            Err(_) => {
+                *local_loading.lock() = false;
+            }
+        });
+    }
+
+    fn all_loaded(&self) -> bool {
+        self.volts.len() == self.total
+    }
+
+    pub fn update_volts(&mut self, info: &PluginsInfo) {
+        self.total = info.total;
+        for v in &info.plugins {
             self.volts.insert(v.id(), v.clone());
         }
         self.status = PluginLoadStatus::Success;
+        *self.loading.lock() = false;
     }
 
     pub fn failed(&mut self) {
         self.status = PluginLoadStatus::Failed;
-    }
-
-    pub fn update(&mut self, volt: &VoltInfo) {
-        let volt_id = volt.id();
-        if let Some(v) = self.volts.get_mut(&volt_id) {
-            *v = volt.clone();
-        } else {
-            self.volts.insert(volt_id, volt.clone());
-        }
-        self.status = PluginLoadStatus::Success;
-    }
-
-    pub fn remove(&mut self, volt: &VoltInfo) {
-        let volt_id = volt.id();
-        self.volts.remove(&volt_id);
-    }
-}
-
-impl Default for VoltsList {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
 #[derive(Clone)]
 pub struct PluginData {
     pub widget_id: WidgetId,
+    pub search_editor: WidgetId,
     pub installed_id: WidgetId,
     pub uninstalled_id: WidgetId,
 
@@ -87,8 +140,9 @@ pub enum PluginLoadStatus {
 }
 
 #[derive(Deserialize, Serialize)]
-struct PluginsInfo {
-    plugins: Vec<VoltInfo>,
+pub struct PluginsInfo {
+    pub plugins: Vec<VoltInfo>,
+    pub total: usize,
 }
 
 impl PluginData {
@@ -98,15 +152,19 @@ impl PluginData {
         workspace_disabled: Vec<String>,
         event_sink: ExtEventSink,
     ) -> Self {
-        std::thread::spawn(move || {
-            Self::load(tab_id, event_sink);
-        });
+        {
+            let event_sink = event_sink.clone();
+            std::thread::spawn(move || {
+                Self::load(tab_id, event_sink);
+            });
+        }
 
         Self {
             widget_id: WidgetId::next(),
+            search_editor: WidgetId::next(),
             installed_id: WidgetId::next(),
             uninstalled_id: WidgetId::next(),
-            volts: VoltsList::new(),
+            volts: VoltsList::new(event_sink),
             installing: IndexMap::new(),
             installed: IndexMap::new(),
             disabled: HashSet::from_iter(disabled.into_iter()),
@@ -125,11 +183,11 @@ impl PluginData {
             }
         }
 
-        match Self::load_volts() {
-            Ok(volts) => {
+        match Self::load_volts("", 0) {
+            Ok(info) => {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::LoadPlugins(volts),
+                    LapceUICommand::LoadPlugins(info),
                     Target::Widget(tab_id),
                 );
             }
@@ -167,11 +225,12 @@ impl PluginData {
         }
     }
 
-    fn load_volts() -> Result<Vec<VoltInfo>> {
-        let plugins: PluginsInfo =
-            reqwest::blocking::get("https://plugins.lapce.dev/api/v1/plugins")?
-                .json()?;
-        Ok(plugins.plugins)
+    fn load_volts(query: &str, offset: usize) -> Result<PluginsInfo> {
+        let url = format!(
+            "https://plugins.lapce.dev/api/v1/plugins?q={query}&offset={offset}"
+        );
+        let plugins: PluginsInfo = reqwest::blocking::get(&url)?.json()?;
+        Ok(plugins)
     }
 
     pub fn download_readme(
