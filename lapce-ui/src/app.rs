@@ -30,11 +30,12 @@ use crate::{
 #[clap(version=*meta::VERSION)]
 #[derive(Debug)]
 struct Cli {
+    /// Launch new window even if Lapce is already running
     #[clap(short, long, action)]
     new: bool,
-    #[clap(long, action)]
-    // by default it is false
-    no_fork: bool,
+    /// Don't return instantly when opened in terminal
+    #[clap(short, long, action)]
+    wait: bool,
     paths: Vec<PathBuf>,
 }
 
@@ -50,10 +51,11 @@ pub fn launch() {
     }
 
     let cli = Cli::parse();
-    // if should_not_fork is set to false, then launch the cli and fork it
-    if !cli.no_fork {
+    
+    // small hack to unblock terminal if launched from it
+    if !cli.wait {
         let mut args = std::env::args().collect::<Vec<_>>();
-        args.push("--no-fork".to_string());
+        args.push("--wait".to_string());
         let _ = std::process::Command::new(&args[0])
             .args(&args[1..])
             .spawn();
