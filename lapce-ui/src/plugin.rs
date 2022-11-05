@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use druid::{
     kurbo::Line,
@@ -8,8 +8,8 @@ use druid::{
     },
     ArcStr, BoxConstraints, Command, Cursor, Env, Event, EventCtx, FontDescriptor,
     FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
-    Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetExt,
-    WidgetId,
+    Rect, RenderContext, Size, Target, TextLayout, TimerToken, UpdateCtx, Widget,
+    WidgetExt, WidgetId,
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
@@ -26,8 +26,10 @@ use lapce_data::{
 };
 
 use crate::{
+    editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapceScroll,
+    split::LapceSplit,
 };
 
 pub struct Plugin {
@@ -37,6 +39,7 @@ pub struct Plugin {
     rects: Vec<(usize, Rect, PluginStatus)>,
     gap: f64,
     height: f64,
+    last_idle_timer: TimerToken,
 }
 
 impl Plugin {
@@ -48,11 +51,13 @@ impl Plugin {
             installed,
             rects: Vec::new(),
             gap: 10.0,
+            last_idle_timer: TimerToken::INVALID,
         }
     }
 
     pub fn new_panel(data: &LapceTabData) -> LapcePanel {
         let split_id = WidgetId::next();
+
         LapcePanel::new(
             PanelKind::Plugin,
             data.plugin.widget_id,
@@ -67,7 +72,29 @@ impl Plugin {
                 (
                     data.plugin.uninstalled_id,
                     PanelHeaderKind::Simple("Available".into()),
-                    LapceScroll::new(Self::new(false)).boxed(),
+                    LapceSplit::new(WidgetId::next())
+                        .horizontal()
+                        .with_child(
+                            LapceEditorView::new(
+                                data.plugin.search_editor,
+                                WidgetId::next(),
+                                None,
+                            )
+                            .hide_header()
+                            .hide_gutter()
+                            .padding((15.0, 15.0))
+                            .boxed(),
+                            None,
+                            100.0,
+                        )
+                        .with_flex_child(
+                            LapceScroll::new(Self::new(false)).boxed(),
+                            None,
+                            1.0,
+                            false,
+                        )
+                        .hide_border()
+                        .boxed(),
                     PanelSizing::Flex(true),
                 ),
             ],
@@ -421,6 +448,11 @@ impl Plugin {
                 ctx.draw_text(&layout, Point::new(x, y));
             }
             PluginLoadStatus::Success => {
+                let rect = ctx.region().bounding_box();
+                if rect.y1 + 30.0 > self.height {
+                    data.plugin.volts.load_more();
+                }
+
                 let mut i = 0;
                 for (index, (id, volt)) in data.plugin.volts.volts.iter().enumerate()
                 {
@@ -475,6 +507,13 @@ impl Widget<LapceTabData> for Plugin {
         _env: &Env,
     ) {
         match event {
+            Event::Timer(token) if token == &self.last_idle_timer => {
+                ctx.set_handled();
+                let editor_data =
+                    data.editor_view_content(data.plugin.search_editor);
+                let query = editor_data.doc.buffer().text().to_string();
+                Arc::make_mut(&mut data.plugin).volts.update_query(query);
+            }
             Event::MouseMove(mouse_event) => {
                 if mouse_event.pos.y <= self.height {
                     ctx.set_cursor(&Cursor::Pointer);
@@ -545,11 +584,23 @@ impl Widget<LapceTabData> for Plugin {
 
     fn update(
         &mut self,
-        _ctx: &mut UpdateCtx,
-        _old_data: &LapceTabData,
-        _data: &LapceTabData,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
         _env: &Env,
     ) {
+        if !self.installed {
+            let old_editor_data =
+                old_data.editor_view_content(data.plugin.search_editor);
+            let editor_data = data.editor_view_content(data.plugin.search_editor);
+            if editor_data.doc.buffer().len() != old_editor_data.doc.buffer().len()
+                || editor_data.doc.buffer().text().slice_to_cow(..)
+                    != old_editor_data.doc.buffer().text().slice_to_cow(..)
+            {
+                self.last_idle_timer =
+                    ctx.request_timer(Duration::from_millis(500), None);
+            }
+        }
     }
 
     fn layout(
