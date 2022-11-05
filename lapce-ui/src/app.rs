@@ -28,11 +28,13 @@ use crate::{
 #[derive(Parser)]
 #[clap(name = "Lapce")]
 #[clap(version=*meta::VERSION)]
+#[derive(Debug)]
 struct Cli {
     #[clap(short, long, action)]
     new: bool,
-    #[clap(short, long, action)]
-    should_fork: bool,
+    #[clap(long, action)]
+    // by default it is false
+    no_fork: bool,
     paths: Vec<PathBuf>,
 }
 
@@ -48,10 +50,10 @@ pub fn launch() {
     }
 
     let cli = Cli::parse();
-    // if should_fork is set to true, then launch the cli and fork it
-    if cli.should_fork {
+    // if should_not_fork is set to false, then launch the cli and fork it
+    if !cli.no_fork {
         let mut args = std::env::args().collect::<Vec<_>>();
-        args.push("--should_fork=false".to_string());
+        args.push("--no-fork".to_string());
         let _ = std::process::Command::new(&args[0])
             .args(&args[1..])
             .spawn();
