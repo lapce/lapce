@@ -31,6 +31,8 @@ use crate::{
 struct Cli {
     #[clap(short, long, action)]
     new: bool,
+    #[clap(short, long, action)]
+    should_fork: bool,
     paths: Vec<PathBuf>,
 }
 
@@ -46,6 +48,18 @@ pub fn launch() {
     }
 
     let cli = Cli::parse();
+    // if should_fork is set to true, then launch the cli and fork it
+    if cli.should_fork {
+        println!("forking");
+
+        let mut args = std::env::args().collect::<Vec<_>>();
+        args.push("--should_fork=false".to_string());
+        println!("args: {:?}", args);
+        let _ = std::process::Command::new(&args[0])
+            .args(&args[1..])
+            .spawn();
+        return;
+    }
     let pwd = std::env::current_dir().unwrap_or_default();
     let paths: Vec<PathBuf> = cli
         .paths
