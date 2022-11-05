@@ -5,6 +5,7 @@
 ### Features/Changes
 
 - [#1646](https://github.com/lapce/lapce/pull/1646): Fork the process when started from terminal
+- [#1644](https://github.com/lapce/lapce/pull/1644): Added "Reveal in File Tree" action to the editor tabs context menu
 
 ### Bug Fixes
 
