@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- [#1644](https://github.com/lapce/lapce/pull/1644): Added "Reveal in File Tree" action to the editor tabs context menu
+
 ### Bug Fixes
 
 ## 0.2.2
