@@ -1,14 +1,14 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use druid::{
     kurbo::Line,
     piet::{
-        PietTextLayout, Text, TextAttribute, TextLayout as TextLayoutTrait,
-        TextLayoutBuilder,
+        InterpolationMode, PietImage, PietTextLayout, Text, TextAttribute,
+        TextLayout as TextLayoutTrait, TextLayoutBuilder,
     },
     ArcStr, BoxConstraints, Command, Cursor, Env, Event, EventCtx, FontDescriptor,
-    FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
-    Rect, RenderContext, Size, Target, TextLayout, TimerToken, UpdateCtx, Widget,
+    FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, TextLayout, TimerToken, UpdateCtx, Widget,
     WidgetExt, WidgetId,
 };
 use lapce_core::command::FocusCommand;
@@ -19,11 +19,12 @@ use lapce_data::{
     panel::PanelKind,
     plugin::{
         plugin_install_status::PluginInstallType, PluginData, PluginLoadStatus,
-        PluginStatus,
+        PluginStatus, VoltIconKind,
     },
     rich_text::RichText,
     settings::LapceSettingsFocusData,
 };
+use once_cell::sync::Lazy;
 
 use crate::{
     editor::view::LapceEditorView,
@@ -32,11 +33,15 @@ use crate::{
     split::LapceSplit,
 };
 
+const VOLT_PNG: &[u8] = include_bytes!("../../extra/images/volt.png");
+static VOLT_IMAGE: Lazy<Arc<PietImage>> =
+    Lazy::new(|| Arc::new(PietImage::from_bytes(VOLT_PNG).unwrap()));
+
 pub struct Plugin {
     line_height: f64,
     width: f64,
     installed: bool,
-    rects: Vec<(usize, Rect, PluginStatus)>,
+    rects: HashMap<usize, (Rect, String, PluginStatus)>,
     gap: f64,
     height: f64,
     last_idle_timer: TimerToken,
@@ -49,7 +54,7 @@ impl Plugin {
             width: 0.0,
             height: 0.0,
             installed,
-            rects: Vec::new(),
+            rects: HashMap::new(),
             gap: 10.0,
             last_idle_timer: TimerToken::INVALID,
         }
@@ -176,33 +181,52 @@ impl Plugin {
     fn paint_plugin(
         &mut self,
         ctx: &mut PaintCtx,
+        data: &LapceTabData,
         i: usize,
+        id: &str,
         display_name: &str,
         description: &str,
         author: &str,
         version: &str,
         status: PluginStatus,
-        config: &LapceConfig,
     ) -> Rect {
         let y = (3.0 * self.line_height + self.gap) * i as f64 + self.gap / 2.0;
         let x = 3.0 * self.line_height;
 
-        let svg = config.logo_svg();
-        ctx.draw_svg(
-            &svg,
-            Rect::ZERO
-                .with_origin(Point::new(x / 2.0, y + self.line_height))
-                .inflate(self.line_height * 0.75, self.line_height * 0.75),
-            Some(config.get_color_unchecked(LapceTheme::EDITOR_DIM)),
-        );
+        let icon_rect = Rect::ZERO
+            .with_origin(Point::new(x / 2.0, y + self.line_height))
+            .inflate(self.line_height * 0.75, self.line_height * 0.75);
+        if let Some(icon) = data.plugin.volts.icons.get(id) {
+            match icon {
+                VoltIconKind::Svg(svg) => {
+                    ctx.draw_svg(svg, icon_rect, None);
+                }
+                VoltIconKind::Image(image) => {
+                    ctx.draw_image(
+                        image,
+                        icon_rect,
+                        InterpolationMode::NearestNeighbor,
+                    );
+                }
+            }
+        } else {
+            ctx.draw_image(
+                &VOLT_IMAGE,
+                icon_rect,
+                InterpolationMode::NearestNeighbor,
+            );
+        }
 
         let text_layout = ctx
             .text()
             .new_text_layout(display_name.to_string())
-            .font(config.ui.font_family(), config.ui.font_size() as f64)
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
             .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
             .text_color(
-                config
+                data.config
                     .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_NAME)
                     .clone(),
             )
@@ -217,9 +241,12 @@ impl Plugin {
         let text_layout = ctx
             .text()
             .new_text_layout(description.to_string())
-            .font(config.ui.font_family(), config.ui.font_size() as f64)
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
             .text_color(
-                config
+                data.config
                     .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_DESCRIPTION)
                     .clone(),
             )
@@ -242,9 +269,12 @@ impl Plugin {
             let text_layout = ctx
                 .text()
                 .new_text_layout(description)
-                .font(config.ui.font_family(), config.ui.font_size() as f64)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
-                    config
+                    data.config
                         .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_DESCRIPTION)
                         .clone(),
                 )
@@ -270,9 +300,12 @@ impl Plugin {
         let text_layout = ctx
             .text()
             .new_text_layout(author.to_string())
-            .font(config.ui.font_family(), config.ui.font_size() as f64)
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
             .text_color(
-                config
+                data.config
                     .get_color_unchecked(LapceTheme::LAPCE_PLUGIN_AUTHOR)
                     .clone(),
             )
@@ -293,9 +326,12 @@ impl Plugin {
             let text_layout = ctx
                 .text()
                 .new_text_layout(status.to_string())
-                .font(config.ui.font_family(), config.ui.font_size() as f64)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
                 .text_color(
-                    config
+                    data.config
                         .get_color_unchecked(
                             LapceTheme::LAPCE_BUTTON_PRIMARY_FOREGROUND,
                         )
@@ -313,7 +349,7 @@ impl Plugin {
                     .with_origin(Point::new(x, y));
             ctx.fill(
                 rect,
-                config.get_color_unchecked(
+                data.config.get_color_unchecked(
                     LapceTheme::LAPCE_BUTTON_PRIMARY_BACKGROUND,
                 ),
             );
@@ -332,9 +368,12 @@ impl Plugin {
                 y + self.line_height * 2.2,
             ));
             ctx.draw_svg(
-                &config.ui_svg(LapceIcons::SETTINGS),
+                &data.config.ui_svg(LapceIcons::SETTINGS),
                 rect,
-                Some(config.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)),
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                ),
             );
 
             let color = match status {
@@ -350,8 +389,11 @@ impl Plugin {
                 } else {
                     format!("{status}")
                 })
-                .font(config.ui.font_family(), config.ui.font_size() as f64)
-                .text_color(config.get_color_unchecked(color).clone())
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
+                .text_color(data.config.get_color_unchecked(color).clone())
                 .build()
                 .unwrap();
             let size = text_layout.size();
@@ -371,19 +413,29 @@ impl Plugin {
 
     fn paint_installed(&mut self, ctx: &mut PaintCtx, data: &LapceTabData) {
         self.rects.clear();
-        for (i, (id, volt)) in data.plugin.installed.iter().enumerate() {
-            let status = data.plugin.plugin_status(id);
-            let rect = self.paint_plugin(
-                ctx,
-                i,
-                &volt.display_name,
-                &volt.description,
-                &volt.author,
-                &volt.version,
-                status.clone(),
-                &data.config,
-            );
-            self.rects.push((i, rect, status));
+
+        let rect = ctx.region().bounding_box();
+
+        let height = 3.0 * self.line_height + self.gap;
+        let start = (rect.y0 / height).floor() as usize;
+        let end = (rect.y1 / height).ceil() as usize;
+
+        for i in start..end + 1 {
+            if let Some((id, volt)) = data.plugin.installed.get_index(i) {
+                let status = data.plugin.plugin_status(id);
+                let rect = self.paint_plugin(
+                    ctx,
+                    data,
+                    i,
+                    id,
+                    &volt.display_name,
+                    &volt.description,
+                    &volt.author,
+                    &volt.version,
+                    status.clone(),
+                );
+                self.rects.insert(i, (rect, id.to_string(), status));
+            }
         }
     }
 
@@ -453,41 +505,38 @@ impl Plugin {
                     data.plugin.volts.load_more();
                 }
 
+                let height = 3.0 * self.line_height + self.gap;
+
                 let mut i = 0;
-                for (index, (id, volt)) in data.plugin.volts.volts.iter().enumerate()
-                {
+                for (id, volt) in data.plugin.volts.volts.iter() {
                     if data.plugin.installed.contains_key(id) {
                         continue;
+                    }
+
+                    let end_height = (i + 1) as f64 * height;
+                    if end_height < rect.y0 {
+                        i += 1;
+                        continue;
+                    }
+                    if end_height - height > rect.y1 {
+                        break;
                     }
                     let status = data.plugin.plugin_status(id);
                     let rect = self.paint_plugin(
                         ctx,
+                        data,
                         i,
+                        id,
                         &volt.display_name,
                         &volt.description,
                         &volt.author,
                         &volt.version,
                         status.clone(),
-                        &data.config,
                     );
-                    self.rects.push((index, rect, status));
+                    self.rects.insert(i, (rect, id.to_string(), status));
                     i += 1;
                 }
             }
-        }
-    }
-
-    fn hit_test<'a>(
-        &'a self,
-        mouse_event: &MouseEvent,
-    ) -> Option<(usize, &'a PluginStatus)> {
-        let index =
-            (mouse_event.pos.y / (self.line_height * 3.0 + self.gap)) as usize;
-        let (i, rect, status) = self.rects.get(index)?;
-        if rect.contains(mouse_event.pos) {
-            Some((*i, status))
-        } else {
-            None
         }
     }
 }
@@ -523,47 +572,25 @@ impl Widget<LapceTabData> for Plugin {
             }
             Event::MouseDown(mouse_event) => {
                 if mouse_event.button.is_left() {
-                    if let Some((index, _)) = self.hit_test(mouse_event) {
-                        if !self.installed {
-                            if let Some((id, _)) =
-                                data.plugin.volts.volts.get_index(index)
-                            {
-                                status_on_click(ctx, data, id, mouse_event.pos);
-                            }
-                        } else if let Some((id, _)) =
-                            data.plugin.installed.get_index(index)
-                        {
+                    let index = (mouse_event.pos.y
+                        / (self.line_height * 3.0 + self.gap))
+                        as usize;
+
+                    if let Some((rect, id, _)) = self.rects.get(&index) {
+                        if rect.contains(mouse_event.pos) {
                             status_on_click(ctx, data, id, mouse_event.pos);
-                        }
-                    } else if mouse_event.pos.y <= self.height {
-                        let index = (mouse_event.pos.y
-                            / (self.line_height * 3.0 + self.gap))
-                            as usize;
-                        if self.installed {
-                            if let Some((_, volt)) =
-                                data.plugin.installed.get_index(index)
-                            {
+                        } else {
+                            let volt = if self.installed {
+                                data.plugin.installed.get(id).map(|v| v.info())
+                            } else {
+                                data.plugin.volts.volts.get(id).cloned()
+                            };
+                            if let Some(volt) = volt {
                                 ctx.submit_command(Command::new(
                                     LAPCE_UI_COMMAND,
-                                    LapceUICommand::OpenPluginInfo(volt.info()),
+                                    LapceUICommand::OpenPluginInfo(volt),
                                     Target::Widget(data.id),
                                 ));
-                            }
-                        } else {
-                            let mut i = 0;
-                            for (id, volt) in data.plugin.volts.volts.iter() {
-                                if data.plugin.installed.contains_key(id) {
-                                    continue;
-                                }
-                                if i == index {
-                                    ctx.submit_command(Command::new(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::OpenPluginInfo(volt.clone()),
-                                        Target::Widget(data.id),
-                                    ));
-                                    break;
-                                }
-                                i += 1;
                             }
                         }
                     }
@@ -1047,11 +1074,27 @@ impl Widget<LapceTabData> for PluginInfo {
                     name_y + self.icon_width / 2.0,
                 ))
                 .inflate(self.icon_width / 2.0 * 0.8, self.icon_width / 2.0 * 0.8);
-            ctx.draw_svg(
-                &data.config.logo_svg(),
-                icon_rect,
-                Some(data.config.get_color_unchecked(LapceTheme::EDITOR_DIM)),
-            );
+
+            if let Some(icon) = data.plugin.volts.icons.get(&self.volt_id) {
+                match icon {
+                    VoltIconKind::Svg(svg) => {
+                        ctx.draw_svg(svg, icon_rect, None);
+                    }
+                    VoltIconKind::Image(image) => {
+                        ctx.draw_image(
+                            image,
+                            icon_rect,
+                            InterpolationMode::NearestNeighbor,
+                        );
+                    }
+                }
+            } else {
+                ctx.draw_image(
+                    &VOLT_IMAGE,
+                    icon_rect,
+                    InterpolationMode::NearestNeighbor,
+                );
+            }
 
             let name_y_offset =
                 name_text_layout.y_offset(name_text_layout.size().height * 2.0);

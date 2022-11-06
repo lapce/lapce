@@ -1,15 +1,20 @@
 pub mod plugin_install_status;
 
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, str::FromStr, sync::Arc};
 
 use anyhow::Result;
-use druid::{ExtEventSink, Target, WidgetId};
+use druid::{
+    piet::{PietImage, Svg},
+    ExtEventSink, Target, WidgetId,
+};
 use indexmap::IndexMap;
+use lapce_core::directory::Directory;
 use lapce_proxy::plugin::{download_volt, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
 use parking_lot::Mutex;
 use plugin_install_status::PluginInstallStatus;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use strum_macros::Display;
 
 use crate::{
@@ -20,9 +25,16 @@ use crate::{
 };
 
 #[derive(Clone)]
+pub enum VoltIconKind {
+    Svg(Arc<Svg>),
+    Image(Arc<PietImage>),
+}
+
+#[derive(Clone)]
 pub struct VoltsList {
     pub total: usize,
     pub volts: IndexMap<String, VoltInfo>,
+    pub icons: im::HashMap<String, VoltIconKind>,
     pub status: PluginLoadStatus,
     pub loading: Arc<Mutex<bool>>,
     pub event_sink: ExtEventSink,
@@ -33,6 +45,7 @@ impl VoltsList {
     pub fn new(event_sink: ExtEventSink) -> Self {
         Self {
             volts: IndexMap::new(),
+            icons: im::HashMap::new(),
             total: 0,
             status: PluginLoadStatus::Loading,
             loading: Arc::new(Mutex::new(false)),
@@ -48,26 +61,14 @@ impl VoltsList {
 
         self.query = query;
         self.volts.clear();
+        self.icons.clear();
         self.total = 0;
         self.status = PluginLoadStatus::Loading;
 
         let event_sink = self.event_sink.clone();
         let query = self.query.clone();
-        std::thread::spawn(move || match PluginData::load_volts(&query, 0) {
-            Ok(info) => {
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::LoadPlugins(info),
-                    Target::Auto,
-                );
-            }
-            Err(_) => {
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::LoadPluginsFailed,
-                    Target::Auto,
-                );
-            }
+        std::thread::spawn(move || {
+            let _ = PluginData::load_volts(true, &query, 0, None, event_sink);
         });
     }
 
@@ -86,17 +87,14 @@ impl VoltsList {
         let local_loading = self.loading.clone();
         let event_sink = self.event_sink.clone();
         let query = self.query.clone();
-        std::thread::spawn(move || match PluginData::load_volts(&query, offset) {
-            Ok(info) => {
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::LoadPlugins(info),
-                    Target::Auto,
-                );
-            }
-            Err(_) => {
-                *local_loading.lock() = false;
-            }
+        std::thread::spawn(move || {
+            let _ = PluginData::load_volts(
+                false,
+                &query,
+                offset,
+                Some(local_loading),
+                event_sink,
+            );
         });
     }
 
@@ -183,22 +181,9 @@ impl PluginData {
             }
         }
 
-        match Self::load_volts("", 0) {
-            Ok(info) => {
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::LoadPlugins(info),
-                    Target::Widget(tab_id),
-                );
-            }
-            Err(_) => {
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::LoadPluginsFailed,
-                    Target::Widget(tab_id),
-                );
-            }
-        }
+        std::thread::spawn(move || {
+            let _ = PluginData::load_volts(true, "", 0, None, event_sink);
+        });
     }
 
     pub fn plugin_disabled(&self, id: &str) -> bool {
@@ -225,7 +210,98 @@ impl PluginData {
         }
     }
 
-    fn load_volts(query: &str, offset: usize) -> Result<PluginsInfo> {
+    fn load_icon(volt: &VoltInfo) -> Result<VoltIconKind> {
+        let url = format!(
+            "https://plugins.lapce.dev/api/v1/plugins/{}/{}/{}/icon?id={}",
+            volt.author, volt.name, volt.version, volt.updated_at_ts
+        );
+
+        let cache_file_path = Directory::cache_directory().map(|cache_dir| {
+            let mut hasher = Sha256::new();
+            hasher.update(url.as_bytes());
+            let filename = format!("{:x}", hasher.finalize());
+            cache_dir.join(filename)
+        });
+
+        let cache_content =
+            cache_file_path.as_ref().and_then(|p| std::fs::read(p).ok());
+
+        let content = match cache_content {
+            Some(content) => content,
+            None => {
+                let resp = reqwest::blocking::get(&url)?;
+                if !resp.status().is_success() {
+                    return Err(anyhow::anyhow!("can't download icon"));
+                }
+                let buf = resp.bytes()?.to_vec();
+
+                if let Some(path) = cache_file_path.as_ref() {
+                    let _ = std::fs::write(path, &buf);
+                }
+
+                buf
+            }
+        };
+
+        if let Ok(s) = std::str::from_utf8(&content) {
+            let svg =
+                Svg::from_str(s).map_err(|_| anyhow::anyhow!("can't parse svg"))?;
+            Ok(VoltIconKind::Svg(Arc::new(svg)))
+        } else {
+            let image = PietImage::from_bytes(&content)
+                .map_err(|_| anyhow::anyhow!("can't resolve image"))?;
+            Ok(VoltIconKind::Image(Arc::new(image)))
+        }
+    }
+
+    fn load_volts(
+        inital: bool,
+        query: &str,
+        offset: usize,
+        loading: Option<Arc<Mutex<bool>>>,
+        event_sink: ExtEventSink,
+    ) -> Result<()> {
+        match PluginData::query_volts(query, offset) {
+            Ok(info) => {
+                for v in info.plugins.iter() {
+                    {
+                        let volt = v.clone();
+                        let event_sink = event_sink.clone();
+                        std::thread::spawn(move || -> Result<()> {
+                            let icon = Self::load_icon(&volt)?;
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::LoadPluginIcon(volt.id(), icon),
+                                Target::Auto,
+                            );
+                            Ok(())
+                        });
+                    }
+                }
+
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::LoadPlugins(info),
+                    Target::Auto,
+                );
+            }
+            Err(_) => {
+                if inital {
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::LoadPluginsFailed,
+                        Target::Auto,
+                    );
+                }
+                if let Some(loading) = loading.as_ref() {
+                    *loading.lock() = false;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn query_volts(query: &str, offset: usize) -> Result<PluginsInfo> {
         let url = format!(
             "https://plugins.lapce.dev/api/v1/plugins?q={query}&offset={offset}"
         );

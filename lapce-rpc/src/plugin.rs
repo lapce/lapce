@@ -32,6 +32,7 @@ pub struct VoltInfo {
     pub description: String,
     pub repository: Option<String>,
     pub wasm: bool,
+    pub updated_at_ts: i64,
 }
 
 impl VoltInfo {
@@ -85,6 +86,7 @@ impl VoltMetadata {
             description: self.description.clone(),
             repository: self.repository.clone(),
             wasm: self.wasm.is_some(),
+            updated_at_ts: 0,
         }
     }
 }
