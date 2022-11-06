@@ -61,7 +61,6 @@ impl VoltsList {
 
         self.query = query;
         self.volts.clear();
-        self.icons.clear();
         self.total = 0;
         self.status = PluginLoadStatus::Loading;
 
