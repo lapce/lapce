@@ -9,6 +9,8 @@
 
 ### Bug Fixes
 
+- [#1588](https://github.com/lapce/lapce/issues/1588): Fixed an issue where new windows would never be created after closing all windows on macOS.
+
 ## 0.2.2
 
 ### Features/Changes
