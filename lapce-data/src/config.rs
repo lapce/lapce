@@ -121,8 +121,10 @@ impl LapceTheme {
     pub const TERMINAL_BRIGHT_CYAN: &str = "terminal.bright_cyan";
     pub const TERMINAL_BRIGHT_MAGENTA: &str = "terminal.bright_magenta";
 
+    pub const PALETTE_CURRENT_BACKGROUND: &str = "palette.current.background";
+    pub const PALETTE_CURRENT_FOREGROUND: &str = "palette.current.foreground";
     pub const PALETTE_BACKGROUND: &str = "palette.background";
-    pub const PALETTE_CURRENT: &str = "palette.current";
+    pub const PALETTE_FOREGROUND: &str = "palette.foreground";
 
     pub const COMPLETION_BACKGROUND: &str = "completion.background";
     pub const COMPLETION_CURRENT: &str = "completion.current";

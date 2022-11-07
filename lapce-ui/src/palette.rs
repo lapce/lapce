@@ -1,8 +1,8 @@
 use std::{path::Path, sync::Arc};
 
 use druid::{
-    kurbo::{Line, Rect},
-    piet::{Svg, Text, TextAttribute, TextLayout, TextLayoutBuilder},
+    kurbo::Rect,
+    piet::{Svg, Text, TextAttribute, TextLayoutBuilder},
     BoxConstraints, Color, Command, Data, Env, Event, EventCtx, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext,
     Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
@@ -15,7 +15,7 @@ use lapce_data::{
     list::ListData,
     palette::{
         PaletteItem, PaletteItemContent, PaletteListData, PaletteStatus,
-        PaletteType, PaletteViewData,
+        PaletteViewData,
     },
 };
 use lsp_types::SymbolKind;
@@ -690,7 +690,11 @@ impl ListPaint<PaletteListData> for PaletteItem {
             )
             .text_color(
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .get_color_unchecked(if line == data.selected_index {
+                        LapceTheme::PALETTE_CURRENT_FOREGROUND
+                    } else {
+                        LapceTheme::PALETTE_FOREGROUND
+                    })
                     .clone(),
             );
         for &i_start in &text_indices {
