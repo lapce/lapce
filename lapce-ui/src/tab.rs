@@ -960,13 +960,20 @@ impl LapceTab {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::LoadPlugins(volts) => {
+                    LapceUICommand::LoadPlugins(info) => {
+                        ctx.set_handled();
                         let plugin = Arc::make_mut(&mut data.plugin);
-                        plugin.volts.update_volts(volts);
+                        plugin.volts.update_volts(info);
                     }
                     LapceUICommand::LoadPluginsFailed => {
+                        ctx.set_handled();
                         let plugin = Arc::make_mut(&mut data.plugin);
                         plugin.volts.failed();
+                    }
+                    LapceUICommand::LoadPluginIcon(id, icon) => {
+                        ctx.set_handled();
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.volts.icons.insert(id.to_string(), icon.clone());
                     }
                     LapceUICommand::VoltInstalled(volt, only_installing) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
@@ -2209,7 +2216,13 @@ impl Widget<LapceTabData> for LapceTab {
         }
 
         if !old_data.plugin.same(&data.plugin) {
-            ctx.request_paint();
+            if old_data.plugin.installed.len() != data.plugin.installed.len()
+                || old_data.plugin.volts.volts.len() != data.plugin.volts.volts.len()
+            {
+                ctx.request_layout();
+            } else {
+                ctx.request_paint();
+            }
         }
 
         if old_data.about.active != data.about.active {

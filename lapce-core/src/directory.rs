@@ -26,6 +26,7 @@ impl Directory {
             None => None,
         }
     }
+
     /// Get the path to logs directory
     /// Each log file is for individual application startup
     pub fn logs_directory() -> Option<PathBuf> {
@@ -39,6 +40,20 @@ impl Directory {
             None
         }
     }
+
+    /// Get the path to cache directory
+    pub fn cache_directory() -> Option<PathBuf> {
+        if let Some(dir) = Self::data_local_directory() {
+            let dir = dir.join("cache");
+            if !dir.exists() {
+                let _ = std::fs::create_dir(&dir);
+            }
+            Some(dir)
+        } else {
+            None
+        }
+    }
+
     /// Directory to store proxy executables used on local
     /// host as well, as ones uploaded to remote host when
     /// connecting
@@ -80,6 +95,7 @@ impl Directory {
             None
         }
     }
+
     // Config directory contain only configuration files
     pub fn config_directory() -> Option<PathBuf> {
         match Self::project_dirs() {
@@ -93,9 +109,11 @@ impl Directory {
             None => None,
         }
     }
+
     pub fn local_socket() -> Option<PathBuf> {
         Self::data_local_directory().map(|dir| dir.join("local.sock"))
     }
+
     pub fn updates_directory() -> Option<PathBuf> {
         if let Some(dir) = Self::data_local_directory() {
             let dir = dir.join("updates");

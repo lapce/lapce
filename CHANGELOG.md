@@ -5,9 +5,13 @@
 ### Features/Changes
 
 - [#1646](https://github.com/lapce/lapce/pull/1646): Fork the process when started from terminal
+- [#1653](https://github.com/lapce/lapce/pull/1653): Paint plugin icons
 - [#1644](https://github.com/lapce/lapce/pull/1644): Added "Reveal in File Tree" action to the editor tabs context menu
+- [#1645](https://github.com/lapce/lapce/pull/1645): Add plugin search
 
 ### Bug Fixes
+
+- [#1588](https://github.com/lapce/lapce/issues/1588): Fixed an issue where new windows would never be created after closing all windows on macOS.
 
 ## 0.2.2
 
