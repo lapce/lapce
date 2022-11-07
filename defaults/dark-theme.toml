@@ -137,6 +137,7 @@ yellow = "#E5C07B"
 "panel.hovered" = "#343A45"
 
 "status.background" = "#21252B"
+"status.foreground" = "$white"
 "status.modal.normal" = "$blue"
 "status.modal.insert" = "$red"
 "status.modal.visual" = "$yellow"

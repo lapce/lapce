@@ -137,6 +137,7 @@ impl LapceTheme {
     pub const PANEL_HOVERED: &str = "panel.hovered";
 
     pub const STATUS_BACKGROUND: &str = "status.background";
+    pub const STATUS_FOREGROUND: &str = "status.foreground";
     pub const STATUS_MODAL_NORMAL: &str = "status.modal.normal";
     pub const STATUS_MODAL_INSERT: &str = "status.modal.insert";
     pub const STATUS_MODAL_VISUAL: &str = "status.modal.visual";

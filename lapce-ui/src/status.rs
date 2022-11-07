@@ -134,7 +134,7 @@ impl LapceStatus {
         ctx: &mut PaintCtx,
         config: &LapceConfig,
     ) -> (f64, Option<(Rect, Svg)>, (Point, PietTextLayout)) {
-        let fg_color = config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
+        let fg_color = config.get_color_unchecked(LapceTheme::STATUS_FOREGROUND);
 
         let text_layout = ctx
             .text()
@@ -172,7 +172,7 @@ impl LapceStatus {
         ctx: &mut PaintCtx,
         config: &LapceConfig,
     ) -> (f64, Option<(Rect, Svg)>, (Point, PietTextLayout)) {
-        let fg_color = config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
+        let fg_color = config.get_color_unchecked(LapceTheme::STATUS_FOREGROUND);
 
         let text_layout = ctx
             .text()
@@ -407,7 +407,7 @@ impl Widget<LapceTabData> for LapceStatus {
                 rect,
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                        .get_color_unchecked(LapceTheme::STATUS_FOREGROUND),
                 ),
             );
         }
@@ -418,7 +418,7 @@ impl Widget<LapceTabData> for LapceStatus {
                 rect,
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                        .get_color_unchecked(LapceTheme::STATUS_FOREGROUND),
                 ),
             );
         }
@@ -481,7 +481,7 @@ impl Widget<LapceTabData> for LapceStatus {
                     icon.rect.inflate(-icon_padding, -icon_padding),
                     Some(
                         data.config
-                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                            .get_color_unchecked(LapceTheme::STATUS_FOREGROUND),
                     ),
                 );
             }
