@@ -28,14 +28,9 @@ use crate::{
 #[derive(Parser)]
 #[clap(name = "Lapce")]
 #[clap(version=*meta::VERSION)]
-#[derive(Debug)]
 struct Cli {
-    /// Launch new window even if Lapce is already running
     #[clap(short, long, action)]
     new: bool,
-    /// Don't return instantly when opened in terminal
-    #[clap(short, long, action)]
-    wait: bool,
     paths: Vec<PathBuf>,
 }
 
@@ -51,16 +46,6 @@ pub fn launch() {
     }
 
     let cli = Cli::parse();
-
-    // small hack to unblock terminal if launched from it
-    if !cli.wait {
-        let mut args = std::env::args().collect::<Vec<_>>();
-        args.push("--wait".to_string());
-        let _ = std::process::Command::new(&args[0])
-            .args(&args[1..])
-            .spawn();
-        return;
-    }
     let pwd = std::env::current_dir().unwrap_or_default();
     let paths: Vec<PathBuf> = cli
         .paths
