@@ -1,3 +1,5 @@
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::{path::PathBuf, sync::Arc};
 
 use clap::Parser;
@@ -56,9 +58,12 @@ pub fn launch() {
     if !cli.wait {
         let mut args = std::env::args().collect::<Vec<_>>();
         args.push("--wait".to_string());
-        let _ = std::process::Command::new(&args[0])
-            .args(&args[1..])
-            .spawn();
+        let mut cmd = std::process::Command::new(&args[0]);
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        if let Err(why) = cmd.args(&args[1..]).spawn() {
+            eprintln!("Failed to launch lapce: {why}");
+        };
         return;
     }
     let pwd = std::env::current_dir().unwrap_or_default();
