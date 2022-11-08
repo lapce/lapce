@@ -1,0 +1,223 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/ColorTheme",
+    "definitions": {
+        "ColorTheme": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "color-theme": {
+                    "$ref": "#/definitions/ColorThemeClass"
+                },
+                "ui": {
+                    "$ref": "#/definitions/UI"
+                }
+            },
+            "required": [],
+            "title": "ColorTheme"
+        },
+        "ColorThemeClass": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "base": {
+                    "$ref": "#/definitions/Base"
+                },
+                "syntax": {
+                    "$ref": "#/definitions/Syntax"
+                },
+                "ui": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [],
+            "title": "ColorThemeClass"
+        },
+        "Base": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "white": {
+                    "type": "string"
+                },
+                "black": {
+                    "type": "string"
+                },
+                "grey": {
+                    "type": "string"
+                },
+                "blue": {
+                    "type": "string"
+                },
+                "red": {
+                    "type": "string"
+                },
+                "yellow": {
+                    "type": "string"
+                },
+                "orange": {
+                    "type": "string"
+                },
+                "green": {
+                    "type": "string"
+                },
+                "purple": {
+                    "type": "string"
+                },
+                "cyan": {
+                    "type": "string"
+                },
+                "magenta": {
+                    "type": "string"
+                }
+            },
+            "required": [],
+            "title": "Base"
+        },
+        "Syntax": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "comment": {
+                    "type": "string"
+                },
+                "constant": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "typeAlias": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "enum": {
+                    "type": "string"
+                },
+                "struct": {
+                    "type": "string"
+                },
+                "structure": {
+                    "type": "string"
+                },
+                "interface": {
+                    "type": "string"
+                },
+                "attribute": {
+                    "type": "string"
+                },
+                "constructor": {
+                    "type": "string"
+                },
+                "function": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "function.method": {
+                    "type": "string"
+                },
+                "keyword": {
+                    "type": "string"
+                },
+                "selfKeyword": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "property": {
+                    "type": "string"
+                },
+                "enumMember": {
+                    "type": "string"
+                },
+                "enum-member": {
+                    "type": "string"
+                },
+                "string": {
+                    "type": "string"
+                },
+                "type.builtin": {
+                    "type": "string"
+                },
+                "builtinType": {
+                    "type": "string"
+                },
+                "escape": {
+                    "type": "string"
+                },
+                "string.escape": {
+                    "type": "string"
+                },
+                "embedded": {
+                    "type": "string"
+                },
+                "punctuation.delimiter": {
+                    "type": "string"
+                },
+                "text.title": {
+                    "type": "string"
+                },
+                "text.uri": {
+                    "type": "string"
+                },
+                "text.reference": {
+                    "type": "string"
+                },
+                "variable": {
+                    "type": "string"
+                },
+                "variable.other.member": {
+                    "type": "string"
+                },
+                "tag": {
+                    "type": "string"
+                }
+            },
+            "required": [],
+            "title": "Syntax"
+        },
+        "UI": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "font-family": {
+                    "type": "string"
+                },
+                "font-size": {
+                    "type": "integer"
+                },
+                "header-height": {
+                    "type": "integer"
+                },
+                "status-height": {
+                    "type": "integer"
+                },
+                "tab-min-width": {
+                    "type": "integer"
+                },
+                "activity-width": {
+                    "type": "integer"
+                },
+                "scroll-width": {
+                    "type": "integer"
+                },
+                "drop-shadow-width": {
+                    "type": "integer"
+                }
+            },
+            "required": [],
+            "title": "UI"
+        }
+    }
+}

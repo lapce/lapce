@@ -1,0 +1,347 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/Settings",
+    "definitions": {
+        "Settings": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "core": {
+                    "$ref": "#/definitions/Core"
+                },
+                "editor": {
+                    "$ref": "#/definitions/Editor"
+                },
+                "terminal": {
+                    "$ref": "#/definitions/Terminal"
+                },
+                "ui": {
+                    "$ref": "#/definitions/UI"
+                },
+                "color-theme": {
+                    "$ref": "file://./color-theme.json"
+                },
+                "icon-theme": {
+                    "$schema": "file://./icon-theme.json"
+                }
+            },
+            "required": [],
+            "title": "Settings"
+        },
+        "Base": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "white": {
+                    "type": "string"
+                },
+                "black": {
+                    "type": "string"
+                },
+                "grey": {
+                    "type": "string"
+                },
+                "blue": {
+                    "type": "string"
+                },
+                "red": {
+                    "type": "string"
+                },
+                "yellow": {
+                    "type": "string"
+                },
+                "orange": {
+                    "type": "string"
+                },
+                "green": {
+                    "type": "string"
+                },
+                "purple": {
+                    "type": "string"
+                },
+                "cyan": {
+                    "type": "string"
+                },
+                "magenta": {
+                    "type": "string"
+                }
+            },
+            "required": [],
+            "title": "Base"
+        },
+        "Syntax": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "comment": {
+                    "type": "string"
+                },
+                "constant": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "typeAlias": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "enum": {
+                    "type": "string"
+                },
+                "struct": {
+                    "type": "string"
+                },
+                "structure": {
+                    "type": "string"
+                },
+                "interface": {
+                    "type": "string"
+                },
+                "attribute": {
+                    "type": "string"
+                },
+                "constructor": {
+                    "type": "string"
+                },
+                "function": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "function.method": {
+                    "type": "string"
+                },
+                "keyword": {
+                    "type": "string"
+                },
+                "keyword.control": {
+                    "type": "string"
+                },
+                "selfKeyword": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "property": {
+                    "type": "string"
+                },
+                "enumMember": {
+                    "type": "string"
+                },
+                "enum-member": {
+                    "type": "string"
+                },
+                "variable.other.member": {
+                    "type": "string"
+                },
+                "string": {
+                    "type": "string"
+                },
+                "type.builtin": {
+                    "type": "string"
+                },
+                "builtinType": {
+                    "type": "string"
+                },
+                "escape": {
+                    "type": "string"
+                },
+                "embedded": {
+                    "type": "string"
+                },
+                "symbol": {
+                    "type": "string"
+                }
+            },
+            "required": [],
+            "title": "Syntax"
+        },
+        "Core": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "modal": {
+                    "type": "boolean"
+                },
+                "color-theme": {
+                    "type": "string"
+                },
+                "icon-theme": {
+                    "type": "string"
+                },
+                "custom-titlebar": {
+                    "type": "boolean"
+                }
+            },
+            "required": [],
+            "title": "Core"
+        },
+        "Editor": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "font-family": {
+                    "type": "string"
+                },
+                "font-size": {
+                    "type": "integer"
+                },
+                "code-lens-font-size": {
+                    "type": "integer"
+                },
+                "line-height": {
+                    "type": "number"
+                },
+                "tab-width": {
+                    "type": "integer"
+                },
+                "show-tab": {
+                    "type": "boolean"
+                },
+                "show-bread-crumbs": {
+                    "type": "boolean"
+                },
+                "scroll-beyond-last-line": {
+                    "type": "boolean"
+                },
+                "cursor-surrounding-lines": {
+                    "type": "integer"
+                },
+                "sticky-header": {
+                    "type": "boolean"
+                },
+                "completion-show-documentation": {
+                    "type": "boolean"
+                },
+                "auto-closing-matching-pairs": {
+                    "type": "boolean"
+                },
+                "hover-delay": {
+                    "type": "integer"
+                },
+                "modal-mode-relative-line-numbers": {
+                    "type": "boolean"
+                },
+                "format-on-save": {
+                    "type": "boolean"
+                },
+                "highlight-matching-brackets": {
+                    "type": "boolean"
+                },
+                "autosave-interval": {
+                    "type": "integer"
+                },
+                "enable-inlay-hints": {
+                    "type": "boolean"
+                },
+                "inlay-hint-font-family": {
+                    "type": "string"
+                },
+                "inlay-hint-font-size": {
+                    "type": "integer"
+                },
+                "enable-error-lens": {
+                    "type": "boolean"
+                },
+                "error-lens-end-of-line": {
+                    "type": "boolean"
+                },
+                "error-lens-font-family": {
+                    "type": "string"
+                },
+                "error-lens-font-size": {
+                    "type": "integer"
+                },
+                "blink-interval": {
+                    "type": "integer"
+                },
+                "multicursor-case-sensitive": {
+                    "type": "boolean"
+                },
+                "multicursor-whole-words": {
+                    "type": "boolean"
+                },
+                "render-whitespace": {
+                    "type": "string"
+                },
+                "show-indent-guide": {
+                    "type": "boolean"
+                },
+                "atomic-soft-tabs": {
+                    "type": "boolean"
+                }
+            },
+            "required": [],
+            "title": "Editor"
+        },
+        "Terminal": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "font-family": {
+                    "type": "string"
+                },
+                "font-size": {
+                    "type": "integer"
+                },
+                "line-height": {
+                    "type": "integer"
+                },
+                "shell": {
+                    "type": "string"
+                }
+            },
+            "required": [],
+            "title": "Terminal"
+        },
+        "UI": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "font-family": {
+                    "type": "string"
+                },
+                "font-size": {
+                    "type": "integer"
+                },
+                "icon-size": {
+                    "type": "integer"
+                },
+                "header-height": {
+                    "type": "integer"
+                },
+                "status-height": {
+                    "type": "integer"
+                },
+                "tab-min-width": {
+                    "type": "integer"
+                },
+                "scroll-width": {
+                    "type": "integer"
+                },
+                "drop-shadow-width": {
+                    "type": "integer"
+                },
+                "preview-editor-width": {
+                    "type": "integer"
+                },
+                "hover-font-family": {
+                    "type": "string"
+                },
+                "hover-font-size": {
+                    "type": "integer"
+                },
+                "trim-search-results-whitespace": {
+                    "type": "boolean"
+                }
+            },
+            "required": [],
+            "title": "UI"
+        }
+    }
+}
