@@ -230,7 +230,21 @@ impl LapceEditor {
                 editor_data.cancel_hover();
             }
             MouseButton::Middle => {}
-            _ => (),
+            MouseButton::X1 => {
+                let command = LapceCommand {
+                    kind: CommandKind::Focus(FocusCommand::JumpLocationBackward),
+                    data: None
+                };
+                editor_data.run_command(ctx, &command, None, Modifiers::empty(), &Env::empty());
+            }
+            MouseButton::X2 => {
+                let command = LapceCommand {
+                    kind: CommandKind::Focus(FocusCommand::JumpLocationForward),
+                    data: None
+                };
+                editor_data.run_command(ctx, &command, None, Modifiers::empty(), &Env::empty());
+            }
+            _ => ()
         }
     }
 
