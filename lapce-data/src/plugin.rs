@@ -9,7 +9,7 @@ use druid::{
 };
 use indexmap::IndexMap;
 use lapce_core::directory::Directory;
-use lapce_proxy::plugin::{download_volt, wasi::find_all_volts};
+use lapce_proxy::plugin::{download_volt, volt_icon, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
 use parking_lot::Mutex;
 use plugin_install_status::PluginInstallStatus;
@@ -28,6 +28,20 @@ use crate::{
 pub enum VoltIconKind {
     Svg(Arc<Svg>),
     Image(Arc<PietImage>),
+}
+
+impl VoltIconKind {
+    pub fn from_bytes(buf: &[u8]) -> Result<Self> {
+        if let Ok(s) = std::str::from_utf8(buf) {
+            let svg =
+                Svg::from_str(s).map_err(|_| anyhow::anyhow!("can't parse svg"))?;
+            Ok(VoltIconKind::Svg(Arc::new(svg)))
+        } else {
+            let image = PietImage::from_bytes(buf)
+                .map_err(|_| anyhow::anyhow!("can't resolve image"))?;
+            Ok(VoltIconKind::Image(Arc::new(image)))
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -125,6 +139,7 @@ pub struct PluginData {
     pub volts: VoltsList,
     pub installing: IndexMap<String, PluginInstallStatus>,
     pub installed: IndexMap<String, VoltMetadata>,
+    pub installed_icons: im::HashMap<String, VoltIconKind>,
     pub disabled: HashSet<String>,
     pub workspace_disabled: HashSet<String>,
 }
@@ -164,6 +179,7 @@ impl PluginData {
             volts: VoltsList::new(event_sink),
             installing: IndexMap::new(),
             installed: IndexMap::new(),
+            installed_icons: im::HashMap::new(),
             disabled: HashSet::from_iter(disabled.into_iter()),
             workspace_disabled: HashSet::from_iter(workspace_disabled.into_iter()),
         }
@@ -172,9 +188,10 @@ impl PluginData {
     fn load(tab_id: WidgetId, event_sink: ExtEventSink) {
         for meta in find_all_volts() {
             if meta.wasm.is_none() {
+                let icon = volt_icon(&meta);
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::VoltInstalled(meta, false),
+                    LapceUICommand::VoltInstalled(meta, icon),
                     Target::Widget(tab_id),
                 );
             }
@@ -242,15 +259,7 @@ impl PluginData {
             }
         };
 
-        if let Ok(s) = std::str::from_utf8(&content) {
-            let svg =
-                Svg::from_str(s).map_err(|_| anyhow::anyhow!("can't parse svg"))?;
-            Ok(VoltIconKind::Svg(Arc::new(svg)))
-        } else {
-            let image = PietImage::from_bytes(&content)
-                .map_err(|_| anyhow::anyhow!("can't resolve image"))?;
-            Ok(VoltIconKind::Image(Arc::new(image)))
-        }
+        VoltIconKind::from_bytes(&content)
     }
 
     fn load_volts(
@@ -356,7 +365,8 @@ impl PluginData {
                 }
 
                 let meta = download_volt_result?;
-                proxy.core_rpc.volt_installed(meta, false);
+                let icon = volt_icon(&meta);
+                proxy.core_rpc.volt_installed(meta, icon);
                 Ok(())
             });
         }

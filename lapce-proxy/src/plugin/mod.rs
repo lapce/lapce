@@ -931,6 +931,12 @@ pub enum PluginNotification {
     },
 }
 
+pub fn volt_icon(volt: &VoltMetadata) -> Option<String> {
+    let dir = volt.dir.as_ref()?;
+    let icon = dir.join(volt.icon.as_ref()?);
+    std::fs::read(icon).ok().map(base64::encode)
+}
+
 pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
     let url = format!(
         "https://plugins.lapce.dev/api/v1/plugins/{}/{}/{}/download",
@@ -983,7 +989,8 @@ pub fn install_volt(
     let local_meta = meta.clone();
 
     let _ = start_volt(workspace, configurations, local_catalog_rpc, local_meta);
-    catalog_rpc.core_rpc.volt_installed(meta, false);
+    let icon = volt_icon(&meta);
+    catalog_rpc.core_rpc.volt_installed(meta, icon);
     Ok(())
 }
 

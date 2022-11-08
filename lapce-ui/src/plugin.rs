@@ -196,7 +196,12 @@ impl Plugin {
         let icon_rect = Rect::ZERO
             .with_origin(Point::new(x / 2.0, y + self.line_height))
             .inflate(self.line_height * 0.75, self.line_height * 0.75);
-        if let Some(icon) = data.plugin.volts.icons.get(id) {
+        if let Some(icon) = data
+            .plugin
+            .installed_icons
+            .get(id)
+            .or_else(|| data.plugin.volts.icons.get(id))
+        {
             match icon {
                 VoltIconKind::Svg(svg) => {
                     ctx.draw_svg(svg, icon_rect, None);

@@ -33,7 +33,7 @@ use super::{
         handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
         PluginServerHandler, RpcCallback,
     },
-    PluginCatalogRpcHandler,
+    volt_icon, PluginCatalogRpcHandler,
 };
 use crate::plugin::psp::PluginServerRpcHandler;
 
@@ -209,7 +209,8 @@ pub fn load_all_volts(
         .into_iter()
         .filter_map(|meta| {
             meta.wasm.as_ref()?;
-            plugin_rpc.core_rpc.volt_installed(meta.clone(), false);
+            let icon = volt_icon(&meta);
+            plugin_rpc.core_rpc.volt_installed(meta.clone(), icon);
             if disabled_volts.contains(&meta.id()) {
                 return None;
             }
