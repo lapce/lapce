@@ -1,6 +1,6 @@
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, process::Stdio, sync::Arc};
 
 use clap::Parser;
 use druid::{
@@ -61,7 +61,12 @@ pub fn launch() {
         let mut cmd = std::process::Command::new(&args[0]);
         #[cfg(target_os = "windows")]
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-        if let Err(why) = cmd.args(&args[1..]).spawn() {
+        if let Err(why) = cmd
+            .args(&args[1..])
+            .stderr(Stdio::null())
+            .stdout(Stdio::null())
+            .spawn()
+        {
             eprintln!("Failed to launch lapce: {why}");
         };
         return;
