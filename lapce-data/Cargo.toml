@@ -29,7 +29,7 @@ crossbeam-channel = "0.5.0"
 regex = "1.5.6"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
 thiserror = "1.0"
-anyhow = "1.0.32"
+anyhow = "1.0.66"
 strum = "0.24.0"
 strum_macros = "0.24"
 serde = "1.0"
