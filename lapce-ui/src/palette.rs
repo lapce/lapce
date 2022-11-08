@@ -1,8 +1,8 @@
 use std::{path::Path, sync::Arc};
 
 use druid::{
-    kurbo::{Line, Rect},
-    piet::{Svg, Text, TextAttribute, TextLayout, TextLayoutBuilder},
+    kurbo::Rect,
+    piet::{Svg, Text, TextAttribute, TextLayoutBuilder},
     BoxConstraints, Color, Command, Data, Env, Event, EventCtx, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext,
     Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
@@ -15,7 +15,7 @@ use lapce_data::{
     list::ListData,
     palette::{
         PaletteItem, PaletteItemContent, PaletteListData, PaletteStatus,
-        PaletteType, PaletteViewData,
+        PaletteViewData,
     },
 };
 use lsp_types::SymbolKind;
@@ -438,110 +438,6 @@ impl Widget<LapceTabData> for PaletteContainer {
     }
 }
 
-pub struct PaletteInput {}
-
-impl PaletteInput {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for PaletteInput {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Widget<PaletteViewData> for PaletteInput {
-    fn event(
-        &mut self,
-        _ctx: &mut EventCtx,
-        _event: &Event,
-        _data: &mut PaletteViewData,
-        _env: &Env,
-    ) {
-    }
-
-    fn lifecycle(
-        &mut self,
-        _ctx: &mut LifeCycleCtx,
-        _event: &LifeCycle,
-        _data: &PaletteViewData,
-        _env: &Env,
-    ) {
-    }
-
-    fn update(
-        &mut self,
-        _ctx: &mut UpdateCtx,
-        _old_data: &PaletteViewData,
-        _data: &PaletteViewData,
-        _env: &Env,
-    ) {
-    }
-
-    fn layout(
-        &mut self,
-        _ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
-        _data: &PaletteViewData,
-        _env: &Env,
-    ) -> Size {
-        Size::new(bc.max().width, 14.0)
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, _env: &Env) {
-        let text = data.palette.input.clone();
-        let cursor = data.palette.cursor;
-
-        let text_layout = if text.is_empty()
-            && data.palette.palette_type == PaletteType::SshHost
-        {
-            ctx.text()
-                .new_text_layout("Enter your SSH details, like user@host")
-                .font(
-                    data.config.ui.font_family(),
-                    data.config.ui.font_size() as f64,
-                )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                        .clone(),
-                )
-                .build()
-                .unwrap()
-        } else {
-            ctx.text()
-                .new_text_layout(text)
-                .font(
-                    data.config.ui.font_family(),
-                    data.config.ui.font_size() as f64,
-                )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap()
-        };
-
-        let pos = text_layout.hit_test_text_position(cursor);
-        let line_metric = text_layout.line_metric(0).unwrap();
-        let p0 = (pos.point.x, line_metric.y_offset);
-        let p1 = (pos.point.x, line_metric.y_offset + line_metric.height);
-        let line = Line::new(p0, p1);
-
-        ctx.stroke(
-            line,
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-            1.0,
-        );
-        ctx.draw_text(&text_layout, Point::new(0.0, 0.0));
-    }
-}
-
 pub struct PalettePreview {}
 
 impl PalettePreview {
@@ -794,7 +690,11 @@ impl ListPaint<PaletteListData> for PaletteItem {
             )
             .text_color(
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .get_color_unchecked(if line == data.selected_index {
+                        LapceTheme::PALETTE_CURRENT_FOREGROUND
+                    } else {
+                        LapceTheme::PALETTE_FOREGROUND
+                    })
                     .clone(),
             );
         for &i_start in &text_indices {

@@ -280,7 +280,8 @@ impl<T: Clone + ListPaint<D> + 'static, D: Data> Widget<ListData<T, D>>
                 // TODO: Give this its own theme name entry
                 ctx.fill(
                     bg_rect,
-                    data.config.get_color_unchecked(LapceTheme::PALETTE_CURRENT),
+                    data.config
+                        .get_color_unchecked(LapceTheme::PALETTE_CURRENT_BACKGROUND),
                 );
             }
 
@@ -322,7 +323,11 @@ impl<D: Data> ListPaint<D> for String {
             )
             .text_color(
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .get_color_unchecked(if line == data.selected_index {
+                        LapceTheme::PALETTE_CURRENT_FOREGROUND
+                    } else {
+                        LapceTheme::PALETTE_FOREGROUND
+                    })
                     .clone(),
             )
             .build()

@@ -4,6 +4,7 @@
 
 ### Features/Changes
 
+- [#1655](https://github.com/lapce/lapce/pull/1655): Add status foreground theme key, use author colour for plugin version
 - [#1646](https://github.com/lapce/lapce/pull/1646): Fork the process when started from terminal
 - [#1653](https://github.com/lapce/lapce/pull/1653): Paint plugin icons
 - [#1644](https://github.com/lapce/lapce/pull/1644): Added "Reveal in File Tree" action to the editor tabs context menu
@@ -11,7 +12,7 @@
 
 ### Bug Fixes
 
-- [#1588](https://github.com/lapce/lapce/issues/1588): Fixed an issue where new windows would never be created after closing all windows on macOS.
+- [#1651](https://github.com/lapce/lapce/pull/1651): Fixed an issue where new windows would never be created after closing all windows on macOS.
 - [#1637](https://github.com/lapce/lapce/issues/1637): Fix python using 7 spaces instead of 4 spaces to indent
 - [#1669](https://github.com/lapce/lapce/issues/1669): It will now remember panel states when open a new project
 
@@ -24,7 +25,6 @@
 - [#1619](https://github.com/lapce/lapce/pull/1619):
   - Add active/inactive tab colours
   - Add primary button colour
-  - Replace custom drawn checkboxes with icons in source control
   - Add hover effect in source control panel
   - Add colour preview in settings
 - [#1617](https://github.com/lapce/lapce/pull/1617): Fixed a stack overflow that would crash lapce when attempting to sort a large number of PaletteItems
@@ -32,7 +32,7 @@
 - [#1590](https://github.com/lapce/lapce/pull/1590): Added ability to open file and file diff from source control context menu
 - [#1570](https://github.com/lapce/lapce/pull/1570): Added a basic tab context menu with common close actions
 - [#1560](https://github.com/lapce/lapce/pull/1560): Added ability to copy active editor remote file path to clipboard
-- [#1510](https://github.com/lapce/lapce/1510): Added support to discard changes to a file
+- [#1510](https://github.com/lapce/lapce/pull/1510): Added support to discard changes to a file
 - [#1459](https://github.com/lapce/lapce/pull/1459): Implement icon theme system
   - **This is a breaking change for colour themes!**
   - Colour themes should now use `[color-theme]` table format in theme TOML
@@ -91,7 +91,7 @@
 - [#1381](https://github.com/lapce/lapce/pull/1381): Show multiple hover items in the hover box
 - [#1040](https://github.com/lapce/lapce/pull/1040): Add keybindings for `Shift-Del`, `Shift-Ins`, and `Ctrl-Ins`
 - [#1401](https://github.com/lapce/lapce/pull/1401): Merge semantic and tree-sitter syntax highlighting
-- [1426](https://github.com/lapce/lapce/pull/1426): Add cursor position/current selection in status bar
+- [#1426](https://github.com/lapce/lapce/pull/1426): Add cursor position/current selection in status bar
   - ![image](https://user-images.githubusercontent.com/13157904/195414557-dbf6cff1-3ab2-49ec-ba9d-c7507b2fc83a.png)
 - [#1420](https://github.com/lapce/lapce/pull/1420): Add LSP `codeAction/resolve` support
 - [#1440](https://github.com/lapce/lapce/pull/1440): IME support

@@ -377,7 +377,7 @@ impl Plugin {
             );
 
             let color = match status {
-                PluginStatus::Installed => LapceTheme::EDITOR_FOCUS,
+                PluginStatus::Installed => LapceTheme::LAPCE_PLUGIN_AUTHOR,
                 PluginStatus::Upgrade => LapceTheme::LAPCE_WARN,
                 _ => LapceTheme::EDITOR_DIM,
             };
