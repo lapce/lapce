@@ -73,7 +73,7 @@ pub enum CoreNotification {
     },
     VoltInstalled {
         volt: VoltMetadata,
-        only_installing: bool,
+        icon: Option<String>,
     },
     VoltInstalling {
         volt: VoltInfo,
@@ -233,11 +233,8 @@ impl CoreRpcHandler {
         });
     }
 
-    pub fn volt_installed(&self, volt: VoltMetadata, only_installing: bool) {
-        self.notification(CoreNotification::VoltInstalled {
-            volt,
-            only_installing,
-        });
+    pub fn volt_installed(&self, volt: VoltMetadata, icon: Option<String>) {
+        self.notification(CoreNotification::VoltInstalled { volt, icon });
     }
 
     pub fn volt_installing(&self, volt: VoltInfo, error: String) {

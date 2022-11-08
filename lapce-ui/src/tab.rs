@@ -38,7 +38,10 @@ use lapce_data::{
         PanelContainerPosition, PanelKind, PanelPosition, PanelResizePosition,
         PanelStyle,
     },
-    plugin::plugin_install_status::{PluginInstallStatus, PluginInstallType},
+    plugin::{
+        plugin_install_status::{PluginInstallStatus, PluginInstallType},
+        VoltIconKind,
+    },
     proxy::path_from_url,
 };
 use lapce_rpc::proxy::ProxyResponse;
@@ -975,31 +978,36 @@ impl LapceTab {
                         let plugin = Arc::make_mut(&mut data.plugin);
                         plugin.volts.icons.insert(id.to_string(), icon.clone());
                     }
-                    LapceUICommand::VoltInstalled(volt, only_installing) => {
+                    LapceUICommand::VoltInstalled(volt, icon) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
 
                         // if there is a value inside the installing map, remove it from there as soon as it is installed.
                         plugin.installing.remove(&volt.id());
 
-                        if !(*only_installing) {
-                            plugin.installed.insert(volt.id(), volt.clone());
+                        plugin.installed.insert(volt.id(), volt.clone());
 
-                            for (_, tabs) in data.main_split.editor_tabs.iter() {
-                                for child in tabs.children.iter() {
-                                    if let EditorTabChild::Settings {
-                                        settings_widget_id,
-                                        ..
-                                    } = child
-                                    {
-                                        ctx.submit_command(Command::new(
-                                            LAPCE_UI_COMMAND,
-                                            LapceUICommand::VoltInstalled(
-                                                volt.clone(),
-                                                false,
-                                            ),
-                                            Target::Widget(*settings_widget_id),
-                                        ));
-                                    }
+                        if let Some(icon) = icon.as_ref().and_then(|icon| {
+                            VoltIconKind::from_bytes(&base64::decode(icon).ok()?)
+                                .ok()
+                        }) {
+                            plugin.installed_icons.insert(volt.id(), icon);
+                        }
+
+                        for (_, tabs) in data.main_split.editor_tabs.iter() {
+                            for child in tabs.children.iter() {
+                                if let EditorTabChild::Settings {
+                                    settings_widget_id,
+                                    ..
+                                } = child
+                                {
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::VoltInstalled(
+                                            volt.clone(),
+                                            icon.clone(),
+                                        ),
+                                        Target::Widget(*settings_widget_id),
+                                    ));
                                 }
                             }
                         }

@@ -607,7 +607,7 @@ pub enum LapceUICommand {
     LoadPlugins(PluginsInfo),
     LoadPluginsFailed,
     LoadPluginIcon(String, VoltIconKind),
-    VoltInstalled(VoltMetadata, bool),
+    VoltInstalled(VoltMetadata, Option<String>),
     VoltInstalling(VoltInfo, String),
     VoltRemoving(VoltMetadata, String),
     VoltInstallStatusClear(String),

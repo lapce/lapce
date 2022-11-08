@@ -2725,6 +2725,7 @@ dependencies = [
  "Inflector",
  "alacritty_terminal",
  "anyhow",
+ "base64 0.13.0",
  "chrono",
  "clap",
  "druid",
