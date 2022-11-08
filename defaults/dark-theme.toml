@@ -1,3 +1,5 @@
+#:schema ../extra/schemas/color-theme.json
+
 [color-theme]
 name = "Lapce Dark"
 
@@ -12,17 +14,17 @@ scroll-width = 10
 drop-shadow-width = 0
 
 [color-theme.base]
-white = "#ABB2BF"
 black = "#282C34"
-grey = "#3E4451"
 blue = "#61AFEF"
-red = "#E06C75"
-yellow = "#E5C07B"
-orange = "#D19A66"
-green = "#98C379"
-purple = "#C678DD"
 cyan = "#56B6C2"
+green = "#98C379"
+grey = "#3E4451"
 magenta = "#C678DD"
+orange = "#D19A66"
+purple = "#C678DD"
+red = "#E06C75"
+white = "#ABB2BF"
+yellow = "#E5C07B"
 
 [color-theme.syntax]
 "comment" = "#5C6370"

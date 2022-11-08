@@ -1,3 +1,5 @@
+#:schema ../extra/schemas/settings.json
+
 [core]
 modal = false
 color-theme = "Lapce Dark"
