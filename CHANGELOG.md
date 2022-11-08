@@ -13,6 +13,7 @@
 
 - [#1588](https://github.com/lapce/lapce/issues/1588): Fixed an issue where new windows would never be created after closing all windows on macOS.
 - [#1637](https://github.com/lapce/lapce/issues/1637): Fix python using 7 spaces instead of 4 spaces to indent
+- [#1669](https://github.com/lapce/lapce/issues/1669): It will now remember panel states when open a new project
 
 ## 0.2.2
 
