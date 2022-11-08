@@ -71,10 +71,14 @@ impl LapceWindow {
         workspace: LapceWorkspace,
         replace_current: bool,
     ) {
-        if replace_current {
+        let current_panels = {
             let tab = data.tabs.get(&data.active_id).unwrap();
-            let _ = tab.db.save_workspace(tab);
-        }
+            if replace_current {
+                let _ = tab.db.save_workspace(tab);
+            }
+            (*tab.panel).clone()
+        };
+
         let tab_id = WidgetId::next();
         let mut tab_data = LapceTabData::new(
             data.window_id,
@@ -85,6 +89,7 @@ impl LapceWindow {
             data.latest_release.clone(),
             data.update_in_progress,
             data.log_file.clone(),
+            Some(current_panels),
             data.panel_orders.clone(),
             ctx.get_external_handle(),
         );

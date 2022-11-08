@@ -168,6 +168,7 @@ impl LapceData {
                     latest_release.clone(),
                     false,
                     log_file.clone(),
+                    None,
                     panel_orders.clone(),
                     event_sink.clone(),
                     &info,
@@ -183,6 +184,7 @@ impl LapceData {
                         latest_release.clone(),
                         false,
                         log_file.clone(),
+                        None,
                         panel_orders.clone(),
                         event_sink.clone(),
                         info,
@@ -212,6 +214,7 @@ impl LapceData {
                 latest_release.clone(),
                 false,
                 log_file.clone(),
+                None,
                 panel_orders.clone(),
                 event_sink.clone(),
                 &info,
@@ -450,6 +453,7 @@ impl LapceWindowData {
         latest_release: Arc<Option<ReleaseInfo>>,
         update_in_progress: bool,
         log_file: Arc<Option<PathBuf>>,
+        current_panels: Option<PanelData>,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
         info: &WindowInfo,
@@ -472,6 +476,7 @@ impl LapceWindowData {
                 latest_release.clone(),
                 update_in_progress,
                 log_file.clone(),
+                current_panels.clone(),
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -494,6 +499,7 @@ impl LapceWindowData {
                 latest_release.clone(),
                 update_in_progress,
                 log_file.clone(),
+                current_panels,
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -676,6 +682,7 @@ impl LapceTabData {
         latest_release: Arc<Option<ReleaseInfo>>,
         update_in_progress: bool,
         log_file: Arc<Option<PathBuf>>,
+        current_panels: Option<PanelData>,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
     ) -> Self {
@@ -693,6 +700,9 @@ impl LapceTabData {
             let mut info = db.get_workspace_info(&workspace).ok();
             if let Some(info) = info.as_mut() {
                 info.split.children.clear();
+                if let Some(panels) = current_panels.clone() {
+                    info.panel = panels;
+                }
             }
             info
         };
@@ -816,6 +826,7 @@ impl LapceTabData {
                 panel.order = panel_orders.clone();
                 panel
             })
+            .or(current_panels)
             .unwrap_or_else(|| PanelData::new(panel_orders));
 
         let focus = (*main_split.active).unwrap_or(*main_split.split_id);

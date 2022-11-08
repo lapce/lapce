@@ -87,7 +87,7 @@ magenta = "#A626A4"
 "lapce.tab.separator" = "#B4B4B4"
 
 "lapce.icon.active" = "$black"
-"lapce.icon.inactive" = "$grey"
+"lapce.icon.inactive" = "#A0A1A7"
 
 "lapce.remote.local" = "#4078F2"
 "lapce.remote.connected" = "#50A14F"

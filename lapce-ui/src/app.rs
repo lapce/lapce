@@ -320,18 +320,24 @@ impl LapceAppDelegate {
         ctx: &mut druid::DelegateCtx,
         data: &mut LapceData,
     ) {
-        let (size, pos) = data
+        let (size, pos, current_panels) = data
             .windows
             .get(window_id)
             // If maximised, use default dimensions instead
             .filter(|win| !win.maximised)
-            .map(|win| (win.size, win.pos + (50.0, 50.0)))
+            .map(|win| {
+                (
+                    win.size,
+                    win.pos + (50.0, 50.0),
+                    win.tabs.get(&win.active_id).map(|tab| (*tab.panel).clone()),
+                )
+            })
             .unwrap_or_else(|| {
                 data.db
                     .get_last_window_info()
-                    .map(|i| (i.size, i.pos))
+                    .map(|i| (i.size, i.pos, None))
                     .unwrap_or_else(|_| {
-                        (Size::new(800.0, 600.0), Point::new(0.0, 0.0))
+                        (Size::new(800.0, 600.0), Point::new(0.0, 0.0), None)
                     })
             });
         let info = WindowInfo {
@@ -348,6 +354,7 @@ impl LapceAppDelegate {
             data.latest_release.clone(),
             data.update_in_process,
             data.log_file.clone(),
+            current_panels,
             data.panel_orders.clone(),
             ctx.get_external_handle(),
             &info,
@@ -451,6 +458,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                     data.latest_release.clone(),
                     data.update_in_process,
                     data.log_file.clone(),
+                    None,
                     data.panel_orders.clone(),
                     ctx.get_external_handle(),
                     &info,
