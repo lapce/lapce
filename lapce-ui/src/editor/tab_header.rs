@@ -138,9 +138,11 @@ impl LapceEditorTabHeader {
                 EditorTabChild::Settings { .. } => {
                     text = "Settings".to_string();
                     hint = format!("ver. {}", *meta::VERSION);
+                    svg = data.config.ui_svg(LapceIcons::SETTINGS);
                 }
                 EditorTabChild::Plugin { volt_name, .. } => {
                     text = format!("Plugin: {volt_name}");
+                    svg = data.config.ui_svg(LapceIcons::EXTENSIONS);
                 }
             }
         }
