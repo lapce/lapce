@@ -84,7 +84,7 @@ struct SyntaxProperties {
     injection: Option<&'static str>,
     /// The comment token.  "#" for python, "//" for rust for example.
     comment: &'static str,
-    /// The indent unit.  "\t" for python, "    " for rust, for example.
+    /// The indent unit.  "  " for javascript, "    " for rust, for example.
     indent: &'static str,
     /// TODO: someone more knowledgeable please describe what the two lists are.
     /// Anyway, the second element of the tuple is a "ignore list". See
@@ -626,7 +626,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         highlight: tree_sitter_python::HIGHLIGHT_QUERY,
         injection: None,
         comment: "#",
-        indent: "\t",
+        indent: "    ",
         code_lens: (
             &[
                 "source_file",
