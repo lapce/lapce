@@ -626,7 +626,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         highlight: tree_sitter_python::HIGHLIGHT_QUERY,
         injection: None,
         comment: "#",
-        indent: "       ",
+        indent: "\t",
         code_lens: (
             &[
                 "source_file",
@@ -676,7 +676,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &["module", "class", "method", "do_block"],
-
         extensions: &["rb"],
     },
     #[cfg(feature = "lang-rust")]
