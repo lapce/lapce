@@ -22,6 +22,23 @@ Lapce is available as a flatpak [here](https://flathub.org/apps/details/dev.lapc
 flatpak install flathub dev.lapce.lapce
 ```
 
+### Gentoo
+
+Lapce is available in Gentoos user repository GURU. 
+If the GURU is not activated, it can be with:
+
+```bash
+emerge --ask app-eselect/eselect-repository # install eselect repository
+eselect repository enable guru 
+emaint sync -r guru
+```
+
+After activating and syncing the GURU repository, lapce can be installed with
+
+```bash
+emerge app-editors/lapce
+```
+
 ### Homebrew
 
 ```bash
