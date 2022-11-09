@@ -238,7 +238,7 @@ jobs:
         run: rustup update && rustup target add aarch64-apple-darwin
 
       - name: Import Certificate
-        uses: apple-actions/import-codesign-certs@b3ad3190cbe076413153f9db48e0307b2ca694b3 # use action with node16, can be dropped after new action version
+        uses: lapce/import-codesign-certs@72dec84923586f8bef2bed09fdb4f9475c8f623d # use updated action, can be dropped once/if upstream is fixed
         with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
