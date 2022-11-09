@@ -46,6 +46,7 @@ impl VoltIconKind {
 
 #[derive(Clone)]
 pub struct VoltsList {
+    pub tab_id: WidgetId,
     pub total: usize,
     pub volts: IndexMap<String, VoltInfo>,
     pub icons: im::HashMap<String, VoltIconKind>,
@@ -56,8 +57,9 @@ pub struct VoltsList {
 }
 
 impl VoltsList {
-    pub fn new(event_sink: ExtEventSink) -> Self {
+    pub fn new(tab_id: WidgetId, event_sink: ExtEventSink) -> Self {
         Self {
+            tab_id,
             volts: IndexMap::new(),
             icons: im::HashMap::new(),
             total: 0,
@@ -80,8 +82,10 @@ impl VoltsList {
 
         let event_sink = self.event_sink.clone();
         let query = self.query.clone();
+        let tab_id = self.tab_id;
         std::thread::spawn(move || {
-            let _ = PluginData::load_volts(true, &query, 0, None, event_sink);
+            let _ =
+                PluginData::load_volts(tab_id, true, &query, 0, None, event_sink);
         });
     }
 
@@ -100,8 +104,10 @@ impl VoltsList {
         let local_loading = self.loading.clone();
         let event_sink = self.event_sink.clone();
         let query = self.query.clone();
+        let tab_id = self.tab_id;
         std::thread::spawn(move || {
             let _ = PluginData::load_volts(
+                tab_id,
                 false,
                 &query,
                 offset,
@@ -176,7 +182,7 @@ impl PluginData {
             search_editor: WidgetId::next(),
             installed_id: WidgetId::next(),
             uninstalled_id: WidgetId::next(),
-            volts: VoltsList::new(event_sink),
+            volts: VoltsList::new(tab_id, event_sink),
             installing: IndexMap::new(),
             installed: IndexMap::new(),
             installed_icons: im::HashMap::new(),
@@ -198,7 +204,7 @@ impl PluginData {
         }
 
         std::thread::spawn(move || {
-            let _ = PluginData::load_volts(true, "", 0, None, event_sink);
+            let _ = PluginData::load_volts(tab_id, true, "", 0, None, event_sink);
         });
     }
 
@@ -263,6 +269,7 @@ impl PluginData {
     }
 
     fn load_volts(
+        tab_id: WidgetId,
         inital: bool,
         query: &str,
         offset: usize,
@@ -280,7 +287,7 @@ impl PluginData {
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::LoadPluginIcon(volt.id(), icon),
-                                Target::Auto,
+                                Target::Widget(tab_id),
                             );
                             Ok(())
                         });
@@ -290,7 +297,7 @@ impl PluginData {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::LoadPlugins(info),
-                    Target::Auto,
+                    Target::Widget(tab_id),
                 );
             }
             Err(_) => {
@@ -298,7 +305,7 @@ impl PluginData {
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::LoadPluginsFailed,
-                        Target::Auto,
+                        Target::Widget(tab_id),
                     );
                 }
                 if let Some(loading) = loading.as_ref() {
