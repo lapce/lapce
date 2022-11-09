@@ -215,6 +215,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "p6" | "pm6" | "pod6" | "t6" | "raku" | "rakumod"
                     | "rakudoc" | "rakutest" => "perl6",
                     "php" | "phtml" | "pht" | "phps" => "php",
+                    "proto" => "proto",
                     "ps1" | "ps1xml" | "psc1" | "psm1" | "psd1" | "pssc"
                     | "psrc" => "powershell",
                     "py" | "pyi" | "pyc" | "pyd" | "pyw" => "python",

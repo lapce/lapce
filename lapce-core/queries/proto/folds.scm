@@ -1,0 +1,5 @@
+[
+  (enum)
+  (message)
+  (service)
+] @fold
