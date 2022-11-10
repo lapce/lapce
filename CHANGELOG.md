@@ -4,6 +4,12 @@
 
 ### Features/Changes
 
+### Bug Fixes
+
+## 0.2.3
+
+### Features/Changes
+
 - [#1655](https://github.com/lapce/lapce/pull/1655): Add status foreground theme key, use author colour for plugin version
 - [#1646](https://github.com/lapce/lapce/pull/1646): Fork the process when started from terminal
 - [#1653](https://github.com/lapce/lapce/pull/1653): Paint plugin icons
