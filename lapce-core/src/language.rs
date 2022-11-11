@@ -299,8 +299,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
         injection: None,
         comment: "//",
         indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        code_lens: (
+            &["program", "class_definition"],
+            &[
+                "program",
+                "import_or_export",
+                "comment",
+                "documentation_comment",
+            ],
+        ),
+        sticky_headers: &["class_definition"],
         extensions: &["dart"],
     },
     #[cfg(feature = "lang-dockerfile")]
