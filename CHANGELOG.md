@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- [#1686](https://github.com/lapce/lapce/pull/1686): Add zoom in/out keybindings for editor and terminal
+
 ### Features/Changes
 
 ### Bug Fixes

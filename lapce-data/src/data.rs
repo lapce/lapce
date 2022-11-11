@@ -1851,6 +1851,22 @@ impl LapceTabData {
             LapceWorkbenchCommand::Quit => {
                 ctx.submit_command(druid::commands::QUIT_APP);
             }
+            LapceWorkbenchCommand::ZoomInEditor => {
+                let config = Arc::make_mut(&mut self.config);
+                config.zoom_editor_font_size(false);
+            }
+            LapceWorkbenchCommand::ZoomOutEditor => {
+                let config = Arc::make_mut(&mut self.config);
+                config.zoom_editor_font_size(true);
+            }
+            LapceWorkbenchCommand::ZoomInTerminal => {
+                let config = Arc::make_mut(&mut self.config);
+                config.zoom_terminal_font_size(false);
+            }
+            LapceWorkbenchCommand::ZoomOutTerminal => {
+                let config = Arc::make_mut(&mut self.config);
+                config.zoom_terminal_font_size(true);
+            }
         }
     }
 

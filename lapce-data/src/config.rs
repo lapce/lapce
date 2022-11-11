@@ -1420,6 +1420,24 @@ impl LapceConfig {
         }
     }
 
+    pub fn zoom_editor_font_size(&mut self, out: bool) {
+        if out && self.editor.font_size > 2 {
+            self.editor.font_size -= 1
+        } else if !out && self.editor.font_size < 200 {
+            self.editor.font_size += 1
+        }
+    }
+
+    pub fn zoom_terminal_font_size(&mut self, out: bool) {
+        if self.terminal.font_size != 0 {
+            if out && self.terminal.font_size > 2 {
+                self.terminal.font_size -= 1
+            } else if !out && self.terminal.font_size < 200 {
+                self.terminal.font_size += 1
+            }
+        }
+    }
+
     pub fn terminal_font_size(&self) -> usize {
         if self.terminal.font_size > 0 {
             self.terminal.font_size

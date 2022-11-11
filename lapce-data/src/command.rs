@@ -457,6 +457,22 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Toggle Inlay Hints")]
     ToggleInlayHints,
 
+    #[strum(serialize = "zoom_editor_in")]
+    #[strum(message = "Zoom In on Editor")]
+    ZoomInEditor,
+
+    #[strum(serialize = "zoom_editor_out")]
+    #[strum(message = "Zoom Out on Editor")]
+    ZoomOutEditor,
+
+    #[strum(serialize = "zoom_terminal_in")]
+    #[strum(message = "Zoom In on Terminal")]
+    ZoomInTerminal,
+
+    #[strum(serialize = "zoom_terminal_out")]
+    #[strum(message = "Zoom Out on Terminal")]
+    ZoomOutTerminal,
+
     #[strum(serialize = "restart_to_update")]
     RestartToUpdate,
 
