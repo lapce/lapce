@@ -181,7 +181,19 @@ struct CommentProperties {
 /// Do not assign values to the variants because the number of variants and
 /// number of elements in the LANGUAGES array change as different features
 /// selected by the cargo build command.
-#[derive(Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy, Debug, Display, EnumString, Default)]
+#[derive(
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Clone,
+    Copy,
+    Debug,
+    Display,
+    EnumString,
+    Default,
+)]
 #[strum(ascii_case_insensitive)]
 pub enum LapceLanguage {
     // Do not move
