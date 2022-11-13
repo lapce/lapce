@@ -400,7 +400,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(feature = "lang-cmake")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_cmake::language,
-            highlight: include_str!("../queries/cmake/highlights.scm"),
+            highlight: Some(include_str!("../queries/cmake/highlights.scm")),
             injection: Some(include_str!("../queries/cmake/injections.scm")),
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &["function_definition"],
@@ -552,13 +552,15 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_dart::language,
             highlight: Some(tree_sitter_dart::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (&["program", "class_definition"],
-            &[
-                "program",
-                "import_or_export",
-                "comment",
-                "documentation_comment",
-            ],),
+            code_lens: (
+                &["program", "class_definition"],
+                &[
+                    "program",
+                    "import_or_export",
+                    "comment",
+                    "documentation_comment",
+                ],
+            ),
             sticky_headers: &["class_definition"],
         }),
         #[cfg(not(feature = "compile-grammars"))]
@@ -710,7 +712,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             "tese", "mesh", "task", "rgen", "rint", "rahit", "rchit", "rmiss",
             "rcall",
         ],
-        
+
         comment: CommentProperties {
             single_line_start: "//",
             single_line_end: "",
