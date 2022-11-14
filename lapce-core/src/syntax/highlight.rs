@@ -84,6 +84,7 @@ declare_language_highlights!(
     Ocaml: "lang-ocaml",
     OcamlInterface: "lang-ocaml",
     Php: "lang-php",
+    Prisma: "lang-prisma",
     Python: "lang-python",
     Ql: "lang-ql",
     R: "lang-r",
@@ -102,7 +103,6 @@ declare_language_highlights!(
     Xml: "lang-xml",
     Yaml: "lang-yaml",
     Zig: "lang-zig",
-    Prisma: "lang-prisma",
 );
 
 /// Indicates which highlight should be applied to a region of source code.
