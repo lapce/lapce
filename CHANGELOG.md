@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Features/Changes
+- [#1700](https://github.com/lapce/lapce/pull/1700):add prisma support
 
 ### Bug Fixes
 
