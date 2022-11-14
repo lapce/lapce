@@ -2,8 +2,6 @@
 ; https://github.com/victorhqc/tree-sitter-prisma/blob/master/LICENSE
 ; spdx: MIT
 
-; Namespaces
-
 (string) @string
 
 (enumeral) @constant
