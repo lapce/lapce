@@ -174,6 +174,8 @@ pub enum LapceLanguage {
     OcamlInterface,
     #[cfg(feature = "lang-php")]
     Php,
+    #[cfg(feature = "lang-prisma")]
+    Prisma,
     #[cfg(feature = "lang-python")]
     Python,
     #[cfg(feature = "lang-ql")]
@@ -210,8 +212,6 @@ pub enum LapceLanguage {
     Yaml,
     #[cfg(feature = "lang-zig")]
     Zig,
-    #[cfg(feature = "lang-prisma")]
-    Prisma,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
