@@ -210,6 +210,8 @@ pub enum LapceLanguage {
     Yaml,
     #[cfg(feature = "lang-zig")]
     Zig,
+    #[cfg(feature = "lang-prisma")]
+    Prisma,
 }
 
 // NOTE: Elements in the array must be in the same order as the enum variants of
@@ -848,6 +850,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["zig"],
+    },
+    #[cfg(feature = "lang-prisma")]
+    SyntaxProperties {
+        id: LapceLanguage::Prisma,
+        language: tree_sitter_prisma_io::language,
+        highlight: include_str!("../queries/prisma/highlights.scm"),
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["prisma"],
     },
 ];
 
