@@ -102,6 +102,7 @@ declare_language_highlights!(
     Xml: "lang-xml",
     Yaml: "lang-yaml",
     Zig: "lang-zig",
+    Prisma: "lang-prisma",
 );
 
 /// Indicates which highlight should be applied to a region of source code.
