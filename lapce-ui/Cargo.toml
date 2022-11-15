@@ -78,6 +78,7 @@ all-languages = [
     "lang-nix",
     "lang-ocaml",
     "lang-php",
+    "lang-prisma",
     "lang-python",
     "lang-ql",
     "lang-r",
@@ -126,6 +127,7 @@ lang-markdown = ["lapce-core/lang-markdown"]
 lang-nix = ["lapce-core/lang-nix"]
 lang-ocaml = ["lapce-core/lang-ocaml"]
 lang-php = ["lapce-core/lang-php"]
+lang-prisma = ["lapce-core/lang-prisma"]
 lang-python = ["lapce-core/lang-python"]
 lang-ql = ["lapce-core/lang-ql"]
 lang-r = ["lapce-core/lang-r"]

@@ -3,7 +3,8 @@
 ## Unreleased
 
 ### Features/Changes
-- [#1702](https://github.com/lapce/lapce/pull/1702) Improved svelte treesitter queries
+- [#1700](https://github.com/lapce/lapce/pull/1700): Add prisma syntax and highlighting
+- [#1702](https://github.com/lapce/lapce/pull/1702): Improved svelte treesitter queries
 
 ### Bug Fixes
 

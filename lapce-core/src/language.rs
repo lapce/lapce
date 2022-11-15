@@ -174,6 +174,8 @@ pub enum LapceLanguage {
     OcamlInterface,
     #[cfg(feature = "lang-php")]
     Php,
+    #[cfg(feature = "lang-prisma")]
+    Prisma,
     #[cfg(feature = "lang-python")]
     Python,
     #[cfg(feature = "lang-ql")]
@@ -618,6 +620,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["php"],
+    },
+    #[cfg(feature = "lang-prisma")]
+    SyntaxProperties {
+        id: LapceLanguage::Prisma,
+        language: tree_sitter_prisma_io::language,
+        highlight: include_str!("../queries/prisma/highlights.scm"),
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["prisma"],
     },
     #[cfg(feature = "lang-python")]
     SyntaxProperties {
