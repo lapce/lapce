@@ -733,8 +733,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Svelte,
         language: tree_sitter_svelte::language,
-        highlight: tree_sitter_svelte::HIGHLIGHT_QUERY,
-        injection: Some(tree_sitter_svelte::INJECTION_QUERY),
+        highlight: include_str!("../queries/svelte/highlights.scm"),
+        injection: Some(include_str!("../queries/svelte/injections.scm")),
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
