@@ -22,6 +22,8 @@ lapce-rpc = { path = "../lapce-rpc" }
 
 tree-sitter = "0.20.7"
 
+# please keep below dependencies and features sorted just like LANGUAGES in language.rs
+
 # switch to upstream version after this is merged  https://github.com/tree-sitter/tree-sitter-bash/pull/120
 tree-sitter-bash = { git = "https://github.com/syntacti/tree-sitter-bash", branch = "master", optional = true }
 tree-sitter-c = { version = "0.20.1", optional = true }
@@ -63,6 +65,8 @@ tree-sitter-ruby = { git = "https://github.com/tree-sitter/tree-sitter-ruby.git"
 tree-sitter-rust = { version = "0.20.0", optional = true }
 tree-sitter-scheme = { git = "https://github.com/6cdh/tree-sitter-scheme.git", branch = "main", optional = true }
 tree-sitter-scss = { git = "https://github.com/VixieTSQ/tree-sitter-scss", version = "0.0.1", branch = "patch-1", optional = true }
+# switch to upstream version after this is merged  https://github.com/m-novikov/tree-sitter-sql/pull/68
+tree-sitter-sql = { git= "https://github.com/oknozor/tree-sitter-sql", branch ="main", optional = true }
 tree-sitter-svelte = { git = "https://github.com/Himujjal/tree-sitter-svelte", branch = "master", optional = true }
 tree-sitter-swift = { version = "0.3.4", optional = true }
 tree-sitter-toml = { version = "0.20.0", optional = true }
@@ -72,8 +76,6 @@ tree-sitter-wgsl = { git = "https://github.com/szebniok/tree-sitter-wgsl", branc
 tree-sitter-xml = { git = "https://github.com/RenjiSann/tree-sitter-xml", branch = "main", optional = true}
 tree-sitter-yaml = { git = "https://github.com/panekj/tree-sitter-yaml", branch = "master", optional = true }
 tree-sitter-zig = { git = "https://github.com/maxxnino/tree-sitter-zig", branch = "main", optional = true }
-# switch to upstream version after this is merged  https://github.com/m-novikov/tree-sitter-sql/pull/68
-tree-sitter-sql = { git= "https://github.com/oknozor/tree-sitter-sql", branch ="main", optional = true }
 
 [features]
 default = []
@@ -117,6 +119,7 @@ lang-ruby = ["dep:tree-sitter-ruby"]
 lang-rust = ["dep:tree-sitter-rust"]
 lang-scheme = ["dep:tree-sitter-scheme"]
 lang-scss = ["dep:tree-sitter-scss"]
+lang-sql = ["dep:tree-sitter-sql"]
 lang-svelte = ["dep:tree-sitter-svelte"]
 lang-swift = ["dep:tree-sitter-swift"]
 lang-toml = ["dep:tree-sitter-toml"]
@@ -126,4 +129,3 @@ lang-wgsl = ["dep:tree-sitter-wgsl"]
 lang-yaml = ["dep:tree-sitter-yaml"]
 lang-xml = ["dep:tree-sitter-xml"]
 lang-zig = ["dep:tree-sitter-zig"]
-lang-sql = ["dep:tree-sitter-sql"]

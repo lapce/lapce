@@ -86,6 +86,7 @@ all-languages = [
     "lang-rust",
     "lang-scheme",
     "lang-scss",
+    "lang-sql",
     "lang-svelte",
     "lang-swift",
     "lang-toml",
@@ -95,7 +96,6 @@ all-languages = [
     "lang-xml",
     "lang-yaml",
     "lang-zig",
-    "lang-sql",
 ]
 
 lang-bash = ["lapce-core/lang-bash"]
