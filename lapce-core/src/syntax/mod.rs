@@ -790,27 +790,23 @@ impl Syntax {
         let tree = self.layers.try_tree()?;
         let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
 
-        while let Some(parent) = node.parent() {
-            for closing_bracket_offset in node.byte_range() {
-                let char = self.text.byte_at(closing_bracket_offset) as char;
-                if matching_pair_direction(char) == Some(false) {
-                    if let Some(opening_bracket_offset) =
-                        self.find_matching_pair(closing_bracket_offset)
-                    {
-                        if (opening_bracket_offset..closing_bracket_offset)
-                            .contains(&offset)
-                        {
-                            return Some((
-                                opening_bracket_offset,
-                                closing_bracket_offset,
-                            ));
-                        }
-                    }
+        loop {
+            let start = node.start_byte();
+            let c = self.text.byte_at(start) as char;
+            if matching_pair_direction(c) == Some(true) {
+                let end = self.find_matching_pair(start)?;
+                if end >= offset {
+                    return Some((start, end));
                 }
             }
-            node = parent;
+            if let Some(sibling) = node.prev_sibling() {
+                node = sibling;
+            } else if let Some(parent) = node.parent() {
+                node = parent;
+            } else {
+                return None;
+            }
         }
-        None
     }
 }
 

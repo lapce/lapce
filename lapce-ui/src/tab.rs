@@ -1371,6 +1371,7 @@ impl LapceTab {
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateSettingsFile(parent, key, value) => {
+                        ctx.set_handled();
                         if let Some(value) = toml_edit::ser::to_item(value)
                             .ok()
                             .and_then(|i| i.into_value().ok())

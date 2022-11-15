@@ -597,6 +597,7 @@ pub enum LapceUICommand {
     UpdatePaletteItems(String, im::Vector<PaletteItem>),
     FilterPaletteItems(String, String, im::Vector<PaletteItem>),
     UpdateKeymapsFilter(String),
+    ResetSettings,
     ResetSettingsFile(String, String),
     UpdateSettingsFile(String, String, Value),
     UpdateSettingsFilter(String),
