@@ -2801,15 +2801,14 @@ impl Document {
             } else {
                 return syntax.find_enclosing_pair(offset);
             }
-        } else {
-            let mut cursor = WordCursor::new(self.buffer.text(), offset);
-            if matching_pair_direction(char_at_cursor).is_some() {
-                let new_offset = cursor.match_pairs().unwrap_or(offset);
-                return Some((offset, new_offset));
-            } else {
-                return cursor.find_enclosing_pair();
-            }
         }
-        None
+
+        let mut cursor = WordCursor::new(self.buffer.text(), offset);
+        if matching_pair_direction(char_at_cursor).is_some() {
+            let new_offset = cursor.match_pairs().unwrap_or(offset);
+            Some((offset, new_offset))
+        } else {
+            cursor.find_enclosing_pair()
+        }
     }
 }
