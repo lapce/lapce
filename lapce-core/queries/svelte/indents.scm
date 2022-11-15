@@ -1,5 +1,7 @@
 ;src: https://github.com/nvim-treesitter/nvim-treesitter/blob/master/queries/svelte/indents.scm
 ;licence https://github.com/nvim-treesitter/nvim-treesitter/blob/master/LICENSE
+; spdx: Apache-2.0
+
 [
   (element)
   (if_statement)

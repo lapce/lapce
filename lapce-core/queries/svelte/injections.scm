@@ -1,7 +1,7 @@
 ; src: https://github.com/helix-editor/helix/blob/master/runtime/queries/svelte/injections.scm
 ; licence: https://github.com/helix-editor/helix/blob/master/LICENSE
-; injections.scm
-; --------------
+; spdx: MPL-2.0
+
 ((style_element
   (raw_text) @injection.content)
   (#set! injection.language "css"))

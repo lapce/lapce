@@ -1,5 +1,6 @@
 ; src: https://github.com/helix-editor/helix/blob/master/runtime/queries/svelte/highlights.scm
 ; licence: https://github.com/helix-editor/helix/blob/master/LICENSE
+; spdx: MPL-2.0
 
 (tag_name) @tag
 (erroneous_end_tag_name) @error
