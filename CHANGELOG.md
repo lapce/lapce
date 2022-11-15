@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Features/Changes
+- [#1702](https://github.com/lapce/lapce/pull/1702) Improved svelte treesitter queries
 
 ### Bug Fixes
 
