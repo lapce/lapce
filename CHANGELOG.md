@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- [#1690](https://github.com/lapce/lapce/pull/1690): Add codelens and sticky headers for Dart
+
 ### Bug Fixes
 
 ## 0.2.3
