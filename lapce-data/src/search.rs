@@ -1,5 +1,5 @@
-use std::{path::PathBuf, sync::Arc};
 use indexmap::IndexMap;
+use std::{path::PathBuf, sync::Arc};
 
 use druid::WidgetId;
 

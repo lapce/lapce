@@ -10,6 +10,8 @@
 
 ### Bug Fixes
 
+- [#1709](https://github.com/lapce/lapce/pull/1709): Fix search result ordering
+
 ## 0.2.3
 
 ### Features/Changes
