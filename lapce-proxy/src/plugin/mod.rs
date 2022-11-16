@@ -956,6 +956,12 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
         return Err(anyhow!("can't download plugin"));
     }
 
+    let is_zstd = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        == Some("application/zstd");
+
     let id = volt.id();
     let plugin_dir = Directory::plugins_directory()
         .ok_or_else(|| anyhow!("can't get plugin directory"))?
@@ -963,9 +969,15 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
     let _ = fs::remove_dir_all(&plugin_dir);
     fs::create_dir_all(&plugin_dir)?;
 
-    let tar = GzDecoder::new(&mut resp);
-    let mut archive = Archive::new(tar);
-    archive.unpack(&plugin_dir)?;
+    if is_zstd {
+        let tar = zstd::Decoder::new(&mut resp).unwrap();
+        let mut archive = Archive::new(tar);
+        archive.unpack(&plugin_dir)?;
+    } else {
+        let tar = GzDecoder::new(&mut resp);
+        let mut archive = Archive::new(tar);
+        archive.unpack(&plugin_dir)?;
+    }
 
     let meta_path = plugin_dir.join("volt.toml");
     let meta = load_volt(&meta_path)?;
