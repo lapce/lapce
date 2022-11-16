@@ -9,6 +9,7 @@
 - [#1690](https://github.com/lapce/lapce/pull/1690): Add codelens and sticky headers for Dart
 
 ### Bug Fixes
+- [#1710](https://github.com/lapce/lapce/pull/1710): Fix autosave trying to save scratch files
 
 ## 0.2.3
 

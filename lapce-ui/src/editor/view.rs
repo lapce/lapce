@@ -621,7 +621,10 @@ impl Widget<LapceTabData> for LapceEditorView {
                     .and_then(|active| data.main_split.editors.get(&active))
                     .cloned()
                 {
-                    if data.config.editor.autosave_interval > 0 {
+                    // If autosave is enabled, and the content is a file that we can save,
+                    if data.config.editor.autosave_interval > 0
+                        && editor.content.is_file()
+                    {
                         if ctx.is_focused() {
                             let doc = data.main_split.editor_doc(self.view_id);
                             if !doc.buffer().is_pristine() {
