@@ -32,6 +32,7 @@ pub struct SearchInput {
     result_width: f64,
     search_input_padding: f64,
     mouse_pos: Point,
+    background_color: Option<&'static str>,
 }
 
 impl SearchInput {
@@ -64,7 +65,13 @@ impl SearchInput {
             icons,
             mouse_pos: Point::ZERO,
             search_input_padding,
+            background_color: Some(LapceTheme::EDITOR_BACKGROUND),
         }
+    }
+    
+    pub fn clear_background_color(mut self) -> Self {
+        self.background_color = None;
+        self
     }
 
     fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
@@ -172,12 +179,14 @@ impl Widget<LapceTabData> for SearchInput {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let buffer = data.editor_view_content(self.parent_view_id);
 
-        let rect = ctx.size().to_rect();
-        ctx.fill(
-            rect,
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-        );
+        if let Some(background_color) = self.background_color {
+            let rect = ctx.size().to_rect();
+            ctx.fill(
+                rect,
+                data.config
+                    .get_color_unchecked(background_color),
+            );
+        }
         self.input.paint(ctx, data, env);
 
         let mut index = None;
