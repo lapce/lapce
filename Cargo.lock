@@ -2703,6 +2703,7 @@ dependencies = [
  "wasmtime",
  "wasmtime-wasi",
  "which",
+ "zstd",
 ]
 
 [[package]]
