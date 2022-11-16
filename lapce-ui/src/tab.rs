@@ -800,7 +800,7 @@ impl LapceTab {
                         if pattern.is_empty() {
                             Arc::make_mut(&mut data.find).unset();
                             Arc::make_mut(&mut data.search).matches =
-                                Arc::new(HashMap::new());
+                                Arc::new(Default::default());
                         } else {
                             let find = Arc::make_mut(&mut data.find);
                             find.set_case_sensitive(*case_sensitive);

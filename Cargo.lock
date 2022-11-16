@@ -2676,6 +2676,7 @@ dependencies = [
  "grep-regex",
  "grep-searcher",
  "ignore",
+ "indexmap",
  "interprocess",
  "jsonrpc-lite",
  "lapce-core",
@@ -2711,6 +2712,7 @@ version = "0.2.3"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
+ "indexmap",
  "lapce-xi-rope",
  "log 0.4.17",
  "lsp-types",

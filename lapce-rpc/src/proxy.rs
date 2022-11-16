@@ -8,6 +8,7 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender};
+use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
@@ -301,7 +302,7 @@ pub enum ProxyResponse {
     },
     GlobalSearchResponse {
         #[allow(clippy::type_complexity)]
-        matches: HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
+        matches: IndexMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
     },
     Success {},
     SaveResponse {},

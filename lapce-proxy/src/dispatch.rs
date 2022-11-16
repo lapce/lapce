@@ -14,6 +14,7 @@ use git2::{build::CheckoutBuilder, DiffOptions, Repository};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{sinks::UTF8, SearcherBuilder};
+use indexmap::IndexMap;
 use lapce_rpc::{
     core::{CoreNotification, CoreRpcHandler},
     file::FileNodeItem,
@@ -298,7 +299,7 @@ impl ProxyHandler for Dispatcher {
                 let proxy_rpc = self.proxy_rpc.clone();
                 thread::spawn(move || {
                     let result = if let Some(workspace) = workspace.as_ref() {
-                        let mut matches = HashMap::new();
+                        let mut matches = IndexMap::new();
                         let pattern = regex::escape(&pattern);
                         if let Ok(matcher) = RegexMatcherBuilder::new()
                             .case_insensitive(!case_sensitive)
