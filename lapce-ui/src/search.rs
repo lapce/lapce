@@ -127,9 +127,9 @@ impl Widget<LapceTabData> for SearchInput {
         let icon_height = height - self.search_input_padding;
         let mut width = input_size.width + self.result_width + height * icon_len;
 
-        if width - 20.0 > bc.max().width {
+        if width > bc.max().width {
             let input_bc = BoxConstraints::tight(Size::new(
-                bc.max().width - height * icon_len - 20.0 - self.result_width,
+                bc.max().width - height * icon_len - self.result_width,
                 bc.max().height,
             ));
             input_size = self.input.layout(ctx, &input_bc, data, env);
