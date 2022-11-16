@@ -542,7 +542,7 @@ pub enum LapceUICommand {
         pattern: String,
         case_sensitive: bool,
     },
-    GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),
+    GlobalSearchResult(String, Arc<IndexMap<PathBuf, Vec<Match>>>),
     CancelFilePicker,
     SetWorkspace(LapceWorkspace),
     SetColorTheme(String, bool),

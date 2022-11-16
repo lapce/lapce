@@ -11,6 +11,8 @@
 ### Bug Fixes
 - [#1710](https://github.com/lapce/lapce/pull/1710): Fix autosave trying to save scratch files
 
+- [#1709](https://github.com/lapce/lapce/pull/1709): Fix search result ordering
+
 ## 0.2.3
 
 ### Features/Changes
