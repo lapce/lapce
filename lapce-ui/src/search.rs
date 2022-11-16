@@ -68,7 +68,7 @@ impl SearchInput {
             background_color: Some(LapceTheme::EDITOR_BACKGROUND),
         }
     }
-    
+
     pub fn clear_background_color(mut self) -> Self {
         self.background_color = None;
         self
@@ -181,11 +181,7 @@ impl Widget<LapceTabData> for SearchInput {
 
         if let Some(background_color) = self.background_color {
             let rect = ctx.size().to_rect();
-            ctx.fill(
-                rect,
-                data.config
-                    .get_color_unchecked(background_color),
-            );
+            ctx.fill(rect, data.config.get_color_unchecked(background_color));
         }
         self.input.paint(ctx, data, env);
 
