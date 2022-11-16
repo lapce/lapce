@@ -13,6 +13,8 @@
 
 - [#1709](https://github.com/lapce/lapce/pull/1709): Fix search result ordering
 
+ - [#1708](https://github.com/lapce/lapce/pull/1708): Fix visual issue when search panel is placed to either side panel
+
 ## 0.2.3
 
 ### Features/Changes
