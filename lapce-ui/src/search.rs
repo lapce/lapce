@@ -281,7 +281,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
         .get(&data.search.editor_view_id)
         .unwrap();
 
-    let search_bar = SearchInput::new(editor_data.view_id);
+    let search_bar = SearchInput::new(editor_data.view_id).clear_background_color();
 
     let split = LapceSplit::new(data.search.split_id)
         .horizontal()
