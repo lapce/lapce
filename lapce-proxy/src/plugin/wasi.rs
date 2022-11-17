@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_core::directory::Directory;
 use lapce_rpc::{
@@ -116,8 +117,14 @@ impl PluginServerHandler for Plugin {
         let _ = self.host.handle_notification(method, params);
     }
 
-    fn handle_host_request(&mut self, id: Id, method: String, params: Params) {
-        let _ = self.host.handle_request(id, method, params);
+    fn handle_host_request(
+        &mut self,
+        id: Id,
+        method: String,
+        params: Params,
+        chan: Sender<Result<serde_json::Value, RpcError>>,
+    ) {
+        self.host.handle_request(id, method, params, chan);
     }
 
     fn handle_did_save_text_document(
@@ -383,9 +390,14 @@ pub fn start_volt(
     let rpc = PluginServerRpcHandler::new(meta.name.clone(), io_tx);
 
     let local_rpc = rpc.clone();
+    let local_stdin = stdin.clone();
     linker.func_wrap("lapce", "host_handle_rpc", move || {
         if let Ok(msg) = wasi_read_string(&stdout) {
-            handle_plugin_server_message(&local_rpc, &msg);
+            if let Some(resp) = handle_plugin_server_message(&local_rpc, &msg) {
+                if let Ok(msg) = serde_json::to_string(&resp) {
+                    let _ = writeln!(local_stdin.write().unwrap(), "{}", msg);
+                }
+            }
         }
     })?;
     linker.func_wrap("lapce", "host_handle_stderr", move || {
@@ -403,8 +415,8 @@ pub fn start_volt(
 
     thread::spawn(move || {
         for msg in io_rx {
-            {
-                let _ = writeln!(stdin.write().unwrap(), "{}\r", msg);
+            if let Ok(msg) = serde_json::to_string(&msg) {
+                let _ = writeln!(stdin.write().unwrap(), "{}", msg);
             }
             let _ = handle_rpc.call(&mut store, ());
         }
