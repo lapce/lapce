@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_rpc::{style::LineStyle, RpcError};
 use lapce_xi_rope::Rope;
@@ -86,8 +87,14 @@ impl PluginServerHandler for LspClient {
         }
     }
 
-    fn handle_host_request(&mut self, id: Id, method: String, params: Params) {
-        let _ = self.host.handle_request(id, method, params);
+    fn handle_host_request(
+        &mut self,
+        id: Id,
+        method: String,
+        params: Params,
+        chan: Sender<Result<Value, RpcError>>,
+    ) {
+        self.host.handle_request(id, method, params, chan);
     }
 
     fn handle_host_notification(&mut self, method: String, params: Params) {
@@ -180,9 +187,12 @@ impl LspClient {
         let server_rpc = PluginServerRpcHandler::new(volt_id.clone(), io_tx);
         thread::spawn(move || {
             for msg in io_rx {
-                let msg = format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
-                let _ = writer.write(msg.as_bytes());
-                let _ = writer.flush();
+                if let Ok(msg) = serde_json::to_string(&msg) {
+                    let msg =
+                        format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
+                    let _ = writer.write(msg.as_bytes());
+                    let _ = writer.flush();
+                }
             }
         });
 
