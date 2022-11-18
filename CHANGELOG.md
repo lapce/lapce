@@ -7,11 +7,12 @@
 - [#1702](https://github.com/lapce/lapce/pull/1702): Improved svelte treesitter queries
 - [#1690](https://github.com/lapce/lapce/pull/1690): Add codelens and sticky headers for Dart
 - [#1711](https://github.com/lapce/lapce/pull/1711): Add zstd support for plugin
+- [#1715](https://github.com/lapce/lapce/pull/1715): Add zstd support for plugin
 
 ### Bug Fixes
 - [#1710](https://github.com/lapce/lapce/pull/1710): Fix autosave trying to save scratch files
 - [#1709](https://github.com/lapce/lapce/pull/1709): Fix search result ordering
- - [#1708](https://github.com/lapce/lapce/pull/1708): Fix visual issue when search panel is placed to either side panel
+- [#1708](https://github.com/lapce/lapce/pull/1708): Fix visual issue when search panel is placed to either side panel
 
 ## 0.2.3
 
