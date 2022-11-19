@@ -240,7 +240,6 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
                         return None;
                     }
                     let path = entry.path().join("volt.toml");
-                    println!("PATH: {:?}", &path);
                     load_volt(&path).ok()
                 })
                 .collect()
