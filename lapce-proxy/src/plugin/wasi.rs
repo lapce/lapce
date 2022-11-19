@@ -235,7 +235,9 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
                     let entry = result.ok()?;
                     let metadata = entry.metadata().ok()?;
 
-                    if metadata.is_file() || entry.file_name().to_str()?.starts_with('.') {
+                    if metadata.is_file()
+                        || entry.file_name().to_str()?.starts_with('.')
+                    {
                         return None;
                     }
                     let path = entry.path().join("volt.toml");
