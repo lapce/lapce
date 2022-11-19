@@ -174,6 +174,11 @@ pub enum ProxyNotification {
         input: String,
         position: Position,
     },
+    SignatureHelp {
+        request_id: usize,
+        path: PathBuf,
+        position: Position,
+    },
     Update {
         path: PathBuf,
         delta: RopeDelta,
@@ -490,6 +495,19 @@ impl ProxyRpcHandler {
             request_id,
             path,
             input,
+            position,
+        });
+    }
+
+    pub fn signature_help(
+        &self,
+        request_id: usize,
+        path: PathBuf,
+        position: Position,
+    ) {
+        self.notification(ProxyNotification::SignatureHelp {
+            request_id,
+            path,
             position,
         });
     }

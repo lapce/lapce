@@ -10,7 +10,7 @@ use std::{
 use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
     CompletionResponse, LogMessageParams, ProgressParams, PublishDiagnosticsParams,
-    ShowMessageParams,
+    ShowMessageParams, SignatureHelp,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -42,6 +42,11 @@ pub enum CoreNotification {
         request_id: usize,
         input: String,
         resp: CompletionResponse,
+        plugin_id: PluginId,
+    },
+    SignatureHelpResponse {
+        request_id: usize,
+        resp: SignatureHelp,
         plugin_id: PluginId,
     },
     ReloadBuffer {
@@ -228,6 +233,19 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::CompletionResponse {
             request_id,
             input,
+            resp,
+            plugin_id,
+        });
+    }
+
+    pub fn signature_help_response(
+        &self,
+        request_id: usize,
+        resp: SignatureHelp,
+        plugin_id: PluginId,
+    ) {
+        self.notification(CoreNotification::SignatureHelpResponse {
+            request_id,
             resp,
             plugin_id,
         });

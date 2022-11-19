@@ -219,7 +219,8 @@ impl LapceEditor {
                 editor_data.get_code_actions(ctx);
                 editor_data.cancel_completion();
                 // TODO: Don't cancel over here, because it would good to allow the user to
-                // select text inside the hover data
+                // select text inside the hover/signature data
+                editor_data.cancel_signature();
                 editor_data.cancel_hover();
             }
             MouseButton::Right => {
@@ -227,6 +228,7 @@ impl LapceEditor {
                 self.right_click(ctx, editor_data, mouse_event, config);
                 editor_data.get_code_actions(ctx);
                 editor_data.cancel_completion();
+                editor_data.cancel_signature();
                 editor_data.cancel_hover();
             }
             MouseButton::Middle => {}

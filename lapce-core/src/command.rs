@@ -257,6 +257,8 @@ pub enum FocusCommand {
     ShowCodeActions,
     #[strum(serialize = "get_completion")]
     GetCompletion,
+    #[strum(serialize = "get_signature")]
+    GetSignature,
     /// This will close a modal, such as the settings window or completion
     #[strum(message = "Close Modal")]
     #[strum(serialize = "modal.close")]

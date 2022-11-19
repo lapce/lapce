@@ -315,6 +315,19 @@ impl LspClient {
                     }),
                     ..Default::default()
                 }),
+                signature_help: Some(SignatureHelpClientCapabilities {
+                    signature_information: Some(SignatureInformationSettings {
+                        documentation_format: Some(vec![
+                            MarkupKind::Markdown,
+                            MarkupKind::PlainText,
+                        ]),
+                        parameter_information: Some(ParameterInformationSettings {
+                            label_offset_support: Some(true),
+                        }),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
                 hover: Some(HoverClientCapabilities {
                     content_format: Some(vec![
                         MarkupKind::Markdown,

@@ -30,8 +30,8 @@ use lsp_types::{
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         HoverRequest, Initialize, InlayHintRequest, PrepareRenameRequest,
         References, RegisterCapability, Rename, ResolveCompletionItem,
-        SelectionRangeRequest, SemanticTokensFullRequest, WorkDoneProgressCreate,
-        WorkspaceSymbol,
+        SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest,
+        WorkDoneProgressCreate, WorkspaceSymbol,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
@@ -641,6 +641,9 @@ impl PluginHostHandler {
                         .unwrap_or(false),
                     None => false,
                 }
+            }
+            SignatureHelpRequest::METHOD => {
+                self.server_capabilities.signature_help_provider.is_some()
             }
             HoverRequest::METHOD => self
                 .server_capabilities

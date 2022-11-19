@@ -119,6 +119,13 @@ impl ProxyHandler for Dispatcher {
                 self.catalog_rpc
                     .completion(request_id, &path, input, position);
             }
+            SignatureHelp {
+                request_id,
+                path,
+                position,
+            } => {
+                self.catalog_rpc.signature_help(request_id, &path, position);
+            }
             Shutdown {} => {
                 self.catalog_rpc.shutdown();
                 for (_, sender) in self.terminals.iter() {

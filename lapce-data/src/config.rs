@@ -341,6 +341,14 @@ pub struct EditorConfig {
     )]
     pub completion_show_documentation: bool,
     #[field_names(
+        desc = "If the editor should show the signature of the function as the parameters are being typed"
+    )]
+    pub show_signature: bool,
+    #[field_names(
+        desc = "If the signature view should put the codeblock into a label. This might not work nicely for LSPs which provide invalid code for their labels."
+    )]
+    pub signature_label_code_block: bool,
+    #[field_names(
         desc = "Whether the editor should disable automatic closing of matching pairs"
     )]
     pub auto_closing_matching_pairs: bool,

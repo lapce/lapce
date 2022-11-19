@@ -76,6 +76,7 @@ use crate::{
     rename::RenameData,
     search::SearchData,
     settings::LapceSettingsPanelData,
+    signature::SignatureData,
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
     terminal::TerminalSplitData,
@@ -626,6 +627,7 @@ pub struct LapceTabData {
     pub title: Arc<TitleData>,
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
+    pub signature: Arc<SignatureData>,
     pub hover: Arc<HoverData>,
     pub rename: Arc<RenameData>,
     pub terminal: Arc<TerminalSplitData>,
@@ -721,6 +723,7 @@ impl LapceTabData {
         let palette = Arc::new(PaletteData::new(config.clone(), proxy.clone()));
         let completion = Arc::new(CompletionData::new(config.clone()));
         let hover = Arc::new(HoverData::new());
+        let signature = Arc::new(SignatureData::new());
         let rename = Arc::new(RenameData::new());
         let source_control = Arc::new(SourceControlData::new());
         let settings = Arc::new(LapceSettingsPanelData::new());
@@ -840,6 +843,7 @@ impl LapceTabData {
             title,
             main_split,
             completion,
+            signature,
             hover,
             rename,
             terminal,
@@ -937,6 +941,7 @@ impl LapceTabData {
             view_id: editor_view_id,
             main_split: self.main_split.clone(),
             completion: self.completion.clone(),
+            signature: self.signature.clone(),
             hover: self.hover.clone(),
             rename: self.rename.clone(),
             focus_area: self.focus_area.clone(),
@@ -985,6 +990,7 @@ impl LapceTabData {
         doc: &Arc<Document>,
     ) {
         self.completion = editor_buffer_data.completion.clone();
+        self.signature = editor_buffer_data.signature.clone();
         self.hover = editor_buffer_data.hover.clone();
         self.rename = editor_buffer_data.rename.clone();
         self.main_split = editor_buffer_data.main_split.clone();
@@ -1070,6 +1076,50 @@ impl LapceTabData {
                 }
 
                 origin
+            }
+        }
+    }
+
+    pub fn signature_origin(
+        &self,
+        text: &mut PietText,
+        tab_size: Size,
+        signature_size: Size,
+        config: &LapceConfig,
+    ) -> Point {
+        let editor = self.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return Point::ZERO,
+        };
+
+        match &editor.content {
+            BufferContent::File(_) | BufferContent::Scratch(_, _) => {
+                let doc = self.main_split.editor_doc(editor.view_id);
+                let offset = self.signature.offset;
+                let (point_above, _point_below) =
+                    doc.points_of_offset(text, offset, &editor.view, config);
+
+                let mut origin = *editor.window_origin.borrow()
+                    - self.window_origin.borrow().to_vec2()
+                    + Vec2::new(point_above.x - 5.0, point_above.y)
+                    - Vec2::new(0.0, signature_size.height);
+
+                // TODO: What about if the signature's position is past the tab size?
+
+                if origin.x + signature_size.width + 1.0 > tab_size.width {
+                    origin.x = tab_size.width - signature_size.width - 1.0;
+                }
+
+                if origin.x <= 0.0 {
+                    origin.x = 0.0;
+                }
+
+                origin
+            }
+            BufferContent::SettingsValue(_) | BufferContent::Local(_) => {
+                *editor.window_origin.borrow()
+                    - self.window_origin.borrow().to_vec2()
             }
         }
     }

@@ -259,6 +259,21 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
+            SignatureHelpResponse {
+                request_id,
+                resp,
+                plugin_id,
+            } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSignature {
+                        request_id,
+                        resp,
+                        plugin_id,
+                    },
+                    Target::Widget(self.tab_id),
+                );
+            }
             Log { level, message } => {
                 if let Ok(level) = log::Level::from_str(&level) {
                     log::log!(level, "{}", message);

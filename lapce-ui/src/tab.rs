@@ -43,6 +43,7 @@ use lapce_data::{
         VoltIconKind,
     },
     proxy::path_from_url,
+    signature::SignatureStatus,
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
@@ -53,9 +54,9 @@ use crate::{
     editor::view::LapceEditorView, explorer::FileExplorer, hover::HoverContainer,
     message::LapceMessage, panel::PanelContainer, picker::FilePicker,
     plugin::Plugin, problem::new_problem_panel, scroll::LapceScroll,
-    search::new_search_panel, source_control::new_source_control_panel,
-    split::split_data_widget, status::LapceStatus, terminal::TerminalPanel,
-    title::Title,
+    search::new_search_panel, signature::SignatureContainer,
+    source_control::new_source_control_panel, split::split_data_widget,
+    status::LapceStatus, terminal::TerminalPanel, title::Title,
 };
 
 pub const LAPCE_TAB_META: Selector<SingleUse<LapceTabMeta>> =
@@ -83,6 +84,7 @@ pub struct LapceTab {
     pub title: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     main_split: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     completion: WidgetPod<LapceTabData, CompletionContainer>,
+    signature: WidgetPod<LapceTabData, SignatureContainer>,
     hover: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     rename: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
@@ -112,6 +114,7 @@ impl LapceTab {
         let main_split = split_data_widget(split_data, data);
 
         let completion = CompletionContainer::new(&data.completion);
+        let signature = SignatureContainer::new(&data.signature);
         let hover = HoverContainer::new(&data.hover);
         let rename =
             LapceEditorView::new(data.rename.view_id, data.rename.editor_id, None)
@@ -188,6 +191,7 @@ impl LapceTab {
             title,
             main_split: WidgetPod::new(main_split.boxed()),
             completion: WidgetPod::new(completion),
+            signature: WidgetPod::new(signature),
             hover: WidgetPod::new(hover.boxed()),
             rename: WidgetPod::new(rename.boxed()),
             picker: WidgetPod::new(picker.boxed()),
@@ -946,6 +950,14 @@ impl LapceTab {
                             let completion = Arc::make_mut(&mut data.completion);
                             completion.cancel();
                         }
+                    }
+                    LapceUICommand::UpdateSignature {
+                        request_id,
+                        resp,
+                        plugin_id,
+                    } => {
+                        let signature = Arc::make_mut(&mut data.signature);
+                        signature.receive(*request_id, resp.to_owned(), *plugin_id);
                     }
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
@@ -2036,6 +2048,11 @@ impl Widget<LapceTabData> for LapceTab {
         {
             self.completion.event(ctx, event, data, env);
         }
+        if data.signature.status == SignatureStatus::Started
+            || event.should_propagate_to_hidden()
+        {
+            self.signature.event(ctx, event, data, env);
+        }
         if data.hover.status == HoverStatus::Done
             || event.should_propagate_to_hidden()
         {
@@ -2194,6 +2211,7 @@ impl Widget<LapceTabData> for LapceTab {
         self.main_split.lifecycle(ctx, event, data, env);
         self.status.lifecycle(ctx, event, data, env);
         self.completion.lifecycle(ctx, event, data, env);
+        self.signature.lifecycle(ctx, event, data, env);
         self.hover.lifecycle(ctx, event, data, env);
         self.rename.lifecycle(ctx, event, data, env);
         self.picker.lifecycle(ctx, event, data, env);
@@ -2280,6 +2298,7 @@ impl Widget<LapceTabData> for LapceTab {
         self.title.update(ctx, data, env);
         self.main_split.update(ctx, data, env);
         self.completion.update(ctx, data, env);
+        self.signature.update(ctx, data, env);
         self.hover.update(ctx, data, env);
         self.rename.update(ctx, data, env);
         self.status.update(ctx, data, env);
@@ -2420,6 +2439,17 @@ impl Widget<LapceTabData> for LapceTab {
             );
             self.completion
                 .set_origin(ctx, data, env, completion_origin);
+        }
+
+        if data.signature.status != SignatureStatus::Inactive {
+            let signature_size = self.signature.layout(ctx, bc, data, env);
+            let signature_origin = data.signature_origin(
+                ctx.text(),
+                self_size,
+                signature_size,
+                &data.config,
+            );
+            self.signature.set_origin(ctx, data, env, signature_origin);
         }
 
         if data.hover.status == HoverStatus::Done {
@@ -2596,6 +2626,7 @@ impl Widget<LapceTabData> for LapceTab {
             self.rename.paint(ctx, data, env);
         }
         self.completion.paint(ctx, data, env);
+        self.signature.paint(ctx, data, env);
         self.hover.paint(ctx, data, env);
         self.picker.paint(ctx, data, env);
         ctx.incr_alpha_depth();

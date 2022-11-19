@@ -25,7 +25,8 @@ use lapce_xi_rope::{spans::Spans, Rope};
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     InlayHint, Location, MessageType, Position, ProgressParams,
-    PublishDiagnosticsParams, SelectionRange, TextEdit, WorkspaceEdit,
+    PublishDiagnosticsParams, SelectionRange, SignatureHelp, TextEdit,
+    WorkspaceEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
@@ -560,6 +561,11 @@ pub enum LapceUICommand {
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
     UpdateCompletion(usize, String, CompletionResponse, PluginId),
+    UpdateSignature {
+        request_id: usize,
+        resp: SignatureHelp,
+        plugin_id: PluginId,
+    },
     UpdateHover(usize, Arc<Vec<RichText>>),
     UpdateVoltReadme(RichText),
     UpdateInlayHints {

@@ -55,6 +55,7 @@ use crate::{
     proxy::{path_from_url, LapceProxy},
     rename::RenameData,
     selection_range::SelectionRangeDirection,
+    signature::{SignatureData, SignatureStatus},
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
 };
@@ -208,6 +209,7 @@ pub struct LapceEditorBufferData {
     pub editor: Arc<LapceEditorData>,
     pub doc: Arc<Document>,
     pub completion: Arc<CompletionData>,
+    pub signature: Arc<SignatureData>,
     pub hover: Arc<HoverData>,
     pub rename: Arc<RenameData>,
     pub main_split: LapceMainSplitData,
@@ -339,6 +341,12 @@ impl LapceEditorBufferData {
     fn has_completions(&self) -> bool {
         self.completion.status != CompletionStatus::Inactive
             && self.completion.len() > 0
+    }
+
+    /// Check if there are signatures that are being rendered
+    fn has_signature(&self) -> bool {
+        self.signature.status != SignatureStatus::Inactive
+            && !self.signature.is_empty()
     }
 
     fn has_hover(&self) -> bool {
@@ -612,6 +620,14 @@ impl LapceEditorBufferData {
         completion.cancel();
     }
 
+    pub fn cancel_signature(&mut self) {
+        if self.signature.status == SignatureStatus::Inactive {
+            return;
+        }
+        let signature = Arc::make_mut(&mut self.signature);
+        signature.cancel();
+    }
+
     pub fn cancel_hover(&mut self) {
         let hover = Arc::make_mut(&mut self.hover);
         hover.cancel();
@@ -779,6 +795,34 @@ impl LapceEditorBufferData {
                 position,
             );
         }
+    }
+
+    fn update_signature(&mut self) {
+        if self.get_mode() != Mode::Insert {
+            self.cancel_signature();
+            return;
+        }
+        if !self.doc.loaded() || !self.doc.content().is_file() {
+            return;
+        }
+
+        let offset = self.editor.cursor.offset();
+        let start_offset = self.doc.buffer().prev_code_boundary(offset);
+
+        let signature = Arc::make_mut(&mut self.signature);
+
+        signature.buffer_id = self.doc.id();
+        signature.offset = start_offset;
+        signature.status = SignatureStatus::Started;
+        signature.request_id += 1;
+
+        let start_pos = self.doc.buffer().offset_to_position(start_offset);
+        signature.request(
+            self.proxy.clone(),
+            signature.request_id,
+            self.doc.content().path().unwrap().into(),
+            start_pos,
+        );
     }
 
     /// return true if there's existing hover and it's not changed
@@ -1416,6 +1460,10 @@ impl LapceEditorBufferData {
             }
         }
         self.cancel_completion();
+        // Cancel but then immediately try to see if there's a signature to provide
+        // TODO: Can we be smarter about this?
+        self.cancel_signature();
+        self.update_signature();
         self.cancel_hover();
         CommandExecuted::Yes
     }
@@ -1447,8 +1495,11 @@ impl LapceEditorBufferData {
 
         if show_completion(cmd, &doc_before_edit, &deltas) {
             self.update_completion(ctx, false);
+            // TODO: This can be requested in more specific cases based on the LSP supplied trigger
+            self.update_signature();
         } else {
             self.cancel_completion();
+            self.cancel_signature();
         }
         self.apply_deltas(&deltas);
 
@@ -1477,6 +1528,9 @@ impl LapceEditorBufferData {
                 }
                 if self.has_completions() {
                     self.cancel_completion();
+                }
+                if self.has_signature() {
+                    self.cancel_signature();
                 }
                 if self.has_hover() {
                     self.cancel_hover();
@@ -1822,6 +1876,7 @@ impl LapceEditorBufferData {
                     if last_placeholder {
                         Arc::make_mut(&mut self.editor).snippet = None;
                     }
+                    self.update_signature();
                     self.cancel_completion();
                 }
             }
@@ -1848,6 +1903,7 @@ impl LapceEditorBufferData {
                                 .cursor
                                 .set_insert(selection);
                         }
+                        self.update_signature();
                         self.cancel_completion();
                     }
                 }
@@ -1901,6 +1957,9 @@ impl LapceEditorBufferData {
             GetCompletion => {
                 // we allow empty inputs to allow for cases where the user wants to get the autocompletion beforehand
                 self.update_completion(ctx, true);
+            }
+            GetSignature => {
+                self.update_signature();
             }
             GotoDefinition => {
                 if let BufferContent::File(path) = self.doc.content() {
@@ -2392,6 +2451,7 @@ impl LapceEditorBufferData {
         let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
         self.doc
             .do_multi_selection(ctx.text(), cursor, cmd, &view, &self.config);
+        self.cancel_signature();
         self.cancel_completion();
         CommandExecuted::Yes
     }
@@ -2465,6 +2525,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 .all(|c| c.is_whitespace() || c.is_ascii_whitespace())
             {
                 self.update_completion(ctx, false);
+                self.update_signature();
             } else {
                 self.cancel_completion();
             }
