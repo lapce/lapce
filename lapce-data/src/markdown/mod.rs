@@ -3,7 +3,7 @@ use std::str::FromStr;
 use druid::{FontStyle, FontWeight};
 use lapce_core::{language::LapceLanguage, syntax::Syntax};
 use lapce_xi_rope::Rope;
-use lsp_types::MarkedString;
+use lsp_types::{Documentation, MarkedString, MarkupKind};
 use pulldown_cmark::{CodeBlockKind, Tag};
 use smallvec::SmallVec;
 
@@ -11,6 +11,28 @@ use crate::{
     config::{LapceConfig, LapceTheme},
     rich_text::{AttributesAdder, RichText, RichTextBuilder},
 };
+
+/// Parse the LSP documentation structure
+pub fn parse_documentation(doc: &Documentation, config: &LapceConfig) -> RichText {
+    match doc {
+        // We assume this is plain text
+        Documentation::String(text) => {
+            let mut builder = RichTextBuilder::new();
+            builder.set_line_height(1.5);
+            builder.push(text);
+            builder.build()
+        }
+        Documentation::MarkupContent(content) => match content.kind {
+            MarkupKind::PlainText => {
+                let mut builder = RichTextBuilder::new();
+                builder.set_line_height(1.5);
+                builder.push(&content.value);
+                builder.build()
+            }
+            MarkupKind::Markdown => parse_markdown(&content.value, 1.5, config),
+        },
+    }
+}
 
 pub fn parse_markdown(
     text: &str,
@@ -80,29 +102,13 @@ pub fn parse_markdown(
                             None
                         };
 
-                        let syntax = language.map(Syntax::from_language);
-
-                        let styles = syntax.and_then(|mut syntax| {
-                            syntax.parse(0, Rope::from(&last_text), None);
-                            syntax.styles
-                        });
-
-                        if let Some(styles) = styles {
-                            for (range, style) in styles.iter() {
-                                if let Some(color) = style
-                                    .fg_color
-                                    .as_ref()
-                                    .and_then(|fg| config.get_style_color(fg))
-                                {
-                                    builder
-                                        .add_attributes_for_range(
-                                            start_offset + range.start
-                                                ..start_offset + range.end,
-                                        )
-                                        .text_color(color.clone());
-                                }
-                            }
-                        }
+                        highlight_as_code(
+                            &mut builder,
+                            config,
+                            language,
+                            &last_text,
+                            start_offset,
+                        );
                     }
 
                     if should_add_newline_after_tag(&tag) {
@@ -150,6 +156,38 @@ pub fn parse_markdown(
     }
 
     builder.build()
+}
+
+/// Highlight the text in a richtext builder like it was a markdown codeblock
+pub fn highlight_as_code(
+    builder: &mut RichTextBuilder,
+    config: &LapceConfig,
+    language: Option<LapceLanguage>,
+    text: &str,
+    start_offset: usize,
+) {
+    let syntax = language.map(Syntax::from_language);
+
+    let styles = syntax.and_then(|mut syntax| {
+        syntax.parse(0, Rope::from(text), None);
+        syntax.styles
+    });
+
+    if let Some(styles) = styles {
+        for (range, style) in styles.iter() {
+            if let Some(color) = style
+                .fg_color
+                .as_ref()
+                .and_then(|fg| config.get_style_color(fg))
+            {
+                builder
+                    .add_attributes_for_range(
+                        start_offset + range.start..start_offset + range.end,
+                    )
+                    .text_color(color.clone());
+            }
+        }
+    }
 }
 
 pub fn from_marked_string(text: MarkedString, config: &LapceConfig) -> RichText {

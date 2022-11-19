@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Features/Changes
+- [#1720](https://github.com/lapce/lapce/pull/1720): Display signature/parameter information from LSP
 
 ### Bug Fixes
 

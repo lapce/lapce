@@ -201,6 +201,11 @@ command = "get_completion"
 mode = "i"
 
 [[keymaps]]
+key = "ctrl+shift+space"
+command = "get_signature"
+mode = "i"
+
+[[keymaps]]
 key = "meta+."
 command = "show_code_actions"
 

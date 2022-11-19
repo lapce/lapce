@@ -34,7 +34,7 @@ use lsp_types::{
         GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
         InlayHintRequest, PrepareRenameRequest, References, Rename, Request,
         ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest,
-        WorkspaceSymbol,
+        SignatureHelpRequest, WorkspaceSymbol,
     },
     CodeAction, CodeActionContext, CodeActionParams, CodeActionResponse,
     CompletionItem, CompletionParams, CompletionResponse, DocumentFormattingParams,
@@ -42,9 +42,10 @@ use lsp_types::{
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint,
     InlayHintParams, Location, PartialResultParams, Position, PrepareRenameResponse,
     Range, ReferenceContext, ReferenceParams, RenameParams, SelectionRange,
-    SelectionRangeParams, SemanticTokens, SemanticTokensParams, SymbolInformation,
-    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit,
-    Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceEdit,
+    SelectionRangeParams, SemanticTokens, SemanticTokensParams, SignatureHelp,
+    SignatureHelpParams, SymbolInformation, TextDocumentIdentifier,
+    TextDocumentItem, TextDocumentPositionParams, TextEdit, Url,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceEdit,
     WorkspaceSymbolParams,
 };
 use parking_lot::Mutex;
@@ -814,6 +815,46 @@ impl PluginCatalogRpcHandler {
                     Err(e) => Err(e),
                 };
                 cb(result)
+            },
+        );
+    }
+
+    pub fn signature_help(
+        &self,
+        request_id: usize,
+        path: &Path,
+        position: Position,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = SignatureHelpRequest::METHOD;
+        let params = SignatureHelpParams {
+            // TODO: We could provide more information about the signature for the LSP to work with
+            context: None,
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+
+        let core_rpc = self.core_rpc.clone();
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request(
+            None,
+            None,
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            move |plugin_id, result| {
+                if let Ok(value) = result {
+                    if let Ok(resp) = serde_json::from_value::<SignatureHelp>(value)
+                    {
+                        core_rpc
+                            .signature_help_response(request_id, resp, plugin_id);
+                    }
+                }
             },
         );
     }
