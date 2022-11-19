@@ -233,7 +233,14 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
             d.read_dir().ok().map(|dir| {
                 dir.filter_map(|result| {
                     let entry = result.ok()?;
+                    if entry.file_type().ok()?.is_file() {
+                        return None;
+                    }
+                    if entry.file_name().to_str()?.starts_with(".") {
+                        return None;
+                    }
                     let path = entry.path().join("volt.toml");
+                    println!("PATH: {:?}", &path);
                     load_volt(&path).ok()
                 })
                 .collect()
