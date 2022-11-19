@@ -1342,7 +1342,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn save(&mut self, ctx: &mut EventCtx, exit: bool) {
+    fn save(&mut self, ctx: &mut EventCtx, exit: bool, allow_formatting: bool) {
         if self.doc.buffer().is_pristine() && self.doc.content().is_file() {
             if exit {
                 ctx.submit_command(Command::new(
@@ -1358,7 +1358,8 @@ impl LapceEditorBufferData {
         }
 
         if let BufferContent::File(path) = self.doc.content() {
-            let format_on_save = self.config.editor.format_on_save;
+            let format_on_save =
+                allow_formatting && self.config.editor.format_on_save;
             let path = path.clone();
             let proxy = self.proxy.clone();
             let rev = self.doc.rev();
@@ -2278,10 +2279,13 @@ impl LapceEditorBufferData {
                 }
             }
             SaveAndExit => {
-                self.save(ctx, true);
+                self.save(ctx, true, true);
             }
             Save => {
-                self.save(ctx, false);
+                self.save(ctx, false, true);
+            }
+            SaveWithoutFormatting => {
+                self.save(ctx, false, false);
             }
             Rename => {
                 if let BufferContent::File(path) = self.doc.content() {
