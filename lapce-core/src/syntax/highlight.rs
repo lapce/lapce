@@ -85,7 +85,7 @@ declare_language_highlights!(
     OcamlInterface: "lang-ocaml",
     Php: "lang-php",
     Prisma: "lang-prisma",
-    ProtoBuf: "lang-proto",
+    ProtoBuf: "lang-protobuf",
     Python: "lang-python",
     Ql: "lang-ql",
     R: "lang-r",
