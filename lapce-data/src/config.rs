@@ -422,6 +422,10 @@ pub struct EditorConfig {
     )]
     pub autosave_interval: u64,
     #[field_names(
+        desc = "Whether the document should be formatted when an autosave is triggered (required Format on Save)"
+    )]
+    pub format_on_autosave: bool,
+    #[field_names(
         desc = "If enabled the cursor treats leading soft tabs as if they are hard tabs."
     )]
     pub atomic_soft_tabs: bool,
