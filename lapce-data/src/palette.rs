@@ -38,7 +38,7 @@ use crate::{
     document::BufferContent,
     editor::EditorLocation,
     find::Find,
-    keypress::{KeyPressData, KeyPressFocus},
+    keypress::{KeyMap, KeyPressData, KeyPressFocus},
     list::ListData,
     panel::PanelKind,
     proxy::{path_from_url, LapceProxy},
@@ -358,6 +358,12 @@ pub struct PaletteListData {
     /// Should only be `None` when it hasn't been updated initially  
     /// We need this just for some rendering, and not editing it.
     pub workspace: Option<Arc<LapceWorkspace>>,
+    /// Should only be `None` when it hasn't been updated initially.
+    /// We need this just for some rendering, and not editing it.
+    pub keymaps: Option<Arc<Vec<KeyMap>>>,
+    /// The mode of the current editor/terminal/none
+    #[data(eq)]
+    pub mode: Option<Mode>,
 }
 
 #[derive(Clone)]
@@ -443,8 +449,15 @@ impl PaletteData {
         let widget_id = WidgetId::next();
         let scroll_id = WidgetId::next();
         let preview_editor = WidgetId::next();
-        let mut list_data =
-            ListData::new(config, widget_id, PaletteListData { workspace: None });
+        let mut list_data = ListData::new(
+            config,
+            widget_id,
+            PaletteListData {
+                workspace: None,
+                keymaps: None,
+                mode: None,
+            },
+        );
         // TODO: Make these configurable
         list_data.line_height = Some(25);
         list_data.max_displayed_items = 15;

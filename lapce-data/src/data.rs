@@ -25,7 +25,7 @@ use lapce_core::{
     directory::Directory,
     editor::EditType,
     meta,
-    mode::MotionMode,
+    mode::{Mode, MotionMode},
     movement::Movement,
     register::Register,
     selection::Selection,
@@ -981,6 +981,24 @@ impl LapceTabData {
 
     pub fn is_drag_editor(&self) -> bool {
         matches!(&*self.drag, Some((_, _, DragContent::EditorTab(..))))
+    }
+
+    /// Get the mode for the current editor or terminal
+    pub fn mode(&self) -> Mode {
+        if self.config.core.modal {
+            let mode = if self.focus_area == FocusArea::Panel(PanelKind::Terminal) {
+                self.terminal
+                    .terminals
+                    .get(&self.terminal.active_term_id)
+                    .map(|terminal| terminal.mode)
+            } else {
+                self.main_split.active_editor().map(|e| e.cursor.get_mode())
+            };
+
+            mode.unwrap_or(Mode::Normal)
+        } else {
+            Mode::Insert
+        }
     }
 
     pub fn update_from_editor_buffer_data(
