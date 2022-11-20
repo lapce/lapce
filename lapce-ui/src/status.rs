@@ -398,7 +398,8 @@ impl Widget<LapceTabData> for LapceStatus {
         if problem_rect.contains(self.mouse_pos) {
             ctx.fill(
                 problem_rect,
-                data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
             );
         }
         if let Some((rect, svg)) = error_svg {
@@ -471,7 +472,8 @@ impl Widget<LapceTabData> for LapceStatus {
             if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
                     icon.rect,
-                    data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
                 );
             }
             {
@@ -511,7 +513,8 @@ impl Widget<LapceTabData> for LapceStatus {
             if rect.contains(self.mouse_pos) {
                 ctx.fill(
                     rect,
-                    data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
                 );
             }
             if let Some((rect, svg)) = svg {

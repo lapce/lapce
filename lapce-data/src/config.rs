@@ -121,10 +121,10 @@ impl LapceTheme {
     pub const TERMINAL_BRIGHT_CYAN: &str = "terminal.bright_cyan";
     pub const TERMINAL_BRIGHT_MAGENTA: &str = "terminal.bright_magenta";
 
-    pub const PALETTE_CURRENT_BACKGROUND: &str = "palette.current.background";
-    pub const PALETTE_CURRENT_FOREGROUND: &str = "palette.current.foreground";
     pub const PALETTE_BACKGROUND: &str = "palette.background";
     pub const PALETTE_FOREGROUND: &str = "palette.foreground";
+    pub const PALETTE_CURRENT_BACKGROUND: &str = "palette.current.background";
+    pub const PALETTE_CURRENT_FOREGROUND: &str = "palette.current.foreground";
 
     pub const COMPLETION_BACKGROUND: &str = "completion.background";
     pub const COMPLETION_CURRENT: &str = "completion.current";
@@ -135,8 +135,14 @@ impl LapceTheme {
     pub const ACTIVITY_CURRENT: &str = "activity.current";
 
     pub const PANEL_BACKGROUND: &str = "panel.background";
-    pub const PANEL_CURRENT: &str = "panel.current";
-    pub const PANEL_HOVERED: &str = "panel.hovered";
+    pub const PANEL_FOREGROUND: &str = "panel.foreground";
+    pub const PANEL_FOREGROUND_DIM: &str = "panel.foreground.dim";
+    pub const PANEL_CURRENT_BACKGROUND: &str = "panel.current.background";
+    pub const PANEL_CURRENT_FOREGROUND: &str = "panel.current.foreground";
+    pub const PANEL_CURRENT_FOREGROUND_DIM: &str = "panel.current.foreground.dim";
+    pub const PANEL_HOVERED_BACKGROUND: &str = "panel.hovered.background";
+    pub const PANEL_HOVERED_FOREGROUND: &str = "panel.hovered.foreground";
+    pub const PANEL_HOVERED_FOREGROUND_DIM: &str = "panel.hovered.foreground.dim";
 
     pub const STATUS_BACKGROUND: &str = "status.background";
     pub const STATUS_FOREGROUND: &str = "status.foreground";

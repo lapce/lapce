@@ -557,9 +557,9 @@ pub fn paint_file_node_item_by_index(
     }
     if current >= min {
         let background = if current == active {
-            Some(LapceTheme::PANEL_CURRENT)
+            Some(LapceTheme::PANEL_CURRENT_BACKGROUND)
         } else if Some(current) == hovered {
-            Some(LapceTheme::PANEL_HOVERED)
+            Some(LapceTheme::PANEL_HOVERED_BACKGROUND)
         } else {
             None
         };

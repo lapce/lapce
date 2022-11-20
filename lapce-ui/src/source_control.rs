@@ -345,7 +345,8 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 ));
             ctx.fill(
                 rect,
-                data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
             );
         }
 
@@ -367,7 +368,9 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 if current_line.contains(mouse_pos) {
                     ctx.fill(
                         current_line,
-                        data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+                        data.config.get_color_unchecked(
+                            LapceTheme::PANEL_CURRENT_BACKGROUND,
+                        ),
                     );
                 }
             }
