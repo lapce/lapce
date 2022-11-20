@@ -184,7 +184,7 @@ impl LspClient {
 
         let mut writer = Box::new(BufWriter::new(stdin));
         let (io_tx, io_rx) = crossbeam_channel::unbounded();
-        let server_rpc = PluginServerRpcHandler::new(volt_id.clone(), io_tx);
+        let server_rpc = PluginServerRpcHandler::new(volt_id.clone(), io_tx.clone());
         thread::spawn(move || {
             for msg in io_rx {
                 if let Ok(msg) = serde_json::to_string(&msg) {
@@ -203,10 +203,12 @@ impl LspClient {
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
-                        handle_plugin_server_message(
+                        if let Some(resp) = handle_plugin_server_message(
                             &local_server_rpc,
                             &message_str,
-                        );
+                        ) {
+                            let _ = io_tx.send(resp);
+                        }
                     }
                     Err(_err) => {
                         core_rpc.log(
