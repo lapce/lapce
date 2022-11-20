@@ -628,10 +628,17 @@ impl Widget<LapceTabData> for LapceEditorView {
                         if ctx.is_focused() {
                             let doc = data.main_split.editor_doc(self.view_id);
                             if !doc.buffer().is_pristine() {
+                                let save_cmd =
+                                    if data.config.editor.format_on_autosave {
+                                        FocusCommand::Save
+                                    } else {
+                                        FocusCommand::SaveWithoutFormatting
+                                    };
+
                                 ctx.submit_command(Command::new(
                                     LAPCE_COMMAND,
                                     LapceCommand {
-                                        kind: CommandKind::Focus(FocusCommand::Save),
+                                        kind: CommandKind::Focus(save_cmd),
                                         data: None,
                                     },
                                     Target::Widget(editor.view_id),

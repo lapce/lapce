@@ -26,6 +26,7 @@ modal-mode-relative-line-numbers = true
 format-on-save = false
 highlight-matching-brackets = true
 autosave-interval = 0
+format-on-autosave = true
 enable-inlay-hints = true
 inlay-hint-font-family = ""
 inlay-hint-font-size = 0
