@@ -15,6 +15,7 @@ use druid::{
     Command, Data, Env, EventCtx, ExtEventSink, Lens, Modifiers, Target, WidgetId,
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
     command::{EditCommand, FocusCommand},
@@ -360,7 +361,7 @@ pub struct PaletteListData {
     pub workspace: Option<Arc<LapceWorkspace>>,
     /// Should only be `None` when it hasn't been updated initially.
     /// We need this just for some rendering, and not editing it.
-    pub keymaps: Option<Arc<Vec<KeyMap>>>,
+    pub keymaps: Option<Arc<IndexMap<String, Vec<KeyMap>>>>,
     /// The mode of the current editor/terminal/none
     #[data(eq)]
     pub mode: Option<Mode>,

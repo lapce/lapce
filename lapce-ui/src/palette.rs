@@ -2,17 +2,16 @@ use std::{path::Path, sync::Arc};
 
 use druid::{
     kurbo::Rect,
-    piet::{PietTextLayout, Svg, Text, TextAttribute, TextLayoutBuilder},
+    piet::{Svg, Text, TextAttribute, TextLayoutBuilder},
     theme, BoxConstraints, Color, Command, Data, Env, Event, EventCtx, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext,
     Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
-use lapce_core::mode::{Mode, Modes};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     config::{LapceConfig, LapceTheme},
     data::{LapceTabData, LapceWorkspaceType},
-    keypress::{KeyPress, KeyPressFocus},
+    keypress::{Alignment, KeyMap, KeyPressFocus},
     list::ListData,
     palette::{
         PaletteItem, PaletteItemContent, PaletteListData, PaletteStatus,
@@ -279,8 +278,7 @@ impl Widget<LapceTabData> for PaletteContainer {
         // Update the stored data on `PaletteListData`, this is so that they can be used
         // during painting of the list
         palette.list_data.data.workspace = Some(data.workspace.clone());
-        palette.list_data.data.keymaps =
-            Some(data.keypress.commands_with_keymap.clone());
+        palette.list_data.data.keymaps = Some(data.keypress.command_keymaps.clone());
         palette.list_data.data.mode = Some(mode);
 
         self.content.event(ctx, event, &mut palette.list_data, env);
@@ -513,7 +511,7 @@ struct PaletteItemPaintInfo {
     text_indices: Vec<usize>,
     hint: String,
     hint_indices: Vec<usize>,
-    key: Option<(KeyPress, Option<KeyPress>)>,
+    keymap: Option<KeyMap>,
 }
 
 impl PaletteItemPaintInfo {
@@ -526,7 +524,7 @@ impl PaletteItemPaintInfo {
             text_indices,
             hint: String::new(),
             hint_indices: Vec::new(),
-            key: None,
+            keymap: None,
         }
     }
 }
@@ -546,7 +544,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
             text_indices,
             hint,
             hint_indices,
-            key,
+            keymap,
         } = match &self.content {
             PaletteItemContent::File(path, _) => {
                 file_paint_items(path, &self.indices, data)
@@ -594,7 +592,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     text_indices,
                     hint,
                     hint_indices,
-                    key: None,
+                    keymap: None,
                 }
             }
             PaletteItemContent::WorkspaceSymbol {
@@ -639,25 +637,13 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     .map(|m| m.to_string())
                     .unwrap_or_else(String::new);
 
-                let key = if let Some(keymaps) = data.data.keymaps.as_ref() {
-                    // The internal name of the command
-                    let command_str = command.kind.str();
-                    let mode = Modes::from(data.data.mode.unwrap_or(Mode::Normal));
-                    // Get the keymaps that match this command (if there are any) and join
-                    // at most two of the keypresses in them for the hint text.
-                    let mut keys = keymaps
-                        .iter()
-                        .filter(|keymap| keymap.command == command_str)
-                        .filter(|keymap| {
-                            keymap.modes.is_empty() || keymap.modes.contains(mode)
-                        })
-                        .flat_map(|keymap| &keymap.key)
-                        .take(2)
-                        .cloned();
-                    keys.next().map(|key| (key, keys.next()))
-                } else {
-                    Default::default()
-                };
+                let keymap = data
+                    .data
+                    .keymaps
+                    .as_ref()
+                    .and_then(|keymaps| keymaps.get(command.kind.str()))
+                    .and_then(|keymaps| keymaps.get(0))
+                    .cloned();
 
                 PaletteItemPaintInfo {
                     svg: None,
@@ -666,7 +652,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     text_indices: self.indices.to_vec(),
                     hint: String::new(),
                     hint_indices: Vec::new(),
-                    key,
+                    keymap,
                 }
             }
             PaletteItemContent::ColorTheme(theme) => PaletteItemPaintInfo::new_text(
@@ -802,58 +788,20 @@ impl ListPaint<PaletteListData> for PaletteItem {
         // TODO: make sure that the main text and the keymaps don't overlap
         // This isn't currently an issue for any added commands, but could become one
 
-        if let Some((key0, key1)) = key {
-            let (key0_right, key0_items) =
-                key0.paint(ctx, Point::ZERO, &data.config);
-            let (rightmost, key1_items) = if let Some(key1) = key1 {
-                let (key1_right, items) = key1.paint(
-                    ctx,
-                    Point::new(key0_right.x + 5.0, 0.0),
-                    &data.config,
-                );
-                (key1_right.x, Some(items))
-            } else {
-                (key0_right.x, None)
-            };
-
+        if let Some(keymap) = keymap {
             let width = ctx.size().width;
-            let x = width
-                - rightmost
-                - env.get(theme::SCROLLBAR_WIDTH)
-                - env.get(theme::SCROLLBAR_PAD);
-
-            let origin = Point::new(x, y);
-            paint_key_parts(ctx, &data.config, origin, key0_items);
-
-            if let Some(key1_items) = key1_items {
-                paint_key_parts(ctx, &data.config, origin, key1_items);
-            }
-        }
-    }
-}
-
-fn paint_key_parts(
-    ctx: &mut PaintCtx,
-    config: &LapceConfig,
-    origin: Point,
-    items: Vec<(Option<Rect>, PietTextLayout, Point)>,
-) {
-    for (rect, text_layout, text_layout_pos) in items {
-        if let Some(mut rect) = rect {
-            rect.x0 += origin.x;
-            rect.x1 += origin.x;
-            rect.y0 += origin.y;
-            rect.y1 += origin.y;
-            ctx.stroke(
-                rect,
-                config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                1.0,
+            keymap.paint(
+                ctx,
+                Point::new(
+                    width
+                        - env.get(theme::SCROLLBAR_WIDTH)
+                        - env.get(theme::SCROLLBAR_PAD),
+                    line_height * line as f64 + line_height / 2.0,
+                ),
+                Alignment::Right,
+                &data.config,
             );
         }
-        ctx.draw_text(
-            &text_layout,
-            Point::new(text_layout_pos.x + origin.x, text_layout_pos.y + origin.y),
-        );
     }
 }
 
@@ -907,7 +855,7 @@ fn file_paint_symbols(
         text_indices,
         hint,
         hint_indices,
-        key: Default::default(),
+        keymap: Default::default(),
     }
 }
 
@@ -961,6 +909,6 @@ fn file_paint_items(
         text_indices,
         hint: folder,
         hint_indices,
-        key: Default::default(),
+        keymap: Default::default(),
     }
 }
