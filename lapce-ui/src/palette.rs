@@ -3,7 +3,7 @@ use std::{path::Path, sync::Arc};
 use druid::{
     kurbo::Rect,
     piet::{Svg, Text, TextAttribute, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, FontWeight,
+    theme, BoxConstraints, Color, Command, Data, Env, Event, EventCtx, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext,
     Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
@@ -11,7 +11,7 @@ use lapce_data::{
     command::{LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     config::{LapceConfig, LapceTheme},
     data::{LapceTabData, LapceWorkspaceType},
-    keypress::KeyPressFocus,
+    keypress::{Alignment, KeyMap, KeyPressFocus},
     list::ListData,
     palette::{
         PaletteItem, PaletteItemContent, PaletteListData, PaletteStatus,
@@ -272,8 +272,15 @@ impl Widget<LapceTabData> for PaletteContainer {
     ) {
         self.input.event(ctx, event, data, env);
 
+        let mode = data.mode();
         let palette = Arc::make_mut(&mut data.palette);
         palette.list_data.update_data(data.config.clone());
+        // Update the stored data on `PaletteListData`, this is so that they can be used
+        // during painting of the list
+        palette.list_data.data.workspace = Some(data.workspace.clone());
+        palette.list_data.data.keymaps = Some(data.keypress.command_keymaps.clone());
+        palette.list_data.data.mode = Some(mode);
+
         self.content.event(ctx, event, &mut palette.list_data, env);
 
         self.preview.event(ctx, event, data, env);
@@ -504,6 +511,7 @@ struct PaletteItemPaintInfo {
     text_indices: Vec<usize>,
     hint: String,
     hint_indices: Vec<usize>,
+    keymap: Option<KeyMap>,
 }
 
 impl PaletteItemPaintInfo {
@@ -516,6 +524,7 @@ impl PaletteItemPaintInfo {
             text_indices,
             hint: String::new(),
             hint_indices: Vec::new(),
+            keymap: None,
         }
     }
 }
@@ -525,7 +534,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
         &self,
         ctx: &mut PaintCtx,
         data: &ListData<Self, PaletteListData>,
-        _env: &Env,
+        env: &Env,
         line: usize,
     ) {
         let PaletteItemPaintInfo {
@@ -535,6 +544,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
             text_indices,
             hint,
             hint_indices,
+            keymap,
         } = match &self.content {
             PaletteItemContent::File(path, _) => {
                 file_paint_items(path, &self.indices, data)
@@ -582,6 +592,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     text_indices,
                     hint,
                     hint_indices,
+                    keymap: None,
                 }
             }
             PaletteItemContent::WorkspaceSymbol {
@@ -624,8 +635,25 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     .kind
                     .desc()
                     .map(|m| m.to_string())
-                    .unwrap_or_else(|| "".to_string());
-                PaletteItemPaintInfo::new_text(text, self.indices.to_vec())
+                    .unwrap_or_else(String::new);
+
+                let keymap = data
+                    .data
+                    .keymaps
+                    .as_ref()
+                    .and_then(|keymaps| keymaps.get(command.kind.str()))
+                    .and_then(|keymaps| keymaps.get(0))
+                    .cloned();
+
+                PaletteItemPaintInfo {
+                    svg: None,
+                    svg_color: None,
+                    text,
+                    text_indices: self.indices.to_vec(),
+                    hint: String::new(),
+                    hint_indices: Vec::new(),
+                    keymap,
+                }
             }
             PaletteItemContent::ColorTheme(theme) => PaletteItemPaintInfo::new_text(
                 theme.to_string(),
@@ -756,6 +784,24 @@ impl ListPaint<PaletteListData> for PaletteItem {
         let y = line_height * line as f64 + text_layout.y_offset(line_height);
         let point = Point::new(x, y);
         ctx.draw_text(&text_layout, point);
+
+        // TODO: make sure that the main text and the keymaps don't overlap
+        // This isn't currently an issue for any added commands, but could become one
+
+        if let Some(keymap) = keymap {
+            let width = ctx.size().width;
+            keymap.paint(
+                ctx,
+                Point::new(
+                    width
+                        - env.get(theme::SCROLLBAR_WIDTH)
+                        - env.get(theme::SCROLLBAR_PAD),
+                    line_height * line as f64 + line_height / 2.0,
+                ),
+                Alignment::Right,
+                &data.config,
+            );
+        }
     }
 }
 
@@ -809,6 +855,7 @@ fn file_paint_symbols(
         text_indices,
         hint,
         hint_indices,
+        keymap: Default::default(),
     }
 }
 
@@ -862,5 +909,6 @@ fn file_paint_items(
         text_indices,
         hint: folder,
         hint_indices,
+        keymap: Default::default(),
     }
 }

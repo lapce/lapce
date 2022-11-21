@@ -25,7 +25,7 @@ use lapce_core::{
     directory::Directory,
     editor::EditType,
     meta,
-    mode::MotionMode,
+    mode::{Mode, MotionMode},
     movement::Movement,
     register::Register,
     selection::Selection,
@@ -983,6 +983,24 @@ impl LapceTabData {
         matches!(&*self.drag, Some((_, _, DragContent::EditorTab(..))))
     }
 
+    /// Get the mode for the current editor or terminal
+    pub fn mode(&self) -> Mode {
+        if self.config.core.modal {
+            let mode = if self.focus_area == FocusArea::Panel(PanelKind::Terminal) {
+                self.terminal
+                    .terminals
+                    .get(&self.terminal.active_term_id)
+                    .map(|terminal| terminal.mode)
+            } else {
+                self.main_split.active_editor().map(|e| e.cursor.get_mode())
+            };
+
+            mode.unwrap_or(Mode::Normal)
+        } else {
+            Mode::Insert
+        }
+    }
+
     pub fn update_from_editor_buffer_data(
         &mut self,
         editor_buffer_data: LapceEditorBufferData,
@@ -1085,6 +1103,7 @@ impl LapceTabData {
         text: &mut PietText,
         tab_size: Size,
         signature_size: Size,
+        label_offset: f64,
         config: &LapceConfig,
     ) -> Point {
         let editor = self.main_split.active_editor();
@@ -1102,7 +1121,7 @@ impl LapceTabData {
 
                 let mut origin = *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
-                    + Vec2::new(point_above.x - 5.0, point_above.y)
+                    + Vec2::new(point_above.x - 5.0 - label_offset, point_above.y)
                     - Vec2::new(0.0, signature_size.height);
 
                 // TODO: What about if the signature's position is past the tab size?

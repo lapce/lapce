@@ -302,6 +302,10 @@ impl LapceEditorView {
                     Target::Widget(self.editor.widget().scroll_id),
                 ));
             }
+            LapceUICommand::FocusLost => {
+                data.cancel_completion();
+                data.cancel_signature();
+            }
             _ => (),
         }
     }
@@ -628,10 +632,17 @@ impl Widget<LapceTabData> for LapceEditorView {
                         if ctx.is_focused() {
                             let doc = data.main_split.editor_doc(self.view_id);
                             if !doc.buffer().is_pristine() {
+                                let save_cmd =
+                                    if data.config.editor.format_on_autosave {
+                                        FocusCommand::Save
+                                    } else {
+                                        FocusCommand::SaveWithoutFormatting
+                                    };
+
                                 ctx.submit_command(Command::new(
                                     LAPCE_COMMAND,
                                     LapceCommand {
-                                        kind: CommandKind::Focus(FocusCommand::Save),
+                                        kind: CommandKind::Focus(save_cmd),
                                         data: None,
                                     },
                                     Target::Widget(editor.view_id),
@@ -820,6 +831,13 @@ impl Widget<LapceTabData> for LapceEditorView {
                                     apply_naming: true,
                                 },
                                 Target::Auto,
+                            ));
+                        }
+                        BufferContent::File(_) => {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::FocusLost,
+                                Target::Widget(self.view_id),
                             ));
                         }
                         _ => {}

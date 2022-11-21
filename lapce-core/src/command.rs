@@ -304,6 +304,9 @@ pub enum FocusCommand {
     #[strum(message = "Save")]
     #[strum(serialize = "save")]
     Save,
+    #[strum(message = "Save Without Formatting")]
+    #[strum(serialize = "save_without_format")]
+    SaveWithoutFormatting,
     #[strum(serialize = "save_and_exit")]
     SaveAndExit,
     #[strum(serialize = "force_exit")]

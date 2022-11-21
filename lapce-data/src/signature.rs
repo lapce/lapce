@@ -47,7 +47,7 @@ impl SignatureData {
             buffer_id: BufferId(0),
             offset: 0,
             // TODO: Let the user customize this
-            size: Size::new(375.0, 100.0),
+            size: Size::new(400.0, 100.0),
 
             signatures: Vec::new(),
             current_signature: 0,
@@ -115,6 +115,7 @@ impl SignatureData {
         // Updating of the text layouts for the UI is done in `SignatureContainer::update_signature`
     }
 }
+
 impl Default for SignatureData {
     fn default() -> Self {
         Self::new()

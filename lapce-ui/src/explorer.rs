@@ -43,9 +43,9 @@ fn paint_single_file_node_item(
     toggle_rects: &mut HashMap<usize, Rect>,
 ) {
     let background = if Some(item.path_buf.as_ref()) == active {
-        Some(LapceTheme::PANEL_CURRENT)
+        Some(LapceTheme::PANEL_CURRENT_BACKGROUND)
     } else if Some(current) == hovered {
-        Some(LapceTheme::PANEL_HOVERED)
+        Some(LapceTheme::PANEL_HOVERED_BACKGROUND)
     } else {
         None
     };
@@ -127,7 +127,7 @@ fn paint_single_file_node_item(
         .font(config.ui.font_family(), font_size)
         .text_color(
             config
-                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
                 .clone(),
         )
         .build()
@@ -319,7 +319,7 @@ impl FileExplorer {
             .hide_header()
             .hide_gutter()
             .hide_border()
-            .set_background_color(LapceTheme::PANEL_HOVERED);
+            .set_background_color(LapceTheme::PANEL_HOVERED_BACKGROUND);
         let view_id = editor.view_id;
         data.main_split.editors.insert(view_id, Arc::new(editor));
         // Create the file listing
@@ -1204,21 +1204,23 @@ impl OpenEditorList {
 
         let font_size = data.config.ui.font_size() as f64;
 
-        if active {
-            ctx.fill(
-                Size::new(size.width, self.line_height)
-                    .to_rect()
-                    .with_origin(Point::new(0.0, i as f64 * self.line_height)),
-                data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
-            );
-        } else if ctx.is_hot()
+        let current_item = Size::new(size.width, self.line_height)
+            .to_rect()
+            .with_origin(Point::new(0.0, i as f64 * self.line_height));
+
+        if ctx.is_hot()
             && i == (self.mouse_pos.y / self.line_height).floor() as usize
         {
             ctx.fill(
-                Size::new(size.width, self.line_height)
-                    .to_rect()
-                    .with_origin(Point::new(0.0, i as f64 * self.line_height)),
-                data.config.get_color_unchecked(LapceTheme::PANEL_HOVERED),
+                current_item,
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_HOVERED_BACKGROUND),
+            );
+        } else if active {
+            ctx.fill(
+                current_item,
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
             );
         }
 
@@ -1235,13 +1237,14 @@ impl OpenEditorList {
         self.in_view_tab_children
             .insert(i, (close_rect.inflate(2.0, 2.0), child.widget_id()));
 
-        let close_svg = if ctx.is_hot()
-            && close_rect.inflate(2.0, 2.0).contains(self.mouse_pos)
-        {
-            ctx.fill(
-                close_rect.inflate(2.0, 2.0),
-                data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
-            );
+        let close_svg = if ctx.is_hot() && current_item.contains(self.mouse_pos) {
+            if close_rect.inflate(2.0, 2.0).contains(self.mouse_pos) {
+                ctx.fill(
+                    close_rect.inflate(2.0, 2.0),
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
+                );
+            }
             Some(data.config.ui_svg(LapceIcons::CLOSE))
         } else if pristine {
             None
@@ -1279,7 +1282,7 @@ impl OpenEditorList {
             .font(data.config.ui.font_family(), font_size)
             .text_color(
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
                     .clone(),
             );
         if !hint.is_empty() {
@@ -1287,7 +1290,7 @@ impl OpenEditorList {
                 total_len - hint.len()..total_len,
                 TextAttribute::TextColor(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .get_color_unchecked(LapceTheme::PANEL_FOREGROUND_DIM)
                         .clone(),
                 ),
             );
@@ -1453,7 +1456,7 @@ impl Widget<LapceTabData> for OpenEditorList {
                         )
                         .text_color(
                             data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
                                 .clone(),
                         )
                         .build()
