@@ -1103,6 +1103,7 @@ impl LapceTabData {
         text: &mut PietText,
         tab_size: Size,
         signature_size: Size,
+        label_offset: f64,
         config: &LapceConfig,
     ) -> Point {
         let editor = self.main_split.active_editor();
@@ -1120,7 +1121,7 @@ impl LapceTabData {
 
                 let mut origin = *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
-                    + Vec2::new(point_above.x - 5.0, point_above.y)
+                    + Vec2::new(point_above.x - 5.0 - label_offset, point_above.y)
                     - Vec2::new(0.0, signature_size.height);
 
                 // TODO: What about if the signature's position is past the tab size?

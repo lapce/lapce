@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use druid::{
-    theme, ArcStr, BoxConstraints, Command, Env, FontDescriptor, FontWeight,
+    theme, ArcStr, BoxConstraints, Color, Command, Env, FontDescriptor, FontWeight,
     LayoutCtx, LifeCycle, PaintCtx, Point, RenderContext, Size, Target, TextLayout,
     UpdateCtx, Widget, WidgetId, WidgetPod,
 };
@@ -27,6 +27,7 @@ pub struct SignatureContainer {
         LapceIdentityWrapper<LapceScroll<LapceTabData, Signature>>,
     >,
     signature_content_size: Size,
+    pub label_offset: f64,
 }
 impl SignatureContainer {
     pub fn new(data: &SignatureData) -> Self {
@@ -39,6 +40,7 @@ impl SignatureContainer {
             scroll_id: data.scroll_id,
             signature: WidgetPod::new(signature),
             signature_content_size: Size::ZERO,
+            label_offset: 0.0,
         }
     }
 
@@ -88,6 +90,7 @@ impl SignatureContainer {
         sig.label_layout.set_text(label);
         sig.param_doc_layout.set_text(param_doc);
         sig.doc_layout.set_text(doc);
+        sig.label = signature.map(|s| s.label.clone()).unwrap_or_default();
 
         // Set font / text color information
         let font = FontDescriptor::new(data.config.ui.hover_font_family())
@@ -202,6 +205,8 @@ impl Widget<LapceTabData> for SignatureContainer {
         self.signature_content_size = self.signature.layout(ctx, &bc, data, env);
         self.signature.set_origin(ctx, data, env, Point::ZERO);
 
+        self.label_offset = self.signature.widget().inner().child().label_offset;
+
         self.signature_content_size
     }
 
@@ -229,6 +234,8 @@ impl Widget<LapceTabData> for SignatureContainer {
 }
 
 pub struct Signature {
+    label: String,
+    label_offset: f64,
     label_layout: TextLayout<RichText>,
     param_doc_layout: TextLayout<RichText>,
     doc_layout: TextLayout<RichText>,
@@ -241,6 +248,8 @@ impl Signature {
 
     fn new() -> Signature {
         Self {
+            label: "".to_string(),
+            label_offset: 0.0,
             label_layout: {
                 let mut layout = TextLayout::new();
                 layout.set_text(RichText::new(ArcStr::from("")));
@@ -332,6 +341,10 @@ impl Widget<LapceTabData> for Signature {
         self.label_layout.set_wrap_width(max_width);
         self.label_layout.rebuild_if_needed(ctx.text(), env);
 
+        if let Some(col) = self.label.find('(') {
+            self.label_offset = self.label_layout.point_for_text_position(col + 1).x;
+        }
+
         self.param_doc_layout.set_wrap_width(max_width);
         self.param_doc_layout.rebuild_if_needed(ctx.text(), env);
 
@@ -366,7 +379,7 @@ impl Widget<LapceTabData> for Signature {
             height += text_metrics.size.height + Self::PADDING;
         }
 
-        Size::new(width, height + Self::STARTING_Y)
+        Size::new(width, height + Self::STARTING_Y + Self::PADDING)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
@@ -437,6 +450,8 @@ fn parse_signature(
             .zip(active_parameter)
             .and_then(|(params, idx)| params.get(idx))
         {
+            let active_color =
+                config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
             match &parameter.label {
                 ParameterLabel::Simple(name) => {
                     // TODO: test this
@@ -447,6 +462,7 @@ fn parse_signature(
                             &mut builder,
                             &sig.label,
                             offset_start..offset_end,
+                            active_color.clone(),
                         );
                     }
                     // Otherwise, if it failed to find it, we just ignore the bad indices
@@ -466,6 +482,7 @@ fn parse_signature(
                         &mut builder,
                         &sig.label,
                         offset_start..offset_end,
+                        active_color.clone(),
                     );
                 }
             }
@@ -491,11 +508,13 @@ fn add_parameter_attr(
     builder: &mut RichTextBuilder,
     label: &str,
     range: Range<usize>,
+    color: Color,
 ) {
     if range.start < range.end && label.get(range.clone()).is_some() {
         // TODO: This could be configurable by the user
         builder
             .add_attributes_for_range(range)
-            .weight(FontWeight::BOLD);
+            .weight(FontWeight::BOLD)
+            .text_color(color);
     }
 }

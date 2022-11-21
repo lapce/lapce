@@ -302,6 +302,10 @@ impl LapceEditorView {
                     Target::Widget(self.editor.widget().scroll_id),
                 ));
             }
+            LapceUICommand::FocusLost => {
+                data.cancel_completion();
+                data.cancel_signature();
+            }
             _ => (),
         }
     }
@@ -827,6 +831,13 @@ impl Widget<LapceTabData> for LapceEditorView {
                                     apply_naming: true,
                                 },
                                 Target::Auto,
+                            ));
+                        }
+                        BufferContent::File(_) => {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::FocusLost,
+                                Target::Widget(self.view_id),
                             ));
                         }
                         _ => {}
