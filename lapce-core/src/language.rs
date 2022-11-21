@@ -648,7 +648,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::ProtoBuf,
         language: tree_sitter_protobuf::language,
         highlight: include_str!("../queries/protobuf/highlights.scm"),
-        injection: None,
+        injection: Some(include_str!("../queries/protobuf/injections.scm")),
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
