@@ -1509,6 +1509,9 @@ impl LapceEditorBufferData {
             self.cancel_completion();
         }
         self.apply_deltas(&deltas);
+        if let EditCommand::NormalMode = cmd {
+            Arc::make_mut(&mut self.editor).snippet = None;
+        }
 
         CommandExecuted::Yes
     }
