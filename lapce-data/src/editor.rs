@@ -807,7 +807,18 @@ impl LapceEditorBufferData {
         }
 
         let offset = self.editor.cursor.offset();
-        let start_offset = self.doc.buffer().prev_code_boundary(offset);
+
+        let start_offset = match self
+            .doc
+            .syntax()
+            .and_then(|syntax| syntax.find_enclosing_parentheses(offset))
+        {
+            Some((start, _)) => start,
+            None => {
+                self.cancel_signature();
+                return;
+            }
+        };
 
         let signature = Arc::make_mut(&mut self.signature);
 
@@ -816,12 +827,12 @@ impl LapceEditorBufferData {
         signature.status = SignatureStatus::Started;
         signature.request_id += 1;
 
-        let start_pos = self.doc.buffer().offset_to_position(start_offset);
+        let pos = self.doc.buffer().offset_to_position(offset);
         signature.request(
             self.proxy.clone(),
             signature.request_id,
             self.doc.content().path().unwrap().into(),
-            start_pos,
+            pos,
         );
     }
 
@@ -1340,6 +1351,7 @@ impl LapceEditorBufferData {
             self.inactive_apply_delta(delta);
             self.update_snippet_offset(delta);
         }
+        self.update_signature();
     }
 
     fn save(&mut self, ctx: &mut EventCtx, exit: bool, allow_formatting: bool) {
@@ -1461,9 +1473,6 @@ impl LapceEditorBufferData {
             }
         }
         self.cancel_completion();
-        // Cancel but then immediately try to see if there's a signature to provide
-        // TODO: Can we be smarter about this?
-        self.cancel_signature();
         self.update_signature();
         self.cancel_hover();
         CommandExecuted::Yes
@@ -1496,11 +1505,8 @@ impl LapceEditorBufferData {
 
         if show_completion(cmd, &doc_before_edit, &deltas) {
             self.update_completion(ctx, false);
-            // TODO: This can be requested in more specific cases based on the LSP supplied trigger
-            self.update_signature();
         } else {
             self.cancel_completion();
-            self.cancel_signature();
         }
         self.apply_deltas(&deltas);
 
@@ -2529,7 +2535,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                 .all(|c| c.is_whitespace() || c.is_ascii_whitespace())
             {
                 self.update_completion(ctx, false);
-                self.update_signature();
             } else {
                 self.cancel_completion();
             }

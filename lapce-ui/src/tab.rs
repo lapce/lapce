@@ -2443,10 +2443,12 @@ impl Widget<LapceTabData> for LapceTab {
 
         if data.signature.status != SignatureStatus::Inactive {
             let signature_size = self.signature.layout(ctx, bc, data, env);
+            let label_offset = self.signature.widget().label_offset;
             let signature_origin = data.signature_origin(
                 ctx.text(),
                 self_size,
                 signature_size,
+                label_offset,
                 &data.config,
             );
             self.signature.set_origin(ctx, data, env, signature_origin);

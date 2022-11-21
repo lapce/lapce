@@ -326,7 +326,7 @@ impl LspClient {
                         parameter_information: Some(ParameterInformationSettings {
                             label_offset_support: Some(true),
                         }),
-                        ..Default::default()
+                        active_parameter_support: Some(true),
                     }),
                     ..Default::default()
                 }),

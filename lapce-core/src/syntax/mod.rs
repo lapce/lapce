@@ -786,6 +786,32 @@ impl Syntax {
         Some(offsets)
     }
 
+    pub fn find_enclosing_parentheses(
+        &self,
+        offset: usize,
+    ) -> Option<(usize, usize)> {
+        let tree = self.layers.try_tree()?;
+        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
+
+        loop {
+            let start = node.start_byte();
+            let c = self.text.byte_at(start) as char;
+            if c == '(' {
+                let end = self.find_matching_pair(start)?;
+                if end >= offset && start < offset {
+                    return Some((start, end));
+                }
+            }
+            if let Some(sibling) = node.prev_sibling() {
+                node = sibling;
+            } else if let Some(parent) = node.parent() {
+                node = parent;
+            } else {
+                return None;
+            }
+        }
+    }
+
     pub fn find_enclosing_pair(&self, offset: usize) -> Option<(usize, usize)> {
         let tree = self.layers.try_tree()?;
         let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
