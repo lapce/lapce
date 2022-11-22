@@ -145,6 +145,7 @@ pub struct PluginData {
     pub volts: VoltsList,
     pub installing: IndexMap<String, PluginInstallStatus>,
     pub installed: IndexMap<String, VoltMetadata>,
+    pub installed_latest: IndexMap<String, VoltInfo>,
     pub installed_icons: im::HashMap<String, VoltIconKind>,
     pub disabled: HashSet<String>,
     pub workspace_disabled: HashSet<String>,
@@ -185,6 +186,7 @@ impl PluginData {
             volts: VoltsList::new(tab_id, event_sink),
             installing: IndexMap::new(),
             installed: IndexMap::new(),
+            installed_latest: IndexMap::new(),
             installed_icons: im::HashMap::new(),
             disabled: HashSet::from_iter(disabled.into_iter()),
             workspace_disabled: HashSet::from_iter(workspace_disabled.into_iter()),
@@ -218,11 +220,15 @@ impl PluginData {
         }
 
         if let Some(meta) = self.installed.get(id) {
-            if let Some(volt) = self.volts.volts.get(id) {
+            if let Some(volt) = self
+                .installed_latest
+                .get(id)
+                .or_else(|| self.volts.volts.get(id))
+            {
                 if meta.version == volt.version {
                     PluginStatus::Installed
                 } else {
-                    PluginStatus::Upgrade
+                    PluginStatus::Upgrade(volt.version.clone())
                 }
             } else {
                 PluginStatus::Installed
@@ -406,12 +412,47 @@ impl PluginData {
         }
         Ok(())
     }
+
+    pub fn volt_installed(
+        &mut self,
+        tab_id: WidgetId,
+        volt: &VoltMetadata,
+        icon: &Option<String>,
+        event_sink: ExtEventSink,
+    ) {
+        let volt_id = volt.id();
+
+        self.installing.remove(&volt_id);
+        self.installed.insert(volt_id.clone(), volt.clone());
+
+        if let Some(icon) = icon.as_ref().and_then(|icon| {
+            VoltIconKind::from_bytes(&base64::decode(icon).ok()?).ok()
+        }) {
+            self.installed_icons.insert(volt_id.clone(), icon);
+        }
+
+        if !self.volts.volts.contains_key(&volt_id) {
+            let url = format!(
+                "https://plugins.lapce.dev/api/v1/plugins/{}/{}/latest",
+                volt.author, volt.name
+            );
+            std::thread::spawn(move || -> Result<()> {
+                let info: VoltInfo = reqwest::blocking::get(url)?.json()?;
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::LoadPluginLatest(info),
+                    Target::Widget(tab_id),
+                );
+                Ok(())
+            });
+        }
+    }
 }
 
 #[derive(Display, PartialEq, Eq, Clone)]
 pub enum PluginStatus {
     Installed,
     Install,
-    Upgrade,
+    Upgrade(String),
     Disabled,
 }

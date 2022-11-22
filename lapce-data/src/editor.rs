@@ -464,6 +464,28 @@ impl LapceEditorBufferData {
         )
     }
 
+    fn completion_do_edit(
+        &mut self,
+        selection: &Selection,
+        edits: &[(impl AsRef<Selection>, &str)],
+    ) {
+        let old_cursor = self.editor.cursor.mode.clone();
+        let doc = Arc::make_mut(&mut self.doc);
+        let (delta, inval_lines, edits) =
+            doc.do_raw_edit(edits, EditType::Completion);
+        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
+        Arc::make_mut(&mut self.editor)
+            .cursor
+            .update_selection(self.doc.buffer(), selection);
+
+        let doc = Arc::make_mut(&mut self.doc);
+        doc.buffer_mut().set_cursor_before(old_cursor);
+        doc.buffer_mut()
+            .set_cursor_after(self.editor.cursor.mode.clone());
+
+        self.apply_deltas(&[(delta, inval_lines, edits)]);
+    }
+
     pub fn apply_completion_item(&mut self, item: &CompletionItem) -> Result<()> {
         let additional_edit: Option<Vec<_>> =
             item.additional_text_edits.as_ref().map(|edits| {
@@ -506,29 +528,20 @@ impl LapceEditorBufferData {
                     );
                     match text_format {
                         lsp_types::InsertTextFormat::PLAIN_TEXT => {
-                            let (delta, inval_lines, edits) =
-                                Arc::make_mut(&mut self.doc).do_raw_edit(
-                                    &[
-                                        &[(&selection, edit.new_text.as_str())][..],
-                                        &additional_edit[..],
-                                    ]
-                                    .concat(),
-                                    EditType::Completion,
-                                );
-                            let selection = selection.apply_delta(
-                                &delta,
-                                true,
-                                InsertDrift::Default,
+                            self.completion_do_edit(
+                                &selection,
+                                &[
+                                    &[(&selection, edit.new_text.as_str())][..],
+                                    &additional_edit[..],
+                                ]
+                                .concat(),
                             );
-                            Arc::make_mut(&mut self.editor)
-                                .cursor
-                                .update_selection(self.doc.buffer(), selection);
-                            self.apply_deltas(&[(delta, inval_lines, edits)]);
                             return Ok(());
                         }
                         lsp_types::InsertTextFormat::SNIPPET => {
                             let snippet = Snippet::from_str(&edit.new_text)?;
                             let text = snippet.text();
+                            let old_cursor = self.editor.cursor.mode.clone();
                             let (delta, inval_lines, edits) =
                                 Arc::make_mut(&mut self.doc).do_raw_edit(
                                     &[
@@ -562,6 +575,13 @@ impl LapceEditorBufferData {
                                 Arc::make_mut(&mut self.editor)
                                     .cursor
                                     .update_selection(self.doc.buffer(), selection);
+
+                                let doc = Arc::make_mut(&mut self.doc);
+                                doc.buffer_mut().set_cursor_before(old_cursor);
+                                doc.buffer_mut().set_cursor_after(
+                                    self.editor.cursor.mode.clone(),
+                                );
+
                                 self.apply_deltas(&[(delta, inval_lines, edits)]);
                                 return Ok(());
                             }
@@ -576,6 +596,12 @@ impl LapceEditorBufferData {
                             Arc::make_mut(&mut self.editor)
                                 .cursor
                                 .set_insert(selection);
+
+                            let doc = Arc::make_mut(&mut self.doc);
+                            doc.buffer_mut().set_cursor_before(old_cursor);
+                            doc.buffer_mut()
+                                .set_cursor_after(self.editor.cursor.mode.clone());
+
                             self.apply_deltas(&[(delta, inval_lines, edits)]);
                             Arc::make_mut(&mut self.editor)
                                 .add_snippet_placeholders(snippet_tabs);
@@ -593,7 +619,8 @@ impl LapceEditorBufferData {
         let end_offset = self.doc.buffer().next_code_boundary(offset);
         let selection = Selection::region(start_offset, end_offset);
 
-        let (delta, inval_lines, edits) = Arc::make_mut(&mut self.doc).do_raw_edit(
+        self.completion_do_edit(
+            &selection,
             &[
                 &[(
                     &selection,
@@ -602,13 +629,7 @@ impl LapceEditorBufferData {
                 &additional_edit[..],
             ]
             .concat(),
-            EditType::Completion,
         );
-        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
-        Arc::make_mut(&mut self.editor)
-            .cursor
-            .update_selection(self.doc.buffer(), selection);
-        self.apply_deltas(&[(delta, inval_lines, edits)]);
         Ok(())
     }
 

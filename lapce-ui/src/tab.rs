@@ -38,10 +38,7 @@ use lapce_data::{
         PanelContainerPosition, PanelKind, PanelPosition, PanelResizePosition,
         PanelStyle,
     },
-    plugin::{
-        plugin_install_status::{PluginInstallStatus, PluginInstallType},
-        VoltIconKind,
-    },
+    plugin::plugin_install_status::{PluginInstallStatus, PluginInstallType},
     proxy::path_from_url,
     signature::SignatureStatus,
 };
@@ -975,6 +972,11 @@ impl LapceTab {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::LoadPluginLatest(info) => {
+                        ctx.set_handled();
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.installed_latest.insert(info.id(), info.clone());
+                    }
                     LapceUICommand::LoadPlugins(info) => {
                         ctx.set_handled();
                         let plugin = Arc::make_mut(&mut data.plugin);
@@ -992,18 +994,12 @@ impl LapceTab {
                     }
                     LapceUICommand::VoltInstalled(volt, icon) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
-
-                        // if there is a value inside the installing map, remove it from there as soon as it is installed.
-                        plugin.installing.remove(&volt.id());
-
-                        plugin.installed.insert(volt.id(), volt.clone());
-
-                        if let Some(icon) = icon.as_ref().and_then(|icon| {
-                            VoltIconKind::from_bytes(&base64::decode(icon).ok()?)
-                                .ok()
-                        }) {
-                            plugin.installed_icons.insert(volt.id(), icon);
-                        }
+                        plugin.volt_installed(
+                            data.id,
+                            volt,
+                            icon,
+                            ctx.get_external_handle(),
+                        );
 
                         for (_, tabs) in data.main_split.editor_tabs.iter() {
                             for child in tabs.children.iter() {

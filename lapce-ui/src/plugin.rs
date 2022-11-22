@@ -383,7 +383,7 @@ impl Plugin {
 
             let color = match status {
                 PluginStatus::Installed => LapceTheme::LAPCE_PLUGIN_AUTHOR,
-                PluginStatus::Upgrade => LapceTheme::LAPCE_WARN,
+                PluginStatus::Upgrade(_) => LapceTheme::LAPCE_WARN,
                 _ => LapceTheme::EDITOR_DIM,
             };
 
@@ -1214,8 +1214,9 @@ fn status_on_click(ctx: &mut EventCtx, data: &LapceTabData, id: &str, pos: Point
     if let Some(meta) = data.plugin.installed.get(id) {
         let mut menu = druid::Menu::<LapceData>::new("Plugin");
 
-        if let PluginStatus::Upgrade = status {
-            let info = meta.info();
+        if let PluginStatus::Upgrade(latest_version) = status {
+            let mut info = meta.info();
+            info.version = latest_version;
             let proxy = data.proxy.clone();
             let item = druid::MenuItem::new("Upgrade Plugin").on_activate(
                 move |_ctx, _data, _env| {
