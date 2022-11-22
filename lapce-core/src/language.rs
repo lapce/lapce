@@ -176,6 +176,8 @@ pub enum LapceLanguage {
     Php,
     #[cfg(feature = "lang-prisma")]
     Prisma,
+    #[cfg(feature = "lang-protobuf")]
+    ProtoBuf,
     #[cfg(feature = "lang-python")]
     Python,
     #[cfg(feature = "lang-ql")]
@@ -640,6 +642,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["prisma"],
+    },
+    #[cfg(feature = "lang-protobuf")]
+    SyntaxProperties {
+        id: LapceLanguage::ProtoBuf,
+        language: tree_sitter_protobuf::language,
+        highlight: include_str!("../queries/protobuf/highlights.scm"),
+        injection: Some(include_str!("../queries/protobuf/injections.scm")),
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["proto"],
     },
     #[cfg(feature = "lang-python")]
     SyntaxProperties {

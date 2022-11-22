@@ -2605,6 +2605,7 @@ dependencies = [
  "tree-sitter-ocaml",
  "tree-sitter-php",
  "tree-sitter-prisma-io",
+ "tree-sitter-protobuf",
  "tree-sitter-python",
  "tree-sitter-ql",
  "tree-sitter-r",
@@ -5176,6 +5177,15 @@ name = "tree-sitter-prisma-io"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "15843349be7dd0281ffb24dd9659c6695d7a3d43a75e175c6a985f8dd6089174"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-protobuf"
+version = "0.0.1"
+source = "git+https://github.com/yusdacra/tree-sitter-protobuf?branch=main#5aef38d655f76a6b0d172340eed3766c93b3124c"
 dependencies = [
  "cc",
  "tree-sitter",
