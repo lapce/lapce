@@ -13,6 +13,8 @@
 
 ### Bug Fixes
 
+- [#1724](https://github.com/lapce/lapce/pull/1724): files and hidden folders no longer will be considered when trying to open a plugin base folder
+
 ## 0.2.4
 
 ### Features/Changes
