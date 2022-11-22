@@ -1199,8 +1199,12 @@ impl Document {
             modal,
             register,
         );
-        self.buffer_mut().set_cursor_before(old_cursor);
-        self.buffer_mut().set_cursor_after(cursor.mode.clone());
+
+        if !deltas.is_empty() {
+            self.buffer_mut().set_cursor_before(old_cursor);
+            self.buffer_mut().set_cursor_after(cursor.mode.clone());
+        }
+
         self.apply_deltas(&deltas);
         deltas
     }

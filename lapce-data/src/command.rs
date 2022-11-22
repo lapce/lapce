@@ -612,6 +612,7 @@ pub enum LapceUICommand {
     UpdatePickerPwd(PathBuf),
     UpdatePickerItems(PathBuf, HashMap<PathBuf, FileNodeItem>),
     UpdateExplorerItems(PathBuf, HashMap<PathBuf, FileNodeItem>, bool),
+    LoadPluginLatest(VoltInfo),
     LoadPlugins(PluginsInfo),
     LoadPluginsFailed,
     LoadPluginIcon(String, VoltIconKind),
