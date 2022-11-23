@@ -792,6 +792,10 @@ impl Syntax {
     ) -> Option<(usize, usize)> {
         let tree = self.layers.try_tree()?;
         let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
+        // If there is no text then the document can't have any bytes
+        if self.text.is_empty() {
+            return None;
+        }
 
         loop {
             let start = node.start_byte();
@@ -815,6 +819,10 @@ impl Syntax {
     pub fn find_enclosing_pair(&self, offset: usize) -> Option<(usize, usize)> {
         let tree = self.layers.try_tree()?;
         let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
+        // If there is no text then the document can't have any bytes
+        if self.text.is_empty() {
+            return None;
+        }
 
         loop {
             let start = node.start_byte();
