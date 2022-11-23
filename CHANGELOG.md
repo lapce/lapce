@@ -10,6 +10,7 @@
 - [#1726](https://github.com/lapce/lapce/pull/1726): Add more panel theme keys, apply hover first, then current item colour
   > **Warning**
   > This is a breaking change
+- [#1741](https://github.com/lapce/lapce/pull/1741): Add syntax highlighting for glsl
 
 ### Bug Fixes
 - [#1737](https://github.com/lapce/lapce/pull/1726): Fix an issue that plugins can't be upgraded

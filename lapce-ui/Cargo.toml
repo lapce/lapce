@@ -61,6 +61,7 @@ all-languages = [
     "lang-elm",
     "lang-erlang",
     "lang-glimmer",
+    "lang-glsl",
     "lang-go",
     "lang-hare",
     "lang-haskell",
@@ -111,6 +112,7 @@ lang-elixir = ["lapce-core/lang-elixir"]
 lang-elm = ["lapce-core/lang-elm"]
 lang-erlang = ["lapce-core/lang-erlang"]
 lang-glimmer = ["lapce-core/lang-glimmer"]
+lang-glsl = ["lapce-core/lang-glsl"]
 lang-go = ["lapce-core/lang-go"]
 lang-hare = ["lapce-core/lang-hare"]
 lang-haskell = ["lapce-core/lang-haskell"]

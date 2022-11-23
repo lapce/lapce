@@ -64,6 +64,7 @@ declare_language_highlights!(
     Elm: "lang-elm",
     Erlang: "lang-erlang",
     Glimmer: "lang-glimmer",
+    Glsl: "lang-glsl",
     Go: "lang-go",
     Hare: "lang-hare",
     Haskell: "lang-haskell",

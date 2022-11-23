@@ -132,6 +132,8 @@ pub enum LapceLanguage {
     Erlang,
     #[cfg(feature = "lang-glimmer")]
     Glimmer,
+    #[cfg(feature = "lang-glsl")]
+    Glsl,
     #[cfg(feature = "lang-go")]
     Go,
     #[cfg(feature = "lang-hare")]
@@ -374,6 +376,23 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["hbs"],
+    },
+    #[cfg(feature = "lang-glsl")]
+    SyntaxProperties {
+        id: LapceLanguage::Glsl,
+        language: tree_sitter_glsl::language,
+        highlight: tree_sitter_glsl::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &[
+            "glsl", "cs", "vs", "gs", "fs", "csh", "vsh", "gsh", "fsh", "cshader",
+            "vshader", "gshader", "fshader", "comp", "vert", "geom", "frag", "tesc",
+            "tese", "mesh", "task", "rgen", "rint", "rahit", "rchit", "rmiss",
+            "rcall",
+        ],
     },
     #[cfg(feature = "lang-go")]
     SyntaxProperties {
