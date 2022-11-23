@@ -387,7 +387,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
-        extensions: &["glsl", "csh", "vsh", "gsh", "fsh", "comp", "vert", "geom", "frag"]
+        extensions: &["glsl", "cs", "vs", "gs", "fs", "csh", "vsh", "gsh", "fsh", "cshader", "vshader", "gshader", "fshader", "comp", "vert", "geom", "frag", "tesc", "tese", "mesh", "task", "rgen", "rint", "rahit", "rchit", "rmiss", "rcall"]
     },
     #[cfg(feature = "lang-go")]
     SyntaxProperties {
