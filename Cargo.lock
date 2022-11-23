@@ -2587,6 +2587,7 @@ dependencies = [
  "tree-sitter-elm",
  "tree-sitter-erlang",
  "tree-sitter-glimmer",
+ "tree-sitter-glsl",
  "tree-sitter-go",
  "tree-sitter-hare",
  "tree-sitter-haskell",
@@ -5010,6 +5011,15 @@ dependencies = [
 name = "tree-sitter-glimmer"
 version = "0.0.1"
 source = "git+https://github.com/VixieTSQ/tree-sitter-glimmer#7281caca2ba114e1960c5d944a37860ef0841426"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-glsl"
+version = "0.1.3"
+source = "git+https://github.com/theHamsta/tree-sitter-glsl?branch=add-highlights.scm#74329feb2605deccd32b1c644af507daa6fb82f1"
 dependencies = [
  "cc",
  "tree-sitter",
