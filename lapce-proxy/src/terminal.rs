@@ -68,8 +68,8 @@ impl Terminal {
                 let args = if shell.is_empty() {
                     vec![
                         "--host".to_string(),
-                        "--env=TERM=alacritty".to_string(), 
-                        host_shell
+                        "--env=TERM=alacritty".to_string(),
+                        host_shell,
                     ]
                 } else {
                     vec![
