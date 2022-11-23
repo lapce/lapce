@@ -763,9 +763,8 @@ impl PluginCatalogRpcHandler {
         let core_rpc = self.core_rpc.clone();
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
-        self.send_request(
-            None,
-            None,
+
+        self.send_request_to_all_plugins(
             method,
             params,
             language_id,
