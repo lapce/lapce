@@ -770,7 +770,6 @@ impl LapceEditorBufferData {
                 let start_pos = self.doc.buffer().offset_to_position(start_offset);
                 completion.request(
                     self.proxy.clone(),
-                    completion.request_id,
                     self.doc.content().path().unwrap().into(),
                     "".to_string(),
                     start_pos,
@@ -781,7 +780,6 @@ impl LapceEditorBufferData {
                 let position = self.doc.buffer().offset_to_position(offset);
                 completion.request(
                     self.proxy.clone(),
-                    completion.request_id,
                     self.doc.content().path().unwrap().into(),
                     input,
                     position,
@@ -800,7 +798,6 @@ impl LapceEditorBufferData {
         let start_pos = self.doc.buffer().offset_to_position(start_offset);
         completion.request(
             self.proxy.clone(),
-            completion.request_id,
             self.doc.content().path().unwrap().into(),
             "".to_string(),
             start_pos,
@@ -810,7 +807,6 @@ impl LapceEditorBufferData {
             let position = self.doc.buffer().offset_to_position(offset);
             completion.request(
                 self.proxy.clone(),
-                completion.request_id,
                 self.doc.content().path().unwrap().into(),
                 input,
                 position,
