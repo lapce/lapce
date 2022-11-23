@@ -8,9 +8,9 @@
 - [#1723](https://github.com/lapce/lapce/pull/1723): In the palette, display the keybind for a command adjacent to it
 - [#1722](https://github.com/lapce/lapce/pull/1722): Add 'Save without Formatting'; Add option to disable formatting on autosave
 - [#1726](https://github.com/lapce/lapce/pull/1726): Add more panel theme keys, apply hover first, then current item colour
-- [#1741](https://github.com/lapce/lapce/pull/1741): Add syntax highlighting for glsl
   > **Warning**
   > This is a breaking change
+- [#1741](https://github.com/lapce/lapce/pull/1741): Add syntax highlighting for glsl
 
 ### Bug Fixes
 - [#1737](https://github.com/lapce/lapce/pull/1726): Fix an issue that plugins can't be upgraded
