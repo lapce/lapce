@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    io::Write,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -1569,94 +1568,6 @@ impl LapceConfig {
             .unwrap();
 
         text_layout.size()
-    }
-
-    pub fn update_recent_workspaces(workspaces: Vec<LapceWorkspace>) -> Option<()> {
-        let path = Self::recent_workspaces_file()?;
-        let mut array = toml::value::Array::new();
-        for workspace in workspaces {
-            if let Some(path) = workspace.path.as_ref() {
-                let mut table = toml::value::Table::new();
-                table.insert(
-                    "kind".to_string(),
-                    toml::Value::String(match workspace.kind {
-                        LapceWorkspaceType::Local => "local".to_string(),
-                        LapceWorkspaceType::RemoteSSH(user, host) => {
-                            format!("ssh://{}@{}", user, host)
-                        }
-                        LapceWorkspaceType::RemoteWSL => "wsl".to_string(),
-                    }),
-                );
-                table.insert(
-                    "path".to_string(),
-                    toml::Value::String(path.to_str()?.to_string()),
-                );
-                table.insert(
-                    "last_open".to_string(),
-                    toml::Value::Integer(workspace.last_open as i64),
-                );
-                array.push(toml::Value::Table(table));
-            }
-        }
-        let mut table = toml::value::Table::new();
-        table.insert("workspaces".to_string(), toml::Value::Array(array));
-        let content = toml::to_string(&table).ok()?;
-
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .open(&path)
-            .ok()?;
-        file.write_all(content.as_bytes()).ok()?;
-        None
-    }
-
-    pub fn recent_workspaces() -> Option<Vec<LapceWorkspace>> {
-        let path = Self::recent_workspaces_file()?;
-        let content = std::fs::read_to_string(&path).ok()?;
-        let value: toml::Value = toml::from_str(&content).ok()?;
-        Some(
-            value
-                .get("workspaces")
-                .and_then(|v| v.as_array())?
-                .iter()
-                .filter_map(|value| {
-                    let path = PathBuf::from(value.get("path")?.as_str()?);
-                    let kind = value.get("kind")?.as_str()?;
-                    let kind = match kind {
-                        s if kind.starts_with("ssh://") => {
-                            let mut parts = s[6..].split('@');
-                            let user = parts.next()?.to_string();
-                            let host = parts.next()?.to_string();
-                            LapceWorkspaceType::RemoteSSH(user, host)
-                        }
-                        "wsl" => LapceWorkspaceType::RemoteWSL,
-                        _ => LapceWorkspaceType::Local,
-                    };
-                    let last_open = value
-                        .get("last_open")
-                        .and_then(|v| v.as_integer())
-                        .unwrap_or(0) as u64;
-                    let workspace = LapceWorkspace {
-                        kind,
-                        path: Some(path),
-                        last_open,
-                    };
-                    Some(workspace)
-                })
-                .collect(),
-        )
-    }
-
-    pub fn recent_workspaces_file() -> Option<PathBuf> {
-        let path = Directory::config_directory()?.join("workspaces.toml");
-        {
-            let _ = std::fs::OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .open(&path);
-        }
-        Some(path)
     }
 
     pub fn tab_width(

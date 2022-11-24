@@ -36,6 +36,7 @@ use crate::{
         FocusArea, LapceMainSplitData, LapceTabData, LapceWorkspace,
         LapceWorkspaceType,
     },
+    db::LapceDb,
     document::BufferContent,
     editor::EditorLocation,
     find::Find,
@@ -323,6 +324,7 @@ pub struct PaletteViewData {
     pub main_split: LapceMainSplitData,
     pub keypress: Arc<KeyPressData>,
     pub config: Arc<LapceConfig>,
+    pub db: Arc<LapceDb>,
     pub focus_area: FocusArea,
     pub terminal: Arc<TerminalSplitData>,
 }
@@ -880,7 +882,7 @@ impl PaletteViewData {
     }
 
     fn get_ssh_hosts(&mut self, _ctx: &mut EventCtx) {
-        let workspaces = LapceConfig::recent_workspaces().unwrap_or_default();
+        let workspaces = self.db.recent_workspaces().unwrap_or_default();
         let mut hosts = HashSet::new();
         for workspace in workspaces.iter() {
             if let LapceWorkspaceType::RemoteSSH(user, host) = &workspace.kind {
@@ -904,7 +906,7 @@ impl PaletteViewData {
     }
 
     fn get_workspaces(&mut self, _ctx: &mut EventCtx) {
-        let workspaces = LapceConfig::recent_workspaces().unwrap_or_default();
+        let workspaces = self.db.recent_workspaces().unwrap_or_default();
         let palette = Arc::make_mut(&mut self.palette);
         palette.total_items = workspaces
             .into_iter()

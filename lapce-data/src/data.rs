@@ -1249,6 +1249,7 @@ impl LapceTabData {
             keypress: self.keypress.clone(),
             config: self.config.clone(),
             find: self.find.clone(),
+            db: self.db.clone(),
             focus_area: self.focus_area.clone(),
             terminal: self.terminal.clone(),
         }
