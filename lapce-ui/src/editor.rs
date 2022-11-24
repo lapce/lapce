@@ -827,7 +827,7 @@ impl LapceEditor {
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
         Self::paint_sticky_headers(ctx, data, env);
-        Self::highlight_brackets(ctx, data, &screen_lines);
+        Self::highlight_scope_and_brackets(ctx, data, &screen_lines);
 
         if let Some(placeholder) = self.placeholder.as_ref() {
             if data.doc.buffer().is_empty() {
@@ -1898,7 +1898,7 @@ impl LapceEditor {
 
     /// Checks if the cursor is on a bracket and highlights the matching bracket if there is one.
     /// If the cursor is between brackets it highlights the enclosing brackets.
-    fn highlight_brackets(
+    fn highlight_scope_and_brackets(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
         screen_lines: &ScreenLines,
@@ -1927,6 +1927,14 @@ impl LapceEditor {
             if end_offset > start && end_offset < end {
                 Self::paint_bracket_highlight(ctx, data, screen_lines, end_offset);
             }
+            Self::paint_scope_highlight(
+                ctx,
+                data,
+                screen_lines,
+                start_offset,
+                end_offset,
+                data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
+            );
         };
     }
 
@@ -1988,6 +1996,76 @@ impl LapceEditor {
         );
     }
 
+    fn paint_scope_highlight(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        screen_lines: &ScreenLines,
+        start_offset: usize,
+        end_offset: usize,
+        color: &Color,
+    ) {
+        let line_width = 1.5;
+
+        let (start_line, start_col) =
+            data.doc.buffer().offset_to_line_col(start_offset);
+        let (end_line, end_col) = data.doc.buffer().offset_to_line_col(end_offset);
+
+        let info = match screen_lines.info.get(&start_line) {
+            Some(info) => info,
+            None => return,
+        };
+
+        let x1 = Self::calculate_x_coordinate(
+            ctx,
+            data,
+            end_line,
+            end_col,
+            info.font_size,
+        );
+
+        let y0 = info.y + info.line_height;
+
+        if start_line == end_line {
+            let x0 = Self::calculate_x_coordinate(
+                ctx,
+                data,
+                start_line,
+                start_col,
+                info.font_size,
+            ) + data.config.editor_char_width(ctx.text());
+
+            ctx.stroke(
+                Line::new(Point::new(x0, y0), Point::new(x1, y0)),
+                color,
+                line_width,
+            );
+        } else {
+            let x0 = Self::calculate_x_coordinate(
+                ctx,
+                data,
+                start_line,
+                start_col,
+                info.font_size,
+            );
+
+            let lines = end_line - start_line;
+
+            let y1 = info.y + (lines as f64 * info.line_height);
+
+            ctx.stroke(
+                Line::new(Point::new(x0, y0), Point::new(x1, y0)),
+                color,
+                line_width,
+            );
+
+            ctx.stroke(
+                Line::new(Point::new(x1, y0), Point::new(x1, y1)),
+                color,
+                line_width,
+            );
+        }
+    }
+
     fn line_height(data: &LapceEditorBufferData, env: &Env) -> f64 {
         if data.editor.content.is_palette() {
             env.get(LapceTheme::PALETTE_INPUT_LINE_HEIGHT)
@@ -2030,6 +2108,28 @@ impl LapceEditor {
             direction *= -1.0;
         }
         ctx.stroke(path, color, 1.4 * scale);
+    }
+
+    fn calculate_x_coordinate(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        line: usize,
+        column: usize,
+        font_size: usize,
+    ) -> f64 {
+        let phantom_text = data.doc.line_phantom_text(&data.config, line);
+
+        let column = phantom_text.col_after(column, true);
+
+        data.doc
+            .line_point_of_line_col(
+                ctx.text(),
+                line,
+                column,
+                font_size,
+                &data.config,
+            )
+            .x
     }
 }
 
