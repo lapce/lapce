@@ -163,7 +163,7 @@ impl Title {
             LapceWorkspaceType::Local => data
                 .config
                 .get_color_unchecked(LapceTheme::LAPCE_REMOTE_LOCAL),
-            LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL => {
+            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL => {
                 match *data.proxy_status {
                     ProxyStatus::Connecting => data
                         .config
@@ -522,8 +522,8 @@ impl Title {
         };
         let remote = match &data.workspace.kind {
             LapceWorkspaceType::Local => "".to_string(),
-            LapceWorkspaceType::RemoteSSH(_, host) => {
-                format!(" [SSH: {host}]")
+            LapceWorkspaceType::RemoteSSH(ssh) => {
+                format!(" [SSH: {}]", ssh.host)
             }
             LapceWorkspaceType::RemoteWSL => " [WSL]".to_string(),
         };
