@@ -712,6 +712,9 @@ impl LapceDb {
     }
 
     pub fn update_recent_workspace(&self, workspace: LapceWorkspace) -> Result<()> {
+        if workspace.path.is_none() {
+            return Ok(());
+        }
         self.save_tx.send(SaveEvent::RecentWorkspace(workspace))?;
         Ok(())
     }

@@ -910,14 +910,8 @@ impl PaletteViewData {
         let palette = Arc::make_mut(&mut self.palette);
         palette.total_items = workspaces
             .into_iter()
-            .map(|w| {
-                let text = w
-                    .path
-                    .as_ref()
-                    .unwrap()
-                    .to_str()
-                    .map(|p| p.to_string())
-                    .unwrap();
+            .filter_map(|w| {
+                let text = w.path.as_ref()?.to_str()?.to_string();
                 let filter_text = match &w.kind {
                     LapceWorkspaceType::Local => text,
                     LapceWorkspaceType::RemoteSSH(user, host) => {
@@ -927,12 +921,12 @@ impl PaletteViewData {
                         format!("[wsl] {text}")
                     }
                 };
-                PaletteItem {
+                Some(PaletteItem {
                     content: PaletteItemContent::Workspace(w),
                     filter_text,
                     score: 0,
                     indices: vec![],
-                }
+                })
             })
             .collect();
     }
