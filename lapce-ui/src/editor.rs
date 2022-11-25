@@ -28,7 +28,7 @@ use lapce_data::{
     hover::HoverStatus,
     keypress::KeyPressFocus,
     menu::{MenuItem, MenuKind},
-    palette::PaletteStatus,
+    palette::{PaletteStatus, PaletteType},
     panel::{PanelData, PanelKind},
     selection_range::SyntaxSelectionRanges,
 };
@@ -785,11 +785,10 @@ impl LapceEditor {
             data.config.editor.font_size
         };
 
+        let line_padding = Self::line_padding(data, env);
+        let line_height = Self::line_height(data, env);
         let screen_lines = match &data.editor.view {
             EditorView::Normal => {
-                let line_padding = Self::line_padding(data, env);
-                let line_height = Self::line_height(data, env);
-
                 let rect = ctx.region().bounding_box();
                 let start_line = (rect.y0 / line_height).floor() as usize;
                 let end_line = (rect.y1 / line_height).ceil() as usize;
@@ -829,8 +828,8 @@ impl LapceEditor {
         Self::paint_sticky_headers(ctx, data, env);
         Self::highlight_brackets(ctx, data, &screen_lines);
 
-        if let Some(placeholder) = self.placeholder.as_ref() {
-            if data.doc.buffer().is_empty() {
+        if data.doc.buffer().is_empty() {
+            if let Some(placeholder) = self.placeholder.as_ref() {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(placeholder.to_string())
@@ -853,6 +852,33 @@ impl LapceEditor {
                             .y_offset(data.config.editor.line_height() as f64),
                     ),
                 );
+            } else if let BufferContent::Local(LocalBufferKind::Palette) =
+                data.editor.content
+            {
+                let text = match data.palette.palette_type {
+                    PaletteType::SshHost => Some("select or enter your ssh connection like [user@]host[:port]"),
+                    _ => None,
+                };
+                if let Some(text) = text {
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout(text)
+                        .font(data.config.ui.font_family(), font_size as f64)
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    ctx.draw_text(
+                        &text_layout,
+                        Point::new(
+                            0.0,
+                            line_padding + text_layout.y_offset(line_height),
+                        ),
+                    );
+                }
             }
         }
     }

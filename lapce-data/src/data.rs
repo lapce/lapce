@@ -3,6 +3,7 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
     env,
+    fmt::Display,
     io::{BufReader, Read, Write},
     path::{Path, PathBuf},
     rc::Rc,
@@ -4318,10 +4319,46 @@ impl LapceEditorData {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct SshHost {
+    pub user: String,
+    pub host: String,
+    pub port: Option<usize>,
+}
+
+impl SshHost {
+    pub fn from_string(s: &str) -> Self {
+        let mut whole_splits = s.split(':');
+        let splits = whole_splits
+            .next()
+            .unwrap()
+            .split('@')
+            .collect::<Vec<&str>>();
+        let mut splits = splits.iter().rev();
+        let host = splits.next().unwrap().to_string();
+        let user = splits
+            .next()
+            .map(|s| s.to_string())
+            .unwrap_or_else(whoami::username);
+        let port = whole_splits.next().and_then(|s| s.parse::<usize>().ok());
+        Self { user, host, port }
+    }
+}
+
+impl Display for SshHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}@{}", self.user, self.host)?;
+        if let Some(port) = self.port {
+            write!(f, ":{}", port)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LapceWorkspaceType {
     Local,
-    RemoteSSH(String, String),
+    RemoteSSH(SshHost),
     RemoteWSL,
 }
 
@@ -4329,7 +4366,7 @@ impl LapceWorkspaceType {
     pub fn is_remote(&self) -> bool {
         matches!(
             self,
-            LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL
+            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL
         )
     }
 }
@@ -4338,8 +4375,8 @@ impl std::fmt::Display for LapceWorkspaceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LapceWorkspaceType::Local => f.write_str("Local"),
-            LapceWorkspaceType::RemoteSSH(user, host) => {
-                write!(f, "ssh://{}@{}", user, host)
+            LapceWorkspaceType::RemoteSSH(ssh) => {
+                write!(f, "ssh://{ssh}")
             }
             LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
         }
