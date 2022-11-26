@@ -819,10 +819,7 @@ impl Remote for SshRemote {
 
         let output = cmd
             .arg(local.as_ref())
-            .arg(dbg!(format!(
-                "{}@{}:{remote}",
-                self.ssh.user, self.ssh.host,
-            )))
+            .arg(dbg!(format!("{}:{remote}", self.ssh.user_host())))
             .output()?;
 
         log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stderr));
@@ -839,7 +836,7 @@ impl Remote for SshRemote {
             cmd.arg("-p").arg(port.to_string());
         }
 
-        cmd.arg(format!("{}@{}", self.ssh.user, self.ssh.host));
+        cmd.arg(self.ssh.user_host());
 
         if !std::env::var("LAPCE_DEBUG").unwrap_or_default().is_empty() {
             cmd.arg("-v");

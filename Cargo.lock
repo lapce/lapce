@@ -2673,7 +2673,6 @@ dependencies = [
  "thiserror",
  "toml_edit",
  "uuid",
- "whoami",
  "zip",
 ]
 
@@ -6113,17 +6112,6 @@ dependencies = [
  "either",
  "libc",
  "once_cell",
-]
-
-[[package]]
-name = "whoami"
-version = "1.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6631b6a2fd59b1841b622e8f1a7ad241ef0a46f2d580464ce8140ac94cbd571"
-dependencies = [
- "bumpalo",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]

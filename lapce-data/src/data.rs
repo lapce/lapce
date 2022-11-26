@@ -4321,7 +4321,7 @@ impl LapceEditorData {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct SshHost {
-    pub user: String,
+    pub user: Option<String>,
     pub host: String,
     pub port: Option<usize>,
 }
@@ -4336,18 +4336,26 @@ impl SshHost {
             .collect::<Vec<&str>>();
         let mut splits = splits.iter().rev();
         let host = splits.next().unwrap().to_string();
-        let user = splits
-            .next()
-            .map(|s| s.to_string())
-            .unwrap_or_else(whoami::username);
+        let user = splits.next().map(|s| s.to_string());
         let port = whole_splits.next().and_then(|s| s.parse::<usize>().ok());
         Self { user, host, port }
+    }
+
+    pub fn user_host(&self) -> String {
+        if let Some(user) = self.user.as_ref() {
+            format!("{user}@{}", self.host)
+        } else {
+            self.host.clone()
+        }
     }
 }
 
 impl Display for SshHost {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}@{}", self.user, self.host)?;
+        if let Some(user) = self.user.as_ref() {
+            write!(f, "{user}@")?;
+        }
+        write!(f, "{}", self.host)?;
         if let Some(port) = self.port {
             write!(f, ":{}", port)?;
         }

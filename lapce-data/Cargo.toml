@@ -5,7 +5,6 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-whoami = "1.2.3"
 sha2 = "0.10.6"
 interprocess = "1.1.1"
 zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
