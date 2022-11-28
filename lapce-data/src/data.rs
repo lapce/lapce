@@ -3,6 +3,7 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
     env,
+    fmt::Display,
     io::{BufReader, Read, Write},
     path::{Path, PathBuf},
     rc::Rc,
@@ -1249,6 +1250,7 @@ impl LapceTabData {
             keypress: self.keypress.clone(),
             config: self.config.clone(),
             find: self.find.clone(),
+            db: self.db.clone(),
             focus_area: self.focus_area.clone(),
             terminal: self.terminal.clone(),
         }
@@ -4317,10 +4319,54 @@ impl LapceEditorData {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct SshHost {
+    pub user: Option<String>,
+    pub host: String,
+    pub port: Option<usize>,
+}
+
+impl SshHost {
+    pub fn from_string(s: &str) -> Self {
+        let mut whole_splits = s.split(':');
+        let splits = whole_splits
+            .next()
+            .unwrap()
+            .split('@')
+            .collect::<Vec<&str>>();
+        let mut splits = splits.iter().rev();
+        let host = splits.next().unwrap().to_string();
+        let user = splits.next().map(|s| s.to_string());
+        let port = whole_splits.next().and_then(|s| s.parse::<usize>().ok());
+        Self { user, host, port }
+    }
+
+    pub fn user_host(&self) -> String {
+        if let Some(user) = self.user.as_ref() {
+            format!("{user}@{}", self.host)
+        } else {
+            self.host.clone()
+        }
+    }
+}
+
+impl Display for SshHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(user) = self.user.as_ref() {
+            write!(f, "{user}@")?;
+        }
+        write!(f, "{}", self.host)?;
+        if let Some(port) = self.port {
+            write!(f, ":{}", port)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LapceWorkspaceType {
     Local,
-    RemoteSSH(String, String),
+    RemoteSSH(SshHost),
     RemoteWSL,
 }
 
@@ -4328,7 +4374,7 @@ impl LapceWorkspaceType {
     pub fn is_remote(&self) -> bool {
         matches!(
             self,
-            LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL
+            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL
         )
     }
 }
@@ -4337,8 +4383,8 @@ impl std::fmt::Display for LapceWorkspaceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LapceWorkspaceType::Local => f.write_str("Local"),
-            LapceWorkspaceType::RemoteSSH(user, host) => {
-                write!(f, "ssh://{}@{}", user, host)
+            LapceWorkspaceType::RemoteSSH(ssh) => {
+                write!(f, "ssh://{ssh}")
             }
             LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
         }

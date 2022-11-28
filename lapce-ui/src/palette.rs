@@ -621,8 +621,8 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 let text = w.path.as_ref().unwrap().to_str().unwrap();
                 let text = match &w.kind {
                     LapceWorkspaceType::Local => text.to_string(),
-                    LapceWorkspaceType::RemoteSSH(user, host) => {
-                        format!("[{user}@{host}] {text}")
+                    LapceWorkspaceType::RemoteSSH(ssh) => {
+                        format!("[{ssh}] {text}")
                     }
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")
@@ -673,12 +673,10 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     self.indices.to_vec(),
                 )
             }
-            PaletteItemContent::SshHost(user, host) => {
-                PaletteItemPaintInfo::new_text(
-                    format!("{user}@{host}"),
-                    self.indices.to_vec(),
-                )
-            }
+            PaletteItemContent::SshHost(ssh) => PaletteItemPaintInfo::new_text(
+                format!("{ssh}"),
+                self.indices.to_vec(),
+            ),
         };
 
         let line_height = data.line_height() as f64;

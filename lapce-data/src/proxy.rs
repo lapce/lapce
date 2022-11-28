@@ -31,7 +31,7 @@ use thiserror::Error;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    data::{LapceWorkspace, LapceWorkspaceType},
+    data::{LapceWorkspace, LapceWorkspaceType, SshHost},
     terminal::RawTerminal,
 };
 
@@ -356,8 +356,8 @@ impl LapceProxy {
                     proxy_rpc.mainloop(&mut dispatcher);
                 });
             }
-            LapceWorkspaceType::RemoteSSH(user, host) => {
-                self.start_remote(SshRemote { user, host })?;
+            LapceWorkspaceType::RemoteSSH(ssh) => {
+                self.start_remote(SshRemote { ssh })?;
             }
             LapceWorkspaceType::RemoteWSL => {
                 let distro = WslDistro::all()?
@@ -787,8 +787,7 @@ trait Remote: Sized {
 }
 
 struct SshRemote {
-    user: String,
-    host: String,
+    ssh: SshHost,
 }
 
 impl SshRemote {
@@ -806,25 +805,21 @@ impl SshRemote {
         "-o",
         "ConnectTimeout=15",
     ];
-
-    fn command_builder(user: &str, host: &str) -> Command {
-        let mut cmd = new_command("ssh");
-        cmd.arg(format!("{}@{}", user, host)).args(Self::SSH_ARGS);
-
-        if !std::env::var("LAPCE_DEBUG").unwrap_or_default().is_empty() {
-            cmd.arg("-v");
-        }
-
-        cmd
-    }
 }
 
 impl Remote for SshRemote {
     fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
-        let output = new_command("scp")
-            .args(Self::SSH_ARGS)
+        let mut cmd = new_command("scp");
+
+        cmd.args(Self::SSH_ARGS);
+
+        if let Some(port) = self.ssh.port {
+            cmd.arg("-P").arg(port.to_string());
+        }
+
+        let output = cmd
             .arg(local.as_ref())
-            .arg(dbg!(format!("{}@{}:{remote}", self.user, self.host,)))
+            .arg(dbg!(format!("{}:{remote}", self.ssh.user_host())))
             .output()?;
 
         log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stderr));
@@ -834,7 +829,20 @@ impl Remote for SshRemote {
     }
 
     fn command_builder(&self) -> Command {
-        Self::command_builder(&self.user, &self.host)
+        let mut cmd = new_command("ssh");
+        cmd.args(Self::SSH_ARGS);
+
+        if let Some(port) = self.ssh.port {
+            cmd.arg("-p").arg(port.to_string());
+        }
+
+        cmd.arg(self.ssh.user_host());
+
+        if !std::env::var("LAPCE_DEBUG").unwrap_or_default().is_empty() {
+            cmd.arg("-v");
+        }
+
+        cmd
     }
 }
 
