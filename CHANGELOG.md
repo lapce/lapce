@@ -12,6 +12,7 @@
   > This is a breaking change
 - [#1741](https://github.com/lapce/lapce/pull/1741): Add syntax highlighting for glsl
 - [#1756](https://github.com/lapce/lapce/pull/1756): Add support for ssh port with ```[user@]host[:port]```
+- [#1760](https://github.com/lapce/lapce/pull/1760): Add vim motions `cw`, `ce`, `cc`, `S`, and QOL modal bind `gf`
 
 ### Bug Fixes
 - [#1737](https://github.com/lapce/lapce/pull/1726): Fix an issue that plugins can't be upgraded

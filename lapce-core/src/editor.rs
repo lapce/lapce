@@ -20,6 +20,29 @@ use crate::{
     },
     word::{get_char_property, CharClassification},
 };
+fn format_start_end(
+    buffer: &Buffer,
+    start: usize,
+    end: usize,
+    is_vertical: bool,
+    first_non_blank: bool,
+) -> (usize, usize) {
+    if is_vertical {
+        let start_line = buffer.line_of_offset(start.min(end));
+        let end_line = buffer.line_of_offset(end.max(start));
+        let start = if first_non_blank {
+            buffer.first_non_blank_character_on_line(start_line)
+        } else {
+            buffer.offset_of_line(start_line)
+        };
+        let end = buffer.offset_of_line(end_line + 1);
+        (start, end)
+    } else {
+        let s = start.min(end);
+        let e = start.max(end);
+        (s, e)
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EditType {
@@ -408,29 +431,11 @@ impl Editor {
         is_vertical: bool,
         register: &mut Register,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
-        fn format_start_end(
-            buffer: &Buffer,
-            start: usize,
-            end: usize,
-            is_vertical: bool,
-        ) -> (usize, usize) {
-            if is_vertical {
-                let start_line = buffer.line_of_offset(start.min(end));
-                let end_line = buffer.line_of_offset(end.max(start));
-                let start = buffer.offset_of_line(start_line);
-                let end = buffer.offset_of_line(end_line + 1);
-                (start, end)
-            } else {
-                let s = start.min(end);
-                let e = start.max(end);
-                (s, e)
-            }
-        }
-
         let mut deltas = Vec::new();
         match motion_mode {
             MotionMode::Delete => {
-                let (start, end) = format_start_end(buffer, start, end, is_vertical);
+                let (start, end) =
+                    format_start_end(buffer, start, end, is_vertical, false);
                 register.add(
                     RegisterKind::Delete,
                     RegisterData {
@@ -449,7 +454,8 @@ impl Editor {
                 deltas.push((delta, inval_lines, edits));
             }
             MotionMode::Yank => {
-                let (start, end) = format_start_end(buffer, start, end, is_vertical);
+                let (start, end) =
+                    format_start_end(buffer, start, end, is_vertical, false);
                 register.add(
                     RegisterKind::Yank,
                     RegisterData {
@@ -1297,6 +1303,43 @@ impl Editor {
             }
             DeleteForwardAndInsert => {
                 let selection = cursor.edit_selection(buffer);
+                let (delta, inval_lines, edits) =
+                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                let selection =
+                    selection.apply_delta(&delta, true, InsertDrift::Default);
+                cursor.mode = CursorMode::Insert(selection);
+                vec![(delta, inval_lines, edits)]
+            }
+            DeleteWordAndInsert => {
+                let selection = {
+                    let mut new_selection = Selection::new();
+                    let selection = cursor.edit_selection(buffer);
+
+                    for region in selection.regions() {
+                        let end = buffer.move_word_forward(region.end);
+                        let new_region = SelRegion::new(region.start, end, None);
+                        new_selection.add_region(new_region);
+                    }
+
+                    new_selection
+                };
+                let (delta, inval_lines, edits) =
+                    buffer.edit(&[(&selection, "")], EditType::DeleteWord);
+                let selection =
+                    selection.apply_delta(&delta, true, InsertDrift::Default);
+                cursor.mode = CursorMode::Insert(selection);
+                vec![(delta, inval_lines, edits)]
+            }
+            DeleteLineAndInsert => {
+                let selection = cursor.edit_selection(buffer);
+                let (start, end) = format_start_end(
+                    buffer,
+                    selection.min_offset(),
+                    selection.max_offset(),
+                    true,
+                    true,
+                );
+                let selection = Selection::region(start, end - 1); // -1 because we want to keep the line itself
                 let (delta, inval_lines, edits) =
                     buffer.edit(&[(&selection, "")], EditType::Delete);
                 let selection =
