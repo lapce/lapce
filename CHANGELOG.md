@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Features/Changes
+- [#1758](https://github.com/lapce/lapce/pull/1758): Changed dlang treesitter crate to [ghishadow's fork](https://github.com/ghishadow/tree-sitter-d)
 - [#1713](https://github.com/lapce/lapce/pull/1713): Add protobuf syntax and highlighting
 - [#1720](https://github.com/lapce/lapce/pull/1720): Display signature/parameter information from LSP
 - [#1723](https://github.com/lapce/lapce/pull/1723): In the palette, display the keybind for a command adjacent to it
