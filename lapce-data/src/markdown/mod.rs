@@ -166,7 +166,7 @@ pub fn highlight_as_code(
     text: &str,
     start_offset: usize,
 ) {
-    let syntax = language.map(Syntax::from_language);
+    let syntax = language.map(Syntax::from_language).unwrap_or(None);
 
     let styles = syntax.and_then(|mut syntax| {
         syntax.parse(0, Rope::from(text), None);
