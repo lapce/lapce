@@ -225,7 +225,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Bash,
         language: tree_sitter_bash::language,
-        highlight: include_str!("../queries/bash/highlights.scm"),
+        highlight: tree_sitter_bash::HIGHLIGHT_QUERY,
         injection: None,
         comment: "#",
         indent: "  ",
