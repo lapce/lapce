@@ -44,7 +44,7 @@ use crate::{
     list::ListData,
     panel::PanelKind,
     proxy::{path_from_url, LapceProxy},
-    terminal::TerminalSplitData,
+    terminal::{TerminalPanelData, TerminalSplitData},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -323,7 +323,7 @@ pub struct PaletteViewData {
     pub config: Arc<LapceConfig>,
     pub db: Arc<LapceDb>,
     pub focus_area: FocusArea,
-    pub terminal: Arc<TerminalSplitData>,
+    pub terminal: Arc<TerminalPanelData>,
 }
 
 impl Lens<LapceTabData, PaletteViewData> for PaletteViewLens {
@@ -1014,9 +1014,7 @@ impl PaletteViewData {
 
     fn get_lines(&mut self, _ctx: &mut EventCtx) {
         if self.focus_area == FocusArea::Panel(PanelKind::Terminal) {
-            if let Some(terminal) =
-                self.terminal.terminals.get(&self.terminal.active_term_id)
-            {
+            if let Some(terminal) = self.terminal.active_terminal() {
                 let raw = terminal.raw.lock();
                 let term = &raw.term;
                 let mut items = im::Vector::new();

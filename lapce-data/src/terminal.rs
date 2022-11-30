@@ -29,7 +29,7 @@ use crate::{
         CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
     config::{LapceConfig, LapceTheme},
-    data::LapceWorkspace,
+    data::{LapceTabData, LapceWorkspace},
     document::SystemClipboard,
     find::Find,
     keypress::KeyPressFocus,
@@ -40,28 +40,95 @@ use crate::{
 pub type TermConfig = alacritty_terminal::config::Config;
 
 #[derive(Clone)]
+pub struct TerminalPanelData {
+    pub widget_id: WidgetId,
+    pub tabs: im::HashMap<WidgetId, TerminalSplitData>,
+    pub tabs_order: Arc<Vec<WidgetId>>,
+    pub active: usize,
+}
+
+impl TerminalPanelData {
+    pub fn new(
+        worksapce: Arc<LapceWorkspace>,
+        proxy: Arc<LapceProxy>,
+        config: &LapceConfig,
+        event_sink: ExtEventSink,
+    ) -> Self {
+        let split = TerminalSplitData::new(worksapce, proxy, config, event_sink);
+        let tabs_order = Arc::new(vec![split.split_id]);
+        let mut tabs = im::HashMap::new();
+        tabs.insert(split.split_id, split);
+        Self {
+            widget_id: WidgetId::next(),
+            tabs,
+            tabs_order,
+            active: 0,
+        }
+    }
+
+    pub fn active_terminal(&self) -> Option<Arc<LapceTerminalData>> {
+        self.active_terminal_split()
+            .and_then(|t| t.terminals.get(&t.active_term_id))
+            .cloned()
+    }
+
+    pub fn active_terminal_mut(&mut self) -> Option<&mut LapceTerminalData> {
+        self.active_terminal_split_mut()
+            .and_then(|t| t.terminals.get_mut(&t.active_term_id))
+            .map(Arc::make_mut)
+    }
+
+    pub fn active_terminal_split(&self) -> Option<&TerminalSplitData> {
+        self.tabs_order
+            .get(self.active)
+            .or_else(|| self.tabs_order.last())
+            .and_then(|id| self.tabs.get(id))
+    }
+
+    pub fn active_terminal_split_mut(&mut self) -> Option<&mut TerminalSplitData> {
+        self.tabs_order
+            .get(self.active)
+            .or_else(|| self.tabs_order.last())
+            .and_then(|id| self.tabs.get_mut(id))
+    }
+}
+
+#[derive(Clone)]
 pub struct TerminalSplitData {
     pub active: WidgetId,
     pub active_term_id: TermId,
-    pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub terminals: im::HashMap<TermId, Arc<LapceTerminalData>>,
     pub indexed_colors: Arc<HashMap<u8, Color>>,
 }
 
 impl TerminalSplitData {
-    pub fn new(_proxy: Arc<LapceProxy>) -> Self {
+    pub fn new(
+        workspace: Arc<LapceWorkspace>,
+        proxy: Arc<LapceProxy>,
+        config: &LapceConfig,
+        event_sink: ExtEventSink,
+    ) -> Self {
         let split_id = WidgetId::next();
-        let terminals = im::HashMap::new();
+        let terminal_data = Arc::new(LapceTerminalData::new(
+            workspace, split_id, event_sink, proxy, config,
+        ));
+        let term_id = terminal_data.term_id;
+        let widget_id = terminal_data.widget_id;
+        let mut terminals = im::HashMap::new();
+        terminals.insert(term_id, terminal_data);
 
         Self {
-            active_term_id: TermId::next(),
-            active: WidgetId::next(),
-            widget_id: WidgetId::next(),
+            active_term_id: term_id,
+            active: widget_id,
             split_id,
             terminals,
             indexed_colors: Arc::new(Self::get_indexed_colors()),
         }
+    }
+
+    pub fn active_terminal(&self) -> Arc<LapceTerminalData> {
+        self.terminals.get(&self.active_term_id).unwrap().clone()
     }
 
     pub fn get_indexed_colors() -> HashMap<u8, Color> {

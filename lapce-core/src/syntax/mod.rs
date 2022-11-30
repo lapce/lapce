@@ -794,15 +794,22 @@ impl Syntax {
         &self,
         offset: usize,
     ) -> Option<(usize, usize)> {
-        let tree = self.layers.try_tree()?;
-        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
         // If there is no text then the document can't have any bytes
         if self.text.is_empty() {
             return None;
         }
+        if offset >= self.text.len() {
+            return None;
+        }
+
+        let tree = self.layers.try_tree()?;
+        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
 
         loop {
             let start = node.start_byte();
+            if start >= self.text.len() {
+                return None;
+            }
             let c = self.text.byte_at(start) as char;
             if c == '(' {
                 let end = self.find_matching_pair(start)?;
@@ -821,15 +828,22 @@ impl Syntax {
     }
 
     pub fn find_enclosing_pair(&self, offset: usize) -> Option<(usize, usize)> {
-        let tree = self.layers.try_tree()?;
-        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
         // If there is no text then the document can't have any bytes
         if self.text.is_empty() {
             return None;
         }
+        if offset >= self.text.len() {
+            return None;
+        }
+
+        let tree = self.layers.try_tree()?;
+        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
 
         loop {
             let start = node.start_byte();
+            if start >= self.text.len() {
+                return None;
+            }
             let c = self.text.byte_at(start) as char;
             if matching_pair_direction(c) == Some(true) {
                 let end = self.find_matching_pair(start)?;

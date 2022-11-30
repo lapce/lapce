@@ -187,6 +187,7 @@ impl LapceIcons {
 
     pub const LINK: &str = "link";
     pub const ERROR: &str = "error";
+    pub const ADD: &str = "add";
     pub const CLOSE: &str = "close";
     pub const REMOTE: &str = "remote";
     pub const PROBLEM: &str = "error";
