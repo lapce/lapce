@@ -21,6 +21,7 @@
 - [#1737](https://github.com/lapce/lapce/pull/1726): Fix an issue that plugins can't be upgraded
 - [#1724](https://github.com/lapce/lapce/pull/1724): files and hidden folders no longer will be considered when trying to open a plugin base folder
 - [#1753](https://github.com/lapce/lapce/pull/1753): Limit proxy search response size in order to avoid issues with absurdly long lines
+- [#1769](https://github.com/lapce/lapce/pull/1769): Fix opening bash files crashing lapce
 
 ## 0.2.4
 
