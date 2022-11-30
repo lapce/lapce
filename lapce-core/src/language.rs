@@ -249,7 +249,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     #[cfg(feature = "lang-cmake")]
     SyntaxProperties {
-        id: LapceLanguage::CMake,
+        id: LapceLanguage::Cmake,
         language: tree_sitter_cmake::language,
         highlight: include_str!("../queries/cmake/highlights.scm"),
         injection: Some(include_str!("../queries/cmake/injections.scm")),
