@@ -112,6 +112,8 @@ pub enum LapceLanguage {
     Bash,
     #[cfg(feature = "lang-c")]
     C,
+    #[cfg(feature = "lang-cmake")]
+    Cmake,
     #[cfg(feature = "lang-cpp")]
     Cpp,
     #[cfg(feature = "lang-csharp")]
@@ -244,6 +246,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &["function_definition", "struct_specifier"],
         extensions: &["c", "h"],
+    },
+    #[cfg(feature = "lang-cmake")]
+    SyntaxProperties {
+        id: LapceLanguage::Cmake,
+        language: tree_sitter_cmake::language,
+        highlight: include_str!("../queries/cmake/highlights.scm"),
+        injection: Some(include_str!("../queries/cmake/injections.scm")),
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &["function_definition"],
+        extensions: &["cmake"],
     },
     #[cfg(feature = "lang-cpp")]
     SyntaxProperties {

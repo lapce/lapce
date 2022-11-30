@@ -2578,6 +2578,7 @@ dependencies = [
  "tree-sitter-bash",
  "tree-sitter-c",
  "tree-sitter-c-sharp",
+ "tree-sitter-cmake",
  "tree-sitter-cpp",
  "tree-sitter-css",
  "tree-sitter-d",
@@ -4928,6 +4929,16 @@ dependencies = [
 name = "tree-sitter-c-sharp"
 version = "0.20.0"
 source = "git+https://github.com/tree-sitter/tree-sitter-c-sharp?branch=master#5b60f99545fea00a33bbfae5be956f684c4c69e2"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-cmake"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba8253ba26ab0adc2ae7cc7802d47cda9bba3fa31d07436f829a4c7f2b2442f3"
 dependencies = [
  "cc",
  "tree-sitter",
