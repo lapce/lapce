@@ -449,7 +449,7 @@ impl Document {
     }
 
     pub fn set_language(&mut self, language: LapceLanguage) {
-        self.syntax = Syntax::from_language(language);
+        self.syntax = Some(Syntax::from_language(language));
     }
 
     pub fn set_diagnostics(&mut self, diagnostics: &[EditorDiagnostic]) {

@@ -36,13 +36,11 @@ macro_rules! declare_language_highlights {
             // We use Arcs because in the future we may want to load highlight configurations at runtime
             $(
                 #[cfg(feature = $feature_name)]
-                pub static $name: Lazy<Option<Arc<HighlightConfiguration>>> = Lazy::new(|| {
-                    LapceLanguage::$name.new_highlight_config().map(Arc::new)
-                });
+                pub static $name: Lazy<Arc<HighlightConfiguration>> = Lazy::new(|| Arc::new(LapceLanguage::$name.new_highlight_config()));
             )*
         }
 
-        pub(crate) fn get_highlight_config(lang: LapceLanguage) -> Option<Arc<HighlightConfiguration>> {
+        pub(crate) fn get_highlight_config(lang: LapceLanguage) -> Arc<HighlightConfiguration> {
             match lang {
                 $(
                     #[cfg(feature = $feature_name)]
