@@ -113,7 +113,7 @@ pub enum LapceLanguage {
     #[cfg(feature = "lang-c")]
     C,
     #[cfg(feature = "lang-cmake")]
-    CMake,
+    Cmake,
     #[cfg(feature = "lang-cpp")]
     Cpp,
     #[cfg(feature = "lang-csharp")]
