@@ -832,6 +832,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
+
+            doc_single_line_start: "",
+            doc_single_line_end: "",
+
+            doc_multi_line_start: "",
+            doc_multi_line_prefix: "",
+            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1559,7 +1566,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    #[cfg(feature = "lang-prisma")]
     SyntaxProperties {
         id: LapceLanguage::Prisma,
 
@@ -1574,6 +1580,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
+
+            doc_single_line_start: "",
+            doc_single_line_end: "",
+
+            doc_multi_line_start: "",
+            doc_multi_line_prefix: "",
+            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1587,7 +1600,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    #[cfg(feature = "lang-protobuf")]
     SyntaxProperties {
         id: LapceLanguage::ProtoBuf,
 
@@ -1602,6 +1614,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
+
+            doc_single_line_start: "",
+            doc_single_line_end: "",
+
+            doc_multi_line_start: "",
+            doc_multi_line_prefix: "",
+            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
