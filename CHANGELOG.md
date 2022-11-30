@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Features/Changes
-
+- [#1767](https://github.com/lapce/lapce/pull/1767): Added CMake tree-sitter syntax highlighting
 - [#1759](https://github.com/lapce/lapce/pull/1759): Update C tree-sitter and highlight queries
 - [#1758](https://github.com/lapce/lapce/pull/1758): Replaced dlang syntax highlighting
 - [#1713](https://github.com/lapce/lapce/pull/1713): Add protobuf syntax and highlighting
