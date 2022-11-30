@@ -41,7 +41,7 @@
   (command_substitution)
   (process_substitution)
   (expansion)
-]@embedded
+] @embedded
 
 [
   "$"
@@ -50,7 +50,6 @@
   ">>"
   "<"
   "|"
-  (expansion_flags)
 ] @operator
 
 (
