@@ -37,10 +37,7 @@ macro_rules! declare_language_highlights {
             $(
                 #[cfg(feature = $feature_name)]
                 pub static $name: Lazy<Option<Arc<HighlightConfiguration>>> = Lazy::new(|| {
-                    match LapceLanguage::$name.new_highlight_config() {
-                        Some(x) => Some(Arc::new(x)),
-                        None => None
-                    }
+                    LapceLanguage::$name.new_highlight_config().map(Arc::new)
                 });
             )*
         }
