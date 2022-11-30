@@ -29,6 +29,7 @@ tree-sitter-bash = { git = "https://github.com/syntacti/tree-sitter-bash", branc
 tree-sitter-c = { version = "0.20.2", optional = true }
 tree-sitter-c-sharp = { git = "https://github.com/tree-sitter/tree-sitter-c-sharp", branch = "master", optional = true }
 tree-sitter-cpp = { version = "0.20.0", optional = true }
+tree-sitter-cmake = {version="0.1.0", optional = true}
 # switch to upstream version after this is merged https://github.com/tree-sitter/tree-sitter-css/pull/22
 tree-sitter-css = { git = "https://github.com/syntacti/tree-sitter-css", branch = "master", optional = true }
 tree-sitter-d = {  git = "https://github.com/ghishadow/tree-sitter-d", branch = "main", optional = true }
@@ -86,6 +87,7 @@ default = []
 # the tree-sitter crate names.
 lang-bash = ["dep:tree-sitter-bash"]
 lang-c = ["dep:tree-sitter-c"]
+lang-cmake = ["dep:tree-sitter-cmake"]
 lang-cpp = ["dep:tree-sitter-cpp"]
 lang-csharp = ["dep:tree-sitter-c-sharp"]
 lang-css = ["dep:tree-sitter-css"]
