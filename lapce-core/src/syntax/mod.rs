@@ -173,9 +173,7 @@ impl SyntaxLayers {
         queue.push_back(self.root);
 
         let injection_callback = |language: &str| {
-            LapceLanguage::from_name(language)
-                .map(get_highlight_config)
-                .unwrap_or(None)
+            LapceLanguage::from_name(language).map(get_highlight_config)
         };
 
         let mut edits = Vec::new();
@@ -553,23 +551,21 @@ impl std::fmt::Debug for Syntax {
 
 impl Syntax {
     pub fn init(path: &Path) -> Option<Syntax> {
-        LapceLanguage::from_path(path)
-            .map(Syntax::from_language)
-            .unwrap_or(None)
+        LapceLanguage::from_path(path).map(Syntax::from_language)
     }
 
-    pub fn from_language(language: LapceLanguage) -> Option<Syntax> {
-        get_highlight_config(language).map(|x| Syntax {
+    pub fn from_language(language: LapceLanguage) -> Syntax {
+        Syntax {
             rev: 0,
             language,
             text: Rope::from(""),
-            layers: SyntaxLayers::new_empty(x),
+            layers: SyntaxLayers::new_empty(get_highlight_config(language)),
             lens: Self::lens_from_normal_lines(0, 0, 0, &Vec::new()),
             line_height: 0,
             lens_height: 0,
             normal_lines: Vec::new(),
             styles: None,
-        })
+        }
     }
 
     pub fn parse(

@@ -964,25 +964,14 @@ impl LapceLanguage {
         self.properties().indent
     }
 
-    pub(crate) fn new_highlight_config(&self) -> Option<HighlightConfiguration> {
+    pub(crate) fn new_highlight_config(&self) -> HighlightConfiguration {
         let props = self.properties();
         let language = (props.language)();
         let query = props.highlight;
         let injection = props.injection;
-        // TODO: This is a temporary band-aid fix for some languages causing Lapce to panic.
-        // These languages will now no longer be highlighted.
-        match HighlightConfiguration::new(
-            language,
-            query,
-            injection.unwrap_or(""),
-            "",
-        ) {
-            Ok(x) => Some(x),
-            Err(x) => {
-                log::error!("Encountered {x:?} while trying to construct HighlightConfiguration for {self}");
-                None
-            }
-        }
+
+        HighlightConfiguration::new(language, query, injection.unwrap_or(""), "")
+            .unwrap()
     }
 
     pub(crate) fn walk_tree(
