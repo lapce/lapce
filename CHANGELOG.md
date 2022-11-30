@@ -3,7 +3,9 @@
 ## Unreleased
 
 ### Features/Changes
+
 - [#1759](https://github.com/lapce/lapce/pull/1759): Update C tree-sitter and highlight queries
+- [#1758](https://github.com/lapce/lapce/pull/1758): Replaced dlang syntax highlighting
 - [#1713](https://github.com/lapce/lapce/pull/1713): Add protobuf syntax and highlighting
 - [#1720](https://github.com/lapce/lapce/pull/1720): Display signature/parameter information from LSP
 - [#1723](https://github.com/lapce/lapce/pull/1723): In the palette, display the keybind for a command adjacent to it
@@ -13,6 +15,7 @@
   > This is a breaking change
 - [#1741](https://github.com/lapce/lapce/pull/1741): Add syntax highlighting for glsl
 - [#1756](https://github.com/lapce/lapce/pull/1756): Add support for ssh port with ```[user@]host[:port]```
+- [#1760](https://github.com/lapce/lapce/pull/1760): Add vim motions `cw`, `ce`, `cc`, `S`, and QOL modal bind `gf`
 
 ### Bug Fixes
 - [#1737](https://github.com/lapce/lapce/pull/1726): Fix an issue that plugins can't be upgraded

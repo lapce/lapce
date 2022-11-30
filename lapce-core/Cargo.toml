@@ -31,7 +31,7 @@ tree-sitter-c-sharp = { git = "https://github.com/tree-sitter/tree-sitter-c-shar
 tree-sitter-cpp = { version = "0.20.0", optional = true }
 # switch to upstream version after this is merged https://github.com/tree-sitter/tree-sitter-css/pull/22
 tree-sitter-css = { git = "https://github.com/syntacti/tree-sitter-css", branch = "master", optional = true }
-tree-sitter-d = { git = "https://github.com/syntacti/tree-sitter-d", branch = "master", optional = true }
+tree-sitter-d = {  git = "https://github.com/ghishadow/tree-sitter-d", branch = "main", optional = true }
 tree-sitter-dart = { git = "https://github.com/syntacti/tree-sitter-dart", branch = "master", optional = true }
 tree-sitter-dockerfile = { git = "https://github.com/panekj/tree-sitter-dockerfile", branch = "queries", optional = true }
 tree-sitter-elixir = { git = "https://github.com/elixir-lang/tree-sitter-elixir.git", version = "0.19.0", optional = true }

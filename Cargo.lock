@@ -4954,8 +4954,8 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-d"
-version = "0.0.1"
-source = "git+https://github.com/syntacti/tree-sitter-d?branch=master#fdaa172d375f6c48987ce68ae01e8020acb9bc17"
+version = "0.3.2"
+source = "git+https://github.com/ghishadow/tree-sitter-d?branch=main#36603135ecb37ac6494c520efff91b875815d6f7"
 dependencies = [
  "cc",
  "tree-sitter",
