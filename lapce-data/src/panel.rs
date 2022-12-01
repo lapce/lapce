@@ -187,8 +187,27 @@ impl PanelData {
 
     pub fn toggle_container_visual(&mut self, position: &PanelContainerPosition) {
         let shown = !self.is_container_shown(position);
-        self.set_shown(&position.first(), shown);
-        self.set_shown(&position.second(), shown);
+        if shown {
+            if let Some((kind, _)) =
+                self.active_panel_at_position(&position.second())
+            {
+                self.show_panel(&kind);
+            }
+            if let Some((kind, _)) = self.active_panel_at_position(&position.first())
+            {
+                self.show_panel(&kind);
+            }
+        } else {
+            if let Some((kind, _)) =
+                self.active_panel_at_position(&position.second())
+            {
+                self.hide_panel(&kind);
+            }
+            if let Some((kind, _)) = self.active_panel_at_position(&position.first())
+            {
+                self.hide_panel(&kind);
+            }
+        }
     }
 
     pub fn position_has_panels(&self, position: &PanelPosition) -> bool {

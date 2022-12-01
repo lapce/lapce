@@ -904,13 +904,13 @@ impl LapceTab {
                         );
                     }
                     LapceUICommand::UpdateTerminalTitle(term_id, title) => {
-                        let terminal_split = Arc::make_mut(&mut data.terminal)
-                            .active_terminal_split_mut()
-                            .unwrap();
-                        if let Some(terminal) =
-                            terminal_split.terminals.get_mut(term_id)
+                        for (_, split) in
+                            Arc::make_mut(&mut data.terminal).tabs.iter_mut()
                         {
-                            Arc::make_mut(terminal).title = title.to_string();
+                            if let Some(terminal) = split.terminals.get_mut(term_id)
+                            {
+                                Arc::make_mut(terminal).title = title.to_string();
+                            }
                         }
                     }
                     LapceUICommand::CancelFilePicker => {
@@ -974,7 +974,6 @@ impl LapceTab {
                                 ),
                                 Target::Widget(terminal.split_id),
                             ));
-                            data.proxy.proxy_rpc.terminal_close(terminal.term_id);
                         }
                         ctx.set_handled();
                     }

@@ -787,16 +787,6 @@ impl LapceSplit {
 
             self.even_flex_children();
             ctx.children_changed();
-            if data.panel.is_panel_visible(&PanelKind::Terminal) {
-                Arc::make_mut(&mut data.panel).hide_panel(&PanelKind::Terminal);
-            }
-            if let Some(active) = *data.main_split.active_tab {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::Focus,
-                    Target::Widget(active),
-                ));
-            }
             return;
         }
 

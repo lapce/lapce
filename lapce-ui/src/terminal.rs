@@ -8,7 +8,7 @@ use alacritty_terminal::{
 };
 use druid::{
     piet::{PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder},
-    widget::{Click, ControllerHost, Padding},
+    widget::{Click, ControllerHost},
     BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
@@ -23,6 +23,7 @@ use lapce_data::{
     data::{FocusArea, LapceTabData},
     document::SystemClipboard,
     panel::PanelKind,
+    proxy::LapceProxy,
     terminal::{EventProxy, LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;
@@ -88,6 +89,24 @@ impl TerminalPanel {
             )],
         )
     }
+
+    fn handle_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        if let Some(term) = data.terminal.active_terminal() {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(term.widget_id),
+            ));
+        } else {
+            let terminal_panel = Arc::make_mut(&mut data.terminal);
+            terminal_panel.new_tab(
+                data.workspace.clone(),
+                data.proxy.clone(),
+                &data.config,
+                ctx.get_external_handle(),
+            );
+        }
+    }
 }
 
 impl Widget<LapceTabData> for TerminalPanel {
@@ -106,15 +125,7 @@ impl Widget<LapceTabData> for TerminalPanel {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 if let LapceUICommand::Focus = command {
-                    let terminal_split =
-                        data.terminal.active_terminal_split().unwrap();
-                    if !terminal_split.terminals.is_empty() {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::Focus,
-                            Target::Widget(terminal_split.active),
-                        ));
-                    }
+                    self.handle_focus(ctx, data);
                 }
             }
             _ => (),
@@ -125,6 +136,45 @@ impl Widget<LapceTabData> for TerminalPanel {
                 data.terminal.active_terminal_split().map(|s| &s.split_id);
             if event.should_propagate_to_hidden() || Some(tab_id) == active_id {
                 tab.event(ctx, event, data, env);
+            }
+        }
+
+        let empty_tabs = data
+            .terminal
+            .tabs
+            .iter()
+            .filter(|(_, t)| t.terminals.is_empty())
+            .map(|(tab_id, _)| *tab_id)
+            .collect::<Vec<_>>();
+        if !empty_tabs.is_empty() {
+            let terminal = Arc::make_mut(&mut data.terminal);
+            for tab_id in empty_tabs {
+                self.tabs.remove(&tab_id);
+                terminal.tabs.remove(&tab_id);
+                terminal.tabs_order = Arc::new(
+                    terminal
+                        .tabs_order
+                        .iter()
+                        .filter(|w| *w != &tab_id)
+                        .copied()
+                        .collect(),
+                );
+                ctx.children_changed();
+            }
+
+            if terminal.tabs_order.is_empty() {
+                if data.panel.is_panel_visible(&PanelKind::Terminal) {
+                    Arc::make_mut(&mut data.panel).hide_panel(&PanelKind::Terminal);
+                }
+                if let Some(active) = *data.main_split.active_tab {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(active),
+                    ));
+                }
+            } else {
+                self.handle_focus(ctx, data);
             }
         }
     }
@@ -154,6 +204,14 @@ impl Widget<LapceTabData> for TerminalPanel {
             tab.update(ctx, data, env);
         }
         if !data.terminal.same(&old_data.terminal) {
+            if data.terminal.active_terminal_split().map(|s| &s.split_id)
+                != old_data
+                    .terminal
+                    .active_terminal_split()
+                    .map(|s| &s.split_id)
+            {
+                ctx.request_layout();
+            }
             match data.terminal.tabs.len().cmp(&self.tabs.len()) {
                 Ordering::Greater => {
                     ctx.children_changed();
@@ -172,6 +230,11 @@ impl Widget<LapceTabData> for TerminalPanel {
                             self.tabs.insert(*tab_id, WidgetPod::new(split));
                         }
                     }
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(self.widget_id),
+                    ));
                 }
                 Ordering::Less => {
                     ctx.children_changed();
@@ -194,6 +257,8 @@ impl Widget<LapceTabData> for TerminalPanel {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
+        let size = bc.max();
+
         let header_size = self.header.layout(ctx, bc, data, env);
         self.header.set_origin(ctx, data, env, Point::ZERO);
         if let Some(tab) = data
@@ -201,10 +266,19 @@ impl Widget<LapceTabData> for TerminalPanel {
             .active_terminal_split()
             .and_then(|s| self.tabs.get_mut(&s.split_id))
         {
-            tab.layout(ctx, bc, data, env);
+            tab.layout(
+                ctx,
+                &BoxConstraints::tight(Size::new(
+                    size.width,
+                    size.height - header_size.height,
+                )),
+                data,
+                env,
+            );
             tab.set_origin(ctx, data, env, Point::new(0.0, header_size.height));
         }
-        bc.max()
+
+        size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
@@ -249,7 +323,7 @@ impl LapceTerminalPanelHeader {
         );
         let icon_padding = 4.0;
         let icon = LapcePadding::new(4.0, LapceIconSvg::new(LapceIcons::ADD))
-            .controller(Click::new(|ctx, data, _env| {
+            .controller(Click::new(|ctx, _data, _env| {
                 ctx.submit_command(Command::new(
                     LAPCE_COMMAND,
                     LapceCommand {
@@ -304,7 +378,7 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeader {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
+        _old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
@@ -355,6 +429,47 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeader {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.content.paint(ctx, data, env);
+
+        {
+            let scroll_offset = self.content.widget().offset().x;
+            let content_rect = self.content.layout_rect();
+            let child_size = self.content.widget().child_size();
+            if scroll_offset > 0.0 {
+                ctx.with_save(|ctx| {
+                    ctx.clip(content_rect);
+                    let rect = Rect::new(
+                        content_rect.x0 - 10.0,
+                        content_rect.y0 - 10.0,
+                        content_rect.x0,
+                        content_rect.y1 + 10.0,
+                    );
+                    ctx.blurred_rect(
+                        rect,
+                        4.0,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                });
+            }
+            if scroll_offset < child_size.width - content_rect.width() {
+                ctx.with_save(|ctx| {
+                    ctx.clip(content_rect);
+                    let rect = Rect::new(
+                        content_rect.x1,
+                        content_rect.y0 - 10.0,
+                        content_rect.x1 + 10.0,
+                        content_rect.y1 + 10.0,
+                    );
+                    ctx.blurred_rect(
+                        rect,
+                        4.0,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                });
+            }
+        }
+
         let icon_rect = self.icon.layout_rect();
         if icon_rect.contains(self.mouse_pos) {
             ctx.fill(
@@ -441,38 +556,34 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContent {
         data: &LapceTabData,
         env: &Env,
     ) {
-        if !data.terminal.same(&old_data.terminal)
-            && (!data.terminal.tabs_order.same(&old_data.terminal.tabs_order)
-                || !data.terminal.tabs.ptr_eq(&old_data.terminal.tabs))
-        {
-            for (_, item) in self.items.iter_mut() {
-                item.update(ctx, data, env);
+        if !data.terminal.same(&old_data.terminal) || self.items.is_empty() {
+            if !data.terminal.tabs.ptr_eq(&old_data.terminal.tabs) {
+                for (_, item) in self.items.iter_mut() {
+                    item.update(ctx, data, env);
+                }
             }
-            match data.terminal.tabs_order.len().cmp(&self.items.len()) {
-                Ordering::Greater => {
-                    ctx.children_changed();
-                    for (tab_id, tab) in data.terminal.tabs.iter() {
-                        if !self.items.contains_key(tab_id) {
-                            self.items.insert(
-                                *tab_id,
-                                WidgetPod::new(
-                                    LapceTerminalPanelHeaderContentItem::new(
-                                        tab.split_id,
-                                    ),
+            if !data.terminal.tabs_order.same(&old_data.terminal.tabs_order)
+                || self.items.is_empty()
+            {
+                for (tab_id, tab) in data.terminal.tabs.iter() {
+                    if !self.items.contains_key(tab_id) {
+                        ctx.children_changed();
+                        self.items.insert(
+                            *tab_id,
+                            WidgetPod::new(
+                                LapceTerminalPanelHeaderContentItem::new(
+                                    tab.split_id,
                                 ),
-                            );
-                        }
+                            ),
+                        );
                     }
                 }
-                Ordering::Less => {
-                    ctx.children_changed();
-                    for tab_id in self.items.keys().copied().collect::<Vec<_>>() {
-                        if !data.terminal.tabs.contains_key(&tab_id) {
-                            self.items.remove(&tab_id);
-                        }
+                for tab_id in self.items.keys().copied().collect::<Vec<_>>() {
+                    if !data.terminal.tabs.contains_key(&tab_id) {
+                        ctx.children_changed();
+                        self.items.remove(&tab_id);
                     }
                 }
-                Ordering::Equal => {}
             }
         }
     }
@@ -549,6 +660,7 @@ struct LapceTerminalPanelHeaderContentItem {
     split_id: WidgetId,
     padding: f64,
     icon_padding: f64,
+    title_width: f64,
     mouse_pos: Point,
     icon: WidgetPod<
         LapceTabData,
@@ -564,7 +676,7 @@ impl LapceTerminalPanelHeaderContentItem {
         let padding = 10.0;
         let icon_padding = 4.0;
         let icon = LapcePadding::new(4.0, LapceIconSvg::new(LapceIcons::CLOSE))
-            .controller(Click::new(move |ctx, data, _env| {
+            .controller(Click::new(move |ctx, _data, _env| {
                 ctx.submit_command(Command::new(
                     LAPCE_COMMAND,
                     LapceCommand {
@@ -582,6 +694,7 @@ impl LapceTerminalPanelHeaderContentItem {
             mouse_pos: Point::ZERO,
             padding,
             icon_padding,
+            title_width: 120.0,
             icon: WidgetPod::new(icon),
         }
     }
@@ -636,6 +749,21 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContentItem {
         env: &Env,
     ) {
         self.icon.update(ctx, data, env);
+        let old_title = old_data
+            .terminal
+            .tabs
+            .get(&self.split_id)
+            .and_then(|t| t.active_terminal())
+            .map(|t| &t.title);
+        let new_title = data
+            .terminal
+            .tabs
+            .get(&self.split_id)
+            .and_then(|t| t.active_terminal())
+            .map(|t| &t.title);
+        if old_title != new_title {
+            ctx.request_layout();
+        }
     }
 
     fn layout(
@@ -649,23 +777,53 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContentItem {
             .terminal
             .tabs
             .get(&self.split_id)
-            .map(|t| t.active_terminal().title.clone())
+            .and_then(|t| t.active_terminal())
+            .map(|t| t.title.clone())
         {
             Some(title) => title,
             None => return Size::new(0.0, bc.max().height),
         };
 
-        self.text_layout = Some(
-            ctx.text()
-                .new_text_layout(text)
+        self.text_layout = Some({
+            let text_layout = ctx
+                .text()
+                .new_text_layout(text.clone())
                 .font(
                     data.config.ui.font_family(),
                     data.config.ui.font_size() as f64,
                 )
                 .build()
-                .unwrap(),
-        );
-        let text_size = self.text_layout.as_ref().unwrap().size();
+                .unwrap();
+
+            if text_layout.layout.width() > self.title_width as f32 {
+                let ending = ctx
+                    .text()
+                    .new_text_layout("...")
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .build()
+                    .unwrap();
+                let ending_width = ending.size().width;
+
+                let hit_point = text_layout.hit_test_point(Point::new(
+                    self.title_width - ending_width,
+                    0.0,
+                ));
+
+                ctx.text()
+                    .new_text_layout(format!("{}...", &text[..hit_point.idx]))
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .build()
+                    .unwrap()
+            } else {
+                text_layout
+            }
+        });
 
         let height = bc.max().height;
 
@@ -684,18 +842,19 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContentItem {
             data,
             env,
             Point::new(
-                self.padding + text_size.width + self.padding - self.icon_padding,
+                self.padding + self.title_width + self.padding - self.icon_padding,
                 (height - icon_size) / 2.0 - self.icon_padding,
             ),
         );
 
-        let width = self.padding + text_size.width + icon_size + self.padding * 2.0;
+        let width = self.padding + self.title_width + icon_size + self.padding * 2.0;
 
         Size::new(width, height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let size = ctx.size();
+
         let text_layout = self.text_layout.as_ref().unwrap();
         ctx.draw_text(
             text_layout,
@@ -779,48 +938,18 @@ impl Widget<LapceTabData> for LapceTerminalView {
         env: &Env,
     ) -> Size {
         let self_size = bc.max();
-        let header_size = self.header.layout(ctx, bc, data, env);
+        self.header.layout(ctx, bc, data, env);
         self.header.set_origin(ctx, data, env, Point::ZERO);
 
-        if self_size.height > header_size.height {
-            let terminal_size =
-                Size::new(self_size.width, self_size.height - header_size.height);
-            let bc = BoxConstraints::new(Size::ZERO, terminal_size);
-            self.terminal.layout(ctx, &bc, data, env);
-            self.terminal.set_origin(
-                ctx,
-                data,
-                env,
-                Point::new(0.0, header_size.height),
-            );
-        }
+        self.terminal.layout(ctx, bc, data, env);
+        self.terminal.set_origin(ctx, data, env, Point::ZERO);
 
         self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let self_rect = ctx.size().to_rect();
-        ctx.with_save(|ctx| {
-            ctx.clip(self_rect.inflate(0.0, 50.0));
-            let rect = self.header.layout_rect();
-            let shadow_width = data.config.ui.drop_shadow_width() as f64;
-            if shadow_width > 0.0 {
-                ctx.blurred_rect(
-                    rect,
-                    shadow_width,
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-                );
-            }
-            ctx.fill(
-                rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::TERMINAL_BACKGROUND),
-            );
-        });
-
-        self.header.paint(ctx, data, env);
         self.terminal.paint(ctx, data, env);
+        self.header.paint(ctx, data, env);
     }
 }
 
@@ -976,57 +1105,6 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        let mut clip_rect = ctx.size().to_rect();
-        if self.view_is_hot {
-            if let Some(icon) = self.icons.iter().rev().next().as_ref() {
-                clip_rect.x1 = icon.rect.x0;
-            }
-        }
-
-        ctx.with_save(|ctx| {
-            ctx.clip(clip_rect);
-            let svg = data.config.ui_svg(LapceIcons::TERMINAL);
-            let width = data.config.terminal_font_size() as f64;
-            let height = data.config.terminal_font_size() as f64;
-            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-                (self.height - width) / 2.0,
-                (self.height - height) / 2.0,
-            ));
-            ctx.draw_svg(
-                &svg,
-                rect,
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                ),
-            );
-
-            let term = data
-                .terminal
-                .tabs
-                .get(&self.split_id)
-                .unwrap()
-                .terminals
-                .get(&self.term_id)
-                .unwrap();
-            let text_layout = ctx
-                .text()
-                .new_text_layout(term.title.clone())
-                .font(
-                    data.config.ui.font_family(),
-                    data.config.ui.font_size() as f64,
-                )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            let y = text_layout.y_offset(self.height);
-            ctx.draw_text(&text_layout, Point::new(self.height, y));
-        });
-
         if self.view_is_hot {
             for icon in self.icons.iter() {
                 if icon.rect.contains(self.mouse_pos) {
@@ -1058,6 +1136,13 @@ struct LapceTerminal {
     split_id: WidgetId,
     width: f64,
     height: f64,
+    proxy: Arc<LapceProxy>,
+}
+
+impl Drop for LapceTerminal {
+    fn drop(&mut self) {
+        self.proxy.proxy_rpc.terminal_close(self.term_id);
+    }
 }
 
 impl LapceTerminal {
@@ -1066,6 +1151,7 @@ impl LapceTerminal {
             term_id: data.term_id,
             widget_id: data.widget_id,
             split_id: data.split_id,
+            proxy: data.proxy.clone(),
             width: 0.0,
             height: 0.0,
         }
@@ -1188,9 +1274,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                 }
             }
             Event::Wheel(wheel_event) => {
-                old_terminal_data
-                    .clone()
-                    .wheel_scroll(wheel_event.wheel_delta.y);
+                old_terminal_data.wheel_scroll(wheel_event.wheel_delta.y);
                 ctx.request_paint();
             }
             Event::KeyDown(key_event) => {
@@ -1217,7 +1301,8 @@ impl Widget<LapceTabData> for LapceTerminal {
         }
         if !term_data.terminal.same(&old_terminal_data) {
             Arc::make_mut(&mut data.terminal)
-                .active_terminal_split_mut()
+                .tabs
+                .get_mut(&self.split_id)
                 .unwrap()
                 .terminals
                 .insert(term_data.terminal.term_id, term_data.terminal.clone());
@@ -1265,7 +1350,8 @@ impl Widget<LapceTabData> for LapceTerminal {
             };
             let height = (self.height / line_height).floor() as usize;
             data.terminal
-                .active_terminal_split()
+                .tabs
+                .get(&self.split_id)
                 .unwrap()
                 .terminals
                 .get(&self.term_id)
@@ -1282,7 +1368,8 @@ impl Widget<LapceTabData> for LapceTerminal {
 
         let terminal = data
             .terminal
-            .active_terminal_split()
+            .tabs
+            .get(&self.split_id)
             .unwrap()
             .terminals
             .get(&self.term_id)

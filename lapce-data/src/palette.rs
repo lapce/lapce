@@ -44,7 +44,7 @@ use crate::{
     list::ListData,
     panel::PanelKind,
     proxy::{path_from_url, LapceProxy},
-    terminal::{TerminalPanelData, TerminalSplitData},
+    terminal::TerminalPanelData,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]

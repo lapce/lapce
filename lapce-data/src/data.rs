@@ -80,7 +80,7 @@ use crate::{
     signature::SignatureData,
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
-    terminal::{TerminalPanelData, TerminalSplitData},
+    terminal::TerminalPanelData,
     title::TitleData,
     update::ReleaseInfo,
 };
@@ -1613,16 +1613,13 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::TogglePanelLeftVisual => {
-                Arc::make_mut(&mut self.panel)
-                    .toggle_container_visual(&PanelContainerPosition::Left);
+                self.toggle_container_visual(ctx, &PanelContainerPosition::Left);
             }
             LapceWorkbenchCommand::TogglePanelRightVisual => {
-                Arc::make_mut(&mut self.panel)
-                    .toggle_container_visual(&PanelContainerPosition::Right);
+                self.toggle_container_visual(ctx, &PanelContainerPosition::Right);
             }
             LapceWorkbenchCommand::TogglePanelBottomVisual => {
-                Arc::make_mut(&mut self.panel)
-                    .toggle_container_visual(&PanelContainerPosition::Bottom);
+                self.toggle_container_visual(ctx, &PanelContainerPosition::Bottom);
             }
             LapceWorkbenchCommand::ToggleSourceControlFocus => {
                 self.toggle_panel_focus(ctx, PanelKind::SourceControl);
@@ -1866,20 +1863,13 @@ impl LapceTabData {
                 );
             }
             LapceWorkbenchCommand::NewTerminalTab => {
-                let active_index =
-                    (self.terminal.active + 1).min(self.terminal.tabs_order.len());
-                let new_term_split = TerminalSplitData::new(
+                let terminal_panel = Arc::make_mut(&mut self.terminal);
+                terminal_panel.new_tab(
                     self.workspace.clone(),
                     self.proxy.clone(),
                     &self.config,
                     ctx.get_external_handle(),
                 );
-                let new_term_tab_id = new_term_split.split_id;
-                let terminal_panel = Arc::make_mut(&mut self.terminal);
-                Arc::make_mut(&mut terminal_panel.tabs_order)
-                    .insert(active_index, new_term_tab_id);
-                terminal_panel.tabs.insert(new_term_tab_id, new_term_split);
-                terminal_panel.active = active_index;
             }
             LapceWorkbenchCommand::CloseTerminalTab => {
                 let split_id = data
@@ -2131,6 +2121,40 @@ impl LapceTabData {
             self.hide_panel(ctx, kind);
         } else {
             self.show_panel(ctx, kind);
+        }
+    }
+
+    pub fn toggle_container_visual(
+        &mut self,
+        ctx: &mut EventCtx,
+        position: &PanelContainerPosition,
+    ) {
+        let shown = !self.panel.is_container_shown(position);
+        let panel = Arc::make_mut(&mut self.panel);
+        panel.set_shown(&position.first(), shown);
+        panel.set_shown(&position.second(), shown);
+        if shown {
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position.second())
+            {
+                self.show_panel(ctx, kind);
+            }
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position.first())
+            {
+                self.show_panel(ctx, kind);
+            }
+        } else {
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position.second())
+            {
+                self.hide_panel(ctx, kind);
+            }
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position.first())
+            {
+                self.hide_panel(ctx, kind);
+            }
         }
     }
 

@@ -29,7 +29,7 @@ use crate::{
         CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
     config::{LapceConfig, LapceTheme},
-    data::{LapceTabData, LapceWorkspace},
+    data::LapceWorkspace,
     document::SystemClipboard,
     find::Find,
     keypress::KeyPressFocus,
@@ -91,6 +91,22 @@ impl TerminalPanelData {
             .or_else(|| self.tabs_order.last())
             .and_then(|id| self.tabs.get_mut(id))
     }
+
+    pub fn new_tab(
+        &mut self,
+        workspace: Arc<LapceWorkspace>,
+        proxy: Arc<LapceProxy>,
+        config: &LapceConfig,
+        event_sink: ExtEventSink,
+    ) {
+        let active_index = (self.active + 1).min(self.tabs_order.len());
+        let new_term_split =
+            TerminalSplitData::new(workspace, proxy, config, event_sink);
+        let new_term_tab_id = new_term_split.split_id;
+        Arc::make_mut(&mut self.tabs_order).insert(active_index, new_term_tab_id);
+        self.tabs.insert(new_term_tab_id, new_term_split);
+        self.active = active_index;
+    }
 }
 
 #[derive(Clone)]
@@ -127,8 +143,8 @@ impl TerminalSplitData {
         }
     }
 
-    pub fn active_terminal(&self) -> Arc<LapceTerminalData> {
-        self.terminals.get(&self.active_term_id).unwrap().clone()
+    pub fn active_terminal(&self) -> Option<&Arc<LapceTerminalData>> {
+        self.terminals.get(&self.active_term_id)
     }
 
     pub fn get_indexed_colors() -> HashMap<u8, Color> {
