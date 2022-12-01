@@ -82,13 +82,6 @@ const EMPTY_LANGUAGE: SyntaxProperties = SyntaxProperties {
         multi_line_start: "",
         multi_line_prefix: "",
         multi_line_end: "",
-
-        doc_single_line_start: "",
-        doc_single_line_end: "",
-
-        doc_multi_line_start: "/*",
-        doc_multi_line_prefix: "",
-        doc_multi_line_end: "*/",
     },
 
     tree_sitter: Some(TreeSitterProperties {
@@ -166,13 +159,6 @@ struct CommentProperties {
     multi_line_start: &'static str,
     multi_line_end: &'static str,
     multi_line_prefix: &'static str,
-
-    doc_single_line_start: &'static str,
-    doc_single_line_end: &'static str,
-
-    doc_multi_line_start: &'static str,
-    doc_multi_line_prefix: &'static str,
-    doc_multi_line_end: &'static str,
 }
 
 /// NOTE: Keep the enum variants "fieldless" so they can cast to usize as array
@@ -198,133 +184,86 @@ struct CommentProperties {
 pub enum LapceLanguage {
     // Do not move
     #[default]
+    #[strum(serialize = "Plain Text")]
     Plaintext,
 
-    #[cfg(feature = "lang-bash")]
     #[strum(serialize = "bash", serialize = "sh")]
     Bash,
-    #[cfg(feature = "lang-c")]
     C,
-    #[cfg(feature = "lang-clojure")]
     Clojure,
-    #[cfg(feature = "lang-cmake")]
+    #[strum(serialize = "CMake")]
     Cmake,
-    #[cfg(feature = "lang-cpp")]
+    #[strum(serialize = "C++")]
     Cpp,
-    #[cfg(feature = "lang-csharp")]
+    #[strum(serialize = "C#")]
     Csharp,
-    #[cfg(feature = "lang-css")]
+    #[strum(serialize = "CSS")]
     Css,
-    #[cfg(feature = "lang-d")]
     D,
-    #[cfg(feature = "lang-dart")]
     Dart,
-    #[cfg(feature = "lang-dockerfile")]
     Dockerfile,
-    #[cfg(feature = "lang-elixir")]
     Elixir,
-    #[cfg(feature = "lang-elm")]
     Elm,
-    #[cfg(feature = "lang-erlang")]
     Erlang,
-    #[cfg(feature = "lang-glimmer")]
     Glimmer,
-    #[cfg(feature = "lang-glsl")]
     Glsl,
-    #[cfg(feature = "lang-go")]
     Go,
-    #[cfg(feature = "lang-hare")]
     Hare,
-    #[cfg(feature = "lang-haskell")]
     Haskell,
-    #[cfg(feature = "lang-haxe")]
     Haxe,
-    #[strum(serialize = "HCL2")]
-    #[cfg(feature = "lang-hcl")]
+    #[strum(serialize = "HCL")]
     Hcl,
     #[strum(serialize = "HTML")]
-    #[cfg(feature = "lang-html")]
     Html,
-    #[cfg(feature = "lang-java")]
     Java,
     #[strum(serialize = "JavaScript")]
-    #[cfg(feature = "lang-javascript")]
     Javascript,
     #[strum(serialize = "JSON")]
-    #[cfg(feature = "lang-json")]
     Json,
     #[strum(serialize = "JavaScript React")]
-    #[cfg(feature = "lang-javascript")]
     Jsx,
-    #[cfg(feature = "lang-julia")]
     Julia,
-    #[cfg(feature = "lang-kotlin")]
     Kotlin,
     #[strum(serialize = "LaTeX")]
-    #[cfg(feature = "lang-latex")]
     Latex,
-    #[cfg(feature = "lang-lua")]
     Lua,
-    #[cfg(feature = "lang-markdown")]
     Markdown,
-    #[cfg(feature = "lang-markdown")]
     #[strum(serialize = "markdown.inline")]
     MarkdownInline,
-    #[cfg(feature = "lang-nix")]
     Nix,
-    #[cfg(feature = "lang-ocaml")]
     Ocaml,
-    #[cfg(feature = "lang-ocaml")]
     OcamlInterface,
-    #[cfg(feature = "lang-php")]
+    #[strum(serialize = "PHP")]
     Php,
-    #[cfg(feature = "lang-prisma")]
     Prisma,
-    #[cfg(feature = "lang-protobuf")]
     ProtoBuf,
-    #[cfg(feature = "lang-python")]
     Python,
-    #[cfg(feature = "lang-ql")]
     Ql,
-    #[cfg(feature = "lang-r")]
     R,
-    #[cfg(feature = "lang-ruby")]
     Ruby,
-    #[cfg(feature = "lang-rust")]
     Rust,
-    #[cfg(feature = "lang-scheme")]
     Scheme,
+    #[strum(serialize = "SCSS")]
     Scss,
     #[strum(serialize = "POSIX Shell")]
-    #[cfg(feature = "lang-bash")]
     Sh,
     #[strum(serialize = "SQL")]
-    #[cfg(feature = "lang-sql")]
     Sql,
-    #[cfg(feature = "lang-svelte")]
     Svelte,
-    #[cfg(feature = "lang-swift")]
     Swift,
     #[strum(serialize = "TOML")]
-    #[cfg(feature = "lang-toml")]
     Toml,
     #[strum(serialize = "TypeScript React")]
-    #[cfg(feature = "lang-typescript")]
     Tsx,
-    #[cfg(feature = "lang-typescript")]
+    #[strum(serialize = "TypeScript")]
     Typescript,
-    #[cfg(feature = "lang-vue")]
     Vue,
     #[strum(serialize = "WGSL")]
-    #[cfg(feature = "lang-wgsl")]
     Wgsl,
     #[strum(serialize = "XML")]
-    #[cfg(feature = "lang-xml")]
     Xml,
     #[strum(serialize = "YAML")]
-    #[cfg(feature = "lang-yaml")]
     Yaml,
-    #[cfg(feature = "lang-zig")]
     Zig,
 }
 
@@ -348,19 +287,12 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_bash::language,
-            highlight: Some(include_str!("../queries/bash/highlights.scm")),
+            highlight: Some(tree_sitter_bash::HIGHLIGHT_QUERY),
             injection: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
@@ -382,13 +314,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -464,13 +389,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -502,13 +420,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -547,13 +458,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "/*",
             multi_line_prefix: "",
             multi_line_end: "*/",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -581,13 +485,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "/+",
             multi_line_prefix: "",
             multi_line_end: "+/",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -615,13 +512,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "/*",
             multi_line_prefix: "",
             multi_line_end: "*/",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "/*",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "*/",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -657,13 +547,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -691,13 +574,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -725,13 +601,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -759,13 +628,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -793,13 +655,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -832,13 +687,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -866,13 +714,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -909,13 +750,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -943,13 +777,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -977,13 +804,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1011,13 +831,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1045,13 +858,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "<!--",
             multi_line_prefix: "",
             multi_line_end: "-->",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1079,13 +885,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1113,13 +912,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1147,13 +939,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1181,13 +966,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1216,13 +994,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "#=",
             multi_line_prefix: "",
             multi_line_end: "=#",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1250,13 +1021,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "/*",
             multi_line_prefix: "",
             multi_line_end: "*/",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1284,13 +1048,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1318,13 +1075,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1352,13 +1102,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1387,13 +1130,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1425,13 +1161,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "/*",
             multi_line_prefix: "",
             multi_line_end: "*/",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1459,13 +1188,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "(*",
             multi_line_prefix: "*",
             multi_line_end: "*)",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1493,13 +1215,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1527,13 +1242,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1580,13 +1288,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1614,13 +1315,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1648,13 +1342,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1693,13 +1380,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1727,13 +1407,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1761,13 +1434,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1795,13 +1461,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "///",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1837,13 +1496,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1871,13 +1523,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1905,19 +1550,12 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_bash::language,
-            highlight: Some(include_str!("../queries/bash/highlights.scm")),
+            highlight: Some(tree_sitter_bash::HIGHLIGHT_QUERY),
             injection: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
@@ -1939,13 +1577,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1973,13 +1604,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -2007,13 +1631,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -2041,13 +1658,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -2075,13 +1685,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -2109,13 +1712,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -2143,13 +1739,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -2177,13 +1766,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -2211,13 +1793,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -2245,13 +1820,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -2279,13 +1847,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_start: "",
             multi_line_prefix: "",
             multi_line_end: "",
-
-            doc_single_line_start: "",
-            doc_single_line_end: "",
-
-            doc_multi_line_start: "",
-            doc_multi_line_prefix: "",
-            doc_multi_line_end: "",
         },
 
         #[cfg(feature = "compile-grammars")]

@@ -7,7 +7,6 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     TimerToken, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
-use lapce_core::meta;
 use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
