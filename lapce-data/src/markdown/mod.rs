@@ -1,7 +1,10 @@
 use std::str::FromStr;
 
 use druid::{FontStyle, FontWeight};
-use lapce_core::{language::LapceLanguage, syntax::Syntax};
+use lapce_core::{
+    language::LapceLanguage,
+    syntax::{highlight::HighlightIssue, Syntax},
+};
 use lapce_xi_rope::Rope;
 use lsp_types::{Documentation, MarkedString, MarkupKind};
 use pulldown_cmark::{CodeBlockKind, Tag};
@@ -166,12 +169,16 @@ pub fn highlight_as_code(
     text: &str,
     start_offset: usize,
 ) {
-    let syntax = language.map(Syntax::from_language).unwrap_or(None);
+    let syntax = language
+        .map(Syntax::from_language)
+        .unwrap_or(Err(HighlightIssue::NotAvailable));
 
-    let styles = syntax.and_then(|mut syntax| {
-        syntax.parse(0, Rope::from(text), None);
-        syntax.styles
-    });
+    let styles = syntax
+        .map(|mut syntax| {
+            syntax.parse(0, Rope::from(text), None);
+            syntax.styles
+        })
+        .unwrap_or(None);
 
     if let Some(styles) = styles {
         for (range, style) in styles.iter() {

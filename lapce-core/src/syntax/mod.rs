@@ -28,8 +28,8 @@ use self::{
     edit::SyntaxEdit,
     highlight::{
         get_highlight_config, injection_for_match, intersect_ranges, Highlight,
-        HighlightConfiguration, HighlightEvent, HighlightIter, HighlightIterLayer,
-        IncludedChildren, LocalScope,
+        HighlightConfiguration, HighlightEvent, HighlightIssue, HighlightIter,
+        HighlightIterLayer, IncludedChildren, LocalScope,
     },
     util::{matching_char, matching_pair_direction, RopeProvider},
 };
@@ -175,7 +175,7 @@ impl SyntaxLayers {
         let injection_callback = |language: &str| {
             LapceLanguage::from_name(language)
                 .map(get_highlight_config)
-                .unwrap_or(None)
+                .unwrap_or(Err(highlight::HighlightIssue::NotAvailable))
         };
 
         let mut edits = Vec::new();
@@ -329,7 +329,7 @@ impl SyntaxLayers {
                     // to the highlighted document.
                     if let (Some(language_name), Some(content_node)) = (language_name, content_node)
                     {
-                        if let Some(config) = (injection_callback)(&language_name) {
+                        if let Ok(config) = (injection_callback)(&language_name) {
                             let ranges =
                                 intersect_ranges(&layer.ranges, &[content_node], included_children);
 
@@ -371,7 +371,7 @@ impl SyntaxLayers {
                     for (lang_name, content_nodes, included_children) in injections_by_pattern_index
                     {
                         if let (Some(lang_name), false) = (lang_name, content_nodes.is_empty()) {
-                            if let Some(config) = (injection_callback)(&lang_name) {
+                            if let Ok(config) = (injection_callback)(&lang_name) {
                                 let ranges = intersect_ranges(
                                     &layer.ranges,
                                     &content_nodes,
@@ -552,13 +552,13 @@ impl std::fmt::Debug for Syntax {
 }
 
 impl Syntax {
-    pub fn init(path: &Path) -> Option<Syntax> {
+    pub fn init(path: &Path) -> Result<Syntax, HighlightIssue> {
         LapceLanguage::from_path(path)
             .map(Syntax::from_language)
-            .unwrap_or(None)
+            .unwrap_or(Err(HighlightIssue::NotAvailable))
     }
 
-    pub fn from_language(language: LapceLanguage) -> Option<Syntax> {
+    pub fn from_language(language: LapceLanguage) -> Result<Syntax, HighlightIssue> {
         get_highlight_config(language).map(|x| Syntax {
             rev: 0,
             language,

@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::Path, str::FromStr};
 use strum_macros::{Display, EnumString};
 use tree_sitter::TreeCursor;
 
-use crate::syntax::highlight::HighlightConfiguration;
+use crate::syntax::highlight::{HighlightConfiguration, HighlightIssue};
 
 //
 // To add support for an hypothetical language called Foo, for example, using
@@ -978,7 +978,9 @@ impl LapceLanguage {
         self.properties().indent
     }
 
-    pub(crate) fn new_highlight_config(&self) -> Option<HighlightConfiguration> {
+    pub(crate) fn new_highlight_config(
+        &self,
+    ) -> Result<HighlightConfiguration, HighlightIssue> {
         let props = self.properties();
         let language = (props.language)();
         let query = props.highlight;
@@ -989,10 +991,11 @@ impl LapceLanguage {
             injection.unwrap_or(""),
             "",
         ) {
-            Ok(x) => Some(x),
+            Ok(x) => Ok(x),
             Err(x) => {
-                log::error!("Encountered {x:?} while trying to construct HighlightConfiguration for {self}");
-                None
+                let str = format!("Encountered {x:?} while trying to construct HighlightConfiguration for {self}");
+                log::error!("{str}");
+                Err(HighlightIssue::Error(str))
             }
         }
     }

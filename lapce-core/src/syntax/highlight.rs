@@ -31,18 +31,18 @@ macro_rules! declare_language_highlights {
             use once_cell::sync::Lazy;
             use crate::language::LapceLanguage;
             use std::sync::Arc;
-            use super::HighlightConfiguration;
+            use super::{HighlightConfiguration, HighlightIssue};
 
             // We use Arcs because in the future we may want to load highlight configurations at runtime
             $(
                 #[cfg(feature = $feature_name)]
-                pub static $name: Lazy<Option<Arc<HighlightConfiguration>>> = Lazy::new(|| {
+                pub static $name: Lazy<Result<Arc<HighlightConfiguration>, HighlightIssue>> = Lazy::new(|| {
                     LapceLanguage::$name.new_highlight_config().map(Arc::new)
                 });
             )*
         }
 
-        pub(crate) fn get_highlight_config(lang: LapceLanguage) -> Option<Arc<HighlightConfiguration>> {
+        pub(crate) fn get_highlight_config(lang: LapceLanguage) -> Result<Arc<HighlightConfiguration>, HighlightIssue> {
             match lang {
                 $(
                     #[cfg(feature = $feature_name)]
@@ -113,6 +113,12 @@ declare_language_highlights!(
 /// Indicates which highlight should be applied to a region of source code.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Highlight(pub usize);
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum HighlightIssue {
+    Error(String),
+    NotAvailable,
+}
 
 /// Represents a single step in rendering a syntax-highlighted document.
 #[derive(Copy, Clone, Debug)]
