@@ -428,7 +428,7 @@ impl Document {
                     "Syntax Highlighting failed".to_owned(),
                     ShowMessageParams {
                         typ: MessageType::ERROR,
-                        message: format!("An error occured trying to load syntax highlighting info: {x}. Please report this."),
+                        message: format!("An error occurred trying to load syntax highlighting info: {x}."),
                     },
                 );
                 None
