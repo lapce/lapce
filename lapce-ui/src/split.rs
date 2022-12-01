@@ -749,6 +749,8 @@ impl LapceSplit {
         ));
         let terminal = LapceTerminalView::new(&terminal_data);
         Arc::make_mut(&mut data.terminal)
+            .active_terminal_split_mut()
+            .unwrap()
             .terminals
             .insert(terminal_data.term_id, terminal_data.clone());
 
@@ -775,22 +777,16 @@ impl LapceSplit {
         }
 
         if self.children.len() == 1 {
-            Arc::make_mut(&mut data.terminal).terminals.remove(&term_id);
+            Arc::make_mut(&mut data.terminal)
+                .active_terminal_split_mut()
+                .unwrap()
+                .terminals
+                .remove(&term_id);
             self.children.remove(0);
             self.children_ids.remove(0);
 
             self.even_flex_children();
             ctx.children_changed();
-            if data.panel.is_panel_visible(&PanelKind::Terminal) {
-                Arc::make_mut(&mut data.panel).hide_panel(&PanelKind::Terminal);
-            }
-            if let Some(active) = *data.main_split.active_tab {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::Focus,
-                    Target::Widget(active),
-                ));
-            }
             return;
         }
 
@@ -815,7 +811,11 @@ impl LapceSplit {
             Target::Widget(new_terminal_id),
         ));
 
-        Arc::make_mut(&mut data.terminal).terminals.remove(&term_id);
+        Arc::make_mut(&mut data.terminal)
+            .active_terminal_split_mut()
+            .unwrap()
+            .terminals
+            .remove(&term_id);
         self.children.remove(index);
         self.children_ids.remove(index);
 
@@ -1144,10 +1144,12 @@ impl Widget<LapceTabData> for LapceSplit {
                         self.split_terminal_close(ctx, data, *term_id, *widget_id);
                     }
                     LapceUICommand::InitTerminalPanel(focus) => {
-                        if data.terminal.terminals.is_empty() {
+                        let terminal_split =
+                            data.terminal.active_terminal_split().unwrap();
+                        if terminal_split.terminals.is_empty() {
                             let terminal_data = Arc::new(LapceTerminalData::new(
                                 data.workspace.clone(),
-                                data.terminal.split_id,
+                                terminal_split.split_id,
                                 ctx.get_external_handle(),
                                 data.proxy.clone(),
                                 &data.config,
@@ -1167,10 +1169,12 @@ impl Widget<LapceTabData> for LapceSplit {
                                     Target::Widget(terminal_data.widget_id),
                                 ));
                             }
-                            let terminal_panel = Arc::make_mut(&mut data.terminal);
-                            terminal_panel.active = terminal_data.widget_id;
-                            terminal_panel.active_term_id = terminal_data.term_id;
-                            terminal_panel
+                            let terminal_split = Arc::make_mut(&mut data.terminal)
+                                .active_terminal_split_mut()
+                                .unwrap();
+                            terminal_split.active = terminal_data.widget_id;
+                            terminal_split.active_term_id = terminal_data.term_id;
+                            terminal_split
                                 .terminals
                                 .insert(terminal_data.term_id, terminal_data);
                             ctx.children_changed();

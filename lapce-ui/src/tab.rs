@@ -904,11 +904,13 @@ impl LapceTab {
                         );
                     }
                     LapceUICommand::UpdateTerminalTitle(term_id, title) => {
-                        let terminal_panel = Arc::make_mut(&mut data.terminal);
-                        if let Some(terminal) =
-                            terminal_panel.terminals.get_mut(term_id)
+                        for (_, split) in
+                            Arc::make_mut(&mut data.terminal).tabs.iter_mut()
                         {
-                            Arc::make_mut(terminal).title = title.to_string();
+                            if let Some(terminal) = split.terminals.get_mut(term_id)
+                            {
+                                Arc::make_mut(terminal).title = title.to_string();
+                            }
                         }
                     }
                     LapceUICommand::CancelFilePicker => {
@@ -958,7 +960,11 @@ impl LapceTab {
                     }
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
-                        if let Some(terminal) = terminal_panel.terminals.get_mut(id)
+                        if let Some(terminal) = terminal_panel
+                            .active_terminal_split_mut()
+                            .unwrap()
+                            .terminals
+                            .get_mut(id)
                         {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
@@ -968,7 +974,6 @@ impl LapceTab {
                                 ),
                                 Target::Widget(terminal.split_id),
                             ));
-                            data.proxy.proxy_rpc.terminal_close(terminal.term_id);
                         }
                         ctx.set_handled();
                     }
@@ -1580,11 +1585,7 @@ impl LapceTab {
                         ctx.set_handled();
                     }
                     LapceUICommand::TerminalJumpToLine(line) => {
-                        if let Some(terminal) = data
-                            .terminal
-                            .terminals
-                            .get(&data.terminal.active_term_id)
-                        {
+                        if let Some(terminal) = data.terminal.active_terminal() {
                             terminal.raw.lock().term.vi_goto_point(
                                 alacritty_terminal::index::Point::new(
                                     alacritty_terminal::index::Line(*line),

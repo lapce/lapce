@@ -277,6 +277,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Create New Window Tab")]
     NewWindowTab,
 
+    #[strum(serialize = "new_terminal_tab")]
+    #[strum(message = "Create New Terminal Tab")]
+    NewTerminalTab,
+
+    #[strum(serialize = "close_terminal_tab")]
+    #[strum(message = "Close Terminal Tab")]
+    CloseTerminalTab,
+
     #[strum(serialize = "next_window_tab")]
     #[strum(message = "Go To Next Window Tab")]
     NextWindowTab,

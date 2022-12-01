@@ -80,7 +80,7 @@ use crate::{
     signature::SignatureData,
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
-    terminal::TerminalSplitData,
+    terminal::TerminalPanelData,
     title::TitleData,
     update::ReleaseInfo,
 };
@@ -631,7 +631,7 @@ pub struct LapceTabData {
     pub signature: Arc<SignatureData>,
     pub hover: Arc<HoverData>,
     pub rename: Arc<RenameData>,
-    pub terminal: Arc<TerminalSplitData>,
+    pub terminal: Arc<TerminalPanelData>,
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
     pub source_control: Arc<SourceControlData>,
@@ -822,7 +822,12 @@ impl LapceTabData {
             event_sink.clone(),
         );
 
-        let terminal = Arc::new(TerminalSplitData::new(proxy.clone()));
+        let terminal = Arc::new(TerminalPanelData::new(
+            Arc::new(workspace.clone()),
+            proxy.clone(),
+            &config,
+            event_sink.clone(),
+        ));
         let problem = Arc::new(ProblemData::new());
         let panel = workspace_info
             .map(|i| {
@@ -988,10 +993,7 @@ impl LapceTabData {
     pub fn mode(&self) -> Mode {
         if self.config.core.modal {
             let mode = if self.focus_area == FocusArea::Panel(PanelKind::Terminal) {
-                self.terminal
-                    .terminals
-                    .get(&self.terminal.active_term_id)
-                    .map(|terminal| terminal.mode)
+                self.terminal.active_terminal().map(|t| t.mode)
             } else {
                 self.main_split.active_editor().map(|e| e.cursor.get_mode())
             };
@@ -1581,7 +1583,7 @@ impl LapceTabData {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
-                    Target::Widget(self.terminal.active),
+                    Target::Widget(self.terminal.widget_id),
                 ));
             }
 
@@ -1611,16 +1613,13 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::TogglePanelLeftVisual => {
-                Arc::make_mut(&mut self.panel)
-                    .toggle_container_visual(&PanelContainerPosition::Left);
+                self.toggle_container_visual(ctx, &PanelContainerPosition::Left);
             }
             LapceWorkbenchCommand::TogglePanelRightVisual => {
-                Arc::make_mut(&mut self.panel)
-                    .toggle_container_visual(&PanelContainerPosition::Right);
+                self.toggle_container_visual(ctx, &PanelContainerPosition::Right);
             }
             LapceWorkbenchCommand::TogglePanelBottomVisual => {
-                Arc::make_mut(&mut self.panel)
-                    .toggle_container_visual(&PanelContainerPosition::Bottom);
+                self.toggle_container_visual(ctx, &PanelContainerPosition::Bottom);
             }
             LapceWorkbenchCommand::ToggleSourceControlFocus => {
                 self.toggle_panel_focus(ctx, PanelKind::SourceControl);
@@ -1863,6 +1862,35 @@ impl LapceTabData {
                     toml_edit::Value::from(config.editor.enable_inlay_hints),
                 );
             }
+            LapceWorkbenchCommand::NewTerminalTab => {
+                let terminal_panel = Arc::make_mut(&mut self.terminal);
+                terminal_panel.new_tab(
+                    self.workspace.clone(),
+                    self.proxy.clone(),
+                    &self.config,
+                    ctx.get_external_handle(),
+                );
+            }
+            LapceWorkbenchCommand::CloseTerminalTab => {
+                let split_id = data
+                    .and_then(|d| serde_json::from_value::<usize>(d).ok())
+                    .map(WidgetId::from_usize);
+                let split_id = split_id
+                    .or_else(|| {
+                        self.terminal.active_terminal_split().map(|s| s.split_id)
+                    })
+                    .unwrap_or_else(WidgetId::next);
+                let terminal_panel = Arc::make_mut(&mut self.terminal);
+                terminal_panel.tabs.remove(&split_id);
+                terminal_panel.tabs_order = Arc::new(
+                    terminal_panel
+                        .tabs_order
+                        .iter()
+                        .filter(|w| *w != &split_id)
+                        .copied()
+                        .collect(),
+                );
+            }
             LapceWorkbenchCommand::ShowAbout => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
@@ -2093,6 +2121,40 @@ impl LapceTabData {
             self.hide_panel(ctx, kind);
         } else {
             self.show_panel(ctx, kind);
+        }
+    }
+
+    pub fn toggle_container_visual(
+        &mut self,
+        ctx: &mut EventCtx,
+        position: &PanelContainerPosition,
+    ) {
+        let shown = !self.panel.is_container_shown(position);
+        let panel = Arc::make_mut(&mut self.panel);
+        panel.set_shown(&position.first(), shown);
+        panel.set_shown(&position.second(), shown);
+        if shown {
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position.second())
+            {
+                self.show_panel(ctx, kind);
+            }
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position.first())
+            {
+                self.show_panel(ctx, kind);
+            }
+        } else {
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position.second())
+            {
+                self.hide_panel(ctx, kind);
+            }
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position.first())
+            {
+                self.hide_panel(ctx, kind);
+            }
         }
     }
 
@@ -3234,6 +3296,7 @@ impl LapceMainSplitData {
                 }
                 None => (doc.cursor_offset, Some(&doc.scroll_offset)),
             };
+            let offset = offset.min(doc.buffer().len());
 
             if let Some(version) = location.history.as_ref() {
                 let doc = self.open_docs.get_mut(&path).unwrap();

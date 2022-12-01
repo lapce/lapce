@@ -17,6 +17,7 @@
 - [#1741](https://github.com/lapce/lapce/pull/1741): Add syntax highlighting for glsl
 - [#1756](https://github.com/lapce/lapce/pull/1756): Add support for ssh port with ```[user@]host[:port]```
 - [#1760](https://github.com/lapce/lapce/pull/1760): Add vim motions `cw`, `ce`, `cc`, `S`, and QOL modal bind `gf`
+- [#1770](https://github.com/lapce/lapce/pull/1770): Add support for terminal tabs
 
 ### Bug Fixes
 - [#1771](https://github.com/lapce/lapce/pull/1771): Update tree-sitter-bash
