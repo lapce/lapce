@@ -784,6 +784,11 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContentItem {
             None => return Size::new(0.0, bc.max().height),
         };
 
+        let text_color = data
+            .config
+            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+            .clone();
+
         self.text_layout = Some({
             let text_layout = ctx
                 .text()
@@ -792,6 +797,7 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContentItem {
                     data.config.ui.font_family(),
                     data.config.ui.font_size() as f64,
                 )
+                .text_color(text_color.clone())
                 .build()
                 .unwrap();
 
@@ -818,6 +824,7 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContentItem {
                         data.config.ui.font_family(),
                         data.config.ui.font_size() as f64,
                     )
+                    .text_color(text_color)
                     .build()
                     .unwrap()
             } else {
