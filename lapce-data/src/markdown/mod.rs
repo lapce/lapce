@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use druid::{FontStyle, FontWeight};
 use lapce_core::{
+    config::{LapceConfig, LapceTheme},
     language::LapceLanguage,
     syntax::{highlight::HighlightIssue, Syntax},
 };
@@ -10,10 +11,7 @@ use lsp_types::{Documentation, MarkedString, MarkupKind};
 use pulldown_cmark::{CodeBlockKind, Tag};
 use smallvec::SmallVec;
 
-use crate::{
-    config::{LapceConfig, LapceTheme},
-    rich_text::{AttributesAdder, RichText, RichTextBuilder},
-};
+use crate::rich_text::{AttributesAdder, RichText, RichTextBuilder};
 
 /// Parse the LSP documentation structure
 pub fn parse_documentation(doc: &Documentation, config: &LapceConfig) -> RichText {

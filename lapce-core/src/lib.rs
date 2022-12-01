@@ -1,8 +1,8 @@
 pub mod buffer;
 pub mod chars;
 pub mod command;
+pub mod config;
 pub mod cursor;
-pub mod directory;
 pub mod directory;
 pub mod editor;
 pub mod encoding;
@@ -15,5 +15,7 @@ pub mod movement;
 pub mod register;
 pub mod selection;
 pub mod style;
+pub mod svg;
 pub mod syntax;
 pub mod word;
+pub mod workspace;

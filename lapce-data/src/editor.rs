@@ -21,6 +21,7 @@ pub use lapce_core::syntax::Syntax;
 use lapce_core::{
     buffer::{Buffer, DiffLines, InvalLines},
     command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
+    config::LapceConfig,
     editor::EditType,
     mode::{Mode, MotionMode},
     selection::{InsertDrift, Selection},
@@ -42,7 +43,6 @@ use crate::{
         LAPCE_SAVE_FILE_AS, LAPCE_UI_COMMAND,
     },
     completion::{CompletionData, CompletionStatus, Snippet},
-    config::LapceConfig,
     data::{
         EditorDiagnostic, EditorView, FocusArea, InlineFindDirection,
         LapceEditorData, LapceMainSplitData, SplitContent,

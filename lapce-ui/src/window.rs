@@ -7,10 +7,10 @@ use druid::{
     LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, Region, RenderContext,
     SingleUse, Size, Target, Widget, WidgetId, WidgetPod, WindowConfig, WindowState,
 };
+use lapce_core::{workspace::LapceWorkspace, config::{LapceConfig, LapceTheme}};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceTheme},
-    data::{LapceTabData, LapceTabLens, LapceWindowData, LapceWorkspace},
+    data::{LapceTabData, LapceTabLens, LapceWindowData},
 };
 
 use crate::tab::{LapceTab, LapceTabHeader, LapceTabMeta, LAPCE_TAB_META};

@@ -4,8 +4,8 @@ use strum_macros::{Display, EnumMessage, EnumString};
 use tree_sitter::TreeCursor;
 
 use crate::{
-    directory::Directory, syntax::highlight::HighlightConfiguration,
-    syntax::highlight::HighlightIssue,
+    directory::Directory,
+    syntax::highlight::{HighlightConfiguration, HighlightIssue},
 };
 
 ///

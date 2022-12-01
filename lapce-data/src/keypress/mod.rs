@@ -17,13 +17,13 @@ mod keypress;
 mod loader;
 
 pub use keypress::KeyPress;
+use lapce_core::config::{LapceConfig, LapceTheme};
 
 use crate::{
     command::{
         lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
         LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{LapceConfig, LapceTheme},
     keypress::loader::KeyMapLoader,
 };
 

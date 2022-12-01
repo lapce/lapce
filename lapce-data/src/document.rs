@@ -16,6 +16,7 @@ use itertools::Itertools;
 use lapce_core::{
     buffer::{Buffer, DiffLines, InvalLines},
     command::{EditCommand, MultiSelectionCommand},
+    config::{LapceConfig, LapceTheme},
     cursor::{ColPosition, Cursor, CursorMode},
     editor::{EditType, Editor},
     language::LapceLanguage,
@@ -24,8 +25,10 @@ use lapce_core::{
     register::{Clipboard, Register, RegisterData},
     selection::{SelRegion, Selection},
     style::line_styles,
-    syntax::{edit::SyntaxEdit, highlight::HighlightIssue},
-    syntax::{util::matching_pair_direction, Syntax},
+    syntax::{
+        edit::SyntaxEdit, highlight::HighlightIssue, util::matching_pair_direction,
+        Syntax,
+    },
     word::WordCursor,
 };
 use lapce_rpc::{
@@ -48,7 +51,6 @@ use smallvec::SmallVec;
 use crate::{
     atomic_soft_tabs::{snap_to_soft_tab, snap_to_soft_tab_line_col, SnapDirection},
     command::{InitBufferContentCb, LapceUICommand, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceTheme},
     data::{EditorDiagnostic, EditorView},
     editor::{EditorLocation, EditorPosition},
     find::{Find, FindProgress},

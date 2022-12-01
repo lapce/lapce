@@ -12,6 +12,7 @@ use lapce_core::{
         MultiSelectionCommand,
     },
     syntax::Syntax,
+    workspace::LapceWorkspace,
 };
 use lapce_rpc::{
     buffer::BufferId,
@@ -34,10 +35,7 @@ use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 
 use crate::{
     alert::AlertContentData,
-    data::{
-        EditorTabChild, LapceMainSplitData, LapceTabData, LapceWorkspace,
-        SplitContent,
-    },
+    data::{EditorTabChild, LapceMainSplitData, LapceTabData, SplitContent},
     document::BufferContent,
     editor::{EditorLocation, EditorPosition, Line, LineCol},
     keypress::{KeyMap, KeyPress},

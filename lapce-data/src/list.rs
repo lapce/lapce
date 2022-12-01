@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use druid::{Command, Data, EventCtx, Target, WidgetId};
-use lapce_core::{command::FocusCommand, movement::Movement};
-
-use crate::{
-    command::{
-        CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
-    },
+use lapce_core::{
+    command::FocusCommand,
     config::{GetConfig, LapceConfig},
+    movement::Movement,
+};
+
+use crate::command::{
+    CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
 };
 
 // Note: when adding fields to this, make sure to think whether they need to be added to the `same`

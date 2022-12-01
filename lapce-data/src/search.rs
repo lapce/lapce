@@ -1,7 +1,7 @@
-use indexmap::IndexMap;
 use std::{path::PathBuf, sync::Arc};
 
 use druid::WidgetId;
+use indexmap::IndexMap;
 
 pub type Match = (usize, (usize, usize), String);
 #[derive(Clone)]

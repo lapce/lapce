@@ -1,12 +1,12 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use druid::{ExtEventSink, Size, Target, WidgetId};
+use lapce_core::config::{LapceConfig, LapceTheme};
 use lapce_rpc::{buffer::BufferId, proxy::ProxyResponse};
 use lsp_types::{HoverContents, MarkedString, MarkupKind, Position};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceTheme},
     data::EditorDiagnostic,
     document::{BufferContent, Document},
     markdown::{from_marked_string, parse_markdown},

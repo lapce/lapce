@@ -9,16 +9,16 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
-use lapce_core::directory::Directory;
+use lapce_core::{
+    config::LapceConfig, directory::Directory, workspace::LapceWorkspace,
+};
 use lapce_xi_rope::Rope;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::LapceConfig,
     data::{
         EditorTabChild, LapceData, LapceEditorData, LapceEditorTabData,
-        LapceMainSplitData, LapceTabData, LapceWindowData, LapceWorkspace,
-        SplitContent, SplitData,
+        LapceMainSplitData, LapceTabData, LapceWindowData, SplitContent, SplitData,
     },
     document::{BufferContent, Document, LocalBufferKind},
     editor::EditorLocation,

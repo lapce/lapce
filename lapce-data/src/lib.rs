@@ -31,7 +31,6 @@ pub mod settings;
 pub mod signature;
 pub mod source_control;
 pub mod split;
-mod svg;
 pub mod terminal;
 pub mod title;
 pub mod update;

@@ -8,8 +8,11 @@ use druid::{
     ExtEventSink, Target, WidgetId,
 };
 use indexmap::IndexMap;
-use lapce_core::directory::Directory;
-use lapce_proxy::plugin::{download_volt, volt_icon, wasi::find_all_volts};
+use lapce_core::{
+    config::{find_all_volts, LapceConfig},
+    directory::Directory,
+};
+use lapce_proxy::plugin::{download_volt, volt_icon};
 use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
 use parking_lot::Mutex;
 use plugin_install_status::PluginInstallStatus;
@@ -19,7 +22,6 @@ use strum_macros::Display;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceConfig,
     markdown::parse_markdown,
     proxy::LapceProxy,
 };

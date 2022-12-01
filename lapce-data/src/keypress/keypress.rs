@@ -4,11 +4,9 @@ use druid::{
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
     Modifiers, PaintCtx, Point, Rect,
 };
+use lapce_core::config::{LapceConfig, LapceTheme};
 
-use crate::{
-    config::{LapceConfig, LapceTheme},
-    keypress::paint_key,
-};
+use crate::keypress::paint_key;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KeyPress {

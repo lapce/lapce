@@ -17,9 +17,11 @@ use druid::{
 use hashbrown::HashMap;
 use lapce_core::{
     command::{EditCommand, FocusCommand},
+    config::{LapceConfig, LapceTheme},
     mode::{Mode, VisualMode},
     movement::{LinePosition, Movement},
     register::Clipboard,
+    workspace::LapceWorkspace,
 };
 use lapce_rpc::terminal::TermId;
 use parking_lot::Mutex;
@@ -28,8 +30,6 @@ use crate::{
     command::{
         CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
-    config::{LapceConfig, LapceTheme},
-    data::LapceWorkspace,
     document::SystemClipboard,
     find::Find,
     keypress::KeyPressFocus,

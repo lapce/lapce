@@ -14,7 +14,11 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use druid::{ExtEventSink, Target, WidgetId, WindowId};
 use flate2::read::GzDecoder;
-use lapce_core::{directory::Directory, meta};
+use lapce_core::{
+    directory::Directory,
+    meta,
+    workspace::{LapceWorkspace, LapceWorkspaceType, SshHost},
+};
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler},
@@ -31,7 +35,6 @@ use thiserror::Error;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    data::{LapceWorkspace, LapceWorkspaceType, SshHost},
     terminal::RawTerminal,
 };
 

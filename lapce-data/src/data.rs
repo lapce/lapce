@@ -3,7 +3,6 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
     env,
-    fmt::Display,
     io::{BufReader, Read, Write},
     path::{Path, PathBuf},
     rc::Rc,
@@ -22,6 +21,7 @@ use im::Vector;
 use itertools::Itertools;
 use lapce_core::{
     command::{FocusCommand, MultiSelectionCommand},
+    config::{GetConfig, LapceConfig, LapceTheme},
     cursor::{Cursor, CursorMode},
     directory::Directory,
     editor::EditType,
@@ -31,6 +31,7 @@ use lapce_core::{
     register::Register,
     selection::Selection,
 };
+pub use lapce_core::workspace::{LapceWorkspace, LapceWorkspaceType};
 use lapce_rpc::{
     buffer::BufferId,
     core::{CoreMessage, CoreNotification},
@@ -54,8 +55,8 @@ use crate::{
         LapceUICommand, LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_OPEN_FILE,
         LAPCE_OPEN_FOLDER, LAPCE_UI_COMMAND,
     },
+    config::ConfigWatcher,
     completion::CompletionData,
-    config::{ConfigWatcher, GetConfig, LapceConfig, LapceTheme},
     db::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
@@ -4379,109 +4380,5 @@ impl LapceEditorData {
                 None
             },
         }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
-pub struct SshHost {
-    pub user: Option<String>,
-    pub host: String,
-    pub port: Option<usize>,
-}
-
-impl SshHost {
-    pub fn from_string(s: &str) -> Self {
-        let mut whole_splits = s.split(':');
-        let splits = whole_splits
-            .next()
-            .unwrap()
-            .split('@')
-            .collect::<Vec<&str>>();
-        let mut splits = splits.iter().rev();
-        let host = splits.next().unwrap().to_string();
-        let user = splits.next().map(|s| s.to_string());
-        let port = whole_splits.next().and_then(|s| s.parse::<usize>().ok());
-        Self { user, host, port }
-    }
-
-    pub fn user_host(&self) -> String {
-        if let Some(user) = self.user.as_ref() {
-            format!("{user}@{}", self.host)
-        } else {
-            self.host.clone()
-        }
-    }
-}
-
-impl Display for SshHost {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(user) = self.user.as_ref() {
-            write!(f, "{user}@")?;
-        }
-        write!(f, "{}", self.host)?;
-        if let Some(port) = self.port {
-            write!(f, ":{}", port)?;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum LapceWorkspaceType {
-    Local,
-    RemoteSSH(SshHost),
-    RemoteWSL,
-}
-
-impl LapceWorkspaceType {
-    pub fn is_remote(&self) -> bool {
-        matches!(
-            self,
-            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL
-        )
-    }
-}
-
-impl std::fmt::Display for LapceWorkspaceType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LapceWorkspaceType::Local => f.write_str("Local"),
-            LapceWorkspaceType::RemoteSSH(ssh) => {
-                write!(f, "ssh://{ssh}")
-            }
-            LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LapceWorkspace {
-    pub kind: LapceWorkspaceType,
-    pub path: Option<PathBuf>,
-    pub last_open: u64,
-}
-
-impl Default for LapceWorkspace {
-    fn default() -> Self {
-        Self {
-            kind: LapceWorkspaceType::Local,
-            path: None,
-            last_open: 0,
-        }
-    }
-}
-
-impl std::fmt::Display for LapceWorkspace {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}:{}",
-            self.kind,
-            self.path
-                .as_ref()
-                .and_then(|p| p.to_str())
-                .map(|p| p.to_string())
-                .unwrap_or_else(|| "".to_string())
-        )
     }
 }

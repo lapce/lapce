@@ -11,6 +11,7 @@ use druid::{
 };
 use lapce_core::{
     buffer::{rope_diff, Buffer, DiffLines},
+    config::{LapceConfig, LapceTheme},
     style::line_styles,
     syntax::Syntax,
 };
@@ -22,7 +23,6 @@ use lapce_xi_rope::{spans::Spans, Rope};
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceTheme},
     document::{BufferContent, Document, TextLayoutCache, TextLayoutLine},
 };
 

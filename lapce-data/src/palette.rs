@@ -19,8 +19,10 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
     command::{EditCommand, FocusCommand},
+    config::LapceConfig,
     language::LapceLanguage,
     mode::Mode,
+    workspace::{LapceWorkspaceType, LapceWorkspace, SshHost},
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
@@ -31,11 +33,7 @@ use crate::{
         CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND,
         LAPCE_UI_COMMAND,
     },
-    config::LapceConfig,
-    data::{
-        FocusArea, LapceMainSplitData, LapceTabData, LapceWorkspace,
-        LapceWorkspaceType, SshHost,
-    },
+    data::{FocusArea, LapceMainSplitData, LapceTabData},
     db::LapceDb,
     document::BufferContent,
     editor::EditorLocation,

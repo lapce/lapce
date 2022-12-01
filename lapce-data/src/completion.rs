@@ -4,12 +4,12 @@ use anyhow::Error;
 use druid::{EventCtx, Size, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
-use lapce_core::command::FocusCommand;
+use lapce_core::{command::FocusCommand, config::LapceConfig};
 use lapce_rpc::{buffer::BufferId, plugin::PluginId};
 use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
 
-use crate::{config::LapceConfig, list::ListData, proxy::LapceProxy};
+use crate::{list::ListData, proxy::LapceProxy};
 
 #[derive(Debug)]
 pub struct Snippet {

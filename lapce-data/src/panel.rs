@@ -1,7 +1,6 @@
 use druid::Data;
+use lapce_core::config::LapceIcons;
 use serde::{Deserialize, Serialize};
-
-use crate::config::LapceIcons;
 
 pub type PanelOrder = im::HashMap<PanelPosition, im::Vector<PanelKind>>;
 

@@ -1279,6 +1279,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
 
 [[package]]
+name = "fixedbitset"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
+
+[[package]]
 name = "flate2"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2275,6 +2281,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "include_dir"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18762faeff7122e89e0857b02f7ce6fcc0d101d5e9ad2ad7846cc01d61b7f19e"
+dependencies = [
+ "include_dir_macros",
+]
+
+[[package]]
 name = "include_dir_impl"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2285,6 +2300,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "include_dir_macros"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b139284b5cf57ecfa712bcc66950bb635b31aff41c188e8a4cfc758eca374a3f"
+dependencies = [
+ "proc-macro2",
+ "quote",
 ]
 
 [[package]]
@@ -2560,9 +2585,15 @@ dependencies = [
 name = "lapce-core"
 version = "0.2.4"
 dependencies = [
+ "anyhow",
  "arc-swap",
  "bitflags",
+ "chrono",
+ "config",
  "directories",
+ "druid",
+ "include_dir 0.7.3",
+ "indexmap",
  "itertools",
  "lapce-rpc",
  "lapce-xi-rope",
@@ -2570,11 +2601,15 @@ dependencies = [
  "log 0.4.17",
  "lsp-types",
  "once_cell",
+ "parking_lot 0.12.1",
  "serde",
+ "serde_json",
  "slotmap",
+ "structdesc",
  "strum 0.24.1",
  "strum_macros 0.24.3",
  "thiserror",
+ "toml_edit",
  "tree-sitter",
  "tree-sitter-bash",
  "tree-sitter-c",
@@ -2647,7 +2682,7 @@ dependencies = [
  "fuzzy-matcher",
  "hashbrown 0.11.2",
  "im",
- "include_dir",
+ "include_dir 0.6.2",
  "indexmap",
  "interprocess",
  "itertools",
@@ -2756,7 +2791,7 @@ dependencies = [
  "fern",
  "im",
  "image",
- "include_dir",
+ "include_dir 0.6.2",
  "itertools",
  "lapce-core",
  "lapce-data",
@@ -3491,7 +3526,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "instant",
  "libc",
- "petgraph",
+ "petgraph 0.5.1",
  "redox_syscall",
  "smallvec",
  "thread-id",
@@ -3504,10 +3539,13 @@ version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09a279cbf25cb0757810394fbc1e359949b59e348145c643a939a525692e6929"
 dependencies = [
+ "backtrace",
  "cfg-if 1.0.0",
  "libc",
+ "petgraph 0.6.2",
  "redox_syscall",
  "smallvec",
+ "thread-id",
  "windows-sys",
 ]
 
@@ -3573,7 +3611,17 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "467d164a6de56270bd7c4d070df81d07beace25012d5103ced4e9ff08d6afdb7"
 dependencies = [
- "fixedbitset",
+ "fixedbitset 0.2.0",
+ "indexmap",
+]
+
+[[package]]
+name = "petgraph"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6d5014253a1331579ce62aa67443b4a658c5e7dd03d4bc6d302b94474888143"
+dependencies = [
+ "fixedbitset 0.4.2",
  "indexmap",
 ]
 
@@ -3603,7 +3651,7 @@ dependencies = [
  "glow",
  "hashbrown 0.11.2",
  "image",
- "include_dir",
+ "include_dir 0.6.2",
  "linked-hash-map",
  "log 0.4.17",
  "lyon",
@@ -4808,15 +4856,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "toml_edit"
-version = "0.14.4"
+name = "toml_datetime"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5376256e44f2443f8896ac012507c19a012df0fe8758b55246ae51a2279db51f"
+checksum = "808b51e57d0ef8f71115d8f3a01e7d3750d01c79cac4b3eda910f4389fdf92fd"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1541ba70885967e662f69d31ab3aeca7b1aaecfcd58679590b893e9239c3646"
 dependencies = [
  "combine",
  "indexmap",
  "itertools",
  "serde",
+ "toml_datetime",
 ]
 
 [[package]]
@@ -5170,7 +5228,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-nix"
 version = "0.0.1"
-source = "git+https://github.com/panekj/tree-sitter-nix?branch=master#59fc47150ab437e8bb356c7ab21e9531e87f7cc8"
+source = "git+https://github.com/cstrahan/tree-sitter-nix?branch=master#1b69cf1fa92366eefbe6863c184e5d2ece5f187d"
 dependencies = [
  "cc",
  "tree-sitter",

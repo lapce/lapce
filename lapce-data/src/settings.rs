@@ -3,13 +3,13 @@ use std::sync::Arc;
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
 use lapce_core::{
     command::{EditCommand, FocusCommand, MoveCommand},
+    config::{LapceConfig},
     mode::Mode,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
     command::{CommandExecuted, CommandKind, LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceConfig,
     data::LapceMainSplitData,
     keypress::KeyPressFocus,
     split::SplitDirection,

@@ -8,10 +8,9 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, TimerToken, UpdateCtx,
     Widget, WidgetId,
 };
-use lapce_core::buffer::DiffLines;
-use lapce_core::command::EditCommand;
 use lapce_core::{
-    command::FocusCommand,
+    buffer::DiffLines,
+    command::{EditCommand, FocusCommand},
     cursor::{ColPosition, CursorMode},
     mode::{Mode, VisualMode},
 };
