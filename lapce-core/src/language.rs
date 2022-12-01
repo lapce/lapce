@@ -1,10 +1,11 @@
 use std::{collections::HashSet, path::Path, str::FromStr};
 
-use strum_macros::{Display, EnumString};
+use strum_macros::{Display, EnumMessage, EnumString};
 use tree_sitter::TreeCursor;
 
 use crate::{
-    directory::Directory, syntax::highlight::HighlightConfiguration, HighlightIssue,
+    directory::Directory, syntax::highlight::HighlightConfiguration,
+    syntax::highlight::HighlightIssue,
 };
 
 ///
@@ -85,13 +86,13 @@ const EMPTY_LANGUAGE: SyntaxProperties = SyntaxProperties {
         multi_line_prefix: "",
         multi_line_end: "",
     },
+    code_lens: (&[], &[]),
+    sticky_headers: &[],
 
     tree_sitter: Some(TreeSitterProperties {
         language: tree_sitter_plaintext::language,
         highlight: Some(tree_sitter_plaintext::HIGHLIGHTS_QUERY),
         injection: Some(tree_sitter_plaintext::INJECTIONS_QUERY),
-        code_lens: (&[], &[]),
-        sticky_headers: &[],
     }),
 };
 
@@ -100,6 +101,7 @@ struct SyntaxProperties {
     /// An extra check to make sure that the array elements are in the correct order.  
     /// If this id does not match the enum value, a panic will happen with a debug assertion message.
     id: LapceLanguage,
+
     // /// Single line comment token used when commenting out one line.
     // /// "#" for python, "//" for rust for example.
     // single_line_comment_token: &'static str,
@@ -119,6 +121,12 @@ struct SyntaxProperties {
     /// File name extensions to determine the language.  
     /// `["py"]` for python, `["rs"]` for rust, for example.
     extensions: &'static [&'static str],
+    /// Tuple of lists to preserve and hide when using Lapce code lens feature
+    code_lens: (&'static [&'static str], &'static [&'static str]),
+    /// Tree sitter tag names that can be put in sticky headers
+    /// Not part of tree sitter config since those are just defaults
+    sticky_headers: &'static [&'static str],
+
     /// Tree-sitter properties
     tree_sitter: Option<TreeSitterProperties>,
 }
@@ -133,13 +141,6 @@ struct TreeSitterProperties {
     /// For most languages, it is `tree_sitter_$crate::INJECTION_QUERY`.  
     /// Though, not all languages have injections.
     injection: Option<&'static str>,
-    /// TODO: someone more knowledgeable please describe what the two lists are.
-    /// Anyway, the second element of the tuple is a "ignore list". See
-    /// `walk_tree`. If unsure, use `DEFAULT_CODE_LENS_LIST` and
-    /// `DEFAULT_CODE_LENS_IGNORE_LIST`.
-    code_lens: (&'static [&'static str], &'static [&'static str]),
-    /// the tree sitter tag names that can be put in sticky headers
-    sticky_headers: &'static [&'static str],
 }
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, PartialOrd, Ord, Default)]
@@ -169,24 +170,25 @@ struct CommentProperties {
     Debug,
     Display,
     EnumString,
+    EnumMessage,
     Default,
 )]
 #[strum(ascii_case_insensitive)]
 pub enum LapceLanguage {
     // Do not move
     #[default]
-    #[strum(serialize = "Plain Text")]
+    #[strum(message = "Plain Text")]
     Plaintext,
 
     Bash,
     C,
-    #[strum(serialize = "CMake")]
+    #[strum(message = "CMake")]
     Cmake,
-    #[strum(serialize = "C++")]
+    #[strum(message = "C++")]
     Cpp,
-    #[strum(serialize = "C#")]
+    #[strum(message = "C#")]
     Csharp,
-    #[strum(serialize = "CSS")]
+    #[strum(message = "CSS")]
     Css,
     D,
     Dart,
@@ -200,20 +202,20 @@ pub enum LapceLanguage {
     Hare,
     Haskell,
     Haxe,
-    #[strum(serialize = "HCL")]
+    #[strum(message = "HCL")]
     Hcl,
-    #[strum(serialize = "HTML")]
+    #[strum(message = "HTML")]
     Html,
     Java,
-    #[strum(serialize = "JavaScript")]
+    #[strum(message = "JavaScript")]
     Javascript,
-    #[strum(serialize = "JSON")]
+    #[strum(message = "JSON")]
     Json,
-    #[strum(serialize = "JavaScript React")]
+    #[strum(message = "JavaScript React")]
     Jsx,
     Julia,
     Kotlin,
-    #[strum(serialize = "LaTeX")]
+    #[strum(message = "LaTeX")]
     Latex,
     Lua,
     Markdown,
@@ -222,7 +224,7 @@ pub enum LapceLanguage {
     Nix,
     Ocaml,
     OcamlInterface,
-    #[strum(serialize = "PHP")]
+    #[strum(message = "PHP")]
     Php,
     Prisma,
     ProtoBuf,
@@ -232,25 +234,25 @@ pub enum LapceLanguage {
     Ruby,
     Rust,
     Scheme,
-    #[strum(serialize = "SCSS")]
+    #[strum(message = "SCSS")]
     Scss,
-    #[strum(serialize = "POSIX Shell")]
+    #[strum(message = "POSIX Shell")]
     Sh,
-    #[strum(serialize = "SQL")]
+    #[strum(message = "SQL")]
     Sql,
     Svelte,
     Swift,
-    #[strum(serialize = "TOML")]
+    #[strum(message = "TOML")]
     Toml,
-    #[strum(serialize = "TypeScript React")]
+    #[strum(message = "TypeScript React")]
     Tsx,
-    #[strum(serialize = "TypeScript")]
+    #[strum(message = "TypeScript")]
     Typescript,
     Vue,
     Wgsl,
-    #[strum(serialize = "XML")]
+    #[strum(message = "XML")]
     Xml,
-    #[strum(serialize = "YAML")]
+    #[strum(message = "YAML")]
     Yaml,
     Zig,
 }
@@ -267,6 +269,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["bash"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -282,8 +286,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_bash::language,
             highlight: Some(tree_sitter_bash::HIGHLIGHT_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -294,6 +296,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["c", "h"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &["function_definition", "struct_specifier"],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -309,8 +313,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_c::language,
             highlight: Some(include_str!("../queries/c/highlights.scm")),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &["function_definition", "struct_specifier"],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -321,6 +323,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["cmake"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &["function_definition"],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -336,8 +340,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_cmake::language,
             highlight: Some(include_str!("../queries/cmake/highlights.scm")),
             injection: Some(include_str!("../queries/cmake/injections.scm")),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &["function_definition"],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -348,6 +350,12 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["cpp", "cxx", "cc", "c++", "hpp", "hxx", "hh", "h++"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[
+            "function_definition",
+            "class_specifier",
+            "struct_specifier",
+        ],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -363,12 +371,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_cpp::language,
             highlight: Some(include_str!("../queries/cpp/highlights.scm")),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[
-                "function_definition",
-                "class_specifier",
-                "struct_specifier",
-            ],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -379,6 +381,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["cs", "csx"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -394,8 +398,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_c_sharp::language,
             highlight: Some(tree_sitter_c_sharp::HIGHLIGHT_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -406,6 +408,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["css"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "/*",
@@ -421,8 +425,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_css::language,
             highlight: Some(include_str!("../queries/css/highlights.scm")),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -433,6 +435,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["d", "di", "dlang"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -448,8 +452,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_d::language,
             highlight: Some(tree_sitter_d::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -460,6 +462,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["dart"],
+        code_lens: (
+            &["program", "class_definition"],
+            &[
+                "program",
+                "import_or_export",
+                "comment",
+                "documentation_comment",
+            ],
+        ),
+        sticky_headers: &["class_definition"],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -475,16 +487,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_dart::language,
             highlight: Some(tree_sitter_dart::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (
-                &["program", "class_definition"],
-                &[
-                    "program",
-                    "import_or_export",
-                    "comment",
-                    "documentation_comment",
-                ],
-            ),
-            sticky_headers: &["class_definition"],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -495,6 +497,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &["dockerfile", "containerfile"],
         extensions: &["containerfile", "dockerfile"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -510,8 +514,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_dockerfile::language,
             highlight: Some(tree_sitter_dockerfile::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -522,6 +524,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["ex", "exs", "eex", "heex", "sface"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &["do_block"],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -537,8 +541,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_elixir::language,
             highlight: Some(tree_sitter_elixir::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &["do_block"],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -549,6 +551,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["elm"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -564,8 +568,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_elm::language,
             highlight: Some(include_str!("../queries/elm/highlights.scm")),
             injection: Some(tree_sitter_elm::INJECTIONS_QUERY),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -576,6 +578,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["erl", "hrl"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "%",
@@ -591,8 +595,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_erlang::language,
             highlight: Some(include_str!("../queries/erlang/highlights.scm")),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -603,6 +605,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["hbs"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "{{!",
@@ -618,8 +622,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_glimmer::language,
             highlight: Some(tree_sitter_glimmer::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -635,6 +637,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
             "tese", "mesh", "task", "rgen", "rint", "rahit", "rchit", "rmiss",
             "rcall",
         ],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -650,8 +654,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_glsl::language,
             highlight: Some(tree_sitter_glsl::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -662,6 +664,17 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["go"],
+        code_lens: (
+            &[
+                "source_file",
+                "type_declaration",
+                "type_spec",
+                "interface_type",
+                "method_spec_list",
+            ],
+            &["source_file", "comment", "line_comment"],
+        ),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -677,17 +690,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_go::language,
             highlight: Some(tree_sitter_go::HIGHLIGHT_QUERY),
             injection: None,
-            code_lens: (
-                &[
-                    "source_file",
-                    "type_declaration",
-                    "type_spec",
-                    "interface_type",
-                    "method_spec_list",
-                ],
-                &["source_file", "comment", "line_comment"],
-            ),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -698,6 +700,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "        ",
         files: &[],
         extensions: &["ha"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -713,8 +717,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_hare::language,
             highlight: Some(tree_sitter_hare::HIGHLIGHT_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -725,6 +727,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["hs"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "--",
@@ -740,8 +744,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_haskell::language,
             highlight: Some(tree_sitter_haskell::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -752,6 +754,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["hx"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -767,8 +771,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_haxe::language,
             highlight: Some(tree_sitter_haxe::HIGHLIGHTS_QUERY),
             injection: Some(tree_sitter_haxe::INJECTIONS_QUERY),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -779,6 +781,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["hcl", "tf"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -794,8 +798,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_hcl::language,
             highlight: Some(tree_sitter_hcl::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -806,6 +808,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["html", "htm"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "<!--",
@@ -821,8 +825,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_html::language,
             highlight: Some(tree_sitter_html::HIGHLIGHT_QUERY),
             injection: Some(tree_sitter_html::INJECTION_QUERY),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -833,6 +835,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["java"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -848,8 +852,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_java::language,
             highlight: Some(tree_sitter_java::HIGHLIGHT_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -860,6 +862,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["js", "cjs", "mjs"],
+        code_lens: (&["source_file", "program"], &["source_file"]),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -875,8 +879,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_javascript::language,
             highlight: Some(include_str!("../queries/javascript/highlights.scm")),
             injection: Some(tree_sitter_javascript::INJECTION_QUERY),
-            code_lens: (&["source_file", "program"], &["source_file"]),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -887,6 +889,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["json"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "",
@@ -902,8 +906,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_dart::language,
             highlight: Some(tree_sitter_dart::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -914,6 +916,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["jsx"],
+        code_lens: (&["source_file", "program"], &["source_file"]),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -930,8 +934,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             highlight: Some(include_str!("../queries/jsx/highlights.scm")),
             // TODO: Does jsx use the javascript injection query too?
             injection: Some(tree_sitter_javascript::INJECTION_QUERY),
-            code_lens: (&["source_file", "program"], &["source_file"]),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -942,6 +944,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["julia", "jl"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -957,8 +961,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_julia::language,
             highlight: Some(include_str!("../queries/julia/highlights.scm")),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -969,6 +971,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["kt", "kts"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -984,8 +988,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_kotlin::language,
             highlight: Some(include_str!("../queries/kotlin/highlights.scm")),
             injection: Some(include_str!("../queries/kotlin/injections.scm")),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -996,6 +998,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["tex"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "%",
@@ -1011,8 +1015,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_latex::language,
             highlight: Some(include_str!("../queries/latex/highlights.scm")),
             injection: Some(include_str!("../queries/latex/injections.scm")),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1023,6 +1025,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["lua"],
+        sticky_headers: &[],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
 
         comment: CommentProperties {
             single_line_start: "--",
@@ -1038,8 +1042,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_lua::language,
             highlight: Some(include_str!("../queries/lua/highlights.scm")),
             injection: None,
-            sticky_headers: &[],
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1050,6 +1052,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["md"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "",
@@ -1065,8 +1069,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_md::language,
             highlight: Some(include_str!("../queries/markdown/highlights.scm")),
             injection: Some(include_str!("../queries/markdown/injections.scm")),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1078,6 +1080,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         // markdown inline is only used as an injection by the Markdown language
         files: &[],
         extensions: &[],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "",
@@ -1097,8 +1101,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             injection: Some(include_str!(
                 "../queries/markdown.inline/injections.scm"
             )),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1109,6 +1111,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["nix"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -1124,8 +1128,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_nix::language,
             highlight: Some(tree_sitter_nix::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1136,6 +1138,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["ml"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "(*",
@@ -1151,8 +1155,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_ocaml::language_ocaml,
             highlight: Some(tree_sitter_ocaml::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1163,6 +1165,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["mli"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "(*",
@@ -1178,8 +1182,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_ocaml::language_ocaml_interface,
             highlight: Some(tree_sitter_ocaml::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1190,6 +1192,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["php"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1205,8 +1209,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_php::language,
             highlight: Some(tree_sitter_php::HIGHLIGHT_QUERY),
             injection: Some(tree_sitter_php::INJECTIONS_QUERY),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1217,6 +1219,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["prisma"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1232,8 +1236,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_prisma_io::language,
             highlight: Some(include_str!("../queries/prisma/highlights.scm")),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1244,6 +1246,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["proto"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1259,8 +1263,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_protobuf::language,
             highlight: Some(include_str!("../queries/protobuf/highlights.scm")),
             injection: Some(include_str!("../queries/protobuf/injections.scm")),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1271,6 +1273,19 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["py", "pyi", "pyc", "pyd", "pyw"],
+        code_lens: (
+            &[
+                "source_file",
+                "module",
+                "class_definition",
+                "class",
+                "identifier",
+                "decorated_definition",
+                "block",
+            ],
+            &["source_file", "import_statement", "import_from_statement"],
+        ),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -1286,19 +1301,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_python::language,
             highlight: Some(tree_sitter_python::HIGHLIGHT_QUERY),
             injection: None,
-            code_lens: (
-                &[
-                    "source_file",
-                    "module",
-                    "class_definition",
-                    "class",
-                    "identifier",
-                    "decorated_definition",
-                    "block",
-                ],
-                &["source_file", "import_statement", "import_from_statement"],
-            ),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1309,6 +1311,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["ql"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1324,8 +1328,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_ql::language,
             highlight: Some(tree_sitter_ql::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1336,6 +1338,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["r"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -1351,8 +1355,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_r::language,
             highlight: Some(include_str!("../queries/r/highlights.scm")),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1363,6 +1365,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["rb"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &["module", "class", "method", "do_block"],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -1378,8 +1382,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_ruby::language,
             highlight: Some(tree_sitter_ruby::HIGHLIGHT_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &["module", "class", "method", "do_block"],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1390,6 +1392,11 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["rs"],
+        code_lens: (
+            &["source_file", "impl_item", "trait_item", "declaration_list"],
+            &["source_file", "use_declaration", "line_comment"],
+        ),
+        sticky_headers: &["struct_item", "enum_item", "function_item", "impl_item"],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1405,16 +1412,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_rust::language,
             highlight: Some(tree_sitter_rust::HIGHLIGHT_QUERY),
             injection: None,
-            code_lens: (
-                &["source_file", "impl_item", "trait_item", "declaration_list"],
-                &["source_file", "use_declaration", "line_comment"],
-            ),
-            sticky_headers: &[
-                "struct_item",
-                "enum_item",
-                "function_item",
-                "impl_item",
-            ],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1425,6 +1422,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["scm", "ss"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: ";",
@@ -1440,8 +1439,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_scheme::language,
             highlight: Some(tree_sitter_scheme::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1452,6 +1449,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["scss"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1467,8 +1466,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_scss::language,
             highlight: Some(tree_sitter_scss::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1479,6 +1476,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["sh"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -1494,8 +1493,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_bash::language,
             highlight: Some(tree_sitter_bash::HIGHLIGHT_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1506,6 +1503,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["sql"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "--",
@@ -1521,8 +1520,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_sql::language,
             highlight: Some(tree_sitter_sql::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1533,6 +1530,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["svelte"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1548,8 +1547,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_svelte::language,
             highlight: Some(include_str!("../queries/svelte/highlights.scm")),
             injection: Some(include_str!("../queries/svelte/injections.scm")),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1560,6 +1557,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["swift"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1575,8 +1574,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_swift::language,
             highlight: Some(tree_sitter_swift::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1587,6 +1584,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["toml"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -1602,8 +1601,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_toml::language,
             highlight: Some(tree_sitter_toml::HIGHLIGHT_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1614,6 +1611,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["tsx"],
+        code_lens: (&["source_file", "program"], &["source_file"]),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1629,8 +1628,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_typescript::language_tsx,
             highlight: Some(include_str!("../queries/typescript/highlights.scm")),
             injection: None,
-            code_lens: (&["source_file", "program"], &["source_file"]),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1641,6 +1638,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["ts", "cts", "mts"],
+        code_lens: (&["source_file", "program"], &["source_file"]),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1656,8 +1655,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_typescript::language_typescript,
             highlight: Some(include_str!("../queries/typescript/highlights.scm")),
             injection: None,
-            code_lens: (&["source_file", "program"], &["source_file"]),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1668,6 +1665,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["vue"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1683,8 +1682,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_vue::language,
             highlight: Some(tree_sitter_vue::HIGHLIGHTS_QUERY),
             injection: Some(tree_sitter_vue::INJECTIONS_QUERY),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1695,6 +1692,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["wgsl"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1710,8 +1709,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_wgsl::language,
             highlight: Some(tree_sitter_wgsl::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1722,6 +1719,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["xml"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1737,8 +1736,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_xml::language,
             highlight: Some(tree_sitter_xml::HIGHLIGHTS_QUERY),
             injection: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1749,6 +1746,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         files: &[],
         extensions: &["yml", "yaml"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "#",
@@ -1764,8 +1763,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_yaml::language,
             highlight: Some(tree_sitter_yaml::HIGHLIGHTS_QUERY),
             injection: Some(tree_sitter_yaml::INJECTIONS_QUERY),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1776,6 +1773,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         files: &[],
         extensions: &["zig"],
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
 
         comment: CommentProperties {
             single_line_start: "//",
@@ -1791,8 +1790,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_zig::language,
             highlight: Some(include_str!("../queries/zig/highlights.scm")),
             injection: Some(tree_sitter_zig::INJECTIONS_QUERY),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-            sticky_headers: &[],
         }),
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
@@ -1848,20 +1845,16 @@ impl LapceLanguage {
         l
     }
 
-    fn tree_sitter(&self) -> TreeSitterProperties {
-        if let Some(ts) = self.properties().tree_sitter {
-            ts
-        } else {
-            EMPTY_LANGUAGE.tree_sitter.unwrap()
-        }
-    }
+    // fn tree_sitter(&self) -> TreeSitterProperties {
+    //     if let Some(ts) = self.properties().tree_sitter {
+    //         ts
+    //     } else {
+    //         EMPTY_LANGUAGE.tree_sitter.unwrap()
+    //     }
+    // }
 
     pub fn sticky_header_tags(&self) -> &[&'static str] {
-        if let Some(ts) = self.properties().tree_sitter {
-            ts.sticky_headers
-        } else {
-            &[]
-        }
+        self.properties().sticky_headers
     }
 
     pub fn comment_token(&self) -> &str {
@@ -1878,20 +1871,20 @@ impl LapceLanguage {
     ) -> Result<HighlightConfiguration, HighlightIssue> {
         let props = self.properties();
 
-        let mut language = match props.tree_sitter {
-            Some(v) => (v.language)(),
-            None => unimplemented!(),
-        };
+        let mut language = (EMPTY_LANGUAGE.tree_sitter.unwrap().language)();
         if let Some(grammars_dir) = Directory::grammars_directory() {
             /*
              * This Source Code Form is subject to the terms of the Mozilla Public
              * License, v. 2.0. If a copy of the MPL was not distributed with this
              * file, You can obtain one at https://mozilla.org/MPL/2.0/.
              *
-             * Below code is modified from [helix](https://github.com/helix-editor/helix)'s implementation of their tree-sitter loading, which is under the MPL.
+             * Below part is modified form of code from [helix](https://github.com/helix-editor/helix)'s implementation of their tree-sitter loading, which is licenced under MPL.
              */
             let mut library_path =
                 grammars_dir.join(props.id.to_string().to_lowercase());
+
+            // TODO: implement custom languages pulled from settings?
+
             library_path.set_extension(std::env::consts::DLL_EXTENSION);
 
             if library_path.exists() {
@@ -1906,6 +1899,8 @@ impl LapceLanguage {
                 };
                 std::mem::forget(library);
             }
+        } else if let Some(ts) = props.tree_sitter {
+            language = (ts.language)();
         }
 
         let mut highlight = String::new();
@@ -1946,7 +1941,7 @@ impl LapceLanguage {
         cursor: &mut TreeCursor,
         normal_lines: &mut HashSet<usize>,
     ) {
-        let (list, ignore_list) = self.tree_sitter().code_lens;
+        let (list, ignore_list) = self.properties().code_lens;
         walk_tree(cursor, normal_lines, list, ignore_list);
     }
 }
