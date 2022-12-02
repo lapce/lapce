@@ -818,7 +818,7 @@ pub fn window_controls(
     Vec<(druid::piet::Svg, Rect, druid::Color)>,
 ) {
     use druid::Color;
-    use lapce_data::config::LapceIcons;
+    use lapce_core::config::LapceIcons;
 
     let mut commands = Vec::new();
 
