@@ -120,6 +120,8 @@ impl LapceData {
         paths: Vec<PathBuf>,
         log_file: Option<PathBuf>,
     ) -> Self {
+        let _ = lapce_proxy::register_lapce_path();
+
         let log_file = Arc::new(log_file);
         let db = Arc::new(LapceDb::new().unwrap());
         let mut windows = im::HashMap::new();
@@ -304,20 +306,6 @@ impl LapceData {
     }
 
     fn listen_local_socket(event_sink: ExtEventSink) -> Result<()> {
-        if let Ok(path) = env::current_exe() {
-            if let Some(path) = path.parent() {
-                if let Some(path) = path.to_str() {
-                    if let Ok(current_path) = env::var("PATH") {
-                        let mut paths = vec![PathBuf::from(path)];
-                        paths.append(
-                            &mut env::split_paths(&current_path).collect::<Vec<_>>(),
-                        );
-                        env::set_var("PATH", env::join_paths(paths)?);
-                    }
-                }
-            }
-        }
-
         let local_socket = Directory::local_socket()
             .ok_or_else(|| anyhow!("can't get local socket folder"))?;
         let _ = std::fs::remove_file(&local_socket);
@@ -1870,6 +1858,36 @@ impl LapceTabData {
                     &self.config,
                     ctx.get_external_handle(),
                 );
+                if !self.panel.is_panel_visible(&PanelKind::Terminal) {
+                    Arc::make_mut(&mut self.panel).show_panel(&PanelKind::Terminal);
+                }
+            }
+            LapceWorkbenchCommand::NextTerminalTab => {
+                let terminal_panel = Arc::make_mut(&mut self.terminal);
+                if terminal_panel.active >= terminal_panel.tabs_order.len() - 1 {
+                    terminal_panel.active = 0;
+                } else {
+                    terminal_panel.active += 1;
+                }
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(terminal_panel.widget_id),
+                ));
+            }
+            LapceWorkbenchCommand::PreviousTerminalTab => {
+                let terminal_panel = Arc::make_mut(&mut self.terminal);
+                if terminal_panel.active == 0 {
+                    terminal_panel.active =
+                        terminal_panel.tabs_order.len().saturating_sub(1);
+                } else {
+                    terminal_panel.active -= 1;
+                }
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(terminal_panel.widget_id),
+                ));
             }
             LapceWorkbenchCommand::CloseTerminalTab => {
                 let split_id = data
@@ -1890,6 +1908,25 @@ impl LapceTabData {
                         .copied()
                         .collect(),
                 );
+                if terminal_panel.tabs_order.is_empty() {
+                    if self.panel.is_panel_visible(&PanelKind::Terminal) {
+                        Arc::make_mut(&mut self.panel)
+                            .hide_panel(&PanelKind::Terminal);
+                    }
+                    if let Some(active) = *self.main_split.active_tab {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(active),
+                        ));
+                    }
+                } else {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(terminal_panel.widget_id),
+                    ));
+                }
             }
             LapceWorkbenchCommand::ShowAbout => {
                 ctx.submit_command(Command::new(

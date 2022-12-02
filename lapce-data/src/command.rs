@@ -285,6 +285,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Close Terminal Tab")]
     CloseTerminalTab,
 
+    #[strum(serialize = "next_terminal_tab")]
+    #[strum(message = "Next Terminal Tab")]
+    NextTerminalTab,
+
+    #[strum(serialize = "previous_terminal_tab")]
+    #[strum(message = "Previous Terminal Tab")]
+    PreviousTerminalTab,
+
     #[strum(serialize = "next_window_tab")]
     #[strum(message = "Go To Next Window Tab")]
     NextWindowTab,
