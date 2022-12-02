@@ -1,4 +1,6 @@
-use std::{path::PathBuf, sync::Arc};
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+use std::{path::PathBuf, process::Stdio, sync::Arc};
 
 use clap::Parser;
 use druid::{
@@ -28,9 +30,14 @@ use crate::{
 #[derive(Parser)]
 #[clap(name = "Lapce")]
 #[clap(version=*meta::VERSION)]
+#[derive(Debug)]
 struct Cli {
+    /// Launch new window even if Lapce is already running
     #[clap(short, long, action)]
     new: bool,
+    /// Don't return instantly when opened in terminal
+    #[clap(short, long, action)]
+    wait: bool,
     paths: Vec<PathBuf>,
 }
 
@@ -46,6 +53,24 @@ pub fn launch() {
     }
 
     let cli = Cli::parse();
+
+    // small hack to unblock terminal if launched from it
+    if !cli.wait {
+        let mut args = std::env::args().collect::<Vec<_>>();
+        args.push("--wait".to_string());
+        let mut cmd = std::process::Command::new(&args[0]);
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        if let Err(why) = cmd
+            .args(&args[1..])
+            .stderr(Stdio::null())
+            .stdout(Stdio::null())
+            .spawn()
+        {
+            eprintln!("Failed to launch lapce: {why}");
+        };
+        return;
+    }
     let pwd = std::env::current_dir().unwrap_or_default();
     let paths: Vec<PathBuf> = cli
         .paths
@@ -289,6 +314,65 @@ impl LapceAppDelegate {
     pub fn new() -> Self {
         Self {}
     }
+
+    fn new_window(
+        window_id: &WindowId,
+        ctx: &mut druid::DelegateCtx,
+        data: &mut LapceData,
+    ) {
+        let (size, pos, current_panels) = data
+            .windows
+            .get(window_id)
+            // If maximised, use default dimensions instead
+            .filter(|win| !win.maximised)
+            .map(|win| {
+                (
+                    win.size,
+                    win.pos + (50.0, 50.0),
+                    win.tabs.get(&win.active_id).map(|tab| (*tab.panel).clone()),
+                )
+            })
+            .unwrap_or_else(|| {
+                data.db
+                    .get_last_window_info()
+                    .map(|i| (i.size, i.pos, None))
+                    .unwrap_or_else(|_| {
+                        (Size::new(800.0, 600.0), Point::new(0.0, 0.0), None)
+                    })
+            });
+        let info = WindowInfo {
+            size,
+            pos,
+            maximised: false,
+            tabs: TabsInfo {
+                active_tab: 0,
+                workspaces: vec![],
+            },
+        };
+        let mut window_data = LapceWindowData::new(
+            data.keypress.clone(),
+            data.latest_release.clone(),
+            data.update_in_process,
+            data.log_file.clone(),
+            current_panels,
+            data.panel_orders.clone(),
+            ctx.get_external_handle(),
+            &info,
+            data.db.clone(),
+        );
+        let root = build_window(&mut window_data);
+        let window_id = window_data.window_id;
+        data.windows.insert(window_id, window_data.clone());
+        let desc = new_window_desc(
+            window_id,
+            root,
+            info.size,
+            info.pos,
+            info.maximised,
+            &window_data.config,
+        );
+        ctx.new_window(desc);
+    }
 }
 
 impl Default for LapceAppDelegate {
@@ -313,11 +397,9 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
             }
             Event::ApplicationShouldHandleReopen(has_visible_windows) => {
                 if !has_visible_windows {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::NewWindow(WindowId::next()),
-                        Target::Global,
-                    ));
+                    // Create new window immediately
+                    let new_window_id = WindowId::next();
+                    Self::new_window(&new_window_id, ctx, data);
                 }
                 return None;
             }
@@ -376,6 +458,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                     data.latest_release.clone(),
                     data.update_in_process,
                     data.log_file.clone(),
+                    None,
                     data.panel_orders.clone(),
                     ctx.get_external_handle(),
                     &info,
@@ -543,54 +626,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                         return druid::Handled::Yes;
                     }
                     LapceUICommand::NewWindow(from_window_id) => {
-                        let (size, pos) = data
-                            .windows
-                            .get(from_window_id)
-                            // If maximised, use default dimensions instead
-                            .filter(|win| !win.maximised)
-                            .map(|win| (win.size, win.pos + (50.0, 50.0)))
-                            .unwrap_or_else(|| {
-                                data.db
-                                    .get_last_window_info()
-                                    .map(|i| (i.size, i.pos))
-                                    .unwrap_or_else(|_| {
-                                        (
-                                            Size::new(800.0, 600.0),
-                                            Point::new(0.0, 0.0),
-                                        )
-                                    })
-                            });
-                        let info = WindowInfo {
-                            size,
-                            pos,
-                            maximised: false,
-                            tabs: TabsInfo {
-                                active_tab: 0,
-                                workspaces: vec![],
-                            },
-                        };
-                        let mut window_data = LapceWindowData::new(
-                            data.keypress.clone(),
-                            data.latest_release.clone(),
-                            data.update_in_process,
-                            data.log_file.clone(),
-                            data.panel_orders.clone(),
-                            ctx.get_external_handle(),
-                            &info,
-                            data.db.clone(),
-                        );
-                        let root = build_window(&mut window_data);
-                        let window_id = window_data.window_id;
-                        data.windows.insert(window_id, window_data.clone());
-                        let desc = new_window_desc(
-                            window_id,
-                            root,
-                            info.size,
-                            info.pos,
-                            info.maximised,
-                            &window_data.config,
-                        );
-                        ctx.new_window(desc);
+                        Self::new_window(from_window_id, ctx, data);
                         return druid::Handled::Yes;
                     }
                     LapceUICommand::CloseWindow(window_id) => {

@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_core::directory::Directory;
 use lapce_rpc::{
@@ -16,6 +17,7 @@ use lapce_rpc::{
     style::LineStyle,
     RpcError,
 };
+use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     request::Initialize, ClientCapabilities, InitializeParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
@@ -26,14 +28,13 @@ use psp_types::Request;
 use toml_edit::easy as toml;
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
-use xi_rope::{Rope, RopeDelta};
 
 use super::{
     psp::{
         handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
         PluginServerHandler, RpcCallback,
     },
-    PluginCatalogRpcHandler,
+    volt_icon, PluginCatalogRpcHandler,
 };
 use crate::plugin::psp::PluginServerRpcHandler;
 
@@ -116,8 +117,14 @@ impl PluginServerHandler for Plugin {
         let _ = self.host.handle_notification(method, params);
     }
 
-    fn handle_host_request(&mut self, id: Id, method: String, params: Params) {
-        let _ = self.host.handle_request(id, method, params);
+    fn handle_host_request(
+        &mut self,
+        id: Id,
+        method: String,
+        params: Params,
+        chan: Sender<Result<serde_json::Value, RpcError>>,
+    ) {
+        self.host.handle_request(id, method, params, chan);
     }
 
     fn handle_did_save_text_document(
@@ -209,7 +216,8 @@ pub fn load_all_volts(
         .into_iter()
         .filter_map(|meta| {
             meta.wasm.as_ref()?;
-            plugin_rpc.core_rpc.volt_installed(meta.clone(), false);
+            let icon = volt_icon(&meta);
+            plugin_rpc.core_rpc.volt_installed(meta.clone(), icon);
             if disabled_volts.contains(&meta.id()) {
                 return None;
             }
@@ -225,6 +233,13 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
             d.read_dir().ok().map(|dir| {
                 dir.filter_map(|result| {
                     let entry = result.ok()?;
+                    let metadata = entry.metadata().ok()?;
+
+                    if metadata.is_file()
+                        || entry.file_name().to_str()?.starts_with('.')
+                    {
+                        return None;
+                    }
                     let path = entry.path().join("volt.toml");
                     load_volt(&path).ok()
                 })
@@ -235,7 +250,7 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
 }
 
 pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
-    let mut file = fs::File::open(&path)?;
+    let mut file = fs::File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
     let mut meta: VoltMetadata = toml::from_str(&contents)?;
@@ -382,9 +397,14 @@ pub fn start_volt(
     let rpc = PluginServerRpcHandler::new(meta.name.clone(), io_tx);
 
     let local_rpc = rpc.clone();
+    let local_stdin = stdin.clone();
     linker.func_wrap("lapce", "host_handle_rpc", move || {
         if let Ok(msg) = wasi_read_string(&stdout) {
-            handle_plugin_server_message(&local_rpc, &msg);
+            if let Some(resp) = handle_plugin_server_message(&local_rpc, &msg) {
+                if let Ok(msg) = serde_json::to_string(&resp) {
+                    let _ = writeln!(local_stdin.write().unwrap(), "{}", msg);
+                }
+            }
         }
     })?;
     linker.func_wrap("lapce", "host_handle_stderr", move || {
@@ -402,8 +422,8 @@ pub fn start_volt(
 
     thread::spawn(move || {
         for msg in io_rx {
-            {
-                let _ = writeln!(stdin.write().unwrap(), "{}\r", msg);
+            if let Ok(msg) = serde_json::to_string(&msg) {
+                let _ = writeln!(stdin.write().unwrap(), "{}", msg);
             }
             let _ = handle_rpc.call(&mut store, ());
         }

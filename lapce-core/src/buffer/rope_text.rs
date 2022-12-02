@@ -1,7 +1,7 @@
 use std::{borrow::Cow, ops::Range};
 
+use lapce_xi_rope::{interval::IntervalBounds, Cursor, Rope};
 use lsp_types::Position;
-use xi_rope::{interval::IntervalBounds, Cursor, Rope};
 
 use crate::{
     encoding::{offset_utf16_to_utf8, offset_utf8_to_utf16},
@@ -149,6 +149,7 @@ impl<'a> RopeText<'a> {
         count: usize,
         limit: usize,
     ) -> usize {
+        let offset = offset.min(self.len());
         let mut cursor = Cursor::new(self.text, offset);
         let mut new_offset = offset;
         for _i in 0..count {

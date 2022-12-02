@@ -24,7 +24,7 @@ use lapce_core::{
     register::{Clipboard, Register, RegisterData},
     selection::{SelRegion, Selection},
     style::line_styles,
-    syntax::edit::SyntaxEdit,
+    syntax::{edit::SyntaxEdit, highlight::HighlightIssue},
     syntax::{util::matching_pair_direction, Syntax},
     word::WordCursor,
 };
@@ -34,16 +34,16 @@ use lapce_rpc::{
     proxy::ProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
-use lsp_types::{
-    CodeActionOrCommand, CodeActionResponse, DiagnosticSeverity, InlayHint,
-    InlayHintLabel,
-};
-use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
-use xi_rope::{
+use lapce_xi_rope::{
     spans::{Spans, SpansBuilder},
     Interval, Rope, RopeDelta, Transformer,
 };
+use lsp_types::{
+    CodeActionOrCommand, CodeActionResponse, DiagnosticSeverity, InlayHint,
+    InlayHintLabel, MessageType, ShowMessageParams,
+};
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use crate::{
     atomic_soft_tabs::{snap_to_soft_tab, snap_to_soft_tab_line_col, SnapDirection},
@@ -130,6 +130,7 @@ pub enum LocalBufferKind {
     Settings,
     PathName,
     Rename,
+    PluginSeach,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -165,6 +166,7 @@ impl BufferContent {
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap
                 | LocalBufferKind::PathName
+                | LocalBufferKind::PluginSeach
                 | LocalBufferKind::Rename => true,
                 LocalBufferKind::Empty => false,
             },
@@ -183,6 +185,7 @@ impl BufferContent {
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap
                 | LocalBufferKind::PathName
+                | LocalBufferKind::PluginSeach
                 | LocalBufferKind::Rename => true,
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
@@ -373,7 +376,9 @@ impl Document {
         proxy: Arc<LapceProxy>,
     ) -> Self {
         let syntax = match &content {
-            BufferContent::File(path) => Syntax::init(path),
+            BufferContent::File(path) => {
+                Self::syntax_to_option(&proxy, Syntax::init(path))
+            }
             BufferContent::Local(_) => None,
             BufferContent::SettingsValue(..) => None,
             BufferContent::Scratch(..) => None,
@@ -411,6 +416,26 @@ impl Document {
         }
     }
 
+    fn syntax_to_option(
+        proxy: &Arc<LapceProxy>,
+        syntax: Result<Syntax, HighlightIssue>,
+    ) -> Option<Syntax> {
+        match syntax {
+            Ok(x) => Some(x),
+            Err(HighlightIssue::NotAvailable) => None,
+            Err(HighlightIssue::Error(x)) => {
+                proxy.core_rpc.show_message(
+                    "Syntax Highlighting failed".to_owned(),
+                    ShowMessageParams {
+                        typ: MessageType::ERROR,
+                        message: format!("An error occurred trying to load syntax highlighting info: {x}."),
+                    },
+                );
+                None
+            }
+        }
+    }
+
     pub fn id(&self) -> BufferId {
         self.id
     }
@@ -422,7 +447,9 @@ impl Document {
     pub fn set_content(&mut self, content: BufferContent) {
         self.content = content;
         self.syntax = match &self.content {
-            BufferContent::File(path) => Syntax::init(path),
+            BufferContent::File(path) => {
+                Self::syntax_to_option(&self.proxy, Syntax::init(path))
+            }
             BufferContent::Local(_) => None,
             BufferContent::SettingsValue(..) => None,
             BufferContent::Scratch(..) => None,
@@ -446,7 +473,8 @@ impl Document {
     }
 
     pub fn set_language(&mut self, language: LapceLanguage) {
-        self.syntax = Some(Syntax::from_language(language));
+        self.syntax =
+            Self::syntax_to_option(&self.proxy, Syntax::from_language(language));
     }
 
     pub fn set_diagnostics(&mut self, diagnostics: &[EditorDiagnostic]) {
@@ -820,6 +848,7 @@ impl Document {
                             Target::Widget(self.tab_id),
                         );
                     }
+                    LocalBufferKind::PluginSeach => {}
                     LocalBufferKind::SourceControl => {}
                     LocalBufferKind::Empty => {}
                     LocalBufferKind::Rename => {}
@@ -1195,8 +1224,12 @@ impl Document {
             modal,
             register,
         );
-        self.buffer_mut().set_cursor_before(old_cursor);
-        self.buffer_mut().set_cursor_after(cursor.mode.clone());
+
+        if !deltas.is_empty() {
+            self.buffer_mut().set_cursor_before(old_cursor);
+            self.buffer_mut().set_cursor_after(cursor.mode.clone());
+        }
+
         self.apply_deltas(&deltas);
         deltas
     }
@@ -2797,15 +2830,14 @@ impl Document {
             } else {
                 return syntax.find_enclosing_pair(offset);
             }
-        } else {
-            let mut cursor = WordCursor::new(self.buffer.text(), offset);
-            if matching_pair_direction(char_at_cursor).is_some() {
-                let new_offset = cursor.match_pairs().unwrap_or(offset);
-                return Some((offset, new_offset));
-            } else {
-                return cursor.find_enclosing_pair();
-            }
         }
-        None
+
+        let mut cursor = WordCursor::new(self.buffer.text(), offset);
+        if matching_pair_direction(char_at_cursor).is_some() {
+            let new_offset = cursor.match_pairs().unwrap_or(offset);
+            Some((offset, new_offset))
+        } else {
+            cursor.find_enclosing_pair()
+        }
     }
 }

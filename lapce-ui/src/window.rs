@@ -71,10 +71,16 @@ impl LapceWindow {
         workspace: LapceWorkspace,
         replace_current: bool,
     ) {
-        if replace_current {
+        let _ = data.db.update_recent_workspace(workspace.clone());
+
+        let current_panels = {
             let tab = data.tabs.get(&data.active_id).unwrap();
-            let _ = tab.db.save_workspace(tab);
-        }
+            if replace_current {
+                let _ = tab.db.save_workspace(tab);
+            }
+            (*tab.panel).clone()
+        };
+
         let tab_id = WidgetId::next();
         let mut tab_data = LapceTabData::new(
             data.window_id,
@@ -85,6 +91,7 @@ impl LapceWindow {
             data.latest_release.clone(),
             data.update_in_progress,
             data.log_file.clone(),
+            Some(current_panels),
             data.panel_orders.clone(),
             ctx.get_external_handle(),
         );
@@ -354,25 +361,6 @@ impl Widget<LapceWindowData> for LapceWindow {
                         return;
                     }
                     LapceUICommand::SetWorkspace(workspace) => {
-                        let mut workspaces =
-                            LapceConfig::recent_workspaces().unwrap_or_default();
-
-                        let mut exits = false;
-                        for w in workspaces.iter_mut() {
-                            if w.path == workspace.path && w.kind == workspace.kind {
-                                w.last_open = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap()
-                                    .as_secs();
-                                exits = true;
-                            }
-                        }
-                        if !exits {
-                            workspaces.push(workspace.clone());
-                        }
-                        workspaces.sort_by_key(|w| -(w.last_open as i64));
-                        LapceConfig::update_recent_workspaces(workspaces);
-
                         self.new_tab(ctx, data, workspace.clone(), true);
                         return;
                     }

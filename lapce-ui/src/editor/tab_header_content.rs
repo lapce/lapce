@@ -1,5 +1,9 @@
 use std::{
-    collections::HashSet, iter::Iterator, ops::Sub, path::PathBuf, str::FromStr,
+    collections::HashSet,
+    iter::Iterator,
+    ops::Sub,
+    path::{Path, PathBuf},
+    str::FromStr,
     sync::Arc,
 };
 
@@ -21,6 +25,7 @@ use lapce_data::{
     data::{
         DragContent, EditorTabChild, LapceData, LapceEditorTabData, LapceTabData,
     },
+    db::EditorTabChildInfo,
     document::BufferContent,
     editor::TabRect,
 };
@@ -125,11 +130,32 @@ impl LapceEditorTabHeaderContent {
                 let file_explorer_id = data.file_explorer.widget_id;
                 let editor_tab =
                     data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+                let tab_info = editor_tab.children[tab_idx].child_info(data);
+
+                let path = match tab_info {
+                    EditorTabChildInfo::Editor(info) => match info.content {
+                        BufferContent::File(path) => Some(path),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+
+                let is_worksapce_member = data
+                    .workspace
+                    .path
+                    .as_ref()
+                    .and_then(|workspace| {
+                        path.as_deref()
+                            .map(|path| path.starts_with(workspace.as_path()))
+                    })
+                    .unwrap_or(false);
 
                 let menu = LapceEditorTabHeaderContextMenu::new(
                     tab_idx,
                     editor_tab,
                     file_explorer_id,
+                    path,
+                    is_worksapce_member,
                 )
                 .to_menu();
                 ctx.show_context_menu::<LapceData>(
@@ -460,9 +486,11 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 }
                 EditorTabChild::Settings { .. } => {
                     text = format!("Settings (ver. {})", *meta::VERSION);
+                    svg = data.config.ui_svg(LapceIcons::SETTINGS);
                 }
                 EditorTabChild::Plugin { volt_name, .. } => {
                     text = format!("Plugin: {volt_name}");
+                    svg = data.config.ui_svg(LapceIcons::EXTENSIONS);
                 }
             }
             let font_size = data.config.ui.font_size() as f64;
@@ -629,6 +657,8 @@ struct LapceEditorTabHeaderContextMenu<'a> {
     tab_idx: usize,
     editor_tab: &'a Arc<LapceEditorTabData>,
     file_explorer_id: WidgetId,
+    tab_path: Option<PathBuf>,
+    is_workspace_member: bool,
 }
 
 impl<'a> LapceEditorTabHeaderContextMenu<'a> {
@@ -636,11 +666,15 @@ impl<'a> LapceEditorTabHeaderContextMenu<'a> {
         tab_idx: usize,
         editor_tab: &'a Arc<LapceEditorTabData>,
         file_explorer_id: WidgetId,
+        tab_path: Option<PathBuf>,
+        is_workspace_member: bool,
     ) -> Self {
         Self {
             tab_idx,
             editor_tab,
             file_explorer_id,
+            tab_path,
+            is_workspace_member,
         }
     }
 
@@ -657,11 +691,24 @@ impl<'a> LapceEditorTabHeaderContextMenu<'a> {
         let entry_close_tabs_right = druid::MenuItem::new("Close Tabs to the Right")
             .on_activate(self.create_close_tabs_right_callback());
 
-        druid::Menu::<LapceData>::new("Tab Header")
+        let entry_reveal_file = self.tab_path.as_deref().map(|path| {
+            druid::MenuItem::new("Reveal in File Tree")
+                .on_activate(self.create_reveal_file_callback(path))
+                .enabled(self.is_workspace_member)
+        });
+
+        let mut menu = druid::Menu::<LapceData>::new("Tab Header")
             .entry(entry_close_tab)
             .entry(entry_close_tabs_other)
             .entry(entry_close_tabs_left)
             .entry(entry_close_tabs_right)
+            .separator();
+
+        if let Some(entry) = entry_reveal_file {
+            menu = menu.entry(entry);
+        }
+
+        menu
     }
 
     fn create_close_tab_callback(
@@ -766,6 +813,24 @@ impl<'a> LapceEditorTabHeaderContextMenu<'a> {
                         Target::Widget(tab.widget_id()),
                     ))
                 })
+        }
+    }
+
+    fn create_reveal_file_callback(
+        &self,
+        tab_path: &Path,
+    ) -> impl FnMut(&mut MenuEventCtx, &mut LapceData, &Env) + 'static {
+        let file_explorer_id = self.file_explorer_id;
+        let path = tab_path.to_path_buf();
+
+        move |ctx, _data, _env| {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ExplorerRevealPath {
+                    path: path.to_owned(),
+                },
+                Target::Widget(file_explorer_id),
+            ));
         }
     }
 }

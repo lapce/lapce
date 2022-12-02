@@ -10,7 +10,7 @@ use std::{
 use crossbeam_channel::{Receiver, Sender};
 use lsp_types::{
     CompletionResponse, LogMessageParams, ProgressParams, PublishDiagnosticsParams,
-    ShowMessageParams,
+    ShowMessageParams, SignatureHelp,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -44,6 +44,11 @@ pub enum CoreNotification {
         resp: CompletionResponse,
         plugin_id: PluginId,
     },
+    SignatureHelpResponse {
+        request_id: usize,
+        resp: SignatureHelp,
+        plugin_id: PluginId,
+    },
     ReloadBuffer {
         path: PathBuf,
         content: String,
@@ -73,10 +78,10 @@ pub enum CoreNotification {
     },
     VoltInstalled {
         volt: VoltMetadata,
-        only_installing: bool,
+        icon: Option<String>,
     },
     VoltInstalling {
-        volt: VoltMetadata,
+        volt: VoltInfo,
         error: String,
     },
     VoltRemoving {
@@ -233,14 +238,24 @@ impl CoreRpcHandler {
         });
     }
 
-    pub fn volt_installed(&self, volt: VoltMetadata, only_installing: bool) {
-        self.notification(CoreNotification::VoltInstalled {
-            volt,
-            only_installing,
+    pub fn signature_help_response(
+        &self,
+        request_id: usize,
+        resp: SignatureHelp,
+        plugin_id: PluginId,
+    ) {
+        self.notification(CoreNotification::SignatureHelpResponse {
+            request_id,
+            resp,
+            plugin_id,
         });
     }
 
-    pub fn volt_installing(&self, volt: VoltMetadata, error: String) {
+    pub fn volt_installed(&self, volt: VoltMetadata, icon: Option<String>) {
+        self.notification(CoreNotification::VoltInstalled { volt, icon });
+    }
+
+    pub fn volt_installing(&self, volt: VoltInfo, error: String) {
         self.notification(CoreNotification::VoltInstalling { volt, error });
     }
 

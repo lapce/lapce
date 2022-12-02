@@ -557,9 +557,9 @@ pub fn paint_file_node_item_by_index(
     }
     if current >= min {
         let background = if current == active {
-            Some(LapceTheme::PANEL_CURRENT)
+            Some(LapceTheme::PANEL_CURRENT_BACKGROUND)
         } else if Some(current) == hovered {
-            Some(LapceTheme::PANEL_HOVERED)
+            Some(LapceTheme::PANEL_HOVERED_BACKGROUND)
         } else {
             None
         };
@@ -867,7 +867,7 @@ impl Widget<LapceTabData> for FilePickerControl {
 
         for btn in self.buttons.iter() {
             ctx.stroke(
-                &btn.rect,
+                btn.rect,
                 data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
                 1.0,
             );

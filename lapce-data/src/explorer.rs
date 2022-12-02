@@ -7,7 +7,7 @@ use std::{
 use druid::{Command, EventCtx, ExtEventSink, Target, WidgetId};
 use lapce_core::{cursor::CursorMode, selection::Selection};
 use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
-use xi_rope::Rope;
+use lapce_xi_rope::Rope;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -161,6 +161,32 @@ impl FileExplorerData {
         Some(node)
     }
 
+    pub fn get_node_index(&self, path: &Path) -> Option<usize> {
+        self.workspace.as_ref().and_then(|root| {
+            let mut node = Some(root);
+            let mut index = 0;
+
+            while let Some(current) = node {
+                if current.path_buf == path {
+                    return Some(index);
+                }
+
+                for child in current.sorted_children() {
+                    index += 1;
+
+                    if path.starts_with(&child.path_buf) {
+                        node = Some(child);
+                        break;
+                    }
+
+                    index += child.children_open_count;
+                }
+            }
+
+            None
+        })
+    }
+
     pub fn update_children(
         &mut self,
         path: &Path,
@@ -243,7 +269,7 @@ impl FileExplorerData {
         tab_id: WidgetId,
         proxy: &LapceProxy,
         event_sink: ExtEventSink,
-        mut on_finished: Option<F>,
+        on_finished: Option<F>,
     ) {
         let path = PathBuf::from(path);
         let local_path = path.clone();
@@ -256,7 +282,7 @@ impl FileExplorerData {
                     Target::Widget(tab_id),
                 );
 
-                if let Some(on_finished) = on_finished.take() {
+                if let Some(on_finished) = on_finished {
                     on_finished();
                 }
             }

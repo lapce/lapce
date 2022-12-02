@@ -1,5 +1,5 @@
+use lapce_xi_rope::Rope;
 use tree_sitter::Point;
-use xi_rope::Rope;
 
 use crate::buffer::rope_text::RopeText;
 

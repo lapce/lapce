@@ -1,5 +1,5 @@
+use lapce_xi_rope::{RopeDelta, Transformer};
 use serde::{Deserialize, Serialize};
-use xi_rope::{RopeDelta, Transformer};
 
 use crate::{
     buffer::Buffer,
@@ -466,13 +466,13 @@ pub fn get_first_selection_after(
     let ins = ins.transform_shrink(&del);
     for el in ins.els.iter() {
         match el {
-            xi_rope::DeltaElement::Copy(b, e) => {
+            lapce_xi_rope::DeltaElement::Copy(b, e) => {
                 // if b == e, ins.inserted_subset() will panic
                 if b == e {
                     return None;
                 }
             }
-            xi_rope::DeltaElement::Insert(_) => {}
+            lapce_xi_rope::DeltaElement::Insert(_) => {}
         }
     }
 

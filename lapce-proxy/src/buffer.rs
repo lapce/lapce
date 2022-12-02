@@ -13,8 +13,8 @@ use lapce_core::{
     buffer::rope_text::CharIndicesJoin, encoding::offset_utf8_to_utf16,
 };
 use lapce_rpc::buffer::BufferId;
+use lapce_xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 use lsp_types::*;
-use xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 
 #[derive(Clone)]
 pub struct Buffer {
@@ -215,6 +215,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "p6" | "pm6" | "pod6" | "t6" | "raku" | "rakumod"
                     | "rakudoc" | "rakutest" => "perl6",
                     "php" | "phtml" | "pht" | "phps" => "php",
+                    "proto" => "proto",
                     "ps1" | "ps1xml" | "psc1" | "psm1" | "psd1" | "pssc"
                     | "psrc" => "powershell",
                     "py" | "pyi" | "pyc" | "pyd" | "pyw" => "python",

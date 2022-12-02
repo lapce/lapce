@@ -24,14 +24,15 @@ pub struct PluginConfiguration {
 }
 
 #[derive(Deserialize, Clone, Debug, Serialize)]
-#[serde(rename_all = "kebab-case")]
 pub struct VoltInfo {
     pub name: String,
     pub version: String,
     pub display_name: String,
     pub author: String,
     pub description: String,
-    pub meta: String,
+    pub repository: Option<String>,
+    pub wasm: bool,
+    pub updated_at_ts: i64,
 }
 
 impl VoltInfo {
@@ -62,6 +63,7 @@ pub struct VoltMetadata {
     pub author: String,
     pub description: String,
     pub icon: Option<String>,
+    pub repository: Option<String>,
     pub wasm: Option<String>,
     pub color_themes: Option<Vec<String>>,
     pub icon_themes: Option<Vec<String>>,
@@ -82,7 +84,9 @@ impl VoltMetadata {
             display_name: self.display_name.clone(),
             author: self.author.clone(),
             description: self.description.clone(),
-            meta: "".to_string(),
+            repository: self.repository.clone(),
+            wasm: self.wasm.is_some(),
+            updated_at_ts: 0,
         }
     }
 }

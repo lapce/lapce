@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    io::Write,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -122,7 +121,9 @@ impl LapceTheme {
     pub const TERMINAL_BRIGHT_MAGENTA: &str = "terminal.bright_magenta";
 
     pub const PALETTE_BACKGROUND: &str = "palette.background";
-    pub const PALETTE_CURRENT: &str = "palette.current";
+    pub const PALETTE_FOREGROUND: &str = "palette.foreground";
+    pub const PALETTE_CURRENT_BACKGROUND: &str = "palette.current.background";
+    pub const PALETTE_CURRENT_FOREGROUND: &str = "palette.current.foreground";
 
     pub const COMPLETION_BACKGROUND: &str = "completion.background";
     pub const COMPLETION_CURRENT: &str = "completion.current";
@@ -133,10 +134,17 @@ impl LapceTheme {
     pub const ACTIVITY_CURRENT: &str = "activity.current";
 
     pub const PANEL_BACKGROUND: &str = "panel.background";
-    pub const PANEL_CURRENT: &str = "panel.current";
-    pub const PANEL_HOVERED: &str = "panel.hovered";
+    pub const PANEL_FOREGROUND: &str = "panel.foreground";
+    pub const PANEL_FOREGROUND_DIM: &str = "panel.foreground.dim";
+    pub const PANEL_CURRENT_BACKGROUND: &str = "panel.current.background";
+    pub const PANEL_CURRENT_FOREGROUND: &str = "panel.current.foreground";
+    pub const PANEL_CURRENT_FOREGROUND_DIM: &str = "panel.current.foreground.dim";
+    pub const PANEL_HOVERED_BACKGROUND: &str = "panel.hovered.background";
+    pub const PANEL_HOVERED_FOREGROUND: &str = "panel.hovered.foreground";
+    pub const PANEL_HOVERED_FOREGROUND_DIM: &str = "panel.hovered.foreground.dim";
 
     pub const STATUS_BACKGROUND: &str = "status.background";
+    pub const STATUS_FOREGROUND: &str = "status.foreground";
     pub const STATUS_MODAL_NORMAL: &str = "status.modal.normal";
     pub const STATUS_MODAL_INSERT: &str = "status.modal.insert";
     pub const STATUS_MODAL_VISUAL: &str = "status.modal.visual";
@@ -179,6 +187,7 @@ impl LapceIcons {
 
     pub const LINK: &str = "link";
     pub const ERROR: &str = "error";
+    pub const ADD: &str = "add";
     pub const CLOSE: &str = "close";
     pub const REMOTE: &str = "remote";
     pub const PROBLEM: &str = "error";
@@ -338,6 +347,14 @@ pub struct EditorConfig {
     )]
     pub completion_show_documentation: bool,
     #[field_names(
+        desc = "If the editor should show the signature of the function as the parameters are being typed"
+    )]
+    pub show_signature: bool,
+    #[field_names(
+        desc = "If the signature view should put the codeblock into a label. This might not work nicely for LSPs which provide invalid code for their labels."
+    )]
+    pub signature_label_code_block: bool,
+    #[field_names(
         desc = "Whether the editor should disable automatic closing of matching pairs"
     )]
     pub auto_closing_matching_pairs: bool,
@@ -404,6 +421,10 @@ pub struct EditorConfig {
         desc = "Set the auto save delay (in milliseconds), Set to 0 to completely disable"
     )]
     pub autosave_interval: u64,
+    #[field_names(
+        desc = "Whether the document should be formatted when an autosave is triggered (required Format on Save)"
+    )]
+    pub format_on_autosave: bool,
     #[field_names(
         desc = "If enabled the cursor treats leading soft tabs as if they are hard tabs."
     )]
@@ -1003,7 +1024,7 @@ impl LapceConfig {
                         .unwrap_or_else(|_| config.clone());
                 }
             }
-            LapceWorkspaceType::RemoteSSH(_, _) => {}
+            LapceWorkspaceType::RemoteSSH(_) => {}
             LapceWorkspaceType::RemoteWSL => {}
         }
 
@@ -1548,94 +1569,6 @@ impl LapceConfig {
             .unwrap();
 
         text_layout.size()
-    }
-
-    pub fn update_recent_workspaces(workspaces: Vec<LapceWorkspace>) -> Option<()> {
-        let path = Self::recent_workspaces_file()?;
-        let mut array = toml::value::Array::new();
-        for workspace in workspaces {
-            if let Some(path) = workspace.path.as_ref() {
-                let mut table = toml::value::Table::new();
-                table.insert(
-                    "kind".to_string(),
-                    toml::Value::String(match workspace.kind {
-                        LapceWorkspaceType::Local => "local".to_string(),
-                        LapceWorkspaceType::RemoteSSH(user, host) => {
-                            format!("ssh://{}@{}", user, host)
-                        }
-                        LapceWorkspaceType::RemoteWSL => "wsl".to_string(),
-                    }),
-                );
-                table.insert(
-                    "path".to_string(),
-                    toml::Value::String(path.to_str()?.to_string()),
-                );
-                table.insert(
-                    "last_open".to_string(),
-                    toml::Value::Integer(workspace.last_open as i64),
-                );
-                array.push(toml::Value::Table(table));
-            }
-        }
-        let mut table = toml::value::Table::new();
-        table.insert("workspaces".to_string(), toml::Value::Array(array));
-        let content = toml::to_string(&table).ok()?;
-
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .open(&path)
-            .ok()?;
-        file.write_all(content.as_bytes()).ok()?;
-        None
-    }
-
-    pub fn recent_workspaces() -> Option<Vec<LapceWorkspace>> {
-        let path = Self::recent_workspaces_file()?;
-        let content = std::fs::read_to_string(&path).ok()?;
-        let value: toml::Value = toml::from_str(&content).ok()?;
-        Some(
-            value
-                .get("workspaces")
-                .and_then(|v| v.as_array())?
-                .iter()
-                .filter_map(|value| {
-                    let path = PathBuf::from(value.get("path")?.as_str()?);
-                    let kind = value.get("kind")?.as_str()?;
-                    let kind = match kind {
-                        s if kind.starts_with("ssh://") => {
-                            let mut parts = s[6..].split('@');
-                            let user = parts.next()?.to_string();
-                            let host = parts.next()?.to_string();
-                            LapceWorkspaceType::RemoteSSH(user, host)
-                        }
-                        "wsl" => LapceWorkspaceType::RemoteWSL,
-                        _ => LapceWorkspaceType::Local,
-                    };
-                    let last_open = value
-                        .get("last_open")
-                        .and_then(|v| v.as_integer())
-                        .unwrap_or(0) as u64;
-                    let workspace = LapceWorkspace {
-                        kind,
-                        path: Some(path),
-                        last_open,
-                    };
-                    Some(workspace)
-                })
-                .collect(),
-        )
-    }
-
-    pub fn recent_workspaces_file() -> Option<PathBuf> {
-        let path = Directory::config_directory()?.join("workspaces.toml");
-        {
-            let _ = std::fs::OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .open(&path);
-        }
-        Some(path)
     }
 
     pub fn tab_width(

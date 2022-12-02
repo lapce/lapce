@@ -305,18 +305,17 @@ impl CompletionData {
         self.current_item().map(|item| item.item.label.as_str())
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn request(
-        &self,
+        &mut self,
         proxy: Arc<LapceProxy>,
-        request_id: usize,
         path: PathBuf,
         input: String,
         position: Position,
     ) {
+        self.input_items.insert(input.clone(), im::Vector::new());
         proxy
             .proxy_rpc
-            .completion(request_id, path, input, position);
+            .completion(self.request_id, path, input, position);
     }
 
     pub fn cancel(&mut self) {

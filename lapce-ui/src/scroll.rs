@@ -747,7 +747,7 @@ impl ScrollComponent {
         if !ctx.is_handled() {
             if let Event::Wheel(mouse) = event {
                 let mut delta = mouse.wheel_delta.round();
-                if self.vertical_scroll_for_horizontal {
+                if self.vertical_scroll_for_horizontal && delta.x == 0.0 {
                     delta.x = delta.y;
                 }
                 if port.pan_by(delta) {}

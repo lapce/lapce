@@ -1,4 +1,4 @@
-use xi_rope::{Cursor, Rope, RopeInfo};
+use lapce_xi_rope::{Cursor, Rope, RopeInfo};
 
 use crate::{
     mode::Mode,
@@ -70,7 +70,7 @@ impl<'a> WordCursor<'a> {
     /// ```rust
     /// # use lapce_core::word::WordCursor;
     /// # use lapce_core::mode::Mode;
-    /// # use xi_rope::Rope;
+    /// # use lapce_xi_rope::Rope;
     /// let rope = Rope::from("Hello world");
     /// let mut cursor = WordCursor::new(&rope, 4);
     /// let boundary = cursor.prev_boundary(Mode::Insert);
@@ -109,7 +109,7 @@ impl<'a> WordCursor<'a> {
     ///
     /// ```rust
     /// # use lapce_core::word::WordCursor;
-    /// # use xi_rope::Rope;
+    /// # use lapce_xi_rope::Rope;
     /// let text = "violet are blue";
     /// let rope = Rope::from(text);
     /// let mut cursor = WordCursor::new(&rope, 9);
@@ -176,7 +176,7 @@ impl<'a> WordCursor<'a> {
     ///
     /// ```rust
     /// # use lapce_core::word::WordCursor;
-    /// # use xi_rope::Rope;
+    /// # use lapce_xi_rope::Rope;
     /// let rope = Rope::from("    world");
     /// let mut cursor = WordCursor::new(&rope, 0);
     /// let char_position = cursor.next_non_blank_char();
@@ -200,7 +200,7 @@ impl<'a> WordCursor<'a> {
     ///
     /// ```rust
     /// # use lapce_core::word::WordCursor;
-    /// # use xi_rope::Rope;
+    /// # use lapce_xi_rope::Rope;
     /// let rope = Rope::from("Hello world");
     /// let mut cursor = WordCursor::new(&rope, 0);
     /// let boundary = cursor.next_boundary();
@@ -229,7 +229,7 @@ impl<'a> WordCursor<'a> {
     ///
     /// ```rust
     /// # use lapce_core::word::WordCursor;
-    /// # use xi_rope::Rope;
+    /// # use lapce_xi_rope::Rope;
     /// let rope = Rope::from("Hello world");
     /// let mut cursor = WordCursor::new(&rope, 3);
     /// let end_boundary = cursor.end_boundary();
@@ -259,7 +259,7 @@ impl<'a> WordCursor<'a> {
     ///
     /// ```rust
     /// # use lapce_core::word::WordCursor;
-    /// # use xi_rope::Rope;
+    /// # use lapce_xi_rope::Rope;
     /// let text = "violet, are\n blue";
     /// let rope = Rope::from(text);
     /// let mut cursor = WordCursor::new(&rope, 11);
@@ -283,7 +283,7 @@ impl<'a> WordCursor<'a> {
     ///
     /// ```rust
     /// # use lapce_core::word::WordCursor;
-    /// # use xi_rope::Rope;
+    /// # use lapce_xi_rope::Rope;
     /// let text = "violet, are\n blue";
     /// let rope = Rope::from(text);
     /// let mut cursor = WordCursor::new(&rope, 11);
@@ -310,7 +310,7 @@ impl<'a> WordCursor<'a> {
     ///
     /// ```rust
     /// # use lapce_core::word::WordCursor;
-    /// # use xi_rope::Rope;
+    /// # use lapce_xi_rope::Rope;
     /// let text = "{ }";
     /// let rope = Rope::from(text);
     /// let mut cursor = WordCursor::new(&rope, 2);
@@ -335,7 +335,7 @@ impl<'a> WordCursor<'a> {
     ///
     /// **Example**:
     /// ```rust
-    /// # use xi_rope::Rope;
+    /// # use lapce_xi_rope::Rope;
     /// # use lapce_core::word::WordCursor;
     /// let rope = Rope::from("outer {inner}} world");
     /// let mut cursor = WordCursor::new(&rope, 0);
@@ -364,7 +364,7 @@ impl<'a> WordCursor<'a> {
     /// **Example**:
     ///
     /// ```rust
-    /// # use xi_rope::Rope;
+    /// # use lapce_xi_rope::Rope;
     /// # use lapce_core::word::WordCursor;
     /// let rope = Rope::from("outer {{inner} world");
     /// let mut cursor = WordCursor::new(&rope, 15);
@@ -393,7 +393,7 @@ impl<'a> WordCursor<'a> {
     ///
     ///```rust
     /// # use lapce_core::word::WordCursor;
-    /// # use xi_rope::Rope;
+    /// # use lapce_xi_rope::Rope;
     /// let text = "violet are blue";
     /// let rope = Rope::from(text);
     /// let mut cursor = WordCursor::new(&rope, 9);
@@ -414,7 +414,7 @@ impl<'a> WordCursor<'a> {
     ///
     ///```rust
     /// # use lapce_core::word::WordCursor;
-    /// # use xi_rope::Rope;
+    /// # use lapce_xi_rope::Rope;
     /// let text = "outer {{inner} world";
     /// let rope = Rope::from(text);
     /// let mut cursor = WordCursor::new(&rope, 10);
@@ -424,11 +424,10 @@ impl<'a> WordCursor<'a> {
     ///```
     pub fn find_enclosing_pair(&mut self) -> Option<(usize, usize)> {
         let old_offset = self.inner.pos();
-        while let Some(c) = self.inner.next_codepoint() {
-            if matching_pair_direction(c) == Some(false) {
-                let closing_bracket_offset = self.inner.pos() - 1;
-                self.inner.set(closing_bracket_offset);
-                if let Some(opening_bracket_offset) = self.match_pairs() {
+        while let Some(c) = self.inner.prev_codepoint() {
+            if matching_pair_direction(c) == Some(true) {
+                let opening_bracket_offset = self.inner.pos();
+                if let Some(closing_bracket_offset) = self.match_pairs() {
                     if (opening_bracket_offset..closing_bracket_offset)
                         .contains(&old_offset)
                     {
@@ -437,7 +436,7 @@ impl<'a> WordCursor<'a> {
                             closing_bracket_offset,
                         ));
                     } else {
-                        self.inner.set(closing_bracket_offset + 1);
+                        self.inner.set(opening_bracket_offset);
                     }
                 }
             }
@@ -494,7 +493,7 @@ fn classify_boundary(
 
 #[cfg(test)]
 mod test {
-    use xi_rope::Rope;
+    use lapce_xi_rope::Rope;
 
     use super::WordCursor;
     use crate::mode::Mode;
@@ -688,11 +687,15 @@ mod test {
 
     #[test]
     fn find_pair_should_return_next_pair() {
-        let text = "violets {are (blue)}";
+        let text = "violets {are (blue)    }";
         let rope = Rope::from(text);
         let mut cursor = WordCursor::new(&rope, 11);
         let positions = cursor.find_enclosing_pair();
-        assert_eq!(positions, Some((8, 19)))
+        assert_eq!(positions, Some((8, 23)));
+
+        let mut cursor = WordCursor::new(&rope, 20);
+        let positions = cursor.find_enclosing_pair();
+        assert_eq!(positions, Some((8, 23)))
     }
 
     #[test]

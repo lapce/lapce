@@ -10,8 +10,8 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
 use lapce_core::directory::Directory;
+use lapce_xi_rope::Rope;
 use serde::{Deserialize, Serialize};
-use xi_rope::Rope;
 
 use crate::{
     config::LapceConfig,
@@ -30,6 +30,7 @@ pub enum SaveEvent {
     Workspace(LapceWorkspace, WorkspaceInfo),
     Tabs(TabsInfo),
     Buffer(BufferInfo),
+    RecentWorkspace(LapceWorkspace),
 }
 
 #[derive(Clone)]
@@ -370,6 +371,9 @@ impl LapceDb {
                     SaveEvent::Buffer(info) => {
                         let _ = local_db.insert_buffer(&info);
                     }
+                    SaveEvent::RecentWorkspace(workspace) => {
+                        let _ = local_db.insert_recent_workspace(workspace);
+                    }
                 }
             }
         });
@@ -427,7 +431,7 @@ impl LapceDb {
         let key = "recent_workspaces";
         let sled_db = self.get_db()?;
         let workspaces = sled_db
-            .get(&key)?
+            .get(key)?
             .ok_or_else(|| anyhow!("can't find recent workspaces"))?;
         let workspaces = std::str::from_utf8(&workspaces)?;
         let workspaces: Vec<LapceWorkspace> = serde_json::from_str(workspaces)?;
@@ -694,6 +698,57 @@ impl LapceDb {
             workspaces,
         };
         self.save_tx.send(SaveEvent::Tabs(info))?;
+        Ok(())
+    }
+
+    pub fn recent_workspaces(&self) -> Result<Vec<LapceWorkspace>> {
+        let sled_db = self.get_db()?;
+        let workspaces = sled_db
+            .get("recent_workspaces")?
+            .ok_or_else(|| anyhow!("can't find disable volts"))?;
+        let workspaces = std::str::from_utf8(&workspaces)?;
+        let workspaces: Vec<LapceWorkspace> = serde_json::from_str(workspaces)?;
+        Ok(workspaces)
+    }
+
+    pub fn update_recent_workspace(&self, workspace: LapceWorkspace) -> Result<()> {
+        if workspace.path.is_none() {
+            return Ok(());
+        }
+        self.save_tx.send(SaveEvent::RecentWorkspace(workspace))?;
+        Ok(())
+    }
+
+    fn insert_recent_workspace(&self, workspace: LapceWorkspace) -> Result<()> {
+        let sled_db = self.get_db()?;
+
+        let mut workspaces = self.recent_workspaces().unwrap_or_default();
+
+        let mut exits = false;
+        for w in workspaces.iter_mut() {
+            if w.path == workspace.path && w.kind == workspace.kind {
+                w.last_open = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                exits = true;
+                break;
+            }
+        }
+        if !exits {
+            let mut workspace = workspace;
+            workspace.last_open = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            workspaces.push(workspace);
+        }
+        workspaces.sort_by_key(|w| -(w.last_open as i64));
+        let workspaces = serde_json::to_string(&workspaces)?;
+
+        sled_db.insert("recent_workspaces", workspaces.as_str())?;
+        sled_db.flush()?;
+
         Ok(())
     }
 }

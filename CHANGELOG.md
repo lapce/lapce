@@ -2,29 +2,81 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- [#1726](https://github.com/lapce/lapce/pull/1726): Add more panel theme keys, apply hover first, then current item colour
+
+### Features/Changes
+- [#1767](https://github.com/lapce/lapce/pull/1767): Added CMake tree-sitter syntax highlighting
+- [#1759](https://github.com/lapce/lapce/pull/1759): Update C tree-sitter and highlight queries
+- [#1758](https://github.com/lapce/lapce/pull/1758): Replaced dlang syntax highlighting
+- [#1713](https://github.com/lapce/lapce/pull/1713): Add protobuf syntax and highlighting
+- [#1720](https://github.com/lapce/lapce/pull/1720): Display signature/parameter information from LSP
+- [#1723](https://github.com/lapce/lapce/pull/1723): In the palette, display the keybind for a command adjacent to it
+- [#1722](https://github.com/lapce/lapce/pull/1722): Add 'Save without Formatting'; Add option to disable formatting on autosave
+- [#1741](https://github.com/lapce/lapce/pull/1741): Add syntax highlighting for glsl
+- [#1756](https://github.com/lapce/lapce/pull/1756): Add support for ssh port with ```[user@]host[:port]```
+- [#1760](https://github.com/lapce/lapce/pull/1760): Add vim motions `cw`, `ce`, `cc`, `S`, and QOL modal bind `gf`
+- [#1770](https://github.com/lapce/lapce/pull/1770): Add support for terminal tabs
+
+### Bug Fixes
+- [#1771](https://github.com/lapce/lapce/pull/1771): Update tree-sitter-bash
+- [#1737](https://github.com/lapce/lapce/pull/1726): Fix an issue that plugins can't be upgraded
+- [#1724](https://github.com/lapce/lapce/pull/1724): Files and hidden folders no longer will be considered when trying to open a plugin base folder
+- [#1753](https://github.com/lapce/lapce/pull/1753): Limit proxy search response size in order to avoid issues with absurdly long lines
+
+## 0.2.4
+
+### Features/Changes
+- [#1700](https://github.com/lapce/lapce/pull/1700): Add prisma syntax and highlighting
+- [#1702](https://github.com/lapce/lapce/pull/1702): Improved svelte treesitter queries
+- [#1690](https://github.com/lapce/lapce/pull/1690): Add codelens and sticky headers for Dart
+- [#1711](https://github.com/lapce/lapce/pull/1711): Add zstd support for plugin
+- [#1715](https://github.com/lapce/lapce/pull/1715): Add support for requests from plugins
+
+### Bug Fixes
+- [#1710](https://github.com/lapce/lapce/pull/1710): Fix autosave trying to save scratch files
+- [#1709](https://github.com/lapce/lapce/pull/1709): Fix search result ordering
+- [#1708](https://github.com/lapce/lapce/pull/1708): Fix visual issue when search panel is placed to either side panel
+
+## 0.2.3
+
 ### Features/Changes
 
+- [#1655](https://github.com/lapce/lapce/pull/1655): Add status foreground theme key, use author colour for plugin version
+- [#1646](https://github.com/lapce/lapce/pull/1646): Fork the process when started from terminal
+- [#1653](https://github.com/lapce/lapce/pull/1653): Paint plugin icons
+- [#1644](https://github.com/lapce/lapce/pull/1644): Added "Reveal in File Tree" action to the editor tabs context menu
+- [#1645](https://github.com/lapce/lapce/pull/1645): Add plugin search
+
+### Bug Fixes
+
+- [#1651](https://github.com/lapce/lapce/pull/1651): Fixed an issue where new windows would never be created after closing all windows on macOS.
+- [#1637](https://github.com/lapce/lapce/issues/1637): Fix python using 7 spaces instead of 4 spaces to indent
+- [#1669](https://github.com/lapce/lapce/issues/1669): It will now remember panel states when open a new project
+- [#1706](https://github.com/lapce/lapce/issues/1706): Fix the issue that color can't be changed in theme settings
+
+## 0.2.2
+
+### Features/Changes
+
+- [#1643](https://github.com/lapce/lapce/pull/1643): Use https://plugins.lapce.dev/ as the plugin registry
 - [#1620](https://github.com/lapce/lapce/pull/1620): Added "Show Hover" keybinding that will trigger the hover at the cursor location
 - [#1619](https://github.com/lapce/lapce/pull/1619):
   - Add active/inactive tab colours
   - Add primary button colour
-  - Replace custom drawn checkboxes with icons in source control
   - Add hover effect in source control panel
   - Add colour preview in settings
-- [#1619](https://github.com/lapce/lapce/pull/1619): Add active/inactive tab colours, add primary button colour, replace custom drawn checkboxes with icons in source
 - [#1617](https://github.com/lapce/lapce/pull/1617): Fixed a stack overflow that would crash lapce when attempting to sort a large number of PaletteItems
 - [#1609](https://github.com/lapce/lapce/pull/1609): Add syntax highlighting for erlang
 - [#1590](https://github.com/lapce/lapce/pull/1590): Added ability to open file and file diff from source control context menu
 - [#1570](https://github.com/lapce/lapce/pull/1570): Added a basic tab context menu with common close actions
 - [#1560](https://github.com/lapce/lapce/pull/1560): Added ability to copy active editor remote file path to clipboard
-- [#1510](https://github.com/lapce/lapce/1510): Added support to discard changes to a file
+- [#1510](https://github.com/lapce/lapce/pull/1510): Added support to discard changes to a file
 - [#1459](https://github.com/lapce/lapce/pull/1459): Implement icon theme system
   - **This is a breaking change for colour themes!**
   - Colour themes should now use `[color-theme]` table format in theme TOML
   - `volt.toml` now use `color-themes` and `icon-themes` keys. `themes` key is not used anymore.
-  - Colour themes now must specify colour preference via `[color-theme.color-preference]` key.
-    Available values are `Dark`, `Light`, `HighContrastDark` and `HighContrastLight`.
-    This is used to automatically calculate UI icons and background colours for hover/click events.
 - [#1554](https://github.com/lapce/lapce/pull/1554): Added XML language support
 - [#1472](https://github.com/lapce/lapce/pull/1472): Added SQL language support
 - [#1631](https://github.com/lapce/lapce/pull/1472): Added INI language support
@@ -37,7 +89,6 @@
 - [#1452](https://github.com/lapce/lapce/pull/1452): Wrap selected text with brackets/quotes
 - [#1421](https://github.com/lapce/lapce/pull/1421): Add matching bracket highlighting
 - [#1541](https://github.com/lapce/lapce/pull/1541): Order palette items according to last execute time
-
 
 ### Bug Fixes
 
@@ -81,7 +132,7 @@
 - [#1381](https://github.com/lapce/lapce/pull/1381): Show multiple hover items in the hover box
 - [#1040](https://github.com/lapce/lapce/pull/1040): Add keybindings for `Shift-Del`, `Shift-Ins`, and `Ctrl-Ins`
 - [#1401](https://github.com/lapce/lapce/pull/1401): Merge semantic and tree-sitter syntax highlighting
-- [1426](https://github.com/lapce/lapce/pull/1426): Add cursor position/current selection in status bar
+- [#1426](https://github.com/lapce/lapce/pull/1426): Add cursor position/current selection in status bar
   - ![image](https://user-images.githubusercontent.com/13157904/195414557-dbf6cff1-3ab2-49ec-ba9d-c7507b2fc83a.png)
 - [#1420](https://github.com/lapce/lapce/pull/1420): Add LSP `codeAction/resolve` support
 - [#1440](https://github.com/lapce/lapce/pull/1440): IME support

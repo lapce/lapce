@@ -18,6 +18,7 @@ use lapce_rpc::{
     style::{LineStyle, Style},
     RpcError,
 };
+use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::{
         DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument,
@@ -29,8 +30,8 @@ use lsp_types::{
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         HoverRequest, Initialize, InlayHintRequest, PrepareRenameRequest,
         References, RegisterCapability, Rename, ResolveCompletionItem,
-        SelectionRangeRequest, SemanticTokensFullRequest, WorkDoneProgressCreate,
-        WorkspaceSymbol,
+        SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest,
+        WorkDoneProgressCreate, WorkspaceSymbol,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
@@ -43,10 +44,12 @@ use lsp_types::{
     VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
-use psp_types::{Request, StartLspServer, StartLspServerParams};
+use psp_types::{
+    ExecuteProcess, ExecuteProcessParams, ExecuteProcessResult, Request,
+    StartLspServer, StartLspServerParams,
+};
 use serde::Serialize;
 use serde_json::Value;
-use xi_rope::{Rope, RopeDelta};
 
 use super::{
     lsp::{DocumentFilter, LspClient},
@@ -117,6 +120,7 @@ pub enum PluginServerRpc {
         id: Id,
         method: String,
         params: Params,
+        chan: Sender<Result<Value, RpcError>>,
     },
     HostNotification {
         method: String,
@@ -154,7 +158,7 @@ pub struct PluginServerRpcHandler {
     pub volt_id: String,
     rpc_tx: Sender<PluginServerRpc>,
     rpc_rx: Receiver<PluginServerRpc>,
-    io_tx: Sender<String>,
+    io_tx: Sender<JsonRpc>,
     id: Arc<AtomicU64>,
     server_pending: Arc<Mutex<HashMap<Id, ResponseHandler<Value, RpcError>>>>,
 }
@@ -167,7 +171,13 @@ pub trait PluginServerHandler {
     ) -> bool;
     fn method_registered(&mut self, method: &'static str) -> bool;
     fn handle_host_notification(&mut self, method: String, params: Params);
-    fn handle_host_request(&mut self, id: Id, method: String, params: Params);
+    fn handle_host_request(
+        &mut self,
+        id: Id,
+        method: String,
+        params: Params,
+        chan: Sender<Result<Value, RpcError>>,
+    );
     fn handle_handler_notification(
         &mut self,
         notification: PluginHandlerNotification,
@@ -202,7 +212,7 @@ pub trait PluginServerHandler {
 }
 
 impl PluginServerRpcHandler {
-    pub fn new(volt_id: String, io_tx: Sender<String>) -> Self {
+    pub fn new(volt_id: String, io_tx: Sender<JsonRpc>) -> Self {
         let (rpc_tx, rpc_rx) = crossbeam_channel::unbounded();
 
         let rpc = Self {
@@ -237,41 +247,15 @@ impl PluginServerRpcHandler {
             pending.insert(id.clone(), rh);
         }
         let msg = JsonRpc::request_with_params(id, method, params);
-        let msg = serde_json::to_string(&msg).unwrap();
         self.send_server_rpc(msg);
     }
 
     fn send_server_notification(&self, method: &str, params: Params) {
         let msg = JsonRpc::notification_with_params(method, params);
-        let msg = serde_json::to_string(&msg).unwrap();
         self.send_server_rpc(msg);
     }
 
-    fn send_host_error(&self, id: Id, err: RpcError) {
-        self.send_host_response::<Value>(id, Err(err));
-    }
-
-    fn send_host_success<V: Serialize>(&self, id: Id, v: V) {
-        self.send_host_response(id, Ok(v));
-    }
-
-    fn send_host_response<V: Serialize>(&self, id: Id, result: Result<V, RpcError>) {
-        let msg = match result {
-            Ok(v) => JsonRpc::success(id, &serde_json::to_value(v).unwrap()),
-            Err(e) => JsonRpc::error(
-                id,
-                jsonrpc_lite::Error {
-                    code: e.code,
-                    message: e.message,
-                    data: None,
-                },
-            ),
-        };
-        let msg = serde_json::to_string(&msg).unwrap();
-        self.send_server_rpc(msg);
-    }
-
-    fn send_server_rpc(&self, msg: String) {
+    fn send_server_rpc(&self, msg: JsonRpc) {
         let _ = self.io_tx.send(msg);
     }
 
@@ -426,8 +410,13 @@ impl PluginServerRpcHandler {
                         self.send_server_notification(method, params);
                     }
                 }
-                PluginServerRpc::HostRequest { id, method, params } => {
-                    handler.handle_host_request(id, method, params);
+                PluginServerRpc::HostRequest {
+                    id,
+                    method,
+                    params,
+                    chan,
+                } => {
+                    handler.handle_host_request(id, method, params, chan);
                 }
                 PluginServerRpc::HostNotification { method, params } => {
                     handler.handle_host_notification(method, params);
@@ -479,15 +468,31 @@ impl PluginServerRpcHandler {
 pub fn handle_plugin_server_message(
     server_rpc: &PluginServerRpcHandler,
     message: &str,
-) {
+) -> Option<JsonRpc> {
     match JsonRpc::parse(message) {
         Ok(value @ JsonRpc::Request(_)) => {
+            let (tx, rx) = crossbeam_channel::unbounded();
+            let id = value.get_id().unwrap();
             let rpc = PluginServerRpc::HostRequest {
-                id: value.get_id().unwrap(),
+                id: id.clone(),
                 method: value.get_method().unwrap().to_string(),
                 params: value.get_params().unwrap(),
+                chan: tx,
             };
             server_rpc.handle_rpc(rpc);
+            let result = rx.recv().unwrap();
+            let resp = match result {
+                Ok(v) => JsonRpc::success(id, &v),
+                Err(e) => JsonRpc::error(
+                    id,
+                    jsonrpc_lite::Error {
+                        code: e.code,
+                        message: e.message,
+                        data: None,
+                    },
+                ),
+            };
+            Some(resp)
         }
         Ok(value @ JsonRpc::Notification(_)) => {
             let rpc = PluginServerRpc::HostNotification {
@@ -495,10 +500,12 @@ pub fn handle_plugin_server_message(
                 params: value.get_params().unwrap(),
             };
             server_rpc.handle_rpc(rpc);
+            None
         }
         Ok(value @ JsonRpc::Success(_)) => {
             let result = value.get_result().unwrap().clone();
             server_rpc.handle_server_response(value.get_id().unwrap(), Ok(result));
+            None
         }
         Ok(value @ JsonRpc::Error(_)) => {
             let error = value.get_error().unwrap();
@@ -509,9 +516,11 @@ pub fn handle_plugin_server_message(
                     message: error.message.clone(),
                 }),
             );
+            None
         }
         Err(err) => {
-            eprintln!("parse error {err}");
+            eprintln!("parse error {err} message {message}");
+            None
         }
     }
 }
@@ -632,6 +641,9 @@ impl PluginHostHandler {
                         .unwrap_or(false),
                     None => false,
                 }
+            }
+            SignatureHelpRequest::METHOD => {
+                self.server_capabilities.signature_help_provider.is_some()
             }
             HoverRequest::METHOD => self
                 .server_capabilities
@@ -784,30 +796,43 @@ impl PluginHostHandler {
 
     pub fn handle_request(
         &mut self,
-        id: Id,
+        _id: Id,
         method: String,
         params: Params,
-    ) -> Result<()> {
+        chan: Sender<Result<Value, RpcError>>,
+    ) {
+        let result = self.process_request(method, params);
+        let _ = chan.send(result.map_err(|e| RpcError {
+            code: 0,
+            message: e.to_string(),
+        }));
+    }
+
+    pub fn process_request(
+        &mut self,
+        method: String,
+        params: Params,
+    ) -> Result<Value> {
         match method.as_str() {
-            WorkDoneProgressCreate::METHOD => {
-                self.server_rpc.send_host_success(id, Value::Null);
-            }
+            WorkDoneProgressCreate::METHOD => Ok(Value::Null),
             RegisterCapability::METHOD => {
                 let params: RegistrationParams =
                     serde_json::from_value(serde_json::to_value(params)?)?;
                 self.register_capabilities(params.registrations);
+                Ok(Value::Null)
             }
-            _ => {
-                self.server_rpc.send_host_error(
-                    id,
-                    RpcError {
-                        code: 0,
-                        message: "request not handled".to_string(),
-                    },
-                );
+            ExecuteProcess::METHOD => {
+                let params: ExecuteProcessParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                let output = std::process::Command::new(params.program)
+                    .args(params.args)
+                    .output()?;
+                Ok(serde_json::to_value(ExecuteProcessResult {
+                    success: output.status.success(),
+                })?)
             }
+            _ => Err(anyhow!("request not supported")),
         }
-        Ok(())
     }
 
     pub fn handle_notification(

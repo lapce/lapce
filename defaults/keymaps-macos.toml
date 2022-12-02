@@ -42,6 +42,10 @@ key = "meta+shift+z"
 command = "redo"
 
 [[keymaps]]
+key = "meta+y"
+command = "redo"
+
+[[keymaps]]
 key = "meta+x"
 command = "clipboard_cut"
 
@@ -198,6 +202,11 @@ mode = "i"
 [[keymaps]]
 key = "meta+i"
 command = "get_completion"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+shift+space"
+command = "get_signature"
 mode = "i"
 
 [[keymaps]]

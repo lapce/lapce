@@ -88,6 +88,11 @@ command = "rename_symbol"
 key = "F12"
 command = "goto_definition"
 
+[[keymaps]]
+key = "g f"
+command = "show_code_actions"
+mode = "n"
+
 # ------------------------------------ Navigation -------------------------------------
 
 [[keymaps]]
@@ -430,6 +435,31 @@ mode = "n"
 key = "s"
 command = "delete_forward_and_insert"
 mode = "nv"
+
+[[keymaps]]
+key = "c"
+command = "delete_forward_and_insert"
+mode = "v"
+
+[[keymaps]]
+key = "shift+s"
+command = "delete_line_and_insert"
+mode = "n"
+
+[[keymaps]]
+key = "c c"
+command = "delete_line_and_insert"
+mode = "n"
+
+[[keymaps]]
+key = "c w"
+command = "delete_word_and_insert"
+mode = "n"
+
+[[keymaps]]
+key = "c e"
+command = "delete_word_and_insert"
+mode = "n"
 
 [[keymaps]]
 key = "shift+i"

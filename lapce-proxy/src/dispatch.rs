@@ -14,6 +14,7 @@ use git2::{build::CheckoutBuilder, DiffOptions, Repository};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{sinks::UTF8, SearcherBuilder};
+use indexmap::IndexMap;
 use lapce_rpc::{
     core::{CoreNotification, CoreRpcHandler},
     file::FileNodeItem,
@@ -26,10 +27,10 @@ use lapce_rpc::{
     terminal::TermId,
     RequestId, RpcError,
 };
+use lapce_xi_rope::Rope;
 use lsp_types::{Position, Range, TextDocumentItem, Url};
 use parking_lot::Mutex;
 use regex::Regex;
-use xi_rope::Rope;
 
 use crate::{
     buffer::{get_mod_time, load_file, Buffer},
@@ -117,6 +118,13 @@ impl ProxyHandler for Dispatcher {
             } => {
                 self.catalog_rpc
                     .completion(request_id, &path, input, position);
+            }
+            SignatureHelp {
+                request_id,
+                path,
+                position,
+            } => {
+                self.catalog_rpc.signature_help(request_id, &path, position);
             }
             Shutdown {} => {
                 self.catalog_rpc.shutdown();
@@ -296,9 +304,10 @@ impl ProxyHandler for Dispatcher {
             } => {
                 let workspace = self.workspace.clone();
                 let proxy_rpc = self.proxy_rpc.clone();
+                // Perform the search on another thread to avoid blocking the proxy thread
                 thread::spawn(move || {
                     let result = if let Some(workspace) = workspace.as_ref() {
-                        let mut matches = HashMap::new();
+                        let mut matches = IndexMap::new();
                         let pattern = regex::escape(&pattern);
                         if let Ok(matcher) = RegexMatcherBuilder::new()
                             .case_insensitive(!case_sensitive)
@@ -317,10 +326,20 @@ impl ProxyHandler for Dispatcher {
                                                 let mymatch = matcher
                                                     .find(line.as_bytes())?
                                                     .unwrap();
+                                                // Shorten the line to avoid sending over absurdly long-lines
+                                                // (such as in minified javascript)
+                                                // Note that the start/end are column based, not absolute from the
+                                                // start of the file.
+                                                let display_range = mymatch
+                                                    .start()
+                                                    .saturating_sub(100)
+                                                    ..line
+                                                        .len()
+                                                        .min(mymatch.end() + 100);
                                                 line_matches.push((
                                                     lnum as usize,
                                                     (mymatch.start(), mymatch.end()),
-                                                    line.to_string(),
+                                                    line[display_range].to_string(),
                                                 ));
                                                 Ok(true)
                                             }),

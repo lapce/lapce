@@ -21,15 +21,16 @@ use lapce_rpc::{
     style::Style,
     terminal::TermId,
 };
+use lapce_xi_rope::{spans::Spans, Rope};
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     InlayHint, Location, MessageType, Position, ProgressParams,
-    PublishDiagnosticsParams, SelectionRange, TextEdit, WorkspaceEdit,
+    PublishDiagnosticsParams, SelectionRange, SignatureHelp, TextEdit,
+    WorkspaceEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
-use xi_rope::{spans::Spans, Rope};
 
 use crate::{
     alert::AlertContentData,
@@ -42,6 +43,7 @@ use crate::{
     keypress::{KeyMap, KeyPress},
     menu::MenuKind,
     palette::{PaletteItem, PaletteType},
+    plugin::{PluginsInfo, VoltIconKind},
     proxy::ProxyStatus,
     rich_text::RichText,
     search::Match,
@@ -274,6 +276,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "new_window_tab")]
     #[strum(message = "Create New Window Tab")]
     NewWindowTab,
+
+    #[strum(serialize = "new_terminal_tab")]
+    #[strum(message = "Create New Terminal Tab")]
+    NewTerminalTab,
+
+    #[strum(serialize = "close_terminal_tab")]
+    #[strum(message = "Close Terminal Tab")]
+    CloseTerminalTab,
 
     #[strum(serialize = "next_window_tab")]
     #[strum(message = "Go To Next Window Tab")]
@@ -541,7 +551,7 @@ pub enum LapceUICommand {
         pattern: String,
         case_sensitive: bool,
     },
-    GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),
+    GlobalSearchResult(String, Arc<IndexMap<PathBuf, Vec<Match>>>),
     CancelFilePicker,
     SetWorkspace(LapceWorkspace),
     SetColorTheme(String, bool),
@@ -559,6 +569,11 @@ pub enum LapceUICommand {
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
     UpdateCompletion(usize, String, CompletionResponse, PluginId),
+    UpdateSignature {
+        request_id: usize,
+        resp: SignatureHelp,
+        plugin_id: PluginId,
+    },
     UpdateHover(usize, Arc<Vec<RichText>>),
     UpdateVoltReadme(RichText),
     UpdateInlayHints {
@@ -582,6 +597,7 @@ pub enum LapceUICommand {
     ResignFocus,
     UpdateLatestRelease(ReleaseInfo),
     Focus,
+    FocusLost,
     ChildrenChanged,
     EnsureEditorTabActiveVisible,
     FocusSourceControl,
@@ -596,6 +612,7 @@ pub enum LapceUICommand {
     UpdatePaletteItems(String, im::Vector<PaletteItem>),
     FilterPaletteItems(String, String, im::Vector<PaletteItem>),
     UpdateKeymapsFilter(String),
+    ResetSettings,
     ResetSettingsFile(String, String),
     UpdateSettingsFile(String, String, Value),
     UpdateSettingsFilter(String),
@@ -603,11 +620,14 @@ pub enum LapceUICommand {
     UpdatePickerPwd(PathBuf),
     UpdatePickerItems(PathBuf, HashMap<PathBuf, FileNodeItem>),
     UpdateExplorerItems(PathBuf, HashMap<PathBuf, FileNodeItem>, bool),
-    LoadPlugins(Vec<VoltInfo>),
+    LoadPluginLatest(VoltInfo),
+    LoadPlugins(PluginsInfo),
     LoadPluginsFailed,
-    VoltInstalled(VoltMetadata, bool),
-    VoltInstalling(VoltMetadata, String),
+    LoadPluginIcon(String, VoltIconKind),
+    VoltInstalled(VoltMetadata, Option<String>),
+    VoltInstalling(VoltInfo, String),
     VoltRemoving(VoltMetadata, String),
+    VoltInstallStatusClear(String),
     VoltRemoved(VoltInfo, bool),
     EnableVolt(VoltInfo),
     DisableVolt(VoltInfo),
@@ -764,6 +784,9 @@ pub enum LapceUICommand {
     ExplorerEndNaming {
         /// Whether it should name/rename the file with the input data
         apply_naming: bool,
+    },
+    ExplorerRevealPath {
+        path: PathBuf,
     },
     FileExplorerRefresh,
     PutToClipboard(String),

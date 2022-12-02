@@ -32,6 +32,7 @@ pub struct SearchInput {
     result_width: f64,
     search_input_padding: f64,
     mouse_pos: Point,
+    background_color: Option<&'static str>,
 }
 
 impl SearchInput {
@@ -64,7 +65,13 @@ impl SearchInput {
             icons,
             mouse_pos: Point::ZERO,
             search_input_padding,
+            background_color: Some(LapceTheme::EDITOR_BACKGROUND),
         }
+    }
+
+    pub fn clear_background_color(mut self) -> Self {
+        self.background_color = None;
+        self
     }
 
     fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
@@ -127,9 +134,9 @@ impl Widget<LapceTabData> for SearchInput {
         let icon_height = height - self.search_input_padding;
         let mut width = input_size.width + self.result_width + height * icon_len;
 
-        if width - 20.0 > bc.max().width {
+        if width > bc.max().width {
             let input_bc = BoxConstraints::tight(Size::new(
-                bc.max().width - height * icon_len - 20.0 - self.result_width,
+                bc.max().width - height * icon_len - self.result_width,
                 bc.max().height,
             ));
             input_size = self.input.layout(ctx, &input_bc, data, env);
@@ -172,12 +179,10 @@ impl Widget<LapceTabData> for SearchInput {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let buffer = data.editor_view_content(self.parent_view_id);
 
-        let rect = ctx.size().to_rect();
-        ctx.fill(
-            rect,
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-        );
+        if let Some(background_color) = self.background_color {
+            let rect = ctx.size().to_rect();
+            ctx.fill(rect, data.config.get_color_unchecked(background_color));
+        }
         self.input.paint(ctx, data, env);
 
         let mut index = None;
@@ -238,7 +243,7 @@ impl Widget<LapceTabData> for SearchInput {
         for icon in self.icons.iter() {
             if icon.icon == LapceIcons::SEARCH_CASE_SENSITIVE && case_sensitive {
                 ctx.fill(
-                    &icon.rect,
+                    icon.rect,
                     data.config
                         .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_UNDERLINE),
                 );
@@ -246,7 +251,7 @@ impl Widget<LapceTabData> for SearchInput {
                 && icon.icon != LapceIcons::SEARCH_CASE_SENSITIVE
             {
                 ctx.fill(
-                    &icon.rect,
+                    icon.rect,
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
                 );
@@ -272,7 +277,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
         .get(&data.search.editor_view_id)
         .unwrap();
 
-    let search_bar = SearchInput::new(editor_data.view_id);
+    let search_bar = SearchInput::new(editor_data.view_id).clear_background_color();
 
     let split = LapceSplit::new(data.search.split_id)
         .horizontal()

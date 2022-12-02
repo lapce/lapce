@@ -1,7 +1,7 @@
 use std::str;
 
 use lapce_rpc::style::{LineStyle, Style};
-use xi_rope::{spans::Spans, LinesMetric, Rope};
+use lapce_xi_rope::{spans::Spans, LinesMetric, Rope};
 
 pub const SCOPES: &[&str] = &[
     "constant",

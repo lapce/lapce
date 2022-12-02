@@ -9,8 +9,10 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_rpc::{style::LineStyle, RpcError};
+use lapce_xi_rope::Rope;
 use lsp_types::{
     notification::{Initialized, Notification},
     request::{Initialize, Request},
@@ -18,7 +20,6 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde_json::{json, Value};
-use xi_rope::Rope;
 
 use super::psp::{
     handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
@@ -86,8 +87,14 @@ impl PluginServerHandler for LspClient {
         }
     }
 
-    fn handle_host_request(&mut self, id: Id, method: String, params: Params) {
-        let _ = self.host.handle_request(id, method, params);
+    fn handle_host_request(
+        &mut self,
+        id: Id,
+        method: String,
+        params: Params,
+        chan: Sender<Result<Value, RpcError>>,
+    ) {
+        self.host.handle_request(id, method, params, chan);
     }
 
     fn handle_host_notification(&mut self, method: String, params: Params) {
@@ -99,7 +106,7 @@ impl PluginServerHandler for LspClient {
         language_id: String,
         path: PathBuf,
         text_document: TextDocumentIdentifier,
-        text: xi_rope::Rope,
+        text: lapce_xi_rope::Rope,
     ) {
         self.host.handle_did_save_text_document(
             language_id,
@@ -113,9 +120,9 @@ impl PluginServerHandler for LspClient {
         &mut self,
         language_id: String,
         document: lsp_types::VersionedTextDocumentIdentifier,
-        delta: xi_rope::RopeDelta,
-        text: xi_rope::Rope,
-        new_text: xi_rope::Rope,
+        delta: lapce_xi_rope::RopeDelta,
+        text: lapce_xi_rope::Rope,
+        new_text: lapce_xi_rope::Rope,
         change: Arc<
             Mutex<(
                 Option<TextDocumentContentChangeEvent>,
@@ -177,12 +184,15 @@ impl LspClient {
 
         let mut writer = Box::new(BufWriter::new(stdin));
         let (io_tx, io_rx) = crossbeam_channel::unbounded();
-        let server_rpc = PluginServerRpcHandler::new(volt_id.clone(), io_tx);
+        let server_rpc = PluginServerRpcHandler::new(volt_id.clone(), io_tx.clone());
         thread::spawn(move || {
             for msg in io_rx {
-                let msg = format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
-                let _ = writer.write(msg.as_bytes());
-                let _ = writer.flush();
+                if let Ok(msg) = serde_json::to_string(&msg) {
+                    let msg =
+                        format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
+                    let _ = writer.write(msg.as_bytes());
+                    let _ = writer.flush();
+                }
             }
         });
 
@@ -193,10 +203,12 @@ impl LspClient {
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
-                        handle_plugin_server_message(
+                        if let Some(resp) = handle_plugin_server_message(
                             &local_server_rpc,
                             &message_str,
-                        );
+                        ) {
+                            let _ = io_tx.send(resp);
+                        }
                     }
                     Err(_err) => {
                         core_rpc.log(
@@ -302,6 +314,19 @@ impl LspClient {
                             },
                         ),
                         ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+                signature_help: Some(SignatureHelpClientCapabilities {
+                    signature_information: Some(SignatureInformationSettings {
+                        documentation_format: Some(vec![
+                            MarkupKind::Markdown,
+                            MarkupKind::PlainText,
+                        ]),
+                        parameter_information: Some(ParameterInformationSettings {
+                            label_offset_support: Some(true),
+                        }),
+                        active_parameter_support: Some(true),
                     }),
                     ..Default::default()
                 }),
@@ -445,7 +470,7 @@ impl LspClient {
     ) -> Result<Child> {
         let mut process = Command::new(server);
         if let Some(workspace) = workspace {
-            process.current_dir(&workspace);
+            process.current_dir(workspace);
         }
 
         process.args(args);

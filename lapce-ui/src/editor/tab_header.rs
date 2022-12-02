@@ -138,9 +138,11 @@ impl LapceEditorTabHeader {
                 EditorTabChild::Settings { .. } => {
                     text = "Settings".to_string();
                     hint = format!("ver. {}", *meta::VERSION);
+                    svg = data.config.ui_svg(LapceIcons::SETTINGS);
                 }
                 EditorTabChild::Plugin { volt_name, .. } => {
                     text = format!("Plugin: {volt_name}");
+                    svg = data.config.ui_svg(LapceIcons::EXTENSIONS);
                 }
             }
         }
@@ -431,7 +433,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
         for icon in self.icons.iter() {
             if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
-                    &icon.rect,
+                    icon.rect,
                     &data.config.get_hover_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),

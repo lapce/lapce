@@ -12,13 +12,12 @@ use itertools::Itertools;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     completion::{CompletionData, CompletionStatus, ScoredCompletionItem},
-    config::{LapceConfig, LapceTheme},
+    config::LapceTheme,
     data::LapceTabData,
     list::ListData,
-    markdown::parse_markdown,
-    rich_text::{RichText, RichTextBuilder},
+    markdown::parse_documentation,
+    rich_text::RichText,
 };
-use lsp_types::{Documentation, MarkupKind};
 use regex::Regex;
 
 use crate::{
@@ -679,26 +678,5 @@ impl Widget<LapceTabData> for CompletionDocumentation {
         let origin = Point::new(Self::STARTING_X, Self::STARTING_Y);
 
         self.doc_layout.draw(ctx, origin);
-    }
-}
-
-fn parse_documentation(doc: &Documentation, config: &LapceConfig) -> RichText {
-    match doc {
-        // We assume this is plain text
-        Documentation::String(text) => {
-            let mut builder = RichTextBuilder::new();
-            builder.set_line_height(1.5);
-            builder.push(text);
-            builder.build()
-        }
-        Documentation::MarkupContent(content) => match content.kind {
-            MarkupKind::PlainText => {
-                let mut builder = RichTextBuilder::new();
-                builder.set_line_height(1.5);
-                builder.push(&content.value);
-                builder.build()
-            }
-            MarkupKind::Markdown => parse_markdown(&content.value, 1.5, config),
-        },
     }
 }

@@ -1,14 +1,20 @@
 pub mod plugin_install_status;
 
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, str::FromStr, sync::Arc};
 
 use anyhow::Result;
-use druid::{ExtEventSink, Target, WidgetId};
+use druid::{
+    piet::{PietImage, Svg},
+    ExtEventSink, Target, WidgetId,
+};
 use indexmap::IndexMap;
-use lapce_proxy::plugin::{download_volt, wasi::find_all_volts};
+use lapce_core::directory::Directory;
+use lapce_proxy::plugin::{download_volt, volt_icon, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
-use lsp_types::Url;
+use parking_lot::Mutex;
 use plugin_install_status::PluginInstallStatus;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use strum_macros::Display;
 
 use crate::{
@@ -19,62 +25,128 @@ use crate::{
 };
 
 #[derive(Clone)]
+pub enum VoltIconKind {
+    Svg(Arc<Svg>),
+    Image(Arc<PietImage>),
+}
+
+impl VoltIconKind {
+    pub fn from_bytes(buf: &[u8]) -> Result<Self> {
+        if let Ok(s) = std::str::from_utf8(buf) {
+            let svg =
+                Svg::from_str(s).map_err(|_| anyhow::anyhow!("can't parse svg"))?;
+            Ok(VoltIconKind::Svg(Arc::new(svg)))
+        } else {
+            let image = PietImage::from_bytes(buf)
+                .map_err(|_| anyhow::anyhow!("can't resolve image"))?;
+            Ok(VoltIconKind::Image(Arc::new(image)))
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct VoltsList {
+    pub tab_id: WidgetId,
+    pub total: usize,
     pub volts: IndexMap<String, VoltInfo>,
+    pub icons: im::HashMap<String, VoltIconKind>,
     pub status: PluginLoadStatus,
+    pub loading: Arc<Mutex<bool>>,
+    pub event_sink: ExtEventSink,
+    pub query: String,
 }
 
 impl VoltsList {
-    pub fn new() -> Self {
+    pub fn new(tab_id: WidgetId, event_sink: ExtEventSink) -> Self {
         Self {
+            tab_id,
             volts: IndexMap::new(),
+            icons: im::HashMap::new(),
+            total: 0,
             status: PluginLoadStatus::Loading,
+            loading: Arc::new(Mutex::new(false)),
+            query: "".to_string(),
+            event_sink,
         }
     }
 
-    pub fn update_volts(&mut self, volts: &[VoltInfo]) {
+    pub fn update_query(&mut self, query: String) {
+        if self.query == query {
+            return;
+        }
+
+        self.query = query;
         self.volts.clear();
-        for v in volts {
+        self.total = 0;
+        self.status = PluginLoadStatus::Loading;
+
+        let event_sink = self.event_sink.clone();
+        let query = self.query.clone();
+        let tab_id = self.tab_id;
+        std::thread::spawn(move || {
+            let _ =
+                PluginData::load_volts(tab_id, true, &query, 0, None, event_sink);
+        });
+    }
+
+    pub fn load_more(&self) {
+        if self.all_loaded() {
+            return;
+        }
+
+        let mut loading = self.loading.lock();
+        if *loading {
+            return;
+        }
+        *loading = true;
+
+        let offset = self.volts.len();
+        let local_loading = self.loading.clone();
+        let event_sink = self.event_sink.clone();
+        let query = self.query.clone();
+        let tab_id = self.tab_id;
+        std::thread::spawn(move || {
+            let _ = PluginData::load_volts(
+                tab_id,
+                false,
+                &query,
+                offset,
+                Some(local_loading),
+                event_sink,
+            );
+        });
+    }
+
+    fn all_loaded(&self) -> bool {
+        self.volts.len() == self.total
+    }
+
+    pub fn update_volts(&mut self, info: &PluginsInfo) {
+        self.total = info.total;
+        for v in &info.plugins {
             self.volts.insert(v.id(), v.clone());
         }
         self.status = PluginLoadStatus::Success;
+        *self.loading.lock() = false;
     }
 
     pub fn failed(&mut self) {
         self.status = PluginLoadStatus::Failed;
-    }
-
-    pub fn update(&mut self, volt: &VoltInfo) {
-        let volt_id = volt.id();
-        if let Some(v) = self.volts.get_mut(&volt_id) {
-            *v = volt.clone();
-        } else {
-            self.volts.insert(volt_id, volt.clone());
-        }
-        self.status = PluginLoadStatus::Success;
-    }
-
-    pub fn remove(&mut self, volt: &VoltInfo) {
-        let volt_id = volt.id();
-        self.volts.remove(&volt_id);
-    }
-}
-
-impl Default for VoltsList {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
 #[derive(Clone)]
 pub struct PluginData {
     pub widget_id: WidgetId,
+    pub search_editor: WidgetId,
     pub installed_id: WidgetId,
     pub uninstalled_id: WidgetId,
 
     pub volts: VoltsList,
     pub installing: IndexMap<String, PluginInstallStatus>,
     pub installed: IndexMap<String, VoltMetadata>,
+    pub installed_latest: IndexMap<String, VoltInfo>,
+    pub installed_icons: im::HashMap<String, VoltIconKind>,
     pub disabled: HashSet<String>,
     pub workspace_disabled: HashSet<String>,
 }
@@ -86,6 +158,12 @@ pub enum PluginLoadStatus {
     Success,
 }
 
+#[derive(Deserialize, Serialize)]
+pub struct PluginsInfo {
+    pub plugins: Vec<VoltInfo>,
+    pub total: usize,
+}
+
 impl PluginData {
     pub fn new(
         tab_id: WidgetId,
@@ -93,17 +171,23 @@ impl PluginData {
         workspace_disabled: Vec<String>,
         event_sink: ExtEventSink,
     ) -> Self {
-        std::thread::spawn(move || {
-            Self::load(tab_id, event_sink);
-        });
+        {
+            let event_sink = event_sink.clone();
+            std::thread::spawn(move || {
+                Self::load(tab_id, event_sink);
+            });
+        }
 
         Self {
             widget_id: WidgetId::next(),
+            search_editor: WidgetId::next(),
             installed_id: WidgetId::next(),
             uninstalled_id: WidgetId::next(),
-            volts: VoltsList::new(),
+            volts: VoltsList::new(tab_id, event_sink),
             installing: IndexMap::new(),
             installed: IndexMap::new(),
+            installed_latest: IndexMap::new(),
+            installed_icons: im::HashMap::new(),
             disabled: HashSet::from_iter(disabled.into_iter()),
             workspace_disabled: HashSet::from_iter(workspace_disabled.into_iter()),
         }
@@ -112,30 +196,18 @@ impl PluginData {
     fn load(tab_id: WidgetId, event_sink: ExtEventSink) {
         for meta in find_all_volts() {
             if meta.wasm.is_none() {
+                let icon = volt_icon(&meta);
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::VoltInstalled(meta, false),
+                    LapceUICommand::VoltInstalled(meta, icon),
                     Target::Widget(tab_id),
                 );
             }
         }
 
-        match Self::load_volts() {
-            Ok(volts) => {
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::LoadPlugins(volts),
-                    Target::Widget(tab_id),
-                );
-            }
-            Err(_) => {
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::LoadPluginsFailed,
-                    Target::Widget(tab_id),
-                );
-            }
-        }
+        std::thread::spawn(move || {
+            let _ = PluginData::load_volts(tab_id, true, "", 0, None, event_sink);
+        });
     }
 
     pub fn plugin_disabled(&self, id: &str) -> bool {
@@ -148,11 +220,15 @@ impl PluginData {
         }
 
         if let Some(meta) = self.installed.get(id) {
-            if let Some(volt) = self.volts.volts.get(id) {
+            if let Some(volt) = self
+                .installed_latest
+                .get(id)
+                .or_else(|| self.volts.volts.get(id))
+            {
                 if meta.version == volt.version {
                     PluginStatus::Installed
                 } else {
-                    PluginStatus::Upgrade(volt.meta.clone())
+                    PluginStatus::Upgrade(volt.version.clone())
                 }
             } else {
                 PluginStatus::Installed
@@ -162,10 +238,96 @@ impl PluginData {
         }
     }
 
-    fn load_volts() -> Result<Vec<VoltInfo>> {
-        let volts: Vec<VoltInfo> =
-            reqwest::blocking::get("https://lapce.dev/volts2")?.json()?;
-        Ok(volts)
+    fn load_icon(volt: &VoltInfo) -> Result<VoltIconKind> {
+        let url = format!(
+            "https://plugins.lapce.dev/api/v1/plugins/{}/{}/{}/icon?id={}",
+            volt.author, volt.name, volt.version, volt.updated_at_ts
+        );
+
+        let cache_file_path = Directory::cache_directory().map(|cache_dir| {
+            let mut hasher = Sha256::new();
+            hasher.update(url.as_bytes());
+            let filename = format!("{:x}", hasher.finalize());
+            cache_dir.join(filename)
+        });
+
+        let cache_content =
+            cache_file_path.as_ref().and_then(|p| std::fs::read(p).ok());
+
+        let content = match cache_content {
+            Some(content) => content,
+            None => {
+                let resp = reqwest::blocking::get(&url)?;
+                if !resp.status().is_success() {
+                    return Err(anyhow::anyhow!("can't download icon"));
+                }
+                let buf = resp.bytes()?.to_vec();
+
+                if let Some(path) = cache_file_path.as_ref() {
+                    let _ = std::fs::write(path, &buf);
+                }
+
+                buf
+            }
+        };
+
+        VoltIconKind::from_bytes(&content)
+    }
+
+    fn load_volts(
+        tab_id: WidgetId,
+        inital: bool,
+        query: &str,
+        offset: usize,
+        loading: Option<Arc<Mutex<bool>>>,
+        event_sink: ExtEventSink,
+    ) -> Result<()> {
+        match PluginData::query_volts(query, offset) {
+            Ok(info) => {
+                for v in info.plugins.iter() {
+                    {
+                        let volt = v.clone();
+                        let event_sink = event_sink.clone();
+                        std::thread::spawn(move || -> Result<()> {
+                            let icon = Self::load_icon(&volt)?;
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::LoadPluginIcon(volt.id(), icon),
+                                Target::Widget(tab_id),
+                            );
+                            Ok(())
+                        });
+                    }
+                }
+
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::LoadPlugins(info),
+                    Target::Widget(tab_id),
+                );
+            }
+            Err(_) => {
+                if inital {
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::LoadPluginsFailed,
+                        Target::Widget(tab_id),
+                    );
+                }
+                if let Some(loading) = loading.as_ref() {
+                    *loading.lock() = false;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn query_volts(query: &str, offset: usize) -> Result<PluginsInfo> {
+        let url = format!(
+            "https://plugins.lapce.dev/api/v1/plugins?q={query}&offset={offset}"
+        );
+        let plugins: PluginsInfo = reqwest::blocking::get(&url)?.json()?;
+        Ok(plugins)
     }
 
     pub fn download_readme(
@@ -174,8 +336,10 @@ impl PluginData {
         config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> Result<()> {
-        let url = Url::parse(&volt.meta)?;
-        let url = url.join("./README.md")?;
+        let url = format!(
+            "https://plugins.lapce.dev/api/v1/plugins/{}/{}/{}/readme",
+            volt.author, volt.name, volt.version
+        );
         let resp = reqwest::blocking::get(url)?;
         if resp.status() != 200 {
             let text = parse_markdown("Plugin doesn't have a README", 2.0, config);
@@ -197,32 +361,25 @@ impl PluginData {
     }
 
     pub fn install_volt(proxy: Arc<LapceProxy>, volt: VoltInfo) -> Result<()> {
-        let meta_str = reqwest::blocking::get(&volt.meta)?.text()?;
-        let meta: VoltMetadata = toml_edit::easy::from_str(&meta_str)?;
+        proxy.core_rpc.volt_installing(volt.clone(), "".to_string());
 
-        proxy.core_rpc.volt_installing(meta.clone(), "".to_string());
-
-        if meta.wasm.is_some() {
+        if volt.wasm {
             proxy.proxy_rpc.install_volt(volt);
         } else {
             std::thread::spawn(move || -> Result<()> {
-                let download_volt_result =
-                    download_volt(volt, false, &meta, &meta_str);
+                let download_volt_result = download_volt(&volt);
                 if let Err(err) = download_volt_result {
                     log::warn!("download_volt err: {err:?}");
                     proxy.core_rpc.volt_installing(
-                        meta.clone(),
-                        "Could not download Volt".to_string(),
+                        volt.clone(),
+                        "Could not download Plugin".to_string(),
                     );
-                    std::thread::spawn(move || {
-                        std::thread::sleep(std::time::Duration::from_secs(3));
-                        proxy.core_rpc.volt_installed(meta, true);
-                    });
                     return Ok(());
                 }
 
                 let meta = download_volt_result?;
-                proxy.core_rpc.volt_installed(meta, false);
+                let icon = volt_icon(&meta);
+                proxy.core_rpc.volt_installed(meta, icon);
                 Ok(())
             });
         }
@@ -247,10 +404,6 @@ impl PluginData {
                         meta.clone(),
                         "Could not remove Plugin Directory".to_string(),
                     );
-                    std::thread::spawn(move || {
-                        std::thread::sleep(std::time::Duration::from_secs(3));
-                        proxy.core_rpc.volt_removed(meta.info(), true);
-                    });
                 } else {
                     proxy.core_rpc.volt_removed(meta.info(), false);
                 }
@@ -258,6 +411,41 @@ impl PluginData {
             });
         }
         Ok(())
+    }
+
+    pub fn volt_installed(
+        &mut self,
+        tab_id: WidgetId,
+        volt: &VoltMetadata,
+        icon: &Option<String>,
+        event_sink: ExtEventSink,
+    ) {
+        let volt_id = volt.id();
+
+        self.installing.remove(&volt_id);
+        self.installed.insert(volt_id.clone(), volt.clone());
+
+        if let Some(icon) = icon.as_ref().and_then(|icon| {
+            VoltIconKind::from_bytes(&base64::decode(icon).ok()?).ok()
+        }) {
+            self.installed_icons.insert(volt_id.clone(), icon);
+        }
+
+        if !self.volts.volts.contains_key(&volt_id) {
+            let url = format!(
+                "https://plugins.lapce.dev/api/v1/plugins/{}/{}/latest",
+                volt.author, volt.name
+            );
+            std::thread::spawn(move || -> Result<()> {
+                let info: VoltInfo = reqwest::blocking::get(url)?.json()?;
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::LoadPluginLatest(info),
+                    Target::Widget(tab_id),
+                );
+                Ok(())
+            });
+        }
     }
 }
 

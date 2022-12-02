@@ -27,13 +27,13 @@ use lapce_core::{
     syntax::edit::SyntaxEdit,
 };
 use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
+use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionOrCommand,
     CodeActionResponse, CompletionItem, CompletionTextEdit, DiagnosticSeverity,
     DocumentChangeOperation, DocumentChanges, GotoDefinitionResponse, Location,
     OneOf, Position, ResourceOp, TextEdit, Url, WorkspaceEdit,
 };
-use xi_rope::{Rope, RopeDelta, Transformer};
 
 use crate::{
     command::{
@@ -55,6 +55,7 @@ use crate::{
     proxy::{path_from_url, LapceProxy},
     rename::RenameData,
     selection_range::SelectionRangeDirection,
+    signature::{SignatureData, SignatureStatus},
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
 };
@@ -208,6 +209,7 @@ pub struct LapceEditorBufferData {
     pub editor: Arc<LapceEditorData>,
     pub doc: Arc<Document>,
     pub completion: Arc<CompletionData>,
+    pub signature: Arc<SignatureData>,
     pub hover: Arc<HoverData>,
     pub rename: Arc<RenameData>,
     pub main_split: LapceMainSplitData,
@@ -341,6 +343,12 @@ impl LapceEditorBufferData {
             && self.completion.len() > 0
     }
 
+    /// Check if there are signatures that are being rendered
+    fn has_signature(&self) -> bool {
+        self.signature.status != SignatureStatus::Inactive
+            && !self.signature.is_empty()
+    }
+
     fn has_hover(&self) -> bool {
         self.hover.status != HoverStatus::Inactive && !self.hover.is_empty()
     }
@@ -456,6 +464,28 @@ impl LapceEditorBufferData {
         )
     }
 
+    fn completion_do_edit(
+        &mut self,
+        selection: &Selection,
+        edits: &[(impl AsRef<Selection>, &str)],
+    ) {
+        let old_cursor = self.editor.cursor.mode.clone();
+        let doc = Arc::make_mut(&mut self.doc);
+        let (delta, inval_lines, edits) =
+            doc.do_raw_edit(edits, EditType::Completion);
+        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
+        Arc::make_mut(&mut self.editor)
+            .cursor
+            .update_selection(self.doc.buffer(), selection);
+
+        let doc = Arc::make_mut(&mut self.doc);
+        doc.buffer_mut().set_cursor_before(old_cursor);
+        doc.buffer_mut()
+            .set_cursor_after(self.editor.cursor.mode.clone());
+
+        self.apply_deltas(&[(delta, inval_lines, edits)]);
+    }
+
     pub fn apply_completion_item(&mut self, item: &CompletionItem) -> Result<()> {
         let additional_edit: Option<Vec<_>> =
             item.additional_text_edits.as_ref().map(|edits| {
@@ -498,29 +528,20 @@ impl LapceEditorBufferData {
                     );
                     match text_format {
                         lsp_types::InsertTextFormat::PLAIN_TEXT => {
-                            let (delta, inval_lines, edits) =
-                                Arc::make_mut(&mut self.doc).do_raw_edit(
-                                    &[
-                                        &[(&selection, edit.new_text.as_str())][..],
-                                        &additional_edit[..],
-                                    ]
-                                    .concat(),
-                                    EditType::Completion,
-                                );
-                            let selection = selection.apply_delta(
-                                &delta,
-                                true,
-                                InsertDrift::Default,
+                            self.completion_do_edit(
+                                &selection,
+                                &[
+                                    &[(&selection, edit.new_text.as_str())][..],
+                                    &additional_edit[..],
+                                ]
+                                .concat(),
                             );
-                            Arc::make_mut(&mut self.editor)
-                                .cursor
-                                .update_selection(self.doc.buffer(), selection);
-                            self.apply_deltas(&[(delta, inval_lines, edits)]);
                             return Ok(());
                         }
                         lsp_types::InsertTextFormat::SNIPPET => {
                             let snippet = Snippet::from_str(&edit.new_text)?;
                             let text = snippet.text();
+                            let old_cursor = self.editor.cursor.mode.clone();
                             let (delta, inval_lines, edits) =
                                 Arc::make_mut(&mut self.doc).do_raw_edit(
                                     &[
@@ -554,6 +575,13 @@ impl LapceEditorBufferData {
                                 Arc::make_mut(&mut self.editor)
                                     .cursor
                                     .update_selection(self.doc.buffer(), selection);
+
+                                let doc = Arc::make_mut(&mut self.doc);
+                                doc.buffer_mut().set_cursor_before(old_cursor);
+                                doc.buffer_mut().set_cursor_after(
+                                    self.editor.cursor.mode.clone(),
+                                );
+
                                 self.apply_deltas(&[(delta, inval_lines, edits)]);
                                 return Ok(());
                             }
@@ -568,6 +596,12 @@ impl LapceEditorBufferData {
                             Arc::make_mut(&mut self.editor)
                                 .cursor
                                 .set_insert(selection);
+
+                            let doc = Arc::make_mut(&mut self.doc);
+                            doc.buffer_mut().set_cursor_before(old_cursor);
+                            doc.buffer_mut()
+                                .set_cursor_after(self.editor.cursor.mode.clone());
+
                             self.apply_deltas(&[(delta, inval_lines, edits)]);
                             Arc::make_mut(&mut self.editor)
                                 .add_snippet_placeholders(snippet_tabs);
@@ -585,7 +619,8 @@ impl LapceEditorBufferData {
         let end_offset = self.doc.buffer().next_code_boundary(offset);
         let selection = Selection::region(start_offset, end_offset);
 
-        let (delta, inval_lines, edits) = Arc::make_mut(&mut self.doc).do_raw_edit(
+        self.completion_do_edit(
+            &selection,
             &[
                 &[(
                     &selection,
@@ -594,13 +629,7 @@ impl LapceEditorBufferData {
                 &additional_edit[..],
             ]
             .concat(),
-            EditType::Completion,
         );
-        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
-        Arc::make_mut(&mut self.editor)
-            .cursor
-            .update_selection(self.doc.buffer(), selection);
-        self.apply_deltas(&[(delta, inval_lines, edits)]);
         Ok(())
     }
 
@@ -610,6 +639,14 @@ impl LapceEditorBufferData {
         }
         let completion = Arc::make_mut(&mut self.completion);
         completion.cancel();
+    }
+
+    pub fn cancel_signature(&mut self) {
+        if self.signature.status == SignatureStatus::Inactive {
+            return;
+        }
+        let signature = Arc::make_mut(&mut self.signature);
+        signature.cancel();
     }
 
     pub fn cancel_hover(&mut self) {
@@ -733,7 +770,6 @@ impl LapceEditorBufferData {
                 let start_pos = self.doc.buffer().offset_to_position(start_offset);
                 completion.request(
                     self.proxy.clone(),
-                    completion.request_id,
                     self.doc.content().path().unwrap().into(),
                     "".to_string(),
                     start_pos,
@@ -744,7 +780,6 @@ impl LapceEditorBufferData {
                 let position = self.doc.buffer().offset_to_position(offset);
                 completion.request(
                     self.proxy.clone(),
-                    completion.request_id,
                     self.doc.content().path().unwrap().into(),
                     input,
                     position,
@@ -763,7 +798,6 @@ impl LapceEditorBufferData {
         let start_pos = self.doc.buffer().offset_to_position(start_offset);
         completion.request(
             self.proxy.clone(),
-            completion.request_id,
             self.doc.content().path().unwrap().into(),
             "".to_string(),
             start_pos,
@@ -773,12 +807,50 @@ impl LapceEditorBufferData {
             let position = self.doc.buffer().offset_to_position(offset);
             completion.request(
                 self.proxy.clone(),
-                completion.request_id,
                 self.doc.content().path().unwrap().into(),
                 input,
                 position,
             );
         }
+    }
+
+    fn update_signature(&mut self) {
+        if self.get_mode() != Mode::Insert {
+            self.cancel_signature();
+            return;
+        }
+        if !self.doc.loaded() || !self.doc.content().is_file() {
+            return;
+        }
+
+        let offset = self.editor.cursor.offset();
+
+        let start_offset = match self
+            .doc
+            .syntax()
+            .and_then(|syntax| syntax.find_enclosing_parentheses(offset))
+        {
+            Some((start, _)) => start,
+            None => {
+                self.cancel_signature();
+                return;
+            }
+        };
+
+        let signature = Arc::make_mut(&mut self.signature);
+
+        signature.buffer_id = self.doc.id();
+        signature.offset = start_offset;
+        signature.status = SignatureStatus::Started;
+        signature.request_id += 1;
+
+        let pos = self.doc.buffer().offset_to_position(offset);
+        signature.request(
+            self.proxy.clone(),
+            signature.request_id,
+            self.doc.content().path().unwrap().into(),
+            pos,
+        );
     }
 
     /// return true if there's existing hover and it's not changed
@@ -1296,9 +1368,10 @@ impl LapceEditorBufferData {
             self.inactive_apply_delta(delta);
             self.update_snippet_offset(delta);
         }
+        self.update_signature();
     }
 
-    fn save(&mut self, ctx: &mut EventCtx, exit: bool) {
+    fn save(&mut self, ctx: &mut EventCtx, exit: bool, allow_formatting: bool) {
         if self.doc.buffer().is_pristine() && self.doc.content().is_file() {
             if exit {
                 ctx.submit_command(Command::new(
@@ -1314,7 +1387,8 @@ impl LapceEditorBufferData {
         }
 
         if let BufferContent::File(path) = self.doc.content() {
-            let format_on_save = self.config.editor.format_on_save;
+            let format_on_save =
+                allow_formatting && self.config.editor.format_on_save;
             let path = path.clone();
             let proxy = self.proxy.clone();
             let rev = self.doc.rev();
@@ -1416,6 +1490,7 @@ impl LapceEditorBufferData {
             }
         }
         self.cancel_completion();
+        self.update_signature();
         self.cancel_hover();
         CommandExecuted::Yes
     }
@@ -1451,6 +1526,9 @@ impl LapceEditorBufferData {
             self.cancel_completion();
         }
         self.apply_deltas(&deltas);
+        if let EditCommand::NormalMode = cmd {
+            Arc::make_mut(&mut self.editor).snippet = None;
+        }
 
         CommandExecuted::Yes
     }
@@ -1477,6 +1555,9 @@ impl LapceEditorBufferData {
                 }
                 if self.has_completions() {
                     self.cancel_completion();
+                }
+                if self.has_signature() {
+                    self.cancel_signature();
                 }
                 if self.has_hover() {
                     self.cancel_hover();
@@ -1822,6 +1903,7 @@ impl LapceEditorBufferData {
                     if last_placeholder {
                         Arc::make_mut(&mut self.editor).snippet = None;
                     }
+                    self.update_signature();
                     self.cancel_completion();
                 }
             }
@@ -1848,6 +1930,7 @@ impl LapceEditorBufferData {
                                 .cursor
                                 .set_insert(selection);
                         }
+                        self.update_signature();
                         self.cancel_completion();
                     }
                 }
@@ -1901,6 +1984,9 @@ impl LapceEditorBufferData {
             GetCompletion => {
                 // we allow empty inputs to allow for cases where the user wants to get the autocompletion beforehand
                 self.update_completion(ctx, true);
+            }
+            GetSignature => {
+                self.update_signature();
             }
             GotoDefinition => {
                 if let BufferContent::File(path) = self.doc.content() {
@@ -2219,10 +2305,13 @@ impl LapceEditorBufferData {
                 }
             }
             SaveAndExit => {
-                self.save(ctx, true);
+                self.save(ctx, true, true);
             }
             Save => {
-                self.save(ctx, false);
+                self.save(ctx, false, true);
+            }
+            SaveWithoutFormatting => {
+                self.save(ctx, false, false);
             }
             Rename => {
                 if let BufferContent::File(path) = self.doc.content() {
@@ -2392,6 +2481,7 @@ impl LapceEditorBufferData {
         let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
         self.doc
             .do_multi_selection(ctx.text(), cursor, cmd, &view, &self.config);
+        self.cancel_signature();
         self.cancel_completion();
         CommandExecuted::Yes
     }
@@ -2715,12 +2805,12 @@ fn show_completion(
         | EditCommand::DeleteWordForward
         | EditCommand::DeleteForwardAndInsert => {
             let start = match deltas.get(0).and_then(|delta| delta.0.els.get(0)) {
-                Some(xi_rope::DeltaElement::Copy(_, start)) => *start,
+                Some(lapce_xi_rope::DeltaElement::Copy(_, start)) => *start,
                 _ => 0,
             };
 
             let end = match deltas.get(0).and_then(|delta| delta.0.els.get(1)) {
-                Some(xi_rope::DeltaElement::Copy(end, _)) => *end,
+                Some(lapce_xi_rope::DeltaElement::Copy(end, _)) => *end,
                 _ => 0,
             };
 

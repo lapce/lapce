@@ -32,6 +32,10 @@ pub enum EditCommand {
     DeleteForward,
     #[strum(serialize = "delete_forward_and_insert")]
     DeleteForwardAndInsert,
+    #[strum(serialize = "delete_word_and_insert")]
+    DeleteWordAndInsert,
+    #[strum(serialize = "delete_line_and_insert")]
+    DeleteLineAndInsert,
     #[strum(serialize = "delete_word_forward")]
     DeleteWordForward,
     #[strum(serialize = "delete_word_backward")]
@@ -257,6 +261,8 @@ pub enum FocusCommand {
     ShowCodeActions,
     #[strum(serialize = "get_completion")]
     GetCompletion,
+    #[strum(serialize = "get_signature")]
+    GetSignature,
     /// This will close a modal, such as the settings window or completion
     #[strum(message = "Close Modal")]
     #[strum(serialize = "modal.close")]
@@ -302,6 +308,9 @@ pub enum FocusCommand {
     #[strum(message = "Save")]
     #[strum(serialize = "save")]
     Save,
+    #[strum(message = "Save Without Formatting")]
+    #[strum(serialize = "save_without_format")]
+    SaveWithoutFormatting,
     #[strum(serialize = "save_and_exit")]
     SaveAndExit,
     #[strum(serialize = "force_exit")]

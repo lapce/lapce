@@ -3,6 +3,7 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
     env,
+    fmt::Display,
     io::{BufReader, Read, Write},
     path::{Path, PathBuf},
     rc::Rc,
@@ -25,7 +26,7 @@ use lapce_core::{
     directory::Directory,
     editor::EditType,
     meta,
-    mode::MotionMode,
+    mode::{Mode, MotionMode},
     movement::Movement,
     register::Register,
     selection::Selection,
@@ -39,11 +40,11 @@ use lapce_rpc::{
     terminal::TermId,
     RpcMessage,
 };
+use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdit};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use xi_rope::{Rope, RopeDelta};
 
 use crate::{
     about::AboutData,
@@ -76,9 +77,10 @@ use crate::{
     rename::RenameData,
     search::SearchData,
     settings::LapceSettingsPanelData,
+    signature::SignatureData,
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
-    terminal::TerminalSplitData,
+    terminal::TerminalPanelData,
     title::TitleData,
     update::ReleaseInfo,
 };
@@ -168,6 +170,7 @@ impl LapceData {
                     latest_release.clone(),
                     false,
                     log_file.clone(),
+                    None,
                     panel_orders.clone(),
                     event_sink.clone(),
                     &info,
@@ -183,6 +186,7 @@ impl LapceData {
                         latest_release.clone(),
                         false,
                         log_file.clone(),
+                        None,
                         panel_orders.clone(),
                         event_sink.clone(),
                         info,
@@ -212,6 +216,7 @@ impl LapceData {
                 latest_release.clone(),
                 false,
                 log_file.clone(),
+                None,
                 panel_orders.clone(),
                 event_sink.clone(),
                 &info,
@@ -450,6 +455,7 @@ impl LapceWindowData {
         latest_release: Arc<Option<ReleaseInfo>>,
         update_in_progress: bool,
         log_file: Arc<Option<PathBuf>>,
+        current_panels: Option<PanelData>,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
         info: &WindowInfo,
@@ -472,6 +478,7 @@ impl LapceWindowData {
                 latest_release.clone(),
                 update_in_progress,
                 log_file.clone(),
+                current_panels.clone(),
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -494,6 +501,7 @@ impl LapceWindowData {
                 latest_release.clone(),
                 update_in_progress,
                 log_file.clone(),
+                current_panels,
                 panel_orders.clone(),
                 event_sink.clone(),
             );
@@ -620,9 +628,10 @@ pub struct LapceTabData {
     pub title: Arc<TitleData>,
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
+    pub signature: Arc<SignatureData>,
     pub hover: Arc<HoverData>,
     pub rename: Arc<RenameData>,
-    pub terminal: Arc<TerminalSplitData>,
+    pub terminal: Arc<TerminalPanelData>,
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
     pub source_control: Arc<SourceControlData>,
@@ -676,6 +685,7 @@ impl LapceTabData {
         latest_release: Arc<Option<ReleaseInfo>>,
         update_in_progress: bool,
         log_file: Arc<Option<PathBuf>>,
+        current_panels: Option<PanelData>,
         panel_orders: PanelOrder,
         event_sink: ExtEventSink,
     ) -> Self {
@@ -693,6 +703,9 @@ impl LapceTabData {
             let mut info = db.get_workspace_info(&workspace).ok();
             if let Some(info) = info.as_mut() {
                 info.split.children.clear();
+                if let Some(panels) = current_panels.clone() {
+                    info.panel = panels;
+                }
             }
             info
         };
@@ -711,6 +724,7 @@ impl LapceTabData {
         let palette = Arc::new(PaletteData::new(config.clone(), proxy.clone()));
         let completion = Arc::new(CompletionData::new(config.clone()));
         let hover = Arc::new(HoverData::new());
+        let signature = Arc::new(SignatureData::new());
         let rename = Arc::new(RenameData::new());
         let source_control = Arc::new(SourceControlData::new());
         let settings = Arc::new(LapceSettingsPanelData::new());
@@ -787,6 +801,13 @@ impl LapceTabData {
             event_sink.clone(),
         );
         main_split.add_editor(
+            plugin.search_editor,
+            None,
+            LocalBufferKind::PluginSeach,
+            &config,
+            event_sink.clone(),
+        );
+        main_split.add_editor(
             rename.view_id,
             None,
             LocalBufferKind::Rename,
@@ -801,7 +822,12 @@ impl LapceTabData {
             event_sink.clone(),
         );
 
-        let terminal = Arc::new(TerminalSplitData::new(proxy.clone()));
+        let terminal = Arc::new(TerminalPanelData::new(
+            Arc::new(workspace.clone()),
+            proxy.clone(),
+            &config,
+            event_sink.clone(),
+        ));
         let problem = Arc::new(ProblemData::new());
         let panel = workspace_info
             .map(|i| {
@@ -809,6 +835,7 @@ impl LapceTabData {
                 panel.order = panel_orders.clone();
                 panel
             })
+            .or(current_panels)
             .unwrap_or_else(|| PanelData::new(panel_orders));
 
         let focus = (*main_split.active).unwrap_or(*main_split.split_id);
@@ -822,6 +849,7 @@ impl LapceTabData {
             title,
             main_split,
             completion,
+            signature,
             hover,
             rename,
             terminal,
@@ -919,6 +947,7 @@ impl LapceTabData {
             view_id: editor_view_id,
             main_split: self.main_split.clone(),
             completion: self.completion.clone(),
+            signature: self.signature.clone(),
             hover: self.hover.clone(),
             rename: self.rename.clone(),
             focus_area: self.focus_area.clone(),
@@ -960,6 +989,21 @@ impl LapceTabData {
         matches!(&*self.drag, Some((_, _, DragContent::EditorTab(..))))
     }
 
+    /// Get the mode for the current editor or terminal
+    pub fn mode(&self) -> Mode {
+        if self.config.core.modal {
+            let mode = if self.focus_area == FocusArea::Panel(PanelKind::Terminal) {
+                self.terminal.active_terminal().map(|t| t.mode)
+            } else {
+                self.main_split.active_editor().map(|e| e.cursor.get_mode())
+            };
+
+            mode.unwrap_or(Mode::Normal)
+        } else {
+            Mode::Insert
+        }
+    }
+
     pub fn update_from_editor_buffer_data(
         &mut self,
         editor_buffer_data: LapceEditorBufferData,
@@ -967,6 +1011,7 @@ impl LapceTabData {
         doc: &Arc<Document>,
     ) {
         self.completion = editor_buffer_data.completion.clone();
+        self.signature = editor_buffer_data.signature.clone();
         self.hover = editor_buffer_data.hover.clone();
         self.rename = editor_buffer_data.rename.clone();
         self.main_split = editor_buffer_data.main_split.clone();
@@ -1052,6 +1097,51 @@ impl LapceTabData {
                 }
 
                 origin
+            }
+        }
+    }
+
+    pub fn signature_origin(
+        &self,
+        text: &mut PietText,
+        tab_size: Size,
+        signature_size: Size,
+        label_offset: f64,
+        config: &LapceConfig,
+    ) -> Point {
+        let editor = self.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return Point::ZERO,
+        };
+
+        match &editor.content {
+            BufferContent::File(_) | BufferContent::Scratch(_, _) => {
+                let doc = self.main_split.editor_doc(editor.view_id);
+                let offset = self.signature.offset;
+                let (point_above, _point_below) =
+                    doc.points_of_offset(text, offset, &editor.view, config);
+
+                let mut origin = *editor.window_origin.borrow()
+                    - self.window_origin.borrow().to_vec2()
+                    + Vec2::new(point_above.x - 5.0 - label_offset, point_above.y)
+                    - Vec2::new(0.0, signature_size.height);
+
+                // TODO: What about if the signature's position is past the tab size?
+
+                if origin.x + signature_size.width + 1.0 > tab_size.width {
+                    origin.x = tab_size.width - signature_size.width - 1.0;
+                }
+
+                if origin.x <= 0.0 {
+                    origin.x = 0.0;
+                }
+
+                origin
+            }
+            BufferContent::SettingsValue(_) | BufferContent::Local(_) => {
+                *editor.window_origin.borrow()
+                    - self.window_origin.borrow().to_vec2()
             }
         }
     }
@@ -1162,6 +1252,7 @@ impl LapceTabData {
             keypress: self.keypress.clone(),
             config: self.config.clone(),
             find: self.find.clone(),
+            db: self.db.clone(),
             focus_area: self.focus_area.clone(),
             terminal: self.terminal.clone(),
         }
@@ -1492,7 +1583,7 @@ impl LapceTabData {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
-                    Target::Widget(self.terminal.active),
+                    Target::Widget(self.terminal.widget_id),
                 ));
             }
 
@@ -1522,16 +1613,13 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::TogglePanelLeftVisual => {
-                Arc::make_mut(&mut self.panel)
-                    .toggle_container_visual(&PanelContainerPosition::Left);
+                self.toggle_container_visual(ctx, &PanelContainerPosition::Left);
             }
             LapceWorkbenchCommand::TogglePanelRightVisual => {
-                Arc::make_mut(&mut self.panel)
-                    .toggle_container_visual(&PanelContainerPosition::Right);
+                self.toggle_container_visual(ctx, &PanelContainerPosition::Right);
             }
             LapceWorkbenchCommand::TogglePanelBottomVisual => {
-                Arc::make_mut(&mut self.panel)
-                    .toggle_container_visual(&PanelContainerPosition::Bottom);
+                self.toggle_container_visual(ctx, &PanelContainerPosition::Bottom);
             }
             LapceWorkbenchCommand::ToggleSourceControlFocus => {
                 self.toggle_panel_focus(ctx, PanelKind::SourceControl);
@@ -1774,6 +1862,35 @@ impl LapceTabData {
                     toml_edit::Value::from(config.editor.enable_inlay_hints),
                 );
             }
+            LapceWorkbenchCommand::NewTerminalTab => {
+                let terminal_panel = Arc::make_mut(&mut self.terminal);
+                terminal_panel.new_tab(
+                    self.workspace.clone(),
+                    self.proxy.clone(),
+                    &self.config,
+                    ctx.get_external_handle(),
+                );
+            }
+            LapceWorkbenchCommand::CloseTerminalTab => {
+                let split_id = data
+                    .and_then(|d| serde_json::from_value::<usize>(d).ok())
+                    .map(WidgetId::from_usize);
+                let split_id = split_id
+                    .or_else(|| {
+                        self.terminal.active_terminal_split().map(|s| s.split_id)
+                    })
+                    .unwrap_or_else(WidgetId::next);
+                let terminal_panel = Arc::make_mut(&mut self.terminal);
+                terminal_panel.tabs.remove(&split_id);
+                terminal_panel.tabs_order = Arc::new(
+                    terminal_panel
+                        .tabs_order
+                        .iter()
+                        .filter(|w| *w != &split_id)
+                        .copied()
+                        .collect(),
+                );
+            }
             LapceWorkbenchCommand::ShowAbout => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
@@ -2004,6 +2121,40 @@ impl LapceTabData {
             self.hide_panel(ctx, kind);
         } else {
             self.show_panel(ctx, kind);
+        }
+    }
+
+    pub fn toggle_container_visual(
+        &mut self,
+        ctx: &mut EventCtx,
+        position: &PanelContainerPosition,
+    ) {
+        let shown = !self.panel.is_container_shown(position);
+        let panel = Arc::make_mut(&mut self.panel);
+        panel.set_shown(&position.first(), shown);
+        panel.set_shown(&position.second(), shown);
+        if shown {
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position.second())
+            {
+                self.show_panel(ctx, kind);
+            }
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position.first())
+            {
+                self.show_panel(ctx, kind);
+            }
+        } else {
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position.second())
+            {
+                self.hide_panel(ctx, kind);
+            }
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position.first())
+            {
+                self.hide_panel(ctx, kind);
+            }
         }
     }
 
@@ -3145,6 +3296,7 @@ impl LapceMainSplitData {
                 }
                 None => (doc.cursor_offset, Some(&doc.scroll_offset)),
             };
+            let offset = offset.min(doc.buffer().len());
 
             if let Some(version) = location.history.as_ref() {
                 let doc = self.open_docs.get_mut(&path).unwrap();
@@ -4230,10 +4382,54 @@ impl LapceEditorData {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct SshHost {
+    pub user: Option<String>,
+    pub host: String,
+    pub port: Option<usize>,
+}
+
+impl SshHost {
+    pub fn from_string(s: &str) -> Self {
+        let mut whole_splits = s.split(':');
+        let splits = whole_splits
+            .next()
+            .unwrap()
+            .split('@')
+            .collect::<Vec<&str>>();
+        let mut splits = splits.iter().rev();
+        let host = splits.next().unwrap().to_string();
+        let user = splits.next().map(|s| s.to_string());
+        let port = whole_splits.next().and_then(|s| s.parse::<usize>().ok());
+        Self { user, host, port }
+    }
+
+    pub fn user_host(&self) -> String {
+        if let Some(user) = self.user.as_ref() {
+            format!("{user}@{}", self.host)
+        } else {
+            self.host.clone()
+        }
+    }
+}
+
+impl Display for SshHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(user) = self.user.as_ref() {
+            write!(f, "{user}@")?;
+        }
+        write!(f, "{}", self.host)?;
+        if let Some(port) = self.port {
+            write!(f, ":{}", port)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LapceWorkspaceType {
     Local,
-    RemoteSSH(String, String),
+    RemoteSSH(SshHost),
     RemoteWSL,
 }
 
@@ -4241,7 +4437,7 @@ impl LapceWorkspaceType {
     pub fn is_remote(&self) -> bool {
         matches!(
             self,
-            LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL
+            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL
         )
     }
 }
@@ -4250,8 +4446,8 @@ impl std::fmt::Display for LapceWorkspaceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LapceWorkspaceType::Local => f.write_str("Local"),
-            LapceWorkspaceType::RemoteSSH(user, host) => {
-                write!(f, "ssh://{}@{}", user, host)
+            LapceWorkspaceType::RemoteSSH(ssh) => {
+                write!(f, "ssh://{ssh}")
             }
             LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
         }

@@ -15,6 +15,7 @@ use druid::{
     Command, Data, Env, EventCtx, ExtEventSink, Lens, Modifiers, Target, WidgetId,
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
     command::{EditCommand, FocusCommand},
@@ -33,16 +34,17 @@ use crate::{
     config::LapceConfig,
     data::{
         FocusArea, LapceMainSplitData, LapceTabData, LapceWorkspace,
-        LapceWorkspaceType,
+        LapceWorkspaceType, SshHost,
     },
+    db::LapceDb,
     document::BufferContent,
     editor::EditorLocation,
     find::Find,
-    keypress::{KeyPressData, KeyPressFocus},
+    keypress::{KeyMap, KeyPressData, KeyPressFocus},
     list::ListData,
     panel::PanelKind,
     proxy::{path_from_url, LapceProxy},
-    terminal::TerminalSplitData,
+    terminal::TerminalPanelData,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -151,7 +153,7 @@ pub enum PaletteItemContent {
     },
     ReferenceLocation(PathBuf, EditorLocation<Position>),
     Workspace(LapceWorkspace),
-    SshHost(String, String),
+    SshHost(SshHost),
     Command(LapceCommand),
     ColorTheme(String),
     IconTheme(String),
@@ -283,15 +285,12 @@ impl PaletteItemContent {
                     ));
                 }
             }
-            PaletteItemContent::SshHost(user, host) => {
+            PaletteItemContent::SshHost(ssh) => {
                 if !preview {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::SetWorkspace(LapceWorkspace {
-                            kind: LapceWorkspaceType::RemoteSSH(
-                                user.to_string(),
-                                host.to_string(),
-                            ),
+                            kind: LapceWorkspaceType::RemoteSSH(ssh.clone()),
                             path: None,
                             last_open: 0,
                         }),
@@ -322,8 +321,9 @@ pub struct PaletteViewData {
     pub main_split: LapceMainSplitData,
     pub keypress: Arc<KeyPressData>,
     pub config: Arc<LapceConfig>,
+    pub db: Arc<LapceDb>,
     pub focus_area: FocusArea,
-    pub terminal: Arc<TerminalSplitData>,
+    pub terminal: Arc<TerminalPanelData>,
 }
 
 impl Lens<LapceTabData, PaletteViewData> for PaletteViewLens {
@@ -358,6 +358,12 @@ pub struct PaletteListData {
     /// Should only be `None` when it hasn't been updated initially  
     /// We need this just for some rendering, and not editing it.
     pub workspace: Option<Arc<LapceWorkspace>>,
+    /// Should only be `None` when it hasn't been updated initially.
+    /// We need this just for some rendering, and not editing it.
+    pub keymaps: Option<Arc<IndexMap<String, Vec<KeyMap>>>>,
+    /// The mode of the current editor/terminal/none
+    #[data(eq)]
+    pub mode: Option<Mode>,
 }
 
 #[derive(Clone)]
@@ -443,8 +449,15 @@ impl PaletteData {
         let widget_id = WidgetId::next();
         let scroll_id = WidgetId::next();
         let preview_editor = WidgetId::next();
-        let mut list_data =
-            ListData::new(config, widget_id, PaletteListData { workspace: None });
+        let mut list_data = ListData::new(
+            config,
+            widget_id,
+            PaletteListData {
+                workspace: None,
+                keymaps: None,
+                mode: None,
+            },
+        );
         // TODO: Make these configurable
         list_data.line_height = Some(25);
         list_data.max_displayed_items = 15;
@@ -757,17 +770,11 @@ impl PaletteViewData {
         } else {
             if self.palette.palette_type == PaletteType::SshHost {
                 let input = self.palette.get_input();
-                let splits = input.split('@').collect::<Vec<&str>>();
-                let mut splits = splits.iter().rev();
-                let host = splits.next().unwrap().to_string();
-                let user = splits
-                    .next()
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| "root".to_string());
+                let ssh = SshHost::from_string(input);
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::SetWorkspace(LapceWorkspace {
-                        kind: LapceWorkspaceType::RemoteSSH(user, host),
+                        kind: LapceWorkspaceType::RemoteSSH(ssh),
                         path: None,
                         last_open: 0,
                     }),
@@ -866,23 +873,20 @@ impl PaletteViewData {
     }
 
     fn get_ssh_hosts(&mut self, _ctx: &mut EventCtx) {
-        let workspaces = LapceConfig::recent_workspaces().unwrap_or_default();
+        let workspaces = self.db.recent_workspaces().unwrap_or_default();
         let mut hosts = HashSet::new();
         for workspace in workspaces.iter() {
-            if let LapceWorkspaceType::RemoteSSH(user, host) = &workspace.kind {
-                hosts.insert((user.to_string(), host.to_string()));
+            if let LapceWorkspaceType::RemoteSSH(ssh) = &workspace.kind {
+                hosts.insert(ssh.clone());
             }
         }
 
         let palette = Arc::make_mut(&mut self.palette);
         palette.total_items = hosts
             .iter()
-            .map(|(user, host)| PaletteItem {
-                content: PaletteItemContent::SshHost(
-                    user.to_string(),
-                    host.to_string(),
-                ),
-                filter_text: format!("{user}@{host}"),
+            .map(|ssh| PaletteItem {
+                content: PaletteItemContent::SshHost(ssh.clone()),
+                filter_text: ssh.to_string(),
                 score: 0,
                 indices: vec![],
             })
@@ -890,33 +894,27 @@ impl PaletteViewData {
     }
 
     fn get_workspaces(&mut self, _ctx: &mut EventCtx) {
-        let workspaces = LapceConfig::recent_workspaces().unwrap_or_default();
+        let workspaces = self.db.recent_workspaces().unwrap_or_default();
         let palette = Arc::make_mut(&mut self.palette);
         palette.total_items = workspaces
             .into_iter()
-            .map(|w| {
-                let text = w
-                    .path
-                    .as_ref()
-                    .unwrap()
-                    .to_str()
-                    .map(|p| p.to_string())
-                    .unwrap();
+            .filter_map(|w| {
+                let text = w.path.as_ref()?.to_str()?.to_string();
                 let filter_text = match &w.kind {
                     LapceWorkspaceType::Local => text,
-                    LapceWorkspaceType::RemoteSSH(user, host) => {
-                        format!("[{}@{}] {}", user, host, text)
+                    LapceWorkspaceType::RemoteSSH(ssh) => {
+                        format!("[{ssh}] {}", text)
                     }
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")
                     }
                 };
-                PaletteItem {
+                Some(PaletteItem {
                     content: PaletteItemContent::Workspace(w),
                     filter_text,
                     score: 0,
                     indices: vec![],
-                }
+                })
             })
             .collect();
     }
@@ -1016,9 +1014,7 @@ impl PaletteViewData {
 
     fn get_lines(&mut self, _ctx: &mut EventCtx) {
         if self.focus_area == FocusArea::Panel(PanelKind::Terminal) {
-            if let Some(terminal) =
-                self.terminal.terminals.get(&self.terminal.active_term_id)
-            {
+            if let Some(terminal) = self.terminal.active_terminal() {
                 let raw = terminal.raw.lock();
                 let term = &raw.term;
                 let mut items = im::Vector::new();

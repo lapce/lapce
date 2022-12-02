@@ -1,10 +1,11 @@
 [package]
 name = "lapce-ui"
-version = "0.2.1"
+version = "0.2.4"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+base64 = "0.13.0"
 clap = { version = "3.2.17", features = ["derive"] }
 image = "0.24.3"
 chrono = "0.4.19"
@@ -23,7 +24,7 @@ anyhow = "1.0.32"
 once_cell = "1.15"
 serde = "1.0"
 serde_json = "1.0"
-xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
+lapce-xi-rope = { version = "0.3.1", features = ["serde"] }
 lsp-types = { version = "0.93", features = ["proposed"] }
 toml_edit = { version = "0.14.4", features = ["easy"] }
 open = "3.0.2"
@@ -50,6 +51,7 @@ portable = ["lapce-data/portable"]
 all-languages = [
     "lang-bash",
     "lang-c",
+    "lang-cmake",
     "lang-cpp",
     "lang-csharp",
     "lang-css",
@@ -60,6 +62,7 @@ all-languages = [
     "lang-elm",
     "lang-erlang",
     "lang-glimmer",
+    "lang-glsl",
     "lang-go",
     "lang-hare",
     "lang-haskell",
@@ -78,6 +81,8 @@ all-languages = [
     "lang-nix",
     "lang-ocaml",
     "lang-php",
+    "lang-prisma",
+    "lang-protobuf",
     "lang-python",
     "lang-ql",
     "lang-r",
@@ -85,6 +90,7 @@ all-languages = [
     "lang-rust",
     "lang-scheme",
     "lang-scss",
+    "lang-sql",
     "lang-svelte",
     "lang-swift",
     "lang-toml",
@@ -94,11 +100,11 @@ all-languages = [
     "lang-xml",
     "lang-yaml",
     "lang-zig",
-    "lang-sql",
 ]
 
 lang-bash = ["lapce-core/lang-bash"]
 lang-c = ["lapce-core/lang-c"]
+lang-cmake = ["lapce-core/lang-cmake"]
 lang-cpp = ["lapce-core/lang-cpp"]
 lang-csharp = ["lapce-core/lang-csharp"]
 lang-css = ["lapce-core/lang-css"]
@@ -109,6 +115,7 @@ lang-elixir = ["lapce-core/lang-elixir"]
 lang-elm = ["lapce-core/lang-elm"]
 lang-erlang = ["lapce-core/lang-erlang"]
 lang-glimmer = ["lapce-core/lang-glimmer"]
+lang-glsl = ["lapce-core/lang-glsl"]
 lang-go = ["lapce-core/lang-go"]
 lang-hare = ["lapce-core/lang-hare"]
 lang-haskell = ["lapce-core/lang-haskell"]
@@ -127,6 +134,8 @@ lang-markdown = ["lapce-core/lang-markdown"]
 lang-nix = ["lapce-core/lang-nix"]
 lang-ocaml = ["lapce-core/lang-ocaml"]
 lang-php = ["lapce-core/lang-php"]
+lang-prisma = ["lapce-core/lang-prisma"]
+lang-protobuf = ["lapce-core/lang-protobuf"]
 lang-python = ["lapce-core/lang-python"]
 lang-ql = ["lapce-core/lang-ql"]
 lang-r = ["lapce-core/lang-r"]

@@ -23,15 +23,15 @@ use lapce_rpc::{
     terminal::TermId,
     RequestId, RpcMessage,
 };
+use lapce_xi_rope::Rope;
 use lsp_types::Url;
 use parking_lot::Mutex;
 use serde_json::Value;
 use thiserror::Error;
-use xi_rope::Rope;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    data::{LapceWorkspace, LapceWorkspaceType},
+    data::{LapceWorkspace, LapceWorkspaceType, SshHost},
     terminal::RawTerminal,
 };
 
@@ -193,13 +193,10 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            VoltInstalled {
-                volt,
-                only_installing,
-            } => {
+            VoltInstalled { volt, icon } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::VoltInstalled(volt, only_installing),
+                    LapceUICommand::VoltInstalled(volt, icon),
                     Target::Widget(self.tab_id),
                 );
             }
@@ -259,6 +256,21 @@ impl CoreHandler for LapceProxy {
                     LapceUICommand::UpdateCompletion(
                         request_id, input, resp, plugin_id,
                     ),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            SignatureHelpResponse {
+                request_id,
+                resp,
+                plugin_id,
+            } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSignature {
+                        request_id,
+                        resp,
+                        plugin_id,
+                    },
                     Target::Widget(self.tab_id),
                 );
             }
@@ -344,8 +356,8 @@ impl LapceProxy {
                     proxy_rpc.mainloop(&mut dispatcher);
                 });
             }
-            LapceWorkspaceType::RemoteSSH(user, host) => {
-                self.start_remote(SshRemote { user, host })?;
+            LapceWorkspaceType::RemoteSSH(ssh) => {
+                self.start_remote(SshRemote { ssh })?;
             }
             LapceWorkspaceType::RemoteWSL => {
                 let distro = WslDistro::all()?
@@ -775,8 +787,7 @@ trait Remote: Sized {
 }
 
 struct SshRemote {
-    user: String,
-    host: String,
+    ssh: SshHost,
 }
 
 impl SshRemote {
@@ -794,25 +805,21 @@ impl SshRemote {
         "-o",
         "ConnectTimeout=15",
     ];
-
-    fn command_builder(user: &str, host: &str) -> Command {
-        let mut cmd = new_command("ssh");
-        cmd.arg(format!("{}@{}", user, host)).args(Self::SSH_ARGS);
-
-        if !std::env::var("LAPCE_DEBUG").unwrap_or_default().is_empty() {
-            cmd.arg("-v");
-        }
-
-        cmd
-    }
 }
 
 impl Remote for SshRemote {
     fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
-        let output = new_command("scp")
-            .args(Self::SSH_ARGS)
+        let mut cmd = new_command("scp");
+
+        cmd.args(Self::SSH_ARGS);
+
+        if let Some(port) = self.ssh.port {
+            cmd.arg("-P").arg(port.to_string());
+        }
+
+        let output = cmd
             .arg(local.as_ref())
-            .arg(dbg!(format!("{}@{}:{remote}", self.user, self.host,)))
+            .arg(dbg!(format!("{}:{remote}", self.ssh.user_host())))
             .output()?;
 
         log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stderr));
@@ -822,7 +829,20 @@ impl Remote for SshRemote {
     }
 
     fn command_builder(&self) -> Command {
-        Self::command_builder(&self.user, &self.host)
+        let mut cmd = new_command("ssh");
+        cmd.args(Self::SSH_ARGS);
+
+        if let Some(port) = self.ssh.port {
+            cmd.arg("-p").arg(port.to_string());
+        }
+
+        cmd.arg(self.ssh.user_host());
+
+        if !std::env::var("LAPCE_DEBUG").unwrap_or_default().is_empty() {
+            cmd.arg("-v");
+        }
+
+        cmd
     }
 }
 
@@ -900,7 +920,7 @@ impl Remote for WslRemote {
 pub fn path_from_url(url: &Url) -> PathBuf {
     let path = url.path();
     if let Some(path) = path.strip_prefix('/') {
-        if let Some((maybe_drive_letter, _)) = path.split_once(&['/', '\\']) {
+        if let Some((maybe_drive_letter, _)) = path.split_once(['/', '\\']) {
             let b = maybe_drive_letter.as_bytes();
             if b.len() == 2
                 && matches!(

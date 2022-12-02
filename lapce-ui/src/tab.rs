@@ -1,4 +1,4 @@
-use std::{collections::HashMap, process, sync::Arc};
+use std::{process, sync::Arc};
 
 use druid::{
     kurbo::Line,
@@ -40,19 +40,20 @@ use lapce_data::{
     },
     plugin::plugin_install_status::{PluginInstallStatus, PluginInstallType},
     proxy::path_from_url,
+    signature::SignatureStatus,
 };
 use lapce_rpc::proxy::ProxyResponse;
+use lapce_xi_rope::Rope;
 use lsp_types::DiagnosticSeverity;
-use xi_rope::Rope;
 
 use crate::{
     about::AboutBox, alert::AlertBox, completion::CompletionContainer,
     editor::view::LapceEditorView, explorer::FileExplorer, hover::HoverContainer,
     message::LapceMessage, panel::PanelContainer, picker::FilePicker,
     plugin::Plugin, problem::new_problem_panel, scroll::LapceScroll,
-    search::new_search_panel, source_control::new_source_control_panel,
-    split::split_data_widget, status::LapceStatus, terminal::TerminalPanel,
-    title::Title,
+    search::new_search_panel, signature::SignatureContainer,
+    source_control::new_source_control_panel, split::split_data_widget,
+    status::LapceStatus, terminal::TerminalPanel, title::Title,
 };
 
 pub const LAPCE_TAB_META: Selector<SingleUse<LapceTabMeta>> =
@@ -80,6 +81,7 @@ pub struct LapceTab {
     pub title: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     main_split: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     completion: WidgetPod<LapceTabData, CompletionContainer>,
+    signature: WidgetPod<LapceTabData, SignatureContainer>,
     hover: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     rename: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
@@ -109,6 +111,7 @@ impl LapceTab {
         let main_split = split_data_widget(split_data, data);
 
         let completion = CompletionContainer::new(&data.completion);
+        let signature = SignatureContainer::new(&data.signature);
         let hover = HoverContainer::new(&data.hover);
         let rename =
             LapceEditorView::new(data.rename.view_id, data.rename.editor_id, None)
@@ -185,6 +188,7 @@ impl LapceTab {
             title,
             main_split: WidgetPod::new(main_split.boxed()),
             completion: WidgetPod::new(completion),
+            signature: WidgetPod::new(signature),
             hover: WidgetPod::new(hover.boxed()),
             rename: WidgetPod::new(rename.boxed()),
             picker: WidgetPod::new(picker.boxed()),
@@ -797,7 +801,7 @@ impl LapceTab {
                         if pattern.is_empty() {
                             Arc::make_mut(&mut data.find).unset();
                             Arc::make_mut(&mut data.search).matches =
-                                Arc::new(HashMap::new());
+                                Arc::new(Default::default());
                         } else {
                             let find = Arc::make_mut(&mut data.find);
                             find.set_case_sensitive(*case_sensitive);
@@ -900,11 +904,13 @@ impl LapceTab {
                         );
                     }
                     LapceUICommand::UpdateTerminalTitle(term_id, title) => {
-                        let terminal_panel = Arc::make_mut(&mut data.terminal);
-                        if let Some(terminal) =
-                            terminal_panel.terminals.get_mut(term_id)
+                        for (_, split) in
+                            Arc::make_mut(&mut data.terminal).tabs.iter_mut()
                         {
-                            Arc::make_mut(terminal).title = title.to_string();
+                            if let Some(terminal) = split.terminals.get_mut(term_id)
+                            {
+                                Arc::make_mut(terminal).title = title.to_string();
+                            }
                         }
                     }
                     LapceUICommand::CancelFilePicker => {
@@ -944,9 +950,21 @@ impl LapceTab {
                             completion.cancel();
                         }
                     }
+                    LapceUICommand::UpdateSignature {
+                        request_id,
+                        resp,
+                        plugin_id,
+                    } => {
+                        let signature = Arc::make_mut(&mut data.signature);
+                        signature.receive(*request_id, resp.to_owned(), *plugin_id);
+                    }
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
-                        if let Some(terminal) = terminal_panel.terminals.get_mut(id)
+                        if let Some(terminal) = terminal_panel
+                            .active_terminal_split_mut()
+                            .unwrap()
+                            .terminals
+                            .get_mut(id)
                         {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
@@ -956,49 +974,75 @@ impl LapceTab {
                                 ),
                                 Target::Widget(terminal.split_id),
                             ));
-                            data.proxy.proxy_rpc.terminal_close(terminal.term_id);
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::LoadPlugins(volts) => {
+                    LapceUICommand::LoadPluginLatest(info) => {
+                        ctx.set_handled();
                         let plugin = Arc::make_mut(&mut data.plugin);
-                        plugin.volts.update_volts(volts);
+                        plugin.installed_latest.insert(info.id(), info.clone());
+                    }
+                    LapceUICommand::LoadPlugins(info) => {
+                        ctx.set_handled();
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.volts.update_volts(info);
                     }
                     LapceUICommand::LoadPluginsFailed => {
+                        ctx.set_handled();
                         let plugin = Arc::make_mut(&mut data.plugin);
                         plugin.volts.failed();
                     }
-                    LapceUICommand::VoltInstalled(volt, only_installing) => {
+                    LapceUICommand::LoadPluginIcon(id, icon) => {
+                        ctx.set_handled();
                         let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.volts.icons.insert(id.to_string(), icon.clone());
+                    }
+                    LapceUICommand::VoltInstalled(volt, icon) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.volt_installed(
+                            data.id,
+                            volt,
+                            icon,
+                            ctx.get_external_handle(),
+                        );
 
-                        // if there is a value inside the installing map, remove it from there as soon as it is installed.
-                        plugin.installing.remove(&volt.id());
-
-                        if !(*only_installing) {
-                            plugin.installed.insert(volt.id(), volt.clone());
-
-                            for (_, tabs) in data.main_split.editor_tabs.iter() {
-                                for child in tabs.children.iter() {
-                                    if let EditorTabChild::Settings {
-                                        settings_widget_id,
-                                        ..
-                                    } = child
-                                    {
-                                        ctx.submit_command(Command::new(
-                                            LAPCE_UI_COMMAND,
-                                            LapceUICommand::VoltInstalled(
-                                                volt.clone(),
-                                                false,
-                                            ),
-                                            Target::Widget(*settings_widget_id),
-                                        ));
-                                    }
+                        for (_, tabs) in data.main_split.editor_tabs.iter() {
+                            for child in tabs.children.iter() {
+                                if let EditorTabChild::Settings {
+                                    settings_widget_id,
+                                    ..
+                                } = child
+                                {
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::VoltInstalled(
+                                            volt.clone(),
+                                            icon.clone(),
+                                        ),
+                                        Target::Widget(*settings_widget_id),
+                                    ));
                                 }
                             }
                         }
                     }
                     LapceUICommand::VoltInstalling(volt, error) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
+
+                        let event_sink = ctx.get_external_handle();
+                        let id = data.id;
+                        let volt_id = volt.id();
+                        if !error.is_empty() {
+                            std::thread::spawn(move || {
+                                std::thread::sleep(std::time::Duration::from_secs(
+                                    3,
+                                ));
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::VoltInstallStatusClear(volt_id),
+                                    Target::Widget(id),
+                                );
+                            });
+                        }
 
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
                             if !error.is_empty() {
@@ -1018,6 +1062,22 @@ impl LapceTab {
                     LapceUICommand::VoltRemoving(volt, error) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
 
+                        let event_sink = ctx.get_external_handle();
+                        let id = data.id;
+                        let volt_id = volt.id();
+                        if !error.is_empty() {
+                            std::thread::spawn(move || {
+                                std::thread::sleep(std::time::Duration::from_secs(
+                                    3,
+                                ));
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::VoltInstallStatusClear(volt_id),
+                                    Target::Widget(id),
+                                );
+                            });
+                        }
+
                         if let Some(elem) = plugin.installing.get_mut(&volt.id()) {
                             if !error.is_empty() {
                                 elem.set_error(error);
@@ -1032,6 +1092,10 @@ impl LapceTab {
                                 ),
                             );
                         }
+                    }
+                    LapceUICommand::VoltInstallStatusClear(volt_id) => {
+                        let plugin = Arc::make_mut(&mut data.plugin);
+                        plugin.installing.remove(volt_id);
                     }
                     LapceUICommand::VoltRemoved(volt, only_installing) => {
                         let plugin = Arc::make_mut(&mut data.plugin);
@@ -1320,6 +1384,7 @@ impl LapceTab {
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateSettingsFile(parent, key, value) => {
+                        ctx.set_handled();
                         if let Some(value) = toml_edit::ser::to_item(value)
                             .ok()
                             .and_then(|i| i.into_value().ok())
@@ -1520,11 +1585,7 @@ impl LapceTab {
                         ctx.set_handled();
                     }
                     LapceUICommand::TerminalJumpToLine(line) => {
-                        if let Some(terminal) = data
-                            .terminal
-                            .terminals
-                            .get(&data.terminal.active_term_id)
-                        {
+                        if let Some(terminal) = data.terminal.active_terminal() {
                             terminal.raw.lock().term.vi_goto_point(
                                 alacritty_terminal::index::Point::new(
                                     alacritty_terminal::index::Line(*line),
@@ -1683,8 +1744,8 @@ impl LapceTab {
                                     .to_string_lossy();
                                 match &data.workspace.kind {
                                     LapceWorkspaceType::Local => dir.to_string(),
-                                    LapceWorkspaceType::RemoteSSH(user, host) => {
-                                        format!("{} [{}@{}]", dir, user, host)
+                                    LapceWorkspaceType::RemoteSSH(ssh) => {
+                                        format!("{} [{ssh}]", dir)
                                     }
                                     LapceWorkspaceType::RemoteWSL => {
                                         format!("{dir} [wsl]")
@@ -1984,6 +2045,11 @@ impl Widget<LapceTabData> for LapceTab {
         {
             self.completion.event(ctx, event, data, env);
         }
+        if data.signature.status == SignatureStatus::Started
+            || event.should_propagate_to_hidden()
+        {
+            self.signature.event(ctx, event, data, env);
+        }
         if data.hover.status == HoverStatus::Done
             || event.should_propagate_to_hidden()
         {
@@ -2142,6 +2208,7 @@ impl Widget<LapceTabData> for LapceTab {
         self.main_split.lifecycle(ctx, event, data, env);
         self.status.lifecycle(ctx, event, data, env);
         self.completion.lifecycle(ctx, event, data, env);
+        self.signature.lifecycle(ctx, event, data, env);
         self.hover.lifecycle(ctx, event, data, env);
         self.rename.lifecycle(ctx, event, data, env);
         self.picker.lifecycle(ctx, event, data, env);
@@ -2170,6 +2237,16 @@ impl Widget<LapceTabData> for LapceTab {
 
         if !old_data.drag.same(&data.drag) {
             ctx.request_paint();
+        }
+
+        if !old_data.plugin.same(&data.plugin) {
+            if old_data.plugin.installed.len() != data.plugin.installed.len()
+                || old_data.plugin.volts.volts.len() != data.plugin.volts.volts.len()
+            {
+                ctx.request_layout();
+            } else {
+                ctx.request_paint();
+            }
         }
 
         if old_data.about.active != data.about.active {
@@ -2218,6 +2295,7 @@ impl Widget<LapceTabData> for LapceTab {
         self.title.update(ctx, data, env);
         self.main_split.update(ctx, data, env);
         self.completion.update(ctx, data, env);
+        self.signature.update(ctx, data, env);
         self.hover.update(ctx, data, env);
         self.rename.update(ctx, data, env);
         self.status.update(ctx, data, env);
@@ -2358,6 +2436,19 @@ impl Widget<LapceTabData> for LapceTab {
             );
             self.completion
                 .set_origin(ctx, data, env, completion_origin);
+        }
+
+        if data.signature.status != SignatureStatus::Inactive {
+            let signature_size = self.signature.layout(ctx, bc, data, env);
+            let label_offset = self.signature.widget().label_offset;
+            let signature_origin = data.signature_origin(
+                ctx.text(),
+                self_size,
+                signature_size,
+                label_offset,
+                &data.config,
+            );
+            self.signature.set_origin(ctx, data, env, signature_origin);
         }
 
         if data.hover.status == HoverStatus::Done {
@@ -2534,6 +2625,7 @@ impl Widget<LapceTabData> for LapceTab {
             self.rename.paint(ctx, data, env);
         }
         self.completion.paint(ctx, data, env);
+        self.signature.paint(ctx, data, env);
         self.hover.paint(ctx, data, env);
         self.picker.paint(ctx, data, env);
         ctx.incr_alpha_depth();
@@ -2758,8 +2850,8 @@ impl Widget<LapceTabData> for LapceTabHeader {
                 let dir = p.file_name().unwrap_or(p.as_os_str()).to_string_lossy();
                 match &data.workspace.kind {
                     LapceWorkspaceType::Local => dir.to_string(),
-                    LapceWorkspaceType::RemoteSSH(user, host) => {
-                        format!("{} [{}@{}]", dir, user, host)
+                    LapceWorkspaceType::RemoteSSH(ssh) => {
+                        format!("{} [{ssh}]", dir)
                     }
                     LapceWorkspaceType::RemoteWSL => {
                         format!("{dir} [wsl]")

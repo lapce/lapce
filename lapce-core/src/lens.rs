@@ -1,6 +1,6 @@
 use std::mem;
 
-use xi_rope::{
+use lapce_xi_rope::{
     interval::IntervalBounds,
     tree::{DefaultMetric, Leaf, Node, NodeInfo, TreeBuilder},
     Cursor, Delta, Interval, Metric,

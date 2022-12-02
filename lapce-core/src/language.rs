@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::Path, str::FromStr};
 use strum_macros::{Display, EnumString};
 use tree_sitter::TreeCursor;
 
-use crate::syntax::highlight::HighlightConfiguration;
+use crate::syntax::highlight::{HighlightConfiguration, HighlightIssue};
 
 //
 // To add support for an hypothetical language called Foo, for example, using
@@ -84,7 +84,7 @@ struct SyntaxProperties {
     injection: Option<&'static str>,
     /// The comment token.  "#" for python, "//" for rust for example.
     comment: &'static str,
-    /// The indent unit.  "\t" for python, "    " for rust, for example.
+    /// The indent unit.  "  " for javascript, "    " for rust, for example.
     indent: &'static str,
     /// TODO: someone more knowledgeable please describe what the two lists are.
     /// Anyway, the second element of the tuple is a "ignore list". See
@@ -115,6 +115,8 @@ pub enum LapceLanguage {
     Bash,
     #[cfg(feature = "lang-c")]
     C,
+    #[cfg(feature = "lang-cmake")]
+    Cmake,
     #[cfg(feature = "lang-cpp")]
     Cpp,
     #[cfg(feature = "lang-csharp")]
@@ -135,6 +137,8 @@ pub enum LapceLanguage {
     Erlang,
     #[cfg(feature = "lang-glimmer")]
     Glimmer,
+    #[cfg(feature = "lang-glsl")]
+    Glsl,
     #[cfg(feature = "lang-go")]
     Go,
     #[cfg(feature = "lang-hare")]
@@ -179,6 +183,10 @@ pub enum LapceLanguage {
     OcamlInterface,
     #[cfg(feature = "lang-php")]
     Php,
+    #[cfg(feature = "lang-prisma")]
+    Prisma,
+    #[cfg(feature = "lang-protobuf")]
+    ProtoBuf,
     #[cfg(feature = "lang-python")]
     Python,
     #[cfg(feature = "lang-ql")]
@@ -224,7 +232,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Bash,
         language: tree_sitter_bash::language,
-        highlight: include_str!("../queries/bash/highlights.scm"),
+        highlight: tree_sitter_bash::HIGHLIGHT_QUERY,
         injection: None,
         comment: "#",
         indent: "  ",
@@ -245,6 +253,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &["function_definition", "struct_specifier"],
         extensions: &["c", "h"],
         dotfiles: &[],
+    },
+    #[cfg(feature = "lang-cmake")]
+    SyntaxProperties {
+        id: LapceLanguage::Cmake,
+        language: tree_sitter_cmake::language,
+        highlight: include_str!("../queries/cmake/highlights.scm"),
+        injection: Some(include_str!("../queries/cmake/injections.scm")),
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &["function_definition"],
+        extensions: &["cmake"],
     },
     #[cfg(feature = "lang-cpp")]
     SyntaxProperties {
@@ -310,8 +330,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
         injection: None,
         comment: "//",
         indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        code_lens: (
+            &["program", "class_definition"],
+            &[
+                "program",
+                "import_or_export",
+                "comment",
+                "documentation_comment",
+            ],
+        ),
+        sticky_headers: &["class_definition"],
         extensions: &["dart"],
         dotfiles: &[],
     },
@@ -379,6 +407,23 @@ const LANGUAGES: &[SyntaxProperties] = &[
         sticky_headers: &[],
         extensions: &["hbs"],
         dotfiles: &[],
+    },
+    #[cfg(feature = "lang-glsl")]
+    SyntaxProperties {
+        id: LapceLanguage::Glsl,
+        language: tree_sitter_glsl::language,
+        highlight: tree_sitter_glsl::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &[
+            "glsl", "cs", "vs", "gs", "fs", "csh", "vsh", "gsh", "fsh", "cshader",
+            "vshader", "gshader", "fshader", "comp", "vert", "geom", "frag", "tesc",
+            "tese", "mesh", "task", "rgen", "rint", "rahit", "rchit", "rmiss",
+            "rcall",
+        ],
     },
     #[cfg(feature = "lang-go")]
     SyntaxProperties {
@@ -542,7 +587,12 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: "#",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        sticky_headers: &[
+            "function_definition",
+            "module_definition",
+            "macro_definition",
+            "struct_definition",
+        ],
         extensions: &["julia", "jl"],
         dotfiles: &[],
     },
@@ -664,6 +714,30 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["php"],
         dotfiles: &[],
     },
+    #[cfg(feature = "lang-prisma")]
+    SyntaxProperties {
+        id: LapceLanguage::Prisma,
+        language: tree_sitter_prisma_io::language,
+        highlight: include_str!("../queries/prisma/highlights.scm"),
+        injection: None,
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["prisma"],
+    },
+    #[cfg(feature = "lang-protobuf")]
+    SyntaxProperties {
+        id: LapceLanguage::ProtoBuf,
+        language: tree_sitter_protobuf::language,
+        highlight: include_str!("../queries/protobuf/highlights.scm"),
+        injection: Some(include_str!("../queries/protobuf/injections.scm")),
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["proto"],
+    },
     #[cfg(feature = "lang-python")]
     SyntaxProperties {
         id: LapceLanguage::Python,
@@ -671,7 +745,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         highlight: tree_sitter_python::HIGHLIGHT_QUERY,
         injection: None,
         comment: "#",
-        indent: "       ",
+        indent: "    ",
         code_lens: (
             &[
                 "source_file",
@@ -724,7 +798,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &["module", "class", "method", "do_block"],
-
         extensions: &["rb"],
         dotfiles: &[],
     },
@@ -787,8 +860,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Svelte,
         language: tree_sitter_svelte::language,
-        highlight: tree_sitter_svelte::HIGHLIGHT_QUERY,
-        injection: Some(tree_sitter_svelte::INJECTION_QUERY),
+        highlight: include_str!("../queries/svelte/highlights.scm"),
+        injection: Some(include_str!("../queries/svelte/injections.scm")),
         comment: "//",
         indent: "  ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
@@ -983,14 +1056,26 @@ impl LapceLanguage {
         self.properties().indent
     }
 
-    pub(crate) fn new_highlight_config(&self) -> HighlightConfiguration {
+    pub(crate) fn new_highlight_config(
+        &self,
+    ) -> Result<HighlightConfiguration, HighlightIssue> {
         let props = self.properties();
         let language = (props.language)();
         let query = props.highlight;
         let injection = props.injection;
-
-        HighlightConfiguration::new(language, query, injection.unwrap_or(""), "")
-            .unwrap()
+        match HighlightConfiguration::new(
+            language,
+            query,
+            injection.unwrap_or(""),
+            "",
+        ) {
+            Ok(x) => Ok(x),
+            Err(x) => {
+                let str = format!("Encountered {x:?} while trying to construct HighlightConfiguration for {self}");
+                log::error!("{str}");
+                Err(HighlightIssue::Error(str))
+            }
+        }
     }
 
     pub(crate) fn walk_tree(
@@ -1026,290 +1111,5 @@ fn walk_tree(
             }
         }
         cursor.goto_parent();
-    }
-}
-
-#[cfg(test)]
-mod test {
-    // If none of the lang features is selected, the imports and the auxiliary
-    // function(s) in the module become unused.  Hence turning off the lints.
-    #![allow(unused, unreachable_code)]
-
-    use std::path::PathBuf;
-
-    use super::LapceLanguage;
-
-    fn assert_language(expected: LapceLanguage, exts: &[&str]) {
-        for ext in exts {
-            assert_lang(expected, ext, false)
-        }
-        // Hopefully there will not be such a file extension to support.
-        let path = PathBuf::from("a.___");
-        assert!(LapceLanguage::from_path(&path).is_none());
-    }
-
-    fn assert_dotfile_language(expected: LapceLanguage, dotfiles: &[&str]) {
-        for dotfile in dotfiles {
-            assert_lang(expected, dotfile, true)
-        }
-        // Hopefully there will not be such a dotfile to support.
-        let path = PathBuf::from(".___");
-        assert!(LapceLanguage::from_path(&path).is_none());
-    }
-
-    fn assert_lang(expected: LapceLanguage, name: &str, dotfile: bool) {
-        let path_name = if dotfile {
-            name.to_string()
-        } else {
-            format!("a.{name}").to_string()
-        };
-        let path = PathBuf::from(path_name);
-        let lang = LapceLanguage::from_path(&path).unwrap();
-
-        assert_eq!(lang, expected);
-        // In debug build, this assertion will never set off.  It
-        // nonetheless exercises the boundary check, and the debug
-        // assertion, in the `properties()` function.
-        assert_eq!(lang.properties().id, expected);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-rust")]
-    fn test_rust_lang() {
-        assert_language(LapceLanguage::Rust, &["rs"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-go")]
-    fn test_go_lang() {
-        assert_language(LapceLanguage::Go, &["go"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-javascript")]
-    fn test_javascript_lang() {
-        assert_language(LapceLanguage::Javascript, &["js"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-javascript")]
-    fn test_jsx_lang() {
-        assert_language(LapceLanguage::Jsx, &["jsx"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-typescript")]
-    fn test_typescript_lang() {
-        assert_language(LapceLanguage::Typescript, &["ts"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-typescript")]
-    fn test_tsx_lang() {
-        assert_language(LapceLanguage::Tsx, &["tsx"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-python")]
-    fn test_python_lang() {
-        assert_language(LapceLanguage::Python, &["py", "pyi", "pyc", "pyd", "pyw"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-toml")]
-    fn test_toml_lang() {
-        assert_language(LapceLanguage::Toml, &["toml"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-elixir")]
-    fn test_elixir_lang() {
-        assert_language(LapceLanguage::Elixir, &["ex"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-erlang")]
-    fn test_erlang_lang() {
-        assert_language(LapceLanguage::Erlang, &["erl", "hrl"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-php")]
-    fn test_php_lang() {
-        assert_language(LapceLanguage::Php, &["php"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-ruby")]
-    fn test_ruby_lang() {
-        assert_language(LapceLanguage::Ruby, &["rb"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-c")]
-    fn test_c_lang() {
-        assert_language(LapceLanguage::C, &["c"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-cpp")]
-    fn test_cpp_lang() {
-        assert_language(
-            LapceLanguage::Cpp,
-            &["cpp", "cxx", "cc", "c++", "hpp", "hxx", "hh", "h++"],
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "lang-json")]
-    fn test_json_lang() {
-        assert_language(LapceLanguage::Json, &["json"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-markdown")]
-    fn test_markdown_lang() {
-        assert_language(LapceLanguage::Markdown, &["md"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-html")]
-    fn test_html_lang() {
-        assert_language(LapceLanguage::Html, &["html", "htm"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-ini")]
-    fn test_ini_lang() {
-        assert_language(LapceLanguage::Ini, &["ini"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-ini")]
-    fn test_ini_dotfile_lang() {
-        assert_dotfile_language(LapceLanguage::Ini, &[".editorconfig"]);
-    }
-
-    #[test]
-    #[cfg(feature = "lang-java")]
-    fn test_java_lang() {
-        assert_language(LapceLanguage::Java, &["java"]);
-    }
-    #[test]
-    #[cfg(feature = "lang-elm")]
-    fn test_elm_lang() {
-        assert_language(LapceLanguage::Elm, &["elm"]);
-    }
-    #[test]
-    #[cfg(feature = "lang-swift")]
-    fn test_swift_lang() {
-        assert_language(LapceLanguage::Swift, &["swift"]);
-    }
-    #[test]
-    #[cfg(feature = "lang-ql")]
-    fn test_ql_lang() {
-        assert_language(LapceLanguage::Ql, &["ql"]);
-    }
-    #[test]
-    #[cfg(feature = "lang-haskell")]
-    fn test_haskell_lang() {
-        assert_language(LapceLanguage::Haskell, &["hs"]);
-    }
-    #[cfg(feature = "lang-glimmer")]
-    fn test_glimmer_lang() {
-        assert_language(LapceLanguage::Glimmer, &["hbs"]);
-    }
-    #[cfg(feature = "lang-haxe")]
-    fn test_haxe_lang() {
-        assert_language(LapceLanguage::Haxe, &["hx"]);
-    }
-    #[cfg(feature = "lang-hcl")]
-    fn test_hcl_lang() {
-        assert_language(LapceLanguage::Hcl, &["hcl", "tf"]);
-    }
-    #[cfg(feature = "lang-ocaml")]
-    fn test_ocaml_lang() {
-        assert_language(LapceLanguage::Ocaml, &["ml"]);
-        assert_language(LapceLanguage::OcamlInterface, &["mli"]);
-    }
-    #[cfg(feature = "lang-scheme")]
-    fn test_scheme_lang() {
-        assert_language(LapceLanguage::Scheme, &["scm", "ss"]);
-    }
-    #[cfg(feature = "lang-scss")]
-    fn test_scss_lang() {
-        assert_language(LapceLanguage::Scss, &["scss"]);
-    }
-    #[cfg(feature = "lang-hare")]
-    fn test_hare_lang() {
-        assert_language(LapceLanguage::Hare, &["ha"]);
-    }
-    #[cfg(feature = "lang-css")]
-    fn test_css_lang() {
-        assert_language(LapceLanguage::Css, &["css"]);
-    }
-    #[cfg(feature = "lang-zig")]
-    fn test_zig_lang() {
-        assert_language(LapceLanguage::Zig, &["zig"]);
-    }
-    #[cfg(feature = "lang-bash")]
-    fn test_bash_lang() {
-        assert_language(LapceLanguage::Bash, &["sh", "bash"]);
-    }
-    #[cfg(feature = "lang-yaml")]
-    fn test_yaml_lang() {
-        assert_language(LapceLanguage::Yaml, &["yml", "yaml"]);
-    }
-    #[cfg(feature = "lang-julia")]
-    fn test_julia_lang() {
-        assert_language(LapceLanguage::Julia, &["julia", "jl"]);
-    }
-    #[cfg(feature = "lang-wgsl")]
-    fn test_wgsl_lang() {
-        assert_language(LapceLanguage::Wgsl, &["wgsl"]);
-    }
-    #[cfg(feature = "lang-dockerfile")]
-    fn test_dockerfile_lang() {
-        assert_language(LapceLanguage::Dockerfile, &["containerfile", "dockerfile"]);
-    }
-    #[cfg(feature = "lang-csharp")]
-    fn test_csharp_lang() {
-        assert_language(LapceLanguage::Csharp, &["cs", "csx"]);
-    }
-    #[cfg(feature = "lang-nix")]
-    fn test_nix_lang() {
-        assert_language(LapceLanguage::Nix, &["nix"]);
-    }
-    #[cfg(feature = "lang-dart")]
-    fn test_dart_lang() {
-        assert_language(LapceLanguage::Dart, &["dart"]);
-    }
-    #[cfg(feature = "lang-svelte")]
-    fn test_svelte_lang() {
-        assert_language(LapceLanguage::Svelte, &["svelte"]);
-    }
-    #[cfg(feature = "lang-latex")]
-    fn test_latex_lang() {
-        assert_language(LapceLanguage::Latex, &["tex"]);
-    }
-    #[cfg(feature = "lang-kotlin")]
-    fn test_kotlin_lang() {
-        assert_language(LapceLanguage::Kotlin, &["kt", "kts"]);
-    }
-    #[cfg(feature = "lang-vue")]
-    fn test_vue_lang() {
-        assert_language(LapceLanguage::Vue, &["vue"]);
-    }
-    #[cfg(feature = "lang-d")]
-    fn test_d_lang() {
-        assert_language(LapceLanguage::D, &["d", "di", "dlang"]);
-    }
-    #[cfg(feature = "lang-lua")]
-    fn test_lua_lang() {
-        assert_language(LapceLanguage::Lua, &["lua"]);
-    }
-    #[cfg(feature = "lang-r")]
-    fn test_r_lang() {
-        assert_language(LapceLanguage::R, &["r"]);
     }
 }

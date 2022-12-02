@@ -1,9 +1,9 @@
 use std::{path::Path, sync::Arc};
 
 use druid::{
-    kurbo::{Line, Rect},
-    piet::{Svg, Text, TextAttribute, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, FontWeight,
+    kurbo::Rect,
+    piet::{Svg, Text, TextAttribute, TextLayoutBuilder},
+    theme, BoxConstraints, Color, Command, Data, Env, Event, EventCtx, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext,
     Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
@@ -11,11 +11,11 @@ use lapce_data::{
     command::{LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     config::{LapceConfig, LapceTheme},
     data::{LapceTabData, LapceWorkspaceType},
-    keypress::KeyPressFocus,
+    keypress::{Alignment, KeyMap, KeyPressFocus},
     list::ListData,
     palette::{
         PaletteItem, PaletteItemContent, PaletteListData, PaletteStatus,
-        PaletteType, PaletteViewData,
+        PaletteViewData,
     },
 };
 use lsp_types::SymbolKind;
@@ -272,8 +272,15 @@ impl Widget<LapceTabData> for PaletteContainer {
     ) {
         self.input.event(ctx, event, data, env);
 
+        let mode = data.mode();
         let palette = Arc::make_mut(&mut data.palette);
         palette.list_data.update_data(data.config.clone());
+        // Update the stored data on `PaletteListData`, this is so that they can be used
+        // during painting of the list
+        palette.list_data.data.workspace = Some(data.workspace.clone());
+        palette.list_data.data.keymaps = Some(data.keypress.command_keymaps.clone());
+        palette.list_data.data.mode = Some(mode);
+
         self.content.event(ctx, event, &mut palette.list_data, env);
 
         self.preview.event(ctx, event, data, env);
@@ -438,110 +445,6 @@ impl Widget<LapceTabData> for PaletteContainer {
     }
 }
 
-pub struct PaletteInput {}
-
-impl PaletteInput {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for PaletteInput {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Widget<PaletteViewData> for PaletteInput {
-    fn event(
-        &mut self,
-        _ctx: &mut EventCtx,
-        _event: &Event,
-        _data: &mut PaletteViewData,
-        _env: &Env,
-    ) {
-    }
-
-    fn lifecycle(
-        &mut self,
-        _ctx: &mut LifeCycleCtx,
-        _event: &LifeCycle,
-        _data: &PaletteViewData,
-        _env: &Env,
-    ) {
-    }
-
-    fn update(
-        &mut self,
-        _ctx: &mut UpdateCtx,
-        _old_data: &PaletteViewData,
-        _data: &PaletteViewData,
-        _env: &Env,
-    ) {
-    }
-
-    fn layout(
-        &mut self,
-        _ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
-        _data: &PaletteViewData,
-        _env: &Env,
-    ) -> Size {
-        Size::new(bc.max().width, 14.0)
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, _env: &Env) {
-        let text = data.palette.input.clone();
-        let cursor = data.palette.cursor;
-
-        let text_layout = if text.is_empty()
-            && data.palette.palette_type == PaletteType::SshHost
-        {
-            ctx.text()
-                .new_text_layout("Enter your SSH details, like user@host")
-                .font(
-                    data.config.ui.font_family(),
-                    data.config.ui.font_size() as f64,
-                )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                        .clone(),
-                )
-                .build()
-                .unwrap()
-        } else {
-            ctx.text()
-                .new_text_layout(text)
-                .font(
-                    data.config.ui.font_family(),
-                    data.config.ui.font_size() as f64,
-                )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap()
-        };
-
-        let pos = text_layout.hit_test_text_position(cursor);
-        let line_metric = text_layout.line_metric(0).unwrap();
-        let p0 = (pos.point.x, line_metric.y_offset);
-        let p1 = (pos.point.x, line_metric.y_offset + line_metric.height);
-        let line = Line::new(p0, p1);
-
-        ctx.stroke(
-            line,
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-            1.0,
-        );
-        ctx.draw_text(&text_layout, Point::new(0.0, 0.0));
-    }
-}
-
 pub struct PalettePreview {}
 
 impl PalettePreview {
@@ -608,6 +511,7 @@ struct PaletteItemPaintInfo {
     text_indices: Vec<usize>,
     hint: String,
     hint_indices: Vec<usize>,
+    keymap: Option<KeyMap>,
 }
 
 impl PaletteItemPaintInfo {
@@ -620,6 +524,7 @@ impl PaletteItemPaintInfo {
             text_indices,
             hint: String::new(),
             hint_indices: Vec::new(),
+            keymap: None,
         }
     }
 }
@@ -629,7 +534,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
         &self,
         ctx: &mut PaintCtx,
         data: &ListData<Self, PaletteListData>,
-        _env: &Env,
+        env: &Env,
         line: usize,
     ) {
         let PaletteItemPaintInfo {
@@ -639,6 +544,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
             text_indices,
             hint,
             hint_indices,
+            keymap,
         } = match &self.content {
             PaletteItemContent::File(path, _) => {
                 file_paint_items(path, &self.indices, data)
@@ -650,7 +556,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 ..
             } => {
                 let text = name.to_string();
-                let hint = container_name.clone().unwrap_or_else(|| "".to_string());
+                let hint = container_name.clone().unwrap_or_default();
                 let text_indices = self
                     .indices
                     .iter()
@@ -686,6 +592,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     text_indices,
                     hint,
                     hint_indices,
+                    keymap: None,
                 }
             }
             PaletteItemContent::WorkspaceSymbol {
@@ -714,8 +621,8 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 let text = w.path.as_ref().unwrap().to_str().unwrap();
                 let text = match &w.kind {
                     LapceWorkspaceType::Local => text.to_string(),
-                    LapceWorkspaceType::RemoteSSH(user, host) => {
-                        format!("[{user}@{host}] {text}")
+                    LapceWorkspaceType::RemoteSSH(ssh) => {
+                        format!("[{ssh}] {text}")
                     }
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")
@@ -728,8 +635,25 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     .kind
                     .desc()
                     .map(|m| m.to_string())
-                    .unwrap_or_else(|| "".to_string());
-                PaletteItemPaintInfo::new_text(text, self.indices.to_vec())
+                    .unwrap_or_else(String::new);
+
+                let keymap = data
+                    .data
+                    .keymaps
+                    .as_ref()
+                    .and_then(|keymaps| keymaps.get(command.kind.str()))
+                    .and_then(|keymaps| keymaps.get(0))
+                    .cloned();
+
+                PaletteItemPaintInfo {
+                    svg: None,
+                    svg_color: None,
+                    text,
+                    text_indices: self.indices.to_vec(),
+                    hint: String::new(),
+                    hint_indices: Vec::new(),
+                    keymap,
+                }
             }
             PaletteItemContent::ColorTheme(theme) => PaletteItemPaintInfo::new_text(
                 theme.to_string(),
@@ -749,12 +673,10 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     self.indices.to_vec(),
                 )
             }
-            PaletteItemContent::SshHost(user, host) => {
-                PaletteItemPaintInfo::new_text(
-                    format!("{user}@{host}"),
-                    self.indices.to_vec(),
-                )
-            }
+            PaletteItemContent::SshHost(ssh) => PaletteItemPaintInfo::new_text(
+                format!("{ssh}"),
+                self.indices.to_vec(),
+            ),
         };
 
         let line_height = data.line_height() as f64;
@@ -794,7 +716,11 @@ impl ListPaint<PaletteListData> for PaletteItem {
             )
             .text_color(
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .get_color_unchecked(if line == data.selected_index {
+                        LapceTheme::PALETTE_CURRENT_FOREGROUND
+                    } else {
+                        LapceTheme::PALETTE_FOREGROUND
+                    })
                     .clone(),
             );
         for &i_start in &text_indices {
@@ -856,6 +782,24 @@ impl ListPaint<PaletteListData> for PaletteItem {
         let y = line_height * line as f64 + text_layout.y_offset(line_height);
         let point = Point::new(x, y);
         ctx.draw_text(&text_layout, point);
+
+        // TODO: make sure that the main text and the keymaps don't overlap
+        // This isn't currently an issue for any added commands, but could become one
+
+        if let Some(keymap) = keymap {
+            let width = ctx.size().width;
+            keymap.paint(
+                ctx,
+                Point::new(
+                    width
+                        - env.get(theme::SCROLLBAR_WIDTH)
+                        - env.get(theme::SCROLLBAR_PAD),
+                    line_height * line as f64 + line_height / 2.0,
+                ),
+                Alignment::Right,
+                &data.config,
+            );
+        }
     }
 }
 
@@ -909,6 +853,7 @@ fn file_paint_symbols(
         text_indices,
         hint,
         hint_indices,
+        keymap: Default::default(),
     }
 }
 
@@ -962,5 +907,6 @@ fn file_paint_items(
         text_indices,
         hint: folder,
         hint_indices,
+        keymap: Default::default(),
     }
 }

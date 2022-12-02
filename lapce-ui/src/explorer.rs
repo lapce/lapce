@@ -43,9 +43,9 @@ fn paint_single_file_node_item(
     toggle_rects: &mut HashMap<usize, Rect>,
 ) {
     let background = if Some(item.path_buf.as_ref()) == active {
-        Some(LapceTheme::PANEL_CURRENT)
+        Some(LapceTheme::PANEL_CURRENT_BACKGROUND)
     } else if Some(current) == hovered {
-        Some(LapceTheme::PANEL_HOVERED)
+        Some(LapceTheme::PANEL_HOVERED_BACKGROUND)
     } else {
         None
     };
@@ -127,7 +127,7 @@ fn paint_single_file_node_item(
         .font(config.ui.font_family(), font_size)
         .text_color(
             config
-                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
                 .clone(),
         )
         .build()
@@ -298,7 +298,10 @@ pub fn get_item_children_mut(
 
 pub struct FileExplorer {
     widget_id: WidgetId,
-    file_list: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    file_list:
+        WidgetPod<LapceTabData, LapceScroll<LapceTabData, FileExplorerFileList>>,
+    pending_scroll: Option<(f64, f64)>,
+    pending_layout: bool,
 }
 
 impl FileExplorer {
@@ -316,7 +319,7 @@ impl FileExplorer {
             .hide_header()
             .hide_gutter()
             .hide_border()
-            .set_background_color(LapceTheme::PANEL_HOVERED);
+            .set_background_color(LapceTheme::PANEL_HOVERED_BACKGROUND);
         let view_id = editor.view_id;
         data.main_split.editors.insert(view_id, Arc::new(editor));
         // Create the file listing
@@ -326,7 +329,9 @@ impl FileExplorer {
 
         Self {
             widget_id: data.file_explorer.widget_id,
-            file_list: WidgetPod::new(file_list.boxed()),
+            file_list: WidgetPod::new(file_list),
+            pending_scroll: None,
+            pending_layout: true,
         }
     }
 
@@ -375,6 +380,34 @@ impl Widget<LapceTabData> for FileExplorer {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+
+                if let LapceUICommand::ScrollTo(point) = command {
+                    self.pending_scroll = Some(point.to_owned());
+                    self.pending_layout = true;
+                    ctx.request_anim_frame();
+                    return;
+                }
+            }
+
+            Event::AnimFrame(_) => {
+                if self.pending_layout {
+                    ctx.request_anim_frame();
+                } else {
+                    // make sure layout is updated before we scroll
+                    if let Some(scroll) = self.pending_scroll.take() {
+                        let target = Point::from(scroll);
+
+                        self.file_list.widget_mut().scroll_to(target);
+                    }
+                }
+            }
+
+            _ => (),
+        }
+
         self.file_list.event(ctx, event, data, env);
     }
 
@@ -409,6 +442,7 @@ impl Widget<LapceTabData> for FileExplorer {
         self.file_list.layout(ctx, bc, data, env);
         self.file_list
             .set_origin(ctx, data, env, Point::new(0.0, 0.0));
+        self.pending_layout = false;
         self_size
     }
 
@@ -433,6 +467,76 @@ impl FileExplorerFileList {
             name_edit_input: input,
         }
     }
+
+    pub fn reveal_path(
+        &self,
+        path: &Path,
+        file_explorer: &mut FileExplorerData,
+        tab_id: WidgetId,
+        proxy: &LapceProxy,
+        target: Target,
+        ctx: &mut EventCtx,
+    ) {
+        let paths = match file_explorer.node_tree(path) {
+            Some(paths) => paths,
+            None => return,
+        };
+
+        for node_path in paths.iter().rev() {
+            log::debug!("visiting node: {}", node_path.display());
+
+            let node = file_explorer.get_node_mut(node_path).unwrap();
+
+            if !node.is_dir {
+                continue;
+            }
+
+            if !node.read {
+                let event_sink = ctx.get_external_handle();
+                let event_sink_read = ctx.get_external_handle();
+                let path = path.to_path_buf();
+
+                FileExplorerData::read_dir_cb(
+                    &node.path_buf,
+                    true,
+                    tab_id,
+                    proxy,
+                    event_sink_read,
+                    Some(move || {
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ExplorerRevealPath { path },
+                            target,
+                        );
+                    }),
+                );
+
+                return;
+            }
+
+            if !node.open {
+                node.open = true;
+
+                let path = node.path_buf.clone();
+
+                for current_path in path.ancestors() {
+                    file_explorer.update_node_count(current_path);
+                }
+            }
+        }
+
+        let index = file_explorer.get_node_index(path);
+
+        if let Some(index) = index {
+            let point = Point::new(0f64, (index - 3) as f64 * self.line_height);
+
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ScrollTo(point.into()),
+                target,
+            ));
+        }
+    }
 }
 
 impl Widget<LapceTabData> for FileExplorerFileList {
@@ -447,14 +551,31 @@ impl Widget<LapceTabData> for FileExplorerFileList {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
 
-                if let LapceUICommand::ActiveFileChanged { path } = command {
-                    let file_explorer = Arc::make_mut(&mut data.file_explorer);
-                    file_explorer.active_selected = path.clone();
-                    ctx.request_paint();
-                }
+                match command {
+                    LapceUICommand::ActiveFileChanged { path } => {
+                        let file_explorer = Arc::make_mut(&mut data.file_explorer);
+                        file_explorer.active_selected = path.clone();
+                        ctx.request_paint();
+                    }
 
-                if let LapceUICommand::FileExplorerRefresh = command {
-                    data.file_explorer.reload();
+                    LapceUICommand::FileExplorerRefresh => {
+                        data.file_explorer.reload();
+                    }
+
+                    LapceUICommand::ExplorerRevealPath { path } => {
+                        let file_explorer = Arc::make_mut(&mut data.file_explorer);
+
+                        self.reveal_path(
+                            path,
+                            file_explorer,
+                            data.id,
+                            data.proxy.as_ref(),
+                            cmd.target(),
+                            ctx,
+                        );
+                    }
+
+                    _ => (),
                 }
             }
             _ => {}
@@ -1073,29 +1194,33 @@ impl OpenEditorList {
             EditorTabChild::Settings { .. } => {
                 text = "Settings".to_string();
                 hint = format!("ver. {}", *meta::VERSION);
+                svg = data.config.ui_svg(LapceIcons::SETTINGS);
             }
             EditorTabChild::Plugin { volt_name, .. } => {
                 text = format!("Plugin: {volt_name}");
+                svg = data.config.ui_svg(LapceIcons::EXTENSIONS);
             }
         }
 
         let font_size = data.config.ui.font_size() as f64;
 
-        if active {
-            ctx.fill(
-                Size::new(size.width, self.line_height)
-                    .to_rect()
-                    .with_origin(Point::new(0.0, i as f64 * self.line_height)),
-                data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
-            );
-        } else if ctx.is_hot()
+        let current_item = Size::new(size.width, self.line_height)
+            .to_rect()
+            .with_origin(Point::new(0.0, i as f64 * self.line_height));
+
+        if ctx.is_hot()
             && i == (self.mouse_pos.y / self.line_height).floor() as usize
         {
             ctx.fill(
-                Size::new(size.width, self.line_height)
-                    .to_rect()
-                    .with_origin(Point::new(0.0, i as f64 * self.line_height)),
-                data.config.get_color_unchecked(LapceTheme::PANEL_HOVERED),
+                current_item,
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_HOVERED_BACKGROUND),
+            );
+        } else if active {
+            ctx.fill(
+                current_item,
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
             );
         }
 
@@ -1112,13 +1237,14 @@ impl OpenEditorList {
         self.in_view_tab_children
             .insert(i, (close_rect.inflate(2.0, 2.0), child.widget_id()));
 
-        let close_svg = if ctx.is_hot()
-            && close_rect.inflate(2.0, 2.0).contains(self.mouse_pos)
-        {
-            ctx.fill(
-                close_rect.inflate(2.0, 2.0),
-                data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
-            );
+        let close_svg = if ctx.is_hot() && current_item.contains(self.mouse_pos) {
+            if close_rect.inflate(2.0, 2.0).contains(self.mouse_pos) {
+                ctx.fill(
+                    close_rect.inflate(2.0, 2.0),
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
+                );
+            }
             Some(data.config.ui_svg(LapceIcons::CLOSE))
         } else if pristine {
             None
@@ -1156,7 +1282,7 @@ impl OpenEditorList {
             .font(data.config.ui.font_family(), font_size)
             .text_color(
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
                     .clone(),
             );
         if !hint.is_empty() {
@@ -1164,7 +1290,7 @@ impl OpenEditorList {
                 total_len - hint.len()..total_len,
                 TextAttribute::TextColor(
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .get_color_unchecked(LapceTheme::PANEL_FOREGROUND_DIM)
                         .clone(),
                 ),
             );
@@ -1330,7 +1456,7 @@ impl Widget<LapceTabData> for OpenEditorList {
                         )
                         .text_color(
                             data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
                                 .clone(),
                         )
                         .build()

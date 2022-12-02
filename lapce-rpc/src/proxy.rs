@@ -8,6 +8,8 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender};
+use indexmap::IndexMap;
+use lapce_xi_rope::RopeDelta;
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
     CompletionItem, DocumentSymbolResponse, GotoDefinitionResponse, Hover,
@@ -16,7 +18,6 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use xi_rope::RopeDelta;
 
 use crate::{
     buffer::BufferId,
@@ -173,6 +174,11 @@ pub enum ProxyNotification {
         input: String,
         position: Position,
     },
+    SignatureHelp {
+        request_id: usize,
+        path: PathBuf,
+        position: Position,
+    },
     Update {
         path: PathBuf,
         delta: RopeDelta,
@@ -301,7 +307,7 @@ pub enum ProxyResponse {
     },
     GlobalSearchResponse {
         #[allow(clippy::type_complexity)]
-        matches: HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
+        matches: IndexMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
     },
     Success {},
     SaveResponse {},
@@ -489,6 +495,19 @@ impl ProxyRpcHandler {
             request_id,
             path,
             input,
+            position,
+        });
+    }
+
+    pub fn signature_help(
+        &self,
+        request_id: usize,
+        path: PathBuf,
+        position: Position,
+    ) {
+        self.notification(ProxyNotification::SignatureHelp {
+            request_id,
+            path,
             position,
         });
     }

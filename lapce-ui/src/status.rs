@@ -8,8 +8,8 @@ use lapce_core::mode::Mode;
 use lapce_data::{
     command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::{LapceConfig, LapceIcons, LapceTheme},
-    data::{FocusArea, LapceTabData},
-    panel::{PanelContainerPosition, PanelKind},
+    data::LapceTabData,
+    panel::PanelContainerPosition,
 };
 
 use crate::tab::LapceIcon;
@@ -134,7 +134,7 @@ impl LapceStatus {
         ctx: &mut PaintCtx,
         config: &LapceConfig,
     ) -> (f64, Option<(Rect, Svg)>, (Point, PietTextLayout)) {
-        let fg_color = config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
+        let fg_color = config.get_color_unchecked(LapceTheme::STATUS_FOREGROUND);
 
         let text_layout = ctx
             .text()
@@ -172,7 +172,7 @@ impl LapceStatus {
         ctx: &mut PaintCtx,
         config: &LapceConfig,
     ) -> (f64, Option<(Rect, Svg)>, (Point, PietTextLayout)) {
-        let fg_color = config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND);
+        let fg_color = config.get_color_unchecked(LapceTheme::STATUS_FOREGROUND);
 
         let text_layout = ctx
             .text()
@@ -330,16 +330,7 @@ impl Widget<LapceTabData> for LapceStatus {
         let mut _right = 0.0;
 
         if data.config.core.modal {
-            let mode = if data.focus_area == FocusArea::Panel(PanelKind::Terminal) {
-                data.terminal
-                    .terminals
-                    .get(&data.terminal.active_term_id)
-                    .map(|terminal| terminal.mode)
-            } else {
-                data.main_split.active_editor().map(|e| e.cursor.get_mode())
-            };
-
-            let (mode, color) = match mode.unwrap_or(Mode::Normal) {
+            let (mode, color) = match data.mode() {
                 Mode::Normal => ("Normal", LapceTheme::STATUS_MODAL_NORMAL),
                 Mode::Insert => ("Insert", LapceTheme::STATUS_MODAL_INSERT),
                 Mode::Visual => ("Visual", LapceTheme::STATUS_MODAL_VISUAL),
@@ -398,7 +389,8 @@ impl Widget<LapceTabData> for LapceStatus {
         if problem_rect.contains(self.mouse_pos) {
             ctx.fill(
                 problem_rect,
-                data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
             );
         }
         if let Some((rect, svg)) = error_svg {
@@ -407,7 +399,7 @@ impl Widget<LapceTabData> for LapceStatus {
                 rect,
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                        .get_color_unchecked(LapceTheme::STATUS_FOREGROUND),
                 ),
             );
         }
@@ -418,7 +410,7 @@ impl Widget<LapceTabData> for LapceStatus {
                 rect,
                 Some(
                     data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                        .get_color_unchecked(LapceTheme::STATUS_FOREGROUND),
                 ),
             );
         }
@@ -470,8 +462,9 @@ impl Widget<LapceTabData> for LapceStatus {
         for icon in self.panel_icons.iter() {
             if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
-                    &icon.rect,
-                    data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+                    icon.rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
                 );
             }
             {
@@ -481,7 +474,7 @@ impl Widget<LapceTabData> for LapceStatus {
                     icon.rect.inflate(-icon_padding, -icon_padding),
                     Some(
                         data.config
-                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                            .get_color_unchecked(LapceTheme::STATUS_FOREGROUND),
                     ),
                 );
             }
@@ -511,7 +504,8 @@ impl Widget<LapceTabData> for LapceStatus {
             if rect.contains(self.mouse_pos) {
                 ctx.fill(
                     rect,
-                    data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
                 );
             }
             if let Some((rect, svg)) = svg {

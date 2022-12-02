@@ -15,10 +15,10 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
+use lapce_xi_rope::Rope;
 use tree_sitter::{
     Language, Point, Query, QueryCaptures, QueryCursor, QueryMatch, Tree,
 };
-use xi_rope::Rope;
 
 use super::{util::RopeProvider, PARSER};
 use crate::{language::LapceLanguage, style::SCOPES};
@@ -31,16 +31,18 @@ macro_rules! declare_language_highlights {
             use once_cell::sync::Lazy;
             use crate::language::LapceLanguage;
             use std::sync::Arc;
-            use super::HighlightConfiguration;
+            use super::{HighlightConfiguration, HighlightIssue};
 
             // We use Arcs because in the future we may want to load highlight configurations at runtime
             $(
                 #[cfg(feature = $feature_name)]
-                pub static $name: Lazy<Arc<HighlightConfiguration>> = Lazy::new(|| Arc::new(LapceLanguage::$name.new_highlight_config()));
+                pub static $name: Lazy<Result<Arc<HighlightConfiguration>, HighlightIssue>> = Lazy::new(|| {
+                    LapceLanguage::$name.new_highlight_config().map(Arc::new)
+                });
             )*
         }
 
-        pub(crate) fn get_highlight_config(lang: LapceLanguage) -> Arc<HighlightConfiguration> {
+        pub(crate) fn get_highlight_config(lang: LapceLanguage) -> Result<Arc<HighlightConfiguration>, HighlightIssue> {
             match lang {
                 $(
                     #[cfg(feature = $feature_name)]
@@ -54,6 +56,7 @@ macro_rules! declare_language_highlights {
 declare_language_highlights!(
     Bash: "lang-bash",
     C: "lang-c",
+    Cmake: "lang-cmake",
     Cpp: "lang-cpp",
     Csharp: "lang-csharp",
     Css: "lang-css",
@@ -64,6 +67,7 @@ declare_language_highlights!(
     Elm: "lang-elm",
     Erlang: "lang-erlang",
     Glimmer: "lang-glimmer",
+    Glsl: "lang-glsl",
     Go: "lang-go",
     Hare: "lang-hare",
     Haskell: "lang-haskell",
@@ -85,6 +89,8 @@ declare_language_highlights!(
     Ocaml: "lang-ocaml",
     OcamlInterface: "lang-ocaml",
     Php: "lang-php",
+    Prisma: "lang-prisma",
+    ProtoBuf: "lang-protobuf",
     Python: "lang-python",
     Ql: "lang-ql",
     R: "lang-r",
@@ -108,6 +114,12 @@ declare_language_highlights!(
 /// Indicates which highlight should be applied to a region of source code.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Highlight(pub usize);
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum HighlightIssue {
+    Error(String),
+    NotAvailable,
+}
 
 /// Represents a single step in rendering a syntax-highlighted document.
 #[derive(Copy, Clone, Debug)]
