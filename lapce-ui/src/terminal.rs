@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use alacritty_terminal::{
     grid::{Dimensions, Scroll},
@@ -212,39 +212,39 @@ impl Widget<LapceTabData> for TerminalPanel {
             {
                 ctx.request_layout();
             }
-            match data.terminal.tabs.len().cmp(&self.tabs.len()) {
-                Ordering::Greater => {
-                    ctx.children_changed();
-                    for (tab_id, tab) in data.terminal.tabs.iter() {
-                        if !self.tabs.contains_key(tab_id) {
-                            let mut split = LapceSplit::new(tab.split_id);
-                            for (_, term_data) in tab.terminals.iter() {
-                                let term = LapceTerminalView::new(term_data);
-                                split = split.with_flex_child(
-                                    term.boxed(),
-                                    Some(term_data.widget_id),
-                                    1.0,
-                                    true,
-                                );
-                            }
-                            self.tabs.insert(*tab_id, WidgetPod::new(split));
+            if data.terminal.tabs_order.same(&old_data.terminal.tabs_order) {
+                let mut changed = false;
+                for (tab_id, tab) in data.terminal.tabs.iter() {
+                    if !self.tabs.contains_key(tab_id) {
+                        changed = true;
+                        ctx.children_changed();
+                        let mut split = LapceSplit::new(tab.split_id);
+                        for (_, term_data) in tab.terminals.iter() {
+                            let term = LapceTerminalView::new(term_data);
+                            split = split.with_flex_child(
+                                term.boxed(),
+                                Some(term_data.widget_id),
+                                1.0,
+                                true,
+                            );
                         }
+                        self.tabs.insert(*tab_id, WidgetPod::new(split));
                     }
+                }
+                for tab_id in self.tabs.keys().copied().collect::<Vec<_>>() {
+                    if !data.terminal.tabs.contains_key(&tab_id) {
+                        changed = true;
+                        ctx.children_changed();
+                        self.tabs.remove(&tab_id);
+                    }
+                }
+                if changed && !self.tabs.is_empty() {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::Focus,
                         Target::Widget(self.widget_id),
                     ));
                 }
-                Ordering::Less => {
-                    ctx.children_changed();
-                    for tab_id in self.tabs.keys().copied().collect::<Vec<_>>() {
-                        if !data.terminal.tabs.contains_key(&tab_id) {
-                            self.tabs.remove(&tab_id);
-                        }
-                    }
-                }
-                Ordering::Equal => {}
             }
             ctx.request_paint();
         }
@@ -1227,11 +1227,12 @@ impl Widget<LapceTabData> for LapceTerminal {
             .terminal
             .tabs
             .get(&self.split_id)
-            .unwrap()
-            .terminals
-            .get(&self.term_id)
-            .unwrap()
-            .clone();
+            .and_then(|split| split.terminals.get(&self.term_id).cloned());
+        let old_terminal_data = match old_terminal_data {
+            Some(t) => t,
+            None => return,
+        };
+
         let mut term_data = LapceTerminalViewData {
             terminal: old_terminal_data.clone(),
             config: data.config.clone(),
