@@ -8,7 +8,7 @@ use lapce_core::mode::Mode;
 use lapce_data::{
     command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::{LapceConfig, LapceIcons, LapceTheme},
-    data::LapceTabData,
+    data::{EditorTabChild, LapceTabData},
     panel::PanelContainerPosition,
 };
 
@@ -482,6 +482,23 @@ impl Widget<LapceTabData> for LapceStatus {
 
         let mut right = size.width - 5.0;
         if let Some(editor) = &data.main_split.active_editor() {
+            // Do not draw file language and cursor/text details for non-file tabs
+            if let Some(editor_tab_id) = editor.tab_id {
+                if let Some(editor_tab) =
+                    data.main_split.editor_tabs.get(&editor_tab_id)
+                {
+                    if let Some(child) = editor_tab.active_child() {
+                        match child {
+                            EditorTabChild::Settings { .. }
+                            | EditorTabChild::Plugin { .. } => {
+                                return;
+                            }
+                            EditorTabChild::Editor(_, _, _) => {}
+                        }
+                    }
+                }
+            }
+
             let lang = match data.main_split.content_doc(&editor.content).syntax() {
                 Some(v) => v.language.to_string(),
                 None => String::from("Plain Text"),
