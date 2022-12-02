@@ -5,10 +5,13 @@ use druid::{
     LayoutCtx, LifeCycle, PaintCtx, Point, RenderContext, Size, Target, TextLayout,
     UpdateCtx, Widget, WidgetId, WidgetPod,
 };
-use lapce_core::{encoding::offset_utf16_to_utf8, language::LapceLanguage};
+use lapce_core::{
+    config::{LapceConfig, LapceTheme},
+    encoding::offset_utf16_to_utf8,
+    language::LapceLanguage,
+};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceTheme},
     data::LapceTabData,
     document::BufferContent,
     markdown::{highlight_as_code, parse_documentation},

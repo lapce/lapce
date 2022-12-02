@@ -1,11 +1,10 @@
-use std::{sync::Arc};
+use std::sync::Arc;
 
-use druid::{Target, ExtEventSink};
+use druid::{ExtEventSink, Target};
 use parking_lot::Mutex;
-// use lapce_core::config::ConfigWatcher;
 
+// use lapce_core::config::ConfigWatcher;
 use crate::command::{LapceUICommand, LAPCE_UI_COMMAND};
-pub use lapce_core::config::*;
 
 pub struct ConfigWatcher {
     event_sink: ExtEventSink,

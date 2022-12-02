@@ -22,7 +22,7 @@ use lapce_core::{
     config::LapceConfig,
     language::LapceLanguage,
     mode::Mode,
-    workspace::{LapceWorkspaceType, LapceWorkspace, SshHost},
+    workspace::{LapceWorkspace, LapceWorkspaceType, SshHost},
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
@@ -949,16 +949,15 @@ impl PaletteViewData {
 
     fn get_languages(&mut self, _ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
-        let mut langs = LapceLanguage::languages();
-        langs.push("Plain Text".to_string());
-        palette.total_items = langs
-            .iter()
+        palette.total_items = <LapceLanguage as strum::IntoEnumIterator>::iter()
             .sorted()
-            .map(|n| PaletteItem {
-                content: PaletteItemContent::Language(n.to_string()),
-                filter_text: n.to_string(),
-                score: 0,
-                indices: vec![],
+            .filter_map(|n| {
+                strum::EnumMessage::get_message(&n).map(|n| PaletteItem {
+                    content: PaletteItemContent::Language(n.to_string()),
+                    filter_text: n.to_string(),
+                    score: 0,
+                    indices: vec![],
+                })
             })
             .collect();
     }

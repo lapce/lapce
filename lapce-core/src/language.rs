@@ -1,6 +1,6 @@
 use std::{collections::HashSet, path::Path, str::FromStr};
 
-use strum_macros::{Display, EnumMessage, EnumString};
+use strum_macros::{AsRefStr, Display, EnumIter, EnumMessage, EnumString};
 use tree_sitter::TreeCursor;
 
 use crate::{
@@ -71,8 +71,9 @@ const DEFAULT_CODE_LENS_LIST: &[&str] = &["source_file"];
 #[allow(dead_code)]
 const DEFAULT_CODE_LENS_IGNORE_LIST: &[&str] = &["source_file"];
 
-const EMPTY_LANGUAGE: SyntaxProperties = SyntaxProperties {
+const EMPTY_LANGUAGE: LanguageProperties = LanguageProperties {
     id: LapceLanguage::Plaintext,
+    language_id: "plaintext",
 
     indent: "    ",
     files: &[],
@@ -97,10 +98,12 @@ const EMPTY_LANGUAGE: SyntaxProperties = SyntaxProperties {
 };
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, PartialOrd, Ord, Default)]
-struct SyntaxProperties {
+struct LanguageProperties {
     /// An extra check to make sure that the array elements are in the correct order.  
     /// If this id does not match the enum value, a panic will happen with a debug assertion message.
     id: LapceLanguage,
+    /// LSP language id
+    language_id: &'static str,
 
     // /// Single line comment token used when commenting out one line.
     // /// "#" for python, "//" for rust for example.
@@ -169,8 +172,10 @@ struct CommentProperties {
     Copy,
     Debug,
     Display,
-    EnumString,
+    EnumIter,
     EnumMessage,
+    EnumString,
+    AsRefStr,
     Default,
 )]
 #[strum(ascii_case_insensitive)]
@@ -180,7 +185,9 @@ pub enum LapceLanguage {
     #[strum(message = "Plain Text")]
     Plaintext,
 
+    #[strum(message = "Bash")]
     Bash,
+    #[strum(message = "C")]
     C,
     #[strum(message = "CMake")]
     Cmake,
@@ -190,22 +197,35 @@ pub enum LapceLanguage {
     Csharp,
     #[strum(message = "CSS")]
     Css,
+    #[strum(message = "D")]
     D,
+    #[strum(message = "Dart")]
     Dart,
+    #[strum(message = "Dockerfile")]
     Dockerfile,
+    #[strum(message = "Elixir")]
     Elixir,
+    #[strum(message = "Elm")]
     Elm,
+    #[strum(message = "Erlang")]
     Erlang,
+    #[strum(message = "Glimmer")]
     Glimmer,
+    #[strum(message = "Glsl")]
     Glsl,
+    #[strum(message = "Go")]
     Go,
+    #[strum(message = "Hare")]
     Hare,
+    #[strum(message = "Haskell")]
     Haskell,
+    #[strum(message = "Haxe")]
     Haxe,
     #[strum(message = "HCL")]
     Hcl,
     #[strum(message = "HTML")]
     Html,
+    #[strum(message = "Java")]
     Java,
     #[strum(message = "JavaScript")]
     Javascript,
@@ -213,26 +233,41 @@ pub enum LapceLanguage {
     Json,
     #[strum(message = "JavaScript React")]
     Jsx,
+    #[strum(message = "Julia")]
     Julia,
+    #[strum(message = "Kotlin")]
     Kotlin,
     #[strum(message = "LaTeX")]
     Latex,
+    #[strum(message = "Lua")]
     Lua,
+    #[strum(message = "Markdown")]
     Markdown,
     #[strum(serialize = "markdown.inline")]
     MarkdownInline,
+    #[strum(message = "Nix")]
     Nix,
+    #[strum(message = "OCaml")]
     Ocaml,
+    #[strum(message = "OCaml Interface")]
     OcamlInterface,
     #[strum(message = "PHP")]
     Php,
+    #[strum(message = "Prisma")]
     Prisma,
-    ProtoBuf,
+    #[strum(message = "Protobuf")]
+    Protobuf,
+    #[strum(message = "Python")]
     Python,
+    #[strum(message = "QL")]
     Ql,
+    #[strum(message = "R")]
     R,
+    #[strum(message = "Ruby")]
     Ruby,
+    #[strum(message = "Rust")]
     Rust,
+    #[strum(message = "Scheme")]
     Scheme,
     #[strum(message = "SCSS")]
     Scss,
@@ -240,7 +275,9 @@ pub enum LapceLanguage {
     Sh,
     #[strum(message = "SQL")]
     Sql,
+    #[strum(message = "Svelte")]
     Svelte,
+    #[strum(message = "Swift")]
     Swift,
     #[strum(message = "TOML")]
     Toml,
@@ -248,23 +285,27 @@ pub enum LapceLanguage {
     Tsx,
     #[strum(message = "TypeScript")]
     Typescript,
+    #[strum(message = "Vue")]
     Vue,
+    #[strum(message = "WGSL")]
     Wgsl,
     #[strum(message = "XML")]
     Xml,
     #[strum(message = "YAML")]
     Yaml,
+    #[strum(message = "Zig")]
     Zig,
 }
 
 /// NOTE: Elements in the array must be in the same order as the enum variants of
 /// `LapceLanguage` as they will be accessed using the enum variants as indices.
-const LANGUAGES: &[SyntaxProperties] = &[
+const LANGUAGES: &[LanguageProperties] = &[
     // Plaintext language
     EMPTY_LANGUAGE,
     // Languages
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Bash,
+        language_id: "bash",
 
         indent: "  ",
         files: &[],
@@ -290,8 +331,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::C,
+        language_id: "c",
 
         indent: "    ",
         files: &[],
@@ -317,8 +359,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Cmake,
+        language_id: "cmake",
 
         indent: "  ",
         files: &[],
@@ -344,8 +387,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Cpp,
+        language_id: "cpp",
 
         indent: "    ",
         files: &[],
@@ -375,8 +419,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Csharp,
+        language_id: "csharp",
 
         indent: "  ",
         files: &[],
@@ -402,8 +447,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Css,
+        language_id: "css",
 
         indent: "  ",
         files: &[],
@@ -429,8 +475,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::D,
+        language_id: "d",
 
         indent: "    ",
         files: &[],
@@ -456,8 +503,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Dart,
+        language_id: "dart",
 
         indent: "  ",
         files: &[],
@@ -491,8 +539,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Dockerfile,
+        language_id: "dockerfile",
 
         indent: "  ",
         files: &["dockerfile", "containerfile"],
@@ -518,8 +567,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Elixir,
+        language_id: "elixir",
 
         indent: "  ",
         files: &[],
@@ -545,8 +595,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Elm,
+        language_id: "elm",
 
         indent: "    ",
         files: &[],
@@ -572,8 +623,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Erlang,
+        language_id: "erlang",
 
         indent: "    ",
         files: &[],
@@ -599,8 +651,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Glimmer,
+        language_id: "glimmer",
 
         indent: "  ",
         files: &[],
@@ -626,8 +679,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Glsl,
+        language_id: "glsl",
 
         indent: "  ",
         files: &[],
@@ -658,8 +712,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Go,
+        language_id: "go",
 
         indent: "    ",
         files: &[],
@@ -694,8 +749,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Hare,
+        language_id: "hare",
 
         indent: "        ",
         files: &[],
@@ -721,8 +777,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Haskell,
+        language_id: "haskell",
 
         indent: "  ",
         files: &[],
@@ -748,8 +805,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Haxe,
+        language_id: "haxe",
 
         indent: "  ",
         files: &[],
@@ -775,8 +833,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Hcl,
+        language_id: "hcl",
 
         indent: "  ",
         files: &[],
@@ -802,8 +861,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Html,
+        language_id: "html",
 
         indent: "    ",
         files: &[],
@@ -829,8 +889,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Java,
+        language_id: "java",
 
         indent: "  ",
         files: &[],
@@ -856,8 +917,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Javascript,
+        language_id: "javascript",
 
         indent: "  ",
         files: &[],
@@ -883,8 +945,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Json,
+        language_id: "json",
 
         indent: "    ",
         files: &[],
@@ -910,8 +973,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Jsx,
+        language_id: "javascriptreact",
 
         indent: "  ",
         files: &[],
@@ -938,8 +1002,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Julia,
+        language_id: "julia",
 
         indent: "    ",
         files: &[],
@@ -965,8 +1030,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Kotlin,
+        language_id: "kotlin",
 
         indent: "  ",
         files: &[],
@@ -992,8 +1058,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Latex,
+        language_id: "latex",
 
         indent: "  ",
         files: &[],
@@ -1019,8 +1086,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Lua,
+        language_id: "lua",
 
         indent: "  ",
         files: &[],
@@ -1046,8 +1114,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Markdown,
+        language_id: "markdown",
 
         indent: "    ",
         files: &[],
@@ -1073,8 +1142,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::MarkdownInline,
+        language_id: "",
 
         indent: "    ",
         // markdown inline is only used as an injection by the Markdown language
@@ -1105,8 +1175,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Nix,
+        language_id: "nix",
 
         indent: "  ",
         files: &[],
@@ -1132,8 +1203,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Ocaml,
+        language_id: "ocaml",
 
         indent: "  ",
         files: &[],
@@ -1159,8 +1231,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::OcamlInterface,
+        language_id: "ocaml",
 
         indent: "  ",
         files: &[],
@@ -1170,11 +1243,11 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: CommentProperties {
             single_line_start: "(*",
-            single_line_end: "",
+            single_line_end: "*)",
 
-            multi_line_start: "",
-            multi_line_prefix: "",
-            multi_line_end: "",
+            multi_line_start: "(*",
+            multi_line_prefix: "*",
+            multi_line_end: "*)",
         },
 
         #[cfg(feature = "compile-grammars")]
@@ -1186,8 +1259,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Php,
+        language_id: "php",
 
         indent: "  ",
         files: &[],
@@ -1213,8 +1287,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Prisma,
+        language_id: "prisma",
 
         indent: "    ",
         files: &[],
@@ -1240,8 +1315,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
-        id: LapceLanguage::ProtoBuf,
+    LanguageProperties {
+        id: LapceLanguage::Protobuf,
+        language_id: "protobuf",
 
         indent: "  ",
         files: &[],
@@ -1267,8 +1343,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Python,
+        language_id: "python",
 
         indent: "    ",
         files: &[],
@@ -1305,8 +1382,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Ql,
+        language_id: "ql",
 
         indent: "  ",
         files: &[],
@@ -1332,8 +1410,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::R,
+        language_id: "r",
 
         indent: "  ",
         files: &[],
@@ -1359,8 +1438,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Ruby,
+        language_id: "ruby",
 
         indent: "  ",
         files: &[],
@@ -1386,8 +1466,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Rust,
+        language_id: "rust",
 
         indent: "    ",
         files: &[],
@@ -1416,8 +1497,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Scheme,
+        language_id: "scheme",
 
         indent: "  ",
         files: &[],
@@ -1443,8 +1525,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Scss,
+        language_id: "scss",
 
         indent: "  ",
         files: &[],
@@ -1470,8 +1553,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Sh,
+        language_id: "shellscript",
 
         indent: "  ",
         files: &[],
@@ -1497,8 +1581,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Sql,
+        language_id: "sql",
 
         indent: "  ",
         files: &[],
@@ -1524,8 +1609,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Svelte,
+        language_id: "svelte",
 
         indent: "  ",
         files: &[],
@@ -1551,8 +1637,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Swift,
+        language_id: "swift",
 
         indent: "  ",
         files: &[],
@@ -1578,8 +1665,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Toml,
+        language_id: "toml",
 
         indent: "  ",
         files: &[],
@@ -1605,8 +1693,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Tsx,
+        language_id: "typescriptreact",
 
         indent: "    ",
         files: &[],
@@ -1632,8 +1721,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Typescript,
+        language_id: "typescript",
 
         indent: "    ",
         files: &[],
@@ -1659,8 +1749,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Vue,
+        language_id: "vue",
 
         indent: "  ",
         files: &[],
@@ -1686,8 +1777,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Wgsl,
+        language_id: "wgsl",
 
         indent: "    ",
         files: &[],
@@ -1713,8 +1805,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Xml,
+        language_id: "xml",
 
         indent: "    ",
         files: &[],
@@ -1740,8 +1833,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Yaml,
+        language_id: "yaml",
 
         indent: "  ",
         files: &[],
@@ -1767,8 +1861,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         #[cfg(not(feature = "compile-grammars"))]
         tree_sitter: None,
     },
-    SyntaxProperties {
+    LanguageProperties {
         id: LapceLanguage::Zig,
+        language_id: "zig",
 
         indent: "    ",
         files: &[],
@@ -1822,18 +1917,10 @@ impl LapceLanguage {
         }
     }
 
-    pub fn languages() -> Vec<String> {
-        let mut langs = vec![];
-        for l in LANGUAGES {
-            langs.push(format!("{}", l.id))
-        }
-        langs
-    }
-
     // NOTE: Instead of using `&LANGUAGES[*self as usize]` directly, the
     // `debug_assertion` gives better feedback should something has gone wrong
     // badly.
-    fn properties(&self) -> &SyntaxProperties {
+    fn properties(&self) -> &LanguageProperties {
         let i = *self as usize;
         let l = &LANGUAGES[i];
         debug_assert!(
@@ -1845,13 +1932,9 @@ impl LapceLanguage {
         l
     }
 
-    // fn tree_sitter(&self) -> TreeSitterProperties {
-    //     if let Some(ts) = self.properties().tree_sitter {
-    //         ts
-    //     } else {
-    //         EMPTY_LANGUAGE.tree_sitter.unwrap()
-    //     }
-    // }
+    pub fn language_id(&self) -> &'static str {
+        self.properties().language_id
+    }
 
     pub fn sticky_header_tags(&self) -> &[&'static str] {
         self.properties().sticky_headers
@@ -1871,15 +1954,12 @@ impl LapceLanguage {
     ) -> Result<HighlightConfiguration, HighlightIssue> {
         let props = self.properties();
 
-        let mut language = (EMPTY_LANGUAGE.tree_sitter.unwrap().language)();
+        let mut language = match props.tree_sitter {
+            Some(ts) => (ts.language)(),
+            None => (EMPTY_LANGUAGE.tree_sitter.unwrap().language)(),
+        };
+
         if let Some(grammars_dir) = Directory::grammars_directory() {
-            /*
-             * This Source Code Form is subject to the terms of the Mozilla Public
-             * License, v. 2.0. If a copy of the MPL was not distributed with this
-             * file, You can obtain one at https://mozilla.org/MPL/2.0/.
-             *
-             * Below part is modified form of code from [helix](https://github.com/helix-editor/helix)'s implementation of their tree-sitter loading, which is licenced under MPL.
-             */
             let mut library_path =
                 grammars_dir.join(props.id.to_string().to_lowercase());
 
@@ -1899,8 +1979,6 @@ impl LapceLanguage {
                 };
                 std::mem::forget(library);
             }
-        } else if let Some(ts) = props.tree_sitter {
-            language = (ts.language)();
         }
 
         let mut highlight = String::new();

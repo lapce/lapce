@@ -11,10 +11,12 @@ use druid::{
     RenderContext, Size, Target, TextLayout, TimerToken, UpdateCtx, Widget,
     WidgetExt, WidgetId,
 };
-use lapce_core::command::FocusCommand;
+use lapce_core::{
+    command::FocusCommand,
+    config::{LapceConfig, LapceIcons, LapceTheme},
+};
 use lapce_data::{
     command::{CommandKind, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceIcons, LapceTheme},
     data::{FocusArea, LapceData, LapceTabData},
     panel::PanelKind,
     plugin::{

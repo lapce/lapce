@@ -6,9 +6,9 @@ use druid::{
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetExt,
 };
+use lapce_core::config::{LapceIcons, LapceTheme};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{LapceIcons, LapceTheme},
     data::{EditorDiagnostic, LapceTabData},
     editor::EditorLocation,
     panel::PanelKind,

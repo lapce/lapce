@@ -6,13 +6,16 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     TextAlignment, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
-use lapce_core::{command::FocusCommand, meta};
+use lapce_core::{
+    command::FocusCommand,
+    config::{LapceIcons, LapceTheme},
+    meta,
+};
 use lapce_data::{
     about::AboutFocusData,
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{LapceIcons, LapceTheme},
     data::LapceTabData,
 };
 

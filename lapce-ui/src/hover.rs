@@ -5,9 +5,9 @@ use druid::{
     FontDescriptor, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point,
     RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
+use lapce_core::config::LapceTheme;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
     data::LapceTabData,
     hover::{HoverData, HoverStatus},
     rich_text::RichText,

@@ -11,13 +11,15 @@ use druid::{
     SingleUse, Size, Target, TimerToken, Vec2, Widget, WidgetExt, WidgetId,
     WidgetPod,
 };
-use lapce_core::command::{EditCommand, FocusCommand};
+use lapce_core::{
+    command::{EditCommand, FocusCommand},
+    config::{EditorConfig, LapceTheme},
+};
 use lapce_data::{
     command::{
         CommandExecuted, CommandKind, EnsureVisiblePosition, LapceCommand,
         LapceUICommand, LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{EditorConfig, LapceTheme},
     data::{EditorTabChild, EditorView, FocusArea, LapceTabData},
     document::{BufferContent, LocalBufferKind},
     editor::LapceEditorBufferData,

@@ -11,9 +11,11 @@ use druid::{
 use itertools::Itertools;
 use lapce_core::{
     command::FocusCommand,
+    config::{LapceConfig, LapceIcons, LapceTheme},
     cursor::{Cursor, CursorMode},
     language::LapceLanguage,
     selection::Selection,
+    workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 use lapce_data::{
     command::{
@@ -22,11 +24,9 @@ use lapce_data::{
         LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
-    config::{LapceConfig, LapceIcons, LapceTheme},
     data::{
         DragContent, EditorDiagnostic, EditorTabChild, FocusArea, LapceData,
-        LapceTabData, LapceWindowData, LapceWorkspace, LapceWorkspaceType,
-        WorkProgress,
+        LapceTabData, LapceWindowData, WorkProgress,
     },
     document::{BufferContent, LocalBufferKind},
     editor::EditorLocation,

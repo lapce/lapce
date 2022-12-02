@@ -3,7 +3,8 @@ use druid::{
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetId,
     WidgetPod,
 };
-use lapce_data::{config::LapceTheme, data::LapceTabData};
+use lapce_core::config::LapceTheme;
+use lapce_data::data::LapceTabData;
 
 use super::bread_crumb::LapceEditorBreadCrumb;
 use crate::{

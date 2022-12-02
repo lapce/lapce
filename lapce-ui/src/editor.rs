@@ -11,6 +11,7 @@ use druid::{
 use lapce_core::{
     buffer::DiffLines,
     command::{EditCommand, FocusCommand},
+    config::{LapceConfig, LapceTheme},
     cursor::{ColPosition, CursorMode},
     mode::{Mode, VisualMode},
 };
@@ -19,7 +20,6 @@ use lapce_data::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_UI_COMMAND,
     },
-    config::{LapceConfig, LapceTheme},
     data::{EditorView, LapceData, LapceTabData},
     document::{BufferContent, LocalBufferKind},
     editor::{LapceEditorBufferData, Syntax},

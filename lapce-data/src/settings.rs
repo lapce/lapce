@@ -3,7 +3,7 @@ use std::sync::Arc;
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
 use lapce_core::{
     command::{EditCommand, FocusCommand, MoveCommand},
-    config::{LapceConfig},
+    config::LapceConfig,
     mode::Mode,
 };
 use serde::{Deserialize, Serialize};

@@ -6,11 +6,14 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetId,
 };
-use lapce_core::command::FocusCommand;
+use lapce_core::{
+    command::FocusCommand,
+    config::{LapceIcons, LapceTheme},
+    workspace::LapceWorkspace,
+};
 use lapce_data::{
     command::{CommandKind, LapceCommand, LAPCE_COMMAND},
-    config::{LapceIcons, LapceTheme},
-    data::{LapceTabData, LapceWorkspace},
+    data::LapceTabData,
     document::BufferContent,
     editor::LapceEditorBufferData,
 };

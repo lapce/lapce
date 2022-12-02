@@ -91,7 +91,7 @@ declare_language_highlights!(
     OcamlInterface,
     Php,
     Prisma,
-    ProtoBuf,
+    Protobuf,
     Python,
     Ql,
     R,

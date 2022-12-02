@@ -30,8 +30,8 @@ use lapce_core::{
     movement::Movement,
     register::Register,
     selection::Selection,
+    workspace::{LapceWorkspace, LapceWorkspaceType},
 };
-pub use lapce_core::workspace::{LapceWorkspace, LapceWorkspaceType};
 use lapce_rpc::{
     buffer::BufferId,
     core::{CoreMessage, CoreNotification},
@@ -55,8 +55,8 @@ use crate::{
         LapceUICommand, LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_OPEN_FILE,
         LAPCE_OPEN_FOLDER, LAPCE_UI_COMMAND,
     },
-    config::ConfigWatcher,
     completion::CompletionData,
+    config::ConfigWatcher,
     db::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,

@@ -7,10 +7,9 @@ use druid::{
     LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId,
 };
-use lapce_core::mode::Modes;
+use lapce_core::{config::LapceTheme, mode::Modes};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
     data::LapceTabData,
     keypress::{
         paint_key, Alignment, DefaultKeyPressHandler, KeyMap, KeyPress, KeyPressData,

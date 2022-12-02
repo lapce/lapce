@@ -9,12 +9,12 @@ use std::{
 use anyhow::Result;
 use druid::{
     piet::{PietText, Svg, Text, TextLayout, TextLayoutBuilder},
-    Color, ExtEventSink, FontFamily, Size, Target,
+    Color, FontFamily, Size,
 };
 use indexmap::IndexMap;
 use lsp_types::{CompletionItemKind, SymbolKind};
 use once_cell::sync::Lazy;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 use thiserror::Error;

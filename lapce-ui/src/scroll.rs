@@ -6,10 +6,8 @@ use druid::{
     LifeCycle, LifeCycleCtx, PaintCtx, RenderContext, TimerToken, UpdateCtx, Widget,
     WidgetId, WidgetPod,
 };
-use lapce_data::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{GetConfig, LapceConfig, LapceTheme},
-};
+use lapce_core::config::{GetConfig, LapceConfig, LapceTheme};
+use lapce_data::command::{LapceUICommand, LAPCE_UI_COMMAND};
 
 /// Minimum length for any scrollbar to be when measured on that
 /// scrollbar's primary axis.

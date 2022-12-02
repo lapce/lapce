@@ -15,6 +15,7 @@ use inflector::Inflector;
 use itertools::Itertools;
 use lapce_core::{
     command::{EditCommand, MoveCommand},
+    config::{CoreConfig, EditorConfig, LapceTheme, TerminalConfig, UIConfig},
     mode::Mode,
 };
 use lapce_data::{
@@ -22,7 +23,6 @@ use lapce_data::{
         CommandExecuted, CommandKind, LapceUICommand, LAPCE_COMMAND,
         LAPCE_UI_COMMAND,
     },
-    config::{CoreConfig, EditorConfig, LapceTheme, TerminalConfig, UIConfig},
     data::{FocusArea, LapceEditorData, LapceTabData},
     document::{BufferContent, Document},
     keypress::KeyPressFocus,

@@ -8,12 +8,15 @@ use druid::{
     Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
 };
 use itertools::Itertools;
-use lapce_core::{command::FocusCommand, meta};
+use lapce_core::{
+    command::FocusCommand,
+    config::{LapceConfig, LapceIcons, LapceTheme},
+    meta,
+};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{LapceConfig, LapceIcons, LapceTheme},
     data::{EditorTabChild, LapceData, LapceEditorData, LapceTabData},
     document::{BufferContent, LocalBufferKind},
     explorer::{FileExplorerData, Naming},

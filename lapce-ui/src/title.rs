@@ -8,14 +8,18 @@ use druid::{
     RenderContext, Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
     WindowConfig, WindowState,
 };
-use lapce_core::{command::FocusCommand, meta};
+use lapce_core::{
+    command::FocusCommand,
+    config::{LapceIcons, LapceTheme},
+    meta,
+    workspace::LapceWorkspaceType,
+};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{LapceIcons, LapceTheme},
-    data::{FocusArea, LapceTabData, LapceWorkspaceType},
+    data::{FocusArea, LapceTabData},
     list::ListData,
     menu::{MenuItem, MenuKind},
     palette::PaletteStatus,

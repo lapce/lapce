@@ -8,10 +8,8 @@ use druid::{
     Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, RenderContext, Size,
     UpdateCtx, Widget,
 };
-use lapce_data::{
-    config::{LapceConfig, LapceTheme},
-    data::LapceTabData,
-};
+use lapce_core::config::{LapceConfig, LapceTheme};
+use lapce_data::data::LapceTabData;
 
 // the minimum padding added to a button.
 // NOTE: these values are chosen to match the existing look of TextBox; these

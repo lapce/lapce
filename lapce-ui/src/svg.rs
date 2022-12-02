@@ -2,7 +2,8 @@ use druid::{
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
     PaintCtx, Rect, Size, UpdateCtx, Widget,
 };
-use lapce_data::{config::LapceTheme, data::LapceTabData};
+use lapce_core::config::LapceTheme;
+use lapce_data::data::LapceTabData;
 
 pub struct LapceIconSvg {
     icon: &'static str,

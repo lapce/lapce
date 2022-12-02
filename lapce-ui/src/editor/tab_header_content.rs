@@ -16,7 +16,11 @@ use druid::{
     Target, UpdateCtx, Widget, WidgetId,
 };
 use im::HashMap;
-use lapce_core::{command::FocusCommand, meta, config::{LapceIcons, LapceTheme}};
+use lapce_core::{
+    command::FocusCommand,
+    config::{LapceIcons, LapceTheme},
+    meta,
+};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,

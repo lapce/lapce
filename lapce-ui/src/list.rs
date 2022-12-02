@@ -6,9 +6,9 @@ use druid::{
     LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
     Widget, WidgetId, WidgetPod,
 };
+use lapce_core::config::LapceTheme;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
     list::ListData,
 };
 

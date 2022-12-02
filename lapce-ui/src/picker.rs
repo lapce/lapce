@@ -7,9 +7,9 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
+use lapce_core::config::{LapceConfig, LapceIcons, LapceTheme};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceIcons, LapceTheme},
     data::LapceTabData,
     picker::FilePickerData,
 };

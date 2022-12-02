@@ -6,9 +6,9 @@ use druid::{
     LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
     Widget, WidgetId, WidgetPod,
 };
+use lapce_core::config::{LapceConfig, LapceIcons, LapceTheme};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceIcons, LapceTheme},
     data::LapceTabData,
 };
 use lsp_types::MessageType;

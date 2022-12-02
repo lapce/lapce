@@ -10,14 +10,14 @@ use druid::{
 };
 #[cfg(target_os = "macos")]
 use druid::{Menu, MenuItem, SysMods};
-use lapce_core::meta;
+use lapce_core::{
+    config::LapceConfig,
+    meta,
+    workspace::{LapceWorkspace, LapceWorkspaceType},
+};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceConfig,
-    data::{
-        LapceData, LapceTabLens, LapceWindowData, LapceWindowLens, LapceWorkspace,
-        LapceWorkspaceType,
-    },
+    data::{LapceData, LapceTabLens, LapceWindowData, LapceWindowLens},
     db::{TabsInfo, WindowInfo},
 };
 

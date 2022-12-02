@@ -5,11 +5,8 @@ use druid::{
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
     PaintCtx, Point, Rect, RenderContext, Size, UpdateCtx, Widget, WidgetId,
 };
-use lapce_data::{
-    config::{LapceIcons, LapceTheme},
-    data::LapceTabData,
-    document::BufferContent,
-};
+use lapce_core::config::{LapceIcons, LapceTheme};
+use lapce_data::{data::LapceTabData, document::BufferContent};
 
 pub struct LapceEditorBreadCrumb {
     pub view_id: WidgetId,

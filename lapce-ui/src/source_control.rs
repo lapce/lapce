@@ -7,12 +7,12 @@ use druid::{
     LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, Rect, RenderContext,
     Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
+use lapce_core::config::{LapceIcons, LapceTheme};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{LapceIcons, LapceTheme},
     data::{FocusArea, LapceData, LapceTabData},
     panel::PanelKind,
 };

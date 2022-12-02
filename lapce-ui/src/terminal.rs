@@ -13,13 +13,16 @@ use druid::{
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
-use lapce_core::{mode::Mode, register::Clipboard};
+use lapce_core::{
+    config::{LapceIcons, LapceTheme},
+    mode::Mode,
+    register::Clipboard,
+};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{LapceIcons, LapceTheme},
     data::{FocusArea, LapceTabData},
     document::SystemClipboard,
     panel::PanelKind,

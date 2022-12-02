@@ -7,10 +7,13 @@ use druid::{
     LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext,
     Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
+use lapce_core::{
+    config::{LapceConfig, LapceTheme},
+    workspace::LapceWorkspaceType,
+};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceTheme},
-    data::{LapceTabData, LapceWorkspaceType},
+    data::LapceTabData,
     keypress::{Alignment, KeyMap, KeyPressFocus},
     list::ListData,
     palette::{

@@ -4,10 +4,12 @@ use druid::{
     Command, Data, Event, EventCtx, MouseEvent, PaintCtx, Point, Rect,
     RenderContext, Size, Target, Widget,
 };
-use lapce_core::mode::Mode;
+use lapce_core::{
+    config::{LapceConfig, LapceIcons, LapceTheme},
+    mode::Mode,
+};
 use lapce_data::{
     command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
-    config::{LapceConfig, LapceIcons, LapceTheme},
     data::LapceTabData,
     panel::PanelContainerPosition,
 };

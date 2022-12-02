@@ -9,10 +9,10 @@ use druid::{
     Widget, WidgetId, WidgetPod,
 };
 use itertools::Itertools;
+use lapce_core::config::LapceTheme;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     completion::{CompletionData, CompletionStatus, ScoredCompletionItem},
-    config::LapceTheme,
     data::LapceTabData,
     list::ListData,
     markdown::parse_documentation,

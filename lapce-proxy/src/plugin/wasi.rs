@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, VecDeque},
-    fs,
     io::{Read, Seek, Write},
     path::{Path, PathBuf},
     process,
@@ -11,7 +10,10 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
-use lapce_core::directory::Directory;
+use lapce_core::{
+    config::{find_all_volts, load_volt},
+    directory::Directory,
+};
 use lapce_rpc::{
     plugin::{PluginId, VoltInfo, VoltMetadata},
     style::LineStyle,
@@ -25,7 +27,6 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use psp_types::Request;
-use toml_edit::easy as toml;
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
 
@@ -225,78 +226,6 @@ pub fn load_all_volts(
         })
         .collect();
     let _ = plugin_rpc.unactivated_volts(volts);
-}
-
-pub fn find_all_volts() -> Vec<VoltMetadata> {
-    Directory::plugins_directory()
-        .and_then(|d| {
-            d.read_dir().ok().map(|dir| {
-                dir.filter_map(|result| {
-                    let entry = result.ok()?;
-                    let metadata = entry.metadata().ok()?;
-
-                    if metadata.is_file()
-                        || entry.file_name().to_str()?.starts_with('.')
-                    {
-                        return None;
-                    }
-                    let path = entry.path().join("volt.toml");
-                    load_volt(&path).ok()
-                })
-                .collect()
-            })
-        })
-        .unwrap_or_default()
-}
-
-pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
-    let mut file = fs::File::open(path)?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-    let mut meta: VoltMetadata = toml::from_str(&contents)?;
-    meta.dir = Some(path.parent().unwrap().canonicalize()?);
-    meta.wasm = meta.wasm.as_ref().and_then(|wasm| {
-        Some(
-            path.parent()?
-                .join(wasm)
-                .canonicalize()
-                .ok()?
-                .to_str()?
-                .to_string(),
-        )
-    });
-    meta.color_themes = meta.color_themes.as_ref().map(|themes| {
-        themes
-            .iter()
-            .filter_map(|theme| {
-                Some(
-                    path.parent()?
-                        .join(theme)
-                        .canonicalize()
-                        .ok()?
-                        .to_str()?
-                        .to_string(),
-                )
-            })
-            .collect()
-    });
-    meta.icon_themes = meta.icon_themes.as_ref().map(|themes| {
-        themes
-            .iter()
-            .filter_map(|theme| {
-                Some(
-                    path.parent()?
-                        .join(theme)
-                        .canonicalize()
-                        .ok()?
-                        .to_str()?
-                        .to_string(),
-                )
-            })
-            .collect()
-    });
-
-    Ok(meta)
 }
 
 pub fn enable_volt(

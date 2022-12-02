@@ -4,10 +4,12 @@ use druid::{
     LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
     Widget, WidgetId,
 };
-use lapce_core::buffer::DiffLines;
+use lapce_core::{
+    buffer::DiffLines,
+    config::{LapceIcons, LapceTheme},
+};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{LapceIcons, LapceTheme},
     data::{EditorView, LapceTabData},
     editor::{LapceEditorBufferData, Syntax},
 };
