@@ -596,8 +596,28 @@ impl ProxyHandler for Dispatcher {
                 let proxy_rpc = self.proxy_rpc.clone();
                 thread::spawn(move || {
                     let result = if let Some(workspace) = workspace {
+                        let git_folder =
+                            ignore::overrides::OverrideBuilder::new(&workspace)
+                                .add("!.git/")
+                                .map(|git_folder| git_folder.build());
+
+                        let walker = match git_folder {
+                            Ok(Ok(git_folder)) => {
+                                ignore::WalkBuilder::new(&workspace)
+                                    .hidden(false)
+                                    .parents(false)
+                                    .require_git(false)
+                                    .overrides(git_folder)
+                                    .build()
+                            }
+                            _ => ignore::WalkBuilder::new(&workspace)
+                                .parents(false)
+                                .require_git(false)
+                                .build(),
+                        };
+
                         let mut items = Vec::new();
-                        for path in ignore::Walk::new(workspace).flatten() {
+                        for path in walker.flatten() {
                             if let Some(file_type) = path.file_type() {
                                 if file_type.is_file() {
                                     items.push(path.into_path());
