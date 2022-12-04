@@ -274,15 +274,17 @@ impl Widget<LapceTabData> for LapceKeymap {
                         ));
                         let text_layout = ctx
                             .text()
-                            .new_text_layout(
-                                match cmd.kind.desc() {
-                                    Some(desc) => desc.to_string(),
-                                    None => {
-                                        let mut formatted = cmd.kind.str().replace("_", " ");
-                                        format!("{}{formatted}", formatted.remove(0).to_uppercase())
-                                    }
+                            .new_text_layout(match cmd.kind.desc() {
+                                Some(desc) => desc.to_string(),
+                                None => {
+                                    let mut formatted =
+                                        cmd.kind.str().replace('_', " ");
+                                    format!(
+                                        "{}{formatted}",
+                                        formatted.remove(0).to_uppercase()
+                                    )
                                 }
-                            )
+                            })
                             .font(
                                 data.config.ui.font_family(),
                                 data.config.ui.font_size() as f64,
@@ -382,15 +384,17 @@ impl Widget<LapceTabData> for LapceKeymap {
                         ));
                         let text_layout = ctx
                             .text()
-                            .new_text_layout(
-                                match command.kind.desc() {
-                                    Some(desc) => desc.to_string(),
-                                    None => {
-                                        let mut formatted = command.kind.str().replace("_", " ");
-                                        format!("{}{formatted}", formatted.remove(0).to_uppercase())
-                                    }
+                            .new_text_layout(match command.kind.desc() {
+                                Some(desc) => desc.to_string(),
+                                None => {
+                                    let mut formatted =
+                                        command.kind.str().replace('_', " ");
+                                    format!(
+                                        "{}{formatted}",
+                                        formatted.remove(0).to_uppercase()
+                                    )
                                 }
-                            )
+                            })
                             .font(
                                 data.config.ui.font_family(),
                                 data.config.ui.font_size() as f64,
