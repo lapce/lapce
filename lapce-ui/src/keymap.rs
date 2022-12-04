@@ -275,7 +275,13 @@ impl Widget<LapceTabData> for LapceKeymap {
                         let text_layout = ctx
                             .text()
                             .new_text_layout(
-                                cmd.kind.desc().unwrap_or_else(|| cmd.kind.str()),
+                                match cmd.kind.desc() {
+                                    Some(desc) => desc.to_string(),
+                                    None => {
+                                        let mut formatted = cmd.kind.str().replace("_", " ");
+                                        format!("{}{formatted}", formatted.remove(0).to_uppercase())
+                                    }
+                                }
                             )
                             .font(
                                 data.config.ui.font_family(),
@@ -377,10 +383,13 @@ impl Widget<LapceTabData> for LapceKeymap {
                         let text_layout = ctx
                             .text()
                             .new_text_layout(
-                                command
-                                    .kind
-                                    .desc()
-                                    .unwrap_or_else(|| command.kind.str()),
+                                match command.kind.desc() {
+                                    Some(desc) => desc.to_string(),
+                                    None => {
+                                        let mut formatted = command.kind.str().replace("_", " ");
+                                        format!("{}{formatted}", formatted.remove(0).to_uppercase())
+                                    }
+                                }
                             )
                             .font(
                                 data.config.ui.font_family(),
