@@ -55,7 +55,7 @@ use crate::{
         LAPCE_OPEN_FOLDER, LAPCE_UI_COMMAND,
     },
     completion::CompletionData,
-    config::{ConfigWatcher, GetConfig, LapceConfig, LapceTheme},
+    config::{ConfigWatcher, EditorConfig, GetConfig, LapceConfig, LapceTheme},
     db::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
@@ -2628,6 +2628,7 @@ impl LapceMainSplitData {
                 split: *self.split_id,
                 active: 0,
                 children: Vector::new(),
+                history: Vector::new(),
                 layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                 content_is_hot: Rc::new(RefCell::new(false)),
             };
@@ -2670,6 +2671,7 @@ impl LapceMainSplitData {
             split: split_id,
             active: 0,
             children: Vector::new(),
+            history: Vector::new(),
             layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             content_is_hot: Rc::new(RefCell::new(false)),
         };
@@ -3978,17 +3980,20 @@ impl LapceMainSplitData {
         let split_id = editor_tab.split;
 
         let new_editor_tab_id = WidgetId::next();
+        let children: Vector<EditorTabChild> = vec![EditorTabChild::Plugin {
+            widget_id: WidgetId::next(),
+            editor_tab_id: new_editor_tab_id,
+            volt_id,
+            volt_name,
+        }]
+        .into();
+        let history = vec![0].into();
         let mut new_editor_tab = LapceEditorTabData {
             widget_id: new_editor_tab_id,
             split: split_id,
             active: 0,
-            children: vec![EditorTabChild::Plugin {
-                widget_id: WidgetId::next(),
-                editor_tab_id: new_editor_tab_id,
-                volt_id,
-                volt_name,
-            }]
-            .into(),
+            children,
+            history,
             layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             content_is_hot: Rc::new(RefCell::new(false)),
         };
@@ -4034,16 +4039,19 @@ impl LapceMainSplitData {
         self.editors.insert(editor.view_id, Arc::new(editor));
 
         let new_editor_tab_id = WidgetId::next();
+        let children: Vector<EditorTabChild> = vec![EditorTabChild::Settings {
+            settings_widget_id: WidgetId::next(),
+            editor_tab_id: new_editor_tab_id,
+            keymap_input_view_id,
+        }]
+        .into();
+        let history = vec![0].into();
         let mut new_editor_tab = LapceEditorTabData {
             widget_id: new_editor_tab_id,
             split: split_id,
             active: 0,
-            children: vec![EditorTabChild::Settings {
-                settings_widget_id: WidgetId::next(),
-                editor_tab_id: new_editor_tab_id,
-                keymap_input_view_id,
-            }]
-            .into(),
+            children,
+            history,
             layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             content_is_hot: Rc::new(RefCell::new(false)),
         };
@@ -4115,16 +4123,19 @@ impl LapceMainSplitData {
             let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
             let split_id = editor_tab.split;
             let mut new_editor = editor.copy();
+            let children: Vector<EditorTabChild> = vec![EditorTabChild::Editor(
+                new_editor.view_id,
+                new_editor.editor_id,
+                new_editor.find_view_id,
+            )]
+            .into();
+            let history = vec![0].into();
             let mut new_editor_tab = LapceEditorTabData {
                 widget_id: WidgetId::next(),
                 split: split_id,
                 active: 0,
-                children: vec![EditorTabChild::Editor(
-                    new_editor.view_id,
-                    new_editor.editor_id,
-                    new_editor.find_view_id,
-                )]
-                .into(),
+                children,
+                history,
                 layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                 content_is_hot: Rc::new(RefCell::new(false)),
             };
@@ -4237,6 +4248,7 @@ pub struct LapceEditorTabData {
     pub split: WidgetId,
     pub active: usize,
     pub children: Vector<EditorTabChild>,
+    pub history: Vector<usize>,
     pub layout_rect: Rc<RefCell<Rect>>,
     pub content_is_hot: Rc<RefCell<bool>>,
 }
@@ -4257,6 +4269,110 @@ impl LapceEditorTabData {
 
     pub fn active_child(&self) -> Option<&EditorTabChild> {
         self.children.get(self.active)
+    }
+
+    pub fn select_next_tab(&self, config: &EditorConfig) -> Option<usize> {
+        if config.historic_next_tab {
+            if self.history.len() <= 1 {
+                None
+            } else {
+                Some(self.history[1])
+            }
+        } else if self.children.is_empty() {
+            None
+        } else {
+            let new_index = if self.active == self.children.len() - 1 {
+                0
+            } else {
+                self.active + 1
+            };
+            Some(new_index)
+        }
+    }
+
+    pub fn select_previous_tab(&self, config: &EditorConfig) -> Option<usize> {
+        if config.historic_next_tab {
+            if self.history.len() <= 1 {
+                None
+            } else {
+                Some(self.history[self.history.len() - 1])
+            }
+        } else if self.children.is_empty() {
+            None
+        } else {
+            let new_index = if self.active == 0 {
+                self.children.len() - 1
+            } else {
+                self.active - 1
+            };
+            Some(new_index)
+        }
+    }
+
+    pub fn focus_tab(&mut self, tab_index: usize, ctx: &mut EventCtx) {
+        self.active = tab_index;
+        self.focus_active_tab(ctx);
+    }
+
+    pub fn focus_active_tab(&mut self, ctx: &mut EventCtx) {
+        self.history.retain(|tab| tab != &self.active);
+        self.history.push_front(self.active);
+
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(self.children[self.active].widget_id()),
+        ));
+    }
+
+    pub fn focus_next_tab(&mut self, ctx: &mut EventCtx, config: &EditorConfig) {
+        if let Some(next_tab) = self.select_next_tab(config) {
+            self.focus_tab(next_tab, ctx);
+        }
+    }
+
+    pub fn focus_previous_tab(&mut self, ctx: &mut EventCtx, config: &EditorConfig) {
+        if let Some(next_tab) = self.select_previous_tab(config) {
+            self.focus_tab(next_tab, ctx);
+        }
+    }
+
+    pub fn remove_tab(
+        &mut self,
+        config: &EditorConfig,
+        index: usize,
+    ) -> EditorTabChild {
+        if config.historic_next_tab {
+            let active = match self.active {
+                _ if self.active == index => self.history[0],
+                _ if self.active > index => self.active - 1,
+                _ => self.active,
+            };
+            self.active = active;
+        } else {
+            // adjust active
+            let active = match self.active {
+                _ if self.active == index
+                    && self.active >= self.children.len() - 1 =>
+                {
+                    self.active - 1
+                }
+                _ if self.active > index => self.active - 1,
+                _ => self.active,
+            };
+            self.active = active;
+        }
+        self.history = self
+            .history
+            .iter()
+            .filter_map(|&idx| match idx {
+                _ if idx < index => Some(idx),
+                _ if idx == index => None,
+                _ if idx > index => Some(idx - 1),
+                _ => unreachable!(),
+            })
+            .collect::<Vector<_>>();
+        self.children.remove(index)
     }
 }
 

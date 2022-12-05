@@ -429,6 +429,10 @@ pub struct EditorConfig {
         desc = "If enabled the cursor treats leading soft tabs as if they are hard tabs."
     )]
     pub atomic_soft_tabs: bool,
+    #[field_names(
+        desc = "If enabled the cursor treats leading soft tabs as if they are hard tabs."
+    )]
+    pub historic_next_tab: bool,
 }
 
 impl EditorConfig {
