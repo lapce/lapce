@@ -8,6 +8,9 @@ use druid::{
     Size, Target, Widget, WidgetExt, WidgetPod, WindowDesc, WindowHandle, WindowId,
     WindowState,
 };
+
+use lapce_core::command::FocusCommand;
+
 #[cfg(target_os = "macos")]
 use druid::{Menu, MenuItem, SysMods};
 use lapce_core::meta;
@@ -245,31 +248,75 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
     };
 
     desc.menu(|_, _, _| {
-        Menu::new("Lapce").entry(
-            Menu::new("")
-                .entry(MenuItem::new("About Lapce").command(Command::new(
-                    LAPCE_COMMAND,
-                    LapceCommand {
-                        kind: CommandKind::Workbench(
-                            LapceWorkbenchCommand::ShowAbout,
-                        ),
-                        data: None,
-                    },
-                    Target::Auto,
-                )))
-                .separator()
-                .entry(
-                    MenuItem::new("Hide Lapce")
-                        .command(druid::commands::HIDE_APPLICATION)
-                        .hotkey(SysMods::Cmd, "h"),
-                )
-                .separator()
-                .entry(
-                    MenuItem::new("Quit Lapce")
-                        .command(druid::commands::QUIT_APP)
-                        .hotkey(SysMods::Cmd, "q"),
-                ),
-        )
+        Menu::new("Lapce")
+            .entry(
+                Menu::new("")
+                    .entry(MenuItem::new("About Lapce").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::ShowAbout,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .separator()
+                    .entry(
+                        MenuItem::new("Hide Lapce")
+                            .command(druid::commands::HIDE_APPLICATION)
+                            .hotkey(SysMods::Cmd, "h"),
+                    )
+                    .separator()
+                    .entry(
+                        MenuItem::new("Quit Lapce")
+                            .command(druid::commands::QUIT_APP)
+                            .hotkey(SysMods::Cmd, "q"),
+                    ),
+            )
+            .entry(
+                Menu::new("File")
+                    .entry(MenuItem::new("New File").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::NewFile,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .separator()
+                    .entry(MenuItem::new("Open").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::OpenFile,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .entry(MenuItem::new("Open Folder").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::OpenFolder,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .separator()
+                    .entry(MenuItem::new("Save").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::Save),
+                            data: None,
+                        },
+                        Target::Auto,
+                    ))),
+            )
     })
 }
 
