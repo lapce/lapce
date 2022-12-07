@@ -9,10 +9,9 @@ use druid::{
     WindowState,
 };
 
-use lapce_core::command::FocusCommand;
-
-#[cfg(target_os = "macos")]
 use druid::{Menu, MenuItem, SysMods};
+#[cfg(target_os = "macos")]
+use lapce_core::command::FocusCommand;
 use lapce_core::meta;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
