@@ -314,6 +314,37 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
                             data: None,
                         },
                         Target::Auto,
+                    )))
+                    .entry(MenuItem::new("Save All").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::SaveAll,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .separator()
+                    .entry(MenuItem::new("Close Folder").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::CloseFolder,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .entry(MenuItem::new("Close window").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::CloseWindow,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
                     ))),
             )
     })
