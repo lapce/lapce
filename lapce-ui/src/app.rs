@@ -11,7 +11,7 @@ use druid::{
 #[cfg(target_os = "macos")]
 use druid::{Menu, MenuItem, SysMods};
 #[cfg(target_os = "macos")]
-use lapce_core::command::FocusCommand;
+use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_core::meta;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -342,6 +342,59 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
                             kind: CommandKind::Workbench(
                                 LapceWorkbenchCommand::CloseWindow,
                             ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    ))),
+            )
+            .entry(
+                Menu::new("Edit")
+                    .entry(MenuItem::new("Cut").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::ClipboardCut),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .entry(MenuItem::new("Copy").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::ClipboardCopy),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .entry(MenuItem::new("Paste").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::ClipboardPaste),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .separator()
+                    .entry(MenuItem::new("Undo").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::Undo),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .entry(MenuItem::new("Redo").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::Redo),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .separator()
+                    .entry(MenuItem::new("Find").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::Search),
                             data: None,
                         },
                         Target::Auto,
