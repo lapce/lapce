@@ -277,6 +277,22 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Create New Window Tab")]
     NewWindowTab,
 
+    #[strum(serialize = "new_terminal_tab")]
+    #[strum(message = "Create New Terminal Tab")]
+    NewTerminalTab,
+
+    #[strum(serialize = "close_terminal_tab")]
+    #[strum(message = "Close Terminal Tab")]
+    CloseTerminalTab,
+
+    #[strum(serialize = "next_terminal_tab")]
+    #[strum(message = "Next Terminal Tab")]
+    NextTerminalTab,
+
+    #[strum(serialize = "previous_terminal_tab")]
+    #[strum(message = "Previous Terminal Tab")]
+    PreviousTerminalTab,
+
     #[strum(serialize = "next_window_tab")]
     #[strum(message = "Go To Next Window Tab")]
     NextWindowTab,
@@ -798,7 +814,7 @@ pub enum LapceUICommand {
         direction: SelectionRangeDirection,
     },
 
-    /// An item in a list was chosen  
+    /// An item in a list was chosen
     /// This is typically targeted at the widget which contains the list
     ListItemSelected,
     NewMessage {
@@ -810,12 +826,12 @@ pub enum LapceUICommand {
 }
 
 /// This can't be an `FnOnce` because we only ever get a reference to
-/// [`InitBufferContent`]  
-/// However, in reality, it should only ever be called once.  
+/// [`InitBufferContent`]
+/// However, in reality, it should only ever be called once.
 /// This could be more powerful if it was given `&mut LapceTabData` but that would
-/// require moving the callers of it into `LapceTabData`.  
+/// require moving the callers of it into `LapceTabData`.
 ///
-/// Parameters:  
+/// Parameters:
 /// `(ctx: &mut EventCtx, data: &mut LapceMainSplitData)`
 pub type InitBufferContentCb =
     Box<dyn Fn(&mut EventCtx, &mut LapceMainSplitData) + Send>;

@@ -2,21 +2,28 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- [#1726](https://github.com/lapce/lapce/pull/1726): Add more panel theme keys, apply hover first, then current item colour
+
 ### Features/Changes
 - [#1791](https://github.com/lapce/lapce/pull/1791): Add highlighting for scope lines
+- [#1767](https://github.com/lapce/lapce/pull/1767): Added CMake tree-sitter syntax highlighting
+- [#1759](https://github.com/lapce/lapce/pull/1759): Update C tree-sitter and highlight queries
+- [#1758](https://github.com/lapce/lapce/pull/1758): Replaced dlang syntax highlighting
 - [#1713](https://github.com/lapce/lapce/pull/1713): Add protobuf syntax and highlighting
 - [#1720](https://github.com/lapce/lapce/pull/1720): Display signature/parameter information from LSP
 - [#1723](https://github.com/lapce/lapce/pull/1723): In the palette, display the keybind for a command adjacent to it
 - [#1722](https://github.com/lapce/lapce/pull/1722): Add 'Save without Formatting'; Add option to disable formatting on autosave
-- [#1726](https://github.com/lapce/lapce/pull/1726): Add more panel theme keys, apply hover first, then current item colour
-  > **Warning**
-  > This is a breaking change
 - [#1741](https://github.com/lapce/lapce/pull/1741): Add syntax highlighting for glsl
 - [#1756](https://github.com/lapce/lapce/pull/1756): Add support for ssh port with ```[user@]host[:port]```
+- [#1760](https://github.com/lapce/lapce/pull/1760): Add vim motions `cw`, `ce`, `cc`, `S`, and QOL modal bind `gf`
+- [#1770](https://github.com/lapce/lapce/pull/1770): Add support for terminal tabs
 
 ### Bug Fixes
+- [#1771](https://github.com/lapce/lapce/pull/1771): Update tree-sitter-bash
 - [#1737](https://github.com/lapce/lapce/pull/1726): Fix an issue that plugins can't be upgraded
-- [#1724](https://github.com/lapce/lapce/pull/1724): files and hidden folders no longer will be considered when trying to open a plugin base folder
+- [#1724](https://github.com/lapce/lapce/pull/1724): Files and hidden folders no longer will be considered when trying to open a plugin base folder
 - [#1753](https://github.com/lapce/lapce/pull/1753): Limit proxy search response size in order to avoid issues with absurdly long lines
 
 ## 0.2.4

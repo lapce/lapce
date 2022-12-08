@@ -42,6 +42,10 @@ key = "meta+shift+z"
 command = "redo"
 
 [[keymaps]]
+key = "meta+y"
+command = "redo"
+
+[[keymaps]]
 key = "meta+x"
 command = "clipboard_cut"
 

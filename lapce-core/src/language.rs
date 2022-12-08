@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::Path, str::FromStr};
 use strum_macros::{Display, EnumString};
 use tree_sitter::TreeCursor;
 
-use crate::syntax::highlight::HighlightConfiguration;
+use crate::syntax::highlight::{HighlightConfiguration, HighlightIssue};
 
 //
 // To add support for an hypothetical language called Foo, for example, using
@@ -112,6 +112,8 @@ pub enum LapceLanguage {
     Bash,
     #[cfg(feature = "lang-c")]
     C,
+    #[cfg(feature = "lang-cmake")]
+    Cmake,
     #[cfg(feature = "lang-cpp")]
     Cpp,
     #[cfg(feature = "lang-csharp")]
@@ -225,7 +227,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Bash,
         language: tree_sitter_bash::language,
-        highlight: include_str!("../queries/bash/highlights.scm"),
+        highlight: tree_sitter_bash::HIGHLIGHT_QUERY,
         injection: None,
         comment: "#",
         indent: "  ",
@@ -244,6 +246,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &["function_definition", "struct_specifier"],
         extensions: &["c", "h"],
+    },
+    #[cfg(feature = "lang-cmake")]
+    SyntaxProperties {
+        id: LapceLanguage::Cmake,
+        language: tree_sitter_cmake::language,
+        highlight: include_str!("../queries/cmake/highlights.scm"),
+        injection: Some(include_str!("../queries/cmake/injections.scm")),
+        comment: "#",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &["function_definition"],
+        extensions: &["cmake"],
     },
     #[cfg(feature = "lang-cpp")]
     SyntaxProperties {
@@ -964,14 +978,26 @@ impl LapceLanguage {
         self.properties().indent
     }
 
-    pub(crate) fn new_highlight_config(&self) -> HighlightConfiguration {
+    pub(crate) fn new_highlight_config(
+        &self,
+    ) -> Result<HighlightConfiguration, HighlightIssue> {
         let props = self.properties();
         let language = (props.language)();
         let query = props.highlight;
         let injection = props.injection;
-
-        HighlightConfiguration::new(language, query, injection.unwrap_or(""), "")
-            .unwrap()
+        match HighlightConfiguration::new(
+            language,
+            query,
+            injection.unwrap_or(""),
+            "",
+        ) {
+            Ok(x) => Ok(x),
+            Err(x) => {
+                let str = format!("Encountered {x:?} while trying to construct HighlightConfiguration for {self}");
+                log::error!("{str}");
+                Err(HighlightIssue::Error(str))
+            }
+        }
     }
 
     pub(crate) fn walk_tree(

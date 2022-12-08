@@ -28,8 +28,8 @@ use self::{
     edit::SyntaxEdit,
     highlight::{
         get_highlight_config, injection_for_match, intersect_ranges, Highlight,
-        HighlightConfiguration, HighlightEvent, HighlightIter, HighlightIterLayer,
-        IncludedChildren, LocalScope,
+        HighlightConfiguration, HighlightEvent, HighlightIssue, HighlightIter,
+        HighlightIterLayer, IncludedChildren, LocalScope,
     },
     util::{matching_char, matching_pair_direction, RopeProvider},
 };
@@ -173,7 +173,9 @@ impl SyntaxLayers {
         queue.push_back(self.root);
 
         let injection_callback = |language: &str| {
-            LapceLanguage::from_name(language).map(get_highlight_config)
+            LapceLanguage::from_name(language)
+                .map(get_highlight_config)
+                .unwrap_or(Err(highlight::HighlightIssue::NotAvailable))
         };
 
         let mut edits = Vec::new();
@@ -327,7 +329,7 @@ impl SyntaxLayers {
                     // to the highlighted document.
                     if let (Some(language_name), Some(content_node)) = (language_name, content_node)
                     {
-                        if let Some(config) = (injection_callback)(&language_name) {
+                        if let Ok(config) = (injection_callback)(&language_name) {
                             let ranges =
                                 intersect_ranges(&layer.ranges, &[content_node], included_children);
 
@@ -369,7 +371,7 @@ impl SyntaxLayers {
                     for (lang_name, content_nodes, included_children) in injections_by_pattern_index
                     {
                         if let (Some(lang_name), false) = (lang_name, content_nodes.is_empty()) {
-                            if let Some(config) = (injection_callback)(&lang_name) {
+                            if let Ok(config) = (injection_callback)(&lang_name) {
                                 let ranges = intersect_ranges(
                                     &layer.ranges,
                                     &content_nodes,
@@ -550,22 +552,24 @@ impl std::fmt::Debug for Syntax {
 }
 
 impl Syntax {
-    pub fn init(path: &Path) -> Option<Syntax> {
-        LapceLanguage::from_path(path).map(Syntax::from_language)
+    pub fn init(path: &Path) -> Result<Syntax, HighlightIssue> {
+        LapceLanguage::from_path(path)
+            .map(Syntax::from_language)
+            .unwrap_or(Err(HighlightIssue::NotAvailable))
     }
 
-    pub fn from_language(language: LapceLanguage) -> Syntax {
-        Syntax {
+    pub fn from_language(language: LapceLanguage) -> Result<Syntax, HighlightIssue> {
+        get_highlight_config(language).map(|x| Syntax {
             rev: 0,
             language,
             text: Rope::from(""),
-            layers: SyntaxLayers::new_empty(get_highlight_config(language)),
+            layers: SyntaxLayers::new_empty(x),
             lens: Self::lens_from_normal_lines(0, 0, 0, &Vec::new()),
             line_height: 0,
             lens_height: 0,
             normal_lines: Vec::new(),
             styles: None,
-        }
+        })
     }
 
     pub fn parse(
@@ -790,15 +794,22 @@ impl Syntax {
         &self,
         offset: usize,
     ) -> Option<(usize, usize)> {
-        let tree = self.layers.try_tree()?;
-        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
         // If there is no text then the document can't have any bytes
         if self.text.is_empty() {
             return None;
         }
+        if offset >= self.text.len() {
+            return None;
+        }
+
+        let tree = self.layers.try_tree()?;
+        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
 
         loop {
             let start = node.start_byte();
+            if start >= self.text.len() {
+                return None;
+            }
             let c = self.text.byte_at(start) as char;
             if c == '(' {
                 let end = self.find_matching_pair(start)?;
@@ -817,15 +828,22 @@ impl Syntax {
     }
 
     pub fn find_enclosing_pair(&self, offset: usize) -> Option<(usize, usize)> {
-        let tree = self.layers.try_tree()?;
-        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
         // If there is no text then the document can't have any bytes
         if self.text.is_empty() {
             return None;
         }
+        if offset >= self.text.len() {
+            return None;
+        }
+
+        let tree = self.layers.try_tree()?;
+        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
 
         loop {
             let start = node.start_byte();
+            if start >= self.text.len() {
+                return None;
+            }
             let c = self.text.byte_at(start) as char;
             if matching_pair_direction(c) == Some(true) {
                 let end = self.find_matching_pair(start)?;

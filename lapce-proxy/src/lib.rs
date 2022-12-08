@@ -103,25 +103,27 @@ pub fn mainloop() {
     std::thread::spawn(move || {
         let _ = listen_local_socket(local_proxy_rpc);
     });
-    if let Ok(path) = std::env::current_exe() {
-        if let Some(path) = path.parent() {
-            if let Some(path) = path.to_str() {
-                if let Ok(current_path) = std::env::var("PATH") {
-                    let mut paths = vec![PathBuf::from(path)];
-                    paths.append(
-                        &mut std::env::split_paths(&current_path)
-                            .collect::<Vec<_>>(),
-                    );
-                    std::env::set_var(
-                        "PATH",
-                        std::env::join_paths(paths).expect("Couldn't join PATH"),
-                    );
-                }
+    let _ = register_lapce_path();
+
+    proxy_rpc.mainloop(&mut dispatcher);
+}
+
+pub fn register_lapce_path() -> Result<()> {
+    let path = std::env::current_exe()?;
+
+    if let Some(path) = path.parent() {
+        if let Some(path) = path.to_str() {
+            if let Ok(current_path) = std::env::var("PATH") {
+                let mut paths = vec![PathBuf::from(path)];
+                paths.append(
+                    &mut std::env::split_paths(&current_path).collect::<Vec<_>>(),
+                );
+                std::env::set_var("PATH", std::env::join_paths(paths)?);
             }
         }
     }
 
-    proxy_rpc.mainloop(&mut dispatcher);
+    Ok(())
 }
 
 fn try_open_in_existing_process(paths: &[PathBuf]) -> Result<()> {

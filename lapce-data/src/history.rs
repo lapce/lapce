@@ -268,7 +268,7 @@ impl DocumentHistory {
 
             let content = self.buffer.as_ref().unwrap().text().clone();
             rayon::spawn(move || {
-                if let Some(mut syntax) = Syntax::init(&path) {
+                if let Ok(mut syntax) = Syntax::init(&path) {
                     syntax.parse(0, content, None);
                     if let Some(styles) = syntax.styles {
                         let _ = event_sink.submit_command(

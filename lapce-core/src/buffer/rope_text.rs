@@ -149,6 +149,7 @@ impl<'a> RopeText<'a> {
         count: usize,
         limit: usize,
     ) -> usize {
+        let offset = offset.min(self.len());
         let mut cursor = Cursor::new(self.text, offset);
         let mut new_offset = offset;
         for _i in 0..count {
