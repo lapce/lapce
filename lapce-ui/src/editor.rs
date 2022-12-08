@@ -1929,7 +1929,9 @@ impl LapceEditor {
         data: &LapceEditorBufferData,
         screen_lines: &ScreenLines,
     ) {
-        if !data.config.editor.highlight_matching_brackets {
+        if !data.config.editor.highlight_matching_brackets
+            && !data.config.editor.highlight_scope_lines
+        {
             return;
         }
 
@@ -1947,20 +1949,35 @@ impl LapceEditor {
         if let Some((start_offset, end_offset)) =
             data.doc.find_enclosing_brackets(cursor_offset)
         {
-            if start_offset > start && start_offset < end {
-                Self::paint_bracket_highlight(ctx, data, screen_lines, start_offset);
+            if data.config.editor.highlight_matching_brackets {
+                if start_offset > start && start_offset < end {
+                    Self::paint_bracket_highlight(
+                        ctx,
+                        data,
+                        screen_lines,
+                        start_offset,
+                    );
+                }
+                if end_offset > start && end_offset < end {
+                    Self::paint_bracket_highlight(
+                        ctx,
+                        data,
+                        screen_lines,
+                        end_offset,
+                    );
+                }
             }
-            if end_offset > start && end_offset < end {
-                Self::paint_bracket_highlight(ctx, data, screen_lines, end_offset);
+
+            if data.config.editor.highlight_scope_lines {
+                Self::paint_scope_line(
+                    ctx,
+                    data,
+                    screen_lines,
+                    start_offset,
+                    end_offset,
+                    data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
+                );
             }
-            Self::paint_scope_line(
-                ctx,
-                data,
-                screen_lines,
-                start_offset,
-                end_offset,
-                data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
-            );
         };
     }
 
@@ -2039,10 +2056,14 @@ impl LapceEditor {
         let first_screen_line = *screen_lines.lines.first().unwrap();
 
         let first_line = if first_screen_line > start_line {
-            *screen_lines.lines.first().unwrap()
+            first_screen_line
         } else {
             start_line
         };
+
+        if first_line > end_line {
+            return;
+        }
 
         let info = match screen_lines.info.get(&first_line) {
             Some(info) => info,
@@ -2059,6 +2080,7 @@ impl LapceEditor {
 
         let y0 = info.y + info.line_height;
 
+        let mut paint_horizontal_line_at_end = false;
         if first_line == end_line {
             let x0 = Self::calculate_x_coordinate(
                 ctx,
@@ -2074,8 +2096,8 @@ impl LapceEditor {
                 LINE_WIDTH,
             );
         } else {
-            for line in start_line..end_line {
-                let last_line = data.doc.buffer().last_line();
+            let last_line = data.doc.buffer().last_line();
+            for line in start_line..end_line + 1 {
                 if line > last_line {
                     break;
                 }
@@ -2089,6 +2111,7 @@ impl LapceEditor {
 
                 if text_layout.indent < x1 {
                     x1 = text_layout.indent;
+                    paint_horizontal_line_at_end = true;
                 }
             }
 
@@ -2104,12 +2127,19 @@ impl LapceEditor {
                 )
             };
 
-            if first_line > end_line {
-                return;
-            }
             let lines = end_line - first_line;
 
-            let y1 = info.y + (lines as f64 * info.line_height);
+            let y1 = if data
+                .doc
+                .buffer()
+                .first_non_blank_character_on_line(end_line)
+                < end_offset
+            {
+                paint_horizontal_line_at_end = true;
+                info.y + ((lines + 1) as f64 * info.line_height)
+            } else {
+                info.y + (lines as f64 * info.line_height)
+            };
 
             ctx.stroke(
                 Line::new(Point::new(x0, y0), Point::new(x1, y0)),
@@ -2122,6 +2152,22 @@ impl LapceEditor {
                 color,
                 LINE_WIDTH,
             );
+
+            if paint_horizontal_line_at_end {
+                let x2 = Self::calculate_x_coordinate(
+                    ctx,
+                    data,
+                    end_line,
+                    end_col,
+                    info.font_size,
+                );
+
+                ctx.stroke(
+                    Line::new(Point::new(x1, y1), Point::new(x2, y1)),
+                    color,
+                    LINE_WIDTH,
+                );
+            }
         }
     }
 
