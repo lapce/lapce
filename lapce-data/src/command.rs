@@ -814,7 +814,7 @@ pub enum LapceUICommand {
         direction: SelectionRangeDirection,
     },
 
-    /// An item in a list was chosen  
+    /// An item in a list was chosen
     /// This is typically targeted at the widget which contains the list
     ListItemSelected,
     NewMessage {
@@ -826,12 +826,12 @@ pub enum LapceUICommand {
 }
 
 /// This can't be an `FnOnce` because we only ever get a reference to
-/// [`InitBufferContent`]  
-/// However, in reality, it should only ever be called once.  
+/// [`InitBufferContent`]
+/// However, in reality, it should only ever be called once.
 /// This could be more powerful if it was given `&mut LapceTabData` but that would
-/// require moving the callers of it into `LapceTabData`.  
+/// require moving the callers of it into `LapceTabData`.
 ///
-/// Parameters:  
+/// Parameters:
 /// `(ctx: &mut EventCtx, data: &mut LapceMainSplitData)`
 pub type InitBufferContentCb =
     Box<dyn Fn(&mut EventCtx, &mut LapceMainSplitData) + Send>;
