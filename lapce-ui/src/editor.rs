@@ -1953,7 +1953,7 @@ impl LapceEditor {
             if end_offset > start && end_offset < end {
                 Self::paint_bracket_highlight(ctx, data, screen_lines, end_offset);
             }
-            Self::paint_scope_highlight(
+            Self::paint_scope_line(
                 ctx,
                 data,
                 screen_lines,
@@ -2022,7 +2022,7 @@ impl LapceEditor {
         );
     }
 
-    fn paint_scope_highlight(
+    fn paint_scope_line(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
         screen_lines: &ScreenLines,
@@ -2030,18 +2030,26 @@ impl LapceEditor {
         end_offset: usize,
         color: &Color,
     ) {
-        let line_width = 1.5;
+        const LINE_WIDTH: f64 = 1.0;
 
         let (start_line, start_col) =
             data.doc.buffer().offset_to_line_col(start_offset);
         let (end_line, end_col) = data.doc.buffer().offset_to_line_col(end_offset);
 
-        let info = match screen_lines.info.get(&start_line) {
+        let first_screen_line = *screen_lines.lines.first().unwrap();
+
+        let first_line = if first_screen_line > start_line {
+            *screen_lines.lines.first().unwrap()
+        } else {
+            start_line
+        };
+
+        let info = match screen_lines.info.get(&first_line) {
             Some(info) => info,
             None => return,
         };
 
-        let x1 = Self::calculate_x_coordinate(
+        let mut x1 = Self::calculate_x_coordinate(
             ctx,
             data,
             end_line,
@@ -2051,11 +2059,11 @@ impl LapceEditor {
 
         let y0 = info.y + info.line_height;
 
-        if start_line == end_line {
+        if first_line == end_line {
             let x0 = Self::calculate_x_coordinate(
                 ctx,
                 data,
-                start_line,
+                first_line,
                 start_col,
                 info.font_size,
             ) + data.config.editor_char_width(ctx.text());
@@ -2063,31 +2071,56 @@ impl LapceEditor {
             ctx.stroke(
                 Line::new(Point::new(x0, y0), Point::new(x1, y0)),
                 color,
-                line_width,
+                LINE_WIDTH,
             );
         } else {
-            let x0 = Self::calculate_x_coordinate(
-                ctx,
-                data,
-                start_line,
-                start_col,
-                info.font_size,
-            );
+            for line in start_line..end_line {
+                let last_line = data.doc.buffer().last_line();
+                if line > last_line {
+                    break;
+                }
 
-            let lines = end_line - start_line;
+                let text_layout = data.doc.get_text_layout(
+                    ctx.text(),
+                    line,
+                    info.font_size,
+                    &data.config,
+                );
+
+                if text_layout.indent < x1 {
+                    x1 = text_layout.indent;
+                }
+            }
+
+            let x0 = if first_line > start_line {
+                x1
+            } else {
+                Self::calculate_x_coordinate(
+                    ctx,
+                    data,
+                    start_line,
+                    start_col,
+                    info.font_size,
+                )
+            };
+
+            if first_line > end_line {
+                return;
+            }
+            let lines = end_line - first_line;
 
             let y1 = info.y + (lines as f64 * info.line_height);
 
             ctx.stroke(
                 Line::new(Point::new(x0, y0), Point::new(x1, y0)),
                 color,
-                line_width,
+                LINE_WIDTH,
             );
 
             ctx.stroke(
                 Line::new(Point::new(x1, y0), Point::new(x1, y1)),
                 color,
-                line_width,
+                LINE_WIDTH,
             );
         }
     }
