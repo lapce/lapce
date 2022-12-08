@@ -2825,6 +2825,9 @@ impl Document {
         if let Some(syntax) = self.syntax() {
             if matching_pair_direction(char_at_cursor).is_some() {
                 if let Some(new_offset) = syntax.find_matching_pair(offset) {
+                    if offset > new_offset {
+                        return Some((new_offset, offset));
+                    }
                     return Some((offset, new_offset));
                 }
             } else {

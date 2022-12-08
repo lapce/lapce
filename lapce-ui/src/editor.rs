@@ -826,7 +826,7 @@ impl LapceEditor {
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
         Self::paint_sticky_headers(ctx, data, env);
-        Self::highlight_brackets(ctx, data, &screen_lines);
+        Self::highlight_scope_and_brackets(ctx, data, &screen_lines);
 
         if data.doc.buffer().is_empty() {
             if let Some(placeholder) = self.placeholder.as_ref() {
@@ -1924,12 +1924,14 @@ impl LapceEditor {
 
     /// Checks if the cursor is on a bracket and highlights the matching bracket if there is one.
     /// If the cursor is between brackets it highlights the enclosing brackets.
-    fn highlight_brackets(
+    fn highlight_scope_and_brackets(
         ctx: &mut PaintCtx,
         data: &LapceEditorBufferData,
         screen_lines: &ScreenLines,
     ) {
-        if !data.config.editor.highlight_matching_brackets {
+        if !data.config.editor.highlight_matching_brackets
+            && !data.config.editor.highlight_scope_lines
+        {
             return;
         }
 
@@ -1947,11 +1949,34 @@ impl LapceEditor {
         if let Some((start_offset, end_offset)) =
             data.doc.find_enclosing_brackets(cursor_offset)
         {
-            if start_offset > start && start_offset < end {
-                Self::paint_bracket_highlight(ctx, data, screen_lines, start_offset);
+            if data.config.editor.highlight_matching_brackets {
+                if start_offset > start && start_offset < end {
+                    Self::paint_bracket_highlight(
+                        ctx,
+                        data,
+                        screen_lines,
+                        start_offset,
+                    );
+                }
+                if end_offset > start && end_offset < end {
+                    Self::paint_bracket_highlight(
+                        ctx,
+                        data,
+                        screen_lines,
+                        end_offset,
+                    );
+                }
             }
-            if end_offset > start && end_offset < end {
-                Self::paint_bracket_highlight(ctx, data, screen_lines, end_offset);
+
+            if data.config.editor.highlight_scope_lines {
+                Self::paint_scope_line(
+                    ctx,
+                    data,
+                    screen_lines,
+                    start_offset,
+                    end_offset,
+                    data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
+                );
             }
         };
     }
@@ -2014,6 +2039,138 @@ impl LapceEditor {
         );
     }
 
+    fn paint_scope_line(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        screen_lines: &ScreenLines,
+        start_offset: usize,
+        end_offset: usize,
+        color: &Color,
+    ) {
+        const LINE_WIDTH: f64 = 1.0;
+
+        let (start_line, start_col) =
+            data.doc.buffer().offset_to_line_col(start_offset);
+        let (end_line, end_col) = data.doc.buffer().offset_to_line_col(end_offset);
+
+        let first_screen_line = *screen_lines.lines.first().unwrap();
+
+        let first_line = if first_screen_line > start_line {
+            first_screen_line
+        } else {
+            start_line
+        };
+
+        if first_line > end_line {
+            return;
+        }
+
+        let info = match screen_lines.info.get(&first_line) {
+            Some(info) => info,
+            None => return,
+        };
+
+        let mut x1 = Self::calculate_x_coordinate(
+            ctx,
+            data,
+            end_line,
+            end_col,
+            info.font_size,
+        );
+
+        let y0 = info.y + info.line_height;
+
+        let mut paint_horizontal_line_at_end = false;
+        if first_line == end_line {
+            let x0 = Self::calculate_x_coordinate(
+                ctx,
+                data,
+                first_line,
+                start_col,
+                info.font_size,
+            ) + data.config.editor_char_width(ctx.text());
+
+            ctx.stroke(
+                Line::new(Point::new(x0, y0), Point::new(x1, y0)),
+                color,
+                LINE_WIDTH,
+            );
+        } else {
+            let last_line = data.doc.buffer().last_line();
+            for line in start_line..end_line + 1 {
+                if line > last_line {
+                    break;
+                }
+
+                let text_layout = data.doc.get_text_layout(
+                    ctx.text(),
+                    line,
+                    info.font_size,
+                    &data.config,
+                );
+
+                if text_layout.indent < x1 {
+                    x1 = text_layout.indent;
+                    paint_horizontal_line_at_end = true;
+                }
+            }
+
+            let x0 = if first_line > start_line {
+                x1
+            } else {
+                Self::calculate_x_coordinate(
+                    ctx,
+                    data,
+                    start_line,
+                    start_col,
+                    info.font_size,
+                )
+            };
+
+            let lines = end_line - first_line;
+
+            let y1 = if data
+                .doc
+                .buffer()
+                .first_non_blank_character_on_line(end_line)
+                < end_offset
+            {
+                paint_horizontal_line_at_end = true;
+                info.y + ((lines + 1) as f64 * info.line_height)
+            } else {
+                info.y + (lines as f64 * info.line_height)
+            };
+
+            ctx.stroke(
+                Line::new(Point::new(x0, y0), Point::new(x1, y0)),
+                color,
+                LINE_WIDTH,
+            );
+
+            ctx.stroke(
+                Line::new(Point::new(x1, y0), Point::new(x1, y1)),
+                color,
+                LINE_WIDTH,
+            );
+
+            if paint_horizontal_line_at_end {
+                let x2 = Self::calculate_x_coordinate(
+                    ctx,
+                    data,
+                    end_line,
+                    end_col,
+                    info.font_size,
+                );
+
+                ctx.stroke(
+                    Line::new(Point::new(x1, y1), Point::new(x2, y1)),
+                    color,
+                    LINE_WIDTH,
+                );
+            }
+        }
+    }
+
     fn line_height(data: &LapceEditorBufferData, env: &Env) -> f64 {
         if data.editor.content.is_palette() {
             env.get(LapceTheme::PALETTE_INPUT_LINE_HEIGHT)
@@ -2056,6 +2213,28 @@ impl LapceEditor {
             direction *= -1.0;
         }
         ctx.stroke(path, color, 1.4 * scale);
+    }
+
+    fn calculate_x_coordinate(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        line: usize,
+        column: usize,
+        font_size: usize,
+    ) -> f64 {
+        let phantom_text = data.doc.line_phantom_text(&data.config, line);
+
+        let column = phantom_text.col_after(column, true);
+
+        data.doc
+            .line_point_of_line_col(
+                ctx.text(),
+                line,
+                column,
+                font_size,
+                &data.config,
+            )
+            .x
     }
 }
 

@@ -374,6 +374,9 @@ pub struct EditorConfig {
     #[field_names(desc = "If matching brackets are highlighted")]
     pub highlight_matching_brackets: bool,
 
+    #[field_names(desc = "If scope lines are highlighted")]
+    pub highlight_scope_lines: bool,
+
     #[field_names(desc = "If inlay hints should be displayed")]
     pub enable_inlay_hints: bool,
 
