@@ -132,6 +132,7 @@ yellow = "#C18401"
 "editor.indent_guide" = "$grey"
 "editor.drag_drop_background" = "#79c1fc33"
 "editor.drag_drop_tab_background" = "#0b0e1433"
+"editor.sticky_header_background" = "$white"
 
 "inlay_hint.foreground" = "$black"
 "inlay_hint.background" = "#528bFF55"
