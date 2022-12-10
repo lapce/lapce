@@ -553,7 +553,7 @@ impl Editor {
                                     data.content.capacity() + 1,
                                 );
                                 content.push_str(&data.content);
-                                content.push_str("\n");
+                                content.push('\n');
                                 content
                             }
                         };

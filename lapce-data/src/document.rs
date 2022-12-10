@@ -2009,10 +2009,7 @@ impl Document {
             };
 
             let x1 = (!config.editor.error_lens_end_of_line).then(|| {
-                text_layout
-                    .hit_test_text_position(line_content_len)
-                    .point
-                    .x
+                text_layout.hit_test_text_position(line_content_len).point.x
             });
 
             extra_style.push((

@@ -2260,9 +2260,7 @@ impl LapceEditorBufferData {
                     let (start, end) = self.doc.buffer().select_word(region.start);
                     self.doc.buffer().slice_to_cow(start..end)
                 } else {
-                    self.doc
-                        .buffer()
-                        .slice_to_cow(region.min()..region.max())
+                    self.doc.buffer().slice_to_cow(region.min()..region.max())
                 };
                 if !pattern.contains('\n') {
                     Arc::make_mut(&mut self.find).set_find(&pattern, false, false);

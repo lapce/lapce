@@ -94,34 +94,29 @@ impl Snippet {
     ) -> Option<(SnippetElement, usize)> {
         let mut ele = String::new();
         let mut end = pos;
-        let mut chars_iter = (&s[pos..]).chars().peekable();
-        loop {
-            match chars_iter.next() {
-                Some(char) => {
-                    if char == '\\' {
-                        if let Some(&next_char) = chars_iter.peek() {
-                            if escs.iter().chain(loose_escs.iter()).any(|str| {
-                                let mut chars = str.chars();
-                                chars.next() == Some(next_char)
-                                    && chars.next() == None
-                            }) {
-                                chars_iter.next();
-                                ele.push(next_char);
-                                end += 2;
-                                continue;
-                            }
-                        }
+        let mut chars_iter = s[pos..].chars().peekable();
+
+        while let Some(char) = chars_iter.next() {
+            if char == '\\' {
+                if let Some(&next_char) = chars_iter.peek() {
+                    if escs.iter().chain(loose_escs.iter()).any(|str| {
+                        let mut chars = str.chars();
+                        chars.next() == Some(next_char) && chars.next().is_none()
+                    }) {
+                        chars_iter.next();
+                        ele.push(next_char);
+                        end += 2;
+                        continue;
                     }
-                    let mut buf = [0_u8; 4];
-                    let result = char.encode_utf8(&mut buf);
-                    if escs.contains(&&*result) {
-                        break;
-                    }
-                    ele.push(char);
-                    end += 1;
                 }
-                None => break,
             }
+            let mut buf = [0_u8; 4];
+            let result = char.encode_utf8(&mut buf);
+            if escs.contains(&&*result) {
+                break;
+            }
+            ele.push(char);
+            end += 1;
         }
         if ele.is_empty() {
             return None;
