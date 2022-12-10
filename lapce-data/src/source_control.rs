@@ -44,7 +44,7 @@ impl SourceControlData {
             split_id: WidgetId::next(),
             split_direction: SplitDirection::Horizontal,
             file_diffs: Vec::new(),
-            branch: "".to_string(),
+            branch: String::new(),
             branches: im::Vector::new(),
         }
     }
@@ -187,7 +187,7 @@ impl KeyPressFocus for SourceControlData {
                                     .0
                                     .path()
                                     .clone(),
-                                "head".to_string(),
+                                "head".to_owned(),
                             ),
                             Target::Auto,
                         ));

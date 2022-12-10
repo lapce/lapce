@@ -27,7 +27,7 @@ impl Default for SvgStore {
 impl SvgStore {
     fn new() -> Self {
         let mut svgs = HashMap::new();
-        svgs.insert("lapce_logo".to_string(), Svg::from_str(LOGO).unwrap());
+        svgs.insert("lapce_logo".to_owned(), Svg::from_str(LOGO).unwrap());
 
         Self {
             svgs,

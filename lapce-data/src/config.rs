@@ -1228,14 +1228,14 @@ impl LapceConfig {
     pub fn export_theme(&self) -> String {
         let mut table = toml::value::Table::new();
         let mut theme = self.color_theme.clone();
-        theme.name = "".to_string();
+        theme.name = String::new();
         theme.syntax.sort_keys();
         theme.ui.sort_keys();
         table.insert(
-            "color-theme".to_string(),
+            "color-theme".to_owned(),
             toml::Value::try_from(&theme).unwrap(),
         );
-        table.insert("ui".to_string(), toml::Value::try_from(&self.ui).unwrap());
+        table.insert("ui".to_owned(), toml::Value::try_from(&self.ui).unwrap());
         let value = toml::Value::Table(table);
         toml::to_string_pretty(&value).unwrap()
     }
@@ -1356,7 +1356,7 @@ impl LapceConfig {
         theme: &str,
         preview: bool,
     ) {
-        self.core.color_theme = theme.to_string();
+        self.core.color_theme = theme.to_owned();
         self.resolve_theme(workspace);
         if !preview {
             LapceConfig::update_file(
@@ -1373,7 +1373,7 @@ impl LapceConfig {
         theme: &str,
         preview: bool,
     ) {
-        self.core.icon_theme = theme.to_string();
+        self.core.icon_theme = theme.to_owned();
         self.resolve_theme(workspace);
         if !preview {
             LapceConfig::update_file(

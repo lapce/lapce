@@ -410,7 +410,7 @@ impl Title {
                 {
                     format!("Restart to update ({})", latest_version.unwrap())
                 } else {
-                    "No update available".to_string()
+                    "No update available".to_owned()
                 }),
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
@@ -518,14 +518,14 @@ impl Title {
                 .to_string_lossy()
                 .to_string()
         } else {
-            "Open Folder".to_string()
+            "Open Folder".to_owned()
         };
         let remote = match &data.workspace.kind {
-            LapceWorkspaceType::Local => "".to_string(),
+            LapceWorkspaceType::Local => String::new(),
             LapceWorkspaceType::RemoteSSH(ssh) => {
                 format!(" [SSH: {}]", ssh.host)
             }
-            LapceWorkspaceType::RemoteWSL => " [WSL]".to_string(),
+            LapceWorkspaceType::RemoteWSL => " [WSL]".to_owned(),
         };
         let text = format!("{path}{remote}");
         let text_layout = piet_text

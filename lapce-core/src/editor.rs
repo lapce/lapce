@@ -548,7 +548,14 @@ impl Editor {
                         let selection = cursor.edit_selection(buffer);
                         let data = match mode {
                             VisualMode::Linewise => data.content.clone(),
-                            _ => "\n".to_string() + &data.content,
+                            _ => {
+                                let mut content = String::with_capacity(
+                                    data.content.capacity() + 1,
+                                );
+                                content.push_str(&data.content);
+                                content.push_str("\n");
+                                content
+                            }
                         };
                         (selection, data)
                     }

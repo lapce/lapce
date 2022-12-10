@@ -65,7 +65,7 @@ impl VoltsList {
             total: 0,
             status: PluginLoadStatus::Loading,
             loading: Arc::new(Mutex::new(false)),
-            query: "".to_string(),
+            query: String::new(),
             event_sink,
         }
     }
@@ -361,7 +361,7 @@ impl PluginData {
     }
 
     pub fn install_volt(proxy: Arc<LapceProxy>, volt: VoltInfo) -> Result<()> {
-        proxy.core_rpc.volt_installing(volt.clone(), "".to_string());
+        proxy.core_rpc.volt_installing(volt.clone(), String::new());
 
         if volt.wasm {
             proxy.proxy_rpc.install_volt(volt);
@@ -372,7 +372,7 @@ impl PluginData {
                     log::warn!("download_volt err: {err:?}");
                     proxy.core_rpc.volt_installing(
                         volt.clone(),
-                        "Could not download Plugin".to_string(),
+                        "Could not download Plugin".to_owned(),
                     );
                     return Ok(());
                 }
@@ -387,7 +387,7 @@ impl PluginData {
     }
 
     pub fn remove_volt(proxy: Arc<LapceProxy>, meta: VoltMetadata) -> Result<()> {
-        proxy.core_rpc.volt_removing(meta.clone(), "".to_string());
+        proxy.core_rpc.volt_removing(meta.clone(), String::new());
         if meta.wasm.is_some() {
             proxy.proxy_rpc.remove_volt(meta);
         } else {
@@ -395,14 +395,14 @@ impl PluginData {
                 let path = meta.dir.as_ref().ok_or_else(|| {
                     proxy.core_rpc.volt_removing(
                         meta.clone(),
-                        "Plugin Directory does not exist".to_string(),
+                        "Plugin Directory does not exist".to_owned(),
                     );
                     anyhow::anyhow!("don't have dir")
                 })?;
                 if std::fs::remove_dir_all(path).is_err() {
                     proxy.core_rpc.volt_removing(
                         meta.clone(),
-                        "Could not remove Plugin Directory".to_string(),
+                        "Could not remove Plugin Directory".to_owned(),
                     );
                 } else {
                     proxy.core_rpc.volt_removed(meta.info(), false);

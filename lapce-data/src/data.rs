@@ -3509,7 +3509,7 @@ impl LapceMainSplitData {
             main_split_data.split_id = Arc::new(split_data.widget_id);
             for (path, locations) in positions.into_iter() {
                 let unsaved_buffer = unsaved_buffers
-                    .get(&path.to_str().unwrap().to_string())
+                    .get(path.to_str().unwrap())
                     .map(Rope::from);
                 Arc::make_mut(main_split_data.open_docs.get_mut(&path).unwrap())
                     .retrieve_file(locations.clone(), unsaved_buffer, None);
@@ -3746,10 +3746,10 @@ impl LapceMainSplitData {
                                 doc.content().file_name()
                             ),
                             msg: "Your changes will be lost if you don't save them."
-                                .to_string(),
+                                .to_owned(),
                             buttons: vec![
                                 (
-                                    "Save".to_string(),
+                                    "Save".to_owned(),
                                     view_id,
                                     LapceCommand {
                                         kind: CommandKind::Focus(
@@ -3759,7 +3759,7 @@ impl LapceMainSplitData {
                                     },
                                 ),
                                 (
-                                    "Don't Save".to_string(),
+                                    "Don't Save".to_owned(),
                                     view_id,
                                     LapceCommand {
                                         kind: CommandKind::Focus(
@@ -4518,7 +4518,7 @@ impl std::fmt::Display for LapceWorkspace {
                 .as_ref()
                 .and_then(|p| p.to_str())
                 .map(|p| p.to_string())
-                .unwrap_or_else(|| "".to_string())
+                .unwrap_or_else(|| String::new())
         )
     }
 }

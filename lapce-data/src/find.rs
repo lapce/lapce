@@ -175,7 +175,7 @@ impl Find {
 
         self.unset();
 
-        self.search_string = Some(search_string.to_string());
+        self.search_string = Some(search_string.to_owned());
         self.whole_words = whole_words;
 
         // create regex from untrusted input

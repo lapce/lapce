@@ -604,11 +604,11 @@ impl Syntax {
                 match highlight {
                     HighlightEvent::Source { start, end } => {
                         if let Some(hl) = current_hl {
-                            if let Some(hl) = SCOPES.get(hl.0) {
+                            if let Some(&hl) = SCOPES.get(hl.0) {
                                 highlights.add_span(
                                     Interval::new(start, end),
                                     Style {
-                                        fg_color: Some(hl.to_string()),
+                                        fg_color: Some(hl.to_owned()),
                                     },
                                 );
                             }
@@ -687,10 +687,16 @@ impl Syntax {
         let node = tree
             .root_node()
             .descendant_for_byte_range(offset, offset + 1)?;
-        let mut chars = node.kind().chars();
-        let char = chars.next()?;
+        let char = node.kind().chars().next()?;
         let char = matching_char(char)?;
-        let tag = &char.to_string();
+
+        // Note: Avoid using `encode_utf8` since it introduce unnecessary branches
+        //
+        // SAFETY: We know for sure that `char` will fit into u8 because the
+        // `match_char` function returns only brackets.
+        let char_buffer = [char as u8];
+        // SAFETY: `char` was valid UTF-8.
+        let tag = unsafe { core::str::from_utf8_unchecked(&char_buffer) };
 
         if let Some(offset) = self.find_tag_in_siblings(node, true, tag) {
             return Some(offset);

@@ -90,7 +90,7 @@ impl PluginCatalog {
                     plugin_id,
                     Err(RpcError {
                         code: 0,
-                        message: "plugin doesn't exist".to_string(),
+                        message: "plugin doesn't exist".to_owned(),
                     }),
                 );
             }
@@ -109,7 +109,7 @@ impl PluginCatalog {
                     lapce_rpc::plugin::PluginId(0),
                     Err(RpcError {
                         code: 0,
-                        message: "no available plugin could make a callback, because the plugins list is empty".to_string(),
+                        message: "no available plugin could make a callback, because the plugins list is empty".to_owned(),
                     }),
                 );
                 return;
@@ -309,7 +309,7 @@ impl PluginCatalog {
         } else {
             f.call(Err(RpcError {
                 code: 0,
-                message: "plugin doesn't exist".to_string(),
+                message: "plugin doesn't exist".to_owned(),
             }));
         }
     }

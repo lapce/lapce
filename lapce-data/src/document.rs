@@ -576,9 +576,9 @@ impl Document {
             return;
         }
 
-        let history = DocumentHistory::new(version.to_string());
+        let history = DocumentHistory::new(version.to_owned());
         history.retrieve(self);
-        self.histories.insert(version.to_string(), history);
+        self.histories.insert(version.to_owned(), history);
     }
 
     pub fn reload_history(&self, version: &str) {
@@ -588,9 +588,9 @@ impl Document {
     }
 
     pub fn load_history(&mut self, version: &str, content: Rope) {
-        let mut history = DocumentHistory::new(version.to_string());
+        let mut history = DocumentHistory::new(version.to_owned());
         history.load_content(content, self);
-        self.histories.insert(version.to_string(), history);
+        self.histories.insert(version.to_owned(), history);
     }
 
     pub fn get_history(&self, version: &str) -> Option<&DocumentHistory> {
@@ -1918,6 +1918,7 @@ impl Document {
             };
         let phantom_text = self.line_phantom_text(config, line);
         let line_content = phantom_text.combine_with_text(line_content);
+        let line_content_len = line_content.len();
 
         let tab_width =
             config.tab_width(text, config.editor.font_family(), font_size);
@@ -1933,7 +1934,7 @@ impl Document {
             font_size
         };
         let mut layout_builder = text
-            .new_text_layout(line_content.to_string())
+            .new_text_layout(line_content)
             .font(font_family, font_size as f64)
             .text_color(
                 config
@@ -2009,7 +2010,7 @@ impl Document {
 
             let x1 = (!config.editor.error_lens_end_of_line).then(|| {
                 text_layout
-                    .hit_test_text_position(line_content.len())
+                    .hit_test_text_position(line_content_len)
                     .point
                     .x
             });
@@ -2595,28 +2596,32 @@ impl Document {
                     self.buffer.move_n_words_backward(offset, count, mode);
                 (new_offset, None)
             }
-            Movement::NextUnmatched(c) => {
+            Movement::NextUnmatched(char) => {
                 if let Some(syntax) = self.syntax.as_ref() {
-                    let new_offset = syntax
-                        .find_tag(offset, false, &c.to_string())
-                        .unwrap_or(offset);
+                    let mut char_buffer = [0_u8; 4];
+                    let tag = char.encode_utf8(&mut char_buffer);
+
+                    let new_offset =
+                        syntax.find_tag(offset, false, tag).unwrap_or(offset);
                     (new_offset, None)
                 } else {
                     let new_offset = WordCursor::new(self.buffer.text(), offset)
-                        .next_unmatched(*c)
+                        .next_unmatched(*char)
                         .map_or(offset, |new| new - 1);
                     (new_offset, None)
                 }
             }
-            Movement::PreviousUnmatched(c) => {
+            Movement::PreviousUnmatched(char) => {
                 if let Some(syntax) = self.syntax.as_ref() {
-                    let new_offset = syntax
-                        .find_tag(offset, true, &c.to_string())
-                        .unwrap_or(offset);
+                    let mut char_buffer = [0_u8; 4];
+                    let tag = char.encode_utf8(&mut char_buffer);
+
+                    let new_offset =
+                        syntax.find_tag(offset, true, tag).unwrap_or(offset);
                     (new_offset, None)
                 } else {
                     let new_offset = WordCursor::new(self.buffer.text(), offset)
-                        .previous_unmatched(*c)
+                        .previous_unmatched(*char)
                         .unwrap_or(offset);
                     (new_offset, None)
                 }

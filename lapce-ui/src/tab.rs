@@ -1752,7 +1752,7 @@ impl LapceTab {
                                     }
                                 }
                             })
-                            .unwrap_or_else(|| "Lapce".to_string());
+                            .unwrap_or_else(|| "Lapce".to_owned());
                         ctx.window().set_title(&dir);
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
@@ -2858,7 +2858,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
                     }
                 }
             })
-            .unwrap_or_else(|| "Lapce".to_string());
+            .unwrap_or_else(|| "Lapce".to_owned());
         let text_layout = ctx
             .text()
             .new_text_layout(dir)

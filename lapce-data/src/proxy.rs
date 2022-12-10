@@ -377,7 +377,7 @@ impl LapceProxy {
 
     fn start_remote(&self, remote: impl Remote) -> Result<()> {
         let proxy_version = match *meta::RELEASE {
-            "Debug" | "Nightly" => "nightly".to_string(),
+            "Debug" | "Nightly" => "nightly".to_owned(),
             _ => format!("v{}", *meta::VERSION),
         };
 

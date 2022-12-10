@@ -42,7 +42,7 @@ impl RenameData {
             from_editor: WidgetId::next(),
             start: 0,
             end: 0,
-            placeholder: "".to_string(),
+            placeholder: String::new(),
         }
     }
 

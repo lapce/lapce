@@ -309,7 +309,7 @@ impl PluginServerRpcHandler {
         rx.recv().unwrap_or_else(|_| {
             Err(RpcError {
                 code: 0,
-                message: "io error".to_string(),
+                message: "io error".to_owned(),
             })
         })
     }
@@ -393,7 +393,7 @@ impl PluginServerRpcHandler {
                     } else {
                         rh.invoke(Err(RpcError {
                             code: 0,
-                            message: "server not capable".to_string(),
+                            message: "server not capable".to_owned(),
                         }));
                     }
                 }
@@ -1004,7 +1004,7 @@ impl PluginHostHandler {
         )
         .ok_or_else(|| RpcError {
             code: 0,
-            message: "can't get styles".to_string(),
+            message: "can't get styles".to_owned(),
         });
         f.call(result);
     }

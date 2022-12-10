@@ -192,18 +192,15 @@ impl LapceEditorGutter {
                         let actual_line = l - (line - len) + r.start;
 
                         let content = actual_line + 1;
+                        let mut text = content.to_string();
+                        text.push_str(
+                            &" ".repeat((last_line + 1).to_string().len() + 2),
+                        );
+                        text.push_str(" -");
 
                         let text_layout = ctx
                             .text()
-                            .new_text_layout(
-                                content.to_string()
-                                    + &vec![
-                                        " ";
-                                        (last_line + 1).to_string().len() + 2
-                                    ]
-                                    .join("")
-                                    + " -",
-                            )
+                            .new_text_layout(text)
                             .font(
                                 data.config.editor.font_family(),
                                 data.config.editor.font_size as f64,

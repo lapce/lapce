@@ -281,19 +281,19 @@ impl ProxyHandler for Dispatcher {
                     let result = file_get_head(workspace, &path);
                     if let Ok((_blob_id, content)) = result {
                         Ok(ProxyResponse::BufferHeadResponse {
-                            version: "head".to_string(),
+                            version: "head".to_owned(),
                             content,
                         })
                     } else {
                         Err(RpcError {
                             code: 0,
-                            message: "can't get file head".to_string(),
+                            message: "can't get file head".to_owned(),
                         })
                     }
                 } else {
                     Err(RpcError {
                         code: 0,
-                        message: "no workspace set".to_string(),
+                        message: "no workspace set".to_owned(),
                     })
                 };
                 self.respond_rpc(id, result);
@@ -356,7 +356,7 @@ impl ProxyHandler for Dispatcher {
                     } else {
                         Err(RpcError {
                             code: 0,
-                            message: "no workspace set".to_string(),
+                            message: "no workspace set".to_owned(),
                         })
                     };
                     proxy_rpc.handle_response(id, result);
@@ -628,7 +628,7 @@ impl ProxyHandler for Dispatcher {
                     } else {
                         Err(RpcError {
                             code: 0,
-                            message: "no workspace set".to_string(),
+                            message: "no workspace set".to_owned(),
                         })
                     };
                     proxy_rpc.handle_response(id, result);

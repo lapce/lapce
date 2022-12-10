@@ -59,7 +59,7 @@ pub fn launch() {
     // small hack to unblock terminal if launched from it
     if !cli.wait {
         let mut args = std::env::args().collect::<Vec<_>>();
-        args.push("--wait".to_string());
+        args.push("--wait".to_owned());
         let mut cmd = std::process::Command::new(&args[0]);
         #[cfg(target_os = "windows")]
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW

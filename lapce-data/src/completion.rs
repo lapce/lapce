@@ -76,7 +76,7 @@ impl Snippet {
             return Some((
                 SnippetElement::PlaceHolder(
                     tab,
-                    vec![SnippetElement::Text("".to_string())],
+                    vec![SnippetElement::Text(String::new())],
                 ),
                 end,
             ));
@@ -92,33 +92,36 @@ impl Snippet {
         escs: Vec<&str>,
         loose_escs: Vec<&str>,
     ) -> Option<(SnippetElement, usize)> {
-        let mut s = &s[pos..];
-        let mut ele = "".to_string();
+        let mut ele = String::new();
         let mut end = pos;
-
-        while !s.is_empty() {
-            if s.len() >= 2 {
-                let esc = &s[..2];
-                let mut new_escs = escs.clone();
-                new_escs.extend_from_slice(&loose_escs);
-
-                if new_escs
-                    .iter()
-                    .map(|e| format!("\\{}", e))
-                    .any(|x| x == *esc)
-                {
-                    ele += &s[1..2];
-                    end += 2;
-                    s = &s[2..];
-                    continue;
+        let mut chars_iter = (&s[pos..]).chars().peekable();
+        loop {
+            match chars_iter.next() {
+                Some(char) => {
+                    if char == '\\' {
+                        if let Some(&next_char) = chars_iter.peek() {
+                            if escs.iter().chain(loose_escs.iter()).any(|str| {
+                                let mut chars = str.chars();
+                                chars.next() == Some(next_char)
+                                    && chars.next() == None
+                            }) {
+                                chars_iter.next();
+                                ele.push(next_char);
+                                end += 2;
+                                continue;
+                            }
+                        }
+                    }
+                    let mut buf = [0_u8; 4];
+                    let result = char.encode_utf8(&mut buf);
+                    if escs.contains(&&*result) {
+                        break;
+                    }
+                    ele.push(char);
+                    end += 1;
                 }
+                None => break,
             }
-            if escs.contains(&&s[0..1]) {
-                break;
-            }
-            ele += &s[0..1];
-            end += 1;
-            s = &s[1..];
         }
         if ele.is_empty() {
             return None;
@@ -205,7 +208,7 @@ impl SnippetElement {
             SnippetElement::PlaceHolder(_, elements) => {
                 elements.iter().map(|e| e.text()).join("")
             }
-            SnippetElement::Tabstop(_) => "".to_string(),
+            SnippetElement::Tabstop(_) => String::new(),
         }
     }
 }
@@ -261,7 +264,7 @@ impl CompletionData {
             offset: 0,
             status: CompletionStatus::Inactive,
             buffer_id: BufferId(0),
-            input: "".to_string(),
+            input: String::new(),
             input_items: im::HashMap::new(),
             completion_list,
             matcher: Arc::new(SkimMatcherV2::default().ignore_case()),
@@ -323,7 +326,7 @@ impl CompletionData {
             return;
         }
         self.status = CompletionStatus::Inactive;
-        self.input = "".to_string();
+        self.input = String::new();
         self.input_items.clear();
         self.completion_list.clear_items();
     }

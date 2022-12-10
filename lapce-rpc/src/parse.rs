@@ -46,7 +46,7 @@ impl RpcObject {
     pub fn into_response(mut self) -> Result<Result<Value, Value>, String> {
         let _ = self
             .get_id()
-            .ok_or_else(|| "Response requires 'id' field.".to_string())?;
+            .ok_or_else(|| "Response requires 'id' field.".to_owned())?;
 
         if self.0.get("result").is_some() == self.0.get("error").is_some() {
             return Err("RPC response must contain exactly one of\

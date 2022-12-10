@@ -91,8 +91,8 @@ impl LapceEditorTabHeader {
     fn paint_header(&self, ctx: &mut PaintCtx, data: &LapceTabData) {
         let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
         let child = editor_tab.active_child();
-        let mut text = "".to_string();
-        let mut hint = "".to_string();
+        let mut text = String::new();
+        let mut hint = String::new();
         let mut svg = data.config.ui_svg(LapceIcons::FILE);
         let mut svg_color = Some(
             data.config
@@ -136,7 +136,7 @@ impl LapceEditorTabHeader {
                     }
                 }
                 EditorTabChild::Settings { .. } => {
-                    text = "Settings".to_string();
+                    text = "Settings".to_owned();
                     hint = format!("ver. {}", *meta::VERSION);
                     svg = data.config.ui_svg(LapceIcons::SETTINGS);
                 }

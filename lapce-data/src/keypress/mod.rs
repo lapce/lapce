@@ -170,7 +170,7 @@ impl KeyPressData {
             command_keymaps: Arc::new(command_keymaps),
             commands_with_keymap: Arc::new(Vec::new()),
             commands_without_keymap: Arc::new(Vec::new()),
-            filter_pattern: "".to_string(),
+            filter_pattern: String::new(),
             filtered_commands_with_keymap: Arc::new(Vec::new()),
             filtered_commands_without_keymap: Arc::new(Vec::new()),
             count: None,

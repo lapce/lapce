@@ -34,7 +34,7 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
         LapceEditorView::new(editor_data.view_id, editor_data.editor_id, None)
             .hide_header()
             .hide_gutter()
-            .set_placeholder("Commit Message".to_string())
+            .set_placeholder("Commit Message".to_owned())
             .padding((15.0, 15.0));
 
     let commit_button = Button::new(data, "Commit")
@@ -195,7 +195,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                                             .0
                                             .path()
                                             .clone(),
-                                        "head".to_string(),
+                                        "head".to_owned(),
                                     ),
                                     Target::Widget(data.id),
                                 ));
@@ -220,7 +220,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                                         .0
                                         .path()
                                         .clone(),
-                                    "head".to_string(),
+                                    "head".to_owned(),
                                 ),
                                 Target::Auto,
                             ),

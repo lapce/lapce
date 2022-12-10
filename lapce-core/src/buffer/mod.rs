@@ -882,7 +882,9 @@ impl Buffer {
         offset: usize,
     ) -> Option<usize> {
         if let Some(syntax) = syntax {
-            syntax.find_tag(offset, true, &c.to_string())
+            let mut char_buffer = [0_u8; 4];
+            let tag = c.encode_utf8(&mut char_buffer);
+            syntax.find_tag(offset, true, tag)
         } else {
             WordCursor::new(&self.text, offset).previous_unmatched(c)
         }

@@ -66,18 +66,18 @@ pub enum PaletteType {
 impl PaletteType {
     fn string(&self) -> String {
         match &self {
-            PaletteType::Line => "/".to_string(),
-            PaletteType::DocumentSymbol => "@".to_string(),
-            PaletteType::WorkspaceSymbol => "#".to_string(),
-            PaletteType::GlobalSearch => "?".to_string(),
-            PaletteType::Workspace => ">".to_string(),
-            PaletteType::Command => ":".to_string(),
+            PaletteType::Line => "/".to_owned(),
+            PaletteType::DocumentSymbol => "@".to_owned(),
+            PaletteType::WorkspaceSymbol => "#".to_owned(),
+            PaletteType::GlobalSearch => "?".to_owned(),
+            PaletteType::Workspace => ">".to_owned(),
+            PaletteType::Command => ":".to_owned(),
             PaletteType::File
             | PaletteType::Reference
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::SshHost
-            | PaletteType::Language => "".to_string(),
+            | PaletteType::Language => String::new(),
         }
     }
 
@@ -471,7 +471,7 @@ impl PaletteData {
             sender,
             receiver: Some(receiver),
             run_id: Uuid::new_v4().to_string(),
-            input: "".to_string(),
+            input: String::new(),
             cursor: 0,
             has_nonzero_default_index: false,
             total_items: im::Vector::new(),
@@ -535,7 +535,7 @@ impl PaletteViewData {
         }
         let palette = Arc::make_mut(&mut self.palette);
         palette.status = PaletteStatus::Inactive;
-        palette.input = "".to_string();
+        palette.input = String::new();
         palette.cursor = 0;
         palette.palette_type = PaletteType::File;
         palette.total_items.clear();
@@ -720,7 +720,7 @@ impl PaletteViewData {
         };
 
         if palette.cursor == start {
-            palette.input = "".to_string();
+            palette.input = String::new();
             palette.cursor = 0;
         } else {
             palette.input.replace_range(start..palette.cursor, "");
@@ -952,7 +952,7 @@ impl PaletteViewData {
     fn get_languages(&mut self, _ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
         let mut langs = LapceLanguage::languages();
-        langs.push("Plain Text".to_string());
+        langs.push("Plain Text".to_owned());
         palette.total_items = langs
             .iter()
             .sorted()

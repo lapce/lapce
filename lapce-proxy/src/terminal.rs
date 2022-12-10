@@ -62,16 +62,16 @@ impl Terminal {
             let mut parts = shell.split(' ');
 
             if flatpak_use_host_terminal {
-                let flatpak_spawn_path = "/usr/bin/flatpak-spawn".to_string();
+                let flatpak_spawn_path = "/usr/bin/flatpak-spawn".to_owned();
                 let host_shell = flatpak_get_default_host_shell();
 
                 let args = if shell.is_empty() {
-                    vec!["--host".to_string(), host_shell]
+                    vec!["--host".to_owned(), host_shell]
                 } else {
                     vec![
-                        "--host".to_string(),
+                        "--host".to_owned(),
                         host_shell,
-                        "-c".to_string(),
+                        "-c".to_owned(),
                         shell.to_string(),
                     ]
                 };

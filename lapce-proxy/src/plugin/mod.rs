@@ -807,7 +807,7 @@ impl PluginCatalogRpcHandler {
                             Err(RpcError {
                                 code: 0,
                                 message: "completion item deserialize error"
-                                    .to_string(),
+                                    .to_owned(),
                             })
                         }
                     }
@@ -882,7 +882,7 @@ impl PluginCatalogRpcHandler {
                             Err(RpcError {
                                 code: 0,
                                 message: "code_action item deserialize error"
-                                    .to_string(),
+                                    .to_owned(),
                             })
                         }
                     }
@@ -1034,7 +1034,7 @@ pub fn install_volt(
     if download_volt_result.is_err() {
         catalog_rpc
             .core_rpc
-            .volt_installing(volt, "Could not download Plugin".to_string());
+            .volt_installing(volt, "Could not download Plugin".to_owned());
     }
     let meta = download_volt_result?;
     let local_catalog_rpc = catalog_rpc.clone();
@@ -1054,14 +1054,14 @@ pub fn remove_volt(
         let path = volt.dir.as_ref().ok_or_else(|| {
             catalog_rpc
                 .core_rpc
-                .volt_removing(volt.clone(), "Plugin Directory not set".to_string());
+                .volt_removing(volt.clone(), "Plugin Directory not set".to_owned());
             anyhow::anyhow!("don't have dir")
         })?;
         if let Err(e) = std::fs::remove_dir_all(path) {
             eprintln!("Could not delete plugin folder: {}", e);
             catalog_rpc.core_rpc.volt_removing(
                 volt.clone(),
-                "Could not remove Plugin Directory".to_string(),
+                "Could not remove Plugin Directory".to_owned(),
             );
         } else {
             catalog_rpc.core_rpc.volt_removed(volt.info(), false);

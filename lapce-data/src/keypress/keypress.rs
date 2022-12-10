@@ -66,10 +66,10 @@ impl KeyPress {
         let mut origin = origin;
         let mut keys = Vec::new();
         if self.mods.ctrl() {
-            keys.push("Ctrl".to_string());
+            keys.push("Ctrl".to_owned());
         }
         if self.mods.alt() {
-            keys.push("Alt".to_string());
+            keys.push("Alt".to_owned());
         }
         if self.mods.meta() {
             let keyname = match std::env::consts::OS {
@@ -77,10 +77,10 @@ impl KeyPress {
                 "windows" => "Win",
                 _ => "Meta",
             };
-            keys.push(keyname.to_string());
+            keys.push(keyname.to_owned());
         }
         if self.mods.shift() {
-            keys.push("Shift".to_string());
+            keys.push("Shift".to_owned());
         }
         match &self.key {
             druid::keyboard_types::Key::Character(c) => {
@@ -88,7 +88,7 @@ impl KeyPress {
                     && c.to_lowercase() != c.to_uppercase()
                     && !self.mods.shift()
                 {
-                    keys.push("Shift".to_string());
+                    keys.push("Shift".to_owned());
                 }
                 keys.push(c.to_uppercase());
             }
@@ -462,7 +462,7 @@ impl KeyPress {
 
             // Custom key name mappings
             "esc" => Escape,
-            "space" => Character(" ".to_string()),
+            "space" => Character(" ".to_owned()),
             "bs" => Backspace,
             "up" => ArrowUp,
             "down" => ArrowDown,

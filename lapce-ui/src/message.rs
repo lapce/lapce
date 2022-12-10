@@ -187,7 +187,7 @@ impl LapceMessageItem {
         let text_width = 300.0;
         let text_line_height = 2.0;
         let text_layout = piet_text
-            .new_text_layout("".to_string())
+            .new_text_layout(String::new())
             .font(config.ui.font_family(), config.ui.font_size() as f64)
             .max_width(text_width)
             .set_line_height(text_line_height)

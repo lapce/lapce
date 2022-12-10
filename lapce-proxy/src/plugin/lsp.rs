@@ -310,7 +310,7 @@ impl LspClient {
                         snippet_support: Some(true),
                         resolve_support: Some(
                             CompletionItemCapabilityResolveSupport {
-                                properties: vec!["additionalTextEdits".to_string()],
+                                properties: vec!["additionalTextEdits".to_owned()],
                             },
                         ),
                         ..Default::default()
@@ -343,7 +343,7 @@ impl LspClient {
                 code_action: Some(CodeActionClientCapabilities {
                     data_support: Some(true),
                     resolve_support: Some(CodeActionCapabilityResolveSupport {
-                        properties: vec!["edit".to_string()],
+                        properties: vec!["edit".to_owned()],
                     }),
                     code_action_literal_support: Some(CodeActionLiteralSupport {
                         code_action_kind: CodeActionKindLiteralSupport {

@@ -667,7 +667,7 @@ impl SettingsItemInfo {
         // TODO: This could likely use smallvec, or even skip the allocs completely for
         // the *common* case of the name text not changing..
         let splits: Vec<&str> = self.key.rsplitn(2, '.').collect();
-        let mut name_text = "".to_string();
+        let mut name_text = String::new();
         if let Some(title) = splits.get(1) {
             for (i, part) in title.split('.').enumerate() {
                 if i > 0 {

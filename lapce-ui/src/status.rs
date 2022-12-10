@@ -533,7 +533,7 @@ impl Widget<LapceTabData> for LapceStatus {
                 ),
             ));
 
-            let mut string = "".to_string();
+            let mut string = String::new();
             let editor_content = data.editor_view_content(editor.view_id);
             if let Some(cursor_pos) =
                 editor.cursor.get_line_col_char(editor_content.doc.buffer())

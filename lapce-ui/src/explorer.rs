@@ -357,7 +357,7 @@ impl FileExplorer {
                             .and_then(|p| p.file_name())
                             .and_then(|s| s.to_str())
                             .map(|s| s.to_string())
-                            .unwrap_or_else(|| "No Folder Open".to_string())
+                            .unwrap_or_else(|| "No Folder Open".to_owned())
                             .into(),
                     ),
                     Self::new(data).boxed(),
@@ -1150,8 +1150,8 @@ impl OpenEditorList {
         active: bool,
     ) {
         let size = ctx.size();
-        let mut text = "".to_string();
-        let mut hint = "".to_string();
+        let mut text = String::new();
+        let mut hint = String::new();
         let mut svg = data.config.ui_svg(LapceIcons::FILE);
         let mut svg_color = Some(
             data.config
@@ -1192,7 +1192,7 @@ impl OpenEditorList {
                 }
             }
             EditorTabChild::Settings { .. } => {
-                text = "Settings".to_string();
+                text = "Settings".to_owned();
                 hint = format!("ver. {}", *meta::VERSION);
                 svg = data.config.ui_svg(LapceIcons::SETTINGS);
             }
