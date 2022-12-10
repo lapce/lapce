@@ -604,11 +604,11 @@ impl Syntax {
                 match highlight {
                     HighlightEvent::Source { start, end } => {
                         if let Some(hl) = current_hl {
-                            if let Some(&hl) = SCOPES.get(hl.0) {
+                            if let Some(hl) = SCOPES.get(hl.0) {
                                 highlights.add_span(
                                     Interval::new(start, end),
                                     Style {
-                                        fg_color: Some(hl.to_owned()),
+                                        fg_color: Some(hl.to_string()),
                                     },
                                 );
                             }
