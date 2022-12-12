@@ -520,11 +520,16 @@ impl ProxyHandler for Dispatcher {
                     },
                 );
             }
-            GetCodeActions { path, position } => {
+            GetCodeActions {
+                path,
+                position,
+                diagnostics,
+            } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc.get_code_actions(
                     &path,
                     position,
+                    diagnostics,
                     move |plugin_id, result| {
                         let result = result.map(|resp| {
                             ProxyResponse::GetCodeActionsResponse { plugin_id, resp }
