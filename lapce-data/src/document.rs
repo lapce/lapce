@@ -823,6 +823,7 @@ impl Document {
     }
 
     fn on_update(&mut self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
+        self.code_actions.clear();
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.get_inlay_hints();
