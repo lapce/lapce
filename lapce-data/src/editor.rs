@@ -277,7 +277,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    pub fn get_code_actions(&self, ctx: &mut EventCtx) {
+    pub fn get_code_actions(&mut self, ctx: &mut EventCtx) {
         if !self.doc.loaded() {
             return;
         }
@@ -287,10 +287,18 @@ impl LapceEditorBufferData {
         if let BufferContent::File(path) = self.doc.content() {
             let path = path.clone();
             let offset = self.editor.cursor.offset();
-            let prev_offset = self.doc.buffer().prev_code_boundary(offset);
+
+            let exits = if self.doc.code_actions.contains_key(&offset) {
             // REMOVED(if) this prevents some code actions from showing up correctly, and there is almost no performance penalty for this
-            //if self.doc.code_actions.get(&prev_offset).is_none() {
-            let position = self.doc.buffer().offset_to_position(prev_offset);
+            //    true
+            } else {
+                Arc::make_mut(&mut self.doc)
+                    .code_actions
+                    .insert(offset, (PluginId(0), Vec::new()));
+                false
+            };
+            if !exits {
+            let position = self.doc.buffer().offset_to_position(offset);
             let rev = self.doc.rev();
             let event_sink = ctx.get_external_handle();
             let diagnostics: &Vec<EditorDiagnostic> = &(self
@@ -323,11 +331,21 @@ impl LapceEditorBufferData {
                                 path,
                                 plugin_id,
                                 rev,
-                                offset: prev_offset,
+                                offset,
                                 resp,
                             },
                             Target::Auto,
                         );
+                        } else {
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::CodeActionsError {
+                                    path,
+                                    rev,
+                                    offset,
+                                },
+                                Target::Auto,
+                            );
                     }
                 },
             );
