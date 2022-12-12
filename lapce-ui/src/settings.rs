@@ -234,7 +234,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                         ctx.request_focus();
                     }
                     LapceUICommand::ShowKeybindings => {
-                        let kind = LapceSettingsKind::Core;
+                        let kind = LapceSettingsKind::Keymap;
                         self.active = kind.clone();
                         self.switcher
                             .widget_mut()
