@@ -293,7 +293,7 @@ impl LapceEditorBufferData {
             let position = self.doc.buffer().offset_to_position(prev_offset);
             let rev = self.doc.rev();
             let event_sink = ctx.get_external_handle();
-            let diagnostics: &Vec<EditorDiagnostic> = &*(self
+            let diagnostics: &Vec<EditorDiagnostic> = &(self
                 .doc
                 .diagnostics
                 .as_ref()
