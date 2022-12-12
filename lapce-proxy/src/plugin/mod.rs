@@ -490,13 +490,7 @@ impl PluginCatalogRpcHandler {
                 end: position,
             },
             context: CodeActionContext {
-                diagnostics: diagnostics
-                    .into_iter()
-                    .filter(|x| {
-                        x.range.start.line <= position.line
-                            && x.range.end.line >= position.line
-                    })
-                    .collect(),
+                diagnostics,
                 only: None,
             },
             work_done_progress_params: WorkDoneProgressParams::default(),

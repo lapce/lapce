@@ -303,7 +303,14 @@ impl LapceEditorBufferData {
             self.proxy.proxy_rpc.get_code_actions(
                 path.clone(),
                 position,
-                diagnostics.into_iter().map(|x| x.diagnostic).collect(),
+                diagnostics
+                    .into_iter()
+                    .map(|x| x.diagnostic)
+                    .filter(|x| {
+                        x.range.start.line <= position.line
+                            && x.range.end.line >= position.line
+                    })
+                    .collect(),
                 move |result| {
                     if let Ok(ProxyResponse::GetCodeActionsResponse {
                         plugin_id,
