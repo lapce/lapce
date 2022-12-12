@@ -596,6 +596,11 @@ pub enum LapceUICommand {
         offset: usize,
         resp: CodeActionResponse,
     },
+    CodeActionsError {
+        path: PathBuf,
+        rev: u64,
+        offset: usize,
+    },
     CancelPalette,
     RunCommand(String, Vec<String>),
     RunCodeAction(CodeActionOrCommand, PluginId),
