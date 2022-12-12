@@ -11,6 +11,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
+use lapce_core::meta;
 use lapce_rpc::{style::LineStyle, RpcError};
 use lapce_xi_rope::Rope;
 use lsp_types::{
@@ -362,6 +363,8 @@ impl LspClient {
                                 CodeActionKind::SOURCE_ORGANIZE_IMPORTS
                                     .as_str()
                                     .to_string(),
+                                "quickassist".to_string(),
+                                "source.fixAll".to_string(),
                             ],
                         },
                     }),
@@ -417,7 +420,10 @@ impl LspClient {
                     uri,
                 }]
             }),
-            client_info: None,
+            client_info: Some(ClientInfo {
+                name: meta::NAME.to_owned(),
+                version: Some(meta::VERSION.to_owned()),
+            }),
             locale: None,
             root_path: None,
         };

@@ -288,34 +288,50 @@ impl LapceEditorBufferData {
             let path = path.clone();
             let offset = self.editor.cursor.offset();
             let prev_offset = self.doc.buffer().prev_code_boundary(offset);
-            if self.doc.code_actions.get(&prev_offset).is_none() {
-                let position = self.doc.buffer().offset_to_position(prev_offset);
-                let rev = self.doc.rev();
-                let event_sink = ctx.get_external_handle();
-                self.proxy.proxy_rpc.get_code_actions(
-                    path.clone(),
-                    position,
-                    move |result| {
-                        if let Ok(ProxyResponse::GetCodeActionsResponse {
-                            plugin_id,
-                            resp,
-                        }) = result
-                        {
-                            let _ = event_sink.submit_command(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::UpdateCodeActions {
-                                    path,
-                                    plugin_id,
-                                    rev,
-                                    offset: prev_offset,
-                                    resp,
-                                },
-                                Target::Auto,
-                            );
-                        }
-                    },
-                );
-            }
+            // REMOVED(if) this prevents some code actions from showing up correctly, and there is almost no performance penalty for this
+            //if self.doc.code_actions.get(&prev_offset).is_none() {
+            let position = self.doc.buffer().offset_to_position(prev_offset);
+            let rev = self.doc.rev();
+            let event_sink = ctx.get_external_handle();
+            let diagnostics: &Vec<EditorDiagnostic> = &(self
+                .doc
+                .diagnostics
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| Arc::new(Vec::new())));
+            let diagnostics = diagnostics.clone();
+            self.proxy.proxy_rpc.get_code_actions(
+                path.clone(),
+                position,
+                diagnostics
+                    .into_iter()
+                    .map(|x| x.diagnostic)
+                    .filter(|x| {
+                        x.range.start.line <= position.line
+                            && x.range.end.line >= position.line
+                    })
+                    .collect(),
+                move |result| {
+                    if let Ok(ProxyResponse::GetCodeActionsResponse {
+                        plugin_id,
+                        resp,
+                    }) = result
+                    {
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateCodeActions {
+                                path,
+                                plugin_id,
+                                rev,
+                                offset: prev_offset,
+                                resp,
+                            },
+                            Target::Auto,
+                        );
+                    }
+                },
+            );
+            //}
         }
     }
 
