@@ -479,6 +479,7 @@ impl Document {
 
     pub fn set_diagnostics(&mut self, diagnostics: &[EditorDiagnostic]) {
         self.clear_text_layout_cache();
+        self.clear_code_actions();
         self.diagnostics = Some(Arc::new(
             diagnostics
                 .iter()
@@ -823,7 +824,7 @@ impl Document {
     }
 
     fn on_update(&mut self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
-        self.code_actions.clear();
+        self.clear_code_actions();
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.get_inlay_hints();
@@ -915,6 +916,10 @@ impl Document {
 
     fn clear_text_layout_cache(&self) {
         self.text_layouts.borrow_mut().clear();
+    }
+
+    fn clear_code_actions(&mut self) {
+        self.code_actions.clear();
     }
 
     pub fn trigger_syntax_change(
