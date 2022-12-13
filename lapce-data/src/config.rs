@@ -82,6 +82,8 @@ impl LapceTheme {
     pub const EDITOR_VISIBLE_WHITESPACE: &str = "editor.visible_whitespace";
     pub const EDITOR_INDENT_GUIDE: &str = "editor.indent_guide";
     pub const EDITOR_DRAG_DROP_BACKGROUND: &str = "editor.drag_drop_background";
+    pub const EDITOR_STICKY_HEADER_BACKGROUND: &str =
+        "editor.sticky_header_background";
     pub const EDITOR_DRAG_DROP_TAB_BACKGROUND: &str =
         "editor.drag_drop_tab_background";
 

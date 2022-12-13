@@ -1618,7 +1618,7 @@ impl LapceEditor {
         ctx.fill(
             sticky_area_rect,
             data.config
-                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                .get_color_unchecked(LapceTheme::EDITOR_STICKY_HEADER_BACKGROUND),
         );
 
         // Paint lines
