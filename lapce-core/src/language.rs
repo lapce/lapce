@@ -496,7 +496,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         highlight: tree_sitter_java::HIGHLIGHT_QUERY,
         injection: None,
         comment: "//",
-        indent: "  ",
+        indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["java"],
