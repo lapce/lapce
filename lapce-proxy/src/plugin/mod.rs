@@ -1,5 +1,6 @@
 pub mod catalog;
 pub mod dap;
+pub mod dap_types;
 pub mod lsp;
 pub mod psp;
 pub mod wasi;
