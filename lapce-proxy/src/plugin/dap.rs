@@ -12,20 +12,24 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
-use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_rpc::RpcError;
 use lsp_types::Url;
 use parking_lot::Mutex;
-use psp_types::Request;
 use serde::Serialize;
 use serde_json::Value;
 
-use super::{dap_types, psp::ResponseHandler};
+use crate::plugin::dap_types::Initialize;
+
+use super::{
+    dap_types,
+    dap_types::{DapPayload, DapRequest, DapResponse, Request},
+    psp::ResponseHandler,
+};
 
 pub struct DapClient {
-    io_tx: Sender<JsonRpc>,
-    id_counter: Arc<AtomicU64>,
-    server_pending: Arc<Mutex<HashMap<Id, ResponseHandler<Value, RpcError>>>>,
+    io_tx: Sender<DapPayload>,
+    seq_counter: Arc<AtomicU64>,
+    server_pending: Arc<Mutex<HashMap<u64, ResponseHandler<DapResponse, RpcError>>>>,
 }
 
 impl DapClient {
@@ -67,24 +71,47 @@ impl DapClient {
             }
         });
 
-        thread::spawn(move || {
-            let mut reader = Box::new(BufReader::new(stdout));
-            loop {
-                match crate::plugin::lsp::read_message(&mut reader) {
-                    Ok(message_str) => {
-                        println!("dap read message {message_str}");
-                    }
-                    Err(_err) => {
-                        return;
-                    }
-                };
-            }
-        });
+        let server_pending: Arc<
+            Mutex<HashMap<u64, ResponseHandler<DapResponse, RpcError>>>,
+        > = Arc::new(Mutex::new(HashMap::new()));
+        {
+            let server_pending = server_pending.clone();
+            thread::spawn(move || {
+                let mut reader = Box::new(BufReader::new(stdout));
+                loop {
+                    match crate::plugin::lsp::read_message(&mut reader) {
+                        Ok(message_str) => {
+                            if let Ok(payload) =
+                                serde_json::from_str::<DapPayload>(&message_str)
+                            {
+                                match payload {
+                                    DapPayload::Request(_) => todo!(),
+                                    DapPayload::Response(resp) => {
+                                        if let Some(rh) = {
+                                            server_pending
+                                                .lock()
+                                                .remove(&resp.request_seq)
+                                        } {
+                                            rh.invoke(Ok(resp));
+                                        }
+                                        println!("got response");
+                                    }
+                                }
+                            }
+                            println!("dap read message {message_str}");
+                        }
+                        Err(_err) => {
+                            return;
+                        }
+                    };
+                }
+            });
+        }
 
         Ok(Self {
             io_tx,
-            id_counter: Arc::new(AtomicU64::new(0)),
-            server_pending: Arc::new(Mutex::new(HashMap::new())),
+            seq_counter: Arc::new(AtomicU64::new(0)),
+            server_pending,
         })
     }
 
@@ -127,42 +154,53 @@ impl DapClient {
             supports_invalidated_event: Some(false),
         };
 
-        let resp = self.request(dap_types::Initialize::METHOD, params);
+        let resp = self
+            .request::<Initialize>(params)
+            .map_err(|e| anyhow!(e.message))?;
         println!("dap initilize result {resp:?}");
 
         Ok(())
     }
 
-    fn request<P: Serialize>(
+    fn request<R: Request>(
         &self,
-        method: &'static str,
-        params: P,
-    ) -> Result<Value, RpcError> {
+        params: R::Arguments,
+    ) -> Result<R::Result, RpcError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
-        self.request_common(method, params, ResponseHandler::Chan(tx));
-        rx.recv().unwrap_or_else(|_| {
-            Err(RpcError {
+        self.request_common(R::COMMAND, params, ResponseHandler::Chan(tx));
+        let resp = rx.recv().map_err(|_| RpcError {
+            code: 0,
+            message: "io error".to_string(),
+        })??;
+        let response =
+            serde_json::from_value(resp.body.ok_or_else(|| RpcError {
                 code: 0,
-                message: "io error".to_string(),
-            })
-        })
+                message: "no body in response".to_string(),
+            })?)
+            .map_err(|e| RpcError {
+                code: 0,
+                message: e.to_string(),
+            })?;
+        Ok(response)
     }
 
     fn request_common<P: Serialize>(
         &self,
-        method: &'static str,
-        params: P,
-        rh: ResponseHandler<Value, RpcError>,
+        command: &'static str,
+        arguments: P,
+        rh: ResponseHandler<DapResponse, RpcError>,
     ) {
-        let id = self.id_counter.fetch_add(1, Ordering::Relaxed);
-        let id = Id::Num(id as i64);
-        let params = Params::from(serde_json::to_value(params).unwrap());
+        let seq = self.seq_counter.fetch_add(1, Ordering::Relaxed);
+        let arguments: Value = serde_json::to_value(arguments).unwrap();
 
         {
             let mut pending = self.server_pending.lock();
-            pending.insert(id.clone(), rh);
+            pending.insert(seq, rh);
         }
-        let msg = JsonRpc::request_with_params(id, method, params);
-        let _ = self.io_tx.send(msg);
+        let _ = self.io_tx.send(DapPayload::Request(DapRequest {
+            seq,
+            command: command.to_string(),
+            arguments: Some(arguments),
+        }));
     }
 }

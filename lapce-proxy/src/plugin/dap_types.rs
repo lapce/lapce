@@ -1,13 +1,42 @@
-use lsp_types::request::Request;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json::Value;
+
+pub trait Request {
+    type Arguments: DeserializeOwned + Serialize;
+    type Result: DeserializeOwned + Serialize;
+    const COMMAND: &'static str;
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DapRequest {
+    pub seq: u64,
+    pub command: String,
+    pub arguments: Option<Value>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+pub struct DapResponse {
+    pub request_seq: u64,
+    pub success: bool,
+    pub command: String,
+    pub message: Option<String>,
+    pub body: Option<Value>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum DapPayload {
+    Request(DapRequest),
+    Response(DapResponse),
+}
 
 #[derive(Debug)]
 pub enum Initialize {}
 
 impl Request for Initialize {
-    type Params = InitializeParams;
+    type Arguments = InitializeParams;
     type Result = DebuggerCapabilities;
-    const METHOD: &'static str = "initialize";
+    const COMMAND: &'static str = "initialize";
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Deserialize, Serialize)]
