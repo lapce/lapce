@@ -8,7 +8,7 @@ URL:            https://github.com/lapce/lapce
 VCS:            {{{ git_dir_vcs }}}
 Source:        	{{{ git_dir_pack }}}
 
-BuildRequires:  cargo perl-FindBin cairo-devel cairo-gobject-devel atk-devel gdk-pixbuf2-devel pango-devel gtk3-devel perl-lib perl-File-Compare
+BuildRequires:  cargo perl-FindBin cairo-devel cairo-gobject-devel atk-devel gdk-pixbuf2-devel pango-devel gtk3-devel perl-lib perl-File-Compare clang
 
 %description
 Lapce is written in pure Rust with a UI in Druid (which is also written in Rust).
