@@ -17,13 +17,14 @@ use lapce_rpc::{
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::DidOpenTextDocument, DidOpenTextDocumentParams, SemanticTokens,
-    TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier,
+    TextDocumentIdentifier, TextDocumentItem, Url, VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::Notification;
 use serde_json::Value;
 
 use super::{
+    dap::DapClient,
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
     wasi::{load_all_volts, start_volt},
     PluginCatalogNotification, PluginCatalogRpcHandler,
@@ -34,6 +35,7 @@ pub struct PluginCatalog {
     workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
     plugins: HashMap<PluginId, PluginServerRpcHandler>,
+    daps: HashMap<PluginId, DapClient>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
     unactivated_volts: HashMap<VoltID, VoltMetadata>,
     open_files: HashMap<PathBuf, String>,
@@ -46,11 +48,26 @@ impl PluginCatalog {
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
+        {
+            let workspace = workspace.clone();
+            thread::spawn(move || {
+                let dap = DapClient::new(
+                    workspace,
+                    Url::parse("file:///opt/homebrew/opt/llvm@14/bin/lldb-vscode")
+                        .unwrap(),
+                    Vec::new(),
+                )
+                .unwrap();
+                let _ = dap.initialize();
+            });
+        }
+
         let plugin = Self {
             workspace,
             plugin_rpc: plugin_rpc.clone(),
             plugin_configurations,
             plugins: HashMap::new(),
+            daps: HashMap::new(),
             unactivated_volts: HashMap::new(),
             open_files: HashMap::new(),
         };
