@@ -252,7 +252,7 @@ impl Widget<LapceTabData> for FindBox {
                     ),
                 }
             } else {
-                "No results".to_owned()
+                "No results".to_string()
             })
             .font(
                 data.config.ui.font_family(),

@@ -136,7 +136,7 @@ impl LapceEditorTabHeader {
                     }
                 }
                 EditorTabChild::Settings { .. } => {
-                    text = "Settings".to_owned();
+                    text = "Settings".to_string();
                     hint = format!("ver. {}", *meta::VERSION);
                     svg = data.config.ui_svg(LapceIcons::SETTINGS);
                 }

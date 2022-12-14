@@ -15,6 +15,7 @@ use druid::{
 use itertools::Itertools;
 use lapce_core::{
     buffer::{Buffer, DiffLines, InvalLines},
+    char_buffer::CharBuffer,
     command::{EditCommand, MultiSelectionCommand},
     cursor::{ColPosition, Cursor, CursorMode},
     editor::{EditType, Editor},
@@ -576,9 +577,9 @@ impl Document {
             return;
         }
 
-        let history = DocumentHistory::new(version.to_owned());
+        let history = DocumentHistory::new(version.to_string());
         history.retrieve(self);
-        self.histories.insert(version.to_owned(), history);
+        self.histories.insert(version.to_string(), history);
     }
 
     pub fn reload_history(&self, version: &str) {
@@ -588,9 +589,9 @@ impl Document {
     }
 
     pub fn load_history(&mut self, version: &str, content: Rope) {
-        let mut history = DocumentHistory::new(version.to_owned());
+        let mut history = DocumentHistory::new(version.to_string());
         history.load_content(content, self);
-        self.histories.insert(version.to_owned(), history);
+        self.histories.insert(version.to_string(), history);
     }
 
     pub fn get_history(&self, version: &str) -> Option<&DocumentHistory> {
@@ -2595,11 +2596,9 @@ impl Document {
             }
             Movement::NextUnmatched(char) => {
                 if let Some(syntax) = self.syntax.as_ref() {
-                    let mut char_buffer = [0_u8; 4];
-                    let tag = char.encode_utf8(&mut char_buffer);
-
-                    let new_offset =
-                        syntax.find_tag(offset, false, tag).unwrap_or(offset);
+                    let new_offset = syntax
+                        .find_tag(offset, false, &CharBuffer::from(char))
+                        .unwrap_or(offset);
                     (new_offset, None)
                 } else {
                     let new_offset = WordCursor::new(self.buffer.text(), offset)
@@ -2610,11 +2609,9 @@ impl Document {
             }
             Movement::PreviousUnmatched(char) => {
                 if let Some(syntax) = self.syntax.as_ref() {
-                    let mut char_buffer = [0_u8; 4];
-                    let tag = char.encode_utf8(&mut char_buffer);
-
-                    let new_offset =
-                        syntax.find_tag(offset, true, tag).unwrap_or(offset);
+                    let new_offset = syntax
+                        .find_tag(offset, true, &CharBuffer::from(char))
+                        .unwrap_or(offset);
                     (new_offset, None)
                 } else {
                     let new_offset = WordCursor::new(self.buffer.text(), offset)

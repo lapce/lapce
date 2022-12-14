@@ -210,7 +210,7 @@ impl Widget<LapceTabData> for SearchInput {
                     None => format!("{} results", match_count),
                 }
             } else {
-                "No results".to_owned()
+                "No results".to_string()
             })
             .font(
                 data.config.ui.font_family(),

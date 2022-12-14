@@ -3745,10 +3745,10 @@ impl LapceMainSplitData {
                                 doc.content().file_name()
                             ),
                             msg: "Your changes will be lost if you don't save them."
-                                .to_owned(),
+                                .to_string(),
                             buttons: vec![
                                 (
-                                    "Save".to_owned(),
+                                    "Save".to_string(),
                                     view_id,
                                     LapceCommand {
                                         kind: CommandKind::Focus(
@@ -3758,7 +3758,7 @@ impl LapceMainSplitData {
                                     },
                                 ),
                                 (
-                                    "Don't Save".to_owned(),
+                                    "Don't Save".to_string(),
                                     view_id,
                                     LapceCommand {
                                         kind: CommandKind::Focus(

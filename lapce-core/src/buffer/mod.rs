@@ -20,6 +20,7 @@ use lapce_xi_rope::{
 use lsp_types::Position;
 
 use crate::{
+    char_buffer::CharBuffer,
     cursor::CursorMode,
     editor::EditType,
     indent::{auto_detect_indent_style, IndentStyle},
@@ -295,14 +296,19 @@ impl Buffer {
         self.last_edit_type = EditType::Other;
     }
 
-    pub fn edit(
-        &mut self,
-        edits: &[(impl AsRef<Selection>, &str)],
+    pub fn edit<'a, 'b, I, S, T>(
+        &'a mut self,
+        edits: I,
         edit_type: EditType,
-    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
+    ) -> (RopeDelta, InvalLines, SyntaxEdit)
+    where
+        I: IntoIterator<Item = &'b (S, T)>,
+        S: AsRef<Selection> + 'b,
+        T: AsRef<str> + 'b,
+    {
         let mut builder = DeltaBuilder::new(self.len());
         let mut interval_rope = Vec::new();
-        for (selection, content) in edits {
+        for (selection, content) in edits.into_iter() {
             let rope = Rope::from(content);
             for region in selection.as_ref().regions() {
                 interval_rope.push((region.min(), region.max(), rope.clone()));
@@ -882,9 +888,7 @@ impl Buffer {
         offset: usize,
     ) -> Option<usize> {
         if let Some(syntax) = syntax {
-            let mut char_buffer = [0_u8; 4];
-            let tag = c.encode_utf8(&mut char_buffer);
-            syntax.find_tag(offset, true, tag)
+            syntax.find_tag(offset, true, &CharBuffer::new(c))
         } else {
             WordCursor::new(&self.text, offset).previous_unmatched(c)
         }

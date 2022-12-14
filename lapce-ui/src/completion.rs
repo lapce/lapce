@@ -34,8 +34,8 @@ impl Snippet {
     fn extract_elements(
         s: &str,
         pos: usize,
-        escs: Vec<&str>,
-        loose_escs: Vec<&str>,
+        escs: &[char],
+        loose_escs: &[char],
     ) -> (Vec<SnippetElement>, usize) {
         let mut elements = Vec::new();
         let mut pos = pos;
@@ -49,7 +49,7 @@ impl Snippet {
                 elements.push(ele);
                 pos = end;
             } else if let Some((ele, end)) =
-                Self::extract_text(s, pos, escs.clone(), loose_escs.clone())
+                Self::extract_text(s, pos, escs, loose_escs)
             {
                 elements.push(ele);
                 pos = end;
@@ -96,15 +96,16 @@ impl Snippet {
             ));
         }
         let (els, pos) =
-            Self::extract_elements(s, pos + m.start(), vec!["$", "}", "\\"], vec![]);
+            Self::extract_elements(s, pos + m.start(), &['$', '}', '\\'], &[]);
         Some((SnippetElement::PlaceHolder(tab, els), pos + 1))
     }
 
+    #[inline]
     fn extract_text(
         s: &str,
         pos: usize,
-        escs: Vec<&str>,
-        loose_escs: Vec<&str>,
+        escs: &[char],
+        loose_escs: &[char],
     ) -> Option<(SnippetElement, usize)> {
         let mut ele = String::new();
         let mut end = pos;
@@ -113,10 +114,7 @@ impl Snippet {
         while let Some(char) = chars_iter.next() {
             if char == '\\' {
                 if let Some(&next_char) = chars_iter.peek() {
-                    if escs.iter().chain(loose_escs.iter()).any(|str| {
-                        let mut chars = str.chars();
-                        chars.next() == Some(next_char) && chars.next().is_none()
-                    }) {
+                    if escs.iter().chain(loose_escs.iter()).any(|c| *c == char) {
                         chars_iter.next();
                         ele.push(next_char);
                         end += 2;
@@ -124,9 +122,7 @@ impl Snippet {
                     }
                 }
             }
-            let mut buf = [0_u8; 4];
-            let result = char.encode_utf8(&mut buf);
-            if escs.contains(&&*result) {
+            if escs.contains(&char) {
                 break;
             }
             ele.push(char);
@@ -143,7 +139,7 @@ impl FromStr for Snippet {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (elements, _) = Self::extract_elements(s, 0, vec!["$", "\\"], vec!["}"]);
+        let (elements, _) = Self::extract_elements(s, 0, &['$', '\\'], &['}']);
         Ok(Snippet { elements })
     }
 }

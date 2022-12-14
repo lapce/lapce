@@ -635,7 +635,7 @@ impl LapceDb {
             if !doc.buffer().is_pristine() && doc.content().is_file() {
                 let path_str = path.to_str().unwrap();
                 let buf_text = doc.buffer().to_string();
-                unsaved_buffers.push(path_str.to_owned());
+                unsaved_buffers.push(path_str.to_string());
                 unsaved_buffers.push(buf_text);
             }
         }

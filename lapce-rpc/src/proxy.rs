@@ -402,7 +402,7 @@ impl ProxyRpcHandler {
         rx.recv().unwrap_or_else(|_| {
             Err(RpcError {
                 code: 0,
-                message: "io error".to_owned(),
+                message: "io error".to_string(),
             })
         })
     }

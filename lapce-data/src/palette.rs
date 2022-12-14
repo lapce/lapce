@@ -66,12 +66,12 @@ pub enum PaletteType {
 impl PaletteType {
     fn string(&self) -> String {
         match &self {
-            PaletteType::Line => "/".to_owned(),
-            PaletteType::DocumentSymbol => "@".to_owned(),
-            PaletteType::WorkspaceSymbol => "#".to_owned(),
-            PaletteType::GlobalSearch => "?".to_owned(),
-            PaletteType::Workspace => ">".to_owned(),
-            PaletteType::Command => ":".to_owned(),
+            PaletteType::Line => "/".to_string(),
+            PaletteType::DocumentSymbol => "@".to_string(),
+            PaletteType::WorkspaceSymbol => "#".to_string(),
+            PaletteType::GlobalSearch => "?".to_string(),
+            PaletteType::Workspace => ">".to_string(),
+            PaletteType::Command => ":".to_string(),
             PaletteType::File
             | PaletteType::Reference
             | PaletteType::ColorTheme

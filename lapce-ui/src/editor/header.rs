@@ -165,7 +165,7 @@ impl LapceEditorHeader {
                     .unwrap_or("")
                     .to_string();
                 if !data.doc.buffer().is_pristine() {
-                    file_name = "*".to_owned() + &file_name;
+                    file_name = "*".to_string() + &file_name;
                 }
                 if let Some(_compare) = data.editor.compare.as_ref() {
                     file_name += " (Working tree)";

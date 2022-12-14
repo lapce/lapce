@@ -1016,7 +1016,7 @@ impl LapceEditorBufferData {
                 path: path.to_path_buf(),
                 position: Some(offset),
                 scroll_offset: None,
-                history: Some("head".to_owned()),
+                history: Some("head".to_string()),
             };
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
@@ -2359,7 +2359,7 @@ impl LapceEditorBufferData {
                     self.proxy.proxy_rpc.rename(
                         self.rename.path.clone(),
                         self.rename.position,
-                        new_name.to_owned(),
+                        new_name.to_string(),
                         move |result| {
                             if let Ok(ProxyResponse::Rename { edit }) = result {
                                 let _ = event_sink.submit_command(
@@ -2560,7 +2560,7 @@ impl KeyPressFocus for LapceEditorBufferData {
         } else if let Some(direction) = self.editor.inline_find.clone() {
             self.inline_find(ctx, direction.clone(), c);
             let editor = Arc::make_mut(&mut self.editor);
-            editor.last_inline_find = Some((direction, c.to_owned()));
+            editor.last_inline_find = Some((direction, c.to_string()));
             editor.inline_find = None;
         }
     }

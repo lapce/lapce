@@ -1,4 +1,5 @@
 pub mod buffer;
+pub mod char_buffer;
 pub mod chars;
 pub mod command;
 pub mod cursor;

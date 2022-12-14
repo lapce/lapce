@@ -233,7 +233,7 @@ impl DocumentHistory {
                         id,
                         path,
                         rev,
-                        history: "head".to_owned(),
+                        history: "head".to_string(),
                         changes: Arc::new(changes),
                     },
                     Target::Widget(tab_id),

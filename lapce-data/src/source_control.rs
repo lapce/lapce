@@ -187,7 +187,7 @@ impl KeyPressFocus for SourceControlData {
                                     .0
                                     .path()
                                     .clone(),
-                                "head".to_owned(),
+                                "head".to_string(),
                             ),
                             Target::Auto,
                         ));

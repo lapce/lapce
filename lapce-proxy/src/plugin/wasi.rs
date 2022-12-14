@@ -328,7 +328,7 @@ pub fn start_volt(
     let mut linker = wasmtime::Linker::new(&engine);
     wasmtime_wasi::add_to_linker(&mut linker, |s| s)?;
     HttpState::new()?.add_to_linker(&mut linker, |_| HttpCtx {
-        allowed_hosts: Some(vec!["insecure:allow-all".to_owned()]),
+        allowed_hosts: Some(vec!["insecure:allow-all".to_string()]),
         max_concurrent_requests: Some(100),
     })?;
 

@@ -31,7 +31,7 @@ use self::{
         HighlightConfiguration, HighlightEvent, HighlightIssue, HighlightIter,
         HighlightIterLayer, IncludedChildren, LocalScope,
     },
-    util::{matching_char, matching_pair_direction, RopeProvider},
+    util::{matching_bracket_general, matching_pair_direction, RopeProvider},
 };
 use crate::{
     language::LapceLanguage,
@@ -688,20 +688,12 @@ impl Syntax {
             .root_node()
             .descendant_for_byte_range(offset, offset + 1)?;
         let char = node.kind().chars().next()?;
-        let char = matching_char(char)?;
+        let char: &'static str = matching_bracket_general(char)?;
 
-        // Note: Avoid using `encode_utf8` since it introduce unnecessary branches
-        //
-        // SAFETY: We know for sure that `char` will fit into u8 because the
-        // `match_char` function returns only brackets.
-        let char_buffer = [char as u8];
-        // SAFETY: `char` was valid UTF-8.
-        let tag = unsafe { core::str::from_utf8_unchecked(&char_buffer) };
-
-        if let Some(offset) = self.find_tag_in_siblings(node, true, tag) {
+        if let Some(offset) = self.find_tag_in_siblings(node, true, char) {
             return Some(offset);
         }
-        if let Some(offset) = self.find_tag_in_siblings(node, false, tag) {
+        if let Some(offset) = self.find_tag_in_siblings(node, false, char) {
             return Some(offset);
         }
         None

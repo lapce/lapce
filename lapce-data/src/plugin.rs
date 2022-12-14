@@ -372,7 +372,7 @@ impl PluginData {
                     log::warn!("download_volt err: {err:?}");
                     proxy.core_rpc.volt_installing(
                         volt.clone(),
-                        "Could not download Plugin".to_owned(),
+                        "Could not download Plugin".to_string(),
                     );
                     return Ok(());
                 }
@@ -395,14 +395,14 @@ impl PluginData {
                 let path = meta.dir.as_ref().ok_or_else(|| {
                     proxy.core_rpc.volt_removing(
                         meta.clone(),
-                        "Plugin Directory does not exist".to_owned(),
+                        "Plugin Directory does not exist".to_string(),
                     );
                     anyhow::anyhow!("don't have dir")
                 })?;
                 if std::fs::remove_dir_all(path).is_err() {
                     proxy.core_rpc.volt_removing(
                         meta.clone(),
-                        "Could not remove Plugin Directory".to_owned(),
+                        "Could not remove Plugin Directory".to_string(),
                     );
                 } else {
                     proxy.core_rpc.volt_removed(meta.info(), false);
