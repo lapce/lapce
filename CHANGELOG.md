@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Features/Changes
+
+### Bug Fixes
+
+## 0.2.5
+
 ### Breaking changes
 
 - [#1726](https://github.com/lapce/lapce/pull/1726): Add more panel theme keys, apply hover first, then current item colour
