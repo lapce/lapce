@@ -8,7 +8,7 @@ URL:            https://github.com/lapce/lapce
 VCS:            {{{ git_dir_vcs }}}
 Source:        	{{{ git_dir_pack }}}
 
-BuildRequires:  cargo perl-FindBin cairo-devel cairo-gobject-devel atk-devel gdk-pixbuf2-devel pango-devel gtk3-devel perl-lib perl-File-Compare mold clang
+BuildRequires:  cargo perl-FindBin cairo-devel cairo-gobject-devel atk-devel gdk-pixbuf2-devel pango-devel gtk3-devel perl-lib perl-File-Compare
 
 %description
 Lapce is written in pure Rust with a UI in Druid (which is also written in Rust).
@@ -18,7 +18,7 @@ It is designed with Rope Science from the Xi-Editor which makes for lightning-fa
 {{{ git_dir_setup_macro }}}
 
 %build
-RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=mold" cargo build --profile release-lto
+cargo build --profile release-lto
 
 %install
 install -Dm755 target/release-lto/lapce %{buildroot}%{_bindir}/lapce
