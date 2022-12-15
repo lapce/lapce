@@ -295,7 +295,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             "constructor_declaration",
             "destructor_declaration",
             "method_declaration",
-            ],
+        ],
         extensions: &["cs", "csx"],
     },
     #[cfg(feature = "lang-css")]
