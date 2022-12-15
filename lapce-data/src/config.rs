@@ -548,14 +548,14 @@ impl UIConfig {
     }
 
     pub fn font_size(&self) -> usize {
-        self.font_size.max(6).min(32)
+        self.font_size.clamp(6, 32)
     }
 
     pub fn icon_size(&self) -> usize {
         if self.icon_size == 0 {
             self.font_size() + 2
         } else {
-            self.icon_size.max(6).min(32)
+            self.icon_size.clamp(6, 32)
         }
     }
 
