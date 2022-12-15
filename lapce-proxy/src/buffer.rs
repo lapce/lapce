@@ -29,7 +29,7 @@ pub struct Buffer {
 impl Buffer {
     pub fn new(id: BufferId, path: PathBuf) -> Buffer {
         let rope = Rope::from(load_file(&path).unwrap_or_default());
-        let rev = if rope.is_empty() { 0 } else { 1 };
+        let rev = u64::from(!rope.is_empty());
         let language_id = language_id_from_path(&path).unwrap_or("");
         let mod_time = get_mod_time(&path);
         Buffer {
