@@ -1009,7 +1009,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
     let id = volt.id();
     let plugin_dir = Directory::plugins_directory()
         .ok_or_else(|| anyhow!("can't get plugin directory"))?
-        .join(&id);
+        .join(id);
     let _ = fs::remove_dir_all(&plugin_dir);
     fs::create_dir_all(&plugin_dir)?;
 

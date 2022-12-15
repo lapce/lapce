@@ -326,7 +326,7 @@ impl PluginData {
         let url = format!(
             "https://plugins.lapce.dev/api/v1/plugins?q={query}&offset={offset}"
         );
-        let plugins: PluginsInfo = reqwest::blocking::get(&url)?.json()?;
+        let plugins: PluginsInfo = reqwest::blocking::get(url)?.json()?;
         Ok(plugins)
     }
 
