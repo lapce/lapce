@@ -24,8 +24,10 @@ use lapce_core::{
     register::{Clipboard, Register, RegisterData},
     selection::{SelRegion, Selection},
     style::line_styles,
-    syntax::{edit::SyntaxEdit, highlight::HighlightIssue},
-    syntax::{util::matching_pair_direction, Syntax},
+    syntax::{
+        edit::SyntaxEdit, highlight::HighlightIssue, util::matching_pair_direction,
+        Syntax,
+    },
     word::WordCursor,
 };
 use lapce_rpc::{
