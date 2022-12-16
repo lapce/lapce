@@ -1,3 +1,5 @@
+#![allow(clippy::manual_clamp)]
+
 pub mod buffer;
 pub mod dispatch;
 pub mod plugin;

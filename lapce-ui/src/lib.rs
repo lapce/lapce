@@ -1,3 +1,5 @@
+#![allow(clippy::manual_clamp)]
+
 pub mod about;
 pub mod alert;
 pub mod app;
