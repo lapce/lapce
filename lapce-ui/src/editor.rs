@@ -1263,7 +1263,7 @@ impl LapceEditor {
                                         .doc
                                         .buffer()
                                         .offset_to_line_col(end_offset);
-                                    end_col.clamp(start_col, max_col)
+                                    end_col.clamp(max_col, start_col)
                                 }
                             };
                             (right, false)

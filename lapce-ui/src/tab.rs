@@ -219,7 +219,7 @@ impl LapceTab {
                 PanelResizePosition::Left => {
                     let maximum = self.width - 100.0 - data.panel.size.right;
                     Arc::make_mut(&mut data.panel).size.left =
-                        mouse_pos.x.round().clamp(180.0, maximum);
+                        mouse_pos.x.round().clamp(maximum, 180.0);
                     if mouse_pos.x < 90.0 {
                         if data
                             .panel
@@ -256,7 +256,7 @@ impl LapceTab {
                     let maximum = self.width - 100.0 - data.panel.size.left;
                     let right = self.width - mouse_pos.x.round();
                     Arc::make_mut(&mut data.panel).size.right =
-                        right.clamp(180.0, maximum);
+                        right.clamp(maximum, 180.0);
                     if right < 90.0 {
                         if data
                             .panel
@@ -303,7 +303,7 @@ impl LapceTab {
                         - 1.0;
 
                     Arc::make_mut(&mut data.panel).size.bottom =
-                        bottom.clamp(180.0, minimum);
+                        bottom.clamp(minimum, 180.0);
 
                     // Check if it should snap the bottom panel away, if you are too low
                     if bottom < 90.0 {

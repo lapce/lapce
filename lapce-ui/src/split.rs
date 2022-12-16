@@ -428,14 +428,14 @@ impl LapceSplit {
 
         let start = if allow_shifting && start <= prev_limit {
             // If the start is before the previous offset, then we can start moving the previous editor
-            start.clamp(limit_margin * i as f64, next_limit)
+            start.clamp(next_limit, limit_margin * i as f64)
         } else if allow_shifting && start >= next_limit {
             start.clamp(
-                prev_limit,
                 flex_total - limit_margin * (self.children.len() - i) as f64,
+                prev_limit,
             )
         } else {
-            start.clamp(prev_limit, next_limit)
+            start.clamp(next_limit, prev_limit)
         };
 
         // Check if we're shifting a specific previous child
