@@ -108,8 +108,8 @@ impl FileExplorerData {
             if node.open {
                 node.children_open_count = node
                     .children
-                    .iter()
-                    .map(|(_, item)| item.children_open_count + 1)
+                    .values()
+                    .map(|item| item.children_open_count + 1)
                     .sum::<usize>();
             } else {
                 node.children_open_count = 0;

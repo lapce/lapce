@@ -813,7 +813,7 @@ impl Widget<LapceTabData> for Title {
         } else {
             300.0
         };
-        let palette_width = remaining.min(500.0).max(min_palette_width);
+        let palette_width = remaining.clamp(min_palette_width, 500.0);
         let palette_size = self.palette.layout(
             ctx,
             &BoxConstraints::tight(Size::new(palette_width, bc.max().height)),

@@ -58,12 +58,10 @@ impl Viewport {
     pub fn clamp_view_origin(&self, origin: Point) -> Point {
         let x = origin
             .x
-            .min(self.content_size.width - self.rect.width())
-            .max(0.0);
+            .clamp(0.0, self.content_size.width - self.rect.width());
         let y = origin
             .y
-            .min(self.content_size.height - self.rect.height())
-            .max(0.0);
+            .clamp(0.0, self.content_size.height - self.rect.height());
         Point::new(x, y)
     }
 

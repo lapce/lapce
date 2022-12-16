@@ -351,7 +351,7 @@ impl LapceDb {
         let (save_tx, save_rx) = unbounded();
 
         let sled_db = sled::Config::default()
-            .path(&path)
+            .path(path)
             .flush_every_ms(None)
             .open()
             .ok();
@@ -445,7 +445,7 @@ impl LapceDb {
         let workspace = workspace.to_string();
         let sled_db = self.get_db()?;
         let info = sled_db
-            .get(&workspace)?
+            .get(workspace)?
             .ok_or_else(|| anyhow!("can't find workspace info"))?;
         let info = std::str::from_utf8(&info)?;
         let info: WorkspaceInfo = serde_json::from_str(info)?;

@@ -41,11 +41,7 @@ impl std::cmp::PartialOrd for FileNodeItem {
 
 impl FileNodeItem {
     pub fn sorted_children(&self) -> Vec<&FileNodeItem> {
-        let mut children = self
-            .children
-            .iter()
-            .map(|(_, item)| item)
-            .collect::<Vec<&FileNodeItem>>();
+        let mut children = self.children.values().collect::<Vec<&FileNodeItem>>();
         children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
             (true, true) => a
                 .path_buf
@@ -164,8 +160,8 @@ impl FileNodeItem {
             if node.open {
                 node.children_open_count = node
                     .children
-                    .iter()
-                    .map(|(_, item)| item.children_open_count + 1)
+                    .values()
+                    .map(|item| item.children_open_count + 1)
                     .sum::<usize>();
             } else {
                 node.children_open_count = 0;

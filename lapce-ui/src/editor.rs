@@ -8,10 +8,9 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, TimerToken, UpdateCtx,
     Widget, WidgetId,
 };
-use lapce_core::buffer::DiffLines;
-use lapce_core::command::EditCommand;
 use lapce_core::{
-    command::FocusCommand,
+    buffer::DiffLines,
+    command::{EditCommand, FocusCommand},
     cursor::{ColPosition, CursorMode},
     mode::{Mode, VisualMode},
 };
@@ -1264,7 +1263,7 @@ impl LapceEditor {
                                         .doc
                                         .buffer()
                                         .offset_to_line_col(end_offset);
-                                    end_col.max(start_col).min(max_col)
+                                    end_col.clamp(start_col, max_col)
                                 }
                             };
                             (right, false)
