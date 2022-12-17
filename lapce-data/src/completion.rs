@@ -6,6 +6,7 @@ use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lapce_core::command::FocusCommand;
 use lapce_rpc::{buffer::BufferId, plugin::PluginId};
+use lazy_static::lazy_static;
 use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
 
@@ -46,19 +47,49 @@ impl Snippet {
         (elements, pos)
     }
 
-    fn extract_tabstop(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-        for re in &[
-            Regex::new(r#"^\$(\d+)"#).unwrap(),
-            Regex::new(r#"^\$\{(\d+)\}"#).unwrap(),
-        ] {
-            if let Some(caps) = re.captures(&s[pos..]) {
-                let end = pos + re.find(&s[pos..])?.end();
-                let m = caps.get(1)?;
-                let n = m.as_str().parse::<usize>().ok()?;
-                return Some((SnippetElement::Tabstop(n), end));
-            }
+    fn extract_tabstop(str: &str, pos: usize) -> Option<(SnippetElement, usize)> {
+        lazy_static! {
+            // Regex for `$...` pattern, where `...` is some number (for example `$1`)
+            static ref REGEX_FIRST: Regex = Regex::new(r#"^\$(\d+)"#).unwrap();
+            // Regex for `${...}` pattern, where `...` is some number (for example `${1}`)
+            static ref REGEX_SECOND: Regex = Regex::new(r#"^\$\{(\d+)\}"#).unwrap();
         }
 
+        let str = &str[pos..];
+        if let Some(matched) = REGEX_FIRST.find(str) {
+            // SAFETY:
+            // * The start index is guaranteed not to exceed the end index, since we
+            //   compare with the `$ ...` pattern, and, therefore, the first element
+            //   is always equal to the symbol `$`;
+            // * The indices are within the bounds of the original slice and lie on
+            //   UTF-8 sequence boundaries, since we take the entire slice, with the
+            //   exception of the first `$` char which is 1 byte in accordance with
+            //   the UTF-8 standard.
+            let n = unsafe {
+                matched.as_str().get_unchecked(1..).parse::<usize>().ok()?
+            };
+            let end = pos + matched.end();
+            return Some((SnippetElement::Tabstop(n), end));
+        }
+        if let Some(matched) = REGEX_SECOND.find(str) {
+            let matched = matched.as_str();
+            // SAFETY:
+            // * The start index is guaranteed not to exceed the end index, since we
+            //   compare with the `${...}` pattern, and, therefore, the first two elements
+            //   are always equal to the `${` and the last one is equal to `}`;
+            // * The indices are within the bounds of the original slice and lie on UTF-8
+            //   sequence boundaries, since we take the entire slice, with the exception
+            //   of the first two `${` and last one `}` chars each of which is 1 byte in
+            //   accordance with the UTF-8 standard.
+            let n = unsafe {
+                matched
+                    .get_unchecked(2..matched.len() - 1)
+                    .parse::<usize>()
+                    .ok()?
+            };
+            let end = pos + matched.len();
+            return Some((SnippetElement::Tabstop(n), end));
+        }
         None
     }
 
@@ -453,6 +484,73 @@ mod tests {
         assert_eq!(
             vec![(1, (6, 6)), (2, (6, 18)), (3, (13, 18)), (0, (19, 19))],
             parsed.tabs(0)
+        );
+    }
+
+    #[test]
+    fn test_extract_tabstop() {
+        fn vec_of_tab_elms(s: &str) -> Vec<(usize, usize)> {
+            let mut pos = 0;
+            let mut vec = Vec::new();
+            for char in s.chars() {
+                if let Some((elem, end)) = Snippet::extract_tabstop(s, pos) {
+                    if let SnippetElement::Tabstop(stop) = elem {
+                        vec.push((stop, end));
+                    }
+                }
+                pos += char.len_utf8();
+            }
+            vec
+        }
+
+        let s = "start $1${2:second ${3:third}} $0";
+        assert_eq!(&[(1, 8), (0, 33)][..], &vec_of_tab_elms(s)[..]);
+
+        let s = "start ${1}${2:second ${3:third}} $0and ${4}fourth";
+        assert_eq!(&[(1, 10), (0, 35), (4, 43)][..], &vec_of_tab_elms(s)[..]);
+
+        let s = "$s$1first${2}$second$3${4}${5}$6and${7}$8fourth$9$$$10$$${11}$$$12$$$13$$${14}$$${15}";
+        assert_eq!(
+            &[
+                (1, 4),
+                (2, 13),
+                (3, 22),
+                (4, 26),
+                (5, 30),
+                (6, 32),
+                (7, 39),
+                (8, 41),
+                (9, 49),
+                (10, 54),
+                (11, 61),
+                (12, 66),
+                (13, 71),
+                (14, 78),
+                (15, 85)
+            ][..],
+            &vec_of_tab_elms(s)[..]
+        );
+
+        let s = "$s$1ένα${2}$τρία$3${4}${5}$6τέσσερα${7}$8πέντε$9$$$10$$${11}$$$12$$$13$$${14}$$${15}";
+        assert_eq!(
+            &[
+                (1, 4),
+                (2, 14),
+                (3, 25),
+                (4, 29),
+                (5, 33),
+                (6, 35),
+                (7, 53),
+                (8, 55),
+                (9, 67),
+                (10, 72),
+                (11, 79),
+                (12, 84),
+                (13, 89),
+                (14, 96),
+                (15, 103)
+            ][..],
+            &vec_of_tab_elms(s)[..]
         );
     }
 }

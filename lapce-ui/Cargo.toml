@@ -28,6 +28,7 @@ lapce-xi-rope = { version = "0.3.1", features = ["serde"] }
 lsp-types = { version = "0.93", features = ["proposed"] }
 toml_edit = { version = "0.14.4", features = ["easy"] }
 open = "3.0.2"
+lazy_static = "1.4.0"
 
 # lapce deps
 druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = ["svg", "im", "serde"] }
