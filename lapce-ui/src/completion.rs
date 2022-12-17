@@ -108,10 +108,13 @@ impl Snippet {
     }
 
     fn extract_placeholder(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-        let re = Regex::new(r#"^\$\{(\d+):(.*?)\}"#).unwrap();
-        let end = pos + re.find(&s[pos..])?.end();
+        lazy_static! {
+            // Regex for `${num:text}` pattern, where text can be empty (for example `${1:first}`
+            // and `${2:}`)
+            static ref REGEX: Regex = Regex::new(r#"^\$\{(\d+):(.*?)\}"#).unwrap();
+        }
 
-        let caps = re.captures(&s[pos..])?;
+        let caps = REGEX.captures(&s[pos..])?;
 
         let tab = caps.get(1)?.as_str().parse::<usize>().ok()?;
 
@@ -121,9 +124,9 @@ impl Snippet {
             return Some((
                 SnippetElement::PlaceHolder(
                     tab,
-                    vec![SnippetElement::Text("".to_string())],
+                    vec![SnippetElement::Text(String::new())],
                 ),
-                end,
+                pos + caps.get(0).unwrap().end(),
             ));
         }
         let (els, pos) =
@@ -189,6 +192,7 @@ impl Display for Snippet {
 }
 
 #[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 enum SnippetElement {
     Text(String),
     PlaceHolder(usize, Vec<SnippetElement>),
@@ -780,6 +784,75 @@ mod tests {
                 (15, 103)
             ][..],
             &vec_of_tab_elms(s)[..]
+        );
+    }
+
+    #[test]
+    fn test_extract_placeholder() {
+        use super::SnippetElement::*;
+        let s1 = "${1:first ${2:second ${3:third ${4:fourth ${5:fifth}}}}}";
+
+        assert_eq!(
+            (
+                PlaceHolder(
+                    1,
+                    vec![
+                        Text("first ".into()),
+                        PlaceHolder(
+                            2,
+                            vec![
+                                Text("second ".into()),
+                                PlaceHolder(
+                                    3,
+                                    vec![
+                                        Text("third ".into()),
+                                        PlaceHolder(
+                                            4,
+                                            vec![
+                                                Text("fourth ".into()),
+                                                PlaceHolder(
+                                                    5,
+                                                    vec![Text("fifth".into())]
+                                                )
+                                            ]
+                                        )
+                                    ]
+                                )
+                            ]
+                        )
+                    ]
+                ),
+                56
+            ),
+            Snippet::extract_placeholder(s1, 0).unwrap()
+        );
+
+        let s1 = "${1:first}${2:second}${3:third }${4:fourth ${5:fifth}}}}}";
+        assert_eq!(
+            (PlaceHolder(1, vec![Text("first".to_owned())]), 10),
+            Snippet::extract_placeholder(s1, 0).unwrap()
+        );
+        assert_eq!(
+            (PlaceHolder(2, vec![Text("second".to_owned())]), 21),
+            Snippet::extract_placeholder(s1, 10).unwrap()
+        );
+        assert_eq!(
+            (PlaceHolder(3, vec![Text("third ".to_owned())]), 32),
+            Snippet::extract_placeholder(s1, 21).unwrap()
+        );
+
+        assert_eq!(
+            (
+                PlaceHolder(
+                    4,
+                    vec![
+                        Text("fourth ".into()),
+                        PlaceHolder(5, vec![Text("fifth".into())])
+                    ]
+                ),
+                54
+            ),
+            Snippet::extract_placeholder(s1, 32).unwrap()
         );
     }
 }
