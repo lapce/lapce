@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- [#1114](https://github.com/lapce/lapce/issues/1114): Add option to hide open editors
+
 ### Bug Fixes
 
 ## 0.2.5
