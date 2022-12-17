@@ -146,7 +146,13 @@ impl LapceTab {
                     PanelKind::FileExplorer => {
                         panel.insert_panel(
                             *kind,
-                            WidgetPod::new(FileExplorer::new_panel(data).boxed()),
+                            WidgetPod::new(
+                                FileExplorer::new_panel(
+                                    data,
+                                    data.config.editor.show_open_editors,
+                                )
+                                .boxed(),
+                            ),
                         );
                     }
                     PanelKind::SourceControl => {

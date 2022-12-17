@@ -335,35 +335,40 @@ impl FileExplorer {
         }
     }
 
-    pub fn new_panel(data: &mut LapceTabData) -> LapcePanel {
+    pub fn new_panel(data: &mut LapceTabData, open_editors: bool) -> LapcePanel {
         let split_id = WidgetId::next();
+
+        let mut sections = Vec::new();
+        if open_editors {
+            sections.push((
+                WidgetId::next(),
+                PanelHeaderKind::Simple("Open Editors".into()),
+                LapceScroll::new(OpenEditorList::new()).boxed(),
+                PanelSizing::Flex(true),
+            ));
+        }
+
+        sections.push((
+            split_id,
+            PanelHeaderKind::Simple(
+                data.workspace
+                    .path
+                    .as_ref()
+                    .and_then(|p| p.file_name())
+                    .and_then(|s| s.to_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "No Folder Open".to_string())
+                    .into(),
+            ),
+            Self::new(data).boxed(),
+            PanelSizing::Flex(true),
+        ));
+
         LapcePanel::new(
             PanelKind::FileExplorer,
             data.file_explorer.widget_id,
             split_id,
-            vec![
-                (
-                    WidgetId::next(),
-                    PanelHeaderKind::Simple("Open Editors".into()),
-                    LapceScroll::new(OpenEditorList::new()).boxed(),
-                    PanelSizing::Size(200.0),
-                ),
-                (
-                    split_id,
-                    PanelHeaderKind::Simple(
-                        data.workspace
-                            .path
-                            .as_ref()
-                            .and_then(|p| p.file_name())
-                            .and_then(|s| s.to_str())
-                            .map(|s| s.to_string())
-                            .unwrap_or_else(|| "No Folder Open".to_string())
-                            .into(),
-                    ),
-                    Self::new(data).boxed(),
-                    PanelSizing::Flex(true),
-                ),
-            ],
+            sections,
         )
     }
 }
