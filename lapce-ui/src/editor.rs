@@ -824,8 +824,8 @@ impl LapceEditor {
         Self::paint_text(ctx, data, &screen_lines);
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
-        Self::paint_sticky_headers(ctx, data, env);
         Self::highlight_scope_and_brackets(ctx, data, &screen_lines);
+        Self::paint_sticky_headers(ctx, data, env);
 
         if data.doc.buffer().is_empty() {
             if let Some(placeholder) = self.placeholder.as_ref() {
@@ -2046,6 +2046,10 @@ impl LapceEditor {
         end_offset: usize,
         color: &Color,
     ) {
+        if data.editor.is_code_lens() {
+            return;
+        }
+
         const LINE_WIDTH: f64 = 1.0;
 
         let (start_line, start_col) =
