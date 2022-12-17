@@ -1790,6 +1790,13 @@ impl LapceTabData {
                     Target::Widget(self.palette.widget_id),
                 ));
             }
+            LapceWorkbenchCommand::ConnectGitHubHost => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::GitHubHost)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
             LapceWorkbenchCommand::ConnectWsl => ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::SetWorkspace(LapceWorkspace {
@@ -4463,18 +4470,41 @@ impl Display for SshHost {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct GitHubCodespaceHost {
+    pub codespace: String,
+}
+
+impl GitHubCodespaceHost {
+    pub fn from_string(s: &str) -> Self {
+        Self { codespace: s.to_owned() }
+    }
+
+    pub fn codespace(&self) -> String {
+        self.codespace.clone()
+    }
+}
+
+impl Display for GitHubCodespaceHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.codespace)?;
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(SshHost),
     RemoteWSL,
+    RemoteGitHub(GitHubCodespaceHost)
 }
 
 impl LapceWorkspaceType {
     pub fn is_remote(&self) -> bool {
         matches!(
             self,
-            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL
+            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL | LapceWorkspaceType::RemoteGitHub(_)
         )
     }
 }
@@ -4487,6 +4517,9 @@ impl std::fmt::Display for LapceWorkspaceType {
                 write!(f, "ssh://{ssh}")
             }
             LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
+            LapceWorkspaceType::RemoteGitHub(codespace) => {
+                write!(f, "GitHub ({codespace})")
+            }
         }
     }
 }

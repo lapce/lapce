@@ -627,6 +627,9 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")
                     }
+                    LapceWorkspaceType::RemoteGitHub(codespace) => {
+                        format!("[{codespace}] {text}")
+                    }
                 };
                 PaletteItemPaintInfo::new_text(text, self.indices.to_vec())
             }

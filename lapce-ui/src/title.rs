@@ -163,7 +163,7 @@ impl Title {
             LapceWorkspaceType::Local => data
                 .config
                 .get_color_unchecked(LapceTheme::LAPCE_REMOTE_LOCAL),
-            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL => {
+            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL | LapceWorkspaceType::RemoteGitHub(_) => {
                 match *data.proxy_status {
                     ProxyStatus::Connecting => data
                         .config
@@ -200,6 +200,13 @@ impl Title {
             desc: None,
             command: LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectSshHost),
+                data: None,
+            },
+            enabled: true,
+        }),MenuKind::Item(MenuItem {
+            desc: None,
+            command: LapceCommand {
+                kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectGitHubHost),
                 data: None,
             },
             enabled: true,
@@ -526,6 +533,9 @@ impl Title {
                 format!(" [SSH: {}]", ssh.host)
             }
             LapceWorkspaceType::RemoteWSL => " [WSL]".to_string(),
+            LapceWorkspaceType::RemoteGitHub(codespace) => {
+                format!(" [GitHub: {}]", codespace.codespace)
+            }
         };
         let text = format!("{path}{remote}");
         let text_layout = piet_text

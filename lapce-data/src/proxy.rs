@@ -31,7 +31,7 @@ use thiserror::Error;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    data::{LapceWorkspace, LapceWorkspaceType, SshHost},
+    data::{LapceWorkspace, LapceWorkspaceType, SshHost, GitHubCodespaceHost},
     terminal::RawTerminal,
 };
 
@@ -361,11 +361,14 @@ impl LapceProxy {
             }
             LapceWorkspaceType::RemoteWSL => {
                 let distro = WslDistro::all()?
-                    .into_iter()
-                    .find(|distro| distro.default)
-                    .ok_or_else(|| anyhow!("no default distro found"))?
-                    .name;
+                .into_iter()
+                .find(|distro| distro.default)
+                .ok_or_else(|| anyhow!("no default distro found"))?
+                .name;
                 self.start_remote(WslRemote { distro })?;
+            }
+            LapceWorkspaceType::RemoteGitHub(codespace) => {
+                self.start_remote(CodespaceRemote { codespace })?;
             }
         }
 
@@ -381,19 +384,19 @@ impl LapceProxy {
             _ => format!("v{}", *meta::VERSION),
         };
 
-        // start ssh CM connection in case where it doesn't handle
-        // executing command properly on remote host
-        // also print ssh debug output when used with LAPCE_DEBUG env
-        match remote.command_builder().arg("lapce-no-command").output() {
-            Ok(cmd) => {
-                log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stderr));
-                log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stdout));
-            }
-            Err(err) => {
-                log::error!(target: "lapce_data::proxy::start_remote::first_try", "{err}");
-                return Err(anyhow!(err));
-            }
-        }
+        // // start ssh CM connection in case where it doesn't handle
+        // // executing command properly on remote host
+        // // also print ssh debug output when used with LAPCE_DEBUG env
+        // match remote.command_builder().arg("lapce-no-command").output() {
+        //     Ok(cmd) => {
+        //         log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stderr));
+        //         log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stdout));
+        //     }
+        //     Err(err) => {
+        //         log::error!(target: "lapce_data::proxy::start_remote::first_try", "{err}");
+        //         return Err(anyhow!(err));
+        //     }
+        // }
 
         // Note about platforms:
         // Windows can use either cmd.exe, powershell.exe or pwsh.exe as
@@ -841,6 +844,59 @@ impl Remote for SshRemote {
         if !std::env::var("LAPCE_DEBUG").unwrap_or_default().is_empty() {
             cmd.arg("-v");
         }
+
+        cmd
+    }
+}
+
+struct CodespaceRemote {
+    codespace: GitHubCodespaceHost,
+}
+
+impl CodespaceRemote {
+    #[cfg(windows)]
+    const GH_ARGS: &'static [&'static str] = &["cs"];
+
+    #[cfg(unix)]
+    const GH_ARGS: &'static [&'static str] = &["cs"];
+}
+
+impl Remote for CodespaceRemote {
+    fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
+        let mut cmd = new_command("gh");
+
+        cmd.arg("cs");
+        cmd.arg("-c");
+        cmd.arg(self.codespace.codespace());
+
+        cmd.arg("cp");
+        cmd.arg("-e");
+        cmd.arg(local.as_ref());
+        cmd.arg(format!("remote:{remote}"));
+
+        let output = cmd.output()?;
+
+        log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stderr));
+        log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stdout));
+
+        Ok(())
+    }
+
+    fn command_builder(&self) -> Command {
+        let mut cmd = new_command("gh");
+
+        cmd.arg("cs");
+
+        cmd.arg("-c");
+        cmd.arg(self.codespace.codespace());
+
+        cmd.arg("ssh");
+
+        if !std::env::var("LAPCE_DEBUG").unwrap_or_default().is_empty() {
+            cmd.arg("-d");
+        }
+
+        cmd.arg("--");
 
         cmd
     }

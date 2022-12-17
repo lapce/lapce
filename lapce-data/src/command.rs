@@ -115,6 +115,7 @@ impl LapceCommand {
                 | LapceWorkbenchCommand::ChangeColorTheme
                 | LapceWorkbenchCommand::ChangeIconTheme
                 | LapceWorkbenchCommand::ConnectSshHost
+                | LapceWorkbenchCommand::ConnectGitHubHost
                 | LapceWorkbenchCommand::ConnectWsl
                 | LapceWorkbenchCommand::PaletteWorkspace => return true,
                 _ => {}
@@ -320,6 +321,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "connect_ssh_host")]
     #[strum(message = "Connect to SSH Host")]
     ConnectSshHost,
+
+    #[strum(serialize = "connect_gh_host")]
+    #[strum(message = "Connect to GitHub Codespace")]
+    ConnectGitHubHost,
 
     #[strum(serialize = "connect_wsl")]
     #[strum(message = "Connect to WSL")]

@@ -1757,6 +1757,9 @@ impl LapceTab {
                                     LapceWorkspaceType::RemoteWSL => {
                                         format!("{dir} [wsl]")
                                     }
+                                    LapceWorkspaceType::RemoteGitHub(codespace) => {
+                                        format!("{} [{codespace}]", dir)
+                                    }
                                 }
                             })
                             .unwrap_or_else(|| "Lapce".to_string());
@@ -2862,6 +2865,9 @@ impl Widget<LapceTabData> for LapceTabHeader {
                     }
                     LapceWorkspaceType::RemoteWSL => {
                         format!("{dir} [wsl]")
+                    }
+                    LapceWorkspaceType::RemoteGitHub(codespace) => {
+                        format!("{} [{codespace}]", dir)
                     }
                 }
             })

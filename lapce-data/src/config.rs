@@ -1030,6 +1030,7 @@ impl LapceConfig {
                 }
             }
             LapceWorkspaceType::RemoteSSH(_) => {}
+            LapceWorkspaceType::RemoteGitHub(_) => {}
             LapceWorkspaceType::RemoteWSL => {}
         }
 

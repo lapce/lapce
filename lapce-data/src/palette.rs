@@ -34,7 +34,7 @@ use crate::{
     config::LapceConfig,
     data::{
         FocusArea, LapceMainSplitData, LapceTabData, LapceWorkspace,
-        LapceWorkspaceType, SshHost,
+        LapceWorkspaceType, SshHost, GitHubCodespaceHost,
     },
     db::LapceDb,
     document::BufferContent,
@@ -60,6 +60,7 @@ pub enum PaletteType {
     ColorTheme,
     IconTheme,
     SshHost,
+    GitHubHost,
     Language,
 }
 
@@ -77,6 +78,7 @@ impl PaletteType {
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::SshHost
+            | PaletteType::GitHubHost
             | PaletteType::Language => "".to_string(),
         }
     }
@@ -98,6 +100,7 @@ impl PaletteType {
         match current_type {
             PaletteType::Reference
             | PaletteType::SshHost
+            | PaletteType::GitHubHost
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::Language => {
@@ -510,6 +513,7 @@ impl PaletteData {
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::Language
+            | PaletteType::GitHubHost
             | PaletteType::SshHost => &self.input,
             PaletteType::Line
             | PaletteType::DocumentSymbol
@@ -648,6 +652,9 @@ impl PaletteViewData {
             PaletteType::SshHost => {
                 self.get_ssh_hosts(ctx);
             }
+            PaletteType::GitHubHost => {
+                // self.get_ssh_hosts(ctx);
+            }
             PaletteType::GlobalSearch => {
                 self.get_global_search(ctx);
             }
@@ -710,6 +717,7 @@ impl PaletteViewData {
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::Language
+            | PaletteType::GitHubHost
             | PaletteType::SshHost => 0,
             PaletteType::Line
             | PaletteType::DocumentSymbol
@@ -775,6 +783,20 @@ impl PaletteViewData {
                     LAPCE_UI_COMMAND,
                     LapceUICommand::SetWorkspace(LapceWorkspace {
                         kind: LapceWorkspaceType::RemoteSSH(ssh),
+                        path: None,
+                        last_open: 0,
+                    }),
+                    Target::Auto,
+                ));
+                return;
+            }
+            if self.palette.palette_type == PaletteType::GitHubHost {
+                let input = self.palette.get_input();
+                let codespace = GitHubCodespaceHost::from_string(input);
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SetWorkspace(LapceWorkspace {
+                        kind: LapceWorkspaceType::RemoteGitHub(codespace),
                         path: None,
                         last_open: 0,
                     }),
@@ -907,6 +929,9 @@ impl PaletteViewData {
                     }
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")
+                    }
+                    LapceWorkspaceType::RemoteGitHub(codespace) => {
+                        format!("[{codespace}] {}", text)
                     }
                 };
                 Some(PaletteItem {
