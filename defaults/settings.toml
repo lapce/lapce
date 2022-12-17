@@ -132,6 +132,7 @@ magenta = "#C678DD"
 "lapce.icon.active" = "$white"
 "lapce.icon.inactive" = "#5C6370"
 
+"lapce.remote.icon" = "$black"
 "lapce.remote.local" = "#4078F2"
 "lapce.remote.connected" = "#50A14F"
 "lapce.remote.connecting" = "#C18401"

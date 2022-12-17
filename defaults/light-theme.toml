@@ -91,6 +91,7 @@ yellow = "#C18401"
 "lapce.icon.active" = "$black"
 "lapce.icon.inactive" = "#A0A1A7"
 
+"lapce.remote.icon" = "$white"
 "lapce.remote.local" = "#4078F2"
 "lapce.remote.connected" = "#50A14F"
 "lapce.remote.connecting" = "#C18401"
