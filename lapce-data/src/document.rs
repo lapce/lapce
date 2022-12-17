@@ -361,7 +361,7 @@ pub struct Document {
     pub code_actions: im::HashMap<usize, (PluginId, CodeActionResponse)>,
     pub inlay_hints: Option<Spans<InlayHint>>,
     pub diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
-    ime_text: Option<Arc<String>>,
+    ime_text: Option<Arc<str>>,
     ime_pos: (usize, usize, usize),
     pub syntax_selection_range: Option<SyntaxSelectionRanges>,
     pub find: Rc<RefCell<Find>>,
@@ -980,7 +980,7 @@ impl Document {
         self.ime_pos = (line, col, shift);
     }
 
-    pub fn ime_text(&self) -> Option<&Arc<String>> {
+    pub fn ime_text(&self) -> Option<&Arc<str>> {
         self.ime_text.as_ref()
     }
 
@@ -988,8 +988,8 @@ impl Document {
         self.ime_pos
     }
 
-    pub fn set_ime_text(&mut self, text: String) {
-        self.ime_text = Some(Arc::new(text));
+    pub fn set_ime_text(&mut self, text: &str) {
+        self.ime_text = Some(Arc::from(text));
         self.clear_text_layout_cache();
     }
 
