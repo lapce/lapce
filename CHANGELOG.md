@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Features/Changes
+- [#1831](https://github.com/lapce/lapce/pull/1831): Plugin settings shown on right click
 
 ### Bug Fixes
 
