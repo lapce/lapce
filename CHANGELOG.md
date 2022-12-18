@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- [#1830](https://github.com/lapce/lapce/pull/1830): Adds Clojure language support
+
 ### Bug Fixes
 
 ## 0.2.5
