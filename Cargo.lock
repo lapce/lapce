@@ -2761,7 +2761,6 @@ dependencies = [
  "lapce-data",
  "lapce-rpc",
  "lapce-xi-rope",
- "lazy_static",
  "log 0.4.17",
  "log-panics",
  "lsp-types",

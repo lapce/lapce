@@ -48,10 +48,12 @@ impl Snippet {
     }
 
     fn extract_tabstop(str: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-    // Regex for `$...` pattern, where `...` is some number (for example `$1`)
-    static REGEX_FIRST: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^\$(\d+)"#).unwrap());
-    // Regex for `${...}` pattern, where `...` is some number (for example `${1}`)
-    static REGEX_SECOND: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^\$\{(\d+)\}"#).unwrap());
+        // Regex for `$...` pattern, where `...` is some number (for example `$1`)
+        static REGEX_FIRST: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r#"^\$(\d+)"#).unwrap());
+        // Regex for `${...}` pattern, where `...` is some number (for example `${1}`)
+        static REGEX_SECOND: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r#"^\$\{(\d+)\}"#).unwrap());
 
         let str = &str[pos..];
         if let Some(matched) = REGEX_FIRST.find(str) {

@@ -18,7 +18,7 @@ use lapce_data::{
     markdown::parse_documentation,
     rich_text::RichText,
 };
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::{
@@ -62,13 +62,12 @@ impl Snippet {
     }
 
     fn extract_tabstop(str: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-        lazy_static! {
-            // Regex for `$...` pattern, where `...` is some number (for example `$1`)
-            static ref REGEX_FIRST: Regex = Regex::new(r#"^\$(\d+)"#).unwrap();
-            // Regex for `${...}` pattern, where `...` is some number (for example `${1}`)
-            static ref REGEX_SECOND: Regex = Regex::new(r#"^\$\{(\d+)\}"#).unwrap();
-        }
-
+        // Regex for `$...` pattern, where `...` is some number (for example `$1`)
+        static REGEX_FIRST: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r#"^\$(\d+)"#).unwrap());
+        // Regex for `${...}` pattern, where `...` is some number (for example `${1}`)
+        static REGEX_SECOND: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r#"^\$\{(\d+)\}"#).unwrap());
         let str = &str[pos..];
         if let Some(matched) = REGEX_FIRST.find(str) {
             // SAFETY:
