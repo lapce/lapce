@@ -138,10 +138,7 @@ impl Widget<LapceTabData> for LapceKeymap {
             }
             Event::KeyDown(key_event) => {
                 if let Some((_keymap, keys)) = self.active_keymap.as_mut() {
-                    if let Some(mut keypress) = KeyPressData::keypress(key_event) {
-                        keypress.key = druid::KbKey::Character(
-                            keypress.key.to_string().to_lowercase(),
-                        );
+                    if let Some(keypress) = KeyPressData::keypress(key_event) {
                         if keys.len() == 2 {
                             keys.clear();
                         }
