@@ -14,6 +14,8 @@ use crate::{
     keypress::paint_key,
 };
 
+use super::KeyPressData;
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KeyPress {
     pub(super) key: Key,
@@ -21,6 +23,28 @@ pub struct KeyPress {
 }
 
 impl KeyPress {
+    pub fn keyboard(ev: &druid::KeyEvent) -> Option<KeyPress> {
+        use druid::KbKey as K;
+
+        match ev.key {
+            K::Shift | K::Meta | K::Super | K::Alt | K::Control => None,
+            ref key => Some(Self {
+                key: Key::Keyboard(match key {
+                    K::Character(c) => K::Character(c.to_lowercase()),
+                    key => key.clone(),
+                }),
+                mods: KeyPressData::get_key_modifiers(ev),
+            }),
+        }
+    }
+
+    pub fn mouse(ev: &druid::MouseEvent) -> KeyPress {
+        Self {
+            key: Key::Mouse(ev.button),
+            mods: ev.mods,
+        }
+    }
+
     pub fn hotkey(&self) -> Option<druid::HotKey> {
         self.key
             .as_keyboard()
