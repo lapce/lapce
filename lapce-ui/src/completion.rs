@@ -107,11 +107,10 @@ impl Snippet {
     }
 
     fn extract_placeholder(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-        lazy_static! {
-            // Regex for `${num:text}` pattern, where text can be empty (for example `${1:first}`
-            // and `${2:}`)
-            static ref REGEX: Regex = Regex::new(r#"^\$\{(\d+):(.*?)\}"#).unwrap();
-        }
+        // Regex for `${num:text}` pattern, where text can be empty (for example `${1:first}`
+        // and `${2:}`)
+        static REGEX: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r#"^\$\{(\d+):(.*?)\}"#).unwrap());
 
         let caps = REGEX.captures(&s[pos..])?;
 
