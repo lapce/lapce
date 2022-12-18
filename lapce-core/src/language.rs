@@ -112,6 +112,8 @@ pub enum LapceLanguage {
     Bash,
     #[cfg(feature = "lang-c")]
     C,
+    #[cfg(feature = "lang-clojure")]
+    Clojure,
     #[cfg(feature = "lang-cmake")]
     Cmake,
     #[cfg(feature = "lang-cpp")]
@@ -246,6 +248,27 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &["function_definition", "struct_specifier"],
         extensions: &["c", "h"],
+    },
+    #[cfg(feature = "lang-clojure")]
+    SyntaxProperties {
+        id: LapceLanguage::Clojure,
+        language: tree_sitter_clojure::language,
+        highlight: include_str!("../queries/clojure/highlights.scm"),
+        injection: Some(include_str!("../queries/clojure/injections.scm")),
+        comment: ";",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &[
+            "clj",
+            "edn",
+            "cljs",
+            "cljc",
+            "cljd",
+            "edn",
+            "bb",
+            "clj_kondo",
+        ],
     },
     #[cfg(feature = "lang-cmake")]
     SyntaxProperties {

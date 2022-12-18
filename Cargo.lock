@@ -2578,6 +2578,7 @@ dependencies = [
  "tree-sitter-bash",
  "tree-sitter-c",
  "tree-sitter-c-sharp",
+ "tree-sitter-clojure",
  "tree-sitter-cmake",
  "tree-sitter-cpp",
  "tree-sitter-css",
@@ -4929,6 +4930,15 @@ dependencies = [
 name = "tree-sitter-c-sharp"
 version = "0.20.0"
 source = "git+https://github.com/tree-sitter/tree-sitter-c-sharp?branch=master#5b60f99545fea00a33bbfae5be956f684c4c69e2"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-clojure"
+version = "0.1.0"
+source = "git+https://github.com/abreumatheus/tree-sitter-clojure#fdc969eb04fc711e38ad74afe441d74b3b5d3091"
 dependencies = [
  "cc",
  "tree-sitter",

@@ -51,6 +51,7 @@ portable = ["lapce-data/portable"]
 all-languages = [
     "lang-bash",
     "lang-c",
+    "lang-clojure",
     "lang-cmake",
     "lang-cpp",
     "lang-csharp",
@@ -103,6 +104,7 @@ all-languages = [
 
 lang-bash = ["lapce-core/lang-bash"]
 lang-c = ["lapce-core/lang-c"]
+lang-clojure = ["lapce-core/lang-clojure"]
 lang-cmake = ["lapce-core/lang-cmake"]
 lang-cpp = ["lapce-core/lang-cpp"]
 lang-csharp = ["lapce-core/lang-csharp"]
