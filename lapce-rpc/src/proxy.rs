@@ -12,8 +12,8 @@ use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
-    CompletionItem, DocumentSymbolResponse, GotoDefinitionResponse, Hover,
-    InlayHint, Location, Position, PrepareRenameResponse, SelectionRange,
+    CompletionItem, Diagnostic, DocumentSymbolResponse, GotoDefinitionResponse,
+    Hover, InlayHint, Location, Position, PrepareRenameResponse, SelectionRange,
     SymbolInformation, TextDocumentItem, TextEdit, WorkspaceEdit,
 };
 use parking_lot::Mutex;
@@ -107,6 +107,7 @@ pub enum ProxyRequest {
     GetCodeActions {
         path: PathBuf,
         position: Position,
+        diagnostics: Vec<Diagnostic>,
     },
     GetDocumentSymbols {
         path: PathBuf,
@@ -732,9 +733,17 @@ impl ProxyRpcHandler {
         &self,
         path: PathBuf,
         position: Position,
+        diagnostics: Vec<Diagnostic>,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(ProxyRequest::GetCodeActions { path, position }, f);
+        self.request_async(
+            ProxyRequest::GetCodeActions {
+                path,
+                position,
+                diagnostics,
+            },
+            f,
+        );
     }
 
     pub fn get_document_formatting(

@@ -642,7 +642,7 @@ impl LapceEditorGutter {
                     .unwrap();
 
                 // Horizontally right aligned
-                let x = line_label_length as f64 - text_layout.size().width;
+                let x = line_label_length - text_layout.size().width;
 
                 // Vertically centered
                 let y = line_height * line as f64 - scroll_offset.y

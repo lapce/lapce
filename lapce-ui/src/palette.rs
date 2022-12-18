@@ -373,7 +373,7 @@ impl Widget<LapceTabData> for PaletteContainer {
         ));
         let preview_size = self.preview.layout(ctx, &bc, data, env);
         let preview_width = if preview_size.width > width {
-            width - preview_size.width as f64
+            width - preview_size.width
         } else {
             0.00
         };

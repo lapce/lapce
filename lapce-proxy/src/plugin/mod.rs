@@ -37,15 +37,15 @@ use lsp_types::{
         SignatureHelpRequest, WorkspaceSymbol,
     },
     CodeAction, CodeActionContext, CodeActionParams, CodeActionResponse,
-    CompletionItem, CompletionParams, CompletionResponse, DocumentFormattingParams,
-    DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint,
-    InlayHintParams, Location, PartialResultParams, Position, PrepareRenameResponse,
-    Range, ReferenceContext, ReferenceParams, RenameParams, SelectionRange,
-    SelectionRangeParams, SemanticTokens, SemanticTokensParams, SignatureHelp,
-    SignatureHelpParams, SymbolInformation, TextDocumentIdentifier,
-    TextDocumentItem, TextDocumentPositionParams, TextEdit, Url,
-    VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceEdit,
+    CompletionItem, CompletionParams, CompletionResponse, Diagnostic,
+    DocumentFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
+    FormattingOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverParams, InlayHint, InlayHintParams, Location, PartialResultParams,
+    Position, PrepareRenameResponse, Range, ReferenceContext, ReferenceParams,
+    RenameParams, SelectionRange, SelectionRangeParams, SemanticTokens,
+    SemanticTokensParams, SignatureHelp, SignatureHelpParams, SymbolInformation,
+    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit,
+    Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceEdit,
     WorkspaceSymbolParams,
 };
 use parking_lot::Mutex;
@@ -475,6 +475,7 @@ impl PluginCatalogRpcHandler {
         &self,
         path: &Path,
         position: Position,
+        diagnostics: Vec<Diagnostic>,
         cb: impl FnOnce(PluginId, Result<CodeActionResponse, RpcError>)
             + Clone
             + Send
@@ -488,7 +489,10 @@ impl PluginCatalogRpcHandler {
                 start: position,
                 end: position,
             },
-            context: CodeActionContext::default(),
+            context: CodeActionContext {
+                diagnostics,
+                only: None,
+            },
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         };
@@ -1005,7 +1009,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
     let id = volt.id();
     let plugin_dir = Directory::plugins_directory()
         .ok_or_else(|| anyhow!("can't get plugin directory"))?
-        .join(&id);
+        .join(id);
     let _ = fs::remove_dir_all(&plugin_dir);
     fs::create_dir_all(&plugin_dir)?;
 

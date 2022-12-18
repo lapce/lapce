@@ -1627,6 +1627,13 @@ impl LapceTab {
                             }
                         }
                     }
+                    LapceUICommand::CodeActionsError { path, rev, offset } => {
+                        if let Some(doc) = data.main_split.open_docs.get_mut(path) {
+                            if doc.rev() == *rev {
+                                Arc::make_mut(doc).code_actions.remove(offset);
+                            }
+                        }
+                    }
                     LapceUICommand::UpdateCodeActions {
                         path,
                         plugin_id,

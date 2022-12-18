@@ -8,10 +8,9 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, TimerToken, UpdateCtx,
     Widget, WidgetId,
 };
-use lapce_core::buffer::DiffLines;
-use lapce_core::command::EditCommand;
 use lapce_core::{
-    command::FocusCommand,
+    buffer::DiffLines,
+    command::{EditCommand, FocusCommand},
     cursor::{ColPosition, CursorMode},
     mode::{Mode, VisualMode},
 };
@@ -836,8 +835,8 @@ impl LapceEditor {
         Self::paint_text(ctx, data, &screen_lines);
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
-        Self::paint_sticky_headers(ctx, data, env);
         Self::highlight_scope_and_brackets(ctx, data, &screen_lines);
+        Self::paint_sticky_headers(ctx, data, env);
 
         if data.doc.buffer().is_empty() {
             if let Some(placeholder) = self.placeholder.as_ref() {
@@ -1629,7 +1628,7 @@ impl LapceEditor {
         ctx.fill(
             sticky_area_rect,
             data.config
-                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                .get_color_unchecked(LapceTheme::EDITOR_STICKY_HEADER_BACKGROUND),
         );
 
         // Paint lines
@@ -2058,6 +2057,10 @@ impl LapceEditor {
         end_offset: usize,
         color: &Color,
     ) {
+        if data.editor.is_code_lens() {
+            return;
+        }
+
         const LINE_WIDTH: f64 = 1.0;
 
         let (start_line, start_col) =

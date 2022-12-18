@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Features/Changes
+
+### Bug Fixes
+
+## 0.2.5
+
 ### Breaking changes
 
 - [#1726](https://github.com/lapce/lapce/pull/1726): Add more panel theme keys, apply hover first, then current item colour
@@ -25,6 +31,7 @@
 - [#1737](https://github.com/lapce/lapce/pull/1726): Fix an issue that plugins can't be upgraded
 - [#1724](https://github.com/lapce/lapce/pull/1724): Files and hidden folders no longer will be considered when trying to open a plugin base folder
 - [#1753](https://github.com/lapce/lapce/pull/1753): Limit proxy search response size in order to avoid issues with absurdly long lines
+- [#1805](https://github.com/lapce/lapce/pull/1805): Fix some LSP bugs causing code actions to not show up correctly
 
 ## 0.2.4
 
