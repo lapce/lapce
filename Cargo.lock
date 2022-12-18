@@ -2653,7 +2653,6 @@ dependencies = [
  "lapce-proxy",
  "lapce-rpc",
  "lapce-xi-rope",
- "lazy_static",
  "log 0.4.17",
  "lsp-types",
  "notify",
