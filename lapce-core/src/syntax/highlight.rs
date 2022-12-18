@@ -56,6 +56,7 @@ macro_rules! declare_language_highlights {
 declare_language_highlights!(
     Bash: "lang-bash",
     C: "lang-c",
+    Clojure: "lang-clojure",
     Cmake: "lang-cmake",
     Cpp: "lang-cpp",
     Csharp: "lang-csharp",
