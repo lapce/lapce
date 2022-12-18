@@ -600,6 +600,15 @@ impl Widget<LapceTabData> for Plugin {
                         }
                     }
                 }
+                if mouse_event.button.is_right() {
+                    let index = (mouse_event.pos.y
+                        / (self.line_height * 3.0 + self.gap))
+                        as usize;
+
+                    if let Some((_, id, _)) = self.rects.get(&index) {
+                        status_on_click(ctx, data, id, mouse_event.pos);
+                    }
+                }
             }
             _ => (),
         }
