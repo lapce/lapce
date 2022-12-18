@@ -1398,10 +1398,9 @@ impl LapceTab {
                         LapceConfig::reset_setting(parent, key);
                     }
                     LapceUICommand::OpenFileDiff(path, history) => {
-                        let editor_view_id = data.main_split.active.clone();
                         let editor_view_id = data.main_split.jump_to_location(
                             ctx,
-                            *editor_view_id,
+                            None,
                             false,
                             EditorLocation {
                                 path: path.clone(),
