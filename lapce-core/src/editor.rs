@@ -13,8 +13,8 @@ use crate::{
     syntax::{
         edit::SyntaxEdit,
         util::{
-            has_unmatched_pair, matching_char, matching_pair_direction,
-            str_is_pair_left, str_matching_pair,
+            has_unmatched_pair, matching_bracket_general, matching_bracket_special,
+            matching_pair_direction, str_is_pair_left, str_matching_pair,
         },
         Syntax,
     },
@@ -86,22 +86,15 @@ impl Editor {
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let mut deltas = Vec::new();
         if let CursorMode::Insert(selection) = &cursor.mode {
-            if s.chars().count() != 1 {
-                let (delta, inval_lines, edits) =
-                    buffer.edit(&[(selection, s)], EditType::InsertChars);
-                let selection =
-                    selection.apply_delta(&delta, true, InsertDrift::Default);
-                deltas.push((delta, inval_lines, edits));
-                cursor.mode = CursorMode::Insert(selection);
-            } else {
-                let c = s.chars().next().unwrap();
-                let matching_pair_type = matching_pair_direction(c);
+            let mut chars = s.chars();
+            if let (Some(char), None) = (chars.next(), chars.next()) {
+                let matching_pair_type = matching_pair_direction(char);
 
                 // The main edit operations
                 let mut edits = vec![];
 
                 // "Late edits" - characters to be inserted after particular regions
-                let mut edits_after = vec![];
+                let mut edits_after = Vec::<(usize, &'static str)>::new();
 
                 let mut selection = selection.clone();
                 for (idx, region) in selection.regions_mut().iter_mut().enumerate() {
@@ -118,26 +111,27 @@ impl Editor {
                     // wrap the text with that char and its corresponding closing pair
                     if region.start != region.end
                         && (matching_pair_type == Some(true)
-                            || c == '"'
-                            || c == '\'')
+                            || char == '"'
+                            || char == '\'')
                     {
                         edits.push((
                             Selection::region(region.min(), region.min()),
-                            c.to_string(),
+                            char.to_string(),
                         ));
                         edits_after.push((
                             idx,
-                            match c {
-                                '"' => '"',
-                                '\'' => '\'',
-                                _ => matching_char(c).unwrap(),
+                            match char {
+                                '"' => "\"",
+                                '\'' => "'",
+                                _ => matching_bracket_general(char).unwrap(),
                             },
                         ));
                         continue;
                     }
 
                     if auto_closing_matching_pairs {
-                        if (c == '"' || c == '\'') && cursor_char == Some(c) {
+                        if (char == '"' || char == '\'') && cursor_char == Some(char)
+                        {
                             // Skip the closing character
                             let new_offset =
                                 buffer.next_grapheme_offset(offset, 1, buffer.len());
@@ -147,7 +141,7 @@ impl Editor {
                         }
 
                         if matching_pair_type == Some(false) {
-                            if cursor_char == Some(c) {
+                            if cursor_char == Some(char) {
                                 // Skip the closing character
                                 let new_offset = buffer.next_grapheme_offset(
                                     offset,
@@ -162,7 +156,8 @@ impl Editor {
                             let line = buffer.line_of_offset(offset);
                             let line_start = buffer.offset_of_line(line);
                             if buffer.slice_to_cow(line_start..offset).trim() == "" {
-                                let opening_character = matching_char(c).unwrap();
+                                let opening_character =
+                                    matching_bracket_special(char).unwrap();
                                 if let Some(previous_offset) = buffer
                                     .previous_unmatched(
                                         syntax,
@@ -181,14 +176,16 @@ impl Editor {
 
                                     edits.push((
                                         current_selection,
-                                        format!("{line_indent}{c}"),
+                                        format!("{line_indent}{char}"),
                                     ));
                                     continue;
                                 }
                             }
                         }
 
-                        if matching_pair_type == Some(true) || c == '"' || c == '\''
+                        if matching_pair_type == Some(true)
+                            || char == '"'
+                            || char == '\''
                         {
                             // Create a late edit to insert the closing pair, if allowed.
                             let is_whitespace_or_punct = cursor_char
@@ -200,7 +197,7 @@ impl Editor {
                                 })
                                 .unwrap_or(true);
 
-                            let should_insert_pair = match c {
+                            let should_insert_pair = match char {
                                 '"' | '\'' => {
                                     is_whitespace_or_punct
                                         && prev_cursor_char
@@ -217,10 +214,10 @@ impl Editor {
                             };
 
                             if should_insert_pair {
-                                let insert_after = match c {
-                                    '"' => '"',
-                                    '\'' => '\'',
-                                    _ => matching_char(c).unwrap(),
+                                let insert_after: &'static str = match char {
+                                    '"' => "\"",
+                                    '\'' => "'",
+                                    _ => matching_bracket_general(char).unwrap(),
                                 };
                                 edits_after.push((idx, insert_after));
                             }
@@ -230,15 +227,10 @@ impl Editor {
                     let current_selection =
                         Selection::region(region.start, region.end);
 
-                    edits.push((current_selection, c.to_string()));
+                    edits.push((current_selection, char.to_string()));
                 }
 
                 // Apply edits to current selection
-                let edits = edits
-                    .iter()
-                    .map(|(selection, content)| (selection, content.as_str()))
-                    .collect::<Vec<_>>();
-
                 let (delta, inval_lines, edits) =
                     buffer.edit(&edits, EditType::InsertChars);
 
@@ -256,16 +248,8 @@ impl Editor {
                     .iter()
                     .map(|(idx, content)| {
                         let region = &selection.regions()[*idx];
-                        (
-                            Selection::region(region.max(), region.max()),
-                            content.to_string(),
-                        )
+                        (Selection::region(region.max(), region.max()), *content)
                     })
-                    .collect::<Vec<_>>();
-
-                let edits_after = edits_after
-                    .iter()
-                    .map(|(selection, content)| (selection, content.as_str()))
                     .collect::<Vec<_>>();
 
                 if !edits_after.is_empty() {
@@ -302,6 +286,13 @@ impl Editor {
                     *region = new_region;
                 }
 
+                cursor.mode = CursorMode::Insert(selection);
+            } else {
+                let (delta, inval_lines, edits) =
+                    buffer.edit(&[(selection, s)], EditType::InsertChars);
+                let selection =
+                    selection.apply_delta(&delta, true, InsertDrift::Default);
+                deltas.push((delta, inval_lines, edits));
                 cursor.mode = CursorMode::Insert(selection);
             }
         }
@@ -382,7 +373,7 @@ impl Editor {
 
             if let Some(c) = first_half.chars().rev().find(|&c| c != ' ') {
                 if let Some(true) = matching_pair_direction(c) {
-                    if let Some(c) = matching_char(c) {
+                    if let Some(c) = matching_bracket_special(c) {
                         if second_half.starts_with(c) {
                             let selection = Selection::caret(
                                 (region.max() as i32 + shift) as usize,
@@ -395,10 +386,6 @@ impl Editor {
             }
         }
 
-        let edits = edits
-            .iter()
-            .map(|(selection, s)| (selection, s.as_str()))
-            .collect::<Vec<_>>();
         let (delta, inval_lines, edits) =
             buffer.edit(&edits, EditType::InsertNewline);
         let mut selection =
@@ -407,12 +394,8 @@ impl Editor {
         let mut deltas = vec![(delta, inval_lines, edits)];
 
         if !extra_edits.is_empty() {
-            let edits = extra_edits
-                .iter()
-                .map(|(selection, s)| (selection, s.as_str()))
-                .collect::<Vec<_>>();
             let (delta, inval_lines, edits) =
-                buffer.edit(&edits, EditType::InsertNewline);
+                buffer.edit(&extra_edits, EditType::InsertNewline);
             selection = selection.apply_delta(&delta, false, InsertDrift::Default);
             deltas.push((delta, inval_lines, edits));
         }
@@ -548,7 +531,14 @@ impl Editor {
                         let selection = cursor.edit_selection(buffer);
                         let data = match mode {
                             VisualMode::Linewise => data.content.clone(),
-                            _ => "\n".to_string() + &data.content,
+                            _ => {
+                                let mut content = String::with_capacity(
+                                    data.content.capacity() + 1,
+                                );
+                                content.push_str(&data.content);
+                                content.push('\n');
+                                content
+                            }
                         };
                         (selection, data)
                     }
@@ -764,7 +754,7 @@ impl Editor {
                                         &Selection::caret(
                                             buffer.offset_of_line(end_line + 2),
                                         ),
-                                        &content,
+                                        content.as_str(),
                                     ),
                                     (&Selection::region(start, end), ""),
                                 ],
@@ -1143,31 +1133,29 @@ impl Editor {
 
                         let mut selection = new_selection;
                         if selection.regions().len() == 1 {
-                            let delete_str = buffer
-                                .slice_to_cow(
-                                    selection.min_offset()..selection.max_offset(),
-                                )
-                                .to_string();
+                            let delete_str = buffer.slice_to_cow(
+                                selection.min_offset()..selection.max_offset(),
+                            );
                             if str_is_pair_left(&delete_str)
                                 || delete_str == "\""
                                 || delete_str == "'"
                             {
-                                let matching_char = match delete_str.as_str() {
-                                    "\"" => Some('"'),
-                                    "'" => Some('\''),
-                                    _ => str_matching_pair(&delete_str),
-                                };
-                                if let Some(c) = matching_char {
+                                let matching_char: Option<&'static str> =
+                                    match delete_str.as_ref() {
+                                        "\"" => Some("\""),
+                                        "'" => Some("'"),
+                                        _ => str_matching_pair(&delete_str),
+                                    };
+                                if let Some(char) = matching_char {
                                     let offset = selection.max_offset();
                                     let line = buffer.line_of_offset(offset);
                                     let line_end =
                                         buffer.line_end_offset(line, true);
-                                    let content = buffer
-                                        .slice_to_cow(offset..line_end)
-                                        .to_string();
-                                    if content.trim().starts_with(&c.to_string()) {
+                                    let content =
+                                        buffer.slice_to_cow(offset..line_end);
+                                    if content.trim_start().starts_with(char) {
                                         let index = content
-                                            .match_indices(c)
+                                            .match_indices(char)
                                             .next()
                                             .unwrap()
                                             .0;

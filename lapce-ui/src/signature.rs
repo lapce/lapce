@@ -248,7 +248,7 @@ impl Signature {
 
     fn new() -> Signature {
         Self {
-            label: "".to_string(),
+            label: String::new(),
             label_offset: 0.0,
             label_layout: {
                 let mut layout = TextLayout::new();

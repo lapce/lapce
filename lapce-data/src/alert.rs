@@ -39,8 +39,8 @@ impl AlertData {
             widget_id: WidgetId::next(),
             active: false,
             content: AlertContentData {
-                title: "".to_string(),
-                msg: "".to_string(),
+                title: String::new(),
+                msg: String::new(),
                 buttons: Vec::new(),
             },
         }

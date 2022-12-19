@@ -8,6 +8,8 @@ use crate::{
     selection::{InsertDrift, SelRegion, Selection},
 };
 
+use std::borrow::Cow;
+
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ColPosition {
     FirstNonBlank,
@@ -189,7 +191,7 @@ impl Cursor {
         let (content, mode) = match &self.mode {
             CursorMode::Insert(selection) => {
                 let mut mode = VisualMode::Normal;
-                let mut content = "".to_string();
+                let mut content = String::new();
                 for region in selection.regions() {
                     let region_content = if region.is_caret() {
                         mode = VisualMode::Linewise;
@@ -242,17 +244,18 @@ impl Cursor {
                     )
                 }
                 VisualMode::Blockwise => {
-                    let mut lines = Vec::new();
                     let (start_line, start_col) =
                         buffer.offset_to_line_col(*start.min(end));
                     let (end_line, end_col) =
                         buffer.offset_to_line_col(*start.max(end));
                     let left = start_col.min(end_col);
                     let right = start_col.max(end_col) + 1;
-                    for line in start_line..end_line + 1 {
+
+                    let mut lines = Vec::with_capacity(end_line - start_line + 1);
+                    for line in start_line..=end_line {
                         let max_col = buffer.line_end_col(line, true);
                         if left > max_col {
-                            lines.push("".to_string());
+                            lines.push(Cow::from(""));
                         } else {
                             let right = match &self.horiz {
                                 Some(ColPosition::End) => max_col,
@@ -266,9 +269,10 @@ impl Cursor {
                             };
                             let left = buffer.offset_of_line_col(line, left);
                             let right = buffer.offset_of_line_col(line, right);
-                            lines.push(buffer.slice_to_cow(left..right).to_string());
+                            lines.push(buffer.slice_to_cow(left..right));
                         }
                     }
+
                     (lines.join("\n") + "\n", VisualMode::Blockwise)
                 }
             },

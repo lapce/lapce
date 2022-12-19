@@ -121,7 +121,7 @@ impl KeyMapLoader {
                 .get("command")
                 .and_then(|c| c.as_str())
                 .map(|w| w.trim().to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_else(String::new),
         }))
     }
 }

@@ -2,7 +2,7 @@ use lapce_xi_rope::{Cursor, Rope, RopeInfo};
 
 use crate::{
     mode::Mode,
-    syntax::util::{matching_char, matching_pair_direction},
+    syntax::util::{matching_bracket_special, matching_pair_direction},
 };
 
 /// Describe char classifications used to compose word boundaries
@@ -319,7 +319,7 @@ impl<'a> WordCursor<'a> {
     ///```
     pub fn match_pairs(&mut self) -> Option<usize> {
         let c = self.inner.peek_next_codepoint()?;
-        let other = matching_char(c)?;
+        let other = matching_bracket_special(c)?;
         let left = matching_pair_direction(other)?;
         if left {
             self.previous_unmatched(other)
@@ -343,7 +343,7 @@ impl<'a> WordCursor<'a> {
     /// assert_eq!(position, Some(14));
     ///  ```
     pub fn next_unmatched(&mut self, c: char) -> Option<usize> {
-        let other = matching_char(c)?;
+        let other = matching_bracket_special(c)?;
         let mut n = 0;
         while let Some(current) = self.inner.next_codepoint() {
             if current == c && n == 0 {
@@ -372,7 +372,7 @@ impl<'a> WordCursor<'a> {
     /// assert_eq!(position, Some(6));
     ///  ```
     pub fn previous_unmatched(&mut self, c: char) -> Option<usize> {
-        let other = matching_char(c)?;
+        let other = matching_bracket_special(c)?;
         let mut n = 0;
         while let Some(current) = self.inner.prev_codepoint() {
             if current == c && n == 0 {

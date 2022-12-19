@@ -1150,8 +1150,8 @@ impl OpenEditorList {
         active: bool,
     ) {
         let size = ctx.size();
-        let mut text = "".to_string();
-        let mut hint = "".to_string();
+        let mut text = String::new();
+        let mut hint = String::new();
         let mut svg = data.config.ui_svg(LapceIcons::FILE);
         let mut svg_color = Some(
             data.config

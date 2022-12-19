@@ -3508,9 +3508,8 @@ impl LapceMainSplitData {
             );
             main_split_data.split_id = Arc::new(split_data.widget_id);
             for (path, locations) in positions.into_iter() {
-                let unsaved_buffer = unsaved_buffers
-                    .get(&path.to_str().unwrap().to_string())
-                    .map(Rope::from);
+                let unsaved_buffer =
+                    unsaved_buffers.get(path.to_str().unwrap()).map(Rope::from);
                 Arc::make_mut(main_split_data.open_docs.get_mut(&path).unwrap())
                     .retrieve_file(locations.clone(), unsaved_buffer, None);
             }
@@ -4518,7 +4517,7 @@ impl std::fmt::Display for LapceWorkspace {
                 .as_ref()
                 .and_then(|p| p.to_str())
                 .map(|p| p.to_string())
-                .unwrap_or_else(|| "".to_string())
+                .unwrap_or_else(String::new)
         )
     }
 }

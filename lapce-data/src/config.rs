@@ -1230,7 +1230,7 @@ impl LapceConfig {
     pub fn export_theme(&self) -> String {
         let mut table = toml::value::Table::new();
         let mut theme = self.color_theme.clone();
-        theme.name = "".to_string();
+        theme.name = String::new();
         theme.syntax.sort_keys();
         theme.ui.sort_keys();
         table.insert(

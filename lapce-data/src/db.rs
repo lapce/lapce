@@ -629,7 +629,7 @@ impl LapceDb {
     fn insert_unsaved_buffer(&self, main_split: &LapceMainSplitData) -> Result<()> {
         let sled_db = self.get_db()?;
         // Vec of all unsaved buffers of format path_buff, file_content
-        let mut unsaved_buffers = Vec::new();
+        let mut unsaved_buffers = Vec::with_capacity(main_split.open_docs.len());
 
         for (path, doc) in &main_split.open_docs {
             if !doc.buffer().is_pristine() && doc.content().is_file() {

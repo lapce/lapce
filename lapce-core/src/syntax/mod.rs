@@ -31,7 +31,7 @@ use self::{
         HighlightConfiguration, HighlightEvent, HighlightIssue, HighlightIter,
         HighlightIterLayer, IncludedChildren, LocalScope,
     },
-    util::{matching_char, matching_pair_direction, RopeProvider},
+    util::{matching_bracket_general, matching_pair_direction, RopeProvider},
 };
 use crate::{
     language::LapceLanguage,
@@ -687,15 +687,13 @@ impl Syntax {
         let node = tree
             .root_node()
             .descendant_for_byte_range(offset, offset + 1)?;
-        let mut chars = node.kind().chars();
-        let char = chars.next()?;
-        let char = matching_char(char)?;
-        let tag = &char.to_string();
+        let char = node.kind().chars().next()?;
+        let char: &'static str = matching_bracket_general(char)?;
 
-        if let Some(offset) = self.find_tag_in_siblings(node, true, tag) {
+        if let Some(offset) = self.find_tag_in_siblings(node, true, char) {
             return Some(offset);
         }
-        if let Some(offset) = self.find_tag_in_siblings(node, false, tag) {
+        if let Some(offset) = self.find_tag_in_siblings(node, false, char) {
             return Some(offset);
         }
         None

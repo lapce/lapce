@@ -27,7 +27,7 @@ impl Default for ImeComponent {
         let session = ImeSession {
             is_active: false,
             composition_range: None,
-            text: "".to_string(),
+            text: String::new(),
             input_text: None,
             orgin: Point::ZERO,
             shift: 0,

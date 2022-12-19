@@ -44,7 +44,7 @@ impl SourceControlData {
             split_id: WidgetId::next(),
             split_direction: SplitDirection::Horizontal,
             file_diffs: Vec::new(),
-            branch: "".to_string(),
+            branch: String::new(),
             branches: im::Vector::new(),
         }
     }

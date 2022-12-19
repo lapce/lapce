@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     cmp::Ordering,
     collections::HashMap,
     iter::Iterator,
@@ -779,12 +780,11 @@ impl LapceEditorBufferData {
             .slice_to_cow(start_offset..end_offset)
             .to_string();
         let char = if start_offset == 0 {
-            "".to_string()
+            Cow::from("")
         } else {
             self.doc
                 .buffer()
                 .slice_to_cow(start_offset - 1..start_offset)
-                .to_string()
         };
         let completion = Arc::make_mut(&mut self.completion);
         if !display_if_empty_input && input.is_empty() && char != "." && char != ":"
@@ -804,7 +804,7 @@ impl LapceEditorBufferData {
                 completion.request(
                     self.proxy.clone(),
                     self.doc.content().path().unwrap().into(),
-                    "".to_string(),
+                    String::new(),
                     start_pos,
                 );
             }
@@ -832,7 +832,7 @@ impl LapceEditorBufferData {
         completion.request(
             self.proxy.clone(),
             self.doc.content().path().unwrap().into(),
-            "".to_string(),
+            String::new(),
             start_pos,
         );
 
@@ -2291,18 +2291,15 @@ impl LapceEditorBufferData {
                 };
                 let pattern = if region.is_caret() {
                     let (start, end) = self.doc.buffer().select_word(region.start);
-                    self.doc.buffer().slice_to_cow(start..end).to_string()
+                    self.doc.buffer().slice_to_cow(start..end)
                 } else {
-                    self.doc
-                        .buffer()
-                        .slice_to_cow(region.min()..region.max())
-                        .to_string()
+                    self.doc.buffer().slice_to_cow(region.min()..region.max())
                 };
                 if !pattern.contains('\n') {
                     Arc::make_mut(&mut self.find).set_find(&pattern, false, false);
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateSearchInput(pattern),
+                        LapceUICommand::UpdateSearchInput(pattern.to_string()),
                         Target::Widget(*self.main_split.tab_id),
                     ));
                 }

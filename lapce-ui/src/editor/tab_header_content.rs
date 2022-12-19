@@ -457,7 +457,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
         let mut x = 0.0;
 
         for child in editor_tab.children.iter() {
-            let mut text = "".to_string();
+            let mut text = String::new();
             let mut svg = data.config.ui_svg(LapceIcons::FILE);
             let mut svg_color = Some(
                 data.config

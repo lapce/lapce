@@ -521,7 +521,7 @@ impl Title {
             "Open Folder".to_string()
         };
         let remote = match &data.workspace.kind {
-            LapceWorkspaceType::Local => "".to_string(),
+            LapceWorkspaceType::Local => String::new(),
             LapceWorkspaceType::RemoteSSH(ssh) => {
                 format!(" [SSH: {}]", ssh.host)
             }
