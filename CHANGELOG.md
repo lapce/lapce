@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Features/Changes
+- [#1831](https://github.com/lapce/lapce/pull/1831): Plugin settings shown on right click
 
 - [#1830](https://github.com/lapce/lapce/pull/1830): Adds Clojure language support
 
