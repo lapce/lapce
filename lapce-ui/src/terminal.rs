@@ -579,12 +579,13 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContent {
                         );
                     }
                 }
-                for tab_id in self.items.keys().copied().collect::<Vec<_>>() {
-                    if !data.terminal.tabs.contains_key(&tab_id) {
+                self.items.retain(|tab_id, _| {
+                    if !data.terminal.tabs.contains_key(tab_id) {
                         ctx.children_changed();
-                        self.items.remove(&tab_id);
+                        return false;
                     }
-                }
+                    true
+                });
             }
         }
     }
