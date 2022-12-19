@@ -221,7 +221,7 @@ impl LapceStatus {
             None => String::from("Plain Text"), // TODO: remove after implementing plaintext in lapce-core/src/language.rs
         };
         let (point, text_layout, _) = self.paint_icon_with_label_from_right(
-            size.width - 5.0, // We're drawing status items starting from right with slight margin so it's not ending right on window border (`size.width - 5.0`)
+            size.width - 15.0, // We're drawing status items starting from right with slight margin so it's not ending right on window border
             size.height,
             None,
             lang,
@@ -285,7 +285,7 @@ impl LapceStatus {
 
         if !string.is_empty() {
             let (point, text_layout, _) = self.paint_icon_with_label_from_right(
-                rect.x0 - 10.0, // give some space between text details and language name
+                rect.x0 - 10.0, // give some space between document details and language name
                 size.height,
                 None,
                 string,
