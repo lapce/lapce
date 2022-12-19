@@ -8,7 +8,7 @@ use lapce_core::mode::Mode;
 use lapce_data::{
     command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::{LapceConfig, LapceIcons, LapceTheme},
-    data::LapceTabData,
+    data::{EditorTabChild, LapceEditorData, LapceTabData},
     panel::PanelContainerPosition,
 };
 
@@ -171,7 +171,7 @@ impl LapceStatus {
         label: String,
         ctx: &mut PaintCtx,
         config: &LapceConfig,
-    ) -> (f64, Option<(Rect, Svg)>, (Point, PietTextLayout)) {
+    ) -> (Point, PietTextLayout, Option<(Rect, Svg)>) {
         let fg_color = config.get_color_unchecked(LapceTheme::STATUS_FOREGROUND);
 
         let text_layout = ctx
@@ -203,7 +203,123 @@ impl LapceStatus {
             right - text_layout.size().width,
             text_layout.y_offset(height),
         );
-        (right - text_layout.size().width, svg, (point, text_layout))
+        (point, text_layout, svg)
+    }
+
+    fn draw_document_details(
+        &mut self,
+        ctx: &mut PaintCtx,
+        data: &LapceTabData,
+        editor: &LapceEditorData,
+    ) {
+        let size = ctx.size();
+
+        // Language name / change button
+
+        let lang = match data.main_split.content_doc(&editor.content).syntax() {
+            Some(v) => v.language.to_string(),
+            None => String::from("Plain Text"), // TODO: remove after implementing plaintext in lapce-core/src/language.rs
+        };
+        let (point, text_layout, _) = self.paint_icon_with_label_from_right(
+            size.width - 15.0, // We're drawing status items starting from right with slight margin so it's not ending right on window border
+            size.height,
+            None,
+            lang,
+            ctx,
+            &data.config,
+        );
+        let rect = Rect::ZERO
+            .with_origin(Point::new(point.x - 2.0, 0.0)) // expand hover effect slightly so it doesn't look weird
+            .with_size(Size::new(
+                text_layout.layout.width() as f64 + 4.0,
+                size.height,
+            )); // since we start rectangle 2.0 earlier, we need to add to size to compensate, double that for same reason as above
+        if rect.contains(self.mouse_pos) {
+            ctx.fill(
+                rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
+            );
+        }
+        ctx.draw_text(&text_layout, point);
+        self.clickable_items.push((
+            rect,
+            Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::ChangeFileLanguage,
+                    ),
+                    data: None,
+                },
+                Target::Widget(data.id),
+            ),
+        ));
+
+        // Document text/cursor details (line, column, character) / Go to line
+
+        let mut string = "".to_string();
+        let editor_content = data.editor_view_content(editor.view_id);
+        if let Some(cursor_pos) =
+            editor.cursor.get_line_col_char(editor_content.doc.buffer())
+        {
+            string += &format!(
+                "Ln {}, Col {}, Char {}",
+                cursor_pos.0 + 1,
+                cursor_pos.1 + 1,
+                cursor_pos.2
+            );
+        }
+
+        if let Some(selection) = editor.cursor.get_selection() {
+            let selection_range = selection.0.abs_diff(selection.1);
+
+            if selection.0 != selection.1 {
+                string += &format!(" ({} selected)", selection_range);
+            }
+        }
+        let selection_count = editor.cursor.get_selection_count();
+        if selection_count > 1 {
+            string += &format!(" {} selections", selection_count);
+        }
+
+        if !string.is_empty() {
+            let (point, text_layout, _) = self.paint_icon_with_label_from_right(
+                rect.x0 - 10.0, // give some space between document details and language name
+                size.height,
+                None,
+                string,
+                ctx,
+                &data.config,
+            );
+            let rect = Rect::ZERO
+                .with_origin(Point::new(point.x - 2.0, 0.0))
+                .with_size(Size::new(
+                    text_layout.layout.width() as f64 + 4.0,
+                    size.height,
+                ));
+            if rect.contains(self.mouse_pos) {
+                ctx.fill(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
+                );
+            }
+            ctx.draw_text(&text_layout, point);
+            self.clickable_items.push((
+                rect,
+                Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::PaletteLine,
+                        ),
+                        data: None,
+                    },
+                    Target::Widget(data.id),
+                ),
+            ));
+        }
     }
 }
 
@@ -480,95 +596,22 @@ impl Widget<LapceTabData> for LapceStatus {
             }
         }
 
-        let mut right = size.width - 5.0;
         if let Some(editor) = &data.main_split.active_editor() {
-            let lang = match data.main_split.content_doc(&editor.content).syntax() {
-                Some(v) => v.language.to_string(),
-                None => String::from("Plain Text"),
-            };
-            let x1 = right;
-            let (new_right, svg, (point, text_layout)) = self
-                .paint_icon_with_label_from_right(
-                    right - 5.0,
-                    size.height,
-                    None,
-                    lang,
-                    ctx,
-                    &data.config,
-                );
-            right = new_right;
-            let x0 = right - 5.0;
-            let rect = Rect::ZERO
-                .with_origin(Point::new(x0, 0.0))
-                .with_size(Size::new(x1 - x0, size.height));
-            if rect.contains(self.mouse_pos) {
-                ctx.fill(
-                    rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
-                );
-            }
-            if let Some((rect, svg)) = svg {
-                ctx.draw_svg(
-                    &svg,
-                    rect,
-                    Some(
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                    ),
-                );
-            }
-            ctx.draw_text(&text_layout, point);
-            self.clickable_items.push((
-                rect,
-                Command::new(
-                    LAPCE_COMMAND,
-                    LapceCommand {
-                        kind: CommandKind::Workbench(
-                            LapceWorkbenchCommand::ChangeFileLanguage,
-                        ),
-                        data: None,
-                    },
-                    Target::Widget(data.id),
-                ),
-            ));
-
-            let mut string = "".to_string();
-            let editor_content = data.editor_view_content(editor.view_id);
-            if let Some(cursor_pos) =
-                editor.cursor.get_line_col_char(editor_content.doc.buffer())
-            {
-                string += &format!(
-                    "Ln {}, Col {}, Char {}",
-                    cursor_pos.0 + 1,
-                    cursor_pos.1 + 1,
-                    cursor_pos.2
-                );
-            }
-
-            if let Some(selection) = editor.cursor.get_selection() {
-                let selection_range = selection.0.abs_diff(selection.1);
-
-                if selection.0 != selection.1 {
-                    string += &format!(" ({} selected)", selection_range);
+            // Do not draw file language and cursor/text details for non-file tabs
+            if let Some(editor_tab_id) = editor.tab_id {
+                if let Some(editor_tab) =
+                    data.main_split.editor_tabs.get(&editor_tab_id)
+                {
+                    if let Some(child) = editor_tab.active_child() {
+                        match child {
+                            EditorTabChild::Settings { .. }
+                            | EditorTabChild::Plugin { .. } => {}
+                            EditorTabChild::Editor(_, _, _) => {
+                                self.draw_document_details(ctx, data, editor)
+                            }
+                        }
+                    }
                 }
-            }
-            let selection_count = editor.cursor.get_selection_count();
-            if selection_count > 1 {
-                string += &format!(" {} selections", selection_count);
-            }
-
-            if !string.is_empty() {
-                let (_, _, (point, text_layout)) = self
-                    .paint_icon_with_label_from_right(
-                        right - text_layout.size().width,
-                        size.height,
-                        None,
-                        string,
-                        ctx,
-                        &data.config,
-                    );
-                ctx.draw_text(&text_layout, point);
             }
         }
     }
