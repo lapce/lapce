@@ -231,13 +231,14 @@ impl Widget<LapceTabData> for TerminalPanel {
                         self.tabs.insert(*tab_id, WidgetPod::new(split));
                     }
                 }
-                for tab_id in self.tabs.keys().copied().collect::<Vec<_>>() {
-                    if !data.terminal.tabs.contains_key(&tab_id) {
+                self.tabs.retain(|tab_id, _| {
+                    if !data.terminal.tabs.contains_key(tab_id) {
                         changed = true;
                         ctx.children_changed();
-                        self.tabs.remove(&tab_id);
+                        return false;
                     }
-                }
+                    true
+                });
                 if changed && !self.tabs.is_empty() {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
