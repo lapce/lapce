@@ -687,7 +687,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                             editor_data.doc.buffer().offset_to_line_col(offset);
                         let doc = Arc::make_mut(&mut editor_data.doc);
                         doc.set_ime_pos(line, col, self.ime.get_shift());
-                        doc.set_ime_text(self.ime.borrow().text().to_string());
+                        doc.set_ime_text(self.ime.borrow().text());
                     } else {
                         Arc::make_mut(&mut editor_data.doc).clear_ime_text();
                     }
