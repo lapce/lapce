@@ -1,3 +1,4 @@
+use core::str::FromStr;
 use std::collections::HashMap;
 
 use lapce_xi_rope::{rope::ChunkIter, Rope};
@@ -49,6 +50,62 @@ pub fn matching_char(c: char) -> Option<char> {
         ']' => '[',
         _ => return None,
     })
+}
+
+/// If the given character is a parenthesis, returns its matching bracket
+pub fn matching_bracket_general<R: ToStaticTextType>(char: char) -> Option<R>
+where
+    &'static str: ToStaticTextType<R>,
+{
+    let pair = match char {
+        '{' => "}",
+        '}' => "{",
+        '(' => ")",
+        ')' => "(",
+        '[' => "]",
+        ']' => "[",
+        _ => return None,
+    };
+    Some(pair.to_static())
+}
+
+pub trait ToStaticTextType<R: 'static = Self>: 'static {
+    fn to_static(self) -> R;
+}
+
+impl ToStaticTextType for &'static str {
+    #[inline]
+    fn to_static(self) -> &'static str {
+        self
+    }
+}
+
+impl ToStaticTextType<char> for &'static str {
+    #[inline]
+    fn to_static(self) -> char {
+        char::from_str(self).unwrap()
+    }
+}
+
+impl ToStaticTextType<String> for &'static str {
+    #[inline]
+    fn to_static(self) -> String {
+        self.to_string()
+    }
+}
+
+impl ToStaticTextType for char {
+    #[inline]
+    fn to_static(self) -> char {
+        self
+    }
+}
+
+impl ToStaticTextType for String {
+    #[inline]
+    fn to_static(self) -> String {
+        self
+    }
 }
 
 pub fn has_unmatched_pair(line: &str) -> bool {
