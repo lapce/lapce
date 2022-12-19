@@ -11,6 +11,8 @@
 
 - [#1830](https://github.com/lapce/lapce/pull/1830): Adds Clojure language support
 
+- [#1835](https://github.com/lapce/lapce/pull/1835): Add mouse keybinds
+
 ### Bug Fixes
 
 ## 0.2.5

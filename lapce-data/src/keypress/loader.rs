@@ -162,6 +162,18 @@ when = "n"
 key = "shift+i"
 command = "insert_first_non_blank"
 when = "n"
+        
+[[keymaps]]
+key = "MouseForward"
+command = "jump_location_forward"
+
+[[keymaps]]
+key = "MouseBackward"
+command = "jump_location_backward"
+        
+[[keymaps]]
+key = "Ctrl+MouseMiddle"
+command = "goto_definition"
         "###;
         let mut loader = KeyMapLoader::new();
         loader.load_from_str(keymaps, true).unwrap();
@@ -202,6 +214,16 @@ when = "n"
 
         // No modifier
         let keypress = KeyPress::parse("shift+i");
+        assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
+
+        // Mouse keys
+        let keypress = KeyPress::parse("MouseForward");
+        assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
+
+        let keypress = KeyPress::parse("mousebackward");
+        assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
+
+        let keypress = KeyPress::parse("Ctrl+MouseMiddle");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
     }
 }

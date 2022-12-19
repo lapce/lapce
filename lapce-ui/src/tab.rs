@@ -31,7 +31,7 @@ use lapce_data::{
     document::{BufferContent, LocalBufferKind},
     editor::EditorLocation,
     hover::HoverStatus,
-    keypress::{DefaultKeyPressHandler, KeyPressData},
+    keypress::{DefaultKeyPressHandler, KeyMap, KeyPressData},
     menu::MenuKind,
     palette::PaletteStatus,
     panel::{
@@ -725,13 +725,13 @@ impl LapceTab {
                                         .keypress
                                         .command_keymaps
                                         .get(i.command.kind.str())
+                                        .and_then(|m| {
+                                            m.iter().find_map(KeyMap::hotkey)
+                                        })
                                     {
-                                        if !key.is_empty() {
-                                            item = item.hotkey(
-                                                key[0].key[0].mods,
-                                                key[0].key[0].key.clone(),
-                                            );
-                                        }
+                                        item = item.dynamic_hotkey(move |_, _| {
+                                            Some(key.clone())
+                                        })
                                     }
                                     item = item
                                         .command(Command::new(

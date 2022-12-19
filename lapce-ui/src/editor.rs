@@ -208,13 +208,15 @@ impl LapceEditor {
         &mut self,
         ctx: &mut EventCtx,
         mouse_event: &MouseEvent,
-        editor_data: &mut LapceEditorBufferData,
-        config: &LapceConfig,
-    ) {
+        data: &mut LapceTabData,
+        env: &Env,
+    ) -> LapceEditorBufferData {
+        let mut editor_data = data.editor_view_content(self.view_id);
+
         ctx.set_handled();
         match mouse_event.button {
             MouseButton::Left => {
-                self.left_click(ctx, mouse_event, editor_data, config);
+                self.left_click(ctx, mouse_event, &mut editor_data, &data.config);
                 editor_data.get_code_actions(ctx);
                 editor_data.cancel_completion();
                 // TODO: Don't cancel over here, because it would good to allow the user to
@@ -224,15 +226,24 @@ impl LapceEditor {
             }
             MouseButton::Right => {
                 self.mouse_hover_timer = TimerToken::INVALID;
-                self.right_click(ctx, editor_data, mouse_event, config);
+                self.right_click(ctx, &mut editor_data, mouse_event, &data.config);
                 editor_data.get_code_actions(ctx);
                 editor_data.cancel_completion();
                 editor_data.cancel_signature();
                 editor_data.cancel_hover();
             }
-            MouseButton::Middle => {}
-            _ => (),
+            _ => {
+                let mut keypress = data.keypress.clone();
+                let _ = Arc::make_mut(&mut keypress).key_down(
+                    ctx,
+                    mouse_event,
+                    &mut editor_data,
+                    env,
+                );
+            }
         }
+
+        editor_data
     }
 
     fn left_click(
@@ -2251,7 +2262,7 @@ impl Widget<LapceTabData> for LapceEditor {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        _env: &Env,
+        env: &Env,
     ) {
         match event {
             Event::Wheel(_) => {
@@ -2286,8 +2297,7 @@ impl Widget<LapceTabData> for LapceEditor {
                 let doc = data.main_split.editor_doc(self.view_id);
                 let editor =
                     data.main_split.editors.get(&self.view_id).unwrap().clone();
-                let mut editor_data = data.editor_view_content(self.view_id);
-                self.mouse_down(ctx, mouse_event, &mut editor_data, &data.config);
+                let editor_data = self.mouse_down(ctx, mouse_event, data, env);
                 data.update_from_editor_buffer_data(editor_data, &editor, &doc);
             }
             Event::Timer(id) => {

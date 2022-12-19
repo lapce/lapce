@@ -53,20 +53,35 @@ impl LapceKeymap {
         split
     }
 
-    fn mouse_down(&mut self, ctx: &mut EventCtx, pos: Point, data: &LapceTabData) {
-        if let Some((keymap, keys)) = self.active_keymap.as_ref() {
-            if self.keymap_confirm.contains(pos) {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateKeymap(keymap.clone(), keys.clone()),
-                    Target::Widget(data.id),
-                ));
-                self.active_keymap = None;
-                return;
-            }
-            if self.keymap_cancel.contains(pos) {
-                self.active_keymap = None;
-                return;
+    fn mouse_down(
+        &mut self,
+        ctx: &mut EventCtx,
+        ev: &druid::MouseEvent,
+        data: &LapceTabData,
+    ) {
+        use druid::MouseButton as Btn;
+
+        if let Some((keymap, keys)) = self.active_keymap.as_mut() {
+            match ev.button {
+                Btn::Left if self.keymap_confirm.contains(ev.pos) => {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateKeymap(keymap.clone(), keys.clone()),
+                        Target::Widget(data.id),
+                    ));
+                    self.active_keymap = None;
+                }
+                Btn::Left if self.keymap_cancel.contains(ev.pos) => {
+                    self.active_keymap = None;
+                }
+                _other => {
+                    if keys.len() == 2 {
+                        keys.clear();
+                    }
+                    keys.push(KeyPress::mouse(ev));
+                    ctx.request_paint();
+                    ctx.set_handled();
+                }
             }
             return;
         }
@@ -82,7 +97,7 @@ impl LapceKeymap {
             &data.keypress.filtered_commands_without_keymap
         };
 
-        let i = (pos.y / self.line_height).floor() as usize;
+        let i = (ev.pos.y / self.line_height).floor() as usize;
         if i < commands_with_keymap.len() {
             let keymap = commands_with_keymap[i].clone();
             self.active_keymap = Some((keymap, Vec::new()));
@@ -133,15 +148,12 @@ impl Widget<LapceTabData> for LapceKeymap {
             Event::MouseDown(mouse_event) => {
                 ctx.set_handled();
                 self.request_focus(ctx, data);
-                self.mouse_down(ctx, mouse_event.pos, data);
+                self.mouse_down(ctx, mouse_event, data);
                 ctx.request_paint();
             }
             Event::KeyDown(key_event) => {
                 if let Some((_keymap, keys)) = self.active_keymap.as_mut() {
-                    if let Some(mut keypress) = KeyPressData::keypress(key_event) {
-                        keypress.key = druid::KbKey::Character(
-                            keypress.key.to_string().to_lowercase(),
-                        );
+                    if let Some(keypress) = KeyPressData::keypress(key_event) {
                         if keys.len() == 2 {
                             keys.clear();
                         }

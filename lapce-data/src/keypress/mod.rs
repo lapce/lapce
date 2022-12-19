@@ -18,6 +18,8 @@ mod loader;
 
 pub use keypress::KeyPress;
 
+use keypress::Key;
+
 use crate::{
     command::{
         lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
@@ -83,6 +85,12 @@ pub enum Alignment {
 }
 
 impl KeyMap {
+    /// Returns the first [`KeyPress`] of this [`KeyMap`] that can be converted into
+    /// [`druid::HotKey`].
+    pub fn hotkey(&self) -> Option<druid::HotKey> {
+        self.key.iter().find_map(KeyPress::hotkey)
+    }
+
     pub fn paint(
         &self,
         ctx: &mut PaintCtx,
@@ -139,6 +147,24 @@ pub trait KeyPressFocus {
         false
     }
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str);
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum EventRef<'a> {
+    Keyboard(&'a druid::KeyEvent),
+    Mouse(&'a druid::MouseEvent),
+}
+
+impl<'a> From<&'a druid::KeyEvent> for EventRef<'a> {
+    fn from(ev: &'a druid::KeyEvent) -> Self {
+        Self::Keyboard(ev)
+    }
+}
+
+impl<'a> From<&'a druid::MouseEvent> for EventRef<'a> {
+    fn from(ev: &'a druid::MouseEvent) -> Self {
+        Self::Mouse(ev)
+    }
 }
 
 #[derive(Clone)]
@@ -263,7 +289,7 @@ impl KeyPressData {
             return false;
         }
 
-        if let druid::KbKey::Character(c) = &keypress.key {
+        if let Key::Keyboard(druid::KbKey::Character(c)) = &keypress.key {
             if let Ok(n) = c.parse::<usize>() {
                 if self.count.is_some() || n > 0 {
                     self.count = Some(self.count.unwrap_or(0) * 10 + n);
@@ -304,32 +330,44 @@ impl KeyPressData {
             | KbKey::Alt
             | KbKey::Control => None,
             ref key => Some(KeyPress {
-                key: key.clone(),
+                key: Key::Keyboard(match key {
+                    druid::KbKey::Character(c) => {
+                        druid::KbKey::Character(c.to_lowercase())
+                    }
+                    key => key.clone(),
+                }),
                 mods: Self::get_key_modifiers(key_event),
             }),
         }
     }
 
-    pub fn key_down<T: KeyPressFocus>(
+    pub fn key_down<'a, T: KeyPressFocus>(
         &mut self,
         ctx: &mut EventCtx,
-        key_event: &KeyEvent,
+        event: impl Into<EventRef<'a>>,
         focus: &mut T,
         env: &Env,
     ) -> bool {
-        log::info!(target: "lapce_data::keypress::key_down", "{key_event:?}");
+        let event = event.into();
+        log::info!(target: "lapce_data::keypress::key_down", "{event:?}");
 
-        // We are removing Shift modifier since the character is already upper case.
-        let mods = Self::get_key_modifiers(key_event);
-
-        if key_event.key == KbKey::Shift && mods.is_empty() {
-            return false;
-        }
-
-        let keypress = KeyPress {
-            key: key_event.key.clone(),
-            mods,
+        let keypress = match event {
+            EventRef::Keyboard(ev)
+                if ev.key == KbKey::Shift && ev.mods.is_empty() =>
+            {
+                return false;
+            }
+            EventRef::Keyboard(ev) => KeyPress {
+                key: Key::Keyboard(ev.key.clone()),
+                // We are removing Shift modifier since the character is already upper case.
+                mods: Self::get_key_modifiers(ev),
+            },
+            EventRef::Mouse(ev) => KeyPress {
+                key: Key::Mouse(ev.button),
+                mods: ev.mods,
+            },
         };
+        let mods = keypress.mods;
 
         let mode = focus.get_mode();
         if self.handle_count(focus, &keypress) {
@@ -394,7 +432,7 @@ impl KeyPressData {
 
         #[cfg(not(target_os = "macos"))]
         if (keypress.mods - Modifiers::SHIFT).is_empty() {
-            if let druid::KbKey::Character(c) = &key_event.key {
+            if let Key::Keyboard(druid::KbKey::Character(c)) = &keypress.key {
                 focus.receive_char(ctx, c);
                 return true;
             }
@@ -402,7 +440,7 @@ impl KeyPressData {
 
         #[cfg(target_os = "macos")]
         if (keypress.mods - (Modifiers::SHIFT | Modifiers::ALT)).is_empty() {
-            if let druid::KbKey::Character(c) = &key_event.key {
+            if let Key::Keyboard(druid::KbKey::Character(c)) = &keypress.key {
                 focus.receive_char(ctx, c);
                 return true;
             }
