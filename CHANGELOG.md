@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- [#1820](https://github.com/lapce/lapce/pull/1820): Add remote svg icon colour to theme, disable plugin settings when none are available
+
 ### Features/Changes
 - [#1831](https://github.com/lapce/lapce/pull/1831): Plugin settings shown on right click
 

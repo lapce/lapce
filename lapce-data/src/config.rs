@@ -62,6 +62,7 @@ impl LapceTheme {
     pub const LAPCE_ICON_ACTIVE: &str = "lapce.icon.active";
     pub const LAPCE_ICON_INACTIVE: &str = "lapce.icon.inactive";
 
+    pub const LAPCE_REMOTE_ICON: &str = "lapce.remote.icon";
     pub const LAPCE_REMOTE_LOCAL: &str = "lapce.remote.local";
     pub const LAPCE_REMOTE_CONNECTED: &str = "lapce.remote.connected";
     pub const LAPCE_REMOTE_CONNECTING: &str = "lapce.remote.connecting";

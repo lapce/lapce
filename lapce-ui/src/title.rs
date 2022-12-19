@@ -187,7 +187,7 @@ impl Title {
                 .inflate(-5.0, -5.0),
             Some(
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                    .get_color_unchecked(LapceTheme::LAPCE_REMOTE_ICON)
                     .clone(),
             ),
             None,
