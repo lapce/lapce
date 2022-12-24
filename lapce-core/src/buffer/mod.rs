@@ -20,6 +20,7 @@ use lapce_xi_rope::{
 use lsp_types::Position;
 
 use crate::{
+    char_buffer::CharBuffer,
     cursor::CursorMode,
     editor::EditType,
     indent::{auto_detect_indent_style, IndentStyle},
@@ -882,7 +883,7 @@ impl Buffer {
         offset: usize,
     ) -> Option<usize> {
         if let Some(syntax) = syntax {
-            syntax.find_tag(offset, true, &c.to_string())
+            syntax.find_tag(offset, true, &CharBuffer::new(c))
         } else {
             WordCursor::new(&self.text, offset).previous_unmatched(c)
         }

@@ -15,6 +15,7 @@ use druid::{
 use itertools::Itertools;
 use lapce_core::{
     buffer::{Buffer, DiffLines, InvalLines},
+    char_buffer::CharBuffer,
     command::{EditCommand, MultiSelectionCommand},
     cursor::{ColPosition, Cursor, CursorMode},
     editor::{EditType, Editor},
@@ -2603,28 +2604,28 @@ impl Document {
                     self.buffer.move_n_words_backward(offset, count, mode);
                 (new_offset, None)
             }
-            Movement::NextUnmatched(c) => {
+            Movement::NextUnmatched(char) => {
                 if let Some(syntax) = self.syntax.as_ref() {
                     let new_offset = syntax
-                        .find_tag(offset, false, &c.to_string())
+                        .find_tag(offset, false, &CharBuffer::from(char))
                         .unwrap_or(offset);
                     (new_offset, None)
                 } else {
                     let new_offset = WordCursor::new(self.buffer.text(), offset)
-                        .next_unmatched(*c)
+                        .next_unmatched(*char)
                         .map_or(offset, |new| new - 1);
                     (new_offset, None)
                 }
             }
-            Movement::PreviousUnmatched(c) => {
+            Movement::PreviousUnmatched(char) => {
                 if let Some(syntax) = self.syntax.as_ref() {
                     let new_offset = syntax
-                        .find_tag(offset, true, &c.to_string())
+                        .find_tag(offset, true, &CharBuffer::from(char))
                         .unwrap_or(offset);
                     (new_offset, None)
                 } else {
                     let new_offset = WordCursor::new(self.buffer.text(), offset)
-                        .previous_unmatched(*c)
+                        .previous_unmatched(*char)
                         .unwrap_or(offset);
                     (new_offset, None)
                 }
