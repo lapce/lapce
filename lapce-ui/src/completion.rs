@@ -1,6 +1,5 @@
-use std::{fmt::Display, str::FromStr, sync::Arc};
+use std::sync::Arc;
 
-use anyhow::Error;
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
     theme, ArcStr, BoxConstraints, Command, Data, Env, Event, EventCtx,
@@ -8,7 +7,6 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx,
     Widget, WidgetId, WidgetPod,
 };
-use itertools::Itertools;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     completion::{CompletionData, CompletionStatus, ScoredCompletionItem},
@@ -18,164 +16,11 @@ use lapce_data::{
     markdown::parse_documentation,
     rich_text::RichText,
 };
-use regex::Regex;
 
 use crate::{
     list::{List, ListPaint},
     scroll::{LapceIdentityWrapper, LapceScroll},
 };
-
-#[derive(Debug)]
-struct Snippet {
-    elements: Vec<SnippetElement>,
-}
-
-impl Snippet {
-    fn extract_elements(
-        s: &str,
-        pos: usize,
-        escs: Vec<&str>,
-        loose_escs: Vec<&str>,
-    ) -> (Vec<SnippetElement>, usize) {
-        let mut elements = Vec::new();
-        let mut pos = pos;
-        loop {
-            if s.len() == pos {
-                break;
-            } else if let Some((ele, end)) = Self::extract_tabstop(s, pos) {
-                elements.push(ele);
-                pos = end;
-            } else if let Some((ele, end)) = Self::extract_placeholder(s, pos) {
-                elements.push(ele);
-                pos = end;
-            } else if let Some((ele, end)) =
-                Self::extract_text(s, pos, escs.clone(), loose_escs.clone())
-            {
-                elements.push(ele);
-                pos = end;
-            } else {
-                break;
-            }
-        }
-        (elements, pos)
-    }
-
-    fn extract_tabstop(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-        for re in &[
-            Regex::new(r#"^\$(\d+)"#).unwrap(),
-            Regex::new(r#"^\$\{(\d+)\}"#).unwrap(),
-        ] {
-            if let Some(caps) = re.captures(&s[pos..]) {
-                let end = pos + re.find(&s[pos..])?.end();
-                let m = caps.get(1)?;
-                let n = m.as_str().parse::<usize>().ok()?;
-                return Some((SnippetElement::Tabstop(n), end));
-            }
-        }
-
-        None
-    }
-
-    fn extract_placeholder(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-        let re = Regex::new(r#"^\$\{(\d+):(.*?)\}"#).unwrap();
-        let end = pos + re.find(&s[pos..])?.end();
-
-        let caps = re.captures(&s[pos..])?;
-
-        let tab = caps.get(1)?.as_str().parse::<usize>().ok()?;
-
-        let m = caps.get(2)?;
-        let content = m.as_str();
-        if content.is_empty() {
-            return Some((
-                SnippetElement::PlaceHolder(
-                    tab,
-                    vec![SnippetElement::Text("".to_string())],
-                ),
-                end,
-            ));
-        }
-        let (els, pos) =
-            Self::extract_elements(s, pos + m.start(), vec!["$", "}", "\\"], vec![]);
-        Some((SnippetElement::PlaceHolder(tab, els), pos + 1))
-    }
-
-    fn extract_text(
-        s: &str,
-        pos: usize,
-        escs: Vec<&str>,
-        loose_escs: Vec<&str>,
-    ) -> Option<(SnippetElement, usize)> {
-        let mut s = &s[pos..];
-        let mut ele = "".to_string();
-        let mut end = pos;
-
-        while !s.is_empty() {
-            if s.len() >= 2 {
-                let esc = &s[..2];
-                let mut new_escs = escs.clone();
-                new_escs.extend_from_slice(&loose_escs);
-
-                if new_escs
-                    .iter()
-                    .map(|e| format!("\\{}", e))
-                    .any(|x| x == *esc)
-                {
-                    ele += &s[1..2];
-                    end += 2;
-                    s = &s[2..];
-                    continue;
-                }
-            }
-            if escs.contains(&&s[0..1]) {
-                break;
-            }
-            ele += &s[0..1];
-            end += 1;
-            s = &s[1..];
-        }
-        if ele.is_empty() {
-            return None;
-        }
-        Some((SnippetElement::Text(ele), end))
-    }
-}
-
-impl FromStr for Snippet {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (elements, _) = Self::extract_elements(s, 0, vec!["$", "\\"], vec!["}"]);
-        Ok(Snippet { elements })
-    }
-}
-
-impl Display for Snippet {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let text = self.elements.iter().map(|e| e.to_string()).join("");
-        f.write_str(&text)
-    }
-}
-
-#[derive(Debug)]
-enum SnippetElement {
-    Text(String),
-    PlaceHolder(usize, Vec<SnippetElement>),
-    Tabstop(usize),
-}
-
-impl Display for SnippetElement {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            SnippetElement::Text(text) => f.write_str(text),
-            SnippetElement::PlaceHolder(tab, elements) => {
-                let elements = elements.iter().map(|e| e.to_string()).join("");
-                write!(f, "${{{}:{}}}", tab, elements)
-            }
-            SnippetElement::Tabstop(tab) => write!(f, "${}", tab),
-        }
-    }
-}
 
 pub struct CompletionContainer {
     id: WidgetId,
