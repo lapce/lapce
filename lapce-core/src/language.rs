@@ -577,7 +577,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Julia,
         language: tree_sitter_julia::language,
         highlight: include_str!("../queries/julia/highlights.scm"),
-        injection: None,
+        injection: Some(include_str!("../queries/julia/injections.scm")),
         comment: "#",
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),

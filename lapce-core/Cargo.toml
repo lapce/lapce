@@ -51,7 +51,7 @@ tree-sitter-javascript = { version = "0.20.0", optional = true }
 # new version cannot be published on crates.io - https://github.com/tree-sitter/tree-sitter-json/issues/21
 # tree-sitter-json = { version = "0.19.0", optional = true }
 tree-sitter-json = { git = "https://github.com/tree-sitter/tree-sitter-json.git", rev = "11e2cc12d9b267766fb11a06e52952792fd8e3f0", optional = true }
-tree-sitter-julia = { git = "https://github.com/varlad/tree-sitter-julia", branch = "master", optional = true }
+tree-sitter-julia = { git = "https://github.com/varlad/tree-sitter-julia.git", branch = "lapce", optional = true }
 tree-sitter-kotlin = { git = "https://github.com/fwcd/tree-sitter-kotlin", branch = "main", optional = true }
 tree-sitter-latex = { git = "https://github.com/latex-lsp/tree-sitter-latex", branch = "master", optional = true }
 tree-sitter-lua = { git = "https://github.com/syntacti/tree-sitter-lua", branch = "main", optional = true }

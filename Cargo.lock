@@ -5134,7 +5134,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-julia"
 version = "0.19.0"
-source = "git+https://github.com/varlad/tree-sitter-julia?branch=master#eff3e0f57512ecb2e72024732d66dba64bdeaecf"
+source = "git+https://github.com/varlad/tree-sitter-julia.git?branch=lapce#2ad4c9b79e0f213b61dbb3820754bfc6306e595a"
 dependencies = [
  "cc",
  "tree-sitter",
