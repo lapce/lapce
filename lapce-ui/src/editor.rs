@@ -1012,7 +1012,7 @@ impl LapceEditor {
                 }
                 if data.config.editor.show_indent_guide {
                     let mut x = 0.0;
-                    while x + 0.5 < text_layout.indent {
+                    while x + 1.0 < text_layout.indent {
                         ctx.stroke(
                             Line::new(
                                 Point::new(x, info.y),
