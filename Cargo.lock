@@ -5151,8 +5151,8 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-latex"
-version = "0.2.0"
-source = "git+https://github.com/latex-lsp/tree-sitter-latex?branch=master#b3b2cf27f33e71438ebe46934900b1153901c6f2"
+version = "0.3.0"
+source = "git+https://github.com/latex-lsp/tree-sitter-latex?branch=master#1ec3941b971dccfa36cb1cd6221a2e4a1cd3e250"
 dependencies = [
  "cc",
  "tree-sitter",
