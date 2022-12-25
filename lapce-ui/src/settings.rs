@@ -139,24 +139,23 @@ impl LapceSettingsPanel {
     }
 
     fn update_plugins(&mut self, ctx: &mut EventCtx, data: &LapceTabData) {
-        let drained = self.children.drain_filter(|kind, _| {
+        let mut children_changed = false;
+        self.children.retain(|kind, _| {
             if let LapceSettingsKind::Plugin(volt_id) = &kind {
-                !data.plugin.installed.contains_key(volt_id)
-            } else {
-                false
+                if !data.plugin.installed.contains_key(volt_id) {
+                    if self.active == *kind {
+                        self.active = LapceSettingsKind::Core;
+                        self.switcher
+                            .widget_mut()
+                            .child_mut()
+                            .set_active(self.active.clone(), data);
+                    }
+                    children_changed = true;
+                    return false;
+                }
             }
+            true
         });
-        for (kind, widget_pod) in drained {
-            drop(widget_pod);
-            ctx.children_changed();
-            if self.active == kind {
-                self.active = LapceSettingsKind::Core;
-                self.switcher
-                    .widget_mut()
-                    .child_mut()
-                    .set_active(self.active.clone(), data);
-            }
-        }
         for (_, volt) in data.plugin.installed.iter() {
             if volt.config.is_some() {
                 let kind = LapceSettingsKind::Plugin(volt.id());
@@ -165,9 +164,12 @@ impl LapceSettingsPanel {
                         kind.clone(),
                         WidgetPod::new(LapceSettings::new_scroll(kind).boxed()),
                     );
-                    ctx.children_changed();
+                    children_changed = true;
                 }
             }
+        }
+        if children_changed {
+            ctx.children_changed();
         }
     }
 }
