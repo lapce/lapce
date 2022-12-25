@@ -5143,7 +5143,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-kotlin"
 version = "0.2.11"
-source = "git+https://github.com/fwcd/tree-sitter-kotlin?branch=main#a4f71eb9b8c9b19ded3e0e9470be4b1b77c2b569"
+source = "git+https://github.com/fwcd/tree-sitter-kotlin?branch=main#b953dbdd05257fcb2b64bc4d9c1578fac12e3c28"
 dependencies = [
  "cc",
  "tree-sitter",
