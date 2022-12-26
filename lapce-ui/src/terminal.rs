@@ -27,6 +27,7 @@ use lapce_data::{
     terminal::{EventProxy, LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;
+use smallvec::SmallVec;
 use unicode_width::UnicodeWidthChar;
 
 use crate::{
@@ -139,30 +140,53 @@ impl Widget<LapceTabData> for TerminalPanel {
             }
         }
 
+        // We're using SmallVec here because, strictly speaking, it's impossible to have more
+        // than one empty TerminalSplitData at the same time. Thus `SmallVec<[WidgetId; 1]>`
+        // will allow how to avoid unnecessary allocation and at the same time will not take
+        // up more space on the stack than necessary.
         let empty_tabs = data
             .terminal
             .tabs
             .iter()
             .filter(|(_, t)| t.terminals.is_empty())
             .map(|(tab_id, _)| *tab_id)
-            .collect::<Vec<_>>();
+            .collect::<SmallVec<[WidgetId; 1]>>();
         if !empty_tabs.is_empty() {
+            // We remove all empty entries, but at the same time it is necessary to synchronize
+            // changes in `data.terminal.tabs` with `data.terminal.tabs.tabs_order`.
+            // The `data.terminal.tabstabs_order` is a vector, so `removing` elements from it in
+            // a loop is inefficient due to shifting all elements to the left after each removal.
+            //
+            // Therefore, we first store the first `WidgetId` to be removed in the `id_to_remove`
+            // variable, and in the loop itself, instead of deleting, we will equate all the values
+            // to be removed to `id_to_remove`. After the loop, we simply rebuild the vector again,
+            // excluding all elements equal to `id_to_remove`.
+            //
+            // This will be equally effective with one removed element, and with more of them, as
+            // it will allow us to allocate a vector with the desired capacity only once.
+            //
+            // SAFETY: We have already checked that empty_tabs is not empty
+            let id_to_remove = unsafe { *empty_tabs.get_unchecked(0) };
+            let removed_len = empty_tabs.len();
+
             let terminal = Arc::make_mut(&mut data.terminal);
+            let tabs_order = Arc::make_mut(&mut terminal.tabs_order);
             for tab_id in empty_tabs {
                 self.tabs.remove(&tab_id);
                 terminal.tabs.remove(&tab_id);
-                terminal.tabs_order = Arc::new(
-                    terminal
-                        .tabs_order
-                        .iter()
-                        .filter(|w| *w != &tab_id)
-                        .copied()
-                        .collect(),
-                );
-                ctx.children_changed();
-            }
 
-            if terminal.tabs_order.is_empty() {
+                if let Some(id) = tabs_order.iter_mut().find(|id| *id == &tab_id) {
+                    *id = id_to_remove;
+                }
+            }
+            let mut new_order: Vec<WidgetId> =
+                Vec::with_capacity(tabs_order.len() - removed_len);
+            new_order.extend(tabs_order.iter().filter(|id| *id != &id_to_remove));
+            *tabs_order = new_order;
+
+            ctx.children_changed();
+
+            if tabs_order.is_empty() {
                 if data.panel.is_panel_visible(&PanelKind::Terminal) {
                     Arc::make_mut(&mut data.panel).hide_panel(&PanelKind::Terminal);
                 }

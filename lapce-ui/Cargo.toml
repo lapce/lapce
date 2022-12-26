@@ -36,6 +36,7 @@ druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", featu
 lapce-data = { path = "../lapce-data" }
 lapce-rpc = { path = "../lapce-rpc" }
 lapce-core = { path = "../lapce-core" }
+smallvec = "1.10.0"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1.12"
