@@ -725,8 +725,8 @@ impl PluginInfo {
         widget_id: WidgetId,
         editor_tab_id: WidgetId,
         volt_id: String,
-    ) -> LapceScroll<LapceTabData, PluginInfo> {
-        LapceScroll::new(PluginInfo::new(widget_id, editor_tab_id, volt_id))
+    ) -> LapceScroll<LapceTabData, Self> {
+        LapceScroll::new(Self::new(widget_id, editor_tab_id, volt_id))
     }
 
     fn get_margin(&self, actual_width: f64) -> f64 {

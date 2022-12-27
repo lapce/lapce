@@ -23,7 +23,7 @@ pub struct KeyPress {
 }
 
 impl KeyPress {
-    pub fn keyboard(ev: &druid::KeyEvent) -> Option<KeyPress> {
+    pub fn keyboard(ev: &druid::KeyEvent) -> Option<Self> {
         use druid::KbKey as K;
 
         match ev.key {
@@ -38,7 +38,7 @@ impl KeyPress {
         }
     }
 
-    pub fn mouse(ev: &druid::MouseEvent) -> KeyPress {
+    pub fn mouse(ev: &druid::MouseEvent) -> Self {
         Self {
             key: Key::Mouse(ev.button),
             mods: ev.mods,
@@ -162,7 +162,7 @@ impl KeyPress {
                     }
                 }
 
-                Some(KeyPress { key, mods })
+                Some(Self { key, mods })
             })
             .collect()
     }
@@ -543,9 +543,9 @@ impl FromStr for Key {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();
 
-        Key::keyboard_from_str(&s)
+        Self::keyboard_from_str(&s)
             .map(Key::Keyboard)
-            .or_else(|| Key::mouse_from_str(&s).map(Key::Mouse))
+            .or_else(|| Self::mouse_from_str(&s).map(Key::Mouse))
             .ok_or(())
     }
 }
@@ -563,8 +563,8 @@ impl Hash for Key {
 impl PartialEq for Key {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Key::Keyboard(a), Key::Keyboard(b)) => a.eq(b),
-            (Key::Mouse(a), Key::Mouse(b)) => a.eq(b),
+            (Self::Keyboard(a), Self::Keyboard(b)) => a.eq(b),
+            (Self::Mouse(a), Self::Mouse(b)) => a.eq(b),
             _ => false,
         }
     }

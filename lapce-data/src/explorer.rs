@@ -42,8 +42,9 @@ pub enum Naming {
 impl Naming {
     pub fn list_index(&self) -> usize {
         match self {
-            Naming::Renaming { list_index, .. }
-            | Naming::Naming { list_index, .. } => *list_index,
+            Self::Renaming { list_index, .. } | Self::Naming { list_index, .. } => {
+                *list_index
+            }
         }
     }
 }
@@ -258,9 +259,7 @@ impl FileExplorerData {
         proxy: &LapceProxy,
         event_sink: ExtEventSink,
     ) {
-        FileExplorerData::read_dir_cb::<fn()>(
-            path, expand, tab_id, proxy, event_sink, None,
-        )
+        Self::read_dir_cb::<fn()>(path, expand, tab_id, proxy, event_sink, None)
     }
 
     pub fn read_dir_cb<F: FnOnce() + Send + 'static>(

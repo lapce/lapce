@@ -63,7 +63,7 @@ impl FileWatcher {
 
         let inner = recommended_watcher(tx_event).expect("watcher should spawn");
 
-        FileWatcher {
+        Self {
             rx_event: Some(rx_event),
             inner,
             state,

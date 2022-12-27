@@ -147,7 +147,7 @@ pub enum BufferContent {
 
 impl BufferContent {
     pub fn path(&self) -> Option<&Path> {
-        if let BufferContent::File(p) = self {
+        if let Self::File(p) = self {
             Some(p)
         } else {
             None
@@ -155,13 +155,13 @@ impl BufferContent {
     }
 
     pub fn is_file(&self) -> bool {
-        matches!(self, BufferContent::File(_))
+        matches!(self, Self::File(_))
     }
 
     pub fn is_special(&self) -> bool {
         match self {
-            BufferContent::File(_) => false,
-            BufferContent::Local(local) => match local {
+            Self::File(_) => false,
+            Self::Local(local) => match local {
                 LocalBufferKind::Search
                 | LocalBufferKind::Palette
                 | LocalBufferKind::SourceControl
@@ -173,15 +173,15 @@ impl BufferContent {
                 | LocalBufferKind::Rename => true,
                 LocalBufferKind::Empty => false,
             },
-            BufferContent::SettingsValue(..) => true,
-            BufferContent::Scratch(..) => false,
+            Self::SettingsValue(..) => true,
+            Self::Scratch(..) => false,
         }
     }
 
     pub fn is_input(&self) -> bool {
         match self {
-            BufferContent::File(_) => false,
-            BufferContent::Local(local) => match local {
+            Self::File(_) => false,
+            Self::Local(local) => match local {
                 LocalBufferKind::Search
                 | LocalBufferKind::Palette
                 | LocalBufferKind::FilePicker
@@ -192,44 +192,42 @@ impl BufferContent {
                 | LocalBufferKind::Rename => true,
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
-            BufferContent::SettingsValue(..) => true,
-            BufferContent::Scratch(..) => false,
+            Self::SettingsValue(..) => true,
+            Self::Scratch(..) => false,
         }
     }
 
     pub fn is_palette(&self) -> bool {
         match self {
-            BufferContent::File(_) => false,
-            BufferContent::SettingsValue(..) => false,
-            BufferContent::Scratch(..) => false,
-            BufferContent::Local(local) => matches!(local, LocalBufferKind::Palette),
+            Self::File(_) => false,
+            Self::SettingsValue(..) => false,
+            Self::Scratch(..) => false,
+            Self::Local(local) => matches!(local, LocalBufferKind::Palette),
         }
     }
 
     pub fn is_search(&self) -> bool {
         match self {
-            BufferContent::File(_) => false,
-            BufferContent::SettingsValue(..) => false,
-            BufferContent::Scratch(..) => false,
-            BufferContent::Local(local) => matches!(local, LocalBufferKind::Search),
+            Self::File(_) => false,
+            Self::SettingsValue(..) => false,
+            Self::Scratch(..) => false,
+            Self::Local(local) => matches!(local, LocalBufferKind::Search),
         }
     }
 
     pub fn is_settings(&self) -> bool {
         match self {
-            BufferContent::File(_) => false,
-            BufferContent::SettingsValue(..) => true,
-            BufferContent::Local(_) => false,
-            BufferContent::Scratch(..) => false,
+            Self::File(_) => false,
+            Self::SettingsValue(..) => true,
+            Self::Local(_) => false,
+            Self::Scratch(..) => false,
         }
     }
 
     pub fn file_name(&self) -> &str {
         match self {
-            BufferContent::File(p) => {
-                p.file_name().and_then(|f| f.to_str()).unwrap_or("")
-            }
-            BufferContent::Scratch(_, scratch_doc_name) => scratch_doc_name,
+            Self::File(p) => p.file_name().and_then(|f| f.to_str()).unwrap_or(""),
+            Self::Scratch(_, scratch_doc_name) => scratch_doc_name,
             _ => "",
         }
     }

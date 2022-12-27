@@ -194,7 +194,7 @@ impl Hover {
     const STARTING_X: f64 = 10.0;
 
     fn new() -> Self {
-        Hover {
+        Self {
             active_layout: { Vec::new() },
             active_diagnostic_layout: {
                 let mut layout = TextLayout::new();
@@ -291,7 +291,7 @@ impl Widget<LapceTabData> for Hover {
     ) -> Size {
         let width = bc.max().width;
         let max_width = width
-            - Hover::STARTING_X
+            - Self::STARTING_X
             - env.get(theme::SCROLLBAR_WIDTH)
             - env.get(theme::SCROLLBAR_PAD);
 
@@ -331,7 +331,7 @@ impl Widget<LapceTabData> for Hover {
             let diagnostic_text_metrics =
                 self.active_diagnostic_layout.layout_metrics();
 
-            diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0
+            diagnostic_text_metrics.size.height + Self::STARTING_Y * 3.0
         };
 
         if diagnostic_size.width > max_layout_width {
@@ -340,7 +340,7 @@ impl Widget<LapceTabData> for Hover {
 
         let width = if max_layout_width < max_width {
             max_layout_width
-                + Hover::STARTING_X
+                + Self::STARTING_X
                 + env.get(theme::SCROLLBAR_WIDTH)
                 + env.get(theme::SCROLLBAR_PAD)
         } else {
@@ -349,7 +349,7 @@ impl Widget<LapceTabData> for Hover {
 
         Size::new(
             width,
-            items_height + diagnostic_height + Hover::STARTING_Y * 2.0,
+            items_height + diagnostic_height + Self::STARTING_Y * 2.0,
         )
     }
 
@@ -380,8 +380,7 @@ impl Widget<LapceTabData> for Hover {
 
             let line = {
                 let x0 = rect.x0 + side_margin;
-                let y =
-                    diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0;
+                let y = diagnostic_text_metrics.size.height + Self::STARTING_Y * 3.0;
                 let x1 = rect.x1 - side_margin;
                 Line::new(Point::new(x0, y), Point::new(x1, y))
             };
@@ -394,7 +393,7 @@ impl Widget<LapceTabData> for Hover {
 
             self.active_diagnostic_layout.draw(ctx, diagnostic_origin);
 
-            diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0
+            diagnostic_text_metrics.size.height + Self::STARTING_Y * 3.0
         };
 
         let doc_origin = diagnostic_origin + (0.0, height);

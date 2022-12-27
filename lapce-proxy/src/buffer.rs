@@ -27,12 +27,12 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new(id: BufferId, path: PathBuf) -> Buffer {
+    pub fn new(id: BufferId, path: PathBuf) -> Self {
         let rope = Rope::from(load_file(&path).unwrap_or_default());
         let rev = u64::from(!rope.is_empty());
         let language_id = language_id_from_path(&path).unwrap_or("");
         let mod_time = get_mod_time(&path);
-        Buffer {
+        Self {
             id,
             rope,
             path,

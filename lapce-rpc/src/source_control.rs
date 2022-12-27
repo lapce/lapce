@@ -20,10 +20,10 @@ pub enum FileDiff {
 impl FileDiff {
     pub fn path(&self) -> &PathBuf {
         match &self {
-            FileDiff::Modified(p)
-            | FileDiff::Added(p)
-            | FileDiff::Deleted(p)
-            | FileDiff::Renamed(_, p) => p,
+            Self::Modified(p)
+            | Self::Added(p)
+            | Self::Deleted(p)
+            | Self::Renamed(_, p) => p,
         }
     }
 }

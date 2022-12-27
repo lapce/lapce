@@ -917,7 +917,7 @@ impl notify::EventHandler for ConfigWatcher {
 impl LapceConfig {
     pub fn load(workspace: &LapceWorkspace, disabled_volts: &[String]) -> Self {
         let config = Self::merge_config(workspace, None, None);
-        let mut lapce_config: LapceConfig = config
+        let mut lapce_config: Self = config
             .try_deserialize()
             .unwrap_or_else(|_| DEFAULT_LAPCE_CONFIG.clone());
 
@@ -938,7 +938,7 @@ impl LapceConfig {
                 .add_source(DEFAULT_CONFIG.clone())
                 .add_source(color_theme_config.clone())
                 .build()
-                .and_then(|theme| theme.try_deserialize::<LapceConfig>())
+                .and_then(|theme| theme.try_deserialize::<Self>())
             {
                 theme_lapce_config.resolve_colors(Some(&default_lapce_config));
                 default_lapce_config = theme_lapce_config;
@@ -966,7 +966,7 @@ impl LapceConfig {
                 color_theme_config.cloned(),
                 icon_theme_config.cloned(),
             )
-            .try_deserialize::<LapceConfig>()
+            .try_deserialize::<Self>()
             {
                 self.core = new.core;
                 self.ui = new.ui;
@@ -1037,7 +1037,7 @@ impl LapceConfig {
         config
     }
 
-    fn resolve_colors(&mut self, default_config: Option<&LapceConfig>) {
+    fn resolve_colors(&mut self, default_config: Option<&Self>) {
         self.color.base = self
             .color_theme
             .base
@@ -1221,8 +1221,8 @@ impl LapceConfig {
             .unwrap()
     }
 
-    fn default_lapce_config() -> LapceConfig {
-        let mut default_lapce_config: LapceConfig =
+    fn default_lapce_config() -> Self {
+        let mut default_lapce_config: Self =
             DEFAULT_CONFIG.clone().try_deserialize().unwrap();
         default_lapce_config.resolve_colors(None);
         default_lapce_config
@@ -1362,11 +1362,7 @@ impl LapceConfig {
         self.core.color_theme = theme.to_string();
         self.resolve_theme(workspace);
         if !preview {
-            LapceConfig::update_file(
-                "core",
-                "color-theme",
-                toml_edit::Value::from(theme),
-            );
+            Self::update_file("core", "color-theme", toml_edit::Value::from(theme));
         }
     }
 
@@ -1379,11 +1375,7 @@ impl LapceConfig {
         self.core.icon_theme = theme.to_string();
         self.resolve_theme(workspace);
         if !preview {
-            LapceConfig::update_file(
-                "core",
-                "icon-theme",
-                toml_edit::Value::from(theme),
-            );
+            Self::update_file("core", "icon-theme", toml_edit::Value::from(theme));
         }
     }
 

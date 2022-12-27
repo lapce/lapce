@@ -210,7 +210,7 @@ impl FromStr for Snippet {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (elements, _) = Self::extract_elements(s, 0, &['$', '\\'], &['}']);
-        Ok(Snippet { elements })
+        Ok(Self { elements })
     }
 }
 
@@ -233,11 +233,9 @@ pub enum SnippetElement {
 impl SnippetElement {
     pub fn len(&self) -> usize {
         match &self {
-            SnippetElement::Text(text) => text.len(),
-            SnippetElement::PlaceHolder(_, elements) => {
-                elements.iter().map(|e| e.len()).sum()
-            }
-            SnippetElement::Tabstop(_) => 0,
+            Self::Text(text) => text.len(),
+            Self::PlaceHolder(_, elements) => elements.iter().map(|e| e.len()).sum(),
+            Self::Tabstop(_) => 0,
         }
     }
 
@@ -256,15 +254,15 @@ impl SnippetElement {
 
     fn write_text_to<Buffer: fmt::Write>(&self, buf: &mut Buffer) -> fmt::Result {
         match self {
-            SnippetElement::Text(text) => buf.write_str(text),
-            SnippetElement::PlaceHolder(_, elements) => {
+            Self::Text(text) => buf.write_str(text),
+            Self::PlaceHolder(_, elements) => {
                 for child_snippet_elm in elements {
                     // call ourselves recursively
                     child_snippet_elm.write_text_to(buf)?;
                 }
                 fmt::Result::Ok(())
             }
-            SnippetElement::Tabstop(_) => fmt::Result::Ok(()),
+            Self::Tabstop(_) => fmt::Result::Ok(()),
         }
     }
 }
@@ -272,8 +270,8 @@ impl SnippetElement {
 impl Display for SnippetElement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
-            SnippetElement::Text(text) => f.write_str(text),
-            SnippetElement::PlaceHolder(tab, elements) => {
+            Self::Text(text) => f.write_str(text),
+            Self::PlaceHolder(tab, elements) => {
                 // Trying to write to the provided buffer in the form "${tab:text}"
                 write!(f, "${{{}:", tab)?;
                 for child_snippet_elm in elements {
@@ -282,7 +280,7 @@ impl Display for SnippetElement {
                 }
                 f.write_str("}")
             }
-            SnippetElement::Tabstop(tab) => write!(f, "${}", tab),
+            Self::Tabstop(tab) => write!(f, "${}", tab),
         }
     }
 }

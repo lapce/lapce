@@ -40,8 +40,8 @@ impl std::cmp::PartialOrd for FileNodeItem {
 }
 
 impl FileNodeItem {
-    pub fn sorted_children(&self) -> Vec<&FileNodeItem> {
-        let mut children = self.children.values().collect::<Vec<&FileNodeItem>>();
+    pub fn sorted_children(&self) -> Vec<&Self> {
+        let mut children = self.children.values().collect::<Vec<&Self>>();
         children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
             (true, true) => a
                 .path_buf
@@ -59,12 +59,12 @@ impl FileNodeItem {
         children
     }
 
-    pub fn sorted_children_mut(&mut self) -> Vec<&mut FileNodeItem> {
+    pub fn sorted_children_mut(&mut self) -> Vec<&mut Self> {
         let mut children = self
             .children
             .iter_mut()
             .map(|(_, item)| item)
-            .collect::<Vec<&mut FileNodeItem>>();
+            .collect::<Vec<&mut Self>>();
         children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
             (true, true) => a
                 .path_buf
@@ -82,7 +82,7 @@ impl FileNodeItem {
         children
     }
 
-    pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
+    pub fn get_file_node(&self, path: &Path) -> Option<&Self> {
         let path_buf = self.path_buf.clone();
         let path = path.strip_prefix(&self.path_buf).ok()?;
         let ancestors = path.ancestors().collect::<Vec<&Path>>();
@@ -94,7 +94,7 @@ impl FileNodeItem {
         node
     }
 
-    pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
+    pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut Self> {
         let path_buf = self.path_buf.clone();
         let path = path.strip_prefix(&self.path_buf).ok()?;
         let ancestors = path.ancestors().collect::<Vec<&Path>>();
@@ -106,7 +106,7 @@ impl FileNodeItem {
         node
     }
 
-    pub fn remove_child(&mut self, path: &Path) -> Option<FileNodeItem> {
+    pub fn remove_child(&mut self, path: &Path) -> Option<Self> {
         let parent = path.parent()?;
         let node = self.get_file_node_mut(parent)?;
         let node = node.children.remove(path)?;
@@ -122,7 +122,7 @@ impl FileNodeItem {
         let node = self.get_file_node_mut(parent)?;
         node.children.insert(
             PathBuf::from(path),
-            FileNodeItem {
+            Self {
                 path_buf: PathBuf::from(path),
                 is_dir,
                 read: false,
@@ -141,7 +141,7 @@ impl FileNodeItem {
     pub fn set_item_children(
         &mut self,
         path: &Path,
-        children: HashMap<PathBuf, FileNodeItem>,
+        children: HashMap<PathBuf, Self>,
     ) {
         if let Some(node) = self.get_file_node_mut(path) {
             node.open = true;

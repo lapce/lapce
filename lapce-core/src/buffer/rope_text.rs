@@ -227,8 +227,8 @@ pub struct CharIndicesJoin<I: Iterator<Item = (usize, char)>, O: Iterator<Item =
 impl<I: Iterator<Item = (usize, char)>, O: Iterator<Item = I>>
     CharIndicesJoin<I, O>
 {
-    pub fn new(main_iter: O) -> CharIndicesJoin<I, O> {
-        CharIndicesJoin {
+    pub fn new(main_iter: O) -> Self {
+        Self {
             main_iter,
             current_indices: None,
             current_base: 0,

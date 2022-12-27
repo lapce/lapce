@@ -17,9 +17,9 @@ pub struct TitleData {
 }
 
 impl TitleData {
-    pub fn new(config: Arc<LapceConfig>) -> TitleData {
+    pub fn new(config: Arc<LapceConfig>) -> Self {
         let widget_id = WidgetId::next();
-        TitleData {
+        Self {
             widget_id,
             branches: BranchListData::new(config, widget_id),
         }
@@ -37,7 +37,7 @@ pub struct BranchListData {
 impl BranchListData {
     fn new(config: Arc<LapceConfig>, parent: WidgetId) -> Self {
         let list = ListData::new(config, parent, ());
-        BranchListData {
+        Self {
             list,
             active: false,
             origin: Point::ZERO,

@@ -96,14 +96,14 @@ impl ToStaticTextType<String> for &'static str {
 
 impl ToStaticTextType for char {
     #[inline]
-    fn to_static(self) -> char {
+    fn to_static(self) -> Self {
         self
     }
 }
 
 impl ToStaticTextType for String {
     #[inline]
-    fn to_static(self) -> String {
+    fn to_static(self) -> Self {
         self
     }
 }

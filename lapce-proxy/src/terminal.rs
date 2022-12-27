@@ -46,7 +46,7 @@ impl Terminal {
         shell: String,
         width: usize,
         height: usize,
-    ) -> Terminal {
+    ) -> Self {
         let poll = mio::Poll::new().unwrap();
         let mut config = TermConfig::default();
         config.pty_config.working_directory =
@@ -106,7 +106,7 @@ impl Terminal {
         #[allow(deprecated)]
         let (tx, rx) = channel();
 
-        Terminal {
+        Self {
             term_id,
             poll,
             pty,
@@ -270,8 +270,8 @@ struct Writing {
 
 impl Writing {
     #[inline]
-    fn new(c: Cow<'static, [u8]>) -> Writing {
-        Writing {
+    fn new(c: Cow<'static, [u8]>) -> Self {
+        Self {
             source: c,
             written: 0,
         }

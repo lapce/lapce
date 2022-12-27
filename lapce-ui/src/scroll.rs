@@ -382,7 +382,7 @@ impl Default for ScrollComponent {
 
 impl ScrollComponent {
     /// Constructs a new [`ScrollComponent`](struct.ScrollComponent.html) for use.
-    pub fn new() -> ScrollComponent {
+    pub fn new() -> Self {
         Default::default()
     }
 
@@ -793,7 +793,7 @@ impl<T, W: Widget<T>> LapceScroll<T, W> {
     /// This method will allow scrolling in all directions if child's bounds
     /// are larger than the viewport. Use [vertical](#method.vertical) and
     /// [horizontal](#method.horizontal) methods to limit scrolling to a specific axis.
-    pub fn new(child: W) -> LapceScroll<T, W> {
+    pub fn new(child: W) -> Self {
         Self {
             clip: ClipBox::new(child),
             scroll_component: ScrollComponent::new(),
@@ -1054,7 +1054,7 @@ pub struct LapceIdentityWrapper<W> {
 
 impl<W> LapceIdentityWrapper<W> {
     /// Assign an identity to a widget.
-    pub fn wrap(inner: W, id: WidgetId) -> LapceIdentityWrapper<W> {
+    pub fn wrap(inner: W, id: WidgetId) -> Self {
         Self { id, inner }
     }
 

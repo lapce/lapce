@@ -145,8 +145,8 @@ impl From<String> for ReadOnlyString {
 impl TextStorage for ReadOnlyString {
     fn as_str(&self) -> &str {
         match self {
-            ReadOnlyString::Static(str) => str,
-            ReadOnlyString::String(str) => str.as_ref(),
+            Self::Static(str) => str,
+            Self::String(str) => str.as_ref(),
         }
     }
 }

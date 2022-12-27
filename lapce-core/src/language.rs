@@ -955,7 +955,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
 ];
 
 impl LapceLanguage {
-    pub fn from_path(path: &Path) -> Option<LapceLanguage> {
+    pub fn from_path(path: &Path) -> Option<Self> {
         let extension = path.extension()?.to_str()?.to_lowercase();
         // NOTE: This is a linear search.  It is assumed that this function
         // isn't called in any tight loop.
@@ -967,8 +967,8 @@ impl LapceLanguage {
         None
     }
 
-    pub fn from_name(name: &str) -> Option<LapceLanguage> {
-        match LapceLanguage::from_str(name.to_lowercase().as_str()) {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match Self::from_str(name.to_lowercase().as_str()) {
             Ok(v) => Some(v),
             Err(e) => {
                 eprintln!("failed parsing {name} LapceLanguage: {e}");

@@ -70,7 +70,7 @@ impl RpcObject {
 }
 
 impl From<Value> for RpcObject {
-    fn from(v: Value) -> RpcObject {
-        RpcObject(v)
+    fn from(v: Value) -> Self {
+        Self(v)
     }
 }

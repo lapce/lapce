@@ -20,7 +20,7 @@ pub enum VisualMode {
 
 impl Default for VisualMode {
     fn default() -> Self {
-        VisualMode::Normal
+        Self::Normal
     }
 }
 

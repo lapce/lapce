@@ -68,9 +68,8 @@ pub enum EditType {
 
 impl EditType {
     /// Checks whether a new undo group should be created between two edits.
-    pub fn breaks_undo_group(self, previous: EditType) -> bool {
-        !((self == EditType::InsertChars || self == EditType::Delete)
-            && self == previous)
+    pub fn breaks_undo_group(self, previous: Self) -> bool {
+        !((self == Self::InsertChars || self == Self::Delete) && self == previous)
     }
 }
 

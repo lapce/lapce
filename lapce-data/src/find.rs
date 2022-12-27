@@ -78,8 +78,8 @@ pub struct Find {
 }
 
 impl Find {
-    pub fn new(id: usize) -> Find {
-        Find {
+    pub fn new(id: usize) -> Self {
+        Self {
             id,
             hls_dirty: true,
             search_string: None,

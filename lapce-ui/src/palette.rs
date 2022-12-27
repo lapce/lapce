@@ -516,8 +516,8 @@ struct PaletteItemPaintInfo {
 
 impl PaletteItemPaintInfo {
     /// Construct paint info when there is only known text and text indices
-    fn new_text(text: String, text_indices: Vec<usize>) -> PaletteItemPaintInfo {
-        PaletteItemPaintInfo {
+    fn new_text(text: String, text_indices: Vec<usize>) -> Self {
+        Self {
             svg: None,
             svg_color: None,
             text,

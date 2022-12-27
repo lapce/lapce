@@ -429,7 +429,7 @@ impl CompletionDocumentation {
     const STARTING_Y: f64 = 5.0;
     const STARTING_X: f64 = 10.0;
 
-    fn new() -> CompletionDocumentation {
+    fn new() -> Self {
         Self {
             doc_layout: {
                 let mut layout = TextLayout::new();
@@ -488,7 +488,7 @@ impl Widget<LapceTabData> for CompletionDocumentation {
 
         let width = bc.max().width;
         let max_width = width
-            - CompletionDocumentation::STARTING_X
+            - Self::STARTING_X
             - env.get(theme::SCROLLBAR_WIDTH)
             - env.get(theme::SCROLLBAR_PAD);
 
@@ -500,10 +500,7 @@ impl Widget<LapceTabData> for CompletionDocumentation {
             text_metrics.size.height - text_metrics.first_baseline,
         );
 
-        Size::new(
-            width,
-            text_metrics.size.height + CompletionDocumentation::STARTING_Y * 2.0,
-        )
+        Size::new(width, text_metrics.size.height + Self::STARTING_Y * 2.0)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {

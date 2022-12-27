@@ -38,9 +38,9 @@ pub enum CursorMode {
 impl CursorMode {
     pub fn offset(&self) -> usize {
         match &self {
-            CursorMode::Normal(offset) => *offset,
-            CursorMode::Visual { end, .. } => *end,
-            CursorMode::Insert(selection) => selection.get_cursor_offset(),
+            Self::Normal(offset) => *offset,
+            Self::Visual { end, .. } => *end,
+            Self::Insert(selection) => selection.get_cursor_offset(),
         }
     }
 }

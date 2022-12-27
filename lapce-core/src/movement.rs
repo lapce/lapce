@@ -36,25 +36,25 @@ impl Movement {
     pub fn is_vertical(&self) -> bool {
         matches!(
             self,
-            Movement::Up
-                | Movement::Down
-                | Movement::Line(_)
-                | Movement::DocumentStart
-                | Movement::DocumentEnd
+            Self::Up
+                | Self::Down
+                | Self::Line(_)
+                | Self::DocumentStart
+                | Self::DocumentEnd
         )
     }
 
     pub fn is_inclusive(&self) -> bool {
-        matches!(self, Movement::WordEndForward)
+        matches!(self, Self::WordEndForward)
     }
 
     pub fn is_jump(&self) -> bool {
         matches!(
             self,
-            Movement::Line(_)
-                | Movement::Offset(_)
-                | Movement::DocumentStart
-                | Movement::DocumentEnd
+            Self::Line(_)
+                | Self::Offset(_)
+                | Self::DocumentStart
+                | Self::DocumentEnd
         )
     }
 
@@ -71,14 +71,14 @@ impl Movement {
         let last = len - 1;
         match self {
             // Select the next entry/line
-            Movement::Down if wrapping => (index + count) % len,
-            Movement::Down => (index + count).min(last),
+            Self::Down if wrapping => (index + count) % len,
+            Self::Down => (index + count).min(last),
 
             // Selects the previous entry/line
-            Movement::Up if wrapping => (index + (len.saturating_sub(count))) % len,
-            Movement::Up => index.saturating_sub(count),
+            Self::Up if wrapping => (index + (len.saturating_sub(count))) % len,
+            Self::Up => index.saturating_sub(count),
 
-            Movement::Line(position) => match position {
+            Self::Line(position) => match position {
                 // Selects the nth line
                 LinePosition::Line(n) => (*n).min(last),
                 LinePosition::First => 0,

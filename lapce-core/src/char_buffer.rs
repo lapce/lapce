@@ -304,7 +304,7 @@ impl From<&CharBuffer> for char {
     }
 }
 
-impl From<&CharBuffer> for CharBuffer {
+impl From<&Self> for CharBuffer {
     /// Converts a `&CharBuffer` into a [`CharBuffer`].
     ///
     /// # Example
@@ -323,7 +323,7 @@ impl From<&CharBuffer> for CharBuffer {
     /// assert_eq!(char_vec1, char_vec2);
     /// ````
     #[inline]
-    fn from(char: &CharBuffer) -> Self {
+    fn from(char: &Self) -> Self {
         *char
     }
 }

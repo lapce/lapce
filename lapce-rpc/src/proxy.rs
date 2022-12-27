@@ -333,8 +333,8 @@ enum ResponseHandler {
 impl ResponseHandler {
     fn invoke(self, result: Result<ProxyResponse, RpcError>) {
         match self {
-            ResponseHandler::Callback(f) => f(result),
-            ResponseHandler::Chan(tx) => {
+            Self::Callback(f) => f(result),
+            Self::Chan(tx) => {
                 let _ = tx.send(result);
             }
         }

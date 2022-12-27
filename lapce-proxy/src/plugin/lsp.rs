@@ -502,10 +502,8 @@ pub struct DocumentFilter {
 impl DocumentFilter {
     /// Constructs a document filter from the LSP version
     /// This ignores any fields that are badly constructed
-    pub(crate) fn from_lsp_filter_loose(
-        filter: &lsp_types::DocumentFilter,
-    ) -> DocumentFilter {
-        DocumentFilter {
+    pub(crate) fn from_lsp_filter_loose(filter: &lsp_types::DocumentFilter) -> Self {
+        Self {
             language_id: filter.language.clone(),
             // TODO: clean this up
             pattern: filter

@@ -56,7 +56,7 @@ impl SplitContentInfo {
         event_sink: ExtEventSink,
     ) -> SplitContent {
         match &self {
-            SplitContentInfo::EditorTab(tab_info) => {
+            Self::EditorTab(tab_info) => {
                 let tab_data = tab_info.to_data(
                     data,
                     parent_split.unwrap(),
@@ -67,7 +67,7 @@ impl SplitContentInfo {
                 );
                 SplitContent::EditorTab(tab_data.widget_id)
             }
-            SplitContentInfo::Split(split_info) => {
+            Self::Split(split_info) => {
                 let split_data = split_info.to_data(
                     data,
                     parent_split,
@@ -151,7 +151,7 @@ impl EditorTabChildInfo {
         event_sink: ExtEventSink,
     ) -> EditorTabChild {
         match &self {
-            EditorTabChildInfo::Editor(editor_info) => {
+            Self::Editor(editor_info) => {
                 let editor_data = editor_info.to_data(
                     data,
                     editor_tab_id,
@@ -166,7 +166,7 @@ impl EditorTabChildInfo {
                     editor_data.find_view_id,
                 )
             }
-            EditorTabChildInfo::Settings => {
+            Self::Settings => {
                 let editor = LapceEditorData::new(
                     None,
                     None,
@@ -183,14 +183,12 @@ impl EditorTabChildInfo {
                     keymap_input_view_id,
                 }
             }
-            EditorTabChildInfo::Plugin { volt_id, volt_name } => {
-                EditorTabChild::Plugin {
-                    widget_id: WidgetId::next(),
-                    volt_id: volt_id.to_string(),
-                    volt_name: volt_name.to_string(),
-                    editor_tab_id,
-                }
-            }
+            Self::Plugin { volt_id, volt_name } => EditorTabChild::Plugin {
+                widget_id: WidgetId::next(),
+                volt_id: volt_id.to_string(),
+                volt_name: volt_name.to_string(),
+                editor_tab_id,
+            },
         }
     }
 }

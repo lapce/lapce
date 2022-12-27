@@ -18,22 +18,22 @@ pub enum SplitDirection {
 impl SplitDirection {
     pub fn main_size(self, size: Size) -> f64 {
         match self {
-            SplitDirection::Vertical => size.width,
-            SplitDirection::Horizontal => size.height,
+            Self::Vertical => size.width,
+            Self::Horizontal => size.height,
         }
     }
 
     pub fn cross_size(self, size: Size) -> f64 {
         match self {
-            SplitDirection::Vertical => size.height,
-            SplitDirection::Horizontal => size.width,
+            Self::Vertical => size.height,
+            Self::Horizontal => size.width,
         }
     }
 
     pub fn start(self, rect: Rect) -> f64 {
         match self {
-            SplitDirection::Vertical => rect.x0,
-            SplitDirection::Horizontal => rect.y0,
+            Self::Vertical => rect.x0,
+            Self::Horizontal => rect.y0,
         }
     }
 }

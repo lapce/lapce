@@ -39,12 +39,8 @@ pub struct ListData<T: Clone, D: Data> {
     pub config: Arc<LapceConfig>,
 }
 impl<T: Clone, D: Data> ListData<T, D> {
-    pub fn new(
-        config: Arc<LapceConfig>,
-        parent: WidgetId,
-        held_data: D,
-    ) -> ListData<T, D> {
-        ListData {
+    pub fn new(config: Arc<LapceConfig>, parent: WidgetId, held_data: D) -> Self {
+        Self {
             parent,
             items: im::Vector::new(),
             data: held_data,
@@ -59,7 +55,7 @@ impl<T: Clone, D: Data> ListData<T, D> {
     /// This is typically what you need to use to ensure that it has the
     /// appropriately updated data when passing the data to the list's widget functions    
     /// Note that due to the usage of `Arc` and `im::Vector`, cloning is relatively cheap.
-    pub fn clone_with(&self, config: Arc<LapceConfig>) -> ListData<T, D> {
+    pub fn clone_with(&self, config: Arc<LapceConfig>) -> Self {
         let mut data = self.clone();
         data.update_data(config);
 

@@ -22,12 +22,12 @@ pub struct RichText {
 impl RichText {
     /// Create a new `RichText` object with the provided text.
     pub fn new(buffer: ArcStr) -> Self {
-        RichText::new_with_attributes(buffer, Default::default())
+        Self::new_with_attributes(buffer, Default::default())
     }
 
     /// Create a new `RichText`, providing explicit attributes.
     pub fn new_with_attributes(buffer: ArcStr, attributes: AttributeSpans) -> Self {
-        RichText {
+        Self {
             buffer,
             attrs: Arc::new(attributes),
             line_height: 0.0,

@@ -82,7 +82,7 @@ impl LapceEditorView {
         view_id: WidgetId,
         editor_id: WidgetId,
         find_view_id: Option<(WidgetId, WidgetId)>,
-    ) -> LapceEditorView {
+    ) -> Self {
         let header = LapceEditorHeader::new(view_id);
         let editor = LapceEditorContainer::new(view_id, editor_id);
         let find = find_view_id.map(|(find_view_id, find_editor_id)| {

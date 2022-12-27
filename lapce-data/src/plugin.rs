@@ -35,11 +35,11 @@ impl VoltIconKind {
         if let Ok(s) = std::str::from_utf8(buf) {
             let svg =
                 Svg::from_str(s).map_err(|_| anyhow::anyhow!("can't parse svg"))?;
-            Ok(VoltIconKind::Svg(Arc::new(svg)))
+            Ok(Self::Svg(Arc::new(svg)))
         } else {
             let image = PietImage::from_bytes(buf)
                 .map_err(|_| anyhow::anyhow!("can't resolve image"))?;
-            Ok(VoltIconKind::Image(Arc::new(image)))
+            Ok(Self::Image(Arc::new(image)))
         }
     }
 }
@@ -206,7 +206,7 @@ impl PluginData {
         }
 
         std::thread::spawn(move || {
-            let _ = PluginData::load_volts(tab_id, true, "", 0, None, event_sink);
+            let _ = Self::load_volts(tab_id, true, "", 0, None, event_sink);
         });
     }
 
@@ -282,7 +282,7 @@ impl PluginData {
         loading: Option<Arc<Mutex<bool>>>,
         event_sink: ExtEventSink,
     ) -> Result<()> {
-        match PluginData::query_volts(query, offset) {
+        match Self::query_volts(query, offset) {
             Ok(info) => {
                 for v in info.plugins.iter() {
                     {

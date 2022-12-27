@@ -893,7 +893,7 @@ impl LapceTabData {
             let workspace = self.workspace.clone();
             let palette_widget_id = self.palette.widget_id;
             thread::spawn(move || {
-                LapceTabData::terminal_update_process(
+                Self::terminal_update_process(
                     tab_id,
                     palette_widget_id,
                     receiver,
@@ -2322,19 +2322,19 @@ pub enum SplitContent {
 impl SplitContent {
     pub fn widget_id(&self) -> WidgetId {
         match &self {
-            SplitContent::EditorTab(widget_id) => *widget_id,
-            SplitContent::Split(split_id) => *split_id,
+            Self::EditorTab(widget_id) => *widget_id,
+            Self::Split(split_id) => *split_id,
         }
     }
 
     pub fn content_info(&self, data: &LapceTabData) -> SplitContentInfo {
         match &self {
-            SplitContent::EditorTab(widget_id) => {
+            Self::EditorTab(widget_id) => {
                 let editor_tab_data =
                     data.main_split.editor_tabs.get(widget_id).unwrap();
                 SplitContentInfo::EditorTab(editor_tab_data.tab_info(data))
             }
-            SplitContent::Split(split_id) => {
+            Self::Split(split_id) => {
                 let split_data = data.main_split.splits.get(split_id).unwrap();
                 SplitContentInfo::Split(split_data.split_info(data))
             }
@@ -2343,12 +2343,12 @@ impl SplitContent {
 
     pub fn set_split_id(&self, data: &mut LapceMainSplitData, split_id: WidgetId) {
         match &self {
-            SplitContent::EditorTab(editor_tab_id) => {
+            Self::EditorTab(editor_tab_id) => {
                 let editor_tab_data =
                     data.editor_tabs.get_mut(editor_tab_id).unwrap();
                 Arc::make_mut(editor_tab_data).split = split_id;
             }
-            SplitContent::Split(id) => {
+            Self::Split(id) => {
                 let split_data = data.splits.get_mut(id).unwrap();
                 Arc::make_mut(split_data).parent_split = Some(split_id);
             }
@@ -2357,11 +2357,11 @@ impl SplitContent {
 
     pub fn split_id(&self, data: &LapceMainSplitData) -> Option<WidgetId> {
         match &self {
-            SplitContent::EditorTab(editor_tab_id) => {
+            Self::EditorTab(editor_tab_id) => {
                 let editor_tab_data = data.editor_tabs.get(editor_tab_id).unwrap();
                 Some(editor_tab_data.split)
             }
-            SplitContent::Split(split_id) => {
+            Self::Split(split_id) => {
                 let split_data = data.splits.get(split_id).unwrap();
                 split_data.parent_split
             }
@@ -3059,7 +3059,7 @@ impl LapceMainSplitData {
         location: EditorLocation<P>,
         config: &LapceConfig,
     ) -> WidgetId {
-        self.jump_to_location_cb::<P, fn(&mut EventCtx, &mut LapceMainSplitData)>(
+        self.jump_to_location_cb::<P, fn(&mut EventCtx, &mut Self)>(
             ctx,
             editor_view_id,
             same_tab,
@@ -3071,7 +3071,7 @@ impl LapceMainSplitData {
 
     pub fn jump_to_location_cb<
         P: EditorPosition + Send + 'static,
-        F: Fn(&mut EventCtx, &mut LapceMainSplitData) + Send + 'static,
+        F: Fn(&mut EventCtx, &mut Self) + Send + 'static,
     >(
         &mut self,
         ctx: &mut EventCtx,
@@ -3241,7 +3241,7 @@ impl LapceMainSplitData {
         config: &LapceConfig,
     ) {
         // Unfortunately this is the 'nicest' way I know to pass in no callback to an Option<F>
-        self.go_to_location_cb::<P, fn(&mut EventCtx, &mut LapceMainSplitData)>(
+        self.go_to_location_cb::<P, fn(&mut EventCtx, &mut Self)>(
             ctx,
             editor_view_id,
             same_tab,
@@ -3255,7 +3255,7 @@ impl LapceMainSplitData {
     /// `cb` is called when the buffer is loaded, or immediately if it is already loaded.
     pub fn go_to_location_cb<
         P: EditorPosition + Send + 'static,
-        F: Fn(&mut EventCtx, &mut LapceMainSplitData) + Send + 'static,
+        F: Fn(&mut EventCtx, &mut Self) + Send + 'static,
     >(
         &mut self,
         ctx: &mut EventCtx,
@@ -4185,22 +4185,22 @@ pub enum EditorTabChild {
 impl EditorTabChild {
     pub fn widget_id(&self) -> WidgetId {
         match &self {
-            EditorTabChild::Editor(widget_id, _, _) => *widget_id,
-            EditorTabChild::Settings {
+            Self::Editor(widget_id, _, _) => *widget_id,
+            Self::Settings {
                 settings_widget_id, ..
             } => *settings_widget_id,
-            EditorTabChild::Plugin { widget_id, .. } => *widget_id,
+            Self::Plugin { widget_id, .. } => *widget_id,
         }
     }
 
     pub fn child_info(&self, data: &LapceTabData) -> EditorTabChildInfo {
         match &self {
-            EditorTabChild::Editor(view_id, _, _) => {
+            Self::Editor(view_id, _, _) => {
                 let editor_data = data.main_split.editors.get(view_id).unwrap();
                 EditorTabChildInfo::Editor(editor_data.editor_info(data))
             }
-            EditorTabChild::Settings { .. } => EditorTabChildInfo::Settings,
-            EditorTabChild::Plugin {
+            Self::Settings { .. } => EditorTabChildInfo::Settings,
+            Self::Plugin {
                 volt_id, volt_name, ..
             } => EditorTabChildInfo::Plugin {
                 volt_id: volt_id.to_string(),
@@ -4215,15 +4215,15 @@ impl EditorTabChild {
         editor_tab_widget_id: WidgetId,
     ) {
         match self {
-            EditorTabChild::Editor(view_id, _, _) => {
+            Self::Editor(view_id, _, _) => {
                 let editor_data = data.main_split.editors.get_mut(view_id).unwrap();
                 let editor_data = Arc::make_mut(editor_data);
                 editor_data.tab_id = Some(editor_tab_widget_id);
             }
-            EditorTabChild::Settings { editor_tab_id, .. } => {
+            Self::Settings { editor_tab_id, .. } => {
                 *editor_tab_id = editor_tab_widget_id;
             }
-            EditorTabChild::Plugin { editor_tab_id, .. } => {
+            Self::Plugin { editor_tab_id, .. } => {
                 *editor_tab_id = editor_tab_widget_id;
             }
         }
@@ -4276,7 +4276,7 @@ pub enum EditorView {
 
 impl EditorView {
     pub fn is_normal(&self) -> bool {
-        matches!(self, EditorView::Normal)
+        matches!(self, Self::Normal)
     }
 }
 
@@ -4355,7 +4355,7 @@ impl LapceEditorData {
         }
     }
 
-    pub fn copy(&self) -> LapceEditorData {
+    pub fn copy(&self) -> Self {
         let mut new_editor = self.clone();
         new_editor.view_id = WidgetId::next();
         new_editor.editor_id = WidgetId::next();
@@ -4472,21 +4472,18 @@ pub enum LapceWorkspaceType {
 
 impl LapceWorkspaceType {
     pub fn is_remote(&self) -> bool {
-        matches!(
-            self,
-            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL
-        )
+        matches!(self, Self::RemoteSSH(_) | Self::RemoteWSL)
     }
 }
 
 impl std::fmt::Display for LapceWorkspaceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LapceWorkspaceType::Local => f.write_str("Local"),
-            LapceWorkspaceType::RemoteSSH(ssh) => {
+            Self::Local => f.write_str("Local"),
+            Self::RemoteSSH(ssh) => {
                 write!(f, "ssh://{ssh}")
             }
-            LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
+            Self::RemoteWSL => f.write_str("WSL"),
         }
     }
 }

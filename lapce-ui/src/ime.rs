@@ -32,7 +32,7 @@ impl Default for ImeComponent {
             orgin: Point::ZERO,
             shift: 0,
         };
-        ImeComponent {
+        Self {
             ime_session: Arc::new(RefCell::new(session)),
             lock: Arc::new(Cell::new(ImeLock::None)),
         }
@@ -141,7 +141,7 @@ struct ImeSessionHandle {
 impl ImeSessionHandle {
     fn new(inner: Arc<RefCell<ImeSession>>) -> Self {
         let text = inner.borrow().text.clone();
-        ImeSessionHandle {
+        Self {
             inner,
             text,
             selection: Selection::default(),

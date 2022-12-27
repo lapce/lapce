@@ -28,12 +28,12 @@ pub struct PanelSize {
 impl PanelKind {
     pub fn svg_name(&self) -> &'static str {
         match &self {
-            PanelKind::FileExplorer => LapceIcons::FILE_EXPLORER,
-            PanelKind::SourceControl => LapceIcons::SCM,
-            PanelKind::Plugin => LapceIcons::EXTENSIONS,
-            PanelKind::Terminal => LapceIcons::TERMINAL,
-            PanelKind::Search => LapceIcons::SEARCH,
-            PanelKind::Problem => LapceIcons::PROBLEM,
+            Self::FileExplorer => LapceIcons::FILE_EXPLORER,
+            Self::SourceControl => LapceIcons::SCM,
+            Self::Plugin => LapceIcons::EXTENSIONS,
+            Self::Terminal => LapceIcons::TERMINAL,
+            Self::Search => LapceIcons::SEARCH,
+            Self::Problem => LapceIcons::PROBLEM,
         }
     }
 }
@@ -286,17 +286,17 @@ pub enum PanelPosition {
 
 impl PanelPosition {
     pub fn is_bottom(&self) -> bool {
-        matches!(self, PanelPosition::BottomLeft | PanelPosition::BottomRight)
+        matches!(self, Self::BottomLeft | Self::BottomRight)
     }
 
-    pub fn peer(&self) -> PanelPosition {
+    pub fn peer(&self) -> Self {
         match &self {
-            PanelPosition::LeftTop => PanelPosition::LeftBottom,
-            PanelPosition::LeftBottom => PanelPosition::LeftTop,
-            PanelPosition::BottomLeft => PanelPosition::BottomRight,
-            PanelPosition::BottomRight => PanelPosition::BottomLeft,
-            PanelPosition::RightTop => PanelPosition::RightBottom,
-            PanelPosition::RightBottom => PanelPosition::RightTop,
+            Self::LeftTop => Self::LeftBottom,
+            Self::LeftBottom => Self::LeftTop,
+            Self::BottomLeft => Self::BottomRight,
+            Self::BottomRight => Self::BottomLeft,
+            Self::RightTop => Self::RightBottom,
+            Self::RightBottom => Self::RightTop,
         }
     }
 }
@@ -310,22 +310,22 @@ pub enum PanelContainerPosition {
 
 impl PanelContainerPosition {
     pub fn is_bottom(&self) -> bool {
-        matches!(self, PanelContainerPosition::Bottom)
+        matches!(self, Self::Bottom)
     }
 
     pub fn first(&self) -> PanelPosition {
         match self {
-            PanelContainerPosition::Left => PanelPosition::LeftTop,
-            PanelContainerPosition::Bottom => PanelPosition::BottomLeft,
-            PanelContainerPosition::Right => PanelPosition::RightTop,
+            Self::Left => PanelPosition::LeftTop,
+            Self::Bottom => PanelPosition::BottomLeft,
+            Self::Right => PanelPosition::RightTop,
         }
     }
 
     pub fn second(&self) -> PanelPosition {
         match self {
-            PanelContainerPosition::Left => PanelPosition::LeftBottom,
-            PanelContainerPosition::Bottom => PanelPosition::BottomRight,
-            PanelContainerPosition::Right => PanelPosition::RightBottom,
+            Self::Left => PanelPosition::LeftBottom,
+            Self::Bottom => PanelPosition::BottomRight,
+            Self::Right => PanelPosition::RightBottom,
         }
     }
 }

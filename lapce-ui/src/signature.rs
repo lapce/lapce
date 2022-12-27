@@ -246,7 +246,7 @@ impl Signature {
     /// Padding between the label and the documentation
     const PADDING: f64 = 5.0;
 
-    fn new() -> Signature {
+    fn new() -> Self {
         Self {
             label: "".to_string(),
             label_offset: 0.0,

@@ -39,12 +39,12 @@ pub struct List<T: Clone + ListPaint<D> + PartialEq + 'static, D: Data> {
     >,
 }
 impl<T: Clone + ListPaint<D> + PartialEq + 'static, D: Data> List<T, D> {
-    pub fn new(scroll_id: WidgetId) -> List<T, D> {
+    pub fn new(scroll_id: WidgetId) -> Self {
         let content = LapceIdentityWrapper::wrap(
             LapceScroll::new(ListContent::new()).vertical(),
             scroll_id,
         );
-        List {
+        Self {
             content_rect: Rect::ZERO,
             scroll_id,
             content: WidgetPod::new(content),
@@ -180,8 +180,8 @@ struct ListContent<T: Clone + ListPaint<D> + 'static, D: Data> {
     _marker: PhantomData<(*const T, *const D)>,
 }
 impl<T: Clone + ListPaint<D> + 'static, D: Data> ListContent<T, D> {
-    pub fn new() -> ListContent<T, D> {
-        ListContent {
+    pub fn new() -> Self {
+        Self {
             mouse_down: 0,
             _marker: PhantomData,
         }

@@ -17,7 +17,7 @@ pub enum IndentStyle {
 
 impl IndentStyle {
     pub const LONGEST_INDENT: &'static str = "        "; // 8 spaces
-    pub const DEFAULT_INDENT: IndentStyle = IndentStyle::Spaces(4);
+    pub const DEFAULT_INDENT: Self = Self::Spaces(4);
 
     /// Creates an `IndentStyle` from an indentation string.
     ///
@@ -29,22 +29,22 @@ impl IndentStyle {
             !indent.is_empty() && indent.len() <= Self::LONGEST_INDENT.len()
         );
         if indent.starts_with(' ') {
-            IndentStyle::Spaces(indent.len() as u8)
+            Self::Spaces(indent.len() as u8)
         } else {
-            IndentStyle::Tabs
+            Self::Tabs
         }
     }
 
     #[inline]
     pub fn as_str(&self) -> &'static str {
         match *self {
-            IndentStyle::Tabs => "\t",
-            IndentStyle::Spaces(x) if x <= Self::LONGEST_INDENT.len() as u8 => {
+            Self::Tabs => "\t",
+            Self::Spaces(x) if x <= Self::LONGEST_INDENT.len() as u8 => {
                 Self::LONGEST_INDENT.split_at(x.into()).0
             }
             // Unsupported indentation style.  This should never happen,
             // but just in case fall back to the default of 4 spaces
-            IndentStyle::Spaces(n) => {
+            Self::Spaces(n) => {
                 debug_assert!(n > 0 && n <= Self::LONGEST_INDENT.len() as u8);
                 "    "
             }

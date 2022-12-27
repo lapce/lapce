@@ -66,55 +66,55 @@ pub enum PaletteType {
 impl PaletteType {
     fn string(&self) -> String {
         match &self {
-            PaletteType::Line => "/".to_string(),
-            PaletteType::DocumentSymbol => "@".to_string(),
-            PaletteType::WorkspaceSymbol => "#".to_string(),
-            PaletteType::GlobalSearch => "?".to_string(),
-            PaletteType::Workspace => ">".to_string(),
-            PaletteType::Command => ":".to_string(),
-            PaletteType::File
-            | PaletteType::Reference
-            | PaletteType::ColorTheme
-            | PaletteType::IconTheme
-            | PaletteType::SshHost
-            | PaletteType::Language => "".to_string(),
+            Self::Line => "/".to_string(),
+            Self::DocumentSymbol => "@".to_string(),
+            Self::WorkspaceSymbol => "#".to_string(),
+            Self::GlobalSearch => "?".to_string(),
+            Self::Workspace => ">".to_string(),
+            Self::Command => ":".to_string(),
+            Self::File
+            | Self::Reference
+            | Self::ColorTheme
+            | Self::IconTheme
+            | Self::SshHost
+            | Self::Language => "".to_string(),
         }
     }
 
     pub fn has_preview(&self) -> bool {
         matches!(
             self,
-            PaletteType::Line
-                | PaletteType::DocumentSymbol
-                | PaletteType::WorkspaceSymbol
-                | PaletteType::GlobalSearch
-                | PaletteType::Reference
+            Self::Line
+                | Self::DocumentSymbol
+                | Self::WorkspaceSymbol
+                | Self::GlobalSearch
+                | Self::Reference
         )
     }
 
     /// Get the palette type that it should be considered as based on the current
     /// [`PaletteType`] and the current input.
-    fn get_palette_type(current_type: &PaletteType, input: &str) -> PaletteType {
+    fn get_palette_type(current_type: &Self, input: &str) -> Self {
         match current_type {
-            PaletteType::Reference
-            | PaletteType::SshHost
-            | PaletteType::ColorTheme
-            | PaletteType::IconTheme
-            | PaletteType::Language => {
+            Self::Reference
+            | Self::SshHost
+            | Self::ColorTheme
+            | Self::IconTheme
+            | Self::Language => {
                 return current_type.clone();
             }
             _ => (),
         }
         if input.is_empty() {
-            return PaletteType::File;
+            return Self::File;
         }
         match input {
-            _ if input.starts_with('/') => PaletteType::Line,
-            _ if input.starts_with('@') => PaletteType::DocumentSymbol,
-            _ if input.starts_with('#') => PaletteType::WorkspaceSymbol,
-            _ if input.starts_with('>') => PaletteType::Workspace,
-            _ if input.starts_with(':') => PaletteType::Command,
-            _ => PaletteType::File,
+            _ if input.starts_with('/') => Self::Line,
+            _ if input.starts_with('@') => Self::DocumentSymbol,
+            _ if input.starts_with('#') => Self::WorkspaceSymbol,
+            _ if input.starts_with('>') => Self::Workspace,
+            _ if input.starts_with(':') => Self::Command,
+            _ => Self::File,
         }
     }
 }
@@ -168,7 +168,7 @@ impl PaletteItemContent {
         preview_editor_id: WidgetId,
     ) -> bool {
         match &self {
-            PaletteItemContent::File(_, full_path) => {
+            Self::File(_, full_path) => {
                 if !preview {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
@@ -177,7 +177,7 @@ impl PaletteItemContent {
                     ));
                 }
             }
-            PaletteItemContent::DocumentSymbol { range, .. } => {
+            Self::DocumentSymbol { range, .. } => {
                 let editor_id = if preview {
                     Some(preview_editor_id)
                 } else {
@@ -189,7 +189,7 @@ impl PaletteItemContent {
                     Target::Auto,
                 ));
             }
-            PaletteItemContent::WorkspaceSymbol { location, .. } => {
+            Self::WorkspaceSymbol { location, .. } => {
                 let editor_id = if preview {
                     Some(preview_editor_id)
                 } else {
@@ -205,7 +205,7 @@ impl PaletteItemContent {
                     Target::Auto,
                 ));
             }
-            PaletteItemContent::Line(line, _) => {
+            Self::Line(line, _) => {
                 let editor_id = if preview {
                     Some(preview_editor_id)
                 } else {
@@ -217,7 +217,7 @@ impl PaletteItemContent {
                     Target::Auto,
                 ));
             }
-            PaletteItemContent::ReferenceLocation(_rel_path, location) => {
+            Self::ReferenceLocation(_rel_path, location) => {
                 let editor_id = if preview {
                     Some(preview_editor_id)
                 } else {
@@ -233,7 +233,7 @@ impl PaletteItemContent {
                     Target::Auto,
                 ));
             }
-            PaletteItemContent::Workspace(workspace) => {
+            Self::Workspace(workspace) => {
                 if !preview {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
@@ -242,21 +242,21 @@ impl PaletteItemContent {
                     ));
                 }
             }
-            PaletteItemContent::ColorTheme(theme) => {
+            Self::ColorTheme(theme) => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::SetColorTheme(theme.to_string(), preview),
                     Target::Auto,
                 ));
             }
-            PaletteItemContent::IconTheme(theme) => {
+            Self::IconTheme(theme) => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::SetIconTheme(theme.to_string(), preview),
                     Target::Auto,
                 ));
             }
-            PaletteItemContent::Language(name) => {
+            Self::Language(name) => {
                 if !preview {
                     let name = name.to_string();
                     ctx.submit_command(Command::new(
@@ -266,7 +266,7 @@ impl PaletteItemContent {
                     ))
                 }
             }
-            PaletteItemContent::Command(command) => {
+            Self::Command(command) => {
                 if !preview {
                     ctx.submit_command(Command::new(
                         LAPCE_COMMAND,
@@ -276,7 +276,7 @@ impl PaletteItemContent {
                 }
                 return !command.is_palette_command();
             }
-            PaletteItemContent::TerminalLine(line, _content) => {
+            Self::TerminalLine(line, _content) => {
                 if !preview {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
@@ -285,7 +285,7 @@ impl PaletteItemContent {
                     ));
                 }
             }
-            PaletteItemContent::SshHost(ssh) => {
+            Self::SshHost(ssh) => {
                 if !preview {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,

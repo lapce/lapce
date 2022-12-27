@@ -64,10 +64,10 @@ pub enum ResponseHandler<Resp, Error> {
 impl<Resp, Error> ResponseHandler<Resp, Error> {
     fn invoke(self, result: Result<Resp, Error>) {
         match self {
-            ResponseHandler::Chan(tx) => {
+            Self::Chan(tx) => {
                 let _ = tx.send(result);
             }
-            ResponseHandler::Callback(f) => f.call(result),
+            Self::Callback(f) => f.call(result),
         }
     }
 }

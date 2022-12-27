@@ -35,16 +35,16 @@ enum WordBoundary {
 
 impl WordBoundary {
     fn is_start(&self) -> bool {
-        *self == WordBoundary::Start || *self == WordBoundary::Both
+        *self == Self::Start || *self == Self::Both
     }
 
     fn is_end(&self) -> bool {
-        *self == WordBoundary::End || *self == WordBoundary::Both
+        *self == Self::End || *self == Self::Both
     }
 
     #[allow(unused)]
     fn is_boundary(&self) -> bool {
-        *self != WordBoundary::Interior
+        *self != Self::Interior
     }
 }
 

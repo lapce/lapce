@@ -372,9 +372,7 @@ struct LapceSettings {
 }
 
 impl LapceSettings {
-    pub fn new_scroll(
-        kind: LapceSettingsKind,
-    ) -> LapceScroll<LapceTabData, LapceSettings> {
+    pub fn new_scroll(kind: LapceSettingsKind) -> LapceScroll<LapceTabData, Self> {
         LapceScroll::new(Self {
             widget_id: WidgetId::next(),
             kind,
@@ -635,7 +633,7 @@ impl SettingsItemInfo {
     const SAVE_DELAY: Duration = Duration::from_millis(500);
 
     fn new(key: String, kind: String, desc: String) -> Self {
-        SettingsItemInfo {
+        Self {
             width: 0.0,
             padding: 10.0,
             key,
@@ -837,7 +835,7 @@ struct EmptySettingsItem {
 }
 impl EmptySettingsItem {
     fn new(key: String, kind: String, desc: String) -> Self {
-        EmptySettingsItem {
+        Self {
             info: SettingsItemInfo::new(key, kind, desc),
         }
     }
@@ -1220,9 +1218,9 @@ pub enum ThemeKind {
 impl Display for ThemeKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            ThemeKind::Base => "color-theme.base",
-            ThemeKind::UI => "color-theme.ui",
-            ThemeKind::Syntax => "color-theme.syntax",
+            Self::Base => "color-theme.base",
+            Self::UI => "color-theme.ui",
+            Self::Syntax => "color-theme.syntax",
         })
     }
 }

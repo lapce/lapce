@@ -35,22 +35,22 @@ pub struct Selection {
     last_inserted: usize,
 }
 
-impl AsRef<Selection> for Selection {
-    fn as_ref(&self) -> &Selection {
+impl AsRef<Self> for Selection {
+    fn as_ref(&self) -> &Self {
         self
     }
 }
 
 impl SelRegion {
     /// Creates new [`SelRegion`] from `start` and `end` offset.
-    pub fn new(start: usize, end: usize, horiz: Option<ColPosition>) -> SelRegion {
-        SelRegion { start, end, horiz }
+    pub fn new(start: usize, end: usize, horiz: Option<ColPosition>) -> Self {
+        Self { start, end, horiz }
     }
 
     /// Creates a caret [`SelRegion`],
     /// i.e. `start` and `end` position are both set to `offset` value.
-    pub fn caret(offset: usize) -> SelRegion {
-        SelRegion {
+    pub fn caret(offset: usize) -> Self {
+        Self {
             start: offset,
             end: offset,
             horiz: None,
@@ -110,7 +110,7 @@ impl SelRegion {
     /// let  other = SelRegion::new(3, 4, None);
     /// assert_eq!(region.merge_with(other), SelRegion::new(1, 4, None));
     /// ```
-    pub fn merge_with(self, other: SelRegion) -> SelRegion {
+    pub fn merge_with(self, other: Self) -> Self {
         let is_forward = self.end >= self.start;
         let new_min = min(self.min(), other.min());
         let new_max = max(self.max(), other.max());
@@ -119,10 +119,10 @@ impl SelRegion {
         } else {
             (new_max, new_min)
         };
-        SelRegion::new(start, end, None)
+        Self::new(start, end, None)
     }
 
-    fn should_merge(self, other: SelRegion) -> bool {
+    fn should_merge(self, other: Self) -> bool {
         other.min() < self.max()
             || ((self.is_caret() || other.is_caret()) && other.min() == self.max())
     }
@@ -134,16 +134,16 @@ impl SelRegion {
 
 impl Selection {
     /// Creates a new empty [`Selection`]
-    pub fn new() -> Selection {
-        Selection {
+    pub fn new() -> Self {
+        Self {
             regions: Vec::new(),
             last_inserted: 0,
         }
     }
 
     /// Creates a caret [`Selection`], i.e. a selection with a single caret [`SelRegion`]
-    pub fn caret(offset: usize) -> Selection {
-        Selection {
+    pub fn caret(offset: usize) -> Self {
+        Self {
             regions: vec![SelRegion::caret(offset)],
             last_inserted: 0,
         }
@@ -151,8 +151,8 @@ impl Selection {
 
     /// Creates a region [`Selection`], i.e. a selection with a single [`SelRegion`]
     /// from `start` to `end` position
-    pub fn region(start: usize, end: usize) -> Selection {
-        Selection {
+    pub fn region(start: usize, end: usize) -> Self {
+        Self {
             regions: vec![SelRegion {
                 start,
                 end,
@@ -210,7 +210,7 @@ impl Selection {
     ///     SelRegion::caret(6),
     ///     SelRegion::caret(24)
     /// ]);
-    pub fn min(&self) -> Selection {
+    pub fn min(&self) -> Self {
         let mut selection = Self::new();
         for region in &self.regions {
             let new_region = SelRegion::new(region.min(), region.min(), None);
@@ -446,8 +446,8 @@ impl Selection {
         delta: &RopeDelta,
         after: bool,
         drift: InsertDrift,
-    ) -> Selection {
-        let mut result = Selection::new();
+    ) -> Self {
+        let mut result = Self::new();
         let mut transformer = Transformer::new(delta);
         for region in self.regions() {
             let is_region_forward = region.start < region.end;

@@ -80,23 +80,23 @@ pub enum CommandKind {
 impl CommandKind {
     pub fn desc(&self) -> Option<&'static str> {
         match &self {
-            CommandKind::Workbench(cmd) => cmd.get_message(),
-            CommandKind::Edit(cmd) => cmd.get_message(),
-            CommandKind::Move(cmd) => cmd.get_message(),
-            CommandKind::Focus(cmd) => cmd.get_message(),
-            CommandKind::MotionMode(cmd) => cmd.get_message(),
-            CommandKind::MultiSelection(cmd) => cmd.get_message(),
+            Self::Workbench(cmd) => cmd.get_message(),
+            Self::Edit(cmd) => cmd.get_message(),
+            Self::Move(cmd) => cmd.get_message(),
+            Self::Focus(cmd) => cmd.get_message(),
+            Self::MotionMode(cmd) => cmd.get_message(),
+            Self::MultiSelection(cmd) => cmd.get_message(),
         }
     }
 
     pub fn str(&self) -> &'static str {
         match &self {
-            CommandKind::Workbench(cmd) => cmd.into(),
-            CommandKind::Edit(cmd) => cmd.into(),
-            CommandKind::Move(cmd) => cmd.into(),
-            CommandKind::Focus(cmd) => cmd.into(),
-            CommandKind::MotionMode(cmd) => cmd.into(),
-            CommandKind::MultiSelection(cmd) => cmd.into(),
+            Self::Workbench(cmd) => cmd.into(),
+            Self::Edit(cmd) => cmd.into(),
+            Self::Move(cmd) => cmd.into(),
+            Self::Focus(cmd) => cmd.into(),
+            Self::MotionMode(cmd) => cmd.into(),
+            Self::MultiSelection(cmd) => cmd.into(),
         }
     }
 }

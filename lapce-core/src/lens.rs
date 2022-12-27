@@ -83,8 +83,8 @@ impl NodeInfo for LensInfo {
         self.0 += other.0;
     }
 
-    fn compute_info(l: &LensLeaf) -> LensInfo {
-        LensInfo(l.total_height)
+    fn compute_info(l: &LensLeaf) -> Self {
+        Self(l.total_height)
     }
 }
 
@@ -97,11 +97,7 @@ impl Leaf for LensLeaf {
         self.data.len() >= MIN_LEAF
     }
 
-    fn push_maybe_split(
-        &mut self,
-        other: &LensLeaf,
-        iv: Interval,
-    ) -> Option<LensLeaf> {
+    fn push_maybe_split(&mut self, other: &Self, iv: Interval) -> Option<Self> {
         let (iv_start, iv_end) = iv.start_end();
         let mut accum = 0;
         let mut added_len = 0;
@@ -144,7 +140,7 @@ impl Leaf for LensLeaf {
             let new_height = new.iter().map(|d| d.len * d.line_height).sum();
             self.len -= new_len;
             self.total_height -= new_height;
-            Some(LensLeaf {
+            Some(Self {
                 len: new_len,
                 data: new,
                 total_height: new_height,
@@ -263,8 +259,8 @@ pub struct LensBuilder {
 }
 
 impl Default for LensBuilder {
-    fn default() -> LensBuilder {
-        LensBuilder {
+    fn default() -> Self {
+        Self {
             b: TreeBuilder::new(),
             leaf: LensLeaf::default(),
         }
@@ -272,8 +268,8 @@ impl Default for LensBuilder {
 }
 
 impl LensBuilder {
-    pub fn new() -> LensBuilder {
-        LensBuilder::default()
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn add_section(&mut self, len: usize, line_height: usize) {

@@ -29,17 +29,14 @@ impl Button {
     pub fn new(
         data: &LapceTabData,
         text: impl Into<LabelText<LapceTabData>>,
-    ) -> Button {
-        Button::from_label(data, Label::new(text))
+    ) -> Self {
+        Self::from_label(data, Label::new(text))
     }
 
     /// Create a new button with the provided [`Label`].
-    pub fn from_label(
-        data: &LapceTabData,
-        mut label: Label<LapceTabData>,
-    ) -> Button {
+    pub fn from_label(data: &LapceTabData, mut label: Label<LapceTabData>) -> Self {
         update_label(&data.config, &mut label);
-        Button {
+        Self {
             label,
             label_size: Size::ZERO,
         }

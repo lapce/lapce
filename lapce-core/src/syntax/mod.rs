@@ -129,14 +129,11 @@ pub struct SyntaxLayers {
     root: LayerId,
 }
 impl SyntaxLayers {
-    pub fn new_empty(config: Arc<HighlightConfiguration>) -> SyntaxLayers {
+    pub fn new_empty(config: Arc<HighlightConfiguration>) -> Self {
         Self::new(None, config)
     }
 
-    pub fn new(
-        source: Option<&Rope>,
-        config: Arc<HighlightConfiguration>,
-    ) -> SyntaxLayers {
+    pub fn new(source: Option<&Rope>, config: Arc<HighlightConfiguration>) -> Self {
         let root_layer = LanguageLayer {
             tree: None,
             config,
@@ -153,7 +150,7 @@ impl SyntaxLayers {
         let mut layers = HopSlotMap::default();
         let root = layers.insert(root_layer);
 
-        let mut syntax = SyntaxLayers { root, layers };
+        let mut syntax = Self { root, layers };
 
         if let Some(source) = source {
             let _ = syntax.update(0, 0, source, None);
@@ -552,14 +549,14 @@ impl std::fmt::Debug for Syntax {
 }
 
 impl Syntax {
-    pub fn init(path: &Path) -> Result<Syntax, HighlightIssue> {
+    pub fn init(path: &Path) -> Result<Self, HighlightIssue> {
         LapceLanguage::from_path(path)
-            .map(Syntax::from_language)
+            .map(Self::from_language)
             .unwrap_or(Err(HighlightIssue::NotAvailable))
     }
 
-    pub fn from_language(language: LapceLanguage) -> Result<Syntax, HighlightIssue> {
-        get_highlight_config(language).map(|x| Syntax {
+    pub fn from_language(language: LapceLanguage) -> Result<Self, HighlightIssue> {
+        get_highlight_config(language).map(|x| Self {
             rev: 0,
             language,
             text: Rope::from(""),

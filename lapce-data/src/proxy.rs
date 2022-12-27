@@ -853,7 +853,7 @@ struct WslDistro {
 }
 
 impl WslDistro {
-    fn all() -> Result<Vec<WslDistro>> {
+    fn all() -> Result<Vec<Self>> {
         let cmd = new_command("wsl")
             .arg("-l")
             .arg("-v")
@@ -875,7 +875,7 @@ impl WslDistro {
                     .trim_start()
                     .split(' ')
                     .next()?;
-                Some(WslDistro {
+                Some(Self {
                     name: name.to_string(),
                     default,
                 })
