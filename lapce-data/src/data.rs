@@ -182,7 +182,7 @@ impl LapceData {
             }
         } else if files.is_empty() {
             if let Ok(app) = db.get_app() {
-                for info in app.windows.iter() {
+                for info in &app.windows {
                     let window = LapceWindowData::new(
                         keypress.clone(),
                         latest_release.clone(),

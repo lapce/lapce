@@ -169,7 +169,7 @@ impl Metric<LensInfo> for LensMetric {
         } else {
             let mut line = 0;
             let mut accum = 0;
-            for data in l.data.iter() {
+            for data in &l.data {
                 let leaf_height = data.line_height * data.len;
                 let accum_height = accum + leaf_height;
                 if accum_height > in_measured_units {
@@ -185,7 +185,7 @@ impl Metric<LensInfo> for LensMetric {
     fn from_base_units(l: &LensLeaf, in_base_units: usize) -> usize {
         let mut line = 0;
         let mut accum = 0;
-        for data in l.data.iter() {
+        for data in &l.data {
             if in_base_units < line + data.len {
                 return accum + (in_base_units - line) * data.line_height;
             }
@@ -307,7 +307,7 @@ impl<'a> Iterator for LensIter<'a> {
             self.cursor.next::<LensMetric>();
 
             let mut lines = 0;
-            for data in leaf.data.iter() {
+            for data in &leaf.data {
                 if leaf_pos < data.len + lines {
                     return Some((line, data.line_height));
                 }

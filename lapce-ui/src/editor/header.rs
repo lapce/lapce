@@ -87,7 +87,7 @@ impl LapceEditorHeader {
     }
 
     pub fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
-        for icon in self.icons.iter() {
+        for icon in &self.icons {
             if icon.rect.contains(mouse_event.pos) {
                 ctx.submit_command(icon.command.clone());
             }
@@ -95,7 +95,7 @@ impl LapceEditorHeader {
     }
 
     pub fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
-        for icon in self.icons.iter() {
+        for icon in &self.icons {
             if icon.rect.contains(mouse_event.pos) {
                 return true;
             }
@@ -213,7 +213,7 @@ impl LapceEditorHeader {
         }
 
         if self.view_is_hot {
-            for icon in self.icons.iter() {
+            for icon in &self.icons {
                 if icon.rect.contains(self.mouse_pos) {
                     ctx.fill(
                         icon.rect,

@@ -51,7 +51,7 @@ impl LapceEditorTabHeader {
     }
 
     fn icon_hit_test(&mut self, mouse_event: &MouseEvent) -> bool {
-        for icon in self.icons.iter() {
+        for icon in &self.icons {
             if icon.rect.contains(mouse_event.pos) {
                 self.hover_rect = Some(icon.rect);
                 return true;
@@ -61,7 +61,7 @@ impl LapceEditorTabHeader {
     }
 
     fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
-        for icon in self.icons.iter() {
+        for icon in &self.icons {
             if icon.rect.contains(mouse_event.pos) {
                 ctx.submit_command(icon.command.clone());
             }
@@ -430,7 +430,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
         }
 
         let svg_padding = 4.0;
-        for icon in self.icons.iter() {
+        for icon in &self.icons {
             if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
                     icon.rect,

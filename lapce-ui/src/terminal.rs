@@ -131,7 +131,7 @@ impl Widget<LapceTabData> for TerminalPanel {
             _ => (),
         }
         self.header.event(ctx, event, data, env);
-        for (tab_id, tab) in self.tabs.iter_mut() {
+        for (tab_id, tab) in &mut self.tabs {
             let active_id =
                 data.terminal.active_terminal_split().map(|s| &s.split_id);
             if event.should_propagate_to_hidden() || Some(tab_id) == active_id {
@@ -187,7 +187,7 @@ impl Widget<LapceTabData> for TerminalPanel {
         env: &Env,
     ) {
         self.header.lifecycle(ctx, event, data, env);
-        for (_, tab) in self.tabs.iter_mut() {
+        for (_, tab) in &mut self.tabs {
             tab.lifecycle(ctx, event, data, env);
         }
     }
@@ -200,7 +200,7 @@ impl Widget<LapceTabData> for TerminalPanel {
         env: &Env,
     ) {
         self.header.update(ctx, data, env);
-        for (_, tab) in self.tabs.iter_mut() {
+        for (_, tab) in &mut self.tabs {
             tab.update(ctx, data, env);
         }
         if !data.terminal.same(&old_data.terminal) {
@@ -533,7 +533,7 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContent {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        for (_, item) in self.items.iter_mut() {
+        for (_, item) in &mut self.items {
             item.event(ctx, event, data, env);
         }
     }
@@ -545,7 +545,7 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContent {
         data: &LapceTabData,
         env: &Env,
     ) {
-        for (_, item) in self.items.iter_mut() {
+        for (_, item) in &mut self.items {
             item.lifecycle(ctx, event, data, env);
         }
     }
@@ -559,7 +559,7 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContent {
     ) {
         if !data.terminal.same(&old_data.terminal) || self.items.is_empty() {
             if !data.terminal.tabs.ptr_eq(&old_data.terminal.tabs) {
-                for (_, item) in self.items.iter_mut() {
+                for (_, item) in &mut self.items {
                     item.update(ctx, data, env);
                 }
             }
@@ -1036,7 +1036,7 @@ impl LapceTerminalHeader {
     }
 
     fn icon_hit_test(&mut self, mouse_event: &MouseEvent) -> bool {
-        for icon in self.icons.iter() {
+        for icon in &self.icons {
             if icon.rect.contains(mouse_event.pos) {
                 self.hover_rect = Some(icon.rect);
                 return true;
@@ -1046,7 +1046,7 @@ impl LapceTerminalHeader {
     }
 
     fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
-        for icon in self.icons.iter() {
+        for icon in &self.icons {
             if icon.rect.contains(mouse_event.pos) {
                 ctx.submit_command(icon.command.clone());
             }
@@ -1115,7 +1115,7 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         if self.view_is_hot {
-            for icon in self.icons.iter() {
+            for icon in &self.icons {
                 if icon.rect.contains(self.mouse_pos) {
                     ctx.fill(
                         icon.rect,

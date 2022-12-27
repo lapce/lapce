@@ -166,7 +166,7 @@ impl Snippet {
 
     #[inline]
     fn write_text_to<Buffer: fmt::Write>(&self, buf: &mut Buffer) -> fmt::Result {
-        for snippet_element in self.elements.iter() {
+        for snippet_element in &self.elements {
             snippet_element.write_text_to(buf)?
         }
         fmt::Result::Ok(())
@@ -216,7 +216,7 @@ impl FromStr for Snippet {
 
 impl Display for Snippet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for snippet_element in self.elements.iter() {
+        for snippet_element in &self.elements {
             fmt::Display::fmt(snippet_element, f)?;
         }
         fmt::Result::Ok(())
@@ -459,7 +459,7 @@ impl CompletionData {
                     self.matcher.fuzzy_indices(filter_text, &self.input)
                 {
                     if shift > 0 {
-                        for idx in indices.iter_mut() {
+                        for idx in &mut indices {
                             *idx += shift;
                         }
                     }

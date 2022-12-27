@@ -725,7 +725,7 @@ impl LapceDb {
         let mut workspaces = self.recent_workspaces().unwrap_or_default();
 
         let mut exits = false;
-        for w in workspaces.iter_mut() {
+        for w in &mut workspaces {
             if w.path == workspace.path && w.kind == workspace.kind {
                 w.last_open = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)

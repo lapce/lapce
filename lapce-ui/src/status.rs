@@ -95,13 +95,13 @@ impl LapceStatus {
     }
 
     fn icon_hit_test(&mut self, mouse_event: &MouseEvent) -> bool {
-        for icon in self.panel_icons.iter() {
+        for icon in &self.panel_icons {
             if icon.rect.contains(mouse_event.pos) {
                 self.active_icon = Some(icon.rect);
                 return true;
             }
         }
-        for (rect, _) in self.clickable_items.iter() {
+        for (rect, _) in &self.clickable_items {
             if rect.contains(mouse_event.pos) {
                 self.active_icon = Some(*rect);
                 return true;
@@ -111,13 +111,13 @@ impl LapceStatus {
     }
 
     fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
-        for icon in self.panel_icons.iter() {
+        for icon in &self.panel_icons {
             if icon.rect.contains(mouse_event.pos) {
                 ctx.submit_command(icon.command.clone());
                 return;
             }
         }
-        for (rect, cmd) in self.clickable_items.iter() {
+        for (rect, cmd) in &self.clickable_items {
             if rect.contains(mouse_event.pos) {
                 ctx.submit_command(cmd.clone());
                 return;
@@ -575,7 +575,7 @@ impl Widget<LapceTabData> for LapceStatus {
         }
 
         let icon_padding = (size.height - self.icon_size) / 2.0;
-        for icon in self.panel_icons.iter() {
+        for icon in &self.panel_icons {
             if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
                     icon.rect,

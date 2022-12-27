@@ -141,7 +141,7 @@ impl AlertBoxContent {
     }
 
     fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
-        for rect in self.buttons.iter() {
+        for rect in &self.buttons {
             if rect.contains(mouse_event.pos) {
                 return true;
             }
@@ -324,7 +324,7 @@ impl Widget<LapceTabData> for AlertBoxContent {
 
         let mut y = self.msg_origin.y + msg_layout.size().height + self.padding;
         self.buttons.clear();
-        for _ in data.alert.content.buttons.iter() {
+        for _ in &data.alert.content.buttons {
             let rect = Rect::ZERO
                 .with_origin(Point::new(
                     self.width / 2.0,

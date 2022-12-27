@@ -143,11 +143,11 @@ impl Widget<LapceTabData> for LapceEditorBreadCrumb {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        for (point, text_layout) in self.text_layouts.iter() {
+        for (point, text_layout) in &self.text_layouts {
             ctx.draw_text(text_layout, *point);
         }
 
-        for (rect, svg) in self.svgs.iter() {
+        for (rect, svg) in &self.svgs {
             ctx.draw_svg(
                 svg,
                 *rect,

@@ -903,7 +903,7 @@ impl Editor {
 
                 let (delta, inval_lines, edits) = if had_comment {
                     let mut selection = Selection::new();
-                    for (line, indent, len) in lines.iter() {
+                    for (line, indent, len) in &lines {
                         let start = buffer.offset_of_line(*line) + indent;
                         selection.add_region(SelRegion::new(
                             start,
@@ -914,7 +914,7 @@ impl Editor {
                     buffer.edit(&[(&selection, "")], EditType::ToggleComment)
                 } else {
                     let mut selection = Selection::new();
-                    for (line, _, _) in lines.iter() {
+                    for (line, _, _) in &lines {
                         let start = buffer.offset_of_line(*line) + smallest_indent;
                         selection.add_region(SelRegion::new(start, start, None))
                     }

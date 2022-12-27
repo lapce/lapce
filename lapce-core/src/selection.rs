@@ -175,7 +175,7 @@ impl Selection {
     /// assert!(!selection.contains(3));
     /// ```
     pub fn contains(&self, offset: usize) -> bool {
-        for region in self.regions.iter() {
+        for region in &self.regions {
             if region.contains(offset) {
                 return true;
             }

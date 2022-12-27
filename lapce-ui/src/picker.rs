@@ -176,7 +176,7 @@ impl FilePickerPwd {
     }
 
     fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
-        for (rect, _) in self.icons.iter() {
+        for (rect, _) in &self.icons {
             if rect.contains(mouse_event.pos) {
                 return true;
             }
@@ -285,7 +285,7 @@ impl Widget<LapceTabData> for FilePickerPwd {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let size = ctx.size();
 
-        for (rect, svg) in self.icons.iter() {
+        for (rect, svg) in &self.icons {
             ctx.stroke(
                 rect,
                 data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
@@ -674,7 +674,7 @@ impl FilePickerControl {
     }
 
     fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
-        for btn in self.buttons.iter() {
+        for btn in &self.buttons {
             if btn.rect.contains(mouse_event.pos) {
                 return true;
             }
@@ -688,7 +688,7 @@ impl FilePickerControl {
         data: &mut LapceTabData,
         mouse_event: &MouseEvent,
     ) {
-        for btn in self.buttons.iter() {
+        for btn in &self.buttons {
             if btn.rect.contains(mouse_event.pos) && btn.command.is(LAPCE_UI_COMMAND)
             {
                 let command = btn.command.get_unchecked(LAPCE_UI_COMMAND);
@@ -865,7 +865,7 @@ impl Widget<LapceTabData> for FilePickerControl {
             1.0,
         );
 
-        for btn in self.buttons.iter() {
+        for btn in &self.buttons {
             ctx.stroke(
                 btn.rect,
                 data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),

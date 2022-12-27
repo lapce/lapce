@@ -970,7 +970,7 @@ impl LapceEditor {
             );
             let y = info.y + text_layout.text.y_offset(info.line_height);
             let height = text_layout.text.size().height;
-            for (x0, x1, style) in text_layout.extra_style.iter() {
+            for (x0, x1, style) in &text_layout.extra_style {
                 if let Some(bg) = &style.bg_color {
                     let x1 = x1.unwrap_or(self_size.width);
                     ctx.fill(

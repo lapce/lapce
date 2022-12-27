@@ -621,13 +621,13 @@ impl Title {
     }
 
     fn icon_hit_test(&mut self, mouse_event: &MouseEvent) -> bool {
-        for (rect, _) in self.menus.iter() {
+        for (rect, _) in &self.menus {
             if rect.contains(mouse_event.pos) {
                 self.hover_rect = Some(*rect);
                 return true;
             }
         }
-        for (rect, _) in self.window_controls.iter() {
+        for (rect, _) in &self.window_controls {
             if rect.contains(mouse_event.pos) {
                 self.hover_rect = Some(*rect);
                 return true;
@@ -637,7 +637,7 @@ impl Title {
     }
 
     fn mouse_down(&mut self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
-        for (rect, command) in self.menus.iter() {
+        for (rect, command) in &self.menus {
             if rect.contains(mouse_event.pos) {
                 self.holding_click_rect = Some(*rect);
                 ctx.submit_command(command.clone());
@@ -645,7 +645,7 @@ impl Title {
                 return;
             }
         }
-        for (rect, _command) in self.window_controls.iter() {
+        for (rect, _command) in &self.window_controls {
             if rect.contains(mouse_event.pos) {
                 self.holding_click_rect = Some(*rect);
                 ctx.set_handled();
@@ -655,7 +655,7 @@ impl Title {
     }
 
     fn mouse_up(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
-        for (rect, command) in self.window_controls.iter() {
+        for (rect, command) in &self.window_controls {
             if rect.contains(mouse_event.pos)
                 && self.holding_click_rect.eq(&Some(*rect))
             {
@@ -975,11 +975,11 @@ impl Widget<LapceTabData> for Title {
             self.palette.paint(ctx, data, env);
         }
 
-        for (rect, color) in self.rects.iter() {
+        for (rect, color) in &self.rects {
             ctx.fill(rect, color);
         }
 
-        for (svg, rect, color, bg_color) in self.svgs.iter() {
+        for (svg, rect, color, bg_color) in &self.svgs {
             let hover_rect = rect.inflate(10.0, 10.0);
             if hover_rect.contains(self.mouse_pos)
                 && bg_color.is_some()
@@ -1001,15 +1001,15 @@ impl Widget<LapceTabData> for Title {
             }
         }
 
-        for (circle, color) in self.circles.iter() {
+        for (circle, color) in &self.circles {
             ctx.fill(circle, color);
         }
 
-        for (text_layout, point) in self.text_layouts.iter() {
+        for (text_layout, point) in &self.text_layouts {
             ctx.draw_text(text_layout, *point);
         }
 
-        for line in self.borders.iter() {
+        for line in &self.borders {
             ctx.stroke(
                 line,
                 data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),

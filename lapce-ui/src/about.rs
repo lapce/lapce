@@ -143,7 +143,7 @@ impl AboutBoxContent {
     }
 
     fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
-        for (rect, _) in self.commands.iter() {
+        for (rect, _) in &self.commands {
             if rect.contains(mouse_event.pos) {
                 return true;
             }
@@ -159,7 +159,7 @@ impl AboutBoxContent {
     }
 
     fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
-        for (rect, command) in self.commands.iter() {
+        for (rect, command) in &self.commands {
             if rect.contains(mouse_event.pos) {
                 ctx.submit_command(command.clone());
                 ctx.set_handled();

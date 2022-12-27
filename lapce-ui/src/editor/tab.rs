@@ -476,7 +476,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
         }
         self.header.event(ctx, event, data, env);
         if event.should_propagate_to_hidden() {
-            for child in self.children.iter_mut() {
+            for child in &mut self.children {
                 child.event(ctx, event, data, env);
             }
         } else {
@@ -493,7 +493,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
         env: &Env,
     ) {
         self.header.lifecycle(ctx, event, data, env);
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.lifecycle(ctx, event, data, env);
         }
     }
@@ -506,7 +506,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
         env: &Env,
     ) {
         self.header.update(ctx, data, env);
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.update(ctx, data, env);
         }
     }

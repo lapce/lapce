@@ -464,7 +464,7 @@ impl LapceTab {
     fn handle_panel_drop(&mut self, _ctx: &mut EventCtx, data: &mut LapceTabData) {
         if let Some((_, _, DragContent::Panel(kind, _))) = data.drag.as_ref() {
             let rects = self.panel_rects();
-            for (p, rect) in rects.iter() {
+            for (p, rect) in &rects {
                 if !rect.contains(self.mouse_pos) {
                     continue;
                 }
@@ -501,7 +501,7 @@ impl LapceTab {
     fn paint_drag_on_panel(&self, ctx: &mut PaintCtx, data: &LapceTabData) {
         if let Some((_, _, DragContent::Panel(_, _))) = data.drag.as_ref() {
             let rects = self.panel_rects();
-            for (_, rect) in rects.iter() {
+            for (_, rect) in &rects {
                 if !rect.contains(self.mouse_pos) {
                     continue;
                 }

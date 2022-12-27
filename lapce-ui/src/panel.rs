@@ -431,7 +431,7 @@ impl Widget<LapceTabData> for PanelContainer {
         self.switcher0.event(ctx, event, data, env);
         self.switcher1.event(ctx, event, data, env);
         if event.should_propagate_to_hidden() {
-            for (_, panel) in self.panels.iter_mut() {
+            for (_, panel) in &mut self.panels {
                 panel.event(ctx, event, data, env);
             }
         } else {
@@ -465,7 +465,7 @@ impl Widget<LapceTabData> for PanelContainer {
     ) {
         self.switcher0.lifecycle(ctx, event, data, env);
         self.switcher1.lifecycle(ctx, event, data, env);
-        for (_, panel) in self.panels.iter_mut() {
+        for (_, panel) in &mut self.panels {
             panel.lifecycle(ctx, event, data, env);
         }
     }
@@ -987,7 +987,7 @@ impl Widget<LapceTabData> for PanelSwitcher {
                 }
                 self.mouse_pos = mouse_event.pos;
                 let icon_padding = Self::icon_padding(data);
-                for (_, icon) in self.icons.iter() {
+                for (_, icon) in &self.icons {
                     let rect = icon.rect.inflate(icon_padding, icon_padding);
                     if rect.contains(self.mouse_pos) {
                         if !self.on_icon {
@@ -1241,7 +1241,7 @@ impl Widget<LapceTabData> for PanelSwitcher {
                 active_kinds.push(panel);
             }
         }
-        for (kind, icon) in self.icons.iter() {
+        for (kind, icon) in &self.icons {
             let mouse_rect = icon.rect.inflate(icon_padding, icon_padding);
             if mouse_rect.contains(self.mouse_pos) {
                 ctx.fill(

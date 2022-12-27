@@ -581,7 +581,7 @@ impl PluginHostHandler {
     ) -> bool {
         match language_id {
             Some(language_id) => {
-                for filter in self.document_selector.iter() {
+                for filter in &self.document_selector {
                     if (filter.language_id.is_none()
                         || filter.language_id.as_deref() == Some(language_id))
                         && (path.is_none()
@@ -743,7 +743,7 @@ impl PluginHostHandler {
         }
 
         if let Some(options) = self.server_registrations.save.as_ref() {
-            for filter in options.filters.iter() {
+            for filter in &options.filters {
                 if (filter.language_id.is_none()
                     || filter.language_id.as_deref() == Some(language_id))
                     && (filter.pattern.is_none()

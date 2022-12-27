@@ -83,7 +83,7 @@ impl Widget<LapceTabData> for LapceMessage {
             }
             _ => {}
         }
-        for item in self.items.iter_mut() {
+        for item in &mut self.items {
             item.event(ctx, event, data, env);
         }
 
@@ -106,7 +106,7 @@ impl Widget<LapceTabData> for LapceMessage {
         data: &LapceTabData,
         env: &Env,
     ) {
-        for item in self.items.iter_mut() {
+        for item in &mut self.items {
             item.lifecycle(ctx, event, data, env);
         }
     }
@@ -118,7 +118,7 @@ impl Widget<LapceTabData> for LapceMessage {
         data: &LapceTabData,
         env: &Env,
     ) {
-        for item in self.items.iter_mut() {
+        for item in &mut self.items {
             item.update(ctx, data, env);
         }
     }
@@ -152,7 +152,7 @@ impl Widget<LapceTabData> for LapceMessage {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let rect = ctx.region().bounding_box();
-        for item in self.items.iter_mut() {
+        for item in &mut self.items {
             if !item.layout_rect().intersect(rect).is_empty() {
                 item.paint(ctx, data, env);
             }

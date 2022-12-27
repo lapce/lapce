@@ -875,7 +875,7 @@ impl PaletteViewData {
     fn get_ssh_hosts(&mut self, _ctx: &mut EventCtx) {
         let workspaces = self.db.recent_workspaces().unwrap_or_default();
         let mut hosts = HashSet::new();
-        for workspace in workspaces.iter() {
+        for workspace in &workspaces {
             if let LapceWorkspaceType::RemoteSSH(ssh) = &workspace.kind {
                 hosts.insert(ssh.clone());
             }

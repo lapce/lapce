@@ -37,7 +37,7 @@ struct LapceDynamicSplit {
 pub fn split_data_widget(split_data: &SplitData, data: &LapceTabData) -> LapceSplit {
     let mut split =
         LapceSplit::new(split_data.widget_id).direction(split_data.direction);
-    for child in split_data.children.iter() {
+    for child in &split_data.children {
         let child = split_content_widget(child, data);
         split = split.with_flex_child(child, None, 1.0, true);
     }
@@ -63,7 +63,7 @@ pub fn split_content_widget(
             let split_data = data.main_split.splits.get(widget_id).unwrap();
             let mut split =
                 LapceSplit::new(*widget_id).direction(split_data.direction);
-            for content in split_data.children.iter() {
+            for content in &split_data.children {
                 split = split.with_flex_child(
                     split_content_widget(content, data),
                     None,
@@ -84,7 +84,7 @@ impl Widget<LapceTabData> for LapceDynamicSplit {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.widget.event(ctx, event, data, env);
         }
     }
@@ -96,7 +96,7 @@ impl Widget<LapceTabData> for LapceDynamicSplit {
         data: &LapceTabData,
         env: &Env,
     ) {
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.widget.lifecycle(ctx, event, data, env);
         }
     }
@@ -138,7 +138,7 @@ impl Widget<LapceTabData> for LapceDynamicSplit {
 
         let mut x = 0.0;
         let mut y = 0.0;
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             let flex = flex_unit * child.params;
             let (width, height) = match split.direction {
                 SplitDirection::Vertical => (flex, my_size.height),
@@ -163,7 +163,7 @@ impl Widget<LapceTabData> for LapceDynamicSplit {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.widget.paint(ctx, data, env);
         }
     }
@@ -320,7 +320,7 @@ impl LapceSplit {
     }
 
     pub fn even_flex_children(&mut self) {
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             if child.flex {
                 child.params = 1.0;
             }
@@ -1187,7 +1187,7 @@ impl Widget<LapceTabData> for LapceSplit {
             _ => (),
         }
 
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.widget.event(ctx, event, data, env);
         }
 
@@ -1245,7 +1245,7 @@ impl Widget<LapceTabData> for LapceSplit {
         data: &LapceTabData,
         env: &Env,
     ) {
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.widget.lifecycle(ctx, event, data, env);
         }
     }
@@ -1257,7 +1257,7 @@ impl Widget<LapceTabData> for LapceSplit {
         data: &LapceTabData,
         env: &Env,
     ) {
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.widget.update(ctx, data, env);
         }
     }
@@ -1328,7 +1328,7 @@ impl Widget<LapceTabData> for LapceSplit {
 
         self.non_flex_total = 0.0;
         let mut max_other_axis = 0.0;
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             if !child.flex {
                 let (width, height) = match self.direction {
                     SplitDirection::Vertical => (child.params, my_size.height),
@@ -1469,7 +1469,7 @@ impl Widget<LapceTabData> for LapceSplit {
 
             return;
         }
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.widget.paint(ctx, data, env);
         }
         if let Some(panel) = self.panel {

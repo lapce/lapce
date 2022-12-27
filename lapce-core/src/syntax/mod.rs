@@ -293,7 +293,7 @@ impl SyntaxLayers {
                 // If a tree already exists, notify it of changes.
                 if had_edits {
                     if let Some(tree) = &mut layer.tree {
-                        for edit in edits.iter() {
+                        for edit in &edits {
                             tree.edit(edit);
                         }
                     }

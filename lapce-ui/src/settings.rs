@@ -482,7 +482,7 @@ impl Widget<LapceTabData> for LapceSettings {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.event(ctx, event, data, env);
         }
         if self.children.is_empty() {
@@ -498,7 +498,7 @@ impl Widget<LapceTabData> for LapceSettings {
         data: &LapceTabData,
         env: &Env,
     ) {
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.lifecycle(ctx, event, data, env);
         }
     }
@@ -510,7 +510,7 @@ impl Widget<LapceTabData> for LapceSettings {
         data: &LapceTabData,
         env: &Env,
     ) {
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.update(ctx, data, env);
         }
     }
@@ -531,7 +531,7 @@ impl Widget<LapceTabData> for LapceSettings {
         }
 
         let mut y = 0.0;
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             let size = child.layout(ctx, bc, data, env);
             child.set_origin(ctx, data, env, Point::new(0.0, y));
             y += size.height;
@@ -541,7 +541,7 @@ impl Widget<LapceTabData> for LapceSettings {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        for child in self.children.iter_mut() {
+        for child in &mut self.children {
             child.paint(ctx, data, env);
         }
     }
@@ -1397,7 +1397,7 @@ impl Widget<LapceTabData> for ThemeSection {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        for item in self.items.iter_mut() {
+        for item in &mut self.items {
             item.event(ctx, event, data, env);
         }
 
@@ -1413,7 +1413,7 @@ impl Widget<LapceTabData> for ThemeSection {
         data: &LapceTabData,
         env: &Env,
     ) {
-        for item in self.items.iter_mut() {
+        for item in &mut self.items {
             item.lifecycle(ctx, event, data, env);
         }
     }
@@ -1425,7 +1425,7 @@ impl Widget<LapceTabData> for ThemeSection {
         data: &LapceTabData,
         env: &Env,
     ) {
-        for item in self.items.iter_mut() {
+        for item in &mut self.items {
             item.update(ctx, data, env);
         }
     }
@@ -1440,7 +1440,7 @@ impl Widget<LapceTabData> for ThemeSection {
         let mut text_layouts = Vec::new();
 
         let mut width = 0.0;
-        for color in self.colors.iter() {
+        for color in &self.colors {
             let text_layout = ctx
                 .text()
                 .new_text_layout(color.to_string())
@@ -1467,7 +1467,7 @@ impl Widget<LapceTabData> for ThemeSection {
         let x = width + 5.0;
 
         let mut height = self.header_height;
-        for item in self.items.iter_mut() {
+        for item in &mut self.items {
             let size = item.layout(ctx, bc, data, env);
             if size.width > item_width {
                 item_width = size.width;

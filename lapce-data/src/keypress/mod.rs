@@ -102,7 +102,7 @@ impl KeyMap {
 
         let mut origin = origin;
         let mut items = Vec::new();
-        for keypress in self.key.iter() {
+        for keypress in &self.key {
             let (new_origin, mut new_items) = keypress.paint(ctx, origin, config);
             origin = new_origin + (10.0, 0.0);
             items.append(&mut new_items);

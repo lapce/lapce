@@ -117,7 +117,7 @@ impl PluginCatalog {
                 request_sent.fetch_add(self.plugins.len(), Ordering::Relaxed);
             }
         }
-        for (plugin_id, plugin) in self.plugins.iter() {
+        for (plugin_id, plugin) in &self.plugins {
             let f = dyn_clone::clone_box(&*f);
             let plugin_id = *plugin_id;
             plugin.server_request_async(
@@ -140,7 +140,7 @@ impl PluginCatalog {
         language_id: Option<String>,
         path: Option<PathBuf>,
     ) {
-        for (_, plugin) in self.plugins.iter() {
+        for (_, plugin) in &self.plugins {
             plugin.server_notification(
                 method,
                 params.clone(),
@@ -152,7 +152,7 @@ impl PluginCatalog {
     }
 
     fn start_unactivated_volts(&mut self, to_be_activated: Vec<String>) {
-        for id in to_be_activated.iter() {
+        for id in &to_be_activated {
             let workspace = self.workspace.clone();
             if let Some(meta) = self.unactivated_volts.remove(id) {
                 let configurations =
@@ -242,7 +242,7 @@ impl PluginCatalog {
         self.start_unactivated_volts(to_be_activated);
 
         let path = document.uri.to_file_path().ok();
-        for (_, plugin) in self.plugins.iter() {
+        for (_, plugin) in &self.plugins {
             plugin.server_notification(
                 DidOpenTextDocument::METHOD,
                 DidOpenTextDocumentParams {
@@ -262,7 +262,7 @@ impl PluginCatalog {
         text_document: TextDocumentIdentifier,
         text: Rope,
     ) {
-        for (_, plugin) in self.plugins.iter() {
+        for (_, plugin) in &self.plugins {
             plugin.handle_rpc(PluginServerRpc::DidSaveTextDocument {
                 language_id: language_id.clone(),
                 path: path.clone(),
@@ -281,7 +281,7 @@ impl PluginCatalog {
         new_text: Rope,
     ) {
         let change = Arc::new(Mutex::new((None, None)));
-        for (_, plugin) in self.plugins.iter() {
+        for (_, plugin) in &self.plugins {
             plugin.handle_rpc(PluginServerRpc::DidChangeTextDocument {
                 language_id: language_id.clone(),
                 document: document.clone(),
@@ -382,7 +382,7 @@ impl PluginCatalog {
             }
             EnableVolt(volt) => {
                 let volt_id = volt.id();
-                for (_, volt) in self.plugins.iter() {
+                for (_, volt) in &self.plugins {
                     if volt.volt_id == volt_id {
                         return;
                     }
@@ -393,7 +393,7 @@ impl PluginCatalog {
                 });
             }
             Shutdown => {
-                for (_, plugin) in self.plugins.iter() {
+                for (_, plugin) in &self.plugins {
                     plugin.shutdown();
                 }
             }

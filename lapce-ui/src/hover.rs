@@ -270,7 +270,7 @@ impl Widget<LapceTabData> for Hover {
                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                 .clone();
 
-            for layout in self.active_layout.iter_mut() {
+            for layout in &mut self.active_layout {
                 layout.set_font(font.clone());
                 layout.set_text_color(text_color.clone());
             }
@@ -296,7 +296,7 @@ impl Widget<LapceTabData> for Hover {
             - env.get(theme::SCROLLBAR_PAD);
 
         let mut max_layout_width = 0.0;
-        for layout in self.active_layout.iter_mut() {
+        for layout in &mut self.active_layout {
             layout.set_wrap_width(max_width);
             layout.rebuild_if_needed(ctx.text(), env);
             let layout_width = layout.size().width;
@@ -313,7 +313,7 @@ impl Widget<LapceTabData> for Hover {
             0.0
         } else {
             let mut height = 0.0;
-            for layout in self.active_layout.iter() {
+            for layout in &self.active_layout {
                 height += layout.layout_metrics().size.height;
             }
 

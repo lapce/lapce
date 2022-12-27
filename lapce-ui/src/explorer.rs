@@ -681,7 +681,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             }
                             let path = node.path_buf.clone();
                             if let Some(paths) = file_explorer.node_tree(&path) {
-                                for path in paths.iter() {
+                                for path in &paths {
                                     file_explorer.update_node_count(path);
                                 }
                             }
@@ -1110,7 +1110,7 @@ fn expand_dir(
             }
             let path = node.path_buf.clone();
             if let Some(paths) = file_explorer.node_tree(&path) {
-                for path in paths.iter() {
+                for path in &paths {
                     file_explorer.update_node_count(path);
                 }
             }

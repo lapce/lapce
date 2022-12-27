@@ -123,12 +123,12 @@ pub fn has_unmatched_pair(line: &str) -> bool {
             }
         }
     }
-    for (_, pair_count) in count.iter() {
+    for (_, pair_count) in &count {
         if *pair_count < 0 {
             return true;
         }
     }
-    for (_, left) in pair_first.iter() {
+    for (_, left) in &pair_first {
         if *left {
             return true;
         }

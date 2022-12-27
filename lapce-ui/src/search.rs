@@ -75,7 +75,7 @@ impl SearchInput {
     }
 
     fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
-        for icon in self.icons.iter() {
+        for icon in &self.icons {
             if icon.rect.contains(mouse_event.pos) {
                 ctx.submit_command(icon.command.clone());
             }
@@ -83,7 +83,7 @@ impl SearchInput {
     }
 
     fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
-        for icon in self.icons.iter() {
+        for icon in &self.icons {
             if icon.rect.contains(mouse_event.pos) {
                 return true;
             }
@@ -240,7 +240,7 @@ impl Widget<LapceTabData> for SearchInput {
             })
             .unwrap_or_default();
 
-        for icon in self.icons.iter() {
+        for icon in &self.icons {
             if icon.icon == LapceIcons::SEARCH_CASE_SENSITIVE && case_sensitive {
                 ctx.fill(
                     icon.rect,

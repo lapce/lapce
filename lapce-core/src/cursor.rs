@@ -464,7 +464,7 @@ pub fn get_first_selection_after(
     let offset = transformer.transform(offset, false);
     let (ins, del) = delta.clone().factor();
     let ins = ins.transform_shrink(&del);
-    for el in ins.els.iter() {
+    for el in &ins.els {
         match el {
             lapce_xi_rope::DeltaElement::Copy(b, e) => {
                 // if b == e, ins.inserted_subset() will panic

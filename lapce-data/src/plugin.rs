@@ -284,7 +284,7 @@ impl PluginData {
     ) -> Result<()> {
         match PluginData::query_volts(query, offset) {
             Ok(info) => {
-                for v in info.plugins.iter() {
+                for v in &info.plugins {
                     {
                         let volt = v.clone();
                         let event_sink = event_sink.clone();

@@ -234,7 +234,7 @@ impl Widget<LapceWindowData> for LapceWindow {
 
                 #[cfg(not(target_os = "macos"))]
                 if data.tabs.len() > 1 && mouse_event.count < 2 {
-                    for (rect, _) in self.tab_header_cmds.iter() {
+                    for (rect, _) in &self.tab_header_cmds {
                         if rect.contains(mouse_event.pos) {
                             ctx.set_cursor(&druid::Cursor::Pointer);
                             ctx.request_paint();
@@ -260,7 +260,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                 if (data.tabs.len() > 1 && _mouse_event.count == 1)
                     || data.config.core.custom_titlebar
                 {
-                    for (rect, cmd) in self.tab_header_cmds.iter() {
+                    for (rect, cmd) in &self.tab_header_cmds {
                         if rect.contains(_mouse_event.pos) {
                             self.mouse_down_cmd = Some((*rect, cmd.clone()));
                             self.holding_click_rect = Some(*rect);
@@ -300,7 +300,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                         }
                     }
 
-                    for (rect, cmd) in self.tab_header_cmds.iter() {
+                    for (rect, cmd) in &self.tab_header_cmds {
                         if let Some(click_rect) = self.holding_click_rect {
                             if rect.contains(mouse_event.pos)
                                 && click_rect.contains(mouse_event.pos)
@@ -520,7 +520,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                 }
             }
         }
-        for tab_header in self.tab_headers.iter_mut() {
+        for tab_header in &mut self.tab_headers {
             tab_header.event(ctx, event, data, env);
         }
         // self.title.event(ctx, event, data, env);
@@ -533,10 +533,10 @@ impl Widget<LapceWindowData> for LapceWindow {
         data: &LapceWindowData,
         env: &Env,
     ) {
-        for tab in self.tabs.iter_mut() {
+        for tab in &mut self.tabs {
             tab.lifecycle(ctx, event, data, env);
         }
-        for tab_header in self.tab_headers.iter_mut() {
+        for tab_header in &mut self.tab_headers {
             tab_header.lifecycle(ctx, event, data, env);
         }
     }
@@ -563,7 +563,7 @@ impl Widget<LapceWindowData> for LapceWindow {
         if old_tab.workspace != tab.workspace {
             ctx.request_layout();
         }
-        for tab in self.tabs.iter_mut() {
+        for tab in &mut self.tabs {
             tab.update(ctx, data, env);
         }
 
@@ -679,7 +679,7 @@ impl Widget<LapceWindowData> for LapceWindow {
 
             (tab_size, tab_origin)
         } else {
-            for tab_header in self.tab_headers.iter_mut() {
+            for tab_header in &mut self.tab_headers {
                 let bc = BoxConstraints::tight(Size::new(self_size.width, 0.0));
                 tab_header.layout(ctx, &bc, data, env);
                 tab_header.set_origin(ctx, data, env, Point::ZERO);

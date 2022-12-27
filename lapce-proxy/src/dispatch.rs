@@ -128,7 +128,7 @@ impl ProxyHandler for Dispatcher {
             }
             Shutdown {} => {
                 self.catalog_rpc.shutdown();
-                for (_, sender) in self.terminals.iter() {
+                for (_, sender) in &self.terminals {
                     #[allow(deprecated)]
                     let _ = sender.send(Msg::Shutdown);
                 }
@@ -1134,7 +1134,7 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     }
 
     let mut file_diffs = Vec::new();
-    for (i, j) in renames.iter() {
+    for (i, j) in &renames {
         file_diffs.push(FileDiff::Renamed(
             deltas[*i].2.clone(),
             deltas[*j].2.clone(),
