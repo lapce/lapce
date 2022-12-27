@@ -1751,7 +1751,7 @@ impl LapceTab {
                                 match &data.workspace.kind {
                                     LapceWorkspaceType::Local => dir.to_string(),
                                     LapceWorkspaceType::RemoteSSH(ssh) => {
-                                        format!("{} [{ssh}]", dir)
+                                        format!("{dir} [{ssh}]")
                                     }
                                     LapceWorkspaceType::RemoteWSL => {
                                         format!("{dir} [wsl]")
@@ -2857,7 +2857,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
                 match &data.workspace.kind {
                     LapceWorkspaceType::Local => dir.to_string(),
                     LapceWorkspaceType::RemoteSSH(ssh) => {
-                        format!("{} [{ssh}]", dir)
+                        format!("{dir} [{ssh}]")
                     }
                     LapceWorkspaceType::RemoteWSL => {
                         format!("{dir} [wsl]")

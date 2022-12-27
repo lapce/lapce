@@ -402,7 +402,7 @@ pub fn start_volt(
         if let Ok(msg) = wasi_read_string(&stdout) {
             if let Some(resp) = handle_plugin_server_message(&local_rpc, &msg) {
                 if let Ok(msg) = serde_json::to_string(&resp) {
-                    let _ = writeln!(local_stdin.write().unwrap(), "{}", msg);
+                    let _ = writeln!(local_stdin.write().unwrap(), "{msg}");
                 }
             }
         }
@@ -423,7 +423,7 @@ pub fn start_volt(
     thread::spawn(move || {
         for msg in io_rx {
             if let Ok(msg) = serde_json::to_string(&msg) {
-                let _ = writeln!(stdin.write().unwrap(), "{}", msg);
+                let _ = writeln!(stdin.write().unwrap(), "{msg}");
             }
             let _ = handle_rpc.call(&mut store, ());
         }

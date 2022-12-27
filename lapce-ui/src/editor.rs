@@ -941,7 +941,7 @@ impl LapceEditor {
         let indent_unit = data.doc.buffer().indent_unit();
         let indent_text = ctx
             .text()
-            .new_text_layout(format!("{}a", indent_unit))
+            .new_text_layout(format!("{indent_unit}a"))
             .font(
                 data.config.editor.font_family(),
                 data.config.editor.font_size as f64,

@@ -762,7 +762,7 @@ impl ProxyHandler for Dispatcher {
                 let result = if to.exists() {
                     Err(RpcError {
                         code: 0,
-                        message: format!("{:?} already exists", to),
+                        message: format!("{to:?} already exists"),
                     })
                 } else {
                     std::fs::rename(from, to)

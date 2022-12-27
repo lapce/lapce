@@ -903,7 +903,7 @@ impl PaletteViewData {
                 let filter_text = match &w.kind {
                     LapceWorkspaceType::Local => text,
                     LapceWorkspaceType::RemoteSSH(ssh) => {
-                        format!("[{ssh}] {}", text)
+                        format!("[{ssh}] {text}")
                     }
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")

@@ -496,7 +496,7 @@ impl LapceProxy {
             _ => format!("{remote_proxy_path}/lapce"),
         };
 
-        let proxy_filename = format!("lapce-proxy-{}-{}", platform, architecture);
+        let proxy_filename = format!("lapce-proxy-{platform}-{architecture}");
 
         log::debug!(target: "lapce_data::proxy::start_remote", "remote proxy path: {remote_proxy_path}");
 
