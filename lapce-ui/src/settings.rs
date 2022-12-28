@@ -1,4 +1,5 @@
-use std::{collections::HashMap, fmt::Display, sync::Arc, time::Duration};
+use hashbrown::HashMap;
+use std::{fmt::Display, sync::Arc, time::Duration};
 
 use druid::{
     kurbo::{BezPath, Line},
@@ -138,34 +139,37 @@ impl LapceSettingsPanel {
     }
 
     fn update_plugins(&mut self, ctx: &mut EventCtx, data: &LapceTabData) {
-        let current_keys: Vec<LapceSettingsKind> =
-            self.children.keys().cloned().collect();
-        for kind in current_keys {
+        let mut children_changed = false;
+        self.children.retain(|kind, _| {
             if let LapceSettingsKind::Plugin(volt_id) = &kind {
-                if !data.plugin.installed.keys().contains(&volt_id) {
-                    self.children.remove(&kind);
-                    ctx.children_changed();
-                    if self.active == kind {
+                if !data.plugin.installed.contains_key(volt_id) {
+                    if self.active == *kind {
                         self.active = LapceSettingsKind::Core;
                         self.switcher
                             .widget_mut()
                             .child_mut()
                             .set_active(self.active.clone(), data);
                     }
+                    children_changed = true;
+                    return false;
                 }
             }
-        }
+            true
+        });
         for (_, volt) in data.plugin.installed.iter() {
             if volt.config.is_some() {
                 let kind = LapceSettingsKind::Plugin(volt.id());
-                if !self.children.keys().contains(&kind) {
+                if !self.children.contains_key(&kind) {
                     self.children.insert(
                         kind.clone(),
                         WidgetPod::new(LapceSettings::new_scroll(kind).boxed()),
                     );
-                    ctx.children_changed();
+                    children_changed = true;
                 }
             }
+        }
+        if children_changed {
+            ctx.children_changed();
         }
     }
 }
@@ -664,24 +668,24 @@ impl SettingsItemInfo {
         text: &mut PietText,
         data: &LapceTabData,
     ) -> &PietTextLayout {
-        // TODO: This could likely use smallvec, or even skip the allocs completely for
-        // the *common* case of the name text not changing..
-        let splits: Vec<&str> = self.key.rsplitn(2, '.').collect();
-        let mut name_text = "".to_string();
-        if let Some(title) = splits.get(1) {
-            for (i, part) in title.split('.').enumerate() {
-                if i > 0 {
-                    name_text.push_str(" > ");
-                }
-                name_text.push_str(&part.to_title_case());
-            }
-            name_text.push_str(": ");
-        }
-        if let Some(name) = splits.first() {
-            name_text.push_str(&name.to_title_case());
-        }
-
         if self.name_text.is_none() {
+            let mut splits = self.key.rsplitn(2, '.');
+            let mut name_text = String::new();
+
+            if let Some(name) = splits.next() {
+                name_text.reserve(self.key.len());
+                if let Some(title) = splits.next() {
+                    for (i, part) in title.split('.').enumerate() {
+                        if i > 0 {
+                            name_text.push_str(" > ");
+                        }
+                        name_text.push_str(&part.to_title_case());
+                    }
+                    name_text.push_str(": ");
+                }
+                name_text.push_str(&name.to_title_case());
+            }
+
             let text_layout = text
                 .new_text_layout(name_text)
                 .font(
