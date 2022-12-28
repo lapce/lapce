@@ -30,7 +30,11 @@ toml_edit = { version = "0.14.4", features = ["easy"] }
 open = "3.0.2"
 
 # lapce deps
-druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = ["svg", "im", "serde"] }
+druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = [
+    "svg",
+    "im",
+    "serde",
+] }
 # druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
 lapce-data = { path = "../lapce-data" }
 lapce-rpc = { path = "../lapce-rpc" }
@@ -49,6 +53,7 @@ portable = ["lapce-data/portable"]
 #     --features lang-rust,lang-toml,lang-markdown,lang-json
 #
 all-languages = [
+    "lang-astro",
     "lang-bash",
     "lang-c",
     "lang-clojure",
@@ -102,6 +107,7 @@ all-languages = [
     "lang-zig",
 ]
 
+lang-astro = ["lapce-core/lang-astro"]
 lang-bash = ["lapce-core/lang-bash"]
 lang-c = ["lapce-core/lang-c"]
 lang-clojure = ["lapce-core/lang-clojure"]

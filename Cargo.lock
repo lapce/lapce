@@ -2575,6 +2575,7 @@ dependencies = [
  "strum_macros 0.24.3",
  "thiserror",
  "tree-sitter",
+ "tree-sitter-astro",
  "tree-sitter-bash",
  "tree-sitter-c",
  "tree-sitter-c-sharp",
@@ -4905,6 +4906,15 @@ checksum = "d4423c784fe11398ca91e505cdc71356b07b1a924fc8735cfab5333afe3e18bc"
 dependencies = [
  "cc",
  "regex",
+]
+
+[[package]]
+name = "tree-sitter-astro"
+version = "0.0.1"
+source = "git+https://github.com/maxpetts/tree-sitter-astro.git?branch=master#9b7088ebdb138b40a1e15ad65fbf3fbd1bbe62d0"
+dependencies = [
+ "cc",
+ "tree-sitter",
 ]
 
 [[package]]
