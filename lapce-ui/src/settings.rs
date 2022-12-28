@@ -664,24 +664,24 @@ impl SettingsItemInfo {
         text: &mut PietText,
         data: &LapceTabData,
     ) -> &PietTextLayout {
-        // TODO: This could likely use smallvec, or even skip the allocs completely for
-        // the *common* case of the name text not changing..
-        let splits: Vec<&str> = self.key.rsplitn(2, '.').collect();
-        let mut name_text = "".to_string();
-        if let Some(title) = splits.get(1) {
-            for (i, part) in title.split('.').enumerate() {
-                if i > 0 {
-                    name_text.push_str(" > ");
-                }
-                name_text.push_str(&part.to_title_case());
-            }
-            name_text.push_str(": ");
-        }
-        if let Some(name) = splits.first() {
-            name_text.push_str(&name.to_title_case());
-        }
-
         if self.name_text.is_none() {
+            let mut splits = self.key.rsplitn(2, '.');
+            let mut name_text = String::new();
+
+            if let Some(name) = splits.next() {
+                name_text.reserve(self.key.len());
+                if let Some(title) = splits.next() {
+                    for (i, part) in title.split('.').enumerate() {
+                        if i > 0 {
+                            name_text.push_str(" > ");
+                        }
+                        name_text.push_str(&part.to_title_case());
+                    }
+                    name_text.push_str(": ");
+                }
+                name_text.push_str(&name.to_title_case());
+            }
+
             let text_layout = text
                 .new_text_layout(name_text)
                 .font(
