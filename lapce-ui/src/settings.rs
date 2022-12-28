@@ -1,4 +1,5 @@
-use std::{collections::HashMap, fmt::Display, sync::Arc, time::Duration};
+use hashbrown::HashMap;
+use std::{fmt::Display, sync::Arc, time::Duration};
 
 use druid::{
     kurbo::{BezPath, Line},
@@ -138,34 +139,37 @@ impl LapceSettingsPanel {
     }
 
     fn update_plugins(&mut self, ctx: &mut EventCtx, data: &LapceTabData) {
-        let current_keys: Vec<LapceSettingsKind> =
-            self.children.keys().cloned().collect();
-        for kind in current_keys {
+        let mut children_changed = false;
+        self.children.retain(|kind, _| {
             if let LapceSettingsKind::Plugin(volt_id) = &kind {
-                if !data.plugin.installed.keys().contains(&volt_id) {
-                    self.children.remove(&kind);
-                    ctx.children_changed();
-                    if self.active == kind {
+                if !data.plugin.installed.contains_key(volt_id) {
+                    if self.active == *kind {
                         self.active = LapceSettingsKind::Core;
                         self.switcher
                             .widget_mut()
                             .child_mut()
                             .set_active(self.active.clone(), data);
                     }
+                    children_changed = true;
+                    return false;
                 }
             }
-        }
+            true
+        });
         for (_, volt) in data.plugin.installed.iter() {
             if volt.config.is_some() {
                 let kind = LapceSettingsKind::Plugin(volt.id());
-                if !self.children.keys().contains(&kind) {
+                if !self.children.contains_key(&kind) {
                     self.children.insert(
                         kind.clone(),
                         WidgetPod::new(LapceSettings::new_scroll(kind).boxed()),
                     );
-                    ctx.children_changed();
+                    children_changed = true;
                 }
             }
+        }
+        if children_changed {
+            ctx.children_changed();
         }
     }
 }
