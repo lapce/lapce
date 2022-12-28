@@ -54,6 +54,7 @@ macro_rules! declare_language_highlights {
 }
 
 declare_language_highlights!(
+    Astro: "lang-astro",
     Bash: "lang-bash",
     C: "lang-c",
     Clojure: "lang-clojure",

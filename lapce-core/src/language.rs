@@ -107,6 +107,8 @@ struct SyntaxProperties {
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, Display, EnumString)]
 #[strum(ascii_case_insensitive)]
 pub enum LapceLanguage {
+    #[cfg(feature = "lang-astro")]
+    Astro,
     #[cfg(feature = "lang-bash")]
     #[strum(serialize = "bash", serialize = "sh")]
     Bash,
@@ -225,6 +227,18 @@ pub enum LapceLanguage {
 // NOTE: Elements in the array must be in the same order as the enum variants of
 // `LapceLanguage` as they will be accessed using the enum variants as indices.
 const LANGUAGES: &[SyntaxProperties] = &[
+    #[cfg(feature = "lang-astro")]
+    SyntaxProperties {
+        id: LapceLanguage::Astro,
+        language: tree_sitter_astro::language,
+        highlight: include_str!("../queries/astro/highlights.scm"),
+        injection: Some(include_str!("../queries/astro/injections.scm")),
+        comment: "//",
+        indent: "    ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &["function_definition"],
+        extensions: &["astro"],
+    },
     #[cfg(feature = "lang-bash")]
     SyntaxProperties {
         id: LapceLanguage::Bash,
