@@ -1,4 +1,4 @@
-#![allow(clippy::manual_clamp)]
+#![allow(clippy::manual_clamp, clippy::uninlined_format_args)]
 
 pub mod about;
 pub mod alert;
