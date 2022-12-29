@@ -4514,11 +4514,7 @@ impl std::fmt::Display for LapceWorkspace {
             f,
             "{}:{}",
             self.kind,
-            self.path
-                .as_ref()
-                .and_then(|p| p.to_str())
-                .map(|p| p.to_string())
-                .unwrap_or_else(|| "".to_string())
+            self.path.as_ref().and_then(|p| p.to_str()).unwrap_or("")
         )
     }
 }
