@@ -128,7 +128,7 @@ impl ProxyHandler for Dispatcher {
             }
             Shutdown {} => {
                 self.catalog_rpc.shutdown();
-                for (_, sender) in &self.terminals {
+                for sender in self.terminals.values() {
                     #[allow(deprecated)]
                     let _ = sender.send(Msg::Shutdown);
                 }

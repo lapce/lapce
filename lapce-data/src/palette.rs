@@ -843,8 +843,7 @@ impl PaletteViewData {
             if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
                 let items: im::Vector<PaletteItem> = items
                     .iter()
-                    .enumerate()
-                    .map(|(_index, path)| {
+                    .map(|path| {
                         let full_path = path.clone();
                         let mut path = path.clone();
                         if let Some(workspace_path) = workspace.path.as_ref() {
@@ -923,9 +922,9 @@ impl PaletteViewData {
         let palette = Arc::make_mut(&mut self.palette);
         palette.total_items = config
             .available_color_themes
-            .values()
-            .sorted_by_key(|(n, _)| n)
-            .map(|(n, _)| PaletteItem {
+            .keys()
+            .sorted()
+            .map(|n| PaletteItem {
                 content: PaletteItemContent::ColorTheme(n.to_string()),
                 filter_text: n.to_string(),
                 score: 0,

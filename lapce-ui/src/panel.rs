@@ -431,7 +431,7 @@ impl Widget<LapceTabData> for PanelContainer {
         self.switcher0.event(ctx, event, data, env);
         self.switcher1.event(ctx, event, data, env);
         if event.should_propagate_to_hidden() {
-            for (_, panel) in &mut self.panels {
+            for panel in self.panels.values_mut() {
                 panel.event(ctx, event, data, env);
             }
         } else {
@@ -465,7 +465,7 @@ impl Widget<LapceTabData> for PanelContainer {
     ) {
         self.switcher0.lifecycle(ctx, event, data, env);
         self.switcher1.lifecycle(ctx, event, data, env);
-        for (_, panel) in &mut self.panels {
+        for panel in self.panels.values_mut() {
             panel.lifecycle(ctx, event, data, env);
         }
     }

@@ -187,7 +187,7 @@ impl Widget<LapceTabData> for TerminalPanel {
         env: &Env,
     ) {
         self.header.lifecycle(ctx, event, data, env);
-        for (_, tab) in &mut self.tabs {
+        for tab in self.tabs.values_mut() {
             tab.lifecycle(ctx, event, data, env);
         }
     }
@@ -200,7 +200,7 @@ impl Widget<LapceTabData> for TerminalPanel {
         env: &Env,
     ) {
         self.header.update(ctx, data, env);
-        for (_, tab) in &mut self.tabs {
+        for tab in self.tabs.values_mut() {
             tab.update(ctx, data, env);
         }
         if !data.terminal.same(&old_data.terminal) {
@@ -533,7 +533,7 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContent {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        for (_, item) in &mut self.items {
+        for item in self.items.values_mut() {
             item.event(ctx, event, data, env);
         }
     }
@@ -545,7 +545,7 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContent {
         data: &LapceTabData,
         env: &Env,
     ) {
-        for (_, item) in &mut self.items {
+        for item in self.items.values_mut() {
             item.lifecycle(ctx, event, data, env);
         }
     }
@@ -559,7 +559,7 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContent {
     ) {
         if !data.terminal.same(&old_data.terminal) || self.items.is_empty() {
             if !data.terminal.tabs.ptr_eq(&old_data.terminal.tabs) {
-                for (_, item) in &mut self.items {
+                for item in self.items.values_mut() {
                     item.update(ctx, data, env);
                 }
             }

@@ -8,6 +8,7 @@ use druid::{
     RenderContext, Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
     WindowConfig, WindowState,
 };
+use itertools::Itertools;
 use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
     command::{
@@ -1094,16 +1095,14 @@ impl Widget<LapceTabData> for SourceControlBranches {
 
                         // Make so the default selected entry is the current branch
                         let current_branch = &data.source_control.branch;
-                        let current_item_index = title
+                        title.branches.list.selected_index = title
                             .branches
                             .list
                             .items
                             .iter()
-                            .enumerate()
-                            .find(|(_, branch)| *branch == current_branch)
-                            .map(|(i, _)| i);
-                        title.branches.list.selected_index =
-                            current_item_index.unwrap_or(0);
+                            .find_position(|branch| *branch == current_branch)
+                            .map(|(i, _)| i)
+                            .unwrap_or_default();
 
                         title.branches.active = true;
 

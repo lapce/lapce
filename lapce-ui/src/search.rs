@@ -198,8 +198,8 @@ impl Widget<LapceTabData> for SearchInput {
         let match_count = data
             .search
             .matches
-            .iter()
-            .map(|(_, matches)| matches.len())
+            .values()
+            .map(|matches| matches.len())
             .sum::<usize>();
 
         let text_layout = ctx
@@ -419,8 +419,8 @@ impl Widget<LapceTabData> for SearchContent {
         let n = data
             .search
             .matches
-            .iter()
-            .map(|(_, matches)| matches.len() + 1)
+            .values()
+            .map(|matches| matches.len() + 1)
             .sum::<usize>();
 
         let height = self.line_height * n as f64;

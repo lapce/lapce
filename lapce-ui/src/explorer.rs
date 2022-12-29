@@ -1410,8 +1410,8 @@ impl Widget<LapceTabData> for OpenEditorList {
         let n = data
             .main_split
             .editor_tabs
-            .iter()
-            .map(|(_, tab)| tab.children.len())
+            .values()
+            .map(|tab| tab.children.len())
             .sum::<usize>();
         let n = if data.main_split.editor_tabs.len() > 1 {
             n + data.main_split.editor_tabs.len()

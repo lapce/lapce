@@ -62,8 +62,7 @@ impl FileNodeItem {
     pub fn sorted_children_mut(&mut self) -> Vec<&mut FileNodeItem> {
         let mut children = self
             .children
-            .iter_mut()
-            .map(|(_, item)| item)
+            .values_mut()
             .collect::<Vec<&mut FileNodeItem>>();
         children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
             (true, true) => a
