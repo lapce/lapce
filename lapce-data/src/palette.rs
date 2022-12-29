@@ -922,9 +922,9 @@ impl PaletteViewData {
         let palette = Arc::make_mut(&mut self.palette);
         palette.total_items = config
             .available_color_themes
-            .keys()
-            .sorted()
-            .map(|n| PaletteItem {
+            .values()
+            .sorted_by_key(|(n, _)| n)
+            .map(|(n, _)| PaletteItem {
                 content: PaletteItemContent::ColorTheme(n.to_string()),
                 filter_text: n.to_string(),
                 score: 0,
