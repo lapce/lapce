@@ -292,13 +292,11 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
                         )
                     )
                     .separator()
-                    .entry(
-                        MenuItem::new("Hide Lapce")
+                    .entry(MenuItem::new("Hide Lapce")
                             .command(druid::commands::HIDE_APPLICATION)
                             .hotkey(SysMods::Cmd, "h")
                     )
-                    .entry(
-                        MenuItem::new("Hide Others")
+                    .entry(MenuItem::new("Hide Others")
                         .command(druid::commands::HIDE_OTHERS)
                         .hotkey(SysMods::AltCmd, "h"),
                     )
@@ -306,9 +304,9 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
                         .command(druid::commands::SHOW_ALL)
                         )
                     .separator()
-                    .entry(
-                        MenuItem::new("Quit Lapce")
-                            .command(druid::commands::QUIT_APP)
+                    .entry(MenuItem::new("Quit Lapce")
+                        .command(druid::commands::QUIT_APP)
+                        .hotkey(SysMods::Cmd, "q"),
                     )
                 )
                 .separator()
