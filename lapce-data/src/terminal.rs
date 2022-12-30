@@ -454,13 +454,23 @@ impl KeyPressFocus for LapceTerminalViewData {
                     }
                 }
                 EditCommand::ClipboardPaste => {
+                    let mut check_bracketed_paste: bool = false;
                     if self.terminal.mode == Mode::Terminal {
                         let mut raw = self.terminal.raw.lock();
                         let term = &mut raw.term;
                         self.terminal.clear_selection(term);
+                        if term.mode().contains(TermMode::BRACKETED_PASTE) {
+                            check_bracketed_paste = true;
+                        }
                     }
                     if let Some(s) = clipboard.get_string() {
-                        self.receive_char(ctx, &s);
+                        if check_bracketed_paste {
+                            self.receive_char(ctx, "\x1b[200~");
+                            self.receive_char(ctx, &s.replace('\x1b', ""));
+                            self.receive_char(ctx, "\x1b[201~");
+                        } else {
+                            self.receive_char(ctx, &s);
+                        }
                     }
                 }
                 _ => return CommandExecuted::No,
