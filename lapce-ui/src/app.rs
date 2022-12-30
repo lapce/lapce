@@ -273,7 +273,11 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
                             Target::Auto,
                         )).hotkey(SysMods::Cmd, ",")
                         )
-                        .entry(MenuItem::new("Open Keyboard Shortcuts")
+                        // MacOS doesn't like Cmd K Cmd S in its native spot for keyboard shortcuts
+                        // so do what VSCode does and put it in the title
+                        
+                        // \u{2318} is the Unicode  the Command symbol on MacOS
+                        .entry(MenuItem::new("Open Keyboard Shortcuts [\u{2318}K \u{2318}S]")
                             .command(
                             Command::new(
                                 LAPCE_COMMAND,
@@ -285,7 +289,6 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
                                 },
                                 Target::Auto,
                             ))
-                            .hotkey(SysMods::Cmd, "k")
                         )
                     )
                     .separator()
@@ -306,7 +309,6 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
                     .entry(
                         MenuItem::new("Quit Lapce")
                             .command(druid::commands::QUIT_APP)
-                            .hotkey(SysMods::Cmd, "q")
                     )
                 )
                 .separator()
