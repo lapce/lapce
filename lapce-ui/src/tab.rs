@@ -995,7 +995,7 @@ impl LapceTab {
                     LapceUICommand::LoadPluginIcon(id, icon) => {
                         ctx.set_handled();
                         let plugin = Arc::make_mut(&mut data.plugin);
-                        plugin.volts.icons.insert(id.to_string(), icon.clone());
+                        plugin.volts.icons.insert(id.clone(), icon.clone());
                     }
                     LapceUICommand::VoltInstalled(volt, icon) => {
                         let plugin = Arc::make_mut(&mut data.plugin);

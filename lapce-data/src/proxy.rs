@@ -18,6 +18,7 @@ use lapce_core::{directory::Directory, meta};
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRequest, CoreRpcHandler},
+    plugin::VoltID,
     proxy::{ProxyRpc, ProxyRpcHandler},
     stdio::stdio_transport,
     terminal::TermId,
@@ -290,7 +291,7 @@ impl LapceProxy {
         window_id: WindowId,
         tab_id: WidgetId,
         workspace: LapceWorkspace,
-        disabled_volts: Vec<String>,
+        disabled_volts: Vec<VoltID>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         term_tx: Sender<(TermId, TermEvent)>,
         event_sink: ExtEventSink,
@@ -333,7 +334,7 @@ impl LapceProxy {
     fn start(
         &self,
         workspace: LapceWorkspace,
-        disabled_volts: Vec<String>,
+        disabled_volts: Vec<VoltID>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,

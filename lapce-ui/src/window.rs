@@ -12,6 +12,7 @@ use lapce_data::{
     config::{LapceConfig, LapceTheme},
     data::{LapceTabData, LapceTabLens, LapceWindowData, LapceWorkspace},
 };
+use lapce_rpc::plugin::VoltID;
 
 use crate::tab::{LapceTab, LapceTabHeader, LapceTabMeta, LAPCE_TAB_META};
 
@@ -331,7 +332,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                             &[],
                         ));
                         for (_, tab) in data.tabs.iter_mut() {
-                            let mut disabled_volts: Vec<String> =
+                            let mut disabled_volts: Vec<VoltID> =
                                 tab.plugin.disabled.clone().into_iter().collect();
                             disabled_volts.append(
                                 &mut tab

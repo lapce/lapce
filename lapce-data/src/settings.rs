@@ -14,6 +14,7 @@ use crate::{
     keypress::KeyPressFocus,
     split::SplitDirection,
 };
+use lapce_rpc::plugin::VoltID;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SettingsValueKind {
@@ -31,7 +32,7 @@ pub enum LapceSettingsKind {
     Terminal,
     Theme,
     Keymap,
-    Plugin(String),
+    Plugin(VoltID),
 }
 
 #[derive(Clone)]

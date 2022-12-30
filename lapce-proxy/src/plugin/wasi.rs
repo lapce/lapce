@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use std::{
     collections::{HashMap, VecDeque},
     fs,
@@ -13,7 +16,7 @@ use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_core::directory::Directory;
 use lapce_rpc::{
-    plugin::{PluginId, VoltInfo, VoltMetadata},
+    plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     style::LineStyle,
     RpcError,
 };
@@ -209,7 +212,7 @@ impl Plugin {
 
 pub fn load_all_volts(
     plugin_rpc: PluginCatalogRpcHandler,
-    disabled_volts: Vec<String>,
+    disabled_volts: Vec<VoltID>,
 ) {
     let all_volts = find_all_volts();
     let volts = all_volts
@@ -249,6 +252,47 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
         .unwrap_or_default()
 }
 
+/// Returns an instance of "VoltMetadata" or an error if there is no file in the path,
+/// the contents of the file cannot be read into a string, or the content read cannot
+/// be converted to an instance of "VoltMetadata".
+///
+/// # Examples
+///
+/// ```
+/// use std::fs::File;
+/// use std::io::Write;
+/// use lapce_proxy::plugin::wasi::load_volt;
+/// use lapce_rpc::plugin::VoltMetadata;
+///
+/// let parent_path = std::env::current_dir().unwrap();
+/// let mut file = File::create(parent_path.join("volt.toml")).unwrap();
+/// let _ = writeln!(file, "name = \"plugin\" \n version = \"0.1\"");
+/// let _ = writeln!(file, "display-name = \"Plugin\" \n author = \"Author\"");
+/// let _ = writeln!(file, "description = \"Useful plugin\"");///
+/// let volt_metadata = match load_volt(&parent_path.join("volt.toml")) {
+///     Ok(volt_metadata) => volt_metadata,
+///     Err(error) => panic!("{}", error),
+/// };
+/// assert_eq!(
+///     volt_metadata,
+///     VoltMetadata {
+///         name: "plugin".to_string(),
+///         version: "0.1".to_string(),
+///         display_name: "Plugin".to_string(),
+///         author: "Author".to_string(),
+///         description: "Useful plugin".to_string(),
+///         icon: None,
+///         repository: None,
+///         wasm: None,
+///         color_themes: None,
+///         icon_themes: None,
+///         dir: parent_path.canonicalize().ok(),
+///         activation: None,
+///         config: None
+///     }
+/// );
+/// let _ = std::fs::remove_file(parent_path.join("volt.toml"));
+/// ```
 pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
     let mut file = fs::File::open(path)?;
     let mut contents = String::new();
@@ -265,6 +309,8 @@ pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
                 .to_string(),
         )
     });
+    // FIXME: This does `meta.color_themes = Some([])` in case, for example,
+    // it cannot find matching files, but in that case it should do `meta.color_themes = None`
     meta.color_themes = meta.color_themes.as_ref().map(|themes| {
         themes
             .iter()
@@ -280,6 +326,8 @@ pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
             })
             .collect()
     });
+    // FIXME: This does `meta.icon_themes = Some([])` in case, for example,
+    // it cannot find matching files, but in that case it should do `meta.icon_themes = None`
     meta.icon_themes = meta.icon_themes.as_ref().map(|themes| {
         themes
             .iter()
@@ -305,7 +353,7 @@ pub fn enable_volt(
 ) -> Result<()> {
     let path = Directory::plugins_directory()
         .ok_or_else(|| anyhow!("can't get plugin directory"))?
-        .join(volt.id())
+        .join(volt.id().to_string())
         .join("volt.toml");
     let meta = load_volt(&path)?;
     plugin_rpc.unactivated_volts(vec![meta])?;
@@ -478,33 +526,4 @@ fn unflatten_map(map: &HashMap<String, serde_json::Value>) -> serde_json::Value 
         }
     }
     new
-}
-
-#[cfg(test)]
-mod test {
-    use std::collections::HashMap;
-
-    use serde_json::{json, Value};
-
-    use crate::plugin::wasi::unflatten_map;
-
-    #[test]
-    fn test_unflatten_map() {
-        let map: HashMap<String, Value> = serde_json::from_value(json!({
-            "a.b.c": "d",
-            "a.d": ["e"],
-        }))
-        .unwrap();
-        assert_eq!(
-            unflatten_map(&map),
-            json!({
-                "a": {
-                    "b": {
-                        "c": "d",
-                    },
-                    "d": ["e"],
-                }
-            })
-        );
-    }
 }
