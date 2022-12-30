@@ -22,6 +22,8 @@ If you encounter a bug when using Lapce, check the issues to see if anyone else 
 
 If you want to write some code, develop the documentation, or otherwise work on a certain feature or bug, let us know by replying to or creating an [issue](https://github.com/lapce/lapce/issues).
 
+To save time, run `cargo fmt --all check` on your code before committing to a pull request and fix any formatting issues; the CI takes its time and often, formatting errors are trivial to fix.
+
 We are currently in the process of improving the documentation for new developers/code contributors. Feel free to get started, or post a message on [Discord](https://discord.gg/n8tGJ6Rn6D) to see what can be done.
 
 ## Contact
