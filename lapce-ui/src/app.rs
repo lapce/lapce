@@ -275,7 +275,7 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
                         )
                         // MacOS doesn't like Cmd K Cmd S in its native spot for keyboard shortcuts
                         // so do what VSCode does and put it in the title
-                        
+                        //
                         // \u{2318} is the Unicode  the Command symbol on MacOS
                         .entry(MenuItem::new("Open Keyboard Shortcuts [\u{2318}K \u{2318}S]")
                             .command(
