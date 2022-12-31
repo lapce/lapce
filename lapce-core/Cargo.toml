@@ -86,6 +86,7 @@ tree-sitter-zig = { git = "https://github.com/maxxnino/tree-sitter-zig", rev = "
 
 [features]
 default = []
+portable = []
 # See lapce-ui/Cargo.toml for how to choose the languages.  See also
 # src/language.rs for how to add new languages.  The feature names should follow
 # the tree-sitter crate names.
