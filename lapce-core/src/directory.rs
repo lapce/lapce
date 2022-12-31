@@ -10,12 +10,21 @@ impl Directory {
         ProjectDirs::from("dev", "lapce", &NAME)
     }
 
+    fn portable_directory() -> Option<PathBuf> {
+        let path = std::env::current_exe().ok()?.parent()?.join("data");
+        if path.exists() {
+            Some(path)
+        } else {
+            None
+        }
+    }
+
     // Get path of local data directory
     // Local data directory differs from data directory
     // on some platforms and is not transferred across
     // machines
     pub fn data_local_directory() -> Option<PathBuf> {
-        match Self::project_dirs() {
+        Self::portable_directory().or(match Self::project_dirs() {
             Some(dir) => {
                 let dir = dir.data_local_dir();
                 if !dir.exists() {
@@ -24,7 +33,7 @@ impl Directory {
                 Some(dir.to_path_buf())
             }
             None => None,
-        }
+        })
     }
 
     /// Get the path to logs directory
@@ -98,7 +107,7 @@ impl Directory {
 
     // Config directory contain only configuration files
     pub fn config_directory() -> Option<PathBuf> {
-        match Self::project_dirs() {
+        Self::portable_directory().or(match Self::project_dirs() {
             Some(dir) => {
                 let dir = dir.config_dir();
                 if !dir.exists() {
@@ -107,7 +116,7 @@ impl Directory {
                 Some(dir.to_path_buf())
             }
             None => None,
-        }
+        })
     }
 
     pub fn local_socket() -> Option<PathBuf> {
