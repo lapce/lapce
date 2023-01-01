@@ -66,27 +66,24 @@ impl FileNodeItem {
     /// # use std::path::Path;
     /// #
     /// let mut iter = FileNodeItem::ancestors_rev(Path::new("/pre/fix"), Path::new("/pre/fix/foo/bar"));
-    /// assert_eq!(Some(Path::new("/pre/fix/foo")), iter.next().as_deref());
-    /// assert_eq!(Some(Path::new("/pre/fix/foo/bar")), iter.next().as_deref());
+    /// assert_eq!(Some(Path::new("/pre/fix/foo")), iter.next());
+    /// assert_eq!(Some(Path::new("/pre/fix/foo/bar")), iter.next());
     /// ```
     fn ancestors_rev<'a>(
-        prefix: &'a Path,
+        prefix: &Path,
         path: &'a Path,
-    ) -> impl Iterator<Item = PathBuf> + 'a {
-        path.strip_prefix(prefix).into_iter().flat_map(|path| {
-            let ancestors = path.ancestors().collect::<Vec<&Path>>();
-            ancestors
-                .into_iter()
-                .rev()
-                .skip(1)
-                .map(|anc| prefix.join(anc))
-        })
+    ) -> impl Iterator<Item = &'a Path> {
+        let skip = prefix.components().count();
+        let take = path.components().count() - skip;
+
+        let ancestors = path.ancestors().take(take).collect::<Vec<&Path>>();
+        ancestors.into_iter().rev()
     }
 
     pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
         let mut node = self;
         for p in Self::ancestors_rev(&self.path_buf, path) {
-            node = node.children.get(&p)?;
+            node = node.children.get(p)?;
         }
         Some(node)
     }
@@ -95,7 +92,7 @@ impl FileNodeItem {
         let prefix = self.path_buf.clone();
         let mut node = self;
         for p in Self::ancestors_rev(&prefix, path) {
-            node = node.children.get_mut(&p)?;
+            node = node.children.get_mut(p)?;
         }
         Some(node)
     }
