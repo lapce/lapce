@@ -13,6 +13,8 @@
 
 - [#1835](https://github.com/lapce/lapce/pull/1835): Add mouse keybinds
 
+- [#1895](https://github.com/lapce/lapce/pull/1895): Adds setting to only select the name, when renaming a file
+
 ### Bug Fixes
 
 ## 0.2.5
