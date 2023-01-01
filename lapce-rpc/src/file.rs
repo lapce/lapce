@@ -89,9 +89,10 @@ impl FileNodeItem {
     }
 
     pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
-        let prefix = self.path_buf.clone();
+        let iterator = Self::ancestors_rev(&self.path_buf, path);
+
         let mut node = self;
-        for p in Self::ancestors_rev(&prefix, path) {
+        for p in iterator {
             node = node.children.get_mut(p)?;
         }
         Some(node)
