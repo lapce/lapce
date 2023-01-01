@@ -36,6 +36,7 @@ impl PartialOrd for FileNodeItem {
             _ => {}
         }
 
+        // TODO(dbuga): it would be nicer if human_sort had a `eq_ignore_ascii_case` function.
         Some(human_sort::compare(
             &self_file_name.to_lowercase(),
             &other_file_name.to_lowercase(),
