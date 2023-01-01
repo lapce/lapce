@@ -1,5 +1,5 @@
 use std::{
-    cmp::{self, Ordering, PartialOrd, Ord},
+    cmp::{self, Ord, Ordering, PartialOrd},
     collections::HashMap,
     path::{Path, PathBuf},
 };
