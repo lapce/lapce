@@ -89,6 +89,7 @@ impl FileNodeItem {
             return None;
         };
 
+        #[allow(clippy::needless_collect)] // Ancestors is not reversible
         let ancestors = path.ancestors().take(take).collect::<Vec<&Path>>();
         Some(ancestors.into_iter().rev())
     }
