@@ -1,5 +1,3 @@
-#![allow(clippy::manual_clamp)]
-
 pub mod buffer;
 pub mod core;
 pub mod counter;
