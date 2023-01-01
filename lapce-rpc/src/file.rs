@@ -75,31 +75,34 @@ impl FileNodeItem {
     /// #    children: HashMap::new(),
     /// #    children_open_count: 0,
     ///};
-    /// let mut iter = node_item.ancestors_rev(Path::new("/pre/fix/foo/bar"));
+    /// let mut iter = node_item.ancestors_rev(Path::new("/pre/fix/foo/bar")).unwrap();
     /// assert_eq!(Some(Path::new("/pre/fix/foo")), iter.next());
     /// assert_eq!(Some(Path::new("/pre/fix/foo/bar")), iter.next());
     /// ```
     fn ancestors_rev<'a>(
         &self,
         path: &'a Path,
-    ) -> impl Iterator<Item = &'a Path> {
+    ) -> Option<impl Iterator<Item = &'a Path>> {
+        if !path.starts_with(&self.path_buf) {
+            return None;
+        }
         let skip = self.path_buf.components().count();
         let take = path.components().count() - skip;
 
         let ancestors = path.ancestors().take(take).collect::<Vec<&Path>>();
-        ancestors.into_iter().rev()
+        Some(ancestors.into_iter().rev())
     }
 
     pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
         let mut node = self;
-        for p in self.ancestors_rev(path) {
+        for p in self.ancestors_rev(path)? {
             node = node.children.get(p)?;
         }
         Some(node)
     }
 
     pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
-        let iterator = self.ancestors_rev(path);
+        let iterator = self.ancestors_rev(path)?;
 
         let mut node = self;
         for p in iterator {
