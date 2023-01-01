@@ -6,6 +6,8 @@ use lapce_core::{
     mode::Mode,
 };
 use serde::{Deserialize, Serialize};
+use strum::EnumMessage;
+use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumMessage, EnumString};
 
 use crate::{
     command::{CommandExecuted, CommandKind, LapceUICommand, LAPCE_UI_COMMAND},
@@ -23,15 +25,30 @@ pub enum SettingsValueKind {
     Bool,
 }
 
-#[derive(Hash, Eq, PartialEq, Clone)]
+#[derive(Hash, Eq, PartialEq, Clone, EnumDiscriminants)]
+#[strum_discriminants(name(LapceSettingsKindDerived))]
+#[strum_discriminants(derive(Display, EnumString, EnumMessage))]
 pub enum LapceSettingsKind {
+    #[strum_discriminants(strum(serialize = "core", message = "Core"))]
     Core,
+    #[strum_discriminants(strum(serialize = "ui", message = "UI"))]
     UI,
+    #[strum_discriminants(strum(serialize = "editor", message = "Editor"))]
     Editor,
+    #[strum_discriminants(strum(serialize = "terminal", message = "Terminal"))]
     Terminal,
+    #[strum_discriminants(strum(serialize = "theme", message = "Theme"))]
     Theme,
+    #[strum_discriminants(strum(serialize = "keymap", message = "Keybindings"))]
     Keymap,
+    #[strum_discriminants(strum(serialize = "plugins", message = "Plugins"))]
     Plugin(String),
+}
+
+impl LapceSettingsKindDerived {
+    pub fn message(self) -> &'static str {
+        self.get_message().unwrap()
+    }
 }
 
 #[derive(Clone)]
@@ -246,4 +263,14 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         self.input.insert_str(self.cursor, c);
         self.cursor += c.len();
     }
+}
+
+#[derive(Clone, Copy, AsRefStr, Display)]
+pub enum ThemeKind {
+    #[strum(serialize = "color-theme.base")]
+    Base,
+    #[strum(serialize = "color-theme.ui")]
+    UI,
+    #[strum(serialize = "color-theme.syntax")]
+    Syntax,
 }

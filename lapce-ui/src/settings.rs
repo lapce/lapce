@@ -1,5 +1,5 @@
 use hashbrown::HashMap;
-use std::{fmt::Display, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use druid::{
     kurbo::{BezPath, Line},
@@ -27,7 +27,10 @@ use lapce_data::{
     data::{FocusArea, LapceEditorData, LapceTabData},
     document::{BufferContent, Document},
     keypress::KeyPressFocus,
-    settings::{LapceSettingsFocusData, LapceSettingsKind, SettingsValueKind},
+    settings::{
+        LapceSettingsFocusData, LapceSettingsKind, LapceSettingsKindDerived,
+        SettingsValueKind, ThemeKind,
+    },
 };
 use lapce_xi_rope::Rope;
 use serde::Serialize;
@@ -1214,23 +1217,6 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
     }
 }
 
-#[derive(Clone, Copy)]
-pub enum ThemeKind {
-    Base,
-    UI,
-    Syntax,
-}
-
-impl Display for ThemeKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            ThemeKind::Base => "color-theme.base",
-            ThemeKind::UI => "color-theme.ui",
-            ThemeKind::Syntax => "color-theme.syntax",
-        })
-    }
-}
-
 pub struct ThemeSettings {
     base: WidgetPod<LapceTabData, ThemeSection>,
     ui: WidgetPod<LapceTabData, ThemeSection>,
@@ -2015,13 +2001,13 @@ impl Widget<LapceTabData> for SettingsSwitcher {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let mut settings_sections: Vec<&str> = vec![
-            "Core Settings",
-            "UI Settings",
-            "Editor Settings",
-            "Terminal Settings",
-            "Theme Settings",
-            "Keybindings",
-            "Plugin Settings",
+            LapceSettingsKindDerived::Core.message(),
+            LapceSettingsKindDerived::UI.message(),
+            LapceSettingsKindDerived::Editor.message(),
+            LapceSettingsKindDerived::Terminal.message(),
+            LapceSettingsKindDerived::Theme.message(),
+            LapceSettingsKindDerived::Keymap.message(),
+            LapceSettingsKindDerived::Plugin.message(),
         ];
 
         self.plugin_settings_disabled = true;
@@ -2049,7 +2035,9 @@ impl Widget<LapceTabData> for SettingsSwitcher {
                 .new_text_layout(text.to_string())
                 .font(data.config.ui.font_family(), font_size as f64)
                 .text_color(
-                    if self.plugin_settings_disabled && text == &"Plugin Settings" {
+                    if self.plugin_settings_disabled
+                        && text == &LapceSettingsKindDerived::Plugin.message()
+                    {
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_DIM)
                             .clone()
