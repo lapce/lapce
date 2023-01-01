@@ -57,26 +57,45 @@ impl FileNodeItem {
         children
     }
 
-    pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
-        let path_buf = self.path_buf.clone();
-        let path = path.strip_prefix(&self.path_buf).ok()?;
-        let ancestors = path.ancestors().collect::<Vec<&Path>>();
+    /// Returns an iterator over the ancestors of `path`, starting with the first decendant of `prefix`.
+    ///
+    /// # Example:
+    /// (ignored because the function is private but I promise this passes)
+    /// ```rust,ignore
+    /// # use lapce_rpc::file::FileNodeItem;
+    /// # use std::path::Path;
+    /// #
+    /// let mut iter = FileNodeItem::ancestors_rev(Path::new("/pre/fix"), Path::new("/pre/fix/foo/bar"));
+    /// assert_eq!(Some(Path::new("/pre/fix/foo")), iter.next().as_deref());
+    /// assert_eq!(Some(Path::new("/pre/fix/foo/bar")), iter.next().as_deref());
+    /// ```
+    fn ancestors_rev<'a>(
+        prefix: &'a Path,
+        path: &'a Path,
+    ) -> impl Iterator<Item = PathBuf> + 'a {
+        path.strip_prefix(prefix).into_iter().flat_map(|path| {
+            let ancestors = path.ancestors().collect::<Vec<&Path>>();
+            ancestors
+                .into_iter()
+                .rev()
+                .skip(1)
+                .map(|anc| prefix.join(anc))
+        })
+    }
 
+    pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
         let mut node = self;
-        for p in ancestors[..ancestors.len() - 1].iter().rev() {
-            node = node.children.get(&path_buf.join(p))?;
+        for p in Self::ancestors_rev(&self.path_buf, path) {
+            node = node.children.get(&p)?;
         }
         Some(node)
     }
 
     pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
-        let path_buf = self.path_buf.clone();
-        let path = path.strip_prefix(&self.path_buf).ok()?;
-        let ancestors = path.ancestors().collect::<Vec<&Path>>();
-
+        let prefix = self.path_buf.clone();
         let mut node = self;
-        for p in ancestors[..ancestors.len() - 1].iter().rev() {
-            node = node.children.get_mut(&path_buf.join(p))?;
+        for p in Self::ancestors_rev(&prefix, path) {
+            node = node.children.get_mut(&p)?;
         }
         Some(node)
     }
