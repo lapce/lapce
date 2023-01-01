@@ -32,6 +32,21 @@
                 <File Id="LapceExeFile" Source=".\target\release-lto\lapce.exe" Name="lapce.exe" KeyPath="yes"/>
             </Component>
         </DirectoryRef>
+        
+        <!-- Capabilities keys for Vista/7 "Set Program Access and Defaults" -->
+        <RegistryValue Root="HKLM" Key="SOFTWARE\lapce\Capabilities" Name="ApplicationDescription" Value="!(loc.ApplicationDescription)" Type="string" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\lapce\Capabilities" Name="ApplicationIcon" Value="[APPLICATIONFOLDER]lapce.exe,0" Type="string" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\lapce\Capabilities" Name="ApplicationName" Value="!(loc.ApplicationName)" Type="string" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\lapce\Capabilities\DefaultIcon" Value="[APPLICATIONFOLDER]lapce.exe,1" Type="string" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\lapce\Capabilities\shell\Open\command" Value="&quot;[APPLICATIONFOLDER]lapce.exe&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\RegisteredApplications" Name="lapce" Value="SOFTWARE\lapce\Capabilities" Type="string" />
+
+        <!-- App Paths to support Start,Run -> "lapce" -->
+        <RegistryValue Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\lapce.exe" Value="[!lapce.exe]" Type="string" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\lapce.exe" Name="Path" Value="[APPLICATIONFOLDER]" Type="string" />
+
+        <!-- Extend to the "open with" list + Win7 jump menu pinning  -->
+        <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\Applications\lapce.exe\shell\open" Name="FriendlyAppName" Value="!(loc.ApplicationName)" Type="string" />
 
         <DirectoryRef Id="LapceProgramMenu">
             <!-- Application shortcut -->
