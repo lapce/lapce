@@ -140,15 +140,14 @@ impl FileNodeItem {
     pub fn update_node_count(&mut self, path: &Path) -> Option<()> {
         let node = self.get_file_node_mut(path)?;
         if node.is_dir {
-            if node.open {
-                node.children_open_count = node
-                    .children
+            node.children_open_count = if node.open {
+                node.children
                     .values()
                     .map(|item| item.children_open_count + 1)
-                    .sum::<usize>();
+                    .sum::<usize>()
             } else {
-                node.children_open_count = 0;
-            }
+                0
+            };
         }
         None
     }
