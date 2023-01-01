@@ -1,4 +1,4 @@
-use xi_rope::{Cursor, Rope, RopeInfo};
+use lapce_xi_rope::{Cursor, Rope, RopeInfo};
 
 /// Describe char classifications used to compose word boundaries
 #[derive(Copy, Clone, PartialEq, Eq)]
