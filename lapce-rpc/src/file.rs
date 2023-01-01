@@ -1,5 +1,5 @@
 use std::{
-    cmp::{self, Ordering},
+    cmp::{Ord, Ordering, PartialOrd},
     collections::HashMap,
     path::{Path, PathBuf},
 };
@@ -16,69 +16,44 @@ pub struct FileNodeItem {
     pub children_open_count: usize,
 }
 
-impl std::cmp::PartialOrd for FileNodeItem {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        let self_dir = self.is_dir;
-        let other_dir = other.is_dir;
-        if self_dir && !other_dir {
-            return Some(cmp::Ordering::Less);
-        }
-        if !self_dir && other_dir {
-            return Some(cmp::Ordering::Greater);
+impl PartialOrd for FileNodeItem {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self.is_dir, other.is_dir) {
+            (true, false) => return Some(Ordering::Less),
+            (false, true) => return Some(Ordering::Greater),
+            _ => {}
         }
 
-        let self_file_name = self.path_buf.file_name()?.to_str()?.to_lowercase();
-        let other_file_name = other.path_buf.file_name()?.to_str()?.to_lowercase();
-        if self_file_name.starts_with('.') && !other_file_name.starts_with('.') {
-            return Some(cmp::Ordering::Less);
-        }
-        if !self_file_name.starts_with('.') && other_file_name.starts_with('.') {
-            return Some(cmp::Ordering::Greater);
-        }
-        self_file_name.partial_cmp(&other_file_name)
+        let self_file_name = self.path_buf.file_name()?.to_str()?;
+        let other_file_name = other.path_buf.file_name()?.to_str()?;
+
+        // TODO(dbuga): it would be nicer if human_sort had a `eq_ignore_ascii_case` function.
+        Some(human_sort::compare(
+            &self_file_name.to_lowercase(),
+            &other_file_name.to_lowercase(),
+        ))
+    }
+}
+
+impl Ord for FileNodeItem {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
     }
 }
 
 impl FileNodeItem {
     pub fn sorted_children(&self) -> Vec<&FileNodeItem> {
         let mut children = self.children.values().collect::<Vec<&FileNodeItem>>();
-        children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
-            (true, true) => a
-                .path_buf
-                .to_str()
-                .unwrap()
-                .cmp(b.path_buf.to_str().unwrap()),
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
-            (false, false) => a
-                .path_buf
-                .to_str()
-                .unwrap()
-                .cmp(b.path_buf.to_str().unwrap()),
-        });
+        children.sort();
         children
     }
 
     pub fn sorted_children_mut(&mut self) -> Vec<&mut FileNodeItem> {
         let mut children = self
             .children
-            .iter_mut()
-            .map(|(_, item)| item)
+            .values_mut()
             .collect::<Vec<&mut FileNodeItem>>();
-        children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
-            (true, true) => a
-                .path_buf
-                .to_str()
-                .unwrap()
-                .cmp(b.path_buf.to_str().unwrap()),
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
-            (false, false) => a
-                .path_buf
-                .to_str()
-                .unwrap()
-                .cmp(b.path_buf.to_str().unwrap()),
-        });
+        children.sort();
         children
     }
 
@@ -87,11 +62,11 @@ impl FileNodeItem {
         let path = path.strip_prefix(&self.path_buf).ok()?;
         let ancestors = path.ancestors().collect::<Vec<&Path>>();
 
-        let mut node = Some(self);
+        let mut node = self;
         for p in ancestors[..ancestors.len() - 1].iter().rev() {
-            node = Some(node?.children.get(&path_buf.join(p))?);
+            node = node.children.get(&path_buf.join(p))?;
         }
-        node
+        Some(node)
     }
 
     pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
@@ -99,11 +74,11 @@ impl FileNodeItem {
         let path = path.strip_prefix(&self.path_buf).ok()?;
         let ancestors = path.ancestors().collect::<Vec<&Path>>();
 
-        let mut node = Some(self);
+        let mut node = self;
         for p in ancestors[..ancestors.len() - 1].iter().rev() {
-            node = Some(node?.children.get_mut(&path_buf.join(p))?);
+            node = node.children.get_mut(&path_buf.join(p))?;
         }
-        node
+        Some(node)
     }
 
     pub fn remove_child(&mut self, path: &Path) -> Option<FileNodeItem> {
@@ -157,15 +132,14 @@ impl FileNodeItem {
     pub fn update_node_count(&mut self, path: &Path) -> Option<()> {
         let node = self.get_file_node_mut(path)?;
         if node.is_dir {
-            if node.open {
-                node.children_open_count = node
-                    .children
+            node.children_open_count = if node.open {
+                node.children
                     .values()
                     .map(|item| item.children_open_count + 1)
-                    .sum::<usize>();
+                    .sum::<usize>()
             } else {
-                node.children_open_count = 0;
-            }
+                0
+            };
         }
         None
     }
