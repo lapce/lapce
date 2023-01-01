@@ -63,17 +63,27 @@ impl FileNodeItem {
     /// (ignored because the function is private but I promise this passes)
     /// ```rust,ignore
     /// # use lapce_rpc::file::FileNodeItem;
-    /// # use std::path::Path;
+    /// # use std::path::{Path, PathBuf};
+    /// # use std::collections::HashMap;
     /// #
-    /// let mut iter = FileNodeItem::ancestors_rev(Path::new("/pre/fix"), Path::new("/pre/fix/foo/bar"));
+    /// let node_item = FileNodeItem {
+    ///     path_buf: PathBuf::from("/pre/fix"),
+    ///     // ...
+    /// #    is_dir: true,
+    /// #    read: false,
+    /// #    open: false,
+    /// #    children: HashMap::new(),
+    /// #    children_open_count: 0,
+    ///};
+    /// let mut iter = node_item.ancestors_rev(Path::new("/pre/fix/foo/bar"));
     /// assert_eq!(Some(Path::new("/pre/fix/foo")), iter.next());
     /// assert_eq!(Some(Path::new("/pre/fix/foo/bar")), iter.next());
     /// ```
     fn ancestors_rev<'a>(
-        prefix: &Path,
+        &self,
         path: &'a Path,
     ) -> impl Iterator<Item = &'a Path> {
-        let skip = prefix.components().count();
+        let skip = self.path_buf.components().count();
         let take = path.components().count() - skip;
 
         let ancestors = path.ancestors().take(take).collect::<Vec<&Path>>();
@@ -82,14 +92,14 @@ impl FileNodeItem {
 
     pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
         let mut node = self;
-        for p in Self::ancestors_rev(&self.path_buf, path) {
+        for p in self.ancestors_rev(path) {
             node = node.children.get(p)?;
         }
         Some(node)
     }
 
     pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
-        let iterator = Self::ancestors_rev(&self.path_buf, path);
+        let iterator = self.ancestors_rev(path);
 
         let mut node = self;
         for p in iterator {
