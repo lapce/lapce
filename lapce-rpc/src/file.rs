@@ -95,21 +95,13 @@ impl FileNodeItem {
     }
 
     pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
-        let mut node = self;
-        for p in self.ancestors_rev(path)? {
-            node = node.children.get(p)?;
-        }
-        Some(node)
+        self.ancestors_rev(path)?
+            .try_fold(self, |node, path| node.children.get(path))
     }
 
     pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
-        let iterator = self.ancestors_rev(path)?;
-
-        let mut node = self;
-        for p in iterator {
-            node = node.children.get_mut(p)?;
-        }
-        Some(node)
+        self.ancestors_rev(path)?
+            .try_fold(self, |node, path| node.children.get_mut(path))
     }
 
     pub fn remove_child(&mut self, path: &Path) -> Option<FileNodeItem> {
