@@ -1978,6 +1978,7 @@ impl LapceTab {
                             *list_index,
                             *indent_level,
                             text.clone(),
+                            &data.config,
                         );
                         ctx.set_handled();
                     }

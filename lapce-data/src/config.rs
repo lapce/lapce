@@ -314,6 +314,10 @@ pub struct CoreConfig {
         desc = "Enable customised titlebar and disable OS native one (Linux, BSD, Windows)"
     )]
     pub custom_titlebar: bool,
+    #[field_names(
+        desc = "When renaming a file only the name gets selected, without the extension"
+    )]
+    pub select_name_only: bool,
 }
 
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]

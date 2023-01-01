@@ -5,6 +5,8 @@ modal = false
 color-theme = "Lapce Dark"
 icon-theme = "Lapce Codicons"
 custom-titlebar = true
+select-name-only= true
+
 
 [editor]
 font-family = "Cascadia Code"

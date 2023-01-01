@@ -8,9 +8,11 @@ use druid::{Command, EventCtx, ExtEventSink, Target, WidgetId};
 use lapce_core::{cursor::CursorMode, selection::Selection};
 use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
 use lapce_xi_rope::Rope;
+use regex::Regex;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::LapceConfig,
     data::{LapceMainSplitData, LapceWorkspace},
     document::LocalBufferKind,
     proxy::LapceProxy,
@@ -416,6 +418,7 @@ impl FileExplorerData {
         list_index: usize,
         indent_level: usize,
         text: String,
+        config: &LapceConfig,
     ) {
         self.cancel_naming();
         self.naming = Some(Naming::Renaming {
@@ -430,16 +433,23 @@ impl FileExplorerData {
             .unwrap();
         Arc::make_mut(doc).reload(Rope::from(text), true);
 
-        // TODO: We could provide a configuration option to only select the filename at first,
-        // which would fit a common case of just wanting to change the filename and not the ext
-        // (or that could be the default)
-
-        // Select all of the text, allowing them to quickly completely change the name if they wish
+        // Based on user settings the whole text or only the name is selected.
+        // If only the name should be selected and no extension could be found, the whole text is selected.
         let editor = main_split
             .editors
             .get_mut(&self.renaming_editor_view_id)
             .unwrap();
-        let offset = doc.buffer().line_end_offset(0, true);
+        let offset = if config.core.select_name_only {
+            let text = doc.buffer().line_content(0);
+            let regex = Regex::new(r"\..+").unwrap();
+            match regex.find(&text) {
+                Some(mat) => doc.buffer().offset_of_line_col(0, mat.start()),
+                None => doc.buffer().line_end_offset(0, true),
+            }
+        } else {
+            doc.buffer().line_end_offset(0, true)
+        };
+
         Arc::make_mut(editor).cursor.mode =
             CursorMode::Insert(Selection::region(0, offset));
 
