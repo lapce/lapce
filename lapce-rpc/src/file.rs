@@ -43,14 +43,9 @@ impl FileNodeItem {
     pub fn sorted_children(&self) -> Vec<&FileNodeItem> {
         let mut children = self.children.values().collect::<Vec<&FileNodeItem>>();
         children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
-            (true, true) => a
-                .path_buf
-                .to_str()
-                .unwrap()
-                .cmp(b.path_buf.to_str().unwrap()),
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
-            (false, false) => a
+            _ => a
                 .path_buf
                 .to_str()
                 .unwrap()
@@ -66,14 +61,9 @@ impl FileNodeItem {
             .map(|(_, item)| item)
             .collect::<Vec<&mut FileNodeItem>>();
         children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
-            (true, true) => a
-                .path_buf
-                .to_str()
-                .unwrap()
-                .cmp(b.path_buf.to_str().unwrap()),
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
-            (false, false) => a
+            _ => a
                 .path_buf
                 .to_str()
                 .unwrap()
