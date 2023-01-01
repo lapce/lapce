@@ -1,5 +1,5 @@
 use std::{
-    cmp::{self, Ordering},
+    cmp::{self, Ordering, PartialOrd, Ord},
     collections::HashMap,
     path::{Path, PathBuf},
 };
@@ -16,7 +16,7 @@ pub struct FileNodeItem {
     pub children_open_count: usize,
 }
 
-impl cmp::PartialOrd for FileNodeItem {
+impl PartialOrd for FileNodeItem {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         match (self.is_dir, other.is_dir) {
             (true, false) => return Some(Ordering::Less),
@@ -43,7 +43,7 @@ impl cmp::PartialOrd for FileNodeItem {
     }
 }
 
-impl cmp::Ord for FileNodeItem {
+impl Ord for FileNodeItem {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
     }
