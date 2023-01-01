@@ -83,11 +83,11 @@ impl FileNodeItem {
         &self,
         path: &'a Path,
     ) -> Option<impl Iterator<Item = &'a Path>> {
-        if !path.starts_with(&self.path_buf) {
+        let take = if let Ok(suffix) = path.strip_prefix(&self.path_buf) {
+            suffix.components().count()
+        } else {
             return None;
-        }
-        let skip = self.path_buf.components().count();
-        let take = path.components().count() - skip;
+        };
 
         let ancestors = path.ancestors().take(take).collect::<Vec<&Path>>();
         Some(ancestors.into_iter().rev())
