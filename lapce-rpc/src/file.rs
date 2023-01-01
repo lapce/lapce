@@ -27,15 +27,6 @@ impl PartialOrd for FileNodeItem {
         let self_file_name = self.path_buf.file_name()?.to_str()?;
         let other_file_name = other.path_buf.file_name()?.to_str()?;
 
-        match (
-            self_file_name.starts_with('.'),
-            other_file_name.starts_with('.'),
-        ) {
-            (true, false) => return Some(Ordering::Less),
-            (false, true) => return Some(Ordering::Greater),
-            _ => {}
-        }
-
         // TODO(dbuga): it would be nicer if human_sort had a `eq_ignore_ascii_case` function.
         Some(human_sort::compare(
             &self_file_name.to_lowercase(),
