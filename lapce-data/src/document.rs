@@ -2179,6 +2179,30 @@ impl Document {
         view: &EditorView,
         config: &LapceConfig,
     ) -> SelRegion {
+        let (count, region) = if count >= 1 && !modify && !region.is_caret() {
+            // If we're not a caret, and we are moving left or right, we want to move
+            // the cursor to the left or right side of the selection.
+            // Ex: `|abc|` -> left arrow key -> `|abc`
+            // Ex: `|abc|` -> right arrow key -> `abc|`
+            // and it doesn't matter which direction the selection os going, so we use min/max
+            match movement {
+                Movement::Left => {
+                    let leftmost = region.min();
+                    (count - 1, SelRegion::new(leftmost, leftmost, region.horiz))
+                }
+                Movement::Right => {
+                    let rightmost = region.max();
+                    (
+                        count - 1,
+                        SelRegion::new(rightmost, rightmost, region.horiz),
+                    )
+                }
+                _ => (count, *region),
+            }
+        } else {
+            (count, *region)
+        };
+
         let (end, horiz) = self.move_offset(
             text,
             region.end,
