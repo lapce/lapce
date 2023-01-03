@@ -15,6 +15,7 @@
 - [#1835](https://github.com/lapce/lapce/pull/1835): Add mouse keybinds
 
 ### Bug Fixes
+- [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys
 
 ## 0.2.5
 
