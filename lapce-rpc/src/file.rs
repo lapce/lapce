@@ -57,28 +57,51 @@ impl FileNodeItem {
         children
     }
 
-    pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
-        let path_buf = self.path_buf.clone();
-        let path = path.strip_prefix(&self.path_buf).ok()?;
-        let ancestors = path.ancestors().collect::<Vec<&Path>>();
+    /// Returns an iterator over the ancestors of `path`, starting with the first decendant of `prefix`.
+    ///
+    /// # Example:
+    /// (ignored because the function is private but I promise this passes)
+    /// ```rust,ignore
+    /// # use lapce_rpc::file::FileNodeItem;
+    /// # use std::path::{Path, PathBuf};
+    /// # use std::collections::HashMap;
+    /// #
+    /// let node_item = FileNodeItem {
+    ///     path_buf: PathBuf::from("/pre/fix"),
+    ///     // ...
+    /// #    is_dir: true,
+    /// #    read: false,
+    /// #    open: false,
+    /// #    children: HashMap::new(),
+    /// #    children_open_count: 0,
+    ///};
+    /// let mut iter = node_item.ancestors_rev(Path::new("/pre/fix/foo/bar")).unwrap();
+    /// assert_eq!(Some(Path::new("/pre/fix/foo")), iter.next());
+    /// assert_eq!(Some(Path::new("/pre/fix/foo/bar")), iter.next());
+    /// ```
+    fn ancestors_rev<'a>(
+        &self,
+        path: &'a Path,
+    ) -> Option<impl Iterator<Item = &'a Path>> {
+        let take = if let Ok(suffix) = path.strip_prefix(&self.path_buf) {
+            suffix.components().count()
+        } else {
+            return None;
+        };
 
-        let mut node = self;
-        for p in ancestors[..ancestors.len() - 1].iter().rev() {
-            node = node.children.get(&path_buf.join(p))?;
-        }
-        Some(node)
+        #[allow(clippy::needless_collect)] // Ancestors is not reversible
+        let ancestors = path.ancestors().take(take).collect::<Vec<&Path>>();
+        Some(ancestors.into_iter().rev())
+    }
+
+    pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
+        self.ancestors_rev(path)?
+            .try_fold(self, |node, path| node.children.get(path))
     }
 
     pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
-        let path_buf = self.path_buf.clone();
-        let path = path.strip_prefix(&self.path_buf).ok()?;
-        let ancestors = path.ancestors().collect::<Vec<&Path>>();
-
-        let mut node = self;
-        for p in ancestors[..ancestors.len() - 1].iter().rev() {
-            node = node.children.get_mut(&path_buf.join(p))?;
-        }
-        Some(node)
+        self.ancestors_rev(path)?
+            .try_fold(self, |node, path| node.children.get_mut(path))
     }
 
     pub fn remove_child(&mut self, path: &Path) -> Option<FileNodeItem> {
