@@ -1333,29 +1333,20 @@ pub struct ThemeSection {
 
 impl ThemeSection {
     fn new(data: &LapceTabData, kind: ThemeKind) -> Self {
-        let colors: Vec<&str> = match kind {
-            ThemeKind::Base => {
-                data.config.color.base.keys().into_iter().sorted().collect()
+        let theme_color = &data.config.color;
+        let mut colors: Vec<String> = match kind {
+            ThemeKind::Base => theme_color
+                .base
+                .keys()
+                .into_iter()
+                .map(ToString::to_string)
+                .collect(),
+            ThemeKind::UI => theme_color.ui.keys().map(Clone::clone).collect(),
+            ThemeKind::Syntax => {
+                theme_color.syntax.keys().map(Clone::clone).collect()
             }
-            ThemeKind::UI => data
-                .config
-                .color
-                .ui
-                .keys()
-                .map(|s| s.as_str())
-                .sorted()
-                .collect(),
-            ThemeKind::Syntax => data
-                .config
-                .color
-                .syntax
-                .keys()
-                .map(|s| s.as_str())
-                .sorted()
-                .collect(),
         };
-
-        let colors: Vec<String> = colors.iter().map(|c| c.to_string()).collect();
+        colors.sort_unstable();
 
         Self {
             header_height: 40.0,
