@@ -144,6 +144,9 @@ impl Widget<LapceTabData> for TerminalPanel {
         // than one empty TerminalSplitData at the same time. Thus `SmallVec<[WidgetId; 1]>`
         // will allow how to avoid unnecessary allocation and at the same time will not take
         // up more space on the stack than necessary.
+        //
+        // Note: Here we are using a SmallVec instead of iterating directly with deletion, since
+        // that would require `Arc::make_mut` to be called every time, even if no changes were made.
         let empty_tabs = data
             .terminal
             .tabs
@@ -151,22 +154,20 @@ impl Widget<LapceTabData> for TerminalPanel {
             .filter(|(_, t)| t.terminals.is_empty())
             .map(|(tab_id, _)| *tab_id)
             .collect::<SmallVec<[WidgetId; 1]>>();
-        if !empty_tabs.is_empty() {
-            // We remove all empty entries, but at the same time it is necessary to synchronize
-            // changes in `data.terminal.tabs` with `data.terminal.tabs.tabs_order`.
-            // The `data.terminal.tabstabs_order` is a vector, so `removing` elements from it in
-            // a loop is inefficient due to shifting all elements to the left after each removal.
-            //
-            // Therefore, we first store the first `WidgetId` to be removed in the `id_to_remove`
-            // variable, and in the loop itself, instead of deleting, we will equate all the values
-            // to be removed to `id_to_remove`. After the loop, we simply rebuild the vector again,
-            // excluding all elements equal to `id_to_remove`.
-            //
-            // This will be equally effective with one removed element, and with more of them, as
-            // it will allow us to allocate a vector with the desired capacity only once.
-            //
-            // SAFETY: We have already checked that empty_tabs is not empty
-            let id_to_remove = unsafe { *empty_tabs.get_unchecked(0) };
+
+        // We remove all empty entries, but at the same time it is necessary to synchronize
+        // changes in `data.terminal.tabs` with `data.terminal.tabs.tabs_order`.
+        // The `data.terminal.tabstabs_order` is a vector, so `removing` elements from it in
+        // a loop is inefficient due to shifting all elements to the left after each removal.
+        //
+        // Therefore, we first store the first `WidgetId` to be removed in the `id_to_remove`
+        // variable, and in the loop itself, instead of deleting, we will equate all the values
+        // to be removed to `id_to_remove`. After the loop, we simply rebuild the vector again,
+        // excluding all elements equal to `id_to_remove`.
+        //
+        // This will be equally effective with one removed element, and with more of them, as
+        // it will allow us to allocate a vector with the desired capacity only once.
+        if let Some(&id_to_remove) = empty_tabs.get(0) {
             let removed_len = empty_tabs.len();
 
             let terminal = Arc::make_mut(&mut data.terminal);
