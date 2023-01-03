@@ -1370,15 +1370,14 @@ impl ThemeSection {
         let event_sink = ctx.get_external_handle();
         self.items = self
             .colors
-            .clone()
-            .into_iter()
+            .iter()
             .map(|color| {
                 WidgetPod::new(LapcePadding::new(
                     5.0,
                     ThemeSettingItem::new(
                         data,
                         self.kind,
-                        color,
+                        color.clone(),
                         event_sink.clone(),
                     ),
                 ))
