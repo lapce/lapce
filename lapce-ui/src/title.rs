@@ -1194,6 +1194,11 @@ impl Widget<LapceTabData> for SourceControlBranches {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let rect = ctx.size().to_rect();
+        ctx.stroke(
+            rect,
+            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+            1.0,
+        );
         ctx.fill(
             rect,
             data.config
