@@ -247,196 +247,202 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
     };
 
     desc.menu(|_, _, _| {
-        Menu::new("Lapce").entry(
-            Menu::new("")
-                .entry(MenuItem::new("About Lapce").command(Command::new(
-                    LAPCE_COMMAND,
-                    LapceCommand {
-                        kind: CommandKind::Workbench(
-                            LapceWorkbenchCommand::ShowAbout,
-                        ),
-                        data: None,
-                    },
-                    Target::Auto,
-                )))
-                .separator()
-                .entry(
-                    Menu::new("Settings...")
-                        .entry(MenuItem::new("Open Settings").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Workbench(
-                                    LapceWorkbenchCommand::OpenSettings,
-                                ),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )).hotkey(SysMods::Cmd, ",")
-                        )
-                        // MacOS doesn't like Cmd K Cmd S in its native spot for keyboard shortcuts
-                        // so do what VSCode does and put it in the title
-                        //
-                        // \u{2318} is the Unicode  the Command symbol on MacOS
-                        .entry(MenuItem::new("Open Keyboard Shortcuts [\u{2318}K \u{2318}S]")
-                            .command(
-                            Command::new(
-                                LAPCE_COMMAND,
-                                LapceCommand {
-                                    kind: CommandKind::Workbench(
-                                        LapceWorkbenchCommand::OpenKeyboardShortcuts,
-                                    ),
-                                    data: None,
-                                },
-                                Target::Auto,
-                            ))
-                        )
-                    )
+        let settings = Menu::new("Settings...")
+            .entry(
+                MenuItem::new("Open Settings")
+                    .command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::OpenSettings,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    ))
+                    .hotkey(SysMods::Cmd, ","),
+            )
+            // MacOS doesn't like Cmd K Cmd S in its native spot for keyboard shortcuts
+            // so do what VSCode does and put it in the title
+            //
+            // \u{2318} is the Unicode  the Command symbol on MacOS
+            .entry(
+                MenuItem::new("Open Keyboard Shortcuts [\u{2318}K \u{2318}S]")
+                    .command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::OpenKeyboardShortcuts,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )),
+            );
+        Menu::new("Lapce")
+            .entry(
+                Menu::new("")
+                    .entry(MenuItem::new("About Lapce").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::ShowAbout,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
                     .separator()
-                    .entry(MenuItem::new("Hide Lapce")
+                    .entry(settings)
+                    .separator()
+                    .entry(
+                        MenuItem::new("Hide Lapce")
                             .command(druid::commands::HIDE_APPLICATION)
-                            .hotkey(SysMods::Cmd, "h")
+                            .hotkey(SysMods::Cmd, "h"),
                     )
-                    .entry(MenuItem::new("Hide Others")
-                        .command(druid::commands::HIDE_OTHERS)
-                        .hotkey(SysMods::AltCmd, "h"),
+                    .entry(
+                        MenuItem::new("Hide Others")
+                            .command(druid::commands::HIDE_OTHERS)
+                            .hotkey(SysMods::AltCmd, "h"),
                     )
-                    .entry(MenuItem::new("Show All")
-                        .command(druid::commands::SHOW_ALL)
-                        )
+                    .entry(
+                        MenuItem::new("Show All").command(druid::commands::SHOW_ALL),
+                    )
                     .separator()
-                    .entry(MenuItem::new("Quit Lapce")
-                        .command(druid::commands::QUIT_APP)
-                        .hotkey(SysMods::Cmd, "q"),
-                    )
-                )
-                .separator()
-                .entry(
-                    Menu::new("File")
-                        .entry(MenuItem::new("New File").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Workbench(
-                                    LapceWorkbenchCommand::NewFile,
-                                ),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )).hotkey(SysMods::Cmd, "n"))
-                        .separator()
-                        .entry(MenuItem::new("Open").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Workbench(
-                                    LapceWorkbenchCommand::OpenFile,
-                                ),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )).hotkey(SysMods::Cmd, "o"))
-                        .entry(MenuItem::new("Open Folder").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Workbench(
-                                    LapceWorkbenchCommand::OpenFolder,
-                                ),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )))
-                        .separator()
-                        .entry(MenuItem::new("Save").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Focus(FocusCommand::Save),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )).hotkey(SysMods::Cmd, "s"))
-                        .entry(MenuItem::new("Save All").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Workbench(
-                                    LapceWorkbenchCommand::SaveAll,
-                                ),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )))
-                        .separator()
-                        .entry(MenuItem::new("Close Folder").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Workbench(
-                                    LapceWorkbenchCommand::CloseFolder,
-                                ),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )))
-                        .entry(MenuItem::new("Close Window").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Workbench(
-                                    LapceWorkbenchCommand::CloseWindow,
-                                ),
-                                data: None,
-                            },
-                            Target::Auto,
-                        ))),
-                )
-                .entry(
-                    Menu::new("Edit")
-                        .entry(MenuItem::new("Cut").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Edit(EditCommand::ClipboardCut),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )).hotkey(SysMods::Cmd, "x"))
-                        .entry(MenuItem::new("Copy").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Edit(EditCommand::ClipboardCopy),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )).hotkey(SysMods::Cmd, "c"))
-                        .entry(MenuItem::new("Paste").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Edit(EditCommand::ClipboardPaste),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )).hotkey(SysMods::Cmd, "v"))
-                        .separator()
-                        .entry(MenuItem::new("Undo").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Edit(EditCommand::Undo),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )).hotkey(SysMods::Cmd, "z"))
-                        .entry(MenuItem::new("Redo").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Edit(EditCommand::Redo),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )).hotkey(SysMods::Cmd, "Z"))
-                        .separator()
-                        .entry(MenuItem::new("Find").command(Command::new(
-                            LAPCE_COMMAND,
-                            LapceCommand {
-                                kind: CommandKind::Focus(FocusCommand::Search),
-                                data: None,
-                            },
-                            Target::Auto,
-                        )).hotkey(SysMods::Cmd, "f")),
-                )
+                    .entry(
+                        MenuItem::new("Quit Lapce")
+                            .command(druid::commands::QUIT_APP)
+                            .hotkey(SysMods::Cmd, "q"),
+                    ),
+            )
+            .separator()
+            .entry(
+                Menu::new("File")
+                    .entry(MenuItem::new("New File").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::NewFile,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .separator()
+                    .entry(MenuItem::new("Open").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::OpenFile,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .entry(MenuItem::new("Open Folder").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::OpenFolder,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .separator()
+                    .entry(MenuItem::new("Save").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::Save),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .entry(MenuItem::new("Save All").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::SaveAll,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .separator()
+                    .entry(MenuItem::new("Close Folder").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::CloseFolder,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .entry(MenuItem::new("Close Window").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::CloseWindow,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    ))),
+            )
+            .entry(
+                Menu::new("Edit")
+                    .entry(MenuItem::new("Cut").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::ClipboardCut),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .entry(MenuItem::new("Copy").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::ClipboardCopy),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .entry(MenuItem::new("Paste").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::ClipboardPaste),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .separator()
+                    .entry(MenuItem::new("Undo").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::Undo),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .entry(MenuItem::new("Redo").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::Redo),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )))
+                    .separator()
+                    .entry(MenuItem::new("Find").command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::Search),
+                            data: None,
+                        },
+                        Target::Auto,
+                    ))),
+            )
     })
 }
 
