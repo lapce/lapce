@@ -61,7 +61,10 @@ use crate::{
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
     },
     document::{BufferContent, Document, LocalBufferKind},
-    editor::{EditorLocation, EditorPosition, LapceEditorBufferData, Line, TabRect},
+    editor::{
+        EditorLocation, EditorPosition, LapceEditorBufferData, Line, LineCol,
+        TabRect,
+    },
     explorer::FileExplorerData,
     find::Find,
     hover::HoverData,
@@ -133,7 +136,69 @@ impl LapceData {
         let latest_release = Arc::new(None);
 
         let dirs: Vec<&PathBuf> = paths.iter().filter(|p| p.is_dir()).collect();
-        let files: Vec<&PathBuf> = paths.iter().filter(|p| p.is_file()).collect();
+
+        // Storage for parsed file, line and column.
+        let mut files: Vec<PathBuf> = vec![];
+        let mut lines: Vec<Line> = vec![];
+        let mut columns: Vec<LineCol> = vec![];
+
+        // extract file, line and column from the path
+        paths.iter().for_each(|p| {
+            let string = p
+                .file_name()
+                .expect("Failed to parse filename")
+                .to_os_string()
+                .into_string()
+                .expect("");
+            let split: Vec<_> = string.split(':').collect();
+            let (file, line, column) = match split.len() {
+                // path example: "file.txt"
+                1 => (
+                    PathBuf::from(split[0].to_string()),
+                    Line(1),
+                    LineCol { line: 1, column: 1 },
+                ),
+                // path example: "file.txt:42"
+                2 => (
+                    PathBuf::from(split[0].to_string()),
+                    Line(
+                        split[1]
+                            .parse()
+                            .expect("failed to parse line component of path"),
+                    ),
+                    LineCol {
+                        line: split[1]
+                            .parse()
+                            .expect("failed to parse line component of path"),
+                        column: 1,
+                    },
+                ),
+                // path example: "file.txt:42:42"
+                // path example: "file.txt:42:42:42"
+                // path example: "file.txt:42:42:lol:fajsnkfasnjfsan:41849214:9ijr938hrfer3"
+                _ => (
+                    PathBuf::from(split[0].to_string()),
+                    Line(
+                        split[1]
+                            .parse()
+                            .expect("failed to parse line component of path"),
+                    ),
+                    LineCol {
+                        line: split[1]
+                            .parse()
+                            .expect("failed to parse line component of path"),
+                        column: split[2]
+                            .parse()
+                            .expect("failed to parse line component of path"),
+                    },
+                ),
+            };
+            // organize the extracted files, lines and columns into respective vector
+            files.push(file);
+            lines.push(line);
+            columns.push(column);
+        });
+
         if !dirs.is_empty() {
             let (size, mut pos) = db
                 .get_last_window_info()
@@ -228,11 +293,34 @@ impl LapceData {
         }
 
         if let Some((window_id, _)) = windows.iter().next() {
-            for file in files {
+            for (i, file) in files.iter().enumerate() {
+                let column = columns[i];
+                let widget_id = Arc::try_unwrap(
+                    windows.get(window_id).unwrap().active_id.clone(),
+                )
+                .unwrap();
+
+                // open the file
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::OpenFile(file.to_path_buf(), false),
                     Target::Window(*window_id),
+                );
+
+                // jump to line and column
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::JumpToLineColLocation(
+                        Some(widget_id),
+                        EditorLocation {
+                            path: file.to_path_buf(),
+                            position: Some(column), // line info is included in column variable
+                            scroll_offset: None,
+                            history: None,
+                        },
+                        true,
+                    ),
+                    Target::Widget(widget_id),
                 );
             }
         }
