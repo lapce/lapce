@@ -2800,6 +2800,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "smallvec",
  "toml_edit",
  "unicode-width",
  "winres",
