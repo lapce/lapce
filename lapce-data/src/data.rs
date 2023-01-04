@@ -143,14 +143,14 @@ impl LapceData {
         let mut columns: Vec<LineCol> = vec![];
 
         // extract file, line and column from the path
-        paths.iter().for_each(|p| {
-            let string = p
+        paths.iter().for_each(|a| {
+            let argument = a
                 .file_name()
-                .expect("Failed to parse filename")
+                .expect("Failed to parse path argument")
                 .to_os_string()
                 .into_string()
                 .expect("");
-            let split: Vec<_> = string.split(':').collect();
+            let split: Vec<_> = argument.split(':').collect();
             let (file, line, column) = match split.len() {
                 // path example: "file.txt"
                 1 => (
