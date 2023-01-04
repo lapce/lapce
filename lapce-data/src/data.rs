@@ -146,10 +146,10 @@ impl LapceData {
         paths.iter().for_each(|a| {
             let argument = a
                 .file_name()
-                .expect("Failed to parse path argument")
+                .unwrap_or_default()
                 .to_os_string()
                 .into_string()
-                .expect("");
+                .unwrap_or_default();
             let split: Vec<_> = argument.split(':').collect();
             let (file, line, column) = match split.len() {
                 // path example: "file.txt"
@@ -164,12 +164,12 @@ impl LapceData {
                     Line(
                         split[1]
                             .parse()
-                            .expect("failed to parse line component of path"),
+                            .unwrap_or_default(),
                     ),
                     LineCol {
                         line: split[1]
                             .parse()
-                            .expect("failed to parse line component of path"),
+                            .unwrap_or_default(),
                         column: 1,
                     },
                 ),
@@ -181,15 +181,15 @@ impl LapceData {
                     Line(
                         split[1]
                             .parse()
-                            .expect("failed to parse line component of path"),
+                            .unwrap_or_default(),
                     ),
                     LineCol {
                         line: split[1]
                             .parse()
-                            .expect("failed to parse line component of path"),
+                            .unwrap_or_default(),
                         column: split[2]
                             .parse()
-                            .expect("failed to parse line component of path"),
+                            .unwrap_or_default(),
                     },
                 ),
             };
