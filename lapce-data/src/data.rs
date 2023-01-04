@@ -3,6 +3,7 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
     env,
+    ffi::OsStr,
     fmt::Display,
     io::{BufReader, Read, Write},
     path::{Path, PathBuf},
@@ -146,10 +147,10 @@ impl LapceData {
         paths.iter().for_each(|a| {
             let argument = a
                 .file_name()
-                .unwrap_or_default()
+                .unwrap_or(OsStr::new("."))
                 .to_os_string()
                 .into_string()
-                .unwrap_or_default();
+                .unwrap_or(".".to_string());
             let split: Vec<_> = argument.split(':').collect();
             let (file, line, column) = match split.len() {
                 // path example: "file.txt"
@@ -164,12 +165,12 @@ impl LapceData {
                     Line(
                         split[1]
                             .parse()
-                            .unwrap_or_default(),
+                            .unwrap_or(1),
                     ),
                     LineCol {
                         line: split[1]
                             .parse()
-                            .unwrap_or_default(),
+                            .unwrap_or(1),
                         column: 1,
                     },
                 ),
@@ -181,15 +182,15 @@ impl LapceData {
                     Line(
                         split[1]
                             .parse()
-                            .unwrap_or_default(),
+                            .unwrap_or(1),
                     ),
                     LineCol {
                         line: split[1]
                             .parse()
-                            .unwrap_or_default(),
+                            .unwrap_or(1),
                         column: split[2]
                             .parse()
-                            .unwrap_or_default(),
+                            .unwrap_or(1),
                     },
                 ),
             };
