@@ -34,7 +34,7 @@ use lapce_core::{
 use lapce_rpc::{
     buffer::BufferId,
     core::{CoreMessage, CoreNotification},
-    plugin::VoltInfo,
+    plugin::{VoltID, VoltInfo},
     proxy::ProxyResponse,
     source_control::FileDiff,
     terminal::TermId,
@@ -3971,7 +3971,7 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
-        volt_id: String,
+        volt_id: VoltID,
         volt_name: String,
         direction: SplitDirection,
         _config: &LapceConfig,
@@ -4178,7 +4178,7 @@ pub enum EditorTabChild {
     },
     Plugin {
         widget_id: WidgetId,
-        volt_id: String,
+        volt_id: VoltID,
         volt_name: String,
         editor_tab_id: WidgetId,
     },
@@ -4205,7 +4205,7 @@ impl EditorTabChild {
             EditorTabChild::Plugin {
                 volt_id, volt_name, ..
             } => EditorTabChildInfo::Plugin {
-                volt_id: volt_id.to_string(),
+                volt_id: volt_id.clone(),
                 volt_name: volt_name.to_string(),
             },
         }

@@ -24,6 +24,7 @@ use lapce_data::{
     rich_text::RichText,
     settings::LapceSettingsFocusData,
 };
+use lapce_rpc::plugin::VoltID;
 use once_cell::sync::Lazy;
 
 use crate::{
@@ -41,7 +42,7 @@ pub struct Plugin {
     line_height: f64,
     width: f64,
     installed: bool,
-    rects: HashMap<usize, (Rect, String, PluginStatus)>,
+    rects: HashMap<usize, (Rect, VoltID, PluginStatus)>,
     gap: f64,
     height: f64,
     last_idle_timer: TimerToken,
@@ -183,7 +184,7 @@ impl Plugin {
         ctx: &mut PaintCtx,
         data: &LapceTabData,
         i: usize,
-        id: &str,
+        id: &VoltID,
         display_name: &str,
         description: &str,
         author: &str,
@@ -439,7 +440,7 @@ impl Plugin {
                     &volt.version,
                     status.clone(),
                 );
-                self.rects.insert(i, (rect, id.to_string(), status));
+                self.rects.insert(i, (rect, id.clone(), status));
             }
         }
     }
@@ -538,7 +539,7 @@ impl Plugin {
                         &volt.version,
                         status.clone(),
                     );
-                    self.rects.insert(i, (rect, id.to_string(), status));
+                    self.rects.insert(i, (rect, id.clone(), status));
                     i += 1;
                 }
             }
@@ -680,7 +681,7 @@ impl Widget<LapceTabData> for Plugin {
 pub struct PluginInfo {
     widget_id: WidgetId,
     editor_tab_id: WidgetId,
-    volt_id: String,
+    volt_id: VoltID,
 
     padding: f64,
     gap: f64,
@@ -698,7 +699,7 @@ pub struct PluginInfo {
 }
 
 impl PluginInfo {
-    fn new(widget_id: WidgetId, editor_tab_id: WidgetId, volt_id: String) -> Self {
+    fn new(widget_id: WidgetId, editor_tab_id: WidgetId, volt_id: VoltID) -> Self {
         let mut readme_layout = TextLayout::new();
         readme_layout.set_text(RichText::new(ArcStr::from("")));
         Self {
@@ -724,7 +725,7 @@ impl PluginInfo {
     pub fn new_scroll(
         widget_id: WidgetId,
         editor_tab_id: WidgetId,
-        volt_id: String,
+        volt_id: VoltID,
     ) -> LapceScroll<LapceTabData, PluginInfo> {
         LapceScroll::new(PluginInfo::new(widget_id, editor_tab_id, volt_id))
     }
@@ -1218,7 +1219,12 @@ impl Widget<LapceTabData> for PluginInfo {
     }
 }
 
-fn status_on_click(ctx: &mut EventCtx, data: &LapceTabData, id: &str, pos: Point) {
+fn status_on_click(
+    ctx: &mut EventCtx,
+    data: &LapceTabData,
+    id: &VoltID,
+    pos: Point,
+) {
     let status = data.plugin.plugin_status(id);
     if let Some(meta) = data.plugin.installed.get(id) {
         let mut menu = druid::Menu::<LapceData>::new("Plugin");

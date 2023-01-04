@@ -14,7 +14,7 @@ use dyn_clone::DynClone;
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::{buffer::rope_text::RopeText, encoding::offset_utf16_to_utf8};
 use lapce_rpc::{
-    plugin::PluginId,
+    plugin::{PluginId, VoltID},
     style::{LineStyle, Style},
     RpcError,
 };
@@ -155,7 +155,7 @@ pub enum PluginServerRpc {
 #[derive(Clone)]
 pub struct PluginServerRpcHandler {
     pub plugin_id: PluginId,
-    pub volt_id: String,
+    pub volt_id: VoltID,
     rpc_tx: Sender<PluginServerRpc>,
     rpc_rx: Receiver<PluginServerRpc>,
     io_tx: Sender<JsonRpc>,
@@ -212,7 +212,7 @@ pub trait PluginServerHandler {
 }
 
 impl PluginServerRpcHandler {
-    pub fn new(volt_id: String, io_tx: Sender<JsonRpc>) -> Self {
+    pub fn new(volt_id: VoltID, io_tx: Sender<JsonRpc>) -> Self {
         let (rpc_tx, rpc_rx) = crossbeam_channel::unbounded();
 
         let rpc = Self {
@@ -536,7 +536,7 @@ struct ServerRegistrations {
 }
 
 pub struct PluginHostHandler {
-    volt_id: String,
+    volt_id: VoltID,
     volt_display_name: String,
     pwd: Option<PathBuf>,
     pub(crate) workspace: Option<PathBuf>,
@@ -551,7 +551,7 @@ impl PluginHostHandler {
     pub fn new(
         workspace: Option<PathBuf>,
         pwd: Option<PathBuf>,
-        volt_id: String,
+        volt_id: VoltID,
         volt_display_name: String,
         document_selector: DocumentSelector,
         server_rpc: PluginServerRpcHandler,

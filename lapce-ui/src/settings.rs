@@ -93,10 +93,10 @@ impl LapceSettingsPanel {
         for (volt_id, volt) in data.plugin.installed.iter() {
             if volt.config.is_some() {
                 children.insert(
-                    LapceSettingsKind::Plugin(volt_id.to_string()),
+                    LapceSettingsKind::Plugin(volt_id.clone()),
                     WidgetPod::new(
                         LapceSettings::new_scroll(LapceSettingsKind::Plugin(
-                            volt_id.to_string(),
+                            volt_id.clone(),
                         ))
                         .boxed(),
                     ),
@@ -1926,7 +1926,7 @@ impl Widget<LapceTabData> for SettingsSwitcher {
                                         LAPCE_UI_COMMAND,
                                         LapceUICommand::ShowSettingsKind(
                                             LapceSettingsKind::Plugin(
-                                                volt_id.to_string(),
+                                                volt_id.clone(),
                                             ),
                                         ),
                                         Target::Widget(self.settings_widget_id),

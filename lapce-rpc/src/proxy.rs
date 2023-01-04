@@ -7,6 +7,7 @@ use std::{
     },
 };
 
+use super::plugin::VoltID;
 use crossbeam_channel::{Receiver, Sender};
 use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
@@ -156,7 +157,7 @@ pub enum ProxyRequest {
 pub enum ProxyNotification {
     Initialize {
         workspace: Option<PathBuf>,
-        disabled_volts: Vec<String>,
+        disabled_volts: Vec<VoltID>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
@@ -471,7 +472,7 @@ impl ProxyRpcHandler {
     pub fn initialize(
         &self,
         workspace: Option<PathBuf>,
-        disabled_volts: Vec<String>,
+        disabled_volts: Vec<VoltID>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,

@@ -1,0 +1,16 @@
+name = "some-useful-plugin"
+version = "0.1.56"
+display-name = "Some Useful Plugin Name"
+author = "some_author"
+description = "very useful plugin"
+icon = "icon.svg"
+repository = "https://github.com/lapce"
+wasm = "lapce.wasm"
+color-themes = [
+    "Dark.toml",
+    "Light.toml",
+]
+icon-themes = [
+    "Dark.svg",
+    "Light.svg",
+]

@@ -10,6 +10,7 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
 use lapce_core::directory::Directory;
+use lapce_rpc::plugin::VoltID;
 use lapce_xi_rope::Rope;
 use serde::{Deserialize, Serialize};
 
@@ -137,7 +138,7 @@ impl EditorTabInfo {
 pub enum EditorTabChildInfo {
     Editor(EditorInfo),
     Settings,
-    Plugin { volt_id: String, volt_name: String },
+    Plugin { volt_id: VoltID, volt_name: String },
 }
 
 impl EditorTabChildInfo {
@@ -186,7 +187,7 @@ impl EditorTabChildInfo {
             EditorTabChildInfo::Plugin { volt_id, volt_name } => {
                 EditorTabChild::Plugin {
                     widget_id: WidgetId::next(),
-                    volt_id: volt_id.to_string(),
+                    volt_id: volt_id.clone(),
                     volt_name: volt_name.to_string(),
                     editor_tab_id,
                 }
@@ -516,7 +517,7 @@ impl LapceDb {
         Ok(())
     }
 
-    pub fn save_disabled_volts(&self, volts: Vec<&String>) -> Result<()> {
+    pub fn save_disabled_volts(&self, volts: Vec<&VoltID>) -> Result<()> {
         let sled_db = self.get_db()?;
         let volts = serde_json::to_string(&volts)?;
         sled_db.insert(b"disabled_volts", volts.as_str())?;
@@ -524,20 +525,20 @@ impl LapceDb {
         Ok(())
     }
 
-    pub fn get_disabled_volts(&self) -> Result<Vec<String>> {
+    pub fn get_disabled_volts(&self) -> Result<Vec<VoltID>> {
         let sled_db = self.get_db()?;
         let volts = sled_db
             .get("disabled_volts")?
             .ok_or_else(|| anyhow!("can't find disable volts"))?;
         let volts = std::str::from_utf8(&volts)?;
-        let volts: Vec<String> = serde_json::from_str(volts)?;
+        let volts: Vec<VoltID> = serde_json::from_str(volts)?;
         Ok(volts)
     }
 
     pub fn save_workspace_disabled_volts(
         &self,
         workspace: &LapceWorkspace,
-        volts: Vec<&String>,
+        volts: Vec<&VoltID>,
     ) -> Result<()> {
         let sled_db = self.get_db()?;
         let volts = serde_json::to_string(&volts)?;
@@ -549,13 +550,13 @@ impl LapceDb {
     pub fn get_workspace_disabled_volts(
         &self,
         workspace: &LapceWorkspace,
-    ) -> Result<Vec<String>> {
+    ) -> Result<Vec<VoltID>> {
         let sled_db = self.get_db()?;
         let volts = sled_db
             .get(format!("disabled_volts:{}", workspace))?
             .ok_or_else(|| anyhow!("can't find disable volts"))?;
         let volts = std::str::from_utf8(&volts)?;
-        let volts: Vec<String> = serde_json::from_str(volts)?;
+        let volts: Vec<VoltID> = serde_json::from_str(volts)?;
         Ok(volts)
     }
 
