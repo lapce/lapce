@@ -193,10 +193,12 @@ impl LapceData {
                     },
                 ),
             };
-            // organize the extracted files, lines and columns into respective vector
-            files.push(file);
-            lines.push(line);
-            columns.push(column);
+            if file.exists() {
+                // organize the extracted files, lines and columns into respective vector
+                files.push(file);
+                lines.push(line);
+                columns.push(column);
+            }
         });
 
         if !dirs.is_empty() {
