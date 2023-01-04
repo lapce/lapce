@@ -37,7 +37,7 @@ serde_json = "1.0"
 notify = { version = "5.0.0-pre.13", features = ["serde"] }
 lapce-xi-rope = { version = "0.3.1", features = ["serde"] }
 fuzzy-matcher = "0.3.7"
-uuid = { version = "0.8.2", features = ["v4"] }
+uuid = { version = "1.2.2", features = ["v4"] }
 lsp-types = { version = "0.93", features = ["proposed"] }
 druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = [ "svg", "im", "serde", ] }
 # druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
