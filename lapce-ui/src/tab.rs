@@ -1190,10 +1190,9 @@ impl LapceTab {
                             .map(|diff| {
                                 let checked = source_control
                                     .file_diffs
-                                    .iter()
-                                    .find_map(|(p, c)| (p == &diff).then_some(*c))
-                                    .unwrap_or(true);
-                                (diff, checked)
+                                    .get(diff.path())
+                                    .map_or(true, |(_, c)| *c);
+                                (diff.path().clone(), (diff, checked))
                             })
                             .collect();
 

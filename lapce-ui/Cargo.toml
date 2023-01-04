@@ -29,6 +29,7 @@ lsp-types = { version = "0.93", features = ["proposed"] }
 toml_edit = { version = "0.14.4", features = ["easy"] }
 open = "3.0.2"
 hashbrown = { version = "0.13.1", features = ["serde"] }
+indexmap = "1.7.0"
 
 # lapce deps
 druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = ["svg", "im", "serde"] }

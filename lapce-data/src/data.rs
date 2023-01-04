@@ -1658,14 +1658,15 @@ impl LapceTabData {
                     .file_diffs
                     .iter()
                     .filter_map(
-                        |(diff, checked)| {
+                        |(_, (diff, checked))| {
                             if *checked {
-                                Some(diff.clone())
+                                Some(diff)
                             } else {
                                 None
                             }
                         },
                     )
+                    .cloned()
                     .collect();
                 if diffs.is_empty() {
                     return;

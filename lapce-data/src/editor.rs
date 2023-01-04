@@ -997,8 +997,7 @@ impl LapceEditorBufferData {
                 .source_control
                 .file_diffs
                 .iter()
-                .map(|(diff, _)| {
-                    let path = diff.path();
+                .map(|(path, _)| {
                     let mut positions = Vec::new();
                     if let Some(doc) = self.main_split.open_docs.get(path) {
                         if let Some(history) = doc.get_history("head") {

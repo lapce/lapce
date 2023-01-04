@@ -2785,6 +2785,7 @@ dependencies = [
  "im",
  "image",
  "include_dir",
+ "indexmap",
  "itertools",
  "lapce-core",
  "lapce-data",
