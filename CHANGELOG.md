@@ -14,6 +14,8 @@
 
 - [#1835](https://github.com/lapce/lapce/pull/1835): Add mouse keybinds
 
+- [#1856](https://github.com/lapce/lapce/pull/1856): Highlight git/VCS modified files in explorer, palette, and buffer tabs
+
 ### Bug Fixes
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys
 

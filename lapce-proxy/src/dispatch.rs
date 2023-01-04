@@ -1120,13 +1120,13 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     let mut renames = Vec::new();
     let mut renamed_deltas = HashSet::new();
 
-    for (i, delta) in deltas.iter().enumerate() {
+    for (added_index, delta) in deltas.iter().enumerate() {
         if delta.0 == git2::Delta::Added {
-            for (j, d) in deltas.iter().enumerate() {
+            for (deleted_index, d) in deltas.iter().enumerate() {
                 if d.0 == git2::Delta::Deleted && d.1 == delta.1 {
-                    renames.push((i, j));
-                    renamed_deltas.insert(i);
-                    renamed_deltas.insert(j);
+                    renames.push((added_index, deleted_index));
+                    renamed_deltas.insert(added_index);
+                    renamed_deltas.insert(deleted_index);
                     break;
                 }
             }
@@ -1134,10 +1134,10 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     }
 
     let mut file_diffs = Vec::new();
-    for (i, j) in renames.iter() {
+    for (added_index, deleted_index) in renames.iter() {
         file_diffs.push(FileDiff::Renamed(
-            deltas[*i].2.clone(),
-            deltas[*j].2.clone(),
+            deltas[*added_index].2.clone(),
+            deltas[*deleted_index].2.clone(),
         ));
     }
     for (i, delta) in deltas.iter().enumerate() {

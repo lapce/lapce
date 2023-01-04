@@ -1243,6 +1243,7 @@ impl LapceTabData {
             db: self.db.clone(),
             focus_area: self.focus_area.clone(),
             terminal: self.terminal.clone(),
+            source_control: self.source_control.clone(),
         }
     }
 
@@ -1658,14 +1659,15 @@ impl LapceTabData {
                     .file_diffs
                     .iter()
                     .filter_map(
-                        |(diff, checked)| {
+                        |(_, (diff, checked))| {
                             if *checked {
-                                Some(diff.clone())
+                                Some(diff)
                             } else {
                                 None
                             }
                         },
                     )
+                    .cloned()
                     .collect();
                 if diffs.is_empty() {
                     return;

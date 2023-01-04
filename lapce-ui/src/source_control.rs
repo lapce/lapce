@@ -191,9 +191,11 @@ impl Widget<LapceTabData> for SourceControlFileList {
                                 ctx.submit_command(Command::new(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::OpenFileDiff(
-                                        source_control.file_diffs[target_line]
+                                        source_control
+                                            .file_diffs
+                                            .get_index(target_line)
+                                            .unwrap()
                                             .0
-                                            .path()
                                             .clone(),
                                         "head".to_string(),
                                     ),
@@ -207,19 +209,18 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     }
                     MouseButton::Right => {
                         let source_control = data.source_control.clone();
-                        let target_file_diff =
-                            source_control.file_diffs[target_line].0.clone();
-                        let target_file_path = target_file_diff.path().clone();
+                        let (target_file_path, target_file_diff) = source_control
+                            .file_diffs
+                            .get_index(target_line)
+                            .map(|(path, (diff, _))| (path.clone(), diff.clone()))
+                            .unwrap();
 
                         let mut menu = druid::Menu::<LapceData>::new("");
                         let mut item = druid::MenuItem::new("Open Changes").command(
                             Command::new(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::OpenFileDiff(
-                                    source_control.file_diffs[target_line]
-                                        .0
-                                        .path()
-                                        .clone(),
+                                    target_file_path.clone(),
                                     "head".to_string(),
                                 ),
                                 Target::Auto,
@@ -334,9 +335,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let self_size = ctx.size();
 
-        let diffs = &data.source_control.file_diffs;
-
-        if ctx.is_focused() && !diffs.is_empty() {
+        if ctx.is_focused() && !data.source_control.file_diffs.is_empty() {
             let rect = Size::new(ctx.size().width, self.line_height)
                 .to_rect()
                 .with_origin(Point::new(
@@ -355,7 +354,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
         let end_line = (rect.y1 / self.line_height).ceil() as usize;
         self.line_rects = vec![];
         for line in start_line..end_line {
-            if line >= diffs.len() {
+            if line >= data.source_control.file_diffs.len() {
                 break;
             }
             let y = self.line_height * line as f64;
@@ -375,8 +374,12 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 }
             }
 
-            let (diff, checked) = diffs[line].clone();
-            let mut path = diff.path().clone();
+            let (mut path, (diff, checked)) = data
+                .source_control
+                .file_diffs
+                .get_index(line)
+                .map(|d| (d.0.clone(), d.1))
+                .unwrap();
             if let Some(workspace_path) = data.workspace.path.as_ref() {
                 path = path
                     .strip_prefix(workspace_path)
@@ -399,7 +402,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     1.0,
                 );
 
-                if checked {
+                if *checked {
                     let mut path = BezPath::new();
                     path.move_to((origin.x + 3.0, origin.y + 7.0));
                     path.line_to((origin.x + 6.0, origin.y + 9.5));

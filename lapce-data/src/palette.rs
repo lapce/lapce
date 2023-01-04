@@ -22,7 +22,7 @@ use lapce_core::{
     language::LapceLanguage,
     mode::Mode,
 };
-use lapce_rpc::proxy::ProxyResponse;
+use lapce_rpc::{proxy::ProxyResponse, source_control::FileDiff};
 use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
 use uuid::Uuid;
 
@@ -44,6 +44,7 @@ use crate::{
     list::ListData,
     panel::PanelKind,
     proxy::{path_from_url, LapceProxy},
+    source_control::SourceControlData,
     terminal::TerminalPanelData,
 };
 
@@ -135,7 +136,7 @@ pub enum PaletteStatus {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaletteItemContent {
-    File(PathBuf, PathBuf),
+    File(PathBuf, PathBuf, Option<FileDiff>),
     Line(usize, String),
     TerminalLine(i32, String),
     DocumentSymbol {
@@ -168,7 +169,7 @@ impl PaletteItemContent {
         preview_editor_id: WidgetId,
     ) -> bool {
         match &self {
-            PaletteItemContent::File(_, full_path) => {
+            PaletteItemContent::File(_, full_path, _) => {
                 if !preview {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
@@ -324,6 +325,7 @@ pub struct PaletteViewData {
     pub db: Arc<LapceDb>,
     pub focus_area: FocusArea,
     pub terminal: Arc<TerminalPanelData>,
+    pub source_control: Arc<SourceControlData>,
 }
 
 impl Lens<LapceTabData, PaletteViewData> for PaletteViewLens {
@@ -839,6 +841,7 @@ impl PaletteViewData {
         let widget_id = self.palette.widget_id;
         let workspace = self.workspace.clone();
         let event_sink = ctx.get_external_handle();
+        let file_diffs = self.source_control.file_diffs.clone();
         self.palette.proxy.proxy_rpc.get_files(move |result| {
             if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
                 let items: im::Vector<PaletteItem> = items
@@ -853,9 +856,13 @@ impl PaletteViewData {
                                 .unwrap_or(&full_path)
                                 .to_path_buf();
                         }
+                        let file_diff =
+                            file_diffs.get(&full_path).cloned().map(|t| t.0);
                         let filter_text = path.to_str().unwrap_or("").to_string();
                         PaletteItem {
-                            content: PaletteItemContent::File(path, full_path),
+                            content: PaletteItemContent::File(
+                                path, full_path, file_diff,
+                            ),
                             filter_text,
                             score: 0,
                             indices: Vec::new(),
