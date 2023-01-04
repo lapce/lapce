@@ -29,6 +29,7 @@ use lapce_data::{
     document::BufferContent,
     editor::TabRect,
 };
+use lapce_rpc::source_control::FileDiff;
 
 use crate::editor::tab::TabRectRenderer;
 
@@ -463,12 +464,21 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 data.config
                     .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
             );
+            let mut text_color = match editor_tab.active_child() {
+                Some(active_child)
+                    if active_child.widget_id() == child.widget_id() =>
+                {
+                    LapceTheme::LAPCE_TAB_ACTIVE_FOREGROUND
+                }
+                _ => LapceTheme::LAPCE_TAB_INACTIVE_FOREGROUND,
+            };
             let mut file_path = None;
             match child {
                 EditorTabChild::Editor(view_id, _, _) => {
                     let editor = data.main_split.editors.get(view_id).unwrap();
                     if let BufferContent::File(path) = &editor.content {
                         (svg, svg_color) = data.config.file_svg(path);
+
                         if let Some(file_name) = path.file_name() {
                             if let Some(s) = file_name.to_str() {
                                 text = s.to_string();
@@ -479,6 +489,20 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                                     );
                                 }
                             }
+                        }
+                        if let Some(diff) = data.source_control.file_diffs.get(path)
+                        {
+                            text_color = match diff.0 {
+                                FileDiff::Modified(_) | FileDiff::Renamed(_, _) => {
+                                    LapceTheme::SOURCE_CONTROL_MODIFIED
+                                }
+                                FileDiff::Added(_) => {
+                                    LapceTheme::SOURCE_CONTROL_ADDED
+                                }
+                                FileDiff::Deleted(_) => {
+                                    LapceTheme::SOURCE_CONTROL_REMOVED
+                                }
+                            };
                         }
                     } else if let BufferContent::Scratch(..) = &editor.content {
                         text = editor.content.file_name().to_string();
@@ -498,20 +522,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 .text()
                 .new_text_layout(text)
                 .font(data.config.ui.font_family(), font_size)
-                .text_color(
-                    data.config
-                        .get_color_unchecked(
-                            if editor_tab.active_child().is_some()
-                                && editor_tab.active_child().unwrap().widget_id()
-                                    == child.widget_id()
-                            {
-                                LapceTheme::LAPCE_TAB_ACTIVE_FOREGROUND
-                            } else {
-                                LapceTheme::LAPCE_TAB_INACTIVE_FOREGROUND
-                            },
-                        )
-                        .clone(),
-                )
+                .text_color(data.config.get_color_unchecked(text_color).clone())
                 .build()
                 .unwrap();
             let path_layout = file_path.map(|f| {
