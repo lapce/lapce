@@ -189,31 +189,32 @@ impl Widget<LapceTabData> for PanelSection {
         env: &Env,
     ) {
         match event {
-            Event::MouseMove(mouse_pos) => {
-                if self.header.is_some()
-                    && Rect::new(0.0f64, 0.0f64, HEADER_HEIGHT, HEADER_HEIGHT)
-                        .contains(mouse_pos.pos)
-                {
-                    ctx.set_cursor(&Cursor::Pointer);
+            Event::MouseMove(mouse_event) => {
+                ctx.clear_cursor();
+                if let Some(header) = self.header.as_ref() {
+                    let rect = header.layout_rect();
+                    if rect.contains(mouse_event.pos) {
+                        ctx.set_cursor(&Cursor::Pointer);
+                    }
                 }
             }
-            Event::MouseDown(mouse_pos) => {
-                if self.header.is_some()
-                    && Rect::new(0.0f64, 0.0f64, HEADER_HEIGHT, HEADER_HEIGHT)
-                        .contains(mouse_pos.pos)
-                {
-                    self.mouse_down = true
+            Event::MouseDown(mouse_event) => {
+                self.mouse_down = false;
+                if let Some(header) = self.header.as_ref() {
+                    let rect = header.layout_rect();
+                    if rect.contains(mouse_event.pos) {
+                        self.mouse_down = true
+                    }
                 }
             }
-            Event::MouseUp(mouse_pos) => {
-                if self.header.is_some()
-                    && self.mouse_down
-                    && Rect::new(0.0f64, 0.0f64, HEADER_HEIGHT, HEADER_HEIGHT)
-                        .contains(mouse_pos.pos)
-                {
-                    self.mouse_down = false;
-                    self.display_content = !self.display_content;
-                    ctx.request_layout();
+            Event::MouseUp(mouse_event) => {
+                if let Some(header) = self.header.as_ref() {
+                    let rect = header.layout_rect();
+                    if self.mouse_down && rect.contains(mouse_event.pos) {
+                        self.mouse_down = false;
+                        self.display_content = !self.display_content;
+                        ctx.request_layout();
+                    }
                 }
             }
             _ => {}
@@ -263,14 +264,11 @@ impl Widget<LapceTabData> for PanelSection {
         let header_size = if let Some(header) = self.header.as_mut() {
             let s = header.layout(
                 ctx,
-                &BoxConstraints::tight(Size::new(
-                    self_size.width - HEADER_HEIGHT,
-                    HEADER_HEIGHT,
-                )),
+                &BoxConstraints::tight(Size::new(self_size.width, HEADER_HEIGHT)),
                 data,
                 env,
             );
-            header.set_origin(ctx, data, env, Point::new(HEADER_HEIGHT, 0.0));
+            header.set_origin(ctx, data, env, Point::ZERO);
             s
         } else {
             Size::ZERO
@@ -281,10 +279,7 @@ impl Widget<LapceTabData> for PanelSection {
                 ctx,
                 &BoxConstraints::new(
                     Size::ZERO,
-                    Size::new(
-                        self_size.width - HEADER_HEIGHT,
-                        self_size.height - HEADER_HEIGHT,
-                    ),
+                    Size::new(self_size.width, self_size.height - HEADER_HEIGHT),
                 ),
                 data,
                 env,
@@ -305,21 +300,32 @@ impl Widget<LapceTabData> for PanelSection {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         if let Some(header) = self.header.as_mut() {
+            header.paint(ctx, data, env);
+
             let icon_name = if self.display_content {
                 LapceIcons::PANEL_RESTORE
             } else {
                 LapceIcons::PANEL_MAXIMISE
             };
 
+            let header_rect = header.layout_rect();
+
+            let icon_size = data.config.ui.icon_size();
+            let icon_rect = Size::ZERO
+                .to_rect()
+                .with_origin(Point::new(
+                    header_rect.width() - HEADER_HEIGHT / 2.0,
+                    HEADER_HEIGHT / 2.0,
+                ))
+                .inflate(icon_size as f64 / 2.0, icon_size as f64 / 2.0);
             ctx.draw_svg(
                 &data.config.ui_svg(icon_name),
-                Size::new(HEADER_HEIGHT, HEADER_HEIGHT)
-                    .to_rect()
-                    .with_origin(Point::ZERO),
-                None,
+                icon_rect,
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                ),
             );
-
-            header.paint(ctx, data, env);
         }
         if self.display_content {
             self.content.paint(ctx, data, env);

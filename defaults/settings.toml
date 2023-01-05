@@ -270,7 +270,7 @@ name = ""
 "directory.opened" = "folder-opened.svg"
 
 "panel.restore" = "chevron-down.svg"
-"panel.maximise" = "chevron-up.svg"
+"panel.maximise" = "chevron-right.svg"
 
 "split.horizontal" = "split-horizontal.svg"
 
