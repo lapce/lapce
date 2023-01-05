@@ -588,7 +588,6 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         file_explorer.active_selected = path.clone();
                         ctx.request_paint();
                     }
-
                     LapceUICommand::FileExplorerRefresh => {
                         data.file_explorer.reload();
                     }
@@ -605,7 +604,6 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             ctx,
                         );
                     }
-
                     _ => (),
                 }
             }
@@ -1208,6 +1206,9 @@ impl OpenEditorList {
                             .unwrap_or(&path)
                             .to_path_buf();
                     }
+                    // TODO: Can be updated to use a disambiguation algorithm.
+                    // For example when opening multiple lib.rs which usually sits
+                    // under src/
                     hint = path
                         .parent()
                         .and_then(|s| s.to_str())
@@ -1444,6 +1445,8 @@ impl Widget<LapceTabData> for OpenEditorList {
             .iter()
             .map(|(_, tab)| tab.children.len())
             .sum::<usize>();
+
+        // If there are split editor tabs, then we need to consider the group headers
         let n = if data.main_split.editor_tabs.len() > 1 {
             n + data.main_split.editor_tabs.len()
         } else {
@@ -1457,6 +1460,7 @@ impl Widget<LapceTabData> for OpenEditorList {
         let rect = ctx.region().bounding_box();
         let mut i = 0;
         let mut g = 0;
+
         for (_, tab) in
             data.main_split
                 .editor_tabs
