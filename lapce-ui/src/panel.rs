@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use druid::{
     kurbo::Line,
-    piet::{Text, TextLayoutBuilder, TextStorage},
+    piet::{Text, TextLayout, TextLayoutBuilder, TextStorage},
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
     Widget, WidgetExt, WidgetId, WidgetPod,
@@ -929,6 +929,28 @@ impl Widget<LapceTabData> for PanelContainer {
 
         self.switcher0.paint(ctx, data, env);
         self.switcher1.paint(ctx, data, env);
+
+        if self.panels.is_empty() {
+            let text_layout = ctx
+                .text()
+                .new_text_layout("You can drag panel icon here")
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            let x = (rect.width() - text_layout.size().width) / 2.0;
+            ctx.draw_text(
+                &text_layout,
+                Point::new(x, text_layout.y_offset(rect.height())),
+            );
+        }
     }
 }
 
