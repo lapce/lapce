@@ -791,7 +791,7 @@ impl LapceTabData {
         main_split.add_editor(
             plugin.search_editor,
             None,
-            LocalBufferKind::PluginSeach,
+            LocalBufferKind::PluginSearch,
             &config,
             event_sink.clone(),
         );

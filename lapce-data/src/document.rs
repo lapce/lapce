@@ -133,7 +133,7 @@ pub enum LocalBufferKind {
     Settings,
     PathName,
     Rename,
-    PluginSeach,
+    PluginSearch,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -169,7 +169,7 @@ impl BufferContent {
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap
                 | LocalBufferKind::PathName
-                | LocalBufferKind::PluginSeach
+                | LocalBufferKind::PluginSearch
                 | LocalBufferKind::Rename => true,
                 LocalBufferKind::Empty => false,
             },
@@ -188,7 +188,7 @@ impl BufferContent {
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap
                 | LocalBufferKind::PathName
-                | LocalBufferKind::PluginSeach
+                | LocalBufferKind::PluginSearch
                 | LocalBufferKind::Rename => true,
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
@@ -853,7 +853,7 @@ impl Document {
                             Target::Widget(self.tab_id),
                         );
                     }
-                    LocalBufferKind::PluginSeach => {}
+                    LocalBufferKind::PluginSearch => {}
                     LocalBufferKind::SourceControl => {}
                     LocalBufferKind::Empty => {}
                     LocalBufferKind::Rename => {}

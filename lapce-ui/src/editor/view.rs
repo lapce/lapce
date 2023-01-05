@@ -173,7 +173,7 @@ impl LapceEditorView {
             BufferContent::Local(kind) => match kind {
                 LocalBufferKind::Keymap => {}
                 LocalBufferKind::Settings => {}
-                LocalBufferKind::PluginSeach => {}
+                LocalBufferKind::PluginSearch => {}
                 LocalBufferKind::Palette => {
                     data.focus_area = FocusArea::Palette;
                 }
