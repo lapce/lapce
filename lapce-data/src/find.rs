@@ -215,11 +215,7 @@ impl Find {
                     raw_lines = text.lines_raw(find_cursor.pos()..text.len());
                     continue;
                 }
-                raw_lines = text.lines_raw(find_cursor.pos()..text.len());
-
-                if start > offset {
-                    return Some((start, end));
-                }
+                return Some((start, end));
             }
             if wrap {
                 let mut raw_lines = text.lines_raw(0..offset);
@@ -543,5 +539,48 @@ impl Find {
         }
 
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn next_should_find_str() {
+        let text = Rope::from("blah a bla a blabla");
+        let mut find = Find::new(42);
+        find.set_find("bla", false, false);
+
+        assert_eq!(Some((0, 3)), find.next(&text, 0, false, false));
+        assert_eq!(Some((7, 10)), find.next(&text, 3, false, false));
+        assert_eq!(Some((13, 16)), find.next(&text, 10, false, false));
+        assert_eq!(Some((16, 19)), find.next(&text, 16, false, false));
+        assert_eq!(None, find.next(&text, 19, false, false));
+    }
+
+    #[test]
+    fn next_should_find_str_with_wrap() {
+        let text = Rope::from("blah a bla a blabla");
+        let mut find = Find::new(42);
+        find.set_find("bla", false, false);
+
+        assert_eq!(Some((13, 16)), find.next(&text, 8, false, true));
+        assert_eq!(Some((16, 19)), find.next(&text, 16, false, true));
+        assert_eq!(Some((0, 3)), find.next(&text, 19, false, true));
+        assert_eq!(Some((7, 10)), find.next(&text, 3, false, true));
+    }
+
+    #[test]
+    fn next_should_find_str_with_reverse() {
+        let text = Rope::from("blah a bla a blabla");
+        let mut find = Find::new(42);
+        find.set_find("bla", false, false);
+
+        assert_eq!(Some((16, 19)), find.next(&text, 19, true, false));
+        assert_eq!(Some((13, 16)), find.next(&text, 16, true, false));
+        assert_eq!(Some((7, 10)), find.next(&text, 13, true, false));
+        assert_eq!(Some((0, 3)), find.next(&text, 7, true, false));
+        assert_eq!(None, find.next(&text, 0, true, false));
     }
 }
