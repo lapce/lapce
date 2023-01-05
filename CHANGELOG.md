@@ -9,12 +9,10 @@
 ### Features/Changes
 - [#1899](https://github.com/lapce/lapce/pull/1899): Improve sorting files with numbers
 - [#1831](https://github.com/lapce/lapce/pull/1831): Plugin settings shown on right click
-
 - [#1830](https://github.com/lapce/lapce/pull/1830): Adds Clojure language support
-
 - [#1835](https://github.com/lapce/lapce/pull/1835): Add mouse keybinds
-
 - [#1856](https://github.com/lapce/lapce/pull/1856): Highlight git/VCS modified files in explorer, palette, and buffer tabs
+- [#1574](https://github.com/lapce/lapce/pull/1574): Panel sections can be expanded/collapsed
 
 ### Bug Fixes
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys
