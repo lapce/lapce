@@ -102,7 +102,7 @@ impl LapcePanel {
                 }
                 PanelHeaderKind::Widget(w) => Some(w),
             };
-            let section = PanelSection::new(header, content).boxed();
+            let section = PanelSection::new(kind, header, content).boxed();
 
             split = match size {
                 PanelSizing::Size(size) => {
@@ -154,6 +154,7 @@ pub enum PanelHeaderKind {
 }
 
 struct PanelSection {
+    kind: PanelKind,
     display_content: bool,
     mouse_down: bool,
     header: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
@@ -165,11 +166,13 @@ struct PanelSection {
 
 impl PanelSection {
     pub fn new(
+        kind: PanelKind,
         header: Option<Box<dyn Widget<LapceTabData>>>,
         content: Box<dyn Widget<LapceTabData>>,
     ) -> Self {
         let content = LapceScroll::new(content).vertical();
         Self {
+            kind,
             display_content: true,
             mouse_down: true,
             header: header.map(WidgetPod::new),
@@ -262,14 +265,35 @@ impl Widget<LapceTabData> for PanelSection {
         let self_size = bc.max();
 
         let header_size = if let Some(header) = self.header.as_mut() {
-            let s = header.layout(
-                ctx,
-                &BoxConstraints::tight(Size::new(self_size.width, HEADER_HEIGHT)),
-                data,
-                env,
-            );
+            let size = if !self.display_content
+                && data
+                    .panel
+                    .panel_position(&self.kind)
+                    .map(|(_, pos)| pos.is_bottom())
+                    .unwrap_or(false)
+            {
+                header.layout(
+                    ctx,
+                    &BoxConstraints::tight(Size::new(
+                        HEADER_HEIGHT,
+                        self_size.height,
+                    )),
+                    data,
+                    env,
+                )
+            } else {
+                header.layout(
+                    ctx,
+                    &BoxConstraints::tight(Size::new(
+                        self_size.width,
+                        HEADER_HEIGHT,
+                    )),
+                    data,
+                    env,
+                )
+            };
             header.set_origin(ctx, data, env, Point::ZERO);
-            s
+            size
         } else {
             Size::ZERO
         };
@@ -295,7 +319,10 @@ impl Widget<LapceTabData> for PanelSection {
             Size::ZERO
         };
 
-        Size::new(self_size.width, header_size.height + content_size.height)
+        Size::new(
+            header_size.width.max(content_size.width),
+            header_size.height + content_size.height,
+        )
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
