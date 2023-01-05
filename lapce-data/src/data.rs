@@ -3,7 +3,6 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
     env,
-    ffi::OsStr,
     fmt::Display,
     io::{BufReader, Read, Write},
     path::{Path, PathBuf},
@@ -137,70 +136,12 @@ impl LapceData {
         let latest_release = Arc::new(None);
 
         let dirs: Vec<&PathBuf> = paths.iter().filter(|p| p.is_dir()).collect();
+        let mut files = paths.iter().filter(|p| p.is_file());
 
-        // Storage for parsed file, line and column.
-        let mut files: Vec<PathBuf> = vec![];
-        let mut lines: Vec<Line> = vec![];
-        let mut columns: Vec<LineCol> = vec![];
-
-        // extract file, line and column from the path
-        paths.iter().for_each(|a| {
-            let argument = a
-                .file_name()
-                .unwrap_or(OsStr::new("."))
-                .to_os_string()
-                .into_string()
-                .unwrap_or(".".to_string());
-            let split: Vec<_> = argument.split(':').collect();
-            let (file, line, column) = match split.len() {
-                // path example: "file.txt"
-                1 => (
-                    PathBuf::from(split[0].to_string()),
-                    Line(1),
-                    LineCol { line: 1, column: 1 },
-                ),
-                // path example: "file.txt:42"
-                2 => (
-                    PathBuf::from(split[0].to_string()),
-                    Line(
-                        split[1]
-                            .parse()
-                            .unwrap_or(1),
-                    ),
-                    LineCol {
-                        line: split[1]
-                            .parse()
-                            .unwrap_or(1),
-                        column: 1,
-                    },
-                ),
-                // path example: "file.txt:42:42"
-                // path example: "file.txt:42:42:42"
-                // path example: "file.txt:42:42:lol:fajsnkfasnjfsan:41849214:9ijr938hrfer3"
-                _ => (
-                    PathBuf::from(split[0].to_string()),
-                    Line(
-                        split[1]
-                            .parse()
-                            .unwrap_or(1),
-                    ),
-                    LineCol {
-                        line: split[1]
-                            .parse()
-                            .unwrap_or(1),
-                        column: split[2]
-                            .parse()
-                            .unwrap_or(1),
-                    },
-                ),
-            };
-            if file.exists() {
-                // organize the extracted files, lines and columns into respective vector
-                files.push(file);
-                lines.push(line);
-                columns.push(column);
-            }
-        });
+        let parsed_paths: Vec<(PathBuf, LineCol)> = paths
+            .iter()
+            .filter_map(|p| Self::parse_path_line_column(p) )
+            .collect();
 
         if !dirs.is_empty() {
             let (size, mut pos) = db
@@ -248,7 +189,7 @@ impl LapceData {
                 );
                 windows.insert(window.window_id, window);
             }
-        } else if files.is_empty() {
+        } else if files.next().is_none() {
             if let Ok(app) = db.get_app() {
                 for info in app.windows.iter() {
                     let window = LapceWindowData::new(
@@ -296,8 +237,7 @@ impl LapceData {
         }
 
         if let Some((window_id, _)) = windows.iter().next() {
-            for (i, file) in files.iter().enumerate() {
-                let column = columns[i];
+            for (path, line_col) in parsed_paths {
                 let widget_id = Arc::try_unwrap(
                     windows.get(window_id).unwrap().active_id.clone(),
                 )
@@ -306,7 +246,7 @@ impl LapceData {
                 // open the file
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::OpenFile(file.to_path_buf(), false),
+                    LapceUICommand::OpenFile(path.clone(), false),
                     Target::Window(*window_id),
                 );
 
@@ -316,9 +256,12 @@ impl LapceData {
                     LapceUICommand::JumpToLineColLocation(
                         Some(widget_id),
                         EditorLocation {
-                            path: file.to_path_buf(),
-                            position: Some(column), // line info is included in column variable
-                            scroll_offset: None,
+                            path: path.clone(),
+                            position: Some(line_col),
+                            scroll_offset: Some(Vec2 {
+                                x: line_col.column as f64,
+                                y: line_col.line as f64,
+                            }),
                             history: None,
                         },
                         true,
@@ -364,6 +307,106 @@ impl LapceData {
             update_in_process: false,
             log_file,
         }
+    }
+
+    #[inline]
+    pub fn parse_path_line_column(path: &Path) -> Option<(PathBuf, LineCol)> {
+        fn write_text_with_sep_to<'a, I>(mut iter: I, buf: &mut String, sep: &str)
+        where
+            I: Iterator<Item = &'a str>,
+        {
+            if let Some(str) = iter.next() {
+                buf.push_str(str);
+                buf.push_str(sep);
+                write_text_with_sep_to(iter, buf, sep);
+            }
+        }
+        if let Some(str) = path.to_str() {
+            let mut splits = str.rsplit(':');
+            if let Some(first_rhs) = splits.next() {
+                match first_rhs.parse::<usize>() {
+                    Ok(first_rhs_num) => {
+                        if let Some(second_rhs) = splits.next() {
+                            match second_rhs.parse::<usize>() {
+                                Ok(second_rhs_num) => {
+                                    let mut str = String::new();
+                                    write_text_with_sep_to(splits.rev(), &mut str, ":");
+    
+                                    let left_path = PathBuf::from(&str[..&str.len() - 1]);
+    
+                                    if left_path.is_file() {
+                                        return Some((
+                                            left_path,
+                                            LineCol {
+                                                line: second_rhs_num,
+                                                column: first_rhs_num,
+                                            },
+                                        ));
+                                    }
+                                    // We have some second right hand number, but the remaining path isn't a file,
+                                    // then let's check if it changed if we add `second_rhs`?
+                                    // Last char of `str` is ":", so we neen to push only `second_rhs`
+                                    str.push_str(second_rhs);
+                                    let left_path = PathBuf::from(&str);
+                                    if left_path.is_file() {
+                                        return Some((
+                                            left_path,
+                                            LineCol {
+                                                line: first_rhs_num,
+                                                column: 1,
+                                            },
+                                        ));
+                                    } else if path.is_file() {
+                                        // Ok, that's not a file either. Then just check whole path
+                                        return Some((
+                                            path.to_path_buf(),
+                                            LineCol { line: 1, column: 1 },
+                                        ));
+                                    }
+                                }
+                                Err(_) => {
+                                    let mut str = String::new();
+                                    write_text_with_sep_to(splits.rev(), &mut str, ":");
+                                    str.push_str(second_rhs);
+    
+                                    let left_path = PathBuf::from(&str);
+    
+                                    if left_path.is_file() {
+                                        return Some((
+                                            left_path,
+                                            LineCol {
+                                                line: first_rhs_num,
+                                                column: 1,
+                                            },
+                                        ));
+                                    } else if path.is_file() {
+                                        // We have some number on the right but the remaining path isn't a file, then
+                                        // let's check if the entire path is a file?
+                                        return Some((
+                                            path.to_path_buf(),
+                                            LineCol { line: 1, column: 1 },
+                                        ));
+                                    }
+                                }
+                            }
+                        } else if path.is_file() {
+                            return Some((path.to_path_buf(), LineCol { line: 1, column: 1 }));
+                        }
+                    }
+                    Err(_) => {
+                        // If the first right component isn't a number, then the enire path has to refer to a file name
+                        if path.is_file() {
+                            return Some((path.to_path_buf(), LineCol { line: 1, column: 1 }));
+                        }
+                    }
+                }
+            }
+        // Check if the path refers to a file if the path isn't UTF-8 valid
+        } else if path.is_file() {
+            return Some((path.to_path_buf(), LineCol { line: 1, column: 1 }));
+        }
+        // Ignore the path if it doesn't refer to a file
+        None
     }
 
     pub fn default_panel_orders() -> PanelOrder {
