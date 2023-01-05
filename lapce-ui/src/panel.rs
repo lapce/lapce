@@ -94,7 +94,7 @@ impl LapcePanel {
         )>,
     ) -> Self {
         let mut split = LapceSplit::new(split_id).panel(kind);
-        for (section_widget_id, header, content, size) in sections {
+        for (section_id, header, content, size) in sections {
             let header = match header {
                 PanelHeaderKind::None => None,
                 PanelHeaderKind::Simple(s) => {
@@ -102,19 +102,15 @@ impl LapcePanel {
                 }
                 PanelHeaderKind::Widget(w) => Some(w),
             };
-            let section =
-                PanelSection::new(section_widget_id, header, content).boxed();
+            let section = PanelSection::new(header, content).boxed();
 
             split = match size {
                 PanelSizing::Size(size) => {
-                    split.with_child(section, Some(section_widget_id), size)
+                    split.with_child(section, Some(section_id), size)
                 }
-                PanelSizing::Flex(resizable) => split.with_flex_child(
-                    section,
-                    Some(section_widget_id),
-                    1.0,
-                    resizable,
-                ),
+                PanelSizing::Flex(resizable) => {
+                    split.with_flex_child(section, Some(section_id), 1.0, resizable)
+                }
             };
         }
         Self {
@@ -158,6 +154,8 @@ pub enum PanelHeaderKind {
 }
 
 struct PanelSection {
+    display_content: bool,
+    mouse_down: bool,
     header: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     content: WidgetPod<
         LapceTabData,
@@ -167,17 +165,20 @@ struct PanelSection {
 
 impl PanelSection {
     pub fn new(
-        _widget_id: WidgetId,
         header: Option<Box<dyn Widget<LapceTabData>>>,
         content: Box<dyn Widget<LapceTabData>>,
     ) -> Self {
         let content = LapceScroll::new(content).vertical();
         Self {
+            display_content: true,
+            mouse_down: true,
             header: header.map(WidgetPod::new),
             content: WidgetPod::new(content),
         }
     }
 }
+
+const HEADER_HEIGHT: f64 = 30.0f64;
 
 impl Widget<LapceTabData> for PanelSection {
     fn event(
@@ -187,6 +188,37 @@ impl Widget<LapceTabData> for PanelSection {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::MouseMove(mouse_pos) => {
+                if self.header.is_some()
+                    && Rect::new(0.0f64, 0.0f64, HEADER_HEIGHT, HEADER_HEIGHT)
+                        .contains(mouse_pos.pos)
+                {
+                    ctx.set_cursor(&Cursor::Pointer);
+                }
+            }
+            Event::MouseDown(mouse_pos) => {
+                if self.header.is_some()
+                    && Rect::new(0.0f64, 0.0f64, HEADER_HEIGHT, HEADER_HEIGHT)
+                        .contains(mouse_pos.pos)
+                {
+                    self.mouse_down = true
+                }
+            }
+            Event::MouseUp(mouse_pos) => {
+                if self.header.is_some()
+                    && self.mouse_down
+                    && Rect::new(0.0f64, 0.0f64, HEADER_HEIGHT, HEADER_HEIGHT)
+                        .contains(mouse_pos.pos)
+                {
+                    self.mouse_down = false;
+                    self.display_content = !self.display_content;
+                    ctx.request_layout();
+                }
+            }
+            _ => {}
+        }
+
         if let Some(header) = self.header.as_mut() {
             header.event(ctx, event, data, env);
         }
@@ -227,39 +259,70 @@ impl Widget<LapceTabData> for PanelSection {
         env: &Env,
     ) -> Size {
         let self_size = bc.max();
-        let header_height = if let Some(header) = self.header.as_mut() {
-            let header_height = 30.0;
-            header.layout(
+
+        let header_size = if let Some(header) = self.header.as_mut() {
+            let s = header.layout(
                 ctx,
-                &BoxConstraints::tight(Size::new(self_size.width, header_height)),
+                &BoxConstraints::tight(Size::new(
+                    self_size.width - HEADER_HEIGHT,
+                    HEADER_HEIGHT,
+                )),
                 data,
                 env,
             );
-            header.set_origin(ctx, data, env, Point::ZERO);
-            header_height
+            header.set_origin(ctx, data, env, Point::new(HEADER_HEIGHT, 0.0));
+            s
         } else {
-            0.0
+            Size::ZERO
         };
 
-        let content_size = self.content.layout(
-            ctx,
-            &BoxConstraints::new(
-                Size::ZERO,
-                Size::new(self_size.width, self_size.height - header_height),
-            ),
-            data,
-            env,
-        );
-        self.content
-            .set_origin(ctx, data, env, Point::new(0.0, header_height));
+        let content_size = if self.display_content {
+            let s = self.content.layout(
+                ctx,
+                &BoxConstraints::new(
+                    Size::ZERO,
+                    Size::new(
+                        self_size.width - HEADER_HEIGHT,
+                        self_size.height - HEADER_HEIGHT,
+                    ),
+                ),
+                data,
+                env,
+            );
+            self.content.set_origin(
+                ctx,
+                data,
+                env,
+                Point::new(0.0, header_size.height),
+            );
+            s
+        } else {
+            Size::ZERO
+        };
 
-        Size::new(content_size.width, header_height + content_size.height)
+        Size::new(self_size.width, header_size.height + content_size.height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        self.content.paint(ctx, data, env);
         if let Some(header) = self.header.as_mut() {
+            let icon_name = if self.display_content {
+                LapceIcons::PANEL_RESTORE
+            } else {
+                LapceIcons::PANEL_MAXIMISE
+            };
+
+            ctx.draw_svg(
+                &data.config.ui_svg(icon_name),
+                Size::new(HEADER_HEIGHT, HEADER_HEIGHT)
+                    .to_rect()
+                    .with_origin(Point::ZERO),
+                None,
+            );
+
             header.paint(ctx, data, env);
+        }
+        if self.display_content {
+            self.content.paint(ctx, data, env);
         }
     }
 }
@@ -315,6 +378,7 @@ impl Widget<LapceTabData> for PanelSectionHeader {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let rect = ctx.size().to_rect();
+
         ctx.fill(
             rect,
             data.config
