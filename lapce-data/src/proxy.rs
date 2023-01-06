@@ -919,22 +919,7 @@ impl Remote for WslRemote {
 // This function strips the additional / from the beginning, if the first segment is a drive letter.
 #[cfg(windows)]
 pub fn path_from_url(url: &Url) -> PathBuf {
-    let path = url.path();
-    if let Some(path) = path.strip_prefix('/') {
-        if let Some((maybe_drive_letter, _)) = path.split_once(['/', '\\']) {
-            let b = maybe_drive_letter.as_bytes();
-            if b.len() == 2
-                && matches!(
-                    b[0],
-                    b'a'..=b'z' | b'A'..=b'Z'
-                )
-                && b[1] == b':'
-            {
-                return PathBuf::from(path);
-            }
-        }
-    }
-    PathBuf::from(path)
+    return url.to_file_path().expect("Path must be a file scheme");
 }
 
 #[cfg(not(windows))]
