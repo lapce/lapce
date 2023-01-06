@@ -75,6 +75,12 @@ pub enum EditCommand {
     Paste,
     #[strum(serialize = "paste_before")]
     PasteBefore,
+    #[cfg(target_os = "linux")]
+    #[strum(serialize = "clipboard_primary_copy")]
+    ClipboardPrimaryCopy,
+    #[cfg(target_os = "linux")]
+    #[strum(serialize = "clipboard_primary_paste")]
+    ClipboardPrimaryPaste,
 
     #[strum(serialize = "normal_mode")]
     NormalMode,

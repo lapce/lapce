@@ -3,6 +3,10 @@ use crate::mode::VisualMode;
 pub trait Clipboard {
     fn get_string(&self) -> Option<String>;
     fn put_string(&mut self, s: impl AsRef<str>);
+    #[cfg(target_os = "linux")]
+    fn get_string_primary(&self) -> Option<String>;
+    #[cfg(target_os = "linux")]
+    fn put_string_primary(&mut self, s: impl AsRef<str>);
 }
 
 #[derive(Clone, Default)]

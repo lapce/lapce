@@ -43,6 +43,7 @@ lapce-rpc.workspace = true
 lapce-proxy.workspace = true
 
 druid.workspace = true
+druid-shell.workspace = true
 
 sha2 = "0.10.6"
 fs_extra = "1.2.0"

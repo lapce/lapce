@@ -17,7 +17,7 @@ use lapce_core::{
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
-        LAPCE_UI_COMMAND,
+        LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{LapceConfig, LapceTheme},
     data::{EditorView, LapceData, LapceTabData},
@@ -220,7 +220,7 @@ impl LapceEditor {
                 self.left_click(ctx, mouse_event, &mut editor_data, &data.config);
                 editor_data.get_code_actions(ctx);
                 editor_data.cancel_completion();
-                // TODO: Don't cancel over here, because it would good to allow the user to
+                // TODO: Don't cancel hover here, because it would be good to allow the user to
                 // select text inside the hover/signature data
                 editor_data.cancel_signature();
                 editor_data.cancel_hover();
@@ -228,6 +228,14 @@ impl LapceEditor {
             MouseButton::Right => {
                 self.mouse_hover_timer = TimerToken::INVALID;
                 self.right_click(ctx, &mut editor_data, mouse_event, &data.config);
+                editor_data.get_code_actions(ctx);
+                editor_data.cancel_completion();
+                editor_data.cancel_signature();
+                editor_data.cancel_hover();
+            }
+            MouseButton::Middle => {
+                self.mouse_hover_timer = TimerToken::INVALID;
+                self.middle_click(ctx, &mut editor_data, mouse_event, &data.config);
                 editor_data.get_code_actions(ctx);
                 editor_data.cancel_completion();
                 editor_data.cancel_signature();
@@ -395,6 +403,27 @@ impl LapceEditor {
             ),
             Target::Widget(*editor_data.main_split.tab_id),
         ));
+    }
+
+    fn middle_click(
+        &mut self,
+        ctx: &mut EventCtx,
+        editor_data: &mut LapceEditorBufferData,
+        mouse_event: &MouseEvent,
+        config: &LapceConfig,
+    ) {
+        #[cfg(target_os = "linux")]
+        {
+            editor_data.single_click(ctx, mouse_event, config);
+            ctx.submit_command(Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Edit(EditCommand::ClipboardPrimaryPaste),
+                    data: None,
+                },
+                Target::Widget(*editor_data.main_split.tab_id),
+            ));
+        }
     }
 
     pub fn get_size(

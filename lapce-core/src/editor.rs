@@ -1037,6 +1037,55 @@ impl Editor {
                     vec![]
                 }
             }
+            #[cfg(target_os = "linux")]
+            ClipboardPrimaryCopy => {
+                match &cursor.mode {
+                    CursorMode::Visual {
+                        start,
+                        end,
+                        mode: _,
+                    } => {
+                        let data = cursor.yank(buffer);
+                        clipboard.put_string_primary(data.content);
+
+                        let offset = *start.min(end);
+                        let offset =
+                            buffer.offset_line_end(offset, false).min(offset);
+                        cursor.mode = CursorMode::Normal(offset);
+                    }
+                    CursorMode::Insert(selection) => {
+                        let mut content = "".to_string();
+                        for region in selection.regions() {
+                            if !region.is_caret() {
+                                if !content.is_empty() {
+                                    content += "\n";
+                                }
+                                content +=
+                                    &buffer.slice_to_cow(region.min()..region.max());
+                            }
+                        }
+                        if !content.is_empty() {
+                            clipboard.put_string_primary(content);
+                        }
+                    }
+                    CursorMode::Normal(_) => {}
+                }
+                vec![]
+            }
+            #[cfg(target_os = "linux")]
+            ClipboardPrimaryPaste => {
+                if let Some(s) = clipboard.get_string_primary() {
+                    let mode = if s.ends_with('\n') {
+                        VisualMode::Linewise
+                    } else {
+                        VisualMode::Normal
+                    };
+                    let data = RegisterData { content: s, mode };
+                    Self::do_paste(cursor, buffer, &data)
+                } else {
+                    vec![]
+                }
+            }
             Yank => {
                 match &cursor.mode {
                     CursorMode::Visual { start, end, .. } => {

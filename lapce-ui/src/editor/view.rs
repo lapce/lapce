@@ -720,6 +720,20 @@ impl Widget<LapceTabData> for LapceEditorView {
                     );
                     editor_data.get_code_actions(ctx);
 
+                    #[cfg(target_os = "linux")]
+                    {
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Edit(
+                                    EditCommand::ClipboardPrimaryCopy,
+                                ),
+                                data: None,
+                            },
+                            Target::Widget(*editor_data.main_split.tab_id),
+                        ));
+                    }
+
                     data.keypress = keypress.clone();
                 }
             }
