@@ -914,15 +914,6 @@ impl Remote for WslRemote {
     }
 }
 
-// Rust-analyzer returns paths in the form of "file:///<drive>:/...", which gets parsed into URL
-// as "/<drive>://" which is then interpreted by PathBuf::new() as a UNIX-like path from root.
-// This function strips the additional / from the beginning, if the first segment is a drive letter.
-#[cfg(windows)]
-pub fn path_from_url(url: &Url) -> PathBuf {
-    return url.to_file_path().expect("Path must be a file scheme");
-}
-
-#[cfg(not(windows))]
 pub fn path_from_url(url: &Url) -> PathBuf {
     url.to_file_path()
         .unwrap_or_else(|_| PathBuf::from(url.path()))
