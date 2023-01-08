@@ -72,7 +72,7 @@ impl<T: Clone, D: Data> ListData<T, D> {
 
     pub fn line_height(&self) -> usize {
         self.line_height
-            .unwrap_or_else(|| self.config.editor.line_height())
+            .unwrap_or_else(|| self.config.ui.list_line_height())
     }
 
     /// The maximum number of items in the list that can be displayed  

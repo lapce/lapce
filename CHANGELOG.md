@@ -12,6 +12,7 @@
 - [#1830](https://github.com/lapce/lapce/pull/1830): Adds Clojure language support
 
 - [#1835](https://github.com/lapce/lapce/pull/1835): Add mouse keybinds
+- [#1938](https://github.com/lapce/lapce/pull/1938): Use dropdown for theme selection in settings
 
 ### Bug Fixes
 
