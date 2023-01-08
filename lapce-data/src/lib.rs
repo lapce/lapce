@@ -10,6 +10,7 @@ pub mod container;
 pub mod data;
 pub mod db;
 pub mod document;
+pub mod dropdown;
 pub mod editor;
 pub mod explorer;
 pub mod find;

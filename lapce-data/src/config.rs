@@ -217,6 +217,8 @@ impl LapceIcons {
 
     pub const PALETTE_MENU: &str = "palette.menu";
 
+    pub const DROPDOWN_ARROW: &str = "dropdown.arrow";
+
     pub const LOCATION_BACKWARD: &str = "location.backward";
     pub const LOCATION_FORWARD: &str = "location.forward";
 
@@ -538,6 +540,9 @@ pub struct UIConfig {
 
     #[field_names(desc = "Trim whitespace from search results")]
     trim_search_results_whitespace: bool,
+
+    #[field_names(desc = "Set the line height for list items")]
+    list_line_height: usize,
 }
 
 impl UIConfig {
@@ -605,6 +610,10 @@ impl UIConfig {
 
     pub fn trim_search_results_whitespace(&self) -> bool {
         self.trim_search_results_whitespace
+    }
+
+    pub fn list_line_height(&self) -> usize {
+        self.list_line_height
     }
 }
 
@@ -844,6 +853,14 @@ impl ThemeBaseColor {
     }
 }
 
+/// Used for creating a `DropdownData` for a setting
+#[derive(Debug, Clone)]
+pub struct DropdownInfo {
+    /// The currently selected item.
+    pub active_index: usize,
+    pub items: im::Vector<String>,
+}
+
 #[derive(Clone, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct LapceConfig {
@@ -872,6 +889,36 @@ pub struct LapceConfig {
     tab_layout_info: Arc<RwLock<HashMap<(FontFamily, usize), f64>>>,
     #[serde(skip)]
     svg_store: Arc<RwLock<SvgStore>>,
+    /// A list of the themes that are available. This is primarily for populating
+    /// the theme picker, and serves as a cache.
+    #[serde(skip)]
+    color_theme_list: im::Vector<String>,
+    #[serde(skip)]
+    icon_theme_list: im::Vector<String>,
+}
+impl LapceConfig {
+    /// Get the dropdown information for the specific setting, used for the settings UI.  
+    /// This should aim to efficiently return the data, because it is used to determine whether to
+    /// update the dropdown items.
+    pub fn get_dropdown_info(&self, kind: &str, key: &str) -> Option<DropdownInfo> {
+        match (kind, key) {
+            ("core", "color-theme") => Some(DropdownInfo {
+                active_index: self
+                    .color_theme_list
+                    .index_of(&self.color_theme.name)
+                    .unwrap_or(0),
+                items: self.color_theme_list.clone(),
+            }),
+            ("core", "icon-theme") => Some(DropdownInfo {
+                active_index: self
+                    .icon_theme_list
+                    .index_of(&self.icon_theme.name)
+                    .unwrap_or(0),
+                items: self.icon_theme_list.clone(),
+            }),
+            _ => None,
+        }
+    }
 }
 
 pub struct ConfigWatcher {
@@ -926,6 +973,21 @@ impl LapceConfig {
             Self::load_color_themes(disabled_volts);
         lapce_config.available_icon_themes = Self::load_icon_themes(disabled_volts);
         lapce_config.resolve_theme(workspace);
+
+        lapce_config.color_theme_list = lapce_config
+            .available_color_themes
+            .values()
+            .map(|(name, _)| name.clone())
+            .collect();
+        lapce_config.color_theme_list.sort();
+
+        lapce_config.icon_theme_list = lapce_config
+            .available_icon_themes
+            .values()
+            .map(|(name, _, _)| name.clone())
+            .collect();
+        lapce_config.icon_theme_list.sort();
+
         lapce_config
     }
 

@@ -822,6 +822,9 @@ pub enum LapceUICommand {
     /// An item in a list was chosen
     /// This is typically targeted at the widget which contains the list
     ListItemSelected,
+    /// An item in the dropdown list was selected as the current item  
+    /// This is typically targeted at the widget which contains the dropdown
+    DropdownItemSelected,
     NewMessage {
         kind: MessageType,
         title: String,
