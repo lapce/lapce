@@ -579,11 +579,9 @@ pub struct RawTerminal {
 }
 
 impl RawTerminal {
-    pub fn update_content(&mut self, content: &str) {
-        if let Ok(content) = base64::decode(content) {
-            for byte in content {
-                self.parser.advance(&mut self.term, byte);
-            }
+    pub fn update_content(&mut self, content: Vec<u8>) {
+        for byte in content {
+            self.parser.advance(&mut self.term, byte);
         }
     }
 }

@@ -975,10 +975,10 @@ pub enum PluginNotification {
     },
 }
 
-pub fn volt_icon(volt: &VoltMetadata) -> Option<String> {
+pub fn volt_icon(volt: &VoltMetadata) -> Option<Vec<u8>> {
     let dir = volt.dir.as_ref()?;
     let icon = dir.join(volt.icon.as_ref()?);
-    std::fs::read(icon).ok().map(base64::encode)
+    std::fs::read(icon).ok()
 }
 
 pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {

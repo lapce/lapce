@@ -41,7 +41,7 @@ const WINDOWS_PROXY_SCRIPT: &[u8] = include_bytes!("../../extra/proxy.ps1");
 
 pub enum TermEvent {
     NewTerminal(Arc<Mutex<RawTerminal>>),
-    UpdateContent(String),
+    UpdateContent(Vec<u8>),
     CloseTerminal,
 }
 
