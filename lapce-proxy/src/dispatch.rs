@@ -709,7 +709,7 @@ impl ProxyHandler for Dispatcher {
                 rev,
                 content,
             } => {
-                let mut buffer = Buffer::new(buffer_id, path);
+                let mut buffer = Buffer::new(buffer_id, path.clone());
                 buffer.rope = Rope::from(content);
                 buffer.rev = rev;
                 let result = buffer
@@ -719,6 +719,7 @@ impl ProxyHandler for Dispatcher {
                         code: 0,
                         message: e.to_string(),
                     });
+                self.buffers.insert(path, buffer);
                 self.respond_rpc(id, result);
             }
             CreateFile { path } => {
