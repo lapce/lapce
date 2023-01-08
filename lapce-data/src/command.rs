@@ -747,7 +747,7 @@ pub enum LapceUICommand {
     LoadPluginsFailed,
     /// Event received when the plugin's icon has been loaded
     LoadPluginIcon(VoltID, VoltIconKind),
-    VoltInstalled(VoltMetadata, Option<String>),
+    VoltInstalled(VoltMetadata, Option<Vec<u8>>),
     VoltInstalling(VoltInfo, String),
     VoltRemoving(VoltMetadata, String),
     VoltInstallStatusClear(VoltID),

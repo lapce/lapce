@@ -417,7 +417,7 @@ impl PluginData {
         &mut self,
         tab_id: WidgetId,
         volt: &VoltMetadata,
-        icon: &Option<String>,
+        icon: &Option<Vec<u8>>,
         event_sink: ExtEventSink,
     ) {
         let volt_id = volt.id();
@@ -425,9 +425,10 @@ impl PluginData {
         self.installing.remove(&volt_id);
         self.installed.insert(volt_id.clone(), volt.clone());
 
-        if let Some(icon) = icon.as_ref().and_then(|icon| {
-            VoltIconKind::from_bytes(&base64::decode(icon).ok()?).ok()
-        }) {
+        if let Some(icon) = icon
+            .as_ref()
+            .and_then(|icon| VoltIconKind::from_bytes(icon).ok())
+        {
             self.installed_icons.insert(volt_id.clone(), icon);
         }
 

@@ -2660,7 +2660,6 @@ version = "0.2.5"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
- "base64 0.13.0",
  "bytemuck",
  "chrono",
  "config",
@@ -2710,7 +2709,6 @@ version = "0.2.5"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
- "base64 0.13.0",
  "clap",
  "crossbeam-channel",
  "directories",
@@ -2776,7 +2774,6 @@ dependencies = [
  "Inflector",
  "alacritty_terminal",
  "anyhow",
- "base64 0.13.0",
  "chrono",
  "clap",
  "druid",

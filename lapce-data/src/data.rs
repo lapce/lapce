@@ -2090,7 +2090,7 @@ impl LapceTabData {
                 }
                 TermEvent::UpdateContent(content) => {
                     if let Some(raw) = terminals.get_mut(&term_id) {
-                        raw.lock().update_content(&content);
+                        raw.lock().update_content(content);
                         last_event = receiver.try_recv().ok();
                         if last_event.is_some() {
                             if last_redraw.elapsed().as_millis() > 10 {

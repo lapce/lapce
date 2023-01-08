@@ -78,7 +78,7 @@ pub enum CoreNotification {
     },
     VoltInstalled {
         volt: VoltMetadata,
-        icon: Option<String>,
+        icon: Option<Vec<u8>>,
     },
     VoltInstalling {
         volt: VoltInfo,
@@ -103,7 +103,7 @@ pub enum CoreNotification {
     },
     UpdateTerminal {
         term_id: TermId,
-        content: String,
+        content: Vec<u8>,
     },
     CloseTerminal {
         term_id: TermId,
@@ -251,7 +251,7 @@ impl CoreRpcHandler {
         });
     }
 
-    pub fn volt_installed(&self, volt: VoltMetadata, icon: Option<String>) {
+    pub fn volt_installed(&self, volt: VoltMetadata, icon: Option<Vec<u8>>) {
         self.notification(CoreNotification::VoltInstalled { volt, icon });
     }
 
@@ -297,7 +297,7 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::CloseTerminal { term_id });
     }
 
-    pub fn update_terminal(&self, term_id: TermId, content: String) {
+    pub fn update_terminal(&self, term_id: TermId, content: Vec<u8>) {
         self.notification(CoreNotification::UpdateTerminal { term_id, content });
     }
 }
