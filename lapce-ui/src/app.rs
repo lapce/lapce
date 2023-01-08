@@ -136,7 +136,7 @@ pub fn launch() {
         .install_panic_hook();
 
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
-    let mut data = LapceData::load(launcher.get_external_handle(), paths, log_file);
+    let mut data = LapceData::load(launcher.get_external_handle(), cli.paths, log_file);
 
     for (_window_id, window_data) in data.windows.iter_mut() {
         let root = build_window(window_data);
