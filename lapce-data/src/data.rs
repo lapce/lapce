@@ -5,7 +5,7 @@ use std::{
     env,
     fmt::Display,
     io::{BufReader, Read, Write},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     rc::Rc,
     sync::Arc,
     thread,
@@ -45,6 +45,8 @@ use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdi
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use indexmap::IndexMap;
+use smallvec::SmallVec;
 
 use crate::{
     about::AboutData,
@@ -136,12 +138,66 @@ impl LapceData {
         let latest_release = Arc::new(None);
 
         let dirs: Vec<&PathBuf> = paths.iter().filter(|p| p.is_dir()).collect();
-        let mut files = paths.iter().filter(|p| p.is_file());
+        let mut files:IndexMap<PathBuf, Option<LineCol>> = IndexMap::new();
+        let pwd = std::env::current_dir().unwrap_or_default();
 
-        let parsed_paths: Vec<(PathBuf, LineCol)> = paths
+        paths
             .iter()
-            .filter_map(|p| Self::parse_path_line_column(p) )
-            .collect();
+            .map(Path::new)
+            .filter(|path| !path.exists())
+            .for_each(|path| {
+                let components = dbg!(path.components());
+                if let Some(Component::Normal(argument)) = dbg!(components.last()) {
+                    if let Some(argument) = argument.to_str() {
+                        let args = argument
+                            .rsplitn(3, ':')
+                            .collect::<SmallVec<[&str; 3]>>();
+                        match args.len() {
+                            1 => {
+                                files.insert(pwd.join(args.last().unwrap_or(&"")), None);
+                            },
+                            2 => {
+                                files.insert(
+                                    pwd.join(args.last().unwrap_or(&"")), 
+                                    Some(
+                                        LineCol{
+                                            line: args
+                                                    .first()
+                                                    .unwrap_or(&"1")
+                                                    .parse()
+                                                    .unwrap_or(1),
+                                            column: 1,
+                                        }
+                                    )
+                                );
+                            },
+                            _ => {
+                                files.insert(
+                                    pwd.join(args.last().unwrap_or(&"")), 
+                                    Some( 
+                                        LineCol{ 
+                                            line: args
+                                                .get(1)
+                                                .unwrap_or(&"1")
+                                                .parse()
+                                                .unwrap_or(1), 
+                                            column: args
+                                                .first()
+                                                .unwrap_or(&"1")
+                                                .parse()
+                                                .unwrap_or(1), 
+                                        } 
+                                    ),
+                                );
+                            },
+                        }
+                    } else {
+                        log::warn!("Failed to convert to str.");
+                    }
+                } else {
+                    log::warn!("Failed to obtain last component of path.");
+                }
+            });
 
         if !dirs.is_empty() {
             let (size, mut pos) = db
@@ -189,7 +245,7 @@ impl LapceData {
                 );
                 windows.insert(window.window_id, window);
             }
-        } else if files.next().is_none() {
+        } else if files.is_empty() {
             if let Ok(app) = db.get_app() {
                 for info in app.windows.iter() {
                     let window = LapceWindowData::new(
@@ -237,37 +293,34 @@ impl LapceData {
         }
 
         if let Some((window_id, _)) = windows.iter().next() {
-            for (path, line_col) in parsed_paths {
-                let widget_id = Arc::try_unwrap(
-                    windows.get(window_id).unwrap().active_id.clone(),
-                )
-                .unwrap();
-
-                // open the file
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::OpenFile(path.clone(), false),
-                    Target::Window(*window_id),
-                );
-
-                // jump to line and column
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToLineColLocation(
-                        Some(widget_id),
-                        EditorLocation {
-                            path: path.clone(),
-                            position: Some(line_col),
-                            scroll_offset: Some(Vec2 {
-                                x: line_col.column as f64,
-                                y: line_col.line as f64,
-                            }),
-                            history: None,
-                        },
-                        true,
-                    ),
-                    Target::Widget(widget_id),
-                );
+            for (file, linecol) in dbg!(files) {
+                if let Some(pos) = linecol {
+                    // jump to line and column
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::JumpToLineColLocation(
+                            None,
+                            EditorLocation {
+                                path: file,
+                                position: Some( pos ),
+                                scroll_offset: Some(Vec2 {
+                                    x: pos.column as f64,
+                                    y: pos.line as f64,
+                                }),
+                                history: None,
+                            },
+                            true,
+                        ),
+                        Target::Auto,
+                    );
+                } else {
+                    // open the file
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::OpenFile(file, false),
+                        Target::Window(*window_id),
+                    );
+                }
             }
         }
 
