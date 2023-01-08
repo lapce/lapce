@@ -440,7 +440,7 @@ impl Widget<LapceTabData> for FilePickerExplorer {
                 let index = ((mouse_event.pos.y + self.line_height)
                     / self.line_height) as usize;
                 ctx.request_paint();
-                if let Some(item) = picker.root.get_file_node_mut(&pwd) {
+                if let Some(item) = picker.root.get_file_node(&pwd) {
                     let (_, node) = get_item_children(0, index, item);
                     if let Some(_node) = node {
                         ctx.set_cursor(&druid::Cursor::Pointer);

@@ -14,6 +14,7 @@ pub mod lens;
 pub mod meta;
 pub mod mode;
 pub mod movement;
+pub mod paragraph;
 pub mod register;
 pub mod selection;
 pub mod style;

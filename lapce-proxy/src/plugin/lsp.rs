@@ -12,6 +12,7 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_core::meta;
+use lapce_rpc::plugin::VoltID;
 use lapce_rpc::{style::LineStyle, RpcError};
 use lapce_xi_rope::Rope;
 use lsp_types::{
@@ -157,7 +158,7 @@ impl LspClient {
         plugin_rpc: PluginCatalogRpcHandler,
         document_selector: DocumentSelector,
         workspace: Option<PathBuf>,
-        volt_id: String,
+        volt_id: VoltID,
         volt_display_name: String,
         pwd: Option<PathBuf>,
         server_uri: Url,
@@ -269,7 +270,7 @@ impl LspClient {
         plugin_rpc: PluginCatalogRpcHandler,
         document_selector: DocumentSelector,
         workspace: Option<PathBuf>,
-        volt_id: String,
+        volt_id: VoltID,
         volt_display_name: String,
         pwd: Option<PathBuf>,
         server_uri: Url,

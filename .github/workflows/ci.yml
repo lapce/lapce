@@ -7,6 +7,10 @@ on:
 
 name: CI
 
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Rust on ${{ matrix.os }}

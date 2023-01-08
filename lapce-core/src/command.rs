@@ -150,6 +150,12 @@ pub enum MoveCommand {
     NextUnmatchedRightCurlyBracket,
     #[strum(serialize = "previous_unmatched_left_curly_bracket")]
     PreviousUnmatchedLeftCurlyBracket,
+    #[strum(message = "Paragraph forward")]
+    #[strum(serialize = "paragraph_forward")]
+    ParagraphForward,
+    #[strum(message = "Paragraph backward")]
+    #[strum(serialize = "paragraph_backward")]
+    ParagraphBackward,
 }
 
 impl MoveCommand {
@@ -181,6 +187,8 @@ impl MoveCommand {
             PreviousUnmatchedLeftBracket => Movement::PreviousUnmatched('('),
             NextUnmatchedRightCurlyBracket => Movement::NextUnmatched('}'),
             PreviousUnmatchedLeftCurlyBracket => Movement::PreviousUnmatched('{'),
+            ParagraphForward => Movement::ParagraphForward,
+            ParagraphBackward => Movement::ParagraphBackward,
         }
     }
 }

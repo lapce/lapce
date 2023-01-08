@@ -133,7 +133,7 @@ pub enum LocalBufferKind {
     Settings,
     PathName,
     Rename,
-    PluginSeach,
+    PluginSearch,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -169,7 +169,7 @@ impl BufferContent {
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap
                 | LocalBufferKind::PathName
-                | LocalBufferKind::PluginSeach
+                | LocalBufferKind::PluginSearch
                 | LocalBufferKind::Rename => true,
                 LocalBufferKind::Empty => false,
             },
@@ -188,7 +188,7 @@ impl BufferContent {
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap
                 | LocalBufferKind::PathName
-                | LocalBufferKind::PluginSeach
+                | LocalBufferKind::PluginSearch
                 | LocalBufferKind::Rename => true,
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
@@ -853,7 +853,7 @@ impl Document {
                             Target::Widget(self.tab_id),
                         );
                     }
-                    LocalBufferKind::PluginSeach => {}
+                    LocalBufferKind::PluginSearch => {}
                     LocalBufferKind::SourceControl => {}
                     LocalBufferKind::Empty => {}
                     LocalBufferKind::Rename => {}
@@ -1009,126 +1009,114 @@ impl Document {
         let start_offset = self.buffer.offset_of_line(line);
         let end_offset = self.buffer.offset_of_line(line + 1);
 
+        // If hints are enabled, and the hints field is filled, then get the hints for this line
+        // and convert them into PhantomText instances
         let hints = config
             .editor
             .enable_inlay_hints
             .then_some(())
-            .and_then(|_| {
-                self.inlay_hints.as_ref().map(|hints| {
-                    let chunks = hints.iter_chunks(start_offset..end_offset);
-                    chunks.filter_map(|(interval, inlay_hint)| {
-                        let on_line = interval.start >= start_offset
-                            && interval.start < end_offset;
-                        on_line.then(|| {
-                            let (_, col) =
-                                self.buffer.offset_to_line_col(interval.start);
-                            let text = match &inlay_hint.label {
-                                InlayHintLabel::String(label) => label.to_string(),
-                                InlayHintLabel::LabelParts(parts) => {
-                                    parts.iter().map(|p| &p.value).join("")
-                                }
-                            };
-                            PhantomText {
-                                kind: PhantomTextKind::InlayHint,
-                                col,
-                                text,
-                                fg: Some(
-                                    config
-                                        .get_color_unchecked(
-                                            LapceTheme::INLAY_HINT_FOREGROUND,
-                                        )
-                                        .clone(),
-                                ),
-                                font_family: Some(
-                                    config.editor.inlay_hint_font_family(),
-                                ),
-                                font_size: Some(
-                                    config.editor.inlay_hint_font_size(),
-                                ),
-                                bg: Some(
-                                    config
-                                        .get_color_unchecked(
-                                            LapceTheme::INLAY_HINT_BACKGROUND,
-                                        )
-                                        .clone(),
-                                ),
-                                under_line: None,
-                            }
-                        })
-                    })
-                })
+            .and(self.inlay_hints.as_ref())
+            .map(|hints| hints.iter_chunks(start_offset..end_offset))
+            .into_iter()
+            .flatten()
+            .filter(|(interval, _)| {
+                interval.start >= start_offset && interval.start < end_offset
+            })
+            .map(|(interval, inlay_hint)| {
+                let (_, col) = self.buffer.offset_to_line_col(interval.start);
+                let text = match &inlay_hint.label {
+                    InlayHintLabel::String(label) => label.to_string(),
+                    InlayHintLabel::LabelParts(parts) => {
+                        parts.iter().map(|p| &p.value).join("")
+                    }
+                };
+                PhantomText {
+                    kind: PhantomTextKind::InlayHint,
+                    col,
+                    text,
+                    fg: Some(
+                        config
+                            .get_color_unchecked(LapceTheme::INLAY_HINT_FOREGROUND)
+                            .clone(),
+                    ),
+                    font_family: Some(config.editor.inlay_hint_font_family()),
+                    font_size: Some(config.editor.inlay_hint_font_size()),
+                    bg: Some(
+                        config
+                            .get_color_unchecked(LapceTheme::INLAY_HINT_BACKGROUND)
+                            .clone(),
+                    ),
+                    under_line: None,
+                }
             });
-        let mut text: SmallVec<[PhantomText; 6]> =
-            hints.into_iter().flatten().collect();
+        // You're quite unlikely to have more than six hints on a single line
+        // this later has the diagnostics added onto it, but that's still likely to be below six
+        // overall.
+        let mut text: SmallVec<[PhantomText; 6]> = hints.collect();
 
+        // The max severity is used to determine the color given to the background of the line
         let mut max_severity = None;
-        let diag_text =
-            config.editor.enable_error_lens.then_some(()).and_then(|_| {
-                self.diagnostics.as_ref().map(|diags| {
-                    diags
-                        .iter()
-                        .filter(|diag| {
-                            diag.diagnostic.range.end.line as usize == line
-                                && diag.diagnostic.severity
-                                    < Some(DiagnosticSeverity::HINT)
-                        })
-                        .map(|diag| {
-                            match (diag.diagnostic.severity, max_severity) {
-                                (Some(severity), Some(max)) => {
-                                    if severity < max {
-                                        max_severity = Some(severity);
-                                    }
-                                }
-                                (Some(severity), None) => {
-                                    max_severity = Some(severity);
-                                }
-                                _ => {}
-                            }
+        // If error lens is enabled, and the diagnostics field is filled, then get the diagnostics
+        // that end on this line which have a severity worse than HINT and convert them into
+        // PhantomText instances
+        let diag_text = config
+            .editor
+            .enable_error_lens
+            .then_some(())
+            .and(self.diagnostics.as_ref())
+            .map(|x| x.iter())
+            .into_iter()
+            .flatten()
+            .filter(|diag| {
+                diag.diagnostic.range.end.line as usize == line
+                    && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
+            })
+            .map(|diag| {
+                match (diag.diagnostic.severity, max_severity) {
+                    (Some(severity), Some(max)) => {
+                        if severity < max {
+                            max_severity = Some(severity);
+                        }
+                    }
+                    (Some(severity), None) => {
+                        max_severity = Some(severity);
+                    }
+                    _ => {}
+                }
 
-                            let rope_text = self.buffer.rope_text();
-                            let col = rope_text.offset_of_line(line + 1)
-                                - rope_text.offset_of_line(line);
-                            let fg = {
-                                let severity = diag
-                                    .diagnostic
-                                    .severity
-                                    .unwrap_or(DiagnosticSeverity::WARNING);
-                                let theme_prop = if severity
-                                    == DiagnosticSeverity::ERROR
-                                {
-                                    LapceTheme::ERROR_LENS_ERROR_FOREGROUND
-                                } else if severity == DiagnosticSeverity::WARNING {
-                                    LapceTheme::ERROR_LENS_WARNING_FOREGROUND
-                                } else {
-                                    // information + hint (if we keep that) + things without a severity
-                                    LapceTheme::ERROR_LENS_OTHER_FOREGROUND
-                                };
+                let rope_text = self.buffer.rope_text();
+                let col = rope_text.offset_of_line(line + 1)
+                    - rope_text.offset_of_line(line);
+                let fg = {
+                    let severity = diag
+                        .diagnostic
+                        .severity
+                        .unwrap_or(DiagnosticSeverity::WARNING);
+                    let theme_prop = if severity == DiagnosticSeverity::ERROR {
+                        LapceTheme::ERROR_LENS_ERROR_FOREGROUND
+                    } else if severity == DiagnosticSeverity::WARNING {
+                        LapceTheme::ERROR_LENS_WARNING_FOREGROUND
+                    } else {
+                        // information + hint (if we keep that) + things without a severity
+                        LapceTheme::ERROR_LENS_OTHER_FOREGROUND
+                    };
 
-                                config.get_color_unchecked(theme_prop).clone()
-                            };
-                            let text = format!(
-                                "    {}",
-                                diag.diagnostic.message.lines().join(" ")
-                            );
-                            PhantomText {
-                                kind: PhantomTextKind::Diagnostic,
-                                col,
-                                text,
-                                fg: Some(fg),
-                                font_size: Some(
-                                    config.editor.error_lens_font_size(),
-                                ),
-                                font_family: Some(
-                                    config.editor.error_lens_font_family(),
-                                ),
-                                bg: None,
-                                under_line: None,
-                            }
-                        })
-                })
+                    config.get_color_unchecked(theme_prop).clone()
+                };
+                let text =
+                    format!("    {}", diag.diagnostic.message.lines().join(" "));
+                PhantomText {
+                    kind: PhantomTextKind::Diagnostic,
+                    col,
+                    text,
+                    fg: Some(fg),
+                    font_size: Some(config.editor.error_lens_font_size()),
+                    font_family: Some(config.editor.error_lens_font_family()),
+                    bg: None,
+                    under_line: None,
+                }
             });
-        let mut diag_text: SmallVec<[PhantomText; 6]> =
-            diag_text.into_iter().flatten().collect();
+        let mut diag_text: SmallVec<[PhantomText; 6]> = diag_text.collect();
 
         text.append(&mut diag_text);
 
@@ -2179,6 +2167,30 @@ impl Document {
         view: &EditorView,
         config: &LapceConfig,
     ) -> SelRegion {
+        let (count, region) = if count >= 1 && !modify && !region.is_caret() {
+            // If we're not a caret, and we are moving left or right, we want to move
+            // the cursor to the left or right side of the selection.
+            // Ex: `|abc|` -> left arrow key -> `|abc`
+            // Ex: `|abc|` -> right arrow key -> `abc|`
+            // and it doesn't matter which direction the selection os going, so we use min/max
+            match movement {
+                Movement::Left => {
+                    let leftmost = region.min();
+                    (count - 1, SelRegion::new(leftmost, leftmost, region.horiz))
+                }
+                Movement::Right => {
+                    let rightmost = region.max();
+                    (
+                        count - 1,
+                        SelRegion::new(rightmost, rightmost, region.horiz),
+                    )
+                }
+                _ => (count, *region),
+            }
+        } else {
+            (count, *region)
+        };
+
         let (end, horiz) = self.move_offset(
             text,
             region.end,
@@ -2641,6 +2653,16 @@ impl Document {
                         .unwrap_or(offset);
                     (new_offset, None)
                 }
+            }
+            Movement::ParagraphForward => {
+                let new_offset =
+                    self.buffer.move_n_paragraphs_forward(offset, count);
+                (new_offset, None)
+            }
+            Movement::ParagraphBackward => {
+                let new_offset =
+                    self.buffer.move_n_paragraphs_backward(offset, count);
+                (new_offset, None)
             }
         }
     }

@@ -1,4 +1,7 @@
+use std::path::PathBuf;
+
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
+use indexmap::IndexMap;
 use lapce_core::{
     command::{FocusCommand, MoveCommand},
     mode::Mode,
@@ -25,7 +28,8 @@ pub struct SourceControlData {
     pub file_list_index: usize,
     pub editor_view_id: WidgetId,
     pub commit_button_id: WidgetId,
-    pub file_diffs: Vec<(FileDiff, bool)>,
+    // VCS modified files & whether they should be included in the next commit
+    pub file_diffs: IndexMap<PathBuf, (FileDiff, bool)>,
     pub branch: String,
     pub branches: im::Vector<String>,
 }
@@ -43,7 +47,7 @@ impl SourceControlData {
             commit_button_id: WidgetId::next(),
             split_id: WidgetId::next(),
             split_direction: SplitDirection::Horizontal,
-            file_diffs: Vec::new(),
+            file_diffs: IndexMap::new(),
             branch: "".to_string(),
             branches: im::Vector::new(),
         }
@@ -183,9 +187,10 @@ impl KeyPressFocus for SourceControlData {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::OpenFileDiff(
-                                self.file_diffs[self.file_list_index]
+                                self.file_diffs
+                                    .get_index(self.file_list_index)
+                                    .unwrap()
                                     .0
-                                    .path()
                                     .clone(),
                                 "head".to_string(),
                             ),

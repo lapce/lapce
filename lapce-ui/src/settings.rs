@@ -97,10 +97,10 @@ impl LapceSettingsPanel {
         for (volt_id, volt) in data.plugin.installed.iter() {
             if volt.config.is_some() {
                 children.insert(
-                    LapceSettingsKind::Plugin(volt_id.to_string()),
+                    LapceSettingsKind::Plugin(volt_id.clone()),
                     WidgetPod::new(
                         LapceSettings::new_scroll(LapceSettingsKind::Plugin(
-                            volt_id.to_string(),
+                            volt_id.clone(),
                         ))
                         .boxed(),
                     ),
@@ -1529,29 +1529,20 @@ pub struct ThemeSection {
 
 impl ThemeSection {
     fn new(data: &LapceTabData, kind: ThemeKind) -> Self {
-        let colors: Vec<&str> = match kind {
-            ThemeKind::Base => {
-                data.config.color.base.keys().into_iter().sorted().collect()
+        let theme_color = &data.config.color;
+        let mut colors: Vec<String> = match kind {
+            ThemeKind::Base => theme_color
+                .base
+                .keys()
+                .into_iter()
+                .map(ToString::to_string)
+                .collect(),
+            ThemeKind::UI => theme_color.ui.keys().map(Clone::clone).collect(),
+            ThemeKind::Syntax => {
+                theme_color.syntax.keys().map(Clone::clone).collect()
             }
-            ThemeKind::UI => data
-                .config
-                .color
-                .ui
-                .keys()
-                .map(|s| s.as_str())
-                .sorted()
-                .collect(),
-            ThemeKind::Syntax => data
-                .config
-                .color
-                .syntax
-                .keys()
-                .map(|s| s.as_str())
-                .sorted()
-                .collect(),
         };
-
-        let colors: Vec<String> = colors.iter().map(|c| c.to_string()).collect();
+        colors.sort_unstable();
 
         Self {
             header_height: 40.0,
@@ -1566,15 +1557,14 @@ impl ThemeSection {
         let event_sink = ctx.get_external_handle();
         self.items = self
             .colors
-            .clone()
-            .into_iter()
+            .iter()
             .map(|color| {
                 WidgetPod::new(LapcePadding::new(
                     5.0,
                     ThemeSettingItem::new(
                         data,
                         self.kind,
-                        color,
+                        color.clone(),
                         event_sink.clone(),
                     ),
                 ))
@@ -2132,7 +2122,7 @@ impl Widget<LapceTabData> for SettingsSwitcher {
                                         LAPCE_UI_COMMAND,
                                         LapceUICommand::ShowSettingsKind(
                                             LapceSettingsKind::Plugin(
-                                                volt_id.to_string(),
+                                                volt_id.clone(),
                                             ),
                                         ),
                                         Target::Widget(self.settings_widget_id),

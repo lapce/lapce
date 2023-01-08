@@ -34,7 +34,7 @@ use lapce_core::{
 use lapce_rpc::{
     buffer::BufferId,
     core::{CoreMessage, CoreNotification},
-    plugin::VoltInfo,
+    plugin::{VoltID, VoltInfo},
     proxy::ProxyResponse,
     source_control::FileDiff,
     terminal::TermId,
@@ -791,7 +791,7 @@ impl LapceTabData {
         main_split.add_editor(
             plugin.search_editor,
             None,
-            LocalBufferKind::PluginSeach,
+            LocalBufferKind::PluginSearch,
             &config,
             event_sink.clone(),
         );
@@ -1243,6 +1243,7 @@ impl LapceTabData {
             db: self.db.clone(),
             focus_area: self.focus_area.clone(),
             terminal: self.terminal.clone(),
+            source_control: self.source_control.clone(),
         }
     }
 
@@ -1658,14 +1659,15 @@ impl LapceTabData {
                     .file_diffs
                     .iter()
                     .filter_map(
-                        |(diff, checked)| {
+                        |(_, (diff, checked))| {
                             if *checked {
-                                Some(diff.clone())
+                                Some(diff)
                             } else {
                                 None
                             }
                         },
                     )
+                    .cloned()
                     .collect();
                 if diffs.is_empty() {
                     return;
@@ -3969,7 +3971,7 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         editor_tab_id: WidgetId,
-        volt_id: String,
+        volt_id: VoltID,
         volt_name: String,
         direction: SplitDirection,
         _config: &LapceConfig,
@@ -4176,7 +4178,7 @@ pub enum EditorTabChild {
     },
     Plugin {
         widget_id: WidgetId,
-        volt_id: String,
+        volt_id: VoltID,
         volt_name: String,
         editor_tab_id: WidgetId,
     },
@@ -4203,7 +4205,7 @@ impl EditorTabChild {
             EditorTabChild::Plugin {
                 volt_id, volt_name, ..
             } => EditorTabChildInfo::Plugin {
-                volt_id: volt_id.to_string(),
+                volt_id: volt_id.clone(),
                 volt_name: volt_name.to_string(),
             },
         }

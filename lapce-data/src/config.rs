@@ -11,6 +11,7 @@ use druid::{
 use indexmap::IndexMap;
 use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
+use lapce_rpc::plugin::VoltID;
 use lsp_types::{CompletionItemKind, SymbolKind};
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
@@ -962,7 +963,7 @@ impl notify::EventHandler for ConfigWatcher {
 }
 
 impl LapceConfig {
-    pub fn load(workspace: &LapceWorkspace, disabled_volts: &[String]) -> Self {
+    pub fn load(workspace: &LapceWorkspace, disabled_volts: &[VoltID]) -> Self {
         let config = Self::merge_config(workspace, None, None);
         let mut lapce_config: LapceConfig = config
             .try_deserialize()
@@ -1129,7 +1130,7 @@ impl LapceConfig {
     }
 
     fn load_color_themes(
-        disabled_volts: &[String],
+        disabled_volts: &[VoltID],
     ) -> HashMap<String, (String, config::Config)> {
         let mut themes = Self::load_local_themes().unwrap_or_default();
 
@@ -1148,7 +1149,7 @@ impl LapceConfig {
     }
 
     fn load_icon_themes(
-        disabled_volts: &[String],
+        disabled_volts: &[VoltID],
     ) -> HashMap<String, (String, config::Config, Option<PathBuf>)> {
         let mut themes = HashMap::new();
 
@@ -1180,7 +1181,7 @@ impl LapceConfig {
     }
 
     fn load_plugin_color_themes(
-        disabled_volts: &[String],
+        disabled_volts: &[VoltID],
     ) -> HashMap<String, (String, config::Config)> {
         let mut themes: HashMap<String, (String, config::Config)> = HashMap::new();
         for meta in find_all_volts() {
@@ -1201,7 +1202,7 @@ impl LapceConfig {
     }
 
     fn load_plugin_icon_themes(
-        disabled_volts: &[String],
+        disabled_volts: &[VoltID],
     ) -> HashMap<String, (String, config::Config, PathBuf)> {
         let mut themes: HashMap<String, (String, config::Config, PathBuf)> =
             HashMap::new();

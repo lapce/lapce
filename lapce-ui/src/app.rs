@@ -247,6 +247,38 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
     };
 
     desc.menu(|_, _, _| {
+        let settings = Menu::new("Settings...")
+            .entry(
+                MenuItem::new("Open Settings")
+                    .command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::OpenSettings,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    ))
+                    .hotkey(SysMods::Cmd, ","),
+            )
+            // MacOS doesn't like Cmd K Cmd S in its native spot for keyboard shortcuts
+            // so do what VSCode does and put it in the title
+            //
+            // \u{2318} is the Unicode  the Command symbol on MacOS
+            .entry(
+                MenuItem::new("Open Keyboard Shortcuts [\u{2318}K \u{2318}S]")
+                    .command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::OpenKeyboardShortcuts,
+                            ),
+                            data: None,
+                        },
+                        Target::Auto,
+                    )),
+            );
         Menu::new("Lapce")
             .entry(
                 Menu::new("")
@@ -261,10 +293,20 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
                         Target::Auto,
                     )))
                     .separator()
+                    .entry(settings)
+                    .separator()
                     .entry(
                         MenuItem::new("Hide Lapce")
                             .command(druid::commands::HIDE_APPLICATION)
                             .hotkey(SysMods::Cmd, "h"),
+                    )
+                    .entry(
+                        MenuItem::new("Hide Others")
+                            .command(druid::commands::HIDE_OTHERS)
+                            .hotkey(SysMods::AltCmd, "h"),
+                    )
+                    .entry(
+                        MenuItem::new("Show All").command(druid::commands::SHOW_ALL),
                     )
                     .separator()
                     .entry(
@@ -273,6 +315,7 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
                             .hotkey(SysMods::Cmd, "q"),
                     ),
             )
+            .separator()
             .entry(
                 Menu::new("File")
                     .entry(MenuItem::new("New File").command(Command::new(
@@ -336,7 +379,7 @@ fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
                         },
                         Target::Auto,
                     )))
-                    .entry(MenuItem::new("Close window").command(Command::new(
+                    .entry(MenuItem::new("Close Window").command(Command::new(
                         LAPCE_COMMAND,
                         LapceCommand {
                             kind: CommandKind::Workbench(

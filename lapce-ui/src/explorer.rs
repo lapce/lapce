@@ -20,7 +20,7 @@ use lapce_data::{
     panel::PanelKind,
     proxy::LapceProxy,
 };
-use lapce_rpc::file::FileNodeItem;
+use lapce_rpc::{file::FileNodeItem, source_control::FileDiff};
 
 use crate::{
     editor::view::LapceEditorView,
@@ -41,6 +41,7 @@ fn paint_single_file_node_item(
     hovered: Option<usize>,
     config: &LapceConfig,
     toggle_rects: &mut HashMap<usize, Rect>,
+    file_diff: Option<FileDiff>,
 ) {
     let background = if Some(item.path_buf.as_ref()) == active {
         Some(LapceTheme::PANEL_CURRENT_BACKGROUND)
@@ -61,6 +62,18 @@ fn paint_single_file_node_item(
             config.get_color_unchecked(background),
         );
     }
+
+    let text_color = if let Some(diff) = file_diff {
+        match diff {
+            FileDiff::Modified(_) | FileDiff::Renamed(_, _) => {
+                LapceTheme::SOURCE_CONTROL_MODIFIED
+            }
+            FileDiff::Added(_) => LapceTheme::SOURCE_CONTROL_ADDED,
+            FileDiff::Deleted(_) => LapceTheme::SOURCE_CONTROL_REMOVED,
+        }
+    } else {
+        LapceTheme::PANEL_FOREGROUND
+    };
 
     let font_size = config.ui.font_size() as f64;
 
@@ -125,11 +138,7 @@ fn paint_single_file_node_item(
                 .to_string(),
         )
         .font(config.ui.font_family(), font_size)
-        .text_color(
-            config
-                .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
-                .clone(),
-        )
+        .text_color(config.get_color_unchecked(text_color).clone())
         .build()
         .unwrap();
     ctx.draw_text(
@@ -194,6 +203,7 @@ pub fn paint_file_node_item(
                 hovered,
                 config,
                 toggle_rects,
+                get_item_diff(item, data),
             );
         }
     }
@@ -270,6 +280,27 @@ pub fn get_item_children(
         }
     }
     (i, None)
+}
+
+/// Get a FileDiff for the given FileNodeItem. If the given item is a folder
+/// that contains changes, returns a "fake" FileDiff that can be used to style
+/// the item accordingly.
+fn get_item_diff<'data>(
+    item: &'data FileNodeItem,
+    data: &'data LapceTabData,
+) -> Option<FileDiff> {
+    if item.is_dir {
+        data.source_control
+            .file_diffs
+            .keys()
+            .find(|path| path.as_path().starts_with(&item.path_buf))
+            .map(|path| FileDiff::Modified(path.clone()))
+    } else {
+        data.source_control
+            .file_diffs
+            .get(&item.path_buf)
+            .map(|d| d.0.clone())
+    }
 }
 
 pub fn get_item_children_mut(
@@ -557,7 +588,6 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         file_explorer.active_selected = path.clone();
                         ctx.request_paint();
                     }
-
                     LapceUICommand::FileExplorerRefresh => {
                         data.file_explorer.reload();
                     }
@@ -574,7 +604,6 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             ctx,
                         );
                     }
-
                     _ => (),
                 }
             }
@@ -1177,6 +1206,9 @@ impl OpenEditorList {
                             .unwrap_or(&path)
                             .to_path_buf();
                     }
+                    // TODO: Can be updated to use a disambiguation algorithm.
+                    // For example when opening multiple lib.rs which usually sits
+                    // under src/
                     hint = path
                         .parent()
                         .and_then(|s| s.to_str())
@@ -1413,6 +1445,8 @@ impl Widget<LapceTabData> for OpenEditorList {
             .iter()
             .map(|(_, tab)| tab.children.len())
             .sum::<usize>();
+
+        // If there are split editor tabs, then we need to consider the group headers
         let n = if data.main_split.editor_tabs.len() > 1 {
             n + data.main_split.editor_tabs.len()
         } else {
@@ -1426,6 +1460,7 @@ impl Widget<LapceTabData> for OpenEditorList {
         let rect = ctx.region().bounding_box();
         let mut i = 0;
         let mut g = 0;
+
         for (_, tab) in
             data.main_split
                 .editor_tabs
