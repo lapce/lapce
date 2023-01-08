@@ -535,14 +535,6 @@ impl Widget<LapceTabData> for LapceSettings {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        if self.children.is_empty() {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::InitChildren,
-                Target::Widget(self.widget_id),
-            ));
-        }
-
         let mut y = 0.0;
         for child in self.children.iter_mut() {
             let size = child.layout(ctx, bc, data, env);
@@ -801,11 +793,11 @@ impl SettingsItemInfo {
     ) {
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::UpdateSettingsFile(
-                self.kind.clone(),
-                self.key.clone(),
+            LapceUICommand::UpdateSettingsFile {
+                kind: self.kind.clone(),
+                key: self.key.clone(),
                 value,
-            ),
+            },
             Target::Widget(data.id),
         ));
     }
@@ -1764,15 +1756,15 @@ impl ThemeSettingItem {
                     .on_click(move |ctx, data, _env| {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::ResetSettingsFile(
-                                kind.to_string(),
-                                local_color.clone(),
-                            ),
+                            LapceUICommand::ResetSettingsFile {
+                                kind: kind.to_string(),
+                                key: local_color.clone(),
+                            },
                             Target::Widget(data.id),
                         ));
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::ResetSettings,
+                            LapceUICommand::ResetSettingsItem,
                             Target::Widget(widget_id),
                         ));
                     })
@@ -1867,17 +1859,17 @@ impl Widget<LapceTabData> for ThemeSettingItem {
                 let content = editor_data.doc.buffer().to_string();
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSettingsFile(
-                        self.kind.to_string(),
-                        self.color.clone(),
-                        serde_json::json!(content),
-                    ),
+                    LapceUICommand::UpdateSettingsFile {
+                        kind: self.kind.to_string(),
+                        key: self.color.clone(),
+                        value: serde_json::json!(content),
+                    },
                     Target::Widget(data.id),
                 ));
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                if let LapceUICommand::ResetSettings = command {
+                if let LapceUICommand::ResetSettingsItem = command {
                     let default = self.default(data);
                     let name = format!("{}.{}", self.kind, self.color);
                     let doc = data.main_split.value_docs.get_mut(&name).unwrap();

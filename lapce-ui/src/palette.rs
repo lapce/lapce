@@ -53,31 +53,7 @@ impl Widget<LapceTabData> for Palette {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        // match event {
-        //     Event::MouseDown(_)
-        //     | Event::MouseMove(_)
-        //     | Event::Wheel(_)
-        //     | Event::MouseUp(_) => {
-        //         if data.palette.status == PaletteStatus::Inactive {
-        //             return;
-        //         }
-        //     }
-        //     _ => (),
-        // }
-
         match event {
-            // Event::KeyDown(key_event) => {
-            //     let mut keypress = data.keypress.clone();
-            //     let mut_keypress = Arc::make_mut(&mut keypress);
-            //     let mut palette_data = data.palette_view_data();
-            //     mut_keypress.key_down(ctx, key_event, &mut palette_data, env);
-            //     data.palette = palette_data.palette.clone();
-            //     data.keypress = keypress;
-            //     data.workspace = palette_data.workspace.clone();
-            //     data.main_split = palette_data.main_split.clone();
-            //     data.find = palette_data.find.clone();
-            //     ctx.set_handled();
-            // }
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_COMMAND);
                 let mut palette_data = data.palette_view_data();
@@ -88,6 +64,8 @@ impl Widget<LapceTabData> for Palette {
                     Modifiers::default(),
                     env,
                 );
+                // TODO: manually restoring the changed palette data is unfortunate, it would be
+                // better to have a function to do this to avoid accidents where we forget to update
                 data.palette = palette_data.palette.clone();
                 data.workspace = palette_data.workspace.clone();
                 data.main_split = palette_data.main_split.clone();
@@ -123,12 +101,7 @@ impl Widget<LapceTabData> for Palette {
                             Target::Widget(data.palette.input_editor),
                         ));
                     }
-                    LapceUICommand::CancelPalette => {
-                        let mut palette_data = data.palette_view_data();
-                        palette_data.cancel(ctx);
-                        data.palette = palette_data.palette.clone();
-                    }
-                    LapceUICommand::UpdatePaletteItems(run_id, items) => {
+                    LapceUICommand::UpdatePaletteItems { run_id, items } => {
                         let palette = Arc::make_mut(&mut data.palette);
                         if &palette.run_id == run_id {
                             palette.total_items = items.clone();
@@ -145,11 +118,11 @@ impl Widget<LapceTabData> for Palette {
                             }
                         }
                     }
-                    LapceUICommand::FilterPaletteItems(
+                    LapceUICommand::FilterPaletteItems {
                         run_id,
                         input,
                         filtered_items,
-                    ) => {
+                    } => {
                         let palette = Arc::make_mut(&mut data.palette);
                         if &palette.run_id == run_id && palette.get_input() == input
                         {

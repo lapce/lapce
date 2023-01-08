@@ -169,6 +169,7 @@ impl DocumentHistory {
         self.line_styles.borrow().get(&line).cloned().unwrap()
     }
 
+    /// Retrieve the `head` version of the buffer
     pub fn retrieve(&self, doc: &Document) {
         if let BufferContent::File(path) = &doc.content() {
             let id = doc.id();

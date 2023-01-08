@@ -225,8 +225,13 @@ impl LapceEditorView {
             LapceUICommand::EnsureRectVisible(rect) => {
                 self.ensure_rect_visible(ctx, data, *rect, env);
             }
-            LapceUICommand::ResolveCompletion(buffer_id, rev, offset, item) => {
-                if data.doc.id() != *buffer_id {
+            LapceUICommand::ResolveCompletion {
+                id,
+                rev,
+                offset,
+                item,
+            } => {
+                if data.doc.id() != *id {
                     return;
                 }
                 if data.doc.rev() != *rev {
@@ -310,6 +315,7 @@ impl LapceEditorView {
         }
     }
 
+    /// Scroll the editor such that the rect is visible.
     fn ensure_rect_visible(
         &mut self,
         ctx: &mut EventCtx,

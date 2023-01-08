@@ -578,11 +578,11 @@ impl KeyPressData {
 
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::FilterKeymaps(
+                LapceUICommand::FilterKeymaps {
                     pattern,
-                    Arc::new(filtered_commands_with_keymap),
-                    Arc::new(filtered_commands_without_keymap),
-                ),
+                    keymaps: Arc::new(filtered_commands_with_keymap),
+                    commands: Arc::new(filtered_commands_without_keymap),
+                },
                 Target::Auto,
             );
         });

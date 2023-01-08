@@ -278,7 +278,11 @@ impl FileExplorerData {
                 let path = path.clone();
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateExplorerItems(path, items, expand),
+                    LapceUICommand::UpdateExplorerItems {
+                        path,
+                        items,
+                        expand,
+                    },
                     Target::Widget(tab_id),
                 );
 

@@ -108,7 +108,7 @@ impl EditorPosition for usize {
 }
 
 /// Jump to first non blank character on a line
-/// (If you want to jump to the very first character then use `LineCol` with column set to 0)
+/// (If you want to jump to the very first character then use [`LineCol`] with column set to 0)
 #[derive(Debug, Clone, Copy)]
 pub struct Line(pub usize);
 
@@ -185,11 +185,15 @@ impl EditorPosition for Position {
     }
 }
 
+/// Used to specify a location with some path, and potentially position information.  
+/// This is generic so that you can jump to utf8 offsets, line+column offsets, just the line,
+/// or even utf16 offsets (such as those given by the LSP)
 #[derive(Clone, Debug, PartialEq)]
 pub struct EditorLocation<P: EditorPosition = usize> {
     pub path: PathBuf,
     pub position: Option<P>,
     pub scroll_offset: Option<Vec2>,
+    /// Source control history name, ex: "head"
     pub history: Option<String>,
 }
 
@@ -204,10 +208,15 @@ impl<P: EditorPosition> EditorLocation<P> {
     }
 }
 
+/// Temporary structure used to manipulate editors/buffers, before returning the data back to
+/// [`LapceTabData`]. See [`LapceTabData::editor_view_content`] for more information on acquiring
+/// the data and on returning it back.
 pub struct LapceEditorBufferData {
     pub view_id: WidgetId,
     pub editor: Arc<LapceEditorData>,
     pub doc: Arc<Document>,
+    // There are a variety of indirectly related data due to it being needed for the various utility
+    // functions on the editor itself.
     pub completion: Arc<CompletionData>,
     pub signature: Arc<SignatureData>,
     pub hover: Arc<HoverData>,
@@ -238,6 +247,7 @@ impl LapceEditorBufferData {
         }
     }
 
+    /// Jump to the next/previous column on the line which matches the given text
     fn inline_find(
         &mut self,
         ctx: &mut EventCtx,
@@ -281,14 +291,12 @@ impl LapceEditorBufferData {
         if !self.doc.loaded() {
             return;
         }
-        if !self.doc.content().is_file() {
-            return;
-        }
+
         if let BufferContent::File(path) = self.doc.content() {
             let path = path.clone();
             let offset = self.editor.cursor.offset();
 
-            let exits = if self.doc.code_actions.contains_key(&offset) {
+            let exists = if self.doc.code_actions.contains_key(&offset) {
                 true
             } else {
                 Arc::make_mut(&mut self.doc)
@@ -296,28 +304,33 @@ impl LapceEditorBufferData {
                     .insert(offset, (PluginId(0), Vec::new()));
                 false
             };
-            if !exits {
+            if !exists {
                 let position = self.doc.buffer().offset_to_position(offset);
                 let rev = self.doc.rev();
                 let event_sink = ctx.get_external_handle();
-                let diagnostics: &Vec<EditorDiagnostic> = &(self
+
+                // Get the diagnostics for the current line, which the LSP might use to inform
+                // what code actions are available (such as fixes for the diagnostics).
+                let diagnostics: &[EditorDiagnostic] = self
                     .doc
                     .diagnostics
-                    .as_ref()
+                    .as_deref()
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[]);
+                let diagnostics = diagnostics
+                    .iter()
+                    .map(|x| &x.diagnostic)
+                    .filter(|x| {
+                        x.range.start.line <= position.line
+                            && x.range.end.line >= position.line
+                    })
                     .cloned()
-                    .unwrap_or_else(|| Arc::new(Vec::new())));
-                let diagnostics = diagnostics.clone();
+                    .collect();
+
                 self.proxy.proxy_rpc.get_code_actions(
                     path.clone(),
                     position,
-                    diagnostics
-                        .into_iter()
-                        .map(|x| x.diagnostic)
-                        .filter(|x| {
-                            x.range.start.line <= position.line
-                                && x.range.end.line >= position.line
-                        })
-                        .collect(),
+                    diagnostics,
                     move |result| {
                         if let Ok(ProxyResponse::GetCodeActionsResponse {
                             plugin_id,
@@ -352,6 +365,9 @@ impl LapceEditorBufferData {
         }
     }
 
+    /// Update the positions of cursors in other editors which are editing the same document  
+    /// Ex: You type at the start of the document, the cursor in the other editor (like a split)
+    /// should be moved forward.
     fn inactive_apply_delta(&mut self, delta: &RopeDelta) {
         for (view_id, editor) in self.main_split.editors.iter_mut() {
             if view_id != &self.editor.view_id
@@ -390,11 +406,19 @@ impl LapceEditorBufferData {
         self.rename.active
     }
 
+    /// Perform a workspace edit, which are from the LSP (such as code actions, or symbol renaming)
     pub fn apply_workspace_edit(
         &mut self,
         ctx: &mut EventCtx,
         edit: &WorkspaceEdit,
     ) {
+        // TODO: I think this probably has some issues if an operation created a file, and then the
+        // workspace-edits after this are told to edit the created file. I think it would behave
+        // correctly for a *new* file, but not if the created file overwrote an existing file we had
+        // open.
+
+        // If there's any operations, (such as creating files, renaming them, or deleting them),
+        // then apply those.
         if let Some(DocumentChanges::Operations(op)) = edit.document_changes.as_ref()
         {
             op.iter()
@@ -406,6 +430,7 @@ impl LapceEditorBufferData {
                 .map(|cmd| Command::new(LAPCE_UI_COMMAND, cmd, Target::Auto))
                 .for_each(|cmd| ctx.submit_command(cmd));
         }
+
         if let BufferContent::File(path) = &self.editor.content {
             if let Some(edits) = workspace_edits(edit) {
                 for (url, edits) in edits {
@@ -471,6 +496,7 @@ impl LapceEditorBufferData {
         }
     }
 
+    /// Resolve a code action and apply its held workspace edit
     fn resolve_code_action(
         &mut self,
         ctx: &mut EventCtx,
@@ -520,26 +546,20 @@ impl LapceEditorBufferData {
     }
 
     pub fn apply_completion_item(&mut self, item: &CompletionItem) -> Result<()> {
-        let additional_edit: Option<Vec<_>> =
-            item.additional_text_edits.as_ref().map(|edits| {
-                edits
-                    .iter()
-                    .map(|edit| {
-                        let selection = lapce_core::selection::Selection::region(
-                            self.doc.buffer().offset_of_position(&edit.range.start),
-                            self.doc.buffer().offset_of_position(&edit.range.end),
-                        );
-                        (selection, edit.new_text.as_str())
-                    })
-                    .collect::<Vec<(lapce_core::selection::Selection, &str)>>()
-            });
-
-        let additional_edit: Vec<_> = additional_edit
+        // Get all the edits which would be applied in places other than right where the cursor is
+        let additional_edit: Vec<_> = item
+            .additional_text_edits
             .as_ref()
-            .map(|edits| {
-                edits.iter().map(|(selection, c)| (selection, *c)).collect()
+            .into_iter()
+            .flatten()
+            .map(|edit| {
+                let selection = lapce_core::selection::Selection::region(
+                    self.doc.buffer().offset_of_position(&edit.range.start),
+                    self.doc.buffer().offset_of_position(&edit.range.end),
+                );
+                (selection, edit.new_text.as_str())
             })
-            .unwrap_or_default();
+            .collect::<Vec<(lapce_core::selection::Selection, &str)>>();
 
         let text_format = item
             .insert_text_format
@@ -564,7 +584,7 @@ impl LapceEditorBufferData {
                             self.completion_do_edit(
                                 &selection,
                                 &[
-                                    &[(&selection, edit.new_text.as_str())][..],
+                                    &[(selection.clone(), edit.new_text.as_str())][..],
                                     &additional_edit[..],
                                 ]
                                 .concat(),
@@ -578,7 +598,7 @@ impl LapceEditorBufferData {
                             let (delta, inval_lines, edits) =
                                 Arc::make_mut(&mut self.doc).do_raw_edit(
                                     &[
-                                        &[(&selection, text.as_str())][..],
+                                        &[(selection.clone(), text.as_str())][..],
                                         &additional_edit[..],
                                     ]
                                     .concat(),
@@ -656,7 +676,7 @@ impl LapceEditorBufferData {
             &selection,
             &[
                 &[(
-                    &selection,
+                    selection.clone(),
                     item.insert_text.as_deref().unwrap_or(item.label.as_str()),
                 )][..],
                 &additional_edit[..],
@@ -707,6 +727,8 @@ impl LapceEditorBufferData {
         }
     }
 
+    /// Select the current completion item, getting the data (potentially needing an LSP request)
+    /// and then apply it.
     pub fn completion_item_select(&mut self, ctx: &mut EventCtx) {
         let item = if let Some(item) = self.completion.current_item() {
             item.to_owned()
@@ -726,7 +748,6 @@ impl LapceEditorBufferData {
                 item.plugin_id,
                 item.item.clone(),
                 move |result| {
-                    // let item = result.unwrap_or_else(|_| item.clone());
                     let item =
                         if let Ok(ProxyResponse::CompletionResolveResponse {
                             item,
@@ -738,12 +759,12 @@ impl LapceEditorBufferData {
                         };
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::ResolveCompletion(
-                            buffer_id,
+                        LapceUICommand::ResolveCompletion {
+                            id: buffer_id,
                             rev,
                             offset,
-                            Box::new(item),
-                        ),
+                            item: Box::new(item),
+                        },
                         Target::Widget(view_id),
                     );
                 },
@@ -1455,9 +1476,14 @@ impl LapceEditorBufferData {
 
                 let exit = if exit { Some(view_id) } else { None };
                 let cmd = if format_on_save {
-                    LapceUICommand::DocumentFormatAndSave(path, rev, result, exit)
+                    LapceUICommand::DocumentFormatAndSave {
+                        path,
+                        rev,
+                        result,
+                        exit,
+                    }
                 } else {
-                    LapceUICommand::DocumentSave(path, exit)
+                    LapceUICommand::DocumentSave { path, exit }
                 };
 
                 let _ = event_sink.submit_command(
@@ -2259,7 +2285,7 @@ impl LapceEditorBufferData {
                             );
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::DocumentFormat(path, rev, result),
+                            LapceUICommand::DocumentFormat { path, rev, result },
                             Target::Widget(*tab_id),
                         );
                     });

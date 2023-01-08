@@ -75,7 +75,7 @@ impl Widget<LapceTabData> for HoverContainer {
         match event {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                if let LapceUICommand::UpdateHover(request_id, items) = command {
+                if let LapceUICommand::UpdateHover { request_id, items } = command {
                     let hover = Arc::make_mut(&mut data.hover);
                     hover.receive(*request_id, items.clone());
                     ctx.request_paint();

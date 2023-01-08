@@ -198,21 +198,11 @@ impl BufferContent {
     }
 
     pub fn is_palette(&self) -> bool {
-        match self {
-            BufferContent::File(_) => false,
-            BufferContent::SettingsValue(..) => false,
-            BufferContent::Scratch(..) => false,
-            BufferContent::Local(local) => matches!(local, LocalBufferKind::Palette),
-        }
+        matches!(self, BufferContent::Local(LocalBufferKind::Palette))
     }
 
     pub fn is_search(&self) -> bool {
-        match self {
-            BufferContent::File(_) => false,
-            BufferContent::SettingsValue(..) => false,
-            BufferContent::Scratch(..) => false,
-            BufferContent::Local(local) => matches!(local, LocalBufferKind::Search),
-        }
+        matches!(self, BufferContent::Local(LocalBufferKind::Search))
     }
 
     pub fn is_settings(&self) -> bool {
@@ -768,9 +758,12 @@ impl Document {
 
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::UpdateSemanticStyles(
-                                    buffer_id, path, rev, styles,
-                                ),
+                                LapceUICommand::UpdateSemanticStyles {
+                                    id: buffer_id,
+                                    path,
+                                    rev,
+                                    styles,
+                                },
                                 Target::Widget(tab_id),
                             );
                         });

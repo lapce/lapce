@@ -186,14 +186,15 @@ impl KeyPressFocus for SourceControlData {
                     if !self.file_diffs.is_empty() {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::OpenFileDiff(
-                                self.file_diffs
+                            LapceUICommand::OpenFileDiff {
+                                path: self
+                                    .file_diffs
                                     .get_index(self.file_list_index)
                                     .unwrap()
                                     .0
                                     .clone(),
-                                "head".to_string(),
-                            ),
+                                history: "head".to_string(),
+                            },
                             Target::Auto,
                         ));
                     }
