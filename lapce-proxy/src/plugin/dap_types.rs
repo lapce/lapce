@@ -178,3 +178,11 @@ pub struct DebuggerCapabilities {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supported_checksum_algorithms: Option<Vec<String>>,
 }
+
+pub enum Launch {}
+
+impl Request for Launch {
+    type Arguments = Value;
+    type Result = Value;
+    const COMMAND: &'static str = "launch";
+}

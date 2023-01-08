@@ -59,6 +59,11 @@ impl PluginCatalog {
                 )
                 .unwrap();
                 let _ = dap.initialize();
+                let _ = dap.launch(serde_json::json!({
+                    "program": "/Users/dz/lapce/target/debug/lapce",
+                    "args": vec!["--wait", "--new"],
+                    "runInTerminal": true,
+                }));
             });
         }
 
