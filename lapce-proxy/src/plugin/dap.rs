@@ -22,7 +22,7 @@ use crate::plugin::dap_types::Initialize;
 
 use super::{
     dap_types,
-    dap_types::{DapPayload, DapRequest, DapResponse, Request},
+    dap_types::{DapPayload, DapRequest, DapResponse, Launch, Request},
     psp::ResponseHandler,
 };
 
@@ -85,7 +85,9 @@ impl DapClient {
                                 serde_json::from_str::<DapPayload>(&message_str)
                             {
                                 match payload {
-                                    DapPayload::Request(_) => todo!(),
+                                    DapPayload::Request(req) => {
+                                        println!("got dap req {req:?}");
+                                    }
                                     DapPayload::Response(resp) => {
                                         if let Some(rh) = {
                                             server_pending
@@ -139,8 +141,8 @@ impl DapClient {
 
     pub(crate) fn initialize(&self) -> Result<()> {
         let params = dap_types::InitializeParams {
-            client_id: Some("hx".to_owned()),
-            client_name: Some("helix".to_owned()),
+            client_id: Some("lapce".to_owned()),
+            client_name: Some("Lapce".to_owned()),
             adapter_id: "".to_string(),
             locale: Some("en-us".to_owned()),
             lines_start_at_one: Some(true),
@@ -159,6 +161,14 @@ impl DapClient {
             .map_err(|e| anyhow!(e.message))?;
         println!("dap initilize result {resp:?}");
 
+        Ok(())
+    }
+
+    pub(crate) fn launch(&self, params: Value) -> Result<()> {
+        let resp = self
+            .request::<Launch>(params)
+            .map_err(|e| anyhow!(e.message))?;
+        println!("launch resp {resp:?}");
         Ok(())
     }
 
