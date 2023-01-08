@@ -246,14 +246,20 @@ impl PaletteItemContent {
             PaletteItemContent::ColorTheme(theme) => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::SetColorTheme(theme.to_string(), preview),
+                    LapceUICommand::SetColorTheme {
+                        theme: theme.to_string(),
+                        preview,
+                    },
                     Target::Auto,
                 ));
             }
             PaletteItemContent::IconTheme(theme) => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::SetIconTheme(theme.to_string(), preview),
+                    LapceUICommand::SetIconTheme {
+                        theme: theme.to_string(),
+                        preview,
+                    },
                     Target::Auto,
                 ));
             }
@@ -872,7 +878,7 @@ impl PaletteViewData {
 
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdatePaletteItems(run_id, items),
+                    LapceUICommand::UpdatePaletteItems { run_id, items },
                     Target::Widget(widget_id),
                 );
             }
@@ -1161,7 +1167,7 @@ impl PaletteViewData {
                         };
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdatePaletteItems(run_id, items),
+                            LapceUICommand::UpdatePaletteItems { run_id, items },
                             Target::Widget(widget_id),
                         );
                     }
@@ -1221,7 +1227,7 @@ impl PaletteViewData {
                             .collect();
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdatePaletteItems(run_id, items),
+                            LapceUICommand::UpdatePaletteItems { run_id, items },
                             Target::Widget(widget_id),
                         );
                     }
@@ -1261,11 +1267,11 @@ impl PaletteViewData {
 
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::FilterPaletteItems(
+                    LapceUICommand::FilterPaletteItems {
                         run_id,
                         input,
                         filtered_items,
-                    ),
+                    },
                     Target::Widget(widget_id),
                 );
             } else {

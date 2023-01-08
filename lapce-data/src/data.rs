@@ -912,6 +912,20 @@ impl LapceTabData {
         }
     }
 
+    /// Get information about the specific editor, with various data so that it can provide useful  
+    /// utility functions for the editor buffer.  
+    /// Note that if you edit the editor buffer or related fields, then you'll have to 'give it
+    /// back' to [`LapceTabData`] so that it can update the internals.  
+    /// ```rust,ignore
+    /// // Get the editor before it may be modified by the `editor_data`
+    /// let editor = data.main_split.editors.get(&view_id).unwrap().clone();
+    /// let mut editor_data = data.editor_view_content(view_id);
+    /// let doc = editor_data.doc.clone();
+    /// // Do some modification
+    /// Arc::make_mut(&mut editor_data.editor).cursor.set_offset(0, true, mods.alt());
+    /// // Give it back so that `LapceTabData` can update the internals
+    /// data.update_from_editor_buffer_data(editor_data, &editor, &doc);
+    /// ```
     pub fn editor_view_content(
         &self,
         editor_view_id: WidgetId,
@@ -992,6 +1006,17 @@ impl LapceTabData {
         }
     }
 
+    /// Update the stored information with the changed editor buffer data.  
+    /// ```rust,ignore
+    /// // Get the editor before it may be modified by the `editor_data`
+    /// let editor = data.main_split.editors.get(&view_id).unwrap().clone();
+    /// let mut editor_data = data.editor_view_content(view_id);
+    /// let doc = editor_data.doc.clone();
+    /// // Do some modification
+    /// Arc::make_mut(&mut editor_data.editor).cursor.set_offset(0, true, mods.alt());
+    /// // Give it back so that `LapceTabData` can update the internals
+    /// data.update_from_editor_buffer_data(editor_data, &editor, &doc);
+    /// ```
     pub fn update_from_editor_buffer_data(
         &mut self,
         editor_buffer_data: LapceEditorBufferData,
@@ -2535,7 +2560,11 @@ impl LapceMainSplitData {
                 if let Ok(ProxyResponse::SaveResponse {}) = result {
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::BufferSave(path, rev, exit_widget_id),
+                        LapceUICommand::BufferSave {
+                            path,
+                            rev,
+                            exit: exit_widget_id,
+                        },
                         Target::Widget(tab_id),
                     );
                 }
@@ -2751,6 +2780,8 @@ impl LapceMainSplitData {
         scratch: bool,
         config: &LapceConfig,
     ) -> &mut LapceEditorData {
+        // If you're asking for no specific path, and you don't want scratch, then we just give you
+        // the editor data for the tab id you're asking for.
         if path.is_none() && !scratch {
             let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
             if let Some(EditorTabChild::Editor(id, _, _)) = editor_tab.active_child()
@@ -2763,6 +2794,7 @@ impl LapceMainSplitData {
         let editor_tabs: Box<
             dyn Iterator<Item = (&WidgetId, &mut Arc<LapceEditorTabData>)>,
         > = if same_tab {
+            // If you want the same tab, then we'll only look at the tab you're asking for.
             Box::new(
                 vec![(
                     &editor_tab_id,
@@ -2771,7 +2803,9 @@ impl LapceMainSplitData {
                 .into_iter(),
             )
         } else {
+            // Otherwise, we look at all the open tabs available
             Box::new(self.editor_tabs.iter_mut().sorted_by(|(_, a), (_, b)| {
+                // Sort the active tab to the start of the iterator
                 if Some(a.widget_id) == *self.active_tab {
                     return Ordering::Less;
                 }
@@ -2781,6 +2815,7 @@ impl LapceMainSplitData {
                 let a_rect = a.layout_rect.borrow();
                 let b_rect = b.layout_rect.borrow();
 
+                // Sort by the start position of the tab
                 if a_rect.y0 == b_rect.y0 {
                     a_rect.x0.total_cmp(&b_rect.x0)
                 } else {
@@ -2788,6 +2823,9 @@ impl LapceMainSplitData {
                 }
             }))
         };
+
+        // Look for any editor tabs in our 'allowed set' that have the same path, and simply use
+        // that editor tab instead of creating a new one.
         for (_, editor_tab) in editor_tabs {
             let editor_tab = Arc::make_mut(editor_tab);
             for (i, child) in editor_tab.children.iter().enumerate() {
@@ -2797,6 +2835,7 @@ impl LapceMainSplitData {
                     if current_size.height > 0.0 {
                         editor_size = current_size;
                     }
+
                     if let Some(path) = path.as_ref() {
                         if editor.content == BufferContent::File(path.clone()) {
                             editor_tab.active = i;
@@ -2812,6 +2851,8 @@ impl LapceMainSplitData {
             }
         }
 
+        // If we're not showing tabs, or we're just asking for non-specific-path and non-scratch
+        // editors, then we'll return the active editor if it is pristine.
         if !config.editor.show_tab || (path.is_none() && !scratch) {
             let editor_tab =
                 Arc::make_mut(self.editor_tabs.get_mut(&editor_tab_id).unwrap());
@@ -2828,6 +2869,8 @@ impl LapceMainSplitData {
             }
         }
 
+        // We didn't find an open editor that met our specifications, so we'll just have to create
+        // one.
         let editor_tab =
             Arc::make_mut(self.editor_tabs.get_mut(&editor_tab_id).unwrap());
         let new_editor = Arc::new(LapceEditorData::new(
@@ -2869,6 +2912,12 @@ impl LapceMainSplitData {
         return Arc::make_mut(self.editors.get_mut(&new_editor.view_id).unwrap());
     }
 
+    /// If the supplied `editor_view_id` is some, then this simply returns the editor data for it.  
+    /// Otherwise, we check the active tab (and friends if `same_tab` is false) to see if there is
+    /// an existing editor that matches the parameters. If not, we create a new editor.  
+    /// Note that this does not load the file into the editor. See
+    /// [`LapceMainSplitData::jump_to_location`] or [`LapceMainSplitData::go_to_location`] for
+    /// creating the editor and loading the file.
     fn get_editor_or_new(
         &mut self,
         ctx: &mut EventCtx,
@@ -2927,11 +2976,12 @@ impl LapceMainSplitData {
         }
     }
 
+    /// Open the plugin information view, which display's the plugins readme, repo, and other
+    /// related bits
     pub fn open_plugin_info(&mut self, ctx: &mut EventCtx, volt: &VoltInfo) {
         let editor_tab_id = self
             .active_tab
             .as_ref()
-            .map(|id| id)
             .unwrap_or_else(|| self.new_editor_tab(ctx, *self.split_id));
 
         let editor_tab =
@@ -3053,6 +3103,7 @@ impl LapceMainSplitData {
         }
     }
 
+    /// Jump to a specific location, getting/creating the editor as needed.
     pub fn jump_to_location<P: EditorPosition + Send + 'static>(
         &mut self,
         ctx: &mut EventCtx,
@@ -3071,6 +3122,8 @@ impl LapceMainSplitData {
         )
     }
 
+    /// Jump to a specific location, getting/creating the editor as needed.  
+    /// This version allows a callback which will be called once the buffer is loaded.
     pub fn jump_to_location_cb<
         P: EditorPosition + Send + 'static,
         F: Fn(&mut EventCtx, &mut LapceMainSplitData) + Send + 'static,
@@ -3083,6 +3136,8 @@ impl LapceMainSplitData {
         config: &LapceConfig,
         cb: Option<F>,
     ) -> WidgetId {
+        // If there's an active editor tab, save the jump location so that the user can quickly go
+        // back to it using the jump commands
         if let Some(active_tab) = self.active_tab.as_ref() {
             let editor_tab = self.editor_tabs.get(active_tab).unwrap();
             if let Some(EditorTabChild::Editor(view_id, _, _)) =
@@ -3098,6 +3153,7 @@ impl LapceMainSplitData {
                 }
             }
         }
+        // Get an existing editor for the file, if it exists, otherwise create a new one
         let editor_view_id = self
             .get_editor_or_new(
                 ctx,
@@ -3108,6 +3164,7 @@ impl LapceMainSplitData {
                 config,
             )
             .view_id;
+        // Actually jump to the requisite location in our constructed editor
         self.go_to_location_cb::<P, F>(
             ctx,
             Some(editor_view_id),
@@ -3278,6 +3335,8 @@ impl LapceMainSplitData {
             )
             .view_id;
         let doc = self.editor_doc(editor_view_id);
+
+        // Whether we're swapping to a different file/kind-of-buffer
         let new_buffer = match doc.content() {
             BufferContent::File(path) => path != &location.path,
             BufferContent::Local(_) => true,
@@ -3285,22 +3344,31 @@ impl LapceMainSplitData {
             BufferContent::Scratch(..) => true,
         };
         if new_buffer {
+            // Save the position in the document so that when the user reopens it, they'll
+            // return to the same place
             self.db.save_doc_position(&self.workspace, &doc);
         } else if location.position.is_none()
             && location.scroll_offset.is_none()
             && location.history.is_none()
         {
+            // If it is not a new buffer (so it is the same file); and there's no positioning,
+            // scrolling, or history, then we don't need to do anything to the editor at all.
             return;
         }
         let path = location.path.clone();
+        // TODO: Could this just be done via an if let Some()? Would have to reorder the if/else
         let doc_exists = self.open_docs.contains_key(&path);
         if !doc_exists {
+            // There's no existing document for the path, so we need to construct a new one.
             let mut doc = Document::new(
                 BufferContent::File(path.clone()),
                 *self.tab_id,
                 ctx.get_external_handle(),
                 self.proxy.clone(),
             );
+
+            // Acquire information about the buffer when it was last accessed, restoring their
+            // scroll & cursor position.
             if let Ok(info) = self.db.get_buffer_info(&self.workspace, &path) {
                 doc.scroll_offset =
                     Vec2::new(info.scroll_offset.0, info.scroll_offset.1);
@@ -3309,7 +3377,8 @@ impl LapceMainSplitData {
 
             let cb: Option<InitBufferContentCb> = cb.map(|cb| Box::new(cb) as _);
 
-            // We don't already have the document loaded, so go load it.
+            // Since we don't have document loaded, we'll have to retrieve it from the proxy
+            // So, the document is not immediately filled with content!
             doc.retrieve_file(vec![(editor_view_id, location)], None, cb);
             self.open_docs.insert(path.clone(), Arc::new(doc));
         } else {
@@ -3333,12 +3402,17 @@ impl LapceMainSplitData {
 
                     (offset, location.scroll_offset.as_ref())
                 }
+                // No custom position, so we'll simply keep them where they were
                 None => (doc.cursor_offset, Some(&doc.scroll_offset)),
             };
+            // Ensure that the offset is within the bounds of the document
             let offset = offset.min(doc.buffer().len());
 
+            // Update the document's source control history with the given version
             if let Some(version) = location.history.as_ref() {
                 let doc = self.open_docs.get_mut(&path).unwrap();
+                // TODO(minor): Could we avoid this make mut definitely cloning the `Document` by
+                // early-dropping our held doc above?
                 Arc::make_mut(doc).retrieve_history(version);
             }
 
@@ -3350,11 +3424,13 @@ impl LapceMainSplitData {
                 false,
                 config,
             );
-            if let Some(version) = location.history.as_ref() {
-                editor.view = EditorView::Diff(version.to_string());
+            editor.view = if let Some(version) = location.history.as_ref() {
+                // If they've provided us with a history version, then we're comparing with that
+                // version of the file.
+                EditorView::Diff(version.to_string())
             } else {
-                editor.view = EditorView::Normal;
-            }
+                EditorView::Normal
+            };
             editor.content = BufferContent::File(path.clone());
             editor.compare = location.history.clone();
             editor.cursor = if config.core.modal {
@@ -3387,6 +3463,7 @@ impl LapceMainSplitData {
                 ));
             }
 
+            // Finished setting up the file, so alert the caller
             if let Some(cb) = cb {
                 (cb)(ctx, self);
             }
@@ -3692,9 +3769,13 @@ impl LapceMainSplitData {
                         if let Ok(_r) = result {
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::SaveAsSuccess(
-                                    content, rev, path, view_id, exit,
-                                ),
+                                LapceUICommand::SaveAsSuccess {
+                                    content,
+                                    rev,
+                                    path,
+                                    view_id,
+                                    exit,
+                                },
                                 Target::Auto,
                             );
                         }

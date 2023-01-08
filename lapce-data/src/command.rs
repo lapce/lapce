@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use druid::{
-    EventCtx, FileInfo, Point, Rect, Selector, SingleUse, Size, WidgetId, WindowId,
+    EventCtx, FileInfo, Point, Rect, Selector, SingleUse, WidgetId, WindowId,
 };
 use indexmap::IndexMap;
 use lapce_core::{
@@ -514,17 +514,22 @@ pub enum EnsureVisiblePosition {
 }
 
 pub enum LapceUICommand {
-    InitChildren,
-    InitTerminalPanel(bool),
+    /// Reload the config file
     ReloadConfig,
-    /// UTF8 offsets into the file
+    /// Initializes the buffer content at a particular position.  
+    /// (UTF8 offsets into the file)
     InitBufferContent(InitBufferContent<usize>),
-    /// Start of line position
+    /// Initializes the buffer content at a particular position.  
+    /// (Start of line position)
     InitBufferContentLine(InitBufferContent<Line>),
-    /// Line and UTF8 Column Positions
+    /// Initializes the buffer content at a particular position.  
+    /// (Line and UTF8 Column Positions)
     InitBufferContentLineCol(InitBufferContent<LineCol>),
-    /// UTF16 LSP positions
+    /// Initializes the buffer content at a particular position.  
+    /// (UTF16 LSP positions)
     InitBufferContentLsp(InitBufferContent<Position>),
+    /// Informs the editor that the file has been changed, giving the new content.  
+    /// (Sent by the proxy on certain watcher events)
     OpenFileChanged {
         path: PathBuf,
         content: Rope,
@@ -534,61 +539,110 @@ pub enum LapceUICommand {
         rev: u64,
         content: Rope,
     },
+    /// Informs the editor of the `head` version of the buffer.  
+    /// (Sent by the proxy when history is requested for a document)
     LoadBufferHead {
         path: PathBuf,
         version: String,
         content: Rope,
     },
-    LoadBufferAndGoToPosition {
-        path: PathBuf,
-        content: String,
-        editor_view_id: WidgetId,
-        location: EditorLocation,
-    },
+    /// Display the about modal
     ShowAbout,
+    /// Display the alert modal (ex: the "Are you sure you want to close without saving?")
     ShowAlert(AlertContentData),
+    /// Display the context menu at a specific point
     ShowMenu(Point, Arc<Vec<MenuKind>>),
+    /// Bring the window to the front
     ShowWindow,
+    /// Display the git branch picker at the specified point
     ShowGitBranches {
         origin: Point,
         branches: im::Vector<String>,
     },
+    /// Update global search input with the given pattern
     UpdateSearchInput(String),
+    /// Update the global search with the given pattern (actually performs the search)
     UpdateSearch(String),
+    /// Update the global search with the given pattern (actually performs the search)
     UpdateSearchWithCaseSensitivity {
         pattern: String,
         case_sensitive: bool,
     },
+    /// Informs the editor of the results from the global search, this is caused by the
+    /// `UpdateSearch{,WithCaseSensitivity}` commands
     GlobalSearchResult(String, Arc<IndexMap<PathBuf, Vec<Match>>>),
     CancelFilePicker,
+    /// Change the workspace to the given path/remote (or clear it)
     SetWorkspace(LapceWorkspace),
-    SetColorTheme(String, bool),
-    SetIconTheme(String, bool),
+    SetColorTheme {
+        theme: String,
+        /// Whether the changes are temporary, and thus whether we should update the config file
+        preview: bool,
+    },
+    SetIconTheme {
+        theme: String,
+        /// Whether the changes are temporary, and thus whether we should update the config file
+        preview: bool,
+    },
     UpdateKeymap(KeyMap, Vec<KeyPress>),
+    /// Open the URI in the respective program, such as urls for the browser, or paths in the file
+    /// explorer
     OpenURI(String),
+    /// Open multiple folders/files in the editor, potentially as new window tabs
     OpenPaths {
         window_tab_id: Option<(WindowId, WidgetId)>,
         folders: Vec<PathBuf>,
         files: Vec<PathBuf>,
     },
+    /// Open a specific file in the editor; along with `same_tab` which decides which tabs to look
+    /// at for whether the file is already open.
     OpenFile(PathBuf, bool),
-    OpenFileDiff(PathBuf, String),
+    /// Open a specific file in the editor as a source control diff view
+    OpenFileDiff {
+        path: PathBuf,
+        /// Ex: "head"
+        history: String,
+    },
+    /// Shows a specific file in the user's file explorer
     RevealInFileExplorer(PathBuf),
-    CancelCompletion(usize),
-    ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
-    UpdateCompletion(usize, String, CompletionResponse, PluginId),
+    /// Cancel the completion request
+    CancelCompletion {
+        request_id: usize,
+    },
+    /// Receieved when the request for completion items has completed
+    UpdateCompletion {
+        request_id: usize,
+        input: String,
+        resp: CompletionResponse,
+        plugin_id: PluginId,
+    },
+    /// Received when the completion item has been selected and we've resolved it to the actual
+    /// actions needed to expand it.
+    ResolveCompletion {
+        id: BufferId,
+        rev: u64,
+        offset: usize,
+        item: Box<CompletionItem>,
+    },
+    /// Received when the request for signature information has completed
     UpdateSignature {
         request_id: usize,
         resp: SignatureHelp,
         plugin_id: PluginId,
     },
-    UpdateHover(usize, Arc<Vec<RichText>>),
+    /// Received when the request for hover information has completed
+    UpdateHover {
+        request_id: usize,
+        items: Arc<Vec<RichText>>,
+    },
+    /// Received when the request for the plugin's description completed
     UpdateVoltReadme(RichText),
     UpdateInlayHints {
         path: PathBuf,
         rev: u64,
         hints: Spans<InlayHint>,
     },
+    /// Received when the request for code actions in the file completed
     UpdateCodeActions {
         path: PathBuf,
         plugin_id: PluginId,
@@ -596,46 +650,102 @@ pub enum LapceUICommand {
         offset: usize,
         resp: CodeActionResponse,
     },
+    /// Received when there was an error in getting code actions
     CodeActionsError {
         path: PathBuf,
         rev: u64,
         offset: usize,
     },
-    CancelPalette,
+    /// Run a system command with the given args
     RunCommand(String, Vec<String>),
+    /// Execute a code action from a specific plugin
     RunCodeAction(CodeActionOrCommand, PluginId),
+    /// Apply a workspace edit, which comes from an LSP
     ApplyWorkspaceEdit(WorkspaceEdit),
+    /// Display a list of the current code actions at the given point
     ShowCodeActions(Option<Point>),
-    Hide,
-    ResignFocus,
+    /// Sets the information about the latest Lapce release
     UpdateLatestRelease(ReleaseInfo),
+    /// Hide the widget which receives this (requires that it handles this)
+    Hide,
+    /// Focus the widget which receives this
     Focus,
+    /// Inform the widget that they lost focus (not often used)
     FocusLost,
+    /// Inform that the widget that their children have changed, typically so that they can call
+    /// `ctx.children_changed()` on the next `event`
     ChildrenChanged,
+    /// Changes the active file in the explorer panel to the current file
     EnsureEditorTabActiveVisible,
-    FocusSourceControl,
+    /// Displays the (core) settings in the settings view
     ShowSettings,
+    /// Displays the keybindings in the settings view
     ShowKeybindings,
+    /// Displays the given settings in the settings view
     ShowSettingsKind(LapceSettingsKind),
-    FocusEditor,
+    /// Display the palette, initialized to a specific type
     RunPalette(Option<PaletteType>),
+    /// Receives the positions of the requested references
     RunPaletteReferences(Vec<EditorLocation<Position>>),
+    /// Sets the palette's input to the given string. This changes it without updating.
     InitPaletteInput(String),
+    /// Sets the palette's input to the given string. This updates the contents of the palette
+    /// based on the input.
     UpdatePaletteInput(String),
-    UpdatePaletteItems(String, im::Vector<PaletteItem>),
-    FilterPaletteItems(String, String, im::Vector<PaletteItem>),
+    /// Event received to set the palette's items after they were loaded
+    UpdatePaletteItems {
+        run_id: String,
+        items: im::Vector<PaletteItem>,
+    },
+    /// Event received to set the palette's items after they were filtered
+    FilterPaletteItems {
+        run_id: String,
+        input: String,
+        filtered_items: im::Vector<PaletteItem>,
+    },
+    /// Set the filter for the keymaps (in the settings), updating which keymaps are shown
     UpdateKeymapsFilter(String),
-    ResetSettings,
-    ResetSettingsFile(String, String),
-    UpdateSettingsFile(String, String, Value),
+    /// Reset a specific settings item to its default value by sending it to the widget  
+    /// (note: only handled by theme settings items currently)
+    ResetSettingsItem,
+    /// Reset a specific settings item to its default value by the path to it
+    ResetSettingsFile {
+        kind: String,
+        key: String,
+    },
+    /// Set a specific settings item to a new value by the path to it
+    UpdateSettingsFile {
+        kind: String,
+        key: String,
+        value: Value,
+    },
+    /// Update the filter for the settings
+    /// TODO: currently unused!
     UpdateSettingsFilter(String),
-    FilterKeymaps(String, Arc<Vec<KeyMap>>, Arc<Vec<LapceCommand>>),
+    FilterKeymaps {
+        pattern: String,
+        /// The filtered keymaps
+        keymaps: Arc<Vec<KeyMap>>,
+        /// The filtered commands
+        commands: Arc<Vec<LapceCommand>>,
+    },
     UpdatePickerPwd(PathBuf),
     UpdatePickerItems(PathBuf, HashMap<PathBuf, FileNodeItem>),
-    UpdateExplorerItems(PathBuf, HashMap<PathBuf, FileNodeItem>, bool),
+    /// Event received when the directory of a folder has been read, so that we can include the new
+    /// files in the explorer.
+    UpdateExplorerItems {
+        /// The path of the folder we're updating the items of
+        path: PathBuf,
+        /// The items within the folder
+        items: HashMap<PathBuf, FileNodeItem>,
+        /// Whether the folder should be open or not
+        expand: bool,
+    },
     LoadPluginLatest(VoltInfo),
+    /// Event to inform what plugins the user has installed, and thus should be loaded.
     LoadPlugins(PluginsInfo),
     LoadPluginsFailed,
+    /// Event received when the plugin's icon has been loaded
     LoadPluginIcon(VoltID, VoltIconKind),
     VoltInstalled(VoltMetadata, Option<String>),
     VoltInstalling(VoltInfo, String),
@@ -649,33 +759,72 @@ pub enum LapceUICommand {
     RequestLayout,
     RequestPaint,
     ResetFade,
-    //FocusTab,
+    /// Close a window tab (which is distinct from the typical editor tab!)
     CloseTab,
+    /// Close a window tab by its id
     CloseTabId(WidgetId),
+    /// Focus on a window tab by its id
     FocusTabId(WidgetId),
+    /// Swap the active window tab with the window tab at the index
     SwapTab(usize),
+    /// Move a window tab out into its own window
     TabToWindow(WindowId, WidgetId),
+    /// Create a new window tab, optionally with a specific workspace
     NewTab(Option<LapceWorkspace>),
+    /// Switch to the next window tab (in terms of order, not usage)
     NextTab,
+    /// Switch to the previous window tab (in terms of order, not usage)
     PreviousTab,
+    /// Switch to the next editor tab (in terms of order, not usage)
     NextEditorTab,
+    /// Switch to the previous editor tab (in terms of order, not usage)
     PreviousEditorTab,
-    FilterItems,
+    /// Restart Lapce at the given path so that we can apply the update
     RestartToUpdate(PathBuf, ReleaseInfo),
     UpdateStarted,
     UpdateFailed,
+    /// Create a new Lapce window
     NewWindow(WindowId),
+    /// Close a Lapce window, saving the DB as needed
     CloseWindow(WindowId),
+    /// Reload the current Lapce window
     ReloadWindow,
-    CloseBuffers(Vec<BufferId>),
-    RequestPaintRect(Rect),
-    ApplyEdits(usize, u64, Vec<TextEdit>),
-    ApplyEditsAndSave(usize, u64, Result<Value>),
-    DocumentFormat(PathBuf, u64, Result<Vec<TextEdit>>),
-    DocumentFormatAndSave(PathBuf, u64, Result<Vec<TextEdit>>, Option<WidgetId>),
-    DocumentSave(PathBuf, Option<WidgetId>),
-    BufferSave(PathBuf, u64, Option<WidgetId>),
-    UpdateSemanticStyles(BufferId, PathBuf, u64, Arc<Spans<Style>>),
+    /// Event received when the formatting request has been completed, which formats the document
+    /// with the given path using the edits.
+    DocumentFormat {
+        path: PathBuf,
+        rev: u64,
+        /// The resulting edits
+        result: Result<Vec<TextEdit>>,
+    },
+    /// Event received when the formatting request has been completed, and the document should be
+    /// saved with the given path using the edits.
+    DocumentFormatAndSave {
+        path: PathBuf,
+        rev: u64,
+        result: Result<Vec<TextEdit>>,
+        exit: Option<WidgetId>,
+    },
+    /// Save the document with the given path
+    DocumentSave {
+        path: PathBuf,
+        exit: Option<WidgetId>,
+    },
+    /// Mark the document as saved/pristine, if the revision still matches
+    BufferSave {
+        path: PathBuf,
+        rev: u64,
+        exit: Option<WidgetId>,
+    },
+    /// Update the semantic styles for the document with the given path
+    UpdateSemanticStyles {
+        // TODO: This doesn't actually use the buffer id, perhaps it should just be removed?
+        id: BufferId,
+        path: PathBuf,
+        rev: u64,
+        styles: Arc<Spans<Style>>,
+    },
+    /// Set the terminal's title
     UpdateTerminalTitle(TermId, String),
     UpdateHistoryStyle {
         id: BufferId,
@@ -683,6 +832,7 @@ pub enum LapceUICommand {
         history: String,
         highlights: Arc<Spans<Style>>,
     },
+    /// Update the syntax highlighting for the document with the given content
     UpdateSyntax {
         content: BufferContent,
         syntax: SingleUse<Syntax>,
@@ -694,22 +844,40 @@ pub enum LapceUICommand {
         history: String,
         changes: Arc<Vec<DiffLines>>,
     },
-    CenterOfWindow,
-    UpdateLineChanges(BufferId),
+    /// Publish diagnostics changes (from the proxy)
     PublishDiagnostics(PublishDiagnosticsParams),
+    /// Update the current progress information (from the proxy)
     WorkDoneProgress(ProgressParams),
     UpdateDiffInfo(DiffInfo),
-    EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
+    /// Scrolls the editor-view so that the rect is visible  
     EnsureRectVisible(Rect),
+    /// Scrolls the editor-view so that the cursor is visible
     EnsureCursorVisible(Option<EnsureVisiblePosition>),
     EnsureCursorPosition(EnsureVisiblePosition),
-    EditorViewSize(Size),
+    /// Scroll the editor-view by the given amount
     Scroll((f64, f64)),
+    /// Scroll the editor-view to the given point
     ScrollTo((f64, f64)),
     ForceScrollTo(f64, f64),
-    SaveAs(BufferContent, PathBuf, WidgetId, bool),
-    SaveAsSuccess(BufferContent, u64, PathBuf, WidgetId, bool),
+    /// Save the given content to the path
+    SaveAs {
+        content: BufferContent,
+        path: PathBuf,
+        view_id: WidgetId,
+        exit: bool,
+    },
+    /// Event received when save-as succeeds, used for updating the existing tab
+    SaveAsSuccess {
+        content: BufferContent,
+        rev: u64,
+        path: PathBuf,
+        view_id: WidgetId,
+        exit: bool,
+    },
+    /// Sets the picker home directory
     HomeDir(PathBuf),
+    /// Event received from the proxy when a file has changed in the current workspace, used for
+    /// updating the file explorer.
     WorkspaceFileChange,
     ProxyUpdateStatus(ProxyStatus),
     CloseTerminal(TermId),
@@ -754,8 +922,10 @@ pub enum LapceUICommand {
         end: usize,
         placeholder: String,
     },
+    /// Informs the editor about the locations for requested references
     PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),
+    /// Update the current file highlighted in the explorer panel
     ActiveFileChanged {
         path: Option<PathBuf>,
     },

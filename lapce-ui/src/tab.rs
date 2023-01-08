@@ -662,12 +662,12 @@ impl LapceTab {
                 if let Some(info) = data.main_split.current_save_as.as_ref() {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::SaveAs(
-                            info.0.clone(),
-                            file.path.clone(),
-                            info.1,
-                            info.2,
-                        ),
+                        LapceUICommand::SaveAs {
+                            content: info.0.clone(),
+                            path: file.path.clone(),
+                            view_id: info.1,
+                            exit: info.2,
+                        },
                         Target::Widget(data.id),
                     ));
                 }
@@ -930,12 +930,12 @@ impl LapceTab {
                         data.handle_workspace_file_change(ctx);
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateCompletion(
+                    LapceUICommand::UpdateCompletion {
                         request_id,
                         input,
                         resp,
                         plugin_id,
-                    ) => {
+                    } => {
                         let completion = Arc::make_mut(&mut data.completion);
                         completion.receive(
                             *request_id,
@@ -944,7 +944,7 @@ impl LapceTab {
                             *plugin_id,
                         );
                     }
-                    LapceUICommand::CancelCompletion(request_id) => {
+                    LapceUICommand::CancelCompletion { request_id } => {
                         if data.completion.request_id == *request_id {
                             let completion = Arc::make_mut(&mut data.completion);
                             completion.cancel();
@@ -1306,22 +1306,22 @@ impl LapceTab {
 
                         ctx.set_handled();
                     }
-                    LapceUICommand::DocumentSave(path, exit) => {
+                    LapceUICommand::DocumentSave { path, exit } => {
                         data.main_split.document_save(ctx, path, *exit);
                         ctx.set_handled();
                     }
-                    LapceUICommand::DocumentFormatAndSave(
+                    LapceUICommand::DocumentFormatAndSave {
                         path,
                         rev,
                         result,
                         exit,
-                    ) => {
+                    } => {
                         data.main_split.document_format_and_save(
                             ctx, path, *rev, result, *exit,
                         );
                         ctx.set_handled();
                     }
-                    LapceUICommand::DocumentFormat(path, rev, result) => {
+                    LapceUICommand::DocumentFormat { path, rev, result } => {
                         data.main_split.document_format(path, *rev, result);
                         ctx.set_handled();
                     }
@@ -1346,7 +1346,11 @@ impl LapceTab {
                         ));
                         ctx.set_handled();
                     }
-                    LapceUICommand::BufferSave(path, rev, exit_widget_id) => {
+                    LapceUICommand::BufferSave {
+                        path,
+                        rev,
+                        exit: exit_widget_id,
+                    } => {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
                         if doc.rev() == *rev {
                             Arc::make_mut(doc).buffer_mut().set_pristine();
@@ -1365,38 +1369,21 @@ impl LapceTab {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::LoadBufferAndGoToPosition {
-                        path,
-                        content,
-                        editor_view_id,
-                        location,
-                    } => {
-                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
-                        Arc::make_mut(doc).reload(Rope::from(content), true);
-                        data.main_split.go_to_location(
-                            ctx,
-                            Some(*editor_view_id),
-                            false,
-                            location.clone(),
-                            &data.config,
-                        );
-                        ctx.set_handled();
-                    }
-                    LapceUICommand::UpdateSettingsFile(parent, key, value) => {
+                    LapceUICommand::UpdateSettingsFile { kind, key, value } => {
                         ctx.set_handled();
                         if let Some(value) = toml_edit::ser::to_item(value)
                             .ok()
                             .and_then(|i| i.into_value().ok())
                         {
                             let update_result =
-                                LapceConfig::update_file(parent, key, value);
+                                LapceConfig::update_file(kind, key, value);
                             debug_assert!(update_result.is_some());
                         }
                     }
-                    LapceUICommand::ResetSettingsFile(parent, key) => {
-                        LapceConfig::reset_setting(parent, key);
+                    LapceUICommand::ResetSettingsFile { kind, key } => {
+                        LapceConfig::reset_setting(kind, key);
                     }
-                    LapceUICommand::OpenFileDiff(path, history) => {
+                    LapceUICommand::OpenFileDiff { path, history } => {
                         let editor_view_id = data.main_split.jump_to_location(
                             ctx,
                             None,
@@ -1421,18 +1408,17 @@ impl LapceTab {
                         let keypress = Arc::make_mut(&mut data.keypress);
                         keypress.filter_commands(pattern);
                     }
-                    LapceUICommand::FilterKeymaps(
+                    LapceUICommand::FilterKeymaps {
                         pattern,
-                        filtered_commands_with_keymap,
-                        filtered_commands_without_keymap,
-                    ) => {
+                        keymaps,
+                        commands,
+                    } => {
                         ctx.set_handled();
                         let keypress = Arc::make_mut(&mut data.keypress);
                         if &keypress.filter_pattern == pattern {
-                            keypress.filtered_commands_with_keymap =
-                                filtered_commands_with_keymap.clone();
+                            keypress.filtered_commands_with_keymap = keymaps.clone();
                             keypress.filtered_commands_without_keymap =
-                                filtered_commands_without_keymap.clone();
+                                commands.clone();
                         }
                     }
                     LapceUICommand::UpdateKeymap(keymap, keys) => {
@@ -1668,17 +1654,22 @@ impl LapceTab {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::SaveAs(content, path, view_id, exit) => {
+                    LapceUICommand::SaveAs {
+                        content,
+                        path,
+                        view_id,
+                        exit,
+                    } => {
                         data.main_split.save_as(ctx, content, path, *view_id, *exit);
                         ctx.set_handled();
                     }
-                    LapceUICommand::SaveAsSuccess(
+                    LapceUICommand::SaveAsSuccess {
                         content,
                         rev,
                         path,
                         view_id,
                         exit,
-                    ) => {
+                    } => {
                         data.main_split.save_as_success(
                             ctx, content, *rev, path, *view_id, *exit,
                         );
@@ -1728,7 +1719,12 @@ impl LapceTab {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateSemanticStyles(_id, path, rev, styles) => {
+                    LapceUICommand::UpdateSemanticStyles {
+                        path,
+                        rev,
+                        styles,
+                        ..
+                    } => {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
                         if doc.rev() == *rev {
                             let doc = Arc::make_mut(doc);
@@ -1764,20 +1760,6 @@ impl LapceTab {
                             LapceUICommand::Focus,
                             Target::Widget(*data.focus),
                         ));
-                        ctx.set_handled();
-                    }
-                    LapceUICommand::FocusSourceControl => {
-                        data.show_panel(ctx, PanelKind::SourceControl);
-                        ctx.set_handled();
-                    }
-                    LapceUICommand::FocusEditor => {
-                        if let Some(active) = *data.main_split.active_tab {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::Focus,
-                                Target::Widget(active),
-                            ));
-                        }
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateSyntax { content, syntax } => {
@@ -1865,7 +1847,11 @@ impl LapceTab {
                             .set_item_children(path, items.clone());
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateExplorerItems(path, items, expand) => {
+                    LapceUICommand::UpdateExplorerItems {
+                        path,
+                        items,
+                        expand,
+                    } => {
                         let file_explorer = Arc::make_mut(&mut data.file_explorer);
                         file_explorer.update_children(
                             path,

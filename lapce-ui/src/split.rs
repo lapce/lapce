@@ -1143,43 +1143,6 @@ impl Widget<LapceTabData> for LapceSplit {
                     LapceUICommand::SplitTerminalClose(term_id, widget_id) => {
                         self.split_terminal_close(ctx, data, *term_id, *widget_id);
                     }
-                    LapceUICommand::InitTerminalPanel(focus) => {
-                        let terminal_split =
-                            data.terminal.active_terminal_split().unwrap();
-                        if terminal_split.terminals.is_empty() {
-                            let terminal_data = Arc::new(LapceTerminalData::new(
-                                data.workspace.clone(),
-                                terminal_split.split_id,
-                                ctx.get_external_handle(),
-                                data.proxy.clone(),
-                                &data.config,
-                            ));
-                            let terminal = LapceTerminalView::new(&terminal_data);
-                            self.insert_flex_child(
-                                0,
-                                terminal.boxed(),
-                                Some(terminal_data.widget_id),
-                                1.0,
-                                true,
-                            );
-                            if *focus {
-                                ctx.submit_command(Command::new(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::Focus,
-                                    Target::Widget(terminal_data.widget_id),
-                                ));
-                            }
-                            let terminal_split = Arc::make_mut(&mut data.terminal)
-                                .active_terminal_split_mut()
-                                .unwrap();
-                            terminal_split.active = terminal_data.widget_id;
-                            terminal_split.active_term_id = terminal_data.term_id;
-                            terminal_split
-                                .terminals
-                                .insert(terminal_data.term_id, terminal_data);
-                            ctx.children_changed();
-                        }
-                    }
                     _ => (),
                 }
                 return;

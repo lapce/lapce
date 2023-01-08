@@ -365,7 +365,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                         self.new_tab(ctx, data, workspace.clone(), true);
                         return;
                     }
-                    LapceUICommand::SetColorTheme(theme, preview) => {
+                    LapceUICommand::SetColorTheme { theme, preview } => {
                         let config = Arc::make_mut(&mut data.config);
                         config.set_color_theme(
                             &LapceWorkspace::default(),
@@ -381,7 +381,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::SetIconTheme(theme, preview) => {
+                    LapceUICommand::SetIconTheme { theme, preview } => {
                         let config = Arc::make_mut(&mut data.config);
                         config.set_icon_theme(
                             &LapceWorkspace::default(),

@@ -128,7 +128,7 @@ impl HoverData {
 
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateHover(request_id, items),
+                            LapceUICommand::UpdateHover { request_id, items },
                             Target::Widget(hover_widget_id),
                         );
                     }

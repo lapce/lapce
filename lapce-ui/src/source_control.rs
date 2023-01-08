@@ -190,15 +190,15 @@ impl Widget<LapceTabData> for SourceControlFileList {
                             } else {
                                 ctx.submit_command(Command::new(
                                     LAPCE_UI_COMMAND,
-                                    LapceUICommand::OpenFileDiff(
-                                        source_control
+                                    LapceUICommand::OpenFileDiff {
+                                        path: source_control
                                             .file_diffs
                                             .get_index(target_line)
                                             .unwrap()
                                             .0
                                             .clone(),
-                                        "head".to_string(),
-                                    ),
+                                        history: "head".to_string(),
+                                    },
                                     Target::Widget(data.id),
                                 ));
                             }
@@ -219,10 +219,10 @@ impl Widget<LapceTabData> for SourceControlFileList {
                         let mut item = druid::MenuItem::new("Open Changes").command(
                             Command::new(
                                 LAPCE_UI_COMMAND,
-                                LapceUICommand::OpenFileDiff(
-                                    target_file_path.clone(),
-                                    "head".to_string(),
-                                ),
+                                LapceUICommand::OpenFileDiff {
+                                    path: target_file_path.clone(),
+                                    history: "head".to_string(),
+                                },
                                 Target::Auto,
                             ),
                         );
