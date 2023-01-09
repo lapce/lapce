@@ -36,9 +36,12 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
+        
+      - name: Fetch dependencies
+        run: cargo fetch --locked
 
       - name: Build
-        run: cargo build
+        run: cargo build --offline
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
@@ -91,6 +94,9 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
+        
+      - name: Fetch dependencies
+        run: cargo fetch --locked
 
       - name: Run clippy
         run: cargo clippy -- -D warnings
