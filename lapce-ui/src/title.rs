@@ -1098,7 +1098,7 @@ impl Widget<LapceTabData> for SourceControlBranches {
                     .branches
                     .iter()
                     .filter(|branch| branch.contains(&query))
-                    .map(|x| x.clone());
+                    .cloned();
                 title.branches.list.items = im::Vector::from_iter(filtered_branches);
             }
             Event::KeyDown(key_event) => {
