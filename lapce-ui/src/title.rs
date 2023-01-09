@@ -1,11 +1,12 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use druid::{
     kurbo::{Circle, Line},
     piet::{PietText, PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Command, Env, Event, EventCtx, InternalEvent, LayoutCtx,
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, Region,
-    RenderContext, Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
+    RenderContext, Size, Target, TimerToken, Widget, WidgetExt, WidgetId, WidgetPod,
     WindowConfig, WindowState,
 };
 use lapce_core::{command::FocusCommand, meta};
@@ -22,6 +23,7 @@ use lapce_data::{
     proxy::ProxyStatus,
 };
 
+use crate::editor::view::LapceEditorView;
 #[cfg(not(target_os = "macos"))]
 use crate::window::window_controls;
 use crate::{list::List, palette::Palette};
@@ -46,7 +48,7 @@ pub struct Title {
 impl Title {
     pub fn new(data: &LapceTabData) -> Self {
         let palette = Palette::new(data);
-        let branch_list = SourceControlBranches::new();
+        let branch_list = SourceControlBranches::new(data);
         Self {
             widget_id: data.title.widget_id,
             mouse_pos: Point::ZERO,
@@ -1030,15 +1032,32 @@ impl Widget<LapceTabData> for Title {
 // TODO: Implement an input for filtering the branches
 pub struct SourceControlBranches {
     widget_id: WidgetId,
+    input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     list: WidgetPod<ListData<String, ()>, List<String, ()>>,
+    last_idle_timer: TimerToken,
+    branches: im::Vector<String>,
 }
 impl SourceControlBranches {
-    fn new() -> Self {
+    fn new(data: &LapceTabData) -> Self {
         let widget_id = WidgetId::next();
         let scroll_id = WidgetId::next();
         Self {
             widget_id,
+            input: WidgetPod::new(
+                LapceEditorView::new(
+                    data.title.branches.filter_editor,
+                    WidgetId::next(),
+                    None,
+                )
+                .hide_header()
+                .hide_gutter()
+                .hide_border()
+                .padding((5.0, 2.0, 5.0, 2.0))
+                .boxed(),
+            ),
             list: WidgetPod::new(List::new(scroll_id)),
+            branches: im::Vector::new(),
+            last_idle_timer: TimerToken::INVALID,
         }
     }
 
@@ -1060,11 +1079,28 @@ impl Widget<LapceTabData> for SourceControlBranches {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        self.input.event(ctx, event, data, env);
         let title = Arc::make_mut(&mut data.title);
         title.branches.list.update_data(data.config.clone());
         self.list.event(ctx, event, &mut title.branches.list, env);
 
         match event {
+            Event::Timer(token) if token == &self.last_idle_timer => {
+                log::warn!("title timer");
+                ctx.set_handled();
+                let editor_data =
+                    data.editor_view_content(data.title.branches.filter_editor);
+                let query = editor_data.doc.buffer().text().to_string();
+                log::warn!("title branches filter: {}", query);
+                let title = Arc::make_mut(&mut data.title);
+                title.branches.list.clear_items();
+                let filtered_branches = self
+                    .branches
+                    .iter()
+                    .filter(|branch| branch.contains(&query))
+                    .cloned();
+                title.branches.list.items = im::Vector::from_iter(filtered_branches);
+            }
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
                 let title = Arc::make_mut(&mut data.title);
@@ -1088,7 +1124,7 @@ impl Widget<LapceTabData> for SourceControlBranches {
                     LapceUICommand::ShowGitBranches { origin, branches } => {
                         let title = Arc::make_mut(&mut data.title);
                         title.branches.list.clear_items();
-
+                        self.branches = branches.clone();
                         title.branches.list.items = branches.clone();
                         title.branches.origin = *origin;
 
@@ -1144,7 +1180,7 @@ impl Widget<LapceTabData> for SourceControlBranches {
         env: &Env,
     ) {
         if let LifeCycle::FocusChanged(focus) = event {
-            if !focus {
+            if !focus && !&self.input.has_focus() {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Hide,
@@ -1152,6 +1188,7 @@ impl Widget<LapceTabData> for SourceControlBranches {
                 ));
             }
         }
+        self.input.lifecycle(ctx, event, data, env);
         self.list.lifecycle(
             ctx,
             event,
@@ -1171,11 +1208,24 @@ impl Widget<LapceTabData> for SourceControlBranches {
             ctx.request_layout();
         }
 
+        self.input.update(ctx, data, env);
         self.list.update(
             ctx,
             &data.title.branches.list.clone_with(data.config.clone()),
             env,
         );
+
+        let editor_data =
+            data.editor_view_content(data.title.branches.filter_editor);
+        let old_editor_data =
+            old_data.editor_view_content(data.title.branches.filter_editor);
+        if editor_data.doc.buffer().len() != old_editor_data.doc.buffer().len()
+            || editor_data.doc.buffer().text().slice_to_cow(..)
+                != old_editor_data.doc.buffer().text().slice_to_cow(..)
+        {
+            self.last_idle_timer =
+                ctx.request_timer(Duration::from_millis(300), None);
+        }
     }
 
     fn layout(
@@ -1185,11 +1235,33 @@ impl Widget<LapceTabData> for SourceControlBranches {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
+        let max_width = bc.max().width;
+        let max_height = bc.max().height;
+        let input_size = self.input.layout(
+            ctx,
+            &BoxConstraints::tight(Size::new(max_width, max_height)),
+            data,
+            env,
+        );
+        self.input.set_origin(ctx, data, env, Point::ZERO);
         let list_data = &data.title.branches.list.clone_with(data.config.clone());
-        let size = self.list.layout(ctx, bc, list_data, env);
+        let list_size = self.list.layout(
+            ctx,
+            &BoxConstraints::tight(Size::new(
+                max_width,
+                max_height - input_size.height,
+            )),
+            list_data,
+            env,
+        );
         // The moving of the origin is handled by the title widget which contains this
-        self.list.set_origin(ctx, list_data, env, Point::ZERO);
-        size
+        self.list.set_origin(
+            ctx,
+            list_data,
+            env,
+            Point::new(0.0, input_size.height),
+        );
+        Size::new(input_size.width, input_size.height + list_size.height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
@@ -1204,6 +1276,7 @@ impl Widget<LapceTabData> for SourceControlBranches {
             data.config
                 .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
         );
+        self.input.paint(ctx, data, env);
         self.list.paint(
             ctx,
             &data.title.branches.list.clone_with(data.config.clone()),

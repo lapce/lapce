@@ -174,6 +174,7 @@ impl LapceEditorView {
                 LocalBufferKind::Keymap => {}
                 LocalBufferKind::Settings => {}
                 LocalBufferKind::PluginSearch => {}
+                LocalBufferKind::BranchesFilter => {}
                 LocalBufferKind::Palette => {
                     data.focus_area = FocusArea::Palette;
                 }

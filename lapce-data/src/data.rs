@@ -789,6 +789,13 @@ impl LapceTabData {
             event_sink.clone(),
         );
         main_split.add_editor(
+            title.branches.filter_editor,
+            None,
+            LocalBufferKind::BranchesFilter,
+            &config,
+            event_sink.clone(),
+        );
+        main_split.add_editor(
             plugin.search_editor,
             None,
             LocalBufferKind::PluginSearch,
