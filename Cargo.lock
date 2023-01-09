@@ -5376,7 +5376,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-wgsl"
 version = "0.0.1"
-source = "git+https://github.com/szebniok/tree-sitter-wgsl?branch=master#272e89ef2aeac74178edb9db4a83c1ffef80a463"
+source = "git+https://github.com/szebniok/tree-sitter-wgsl?branch=master#40259f3c77ea856841a4e0c4c807705f3e4a2b65"
 dependencies = [
  "cc",
  "tree-sitter",
