@@ -134,6 +134,7 @@ pub enum LocalBufferKind {
     PathName,
     Rename,
     PluginSearch,
+    BranchesFilter,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -165,6 +166,7 @@ impl BufferContent {
                 LocalBufferKind::Search
                 | LocalBufferKind::Palette
                 | LocalBufferKind::SourceControl
+                | LocalBufferKind::BranchesFilter
                 | LocalBufferKind::FilePicker
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap
@@ -189,6 +191,7 @@ impl BufferContent {
                 | LocalBufferKind::Keymap
                 | LocalBufferKind::PathName
                 | LocalBufferKind::PluginSearch
+                | LocalBufferKind::BranchesFilter
                 | LocalBufferKind::Rename => true,
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
@@ -848,6 +851,7 @@ impl Document {
                     }
                     LocalBufferKind::PluginSearch => {}
                     LocalBufferKind::SourceControl => {}
+                    LocalBufferKind::BranchesFilter => {}
                     LocalBufferKind::Empty => {}
                     LocalBufferKind::Rename => {}
                     LocalBufferKind::Palette => {

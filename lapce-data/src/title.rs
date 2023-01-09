@@ -28,6 +28,7 @@ impl TitleData {
 
 #[derive(Clone)]
 pub struct BranchListData {
+    pub filter_editor: WidgetId,
     pub list: ListData<String, ()>,
     pub active: bool,
     /// The origin the list should appear at, this is updated whenever the
@@ -38,6 +39,7 @@ impl BranchListData {
     fn new(config: Arc<LapceConfig>, parent: WidgetId) -> Self {
         let list = ListData::new(config, parent, ());
         BranchListData {
+            filter_editor: WidgetId::next(),
             list,
             active: false,
             origin: Point::ZERO,
