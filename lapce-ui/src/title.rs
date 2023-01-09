@@ -6,8 +6,8 @@ use druid::{
     piet::{PietText, PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Command, Env, Event, EventCtx, InternalEvent, LayoutCtx,
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, Region,
-    RenderContext, Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
-    WindowConfig, WindowState, TimerToken,
+    RenderContext, Size, Target, TimerToken, Widget, WidgetExt, WidgetId, WidgetPod,
+    WindowConfig, WindowState,
 };
 use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
@@ -23,10 +23,10 @@ use lapce_data::{
     proxy::ProxyStatus,
 };
 
+use crate::editor::view::LapceEditorView;
 #[cfg(not(target_os = "macos"))]
 use crate::window::window_controls;
 use crate::{list::List, palette::Palette};
-use crate::editor::view::LapceEditorView;
 
 pub struct Title {
     widget_id: WidgetId,
@@ -1043,16 +1043,18 @@ impl SourceControlBranches {
         let scroll_id = WidgetId::next();
         Self {
             widget_id,
-            input: WidgetPod::new(LapceEditorView::new(
-                data.title.branches.filter_editor,
-                WidgetId::next(),
-                None,
+            input: WidgetPod::new(
+                LapceEditorView::new(
+                    data.title.branches.filter_editor,
+                    WidgetId::next(),
+                    None,
                 )
                 .hide_header()
                 .hide_gutter()
                 .hide_border()
                 .padding((5.0, 2.0, 5.0, 2.0))
-                .boxed()),
+                .boxed(),
+            ),
             list: WidgetPod::new(List::new(scroll_id)),
             branches: im::Vector::new(),
             last_idle_timer: TimerToken::INVALID,
@@ -1086,12 +1088,17 @@ impl Widget<LapceTabData> for SourceControlBranches {
             Event::Timer(token) if token == &self.last_idle_timer => {
                 log::warn!("title timer");
                 ctx.set_handled();
-                let editor_data = data.editor_view_content(data.title.branches.filter_editor);
+                let editor_data =
+                    data.editor_view_content(data.title.branches.filter_editor);
                 let query = editor_data.doc.buffer().text().to_string();
                 log::warn!("title branches filter: {}", query);
                 let title = Arc::make_mut(&mut data.title);
                 title.branches.list.clear_items();
-                let filtered_branches = self.branches.iter().filter(|branch| branch.contains(&query)).map(|x| x.clone());
+                let filtered_branches = self
+                    .branches
+                    .iter()
+                    .filter(|branch| branch.contains(&query))
+                    .map(|x| x.clone());
                 title.branches.list.items = im::Vector::from_iter(filtered_branches);
             }
             Event::KeyDown(key_event) => {
@@ -1208,10 +1215,14 @@ impl Widget<LapceTabData> for SourceControlBranches {
             env,
         );
 
-        let editor_data = data.editor_view_content(data.title.branches.filter_editor);
-        let old_editor_data = old_data.editor_view_content(data.title.branches.filter_editor);
+        let editor_data =
+            data.editor_view_content(data.title.branches.filter_editor);
+        let old_editor_data =
+            old_data.editor_view_content(data.title.branches.filter_editor);
         if editor_data.doc.buffer().len() != old_editor_data.doc.buffer().len()
-            || editor_data.doc.buffer().text().slice_to_cow(..) != old_editor_data.doc.buffer().text().slice_to_cow(..) {
+            || editor_data.doc.buffer().text().slice_to_cow(..)
+                != old_editor_data.doc.buffer().text().slice_to_cow(..)
+        {
             self.last_idle_timer =
                 ctx.request_timer(Duration::from_millis(300), None);
         }
@@ -1224,15 +1235,32 @@ impl Widget<LapceTabData> for SourceControlBranches {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-
         let max_width = bc.max().width;
         let max_height = bc.max().height;
-        let input_size = self.input.layout(ctx, &BoxConstraints::tight(Size::new(max_width, max_height)), data, env);
+        let input_size = self.input.layout(
+            ctx,
+            &BoxConstraints::tight(Size::new(max_width, max_height)),
+            data,
+            env,
+        );
         self.input.set_origin(ctx, data, env, Point::ZERO);
         let list_data = &data.title.branches.list.clone_with(data.config.clone());
-        let list_size = self.list.layout(ctx, &BoxConstraints::tight(Size::new(max_width, max_height - input_size.height)), list_data, env);
+        let list_size = self.list.layout(
+            ctx,
+            &BoxConstraints::tight(Size::new(
+                max_width,
+                max_height - input_size.height,
+            )),
+            list_data,
+            env,
+        );
         // The moving of the origin is handled by the title widget which contains this
-        self.list.set_origin(ctx, list_data, env, Point::new(0.0, input_size.height));
+        self.list.set_origin(
+            ctx,
+            list_data,
+            env,
+            Point::new(0.0, input_size.height),
+        );
         Size::new(input_size.width, input_size.height + list_size.height)
     }
 
