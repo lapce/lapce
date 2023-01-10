@@ -2313,7 +2313,10 @@ impl Widget<LapceTabData> for LapceEditor {
                         &editor.view,
                         &data.config,
                     );
-                    editor_data.update_hover(ctx, offset);
+                    if *data.focus == self.view_id {
+                        editor_data.update_hover(ctx, offset);
+                    }
+
                     data.update_from_editor_buffer_data(editor_data, &editor, &doc);
                 } else if self.drag_timer == *id {
                     let doc = data.main_split.editor_doc(self.view_id);
