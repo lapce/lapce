@@ -291,60 +291,100 @@ impl LapceEditor {
             editor_data.single_click(ctx, mouse_event, config);
         }
 
-        let menu_items = vec![
-            MenuKind::Item(MenuItem {
-                desc: None,
-                command: LapceCommand {
-                    kind: CommandKind::Focus(FocusCommand::GotoDefinition),
-                    data: None,
-                },
-                enabled: true,
-            }),
-            MenuKind::Item(MenuItem {
-                desc: None,
-                command: LapceCommand {
-                    kind: CommandKind::Focus(FocusCommand::GotoTypeDefinition),
-                    data: None,
-                },
-                enabled: true,
-            }),
-            MenuKind::Separator,
-            MenuKind::Item(MenuItem {
-                desc: None,
-                command: LapceCommand {
-                    kind: CommandKind::Edit(EditCommand::ClipboardCut),
-                    data: None,
-                },
-                enabled: true,
-            }),
-            MenuKind::Item(MenuItem {
-                desc: None,
-                command: LapceCommand {
-                    kind: CommandKind::Edit(EditCommand::ClipboardCopy),
-                    data: None,
-                },
-                enabled: true,
-            }),
-            MenuKind::Item(MenuItem {
-                desc: None,
-                command: LapceCommand {
-                    kind: CommandKind::Edit(EditCommand::ClipboardPaste),
-                    data: None,
-                },
-                enabled: true,
-            }),
-            MenuKind::Separator,
-            MenuKind::Item(MenuItem {
-                desc: None,
-                command: LapceCommand {
-                    kind: CommandKind::Workbench(
-                        LapceWorkbenchCommand::PaletteCommand,
-                    ),
-                    data: None,
-                },
-                enabled: true,
-            }),
-        ];
+        let menu_items = if let BufferContent::File(_) = editor_data.doc.content() {
+             vec![
+                MenuKind::Item(MenuItem {
+                    desc: None,
+                    command: LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::GotoDefinition),
+                        data: None,
+                    },
+                    enabled: true,
+                }),
+                MenuKind::Item(MenuItem {
+                    desc: None,
+                    command: LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::GotoTypeDefinition),
+                        data: None,
+                    },
+                    enabled: true,
+                }),
+                MenuKind::Separator,
+                MenuKind::Item(MenuItem {
+                    desc: None,
+                    command: LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::ClipboardCut),
+                        data: None,
+                    },
+                    enabled: true,
+                }),
+                MenuKind::Item(MenuItem {
+                    desc: None,
+                    command: LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::ClipboardCopy),
+                        data: None,
+                    },
+                    enabled: true,
+                }),
+                MenuKind::Item(MenuItem {
+                    desc: None,
+                    command: LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::ClipboardPaste),
+                        data: None,
+                    },
+                    enabled: true,
+                }),
+                MenuKind::Separator,
+                MenuKind::Item(MenuItem {
+                    desc: None,
+                    command: LapceCommand {
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::PaletteCommand,
+                        ),
+                        data: None,
+                    },
+                    enabled: true,
+                }),
+            ]
+        } else {
+            vec![
+                MenuKind::Item(MenuItem {
+                    desc: None,
+                    command: LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::ClipboardCut),
+                        data: None,
+                    },
+                    enabled: true,
+                }),
+                MenuKind::Item(MenuItem {
+                    desc: None,
+                    command: LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::ClipboardCopy),
+                        data: None,
+                    },
+                    enabled: true,
+                }),
+                MenuKind::Item(MenuItem {
+                    desc: None,
+                    command: LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::ClipboardPaste),
+                        data: None,
+                    },
+                    enabled: true,
+                }),
+                MenuKind::Separator,
+                MenuKind::Item(MenuItem {
+                    desc: None,
+                    command: LapceCommand {
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::PaletteCommand,
+                        ),
+                        data: None,
+                    },
+                    enabled: true,
+                }),
+            ]
+        };
 
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
