@@ -292,7 +292,7 @@ impl LapceEditor {
         }
 
         let menu_items = if let BufferContent::File(_) = editor_data.doc.content() {
-             vec![
+            vec![
                 MenuKind::Item(MenuItem {
                     desc: None,
                     command: LapceCommand {
