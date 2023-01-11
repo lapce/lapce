@@ -196,6 +196,7 @@ impl LapceEditor {
         if !editor_data.check_hover(ctx, offset, is_inside, within_scroll)
             && is_inside
             && within_scroll
+            && !editor_data.rename.mouse_within
         {
             self.mouse_hover_timer = ctx.request_timer(
                 Duration::from_millis(config.editor.hover_delay),
@@ -2354,6 +2355,7 @@ impl Widget<LapceTabData> for LapceEditor {
                         &data.config,
                     );
                     editor_data.update_hover(ctx, offset);
+
                     data.update_from_editor_buffer_data(editor_data, &editor, &doc);
                 } else if self.drag_timer == *id {
                     let doc = data.main_split.editor_doc(self.view_id);
