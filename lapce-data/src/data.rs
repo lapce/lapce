@@ -78,7 +78,7 @@ use crate::{
     picker::FilePickerData,
     plugin::PluginData,
     problem::ProblemData,
-    proxy::{LapceProxy, ProxyStatus, TermEvent, path_from_url},
+    proxy::{LapceProxy, ProxyStatus, TermEvent},
     rename::RenameData,
     search::SearchData,
     settings::LapceSettingsPanelData,
@@ -150,12 +150,12 @@ impl LapceData {
         for path in paths.clone() {
             // entire argument is file name
             if path.is_file() {
-                files.push( (path.clone(), None) );
+                files.push( (path, None) );
                 break;
             }
             
             // only line is specified
-            if let Some(regex) = Regex::new(r"*:[0-9]*[1-9]+[0-9]*\z").unwrap().captures( path.to_str().unwrap() ) { // regex: *:{positive integer}
+            if let Some(regex) = Regex::new(r".*:[0-9]*[1-9]+[0-9]*\z").unwrap().captures( path.to_str().unwrap() ) { // regex: *:{positive integer}
                 let (file, line) = regex.get( regex.len() - 1 ).unwrap().as_str().rsplit_once(':').unwrap();
                 if PathBuf::from(file).is_file() {
                     files.push(( 
@@ -172,7 +172,7 @@ impl LapceData {
             }
             
             // line and column are specified
-            if let Some(regex) = Regex::new(r"*:[0-9]*[1-9]+[0-9]*:[0-9]*[1-9]+[0-9]*\z").unwrap().captures( path.to_str().unwrap() ) { // regex: *:{positive integer}:{positive integer}
+            if let Some(regex) = Regex::new(r".*:[0-9]*[1-9]+[0-9]*:[0-9]*[1-9]+[0-9]*\z").unwrap().captures( path.to_str().unwrap() ) { // regex: *:{positive integer}:{positive integer}
                 let col_line_file:Vec<&str> = regex.get( regex.len() - 1 ).unwrap().as_str().rsplitn(2, ':').collect();
                 if PathBuf::from(col_line_file[2]).is_file() {
                     files.push(( 
