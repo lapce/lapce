@@ -1,6 +1,6 @@
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
-use std::{path::PathBuf, process::Stdio, sync::Arc};
+use std::{process::Stdio, sync::Arc};
 
 use clap::Parser;
 use druid::{
@@ -37,10 +37,18 @@ struct Cli {
     /// Launch new window even if Lapce is already running
     #[clap(short, long, action)]
     new: bool,
+
     /// Don't return instantly when opened in terminal
     #[clap(short, long, action)]
     wait: bool,
-    paths: Vec<PathBuf>,
+
+    /// Paths to file(s) and/or folder(s) to open.
+    /// When path is a file (that exists or not),
+    /// it accepts `path:line:column` syntax
+    /// to specify line and column at which it should open the file
+    #[clap(value_parser = lapce_proxy::cli::parse_file_line_column)]
+    #[clap(value_hint = clap::ValueHint::AnyPath)]
+    paths: Vec<lapce_proxy::cli::PathObject>,
 }
 
 pub fn build_window(data: &mut LapceWindowData) -> impl Widget<LapceData> {
@@ -63,24 +71,26 @@ pub fn launch() {
         let mut cmd = std::process::Command::new(&args[0]);
         #[cfg(target_os = "windows")]
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-        if let Err(why) = cmd
+        if let Err(e) = cmd
             .args(&args[1..])
             .stderr(Stdio::null())
             .stdout(Stdio::null())
             .spawn()
         {
-            eprintln!("Failed to launch lapce: {why}");
+            eprintln!("Failed to launch lapce: {e}");
         };
         return;
     }
-    let pwd = std::env::current_dir().unwrap_or_default();
-    let paths: Vec<PathBuf> = cli
-        .paths
-        .iter()
-        .map(|p| pwd.join(p).canonicalize().unwrap_or_default())
-        .collect();
-    if !cli.new && LapceData::try_open_in_existing_process(&paths).is_ok() {
-        return;
+
+    if !cli.new {
+        if let Ok(socket) = LapceData::get_socket() {
+            if let Err(e) =
+                LapceData::try_open_in_existing_process(socket, &cli.paths)
+            {
+                log::error!("failed to open path(s): {e}");
+            };
+            return;
+        }
     }
 
     #[cfg(feature = "updater")]
@@ -136,7 +146,8 @@ pub fn launch() {
         .install_panic_hook();
 
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
-    let mut data = LapceData::load(launcher.get_external_handle(), paths, log_file);
+    let mut data =
+        LapceData::load(launcher.get_external_handle(), cli.paths, log_file);
 
     for (_window_id, window_data) in data.windows.iter_mut() {
         let root = build_window(window_data);

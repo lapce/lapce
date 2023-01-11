@@ -31,6 +31,7 @@ use lapce_core::{
     register::Register,
     selection::Selection,
 };
+use lapce_proxy::cli::PathObject;
 use lapce_rpc::{
     buffer::BufferId,
     core::{CoreMessage, CoreNotification},
@@ -118,7 +119,7 @@ impl LapceData {
     /// previously written to the Lapce database.
     pub fn load(
         event_sink: ExtEventSink,
-        paths: Vec<PathBuf>,
+        paths: Vec<PathObject>,
         log_file: Option<PathBuf>,
     ) -> Self {
         let _ = lapce_proxy::register_lapce_path();
@@ -133,8 +134,13 @@ impl LapceData {
             .unwrap_or_else(|_| Self::default_panel_orders());
         let latest_release = Arc::new(None);
 
-        let dirs: Vec<&PathBuf> = paths.iter().filter(|p| p.is_dir()).collect();
-        let files: Vec<&PathBuf> = paths.iter().filter(|p| p.is_file()).collect();
+        let pwd = std::env::current_dir().unwrap_or_default();
+
+        // Split user input into known existing directors and
+        // file paths that exist or not
+        let (dirs, files): (Vec<&PathObject>, Vec<&PathObject>) =
+            paths.iter().partition(|p| p.path.is_dir());
+
         if !dirs.is_empty() {
             let (size, mut pos) = db
                 .get_last_window_info()
@@ -162,7 +168,7 @@ impl LapceData {
                         active_tab: 0,
                         workspaces: vec![LapceWorkspace {
                             kind: workspace_type,
-                            path: Some(dir.to_path_buf()),
+                            path: Some(dir.path.to_owned()),
                             last_open: 0,
                         }],
                     },
@@ -228,13 +234,46 @@ impl LapceData {
             windows.insert(window.window_id, window);
         }
 
-        if let Some((window_id, _)) = windows.iter().next() {
+        if let Some((window_id, data)) = windows.iter().next() {
             for file in files {
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::OpenFile(file.to_path_buf(), false),
-                    Target::Window(*window_id),
-                );
+                let file_path = match file.path.canonicalize() {
+                    Ok(v) => v,
+                    _ => pwd.join(&file.path),
+                };
+                for (widget_id, _) in &data.tabs {
+                    if let Some(pos) = file.linecol {
+                        // jump to line and column
+                        if let Err(err) = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::JumpToLineColLocation(
+                                None,
+                                EditorLocation {
+                                    path: file_path.clone(),
+                                    position: Some(pos), // line info is included in column variable
+                                    scroll_offset: None,
+                                    history: None,
+                                },
+                                false,
+                            ),
+                            Target::Widget(*widget_id),
+                        ) {
+                            log::warn!("Failed to lauch: {err}");
+                        } else {
+                            break;
+                        };
+                    } else {
+                        // open the file
+                        if let Err(err) = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::OpenFile(file_path.clone(), false),
+                            Target::Window(*window_id),
+                        ) {
+                            log::warn!("Failed to lauch: {err}");
+                        } else {
+                            break;
+                        };
+                    }
+                }
             }
         }
 
@@ -355,13 +394,39 @@ impl LapceData {
         Ok(())
     }
 
-    pub fn try_open_in_existing_process(paths: &[PathBuf]) -> Result<()> {
+    pub fn get_socket() -> Result<interprocess::local_socket::LocalSocketStream> {
         let local_socket = Directory::local_socket()
             .ok_or_else(|| anyhow!("can't get local socket folder"))?;
-        let mut socket =
+        let socket =
             interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
-        let folders: Vec<_> = paths.iter().filter(|p| p.is_dir()).cloned().collect();
-        let files: Vec<_> = paths.iter().filter(|p| p.is_file()).cloned().collect();
+        Ok(socket)
+    }
+
+    pub fn try_open_in_existing_process(
+        mut socket: interprocess::local_socket::LocalSocketStream,
+        paths: &[PathObject],
+    ) -> Result<()> {
+        let folders: Vec<PathBuf> = paths
+            .iter()
+            .filter_map(|p| {
+                if p.path.is_dir() {
+                    Some(p.path.to_owned())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let files = paths
+            .iter()
+            .filter_map(|p| {
+                if p.path.is_file() {
+                    Some(p.path.to_owned())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<PathBuf>>();
         let msg: CoreMessage =
             RpcMessage::Notification(CoreNotification::OpenPaths {
                 window_tab_id: None,

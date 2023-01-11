@@ -23,6 +23,7 @@ use lapce_core::{
     command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
     editor::EditType,
     mode::{Mode, MotionMode},
+    movement::LineCol,
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
@@ -132,13 +133,6 @@ impl EditorPosition for Line {
             cb,
         })
     }
-}
-
-/// UTF8 line and column-offset
-#[derive(Debug, Clone, Copy)]
-pub struct LineCol {
-    pub line: usize,
-    pub column: usize,
 }
 
 impl EditorPosition for LineCol {
