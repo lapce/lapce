@@ -86,9 +86,16 @@ struct SyntaxProperties {
     comment: &'static str,
     /// The indent unit.  "  " for javascript, "    " for rust, for example.
     indent: &'static str,
-    /// TODO: someone more knowledgeable please describe what the two lists are.
-    /// Anyway, the second element of the tuple is a "ignore list". See
-    /// `walk_tree`. If unsure, use `DEFAULT_CODE_LENS_LIST` and
+    /// Lists of tree-sitter node types that control how code lenses are built.
+    /// The first is a list of nodes that should be traversed and included in
+    /// the lens, along with thier children. The second is a list of nodes that
+    /// should be excluded from the lens, though they will still be traversed.
+    /// See `walk_tree` for more details.
+    ///
+    /// The tree-sitter playground may be useful when creating these lists:
+    /// https://tree-sitter.github.io/tree-sitter/playground
+    ///
+    /// If unsure, use `DEFAULT_CODE_LENS_LIST` and
     /// `DEFAULT_CODE_LENS_IGNORE_LIST`.
     code_lens: (&'static [&'static str], &'static [&'static str]),
     /// the tree sitter tag names that can be put in sticky headers
@@ -694,8 +701,35 @@ const LANGUAGES: &[SyntaxProperties] = &[
         injection: Some(tree_sitter_php::INJECTIONS_QUERY),
         comment: "//",
         indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        code_lens: (
+            &[
+                "program",
+                "class_declaration",
+                "trait_declaration",
+                "interface_declaration",
+                "declaration_list",
+                "method_declaration",
+                "function_declaration",
+            ],
+            &[
+                "program",
+                "php_tag",
+                "comment",
+                "namespace_definition",
+                "namespace_use_declaration",
+                "use_declaration",
+                "const_declaration",
+                "property_declaration",
+                "expression_statement",
+            ],
+        ),
+        sticky_headers: &[
+            "class_declaration",
+            "trait_declaration",
+            "interface_declaration",
+            "method_declaration",
+            "function_declaration",
+        ],
         extensions: &["php"],
     },
     #[cfg(feature = "lang-prisma")]
@@ -1044,6 +1078,10 @@ impl LapceLanguage {
     }
 }
 
+/// Walk an AST and determine which lines to include in the code lens.
+///
+/// Node types listed in `list` will be walked, along with their children. All
+/// nodes encountered will be included, unless they are listed in `ignore_list`.
 fn walk_tree(
     cursor: &mut TreeCursor,
     normal_lines: &mut HashSet<usize>,
