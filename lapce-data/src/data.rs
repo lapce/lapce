@@ -43,6 +43,7 @@ use lapce_rpc::{
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdit};
 use notify::Watcher;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smallvec::SmallVec;
@@ -77,7 +78,7 @@ use crate::{
     picker::FilePickerData,
     plugin::PluginData,
     problem::ProblemData,
-    proxy::{LapceProxy, ProxyStatus, TermEvent},
+    proxy::{LapceProxy, ProxyStatus, TermEvent, path_from_url},
     rename::RenameData,
     search::SearchData,
     settings::LapceSettingsPanelData,
@@ -142,18 +143,51 @@ impl LapceData {
             .unwrap_or_else(|_| Self::default_panel_orders());
         let latest_release = Arc::new(None);
 
-        let mut dirs = SmallVec::<[PathBuf; 3]>::new();
+        let dirs:Vec<&PathBuf> = paths.iter().filter(|p| p.is_dir()).collect();
         let mut files = SmallVec::<[(PathBuf, Option<LineCol>); 3]>::new();
-        let pwd = std::env::current_dir().unwrap_or_default();
         
-        paths.iter().for_each(|path| {
-            if let Some(path_type) = Self::resolve_path(path, &pwd) {
-                match path_type {
-                    PathType::File(file, line_col) => files.push((file, line_col)),
-                    PathType::Directory(directory) => dirs.push(directory),
+        // interpret path argument differently depending on whether line/columns are apparently specified
+        for path in paths.clone() {
+            // entire argument is file name
+            if path.is_file() {
+                files.push( (path.clone(), None) );
+                break;
+            }
+            
+            // only line is specified
+            if let Some(regex) = Regex::new(r"*:[0-9]*[1-9]+[0-9]*\z").unwrap().captures( path.to_str().unwrap() ) { // regex: *:{positive integer}
+                let (file, line) = regex.get( regex.len() - 1 ).unwrap().as_str().rsplit_once(':').unwrap();
+                if PathBuf::from(file).is_file() {
+                    files.push(( 
+                        PathBuf::from(file), 
+                        Some( 
+                            LineCol { 
+                                line: line.parse().unwrap(), 
+                                column: 1 
+                            } 
+                        )
+                    ));
+                    break;
                 }
             }
-        });
+            
+            // line and column are specified
+            if let Some(regex) = Regex::new(r"*:[0-9]*[1-9]+[0-9]*:[0-9]*[1-9]+[0-9]*\z").unwrap().captures( path.to_str().unwrap() ) { // regex: *:{positive integer}:{positive integer}
+                let col_line_file:Vec<&str> = regex.get( regex.len() - 1 ).unwrap().as_str().rsplitn(2, ':').collect();
+                if PathBuf::from(col_line_file[2]).is_file() {
+                    files.push(( 
+                        PathBuf::from(col_line_file[2]), 
+                        Some( 
+                            LineCol { 
+                                line: col_line_file[1].parse().unwrap(), 
+                                column: col_line_file[0].parse().unwrap(), 
+                            } 
+                        )
+                    ));
+                    break;
+                }
+            }
+        };
 
         if !dirs.is_empty() {
             let (size, mut pos) = db
@@ -316,103 +350,6 @@ impl LapceData {
             update_in_process: false,
             log_file,
         }
-    }
-    
-    #[inline]
-    pub fn resolve_path<T: AsRef<Path>>(path: T, base: &Path) -> Option<PathType> {
-        if path.as_ref().is_absolute() {
-            Self::parse_path(path)
-        } else if path.as_ref().is_dir() {
-            Self::parse_path(base.join(path))
-        } else {
-            None
-        }
-    }
-    
-    #[inline]
-    pub fn parse_path<T: AsRef<Path>>(path: T) -> Option<PathType> {
-        fn write_text_with_sep_to<'a, I>(mut iter: I, buf: &mut String, sep: &str)
-        where
-            I: Iterator<Item = &'a str>,
-        {
-            if let Some(str) = iter.next() {
-                buf.push_str(str);
-                buf.push_str(sep);
-                write_text_with_sep_to(iter, buf, sep);
-            }
-        }
-        
-        if let Ok(path_buf) = path.as_ref().canonicalize() {
-            if path_buf.is_file() {
-                return Some(PathType::File(path_buf, None));
-            } else if path_buf.is_dir() {
-                return Some(PathType::Directory(path_buf));
-            }
-        }
-        
-        if let Some(str) = path.as_ref().to_str() {
-            let mut splits = str.rsplit(':');
-            if let Some(first_rhs) = splits.next() {
-                if let Ok(first_rhs_num) = first_rhs.parse::<usize>() {
-                    if let Some(second_rhs) = splits.next() {
-                        if let Ok(second_rhs_num) = second_rhs.parse::<usize>() {
-                            let mut str = String::new();
-                            write_text_with_sep_to(splits.rev(), &mut str, ":");
-    
-                            if let Ok(left_path) = 
-                                PathBuf::from(&str[..str.len() - 1])
-                                    .canonicalize() 
-                            {
-                                if left_path.is_file() {
-                                    return Some(PathType::File(
-                                        left_path,
-                                        Some(LineCol {
-                                            line: second_rhs_num,
-                                            column: first_rhs_num,
-                                        }),
-                                    ));
-                                }
-                            }
-    
-                            str.push_str(second_rhs);
-                            if let Ok(left_path) =
-                                PathBuf::from(str).canonicalize()
-                            {
-                                if left_path.is_file() {
-                                    return Some(PathType::File(
-                                        left_path,
-                                        Some(LineCol {
-                                            line: first_rhs_num,
-                                            column: 1,
-                                        }),
-                                    ));
-                                }
-                            }
-                        } else {
-                            let mut str = String::new();
-                            write_text_with_sep_to(splits.rev(), &mut str, ":");
-                            str.push_str(second_rhs);
-
-                            if let Ok(left_path) = 
-                                PathBuf::from(&str).canonicalize()
-                            {
-                                if left_path.is_file() {
-                                    return Some(PathType::File(
-                                        left_path,
-                                        Some(LineCol {
-                                            line: first_rhs_num,
-                                            column: 1,
-                                        }),
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } 
-        // Ignore the path if it doesn't refer to a file
-        None
     }
 
     pub fn default_panel_orders() -> PanelOrder {

@@ -9,6 +9,7 @@ default-run = "lapce"
 [dependencies]
 lapce-ui = { path = "./lapce-ui" }
 lapce-proxy = { path = "./lapce-proxy" }
+regex = "1.7.1"
 
 [[bin]]
 name = "lapce"
