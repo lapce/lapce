@@ -41,7 +41,7 @@ jobs:
         run: cargo fetch --locked
 
       - name: Build
-        run: cargo build --offline
+        run: cargo build --frozen
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
