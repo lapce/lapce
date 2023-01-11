@@ -621,6 +621,10 @@ impl LapceTab {
         _env: &Env,
     ) {
         match event {
+            Event::MouseMove(mouse) => {
+                Arc::make_mut(&mut data.rename).mouse_within = data.rename.active
+                    && self.rename.layout_rect().contains(mouse.pos);
+            }
             Event::MouseDown(mouse) => {
                 if !ctx.is_handled() && mouse.button.is_left() {
                     if let Some(position) = self.bar_hit_test(mouse.pos) {
