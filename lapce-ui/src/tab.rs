@@ -100,6 +100,16 @@ pub struct LapceTab {
     mouse_pos: Point,
 }
 
+fn workspace_title(workspace: &LapceWorkspace) -> Option<String> {
+    let p = workspace.path.as_ref()?;
+    let dir = p.file_name().unwrap_or(p.as_os_str()).to_string_lossy();
+    Some(match &workspace.kind {
+        LapceWorkspaceType::Local => format!("{dir}"),
+        LapceWorkspaceType::RemoteSSH(ssh) => format!("{dir} [{ssh}]"),
+        LapceWorkspaceType::RemoteWSL => format!("{dir} [wsl]"),
+    })
+}
+
 impl LapceTab {
     pub fn new(data: &mut LapceTabData) -> Self {
         let title = WidgetPod::new(Title::new(data).boxed());
@@ -1734,27 +1744,11 @@ impl LapceTab {
                         ctx.set_handled();
                     }
                     LapceUICommand::Focus => {
-                        let dir = data
-                            .workspace
-                            .path
-                            .as_ref()
-                            .map(|p| {
-                                let dir = p
-                                    .file_name()
-                                    .unwrap_or(p.as_os_str())
-                                    .to_string_lossy();
-                                match &data.workspace.kind {
-                                    LapceWorkspaceType::Local => dir.to_string(),
-                                    LapceWorkspaceType::RemoteSSH(ssh) => {
-                                        format!("{dir} [{ssh}]")
-                                    }
-                                    LapceWorkspaceType::RemoteWSL => {
-                                        format!("{dir} [wsl]")
-                                    }
-                                }
-                            })
-                            .unwrap_or_else(|| "Lapce".to_string());
-                        ctx.window().set_title(&dir);
+                        ctx.window().set_title(
+                            &workspace_title(&data.workspace)
+                                .map(|x| format!("{x} - Lapce"))
+                                .unwrap_or_else(|| String::from("Lapce")),
+                        );
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::Focus,
@@ -2833,26 +2827,12 @@ impl Widget<LapceTabData> for LapceTabHeader {
             1.0,
         );
 
-        let dir = data
-            .workspace
-            .path
-            .as_ref()
-            .map(|p| {
-                let dir = p.file_name().unwrap_or(p.as_os_str()).to_string_lossy();
-                match &data.workspace.kind {
-                    LapceWorkspaceType::Local => dir.to_string(),
-                    LapceWorkspaceType::RemoteSSH(ssh) => {
-                        format!("{dir} [{ssh}]")
-                    }
-                    LapceWorkspaceType::RemoteWSL => {
-                        format!("{dir} [wsl]")
-                    }
-                }
-            })
-            .unwrap_or_else(|| "Lapce".to_string());
         let text_layout = ctx
             .text()
-            .new_text_layout(dir)
+            .new_text_layout(
+                workspace_title(&data.workspace)
+                    .unwrap_or_else(|| String::from("Lapce")),
+            )
             .font(
                 data.config.ui.font_family(),
                 data.config.ui.font_size() as f64,
