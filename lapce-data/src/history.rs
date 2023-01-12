@@ -34,6 +34,7 @@ pub struct DocumentHistory {
     line_styles: Rc<RefCell<LineStyles>>,
     changes: Arc<Vec<DiffLines>>,
     text_layouts: Rc<RefCell<TextLayoutCache>>,
+    diff_extend_lines: usize,
 }
 
 impl druid::Data for DocumentHistory {
@@ -55,7 +56,7 @@ impl druid::Data for DocumentHistory {
         }
     }
 }
-
+pub const DEFAULT_DIFF_EXTEND_LINES: usize = 3;
 impl DocumentHistory {
     pub fn new(version: String) -> Self {
         Self {
@@ -65,6 +66,7 @@ impl DocumentHistory {
             line_styles: Rc::new(RefCell::new(LineStyles::new())),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             changes: Arc::new(Vec::new()),
+            diff_extend_lines: DEFAULT_DIFF_EXTEND_LINES,
         }
     }
 
@@ -72,7 +74,7 @@ impl DocumentHistory {
         let mut buffer = Buffer::new("");
         buffer.init_content(content);
         self.buffer = Some(buffer);
-        self.trigger_update_change(doc);
+        self.trigger_update_change(doc, DEFAULT_DIFF_EXTEND_LINES);
         self.retrieve_history_styles(doc);
     }
 
@@ -201,7 +203,7 @@ impl DocumentHistory {
         }
     }
 
-    pub fn trigger_update_change(&self, doc: &Document) {
+    pub fn trigger_update_change(&self, doc: &Document, diff_extend_lines: usize) {
         if self.buffer.is_none() {
             return;
         }
@@ -218,8 +220,13 @@ impl DocumentHistory {
                 if atomic_rev.load(atomic::Ordering::Acquire) != rev {
                     return;
                 }
-                let changes =
-                    rope_diff(left_rope, right_rope, rev, atomic_rev.clone());
+                let changes = rope_diff(
+                    left_rope,
+                    right_rope,
+                    rev,
+                    atomic_rev.clone(),
+                    diff_extend_lines,
+                );
                 if changes.is_none() {
                     return;
                 }
@@ -236,6 +243,7 @@ impl DocumentHistory {
                         rev,
                         history: "head".to_string(),
                         changes: Arc::new(changes),
+                        diff_extend_lines,
                     },
                     Target::Widget(tab_id),
                 );
@@ -247,8 +255,17 @@ impl DocumentHistory {
         &self.changes
     }
 
-    pub fn update_changes(&mut self, changes: Arc<Vec<DiffLines>>) {
+    pub fn diff_extend_lines(&self) -> usize {
+        self.diff_extend_lines
+    }
+
+    pub fn update_changes(
+        &mut self,
+        changes: Arc<Vec<DiffLines>>,
+        diff_extend_lines: usize,
+    ) {
         self.changes = changes;
+        self.diff_extend_lines = diff_extend_lines;
     }
 
     pub fn update_styles(&mut self, styles: Arc<Spans<Style>>) {

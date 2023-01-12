@@ -1062,6 +1062,7 @@ pub fn rope_diff(
     right_rope: Rope,
     rev: u64,
     atomic_rev: Arc<AtomicU64>,
+    extend_lines: usize,
 ) -> Option<Vec<DiffLines>> {
     let left_lines = left_rope.lines(..).collect::<Vec<Cow<str>>>();
     let right_lines = right_rope.lines(..).collect::<Vec<Cow<str>>>();
@@ -1198,43 +1199,51 @@ pub fn rope_diff(
             }
             if let DiffLines::Both(l, r) = change {
                 if i == 0 || i == changes_last {
-                    if r.len() > 3 {
+                    if r.len() > extend_lines {
                         if i == 0 {
-                            changes[i] =
-                                DiffLines::Both(l.end - 3..l.end, r.end - 3..r.end);
+                            changes[i] = DiffLines::Both(
+                                l.end - extend_lines..l.end,
+                                r.end - extend_lines..r.end,
+                            );
                             changes.insert(
                                 i,
                                 DiffLines::Skip(
-                                    l.start..l.end - 3,
-                                    r.start..r.end - 3,
+                                    l.start..l.end - extend_lines,
+                                    r.start..r.end - extend_lines,
                                 ),
                             );
                         } else {
                             changes[i] = DiffLines::Skip(
-                                l.start + 3..l.end,
-                                r.start + 3..r.end,
+                                l.start + extend_lines..l.end,
+                                r.start + extend_lines..r.end,
                             );
                             changes.insert(
                                 i,
                                 DiffLines::Both(
-                                    l.start..l.start + 3,
-                                    r.start..r.start + 3,
+                                    l.start..l.start + extend_lines,
+                                    r.start..r.start + extend_lines,
                                 ),
                             );
                         }
                     }
-                } else if r.len() > 6 {
-                    changes[i] = DiffLines::Both(l.end - 3..l.end, r.end - 3..r.end);
+                } else if r.len() > extend_lines * 2 {
+                    changes[i] = DiffLines::Both(
+                        l.end - extend_lines..l.end,
+                        r.end - extend_lines..r.end,
+                    );
                     changes.insert(
                         i,
                         DiffLines::Skip(
-                            l.start + 3..l.end - 3,
-                            r.start + 3..r.end - 3,
+                            l.start + extend_lines..l.end - extend_lines,
+                            r.start + extend_lines..r.end - extend_lines,
                         ),
                     );
                     changes.insert(
                         i,
-                        DiffLines::Both(l.start..l.start + 3, r.start..r.start + 3),
+                        DiffLines::Both(
+                            l.start..l.start + extend_lines,
+                            r.start..r.start + extend_lines,
+                        ),
                     );
                 }
             }
