@@ -1904,6 +1904,35 @@ impl LapceTab {
                         );
                         ctx.set_handled();
                     }
+                    LapceUICommand::DuplicateFileOpen { existing_path, new_path } => {
+                        let new_path_clone = new_path.clone();
+                        let event_sink = ctx.get_external_handle();
+                        let tab_id = data.id;
+                        let explorer = data.file_explorer.clone();
+                        data.proxy.proxy_rpc.duplicate_path(
+                            existing_path.clone(),
+                            new_path.clone(),
+                            Box::new(move |res| {
+                                match res {
+                                    Ok(_) => {
+                                        let _ = event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::OpenFile(new_path_clone, false),
+                                            Target::Widget(tab_id),
+                                        );
+                                    }
+                                    Err(err) => {
+                                        // TODO: Inform the user through a corner-notif
+                                        log::warn!(
+                                            "Failed to duplicate file: {:?}",
+                                            err,
+                                        );
+                                    }
+                                }
+                                explorer.reload();
+                            }),
+                        );
+                    }
                     LapceUICommand::RenamePath { from, to } => {
                         let explorer = data.file_explorer.clone();
                         data.proxy.proxy_rpc.rename_path(
@@ -1946,6 +1975,23 @@ impl LapceTab {
                             *indent_level,
                             *is_dir,
                             base_path.clone(),
+                        );
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::ExplorerStartDuplicate {
+                        list_index,
+                        indent_level,
+                        base_path,
+                        name,
+                    } => {
+                        let file_explorer = Arc::make_mut(&mut data.file_explorer);
+                        file_explorer.start_duplicating(
+                            ctx,
+                            &mut data.main_split,
+                            *list_index,
+                            *indent_level,
+                            base_path.clone(),
+                            name.clone(),
                         );
                         ctx.set_handled();
                     }

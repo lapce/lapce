@@ -757,6 +757,27 @@ impl ProxyHandler for Dispatcher {
                     });
                 self.respond_rpc(id, result);
             }
+            DuplicatePath {
+                existing_path,
+                new_path,
+            } => {
+                // We first check if the destination already exists, because copy can overwrite it
+                // and that's not the default behavior we want for when a user duplicates a document.
+                let result = if new_path.exists() {
+                    Err(RpcError {
+                        code: 0,
+                        message: format!("{:?} already exists", new_path),
+                    })
+                } else {
+                    std::fs::copy(existing_path, new_path)
+                        .map(|_| ProxyResponse::Success {})
+                        .map_err(|e| RpcError {
+                            code: 0,
+                            message: e.to_string(),
+                        })
+                };
+                self.respond_rpc(id, result);
+            }
             RenamePath { from, to } => {
                 // We first check if the destination already exists, because rename can overwrite it
                 // and that's not the default behavior we want for when a user renames a document.

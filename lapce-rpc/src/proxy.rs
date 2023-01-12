@@ -146,6 +146,10 @@ pub enum ProxyRequest {
     TrashPath {
         path: PathBuf,
     },
+    DuplicatePath {
+        existing_path: PathBuf,
+        new_path: PathBuf,
+    },
     RenamePath {
         from: PathBuf,
         to: PathBuf,
@@ -574,6 +578,15 @@ impl ProxyRpcHandler {
 
     pub fn trash_path(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::TrashPath { path }, f);
+    }
+
+    pub fn duplicate_path(
+        &self,
+        existing_path: PathBuf,
+        new_path: PathBuf,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::DuplicatePath { existing_path, new_path }, f);
     }
 
     pub fn rename_path(
