@@ -2370,7 +2370,9 @@ impl Document {
             Movement::Up => {
                 let line = self.buffer.line_of_offset(offset);
                 if line == 0 {
-                    return (offset, horiz.cloned());
+                    let line = self.buffer.line_of_offset(offset);
+                    let new_offset = self.buffer.offset_of_line(line);
+                    return (new_offset, Some(ColPosition::Start))
                 }
 
                 let (line, font_size) = match view {
@@ -2445,6 +2447,11 @@ impl Document {
             Movement::Down => {
                 let last_line = self.buffer.last_line();
                 let line = self.buffer.line_of_offset(offset);
+                if line == last_line {
+                    let new_offset =
+                        self.buffer.offset_line_end(offset, mode != Mode::Normal);
+                    return (new_offset, Some(ColPosition::End))
+                }
 
                 let (line, font_size) = match view {
                     EditorView::Lens => {
