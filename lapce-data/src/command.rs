@@ -936,6 +936,11 @@ pub enum LapceUICommand {
     CreateDirectory {
         path: PathBuf,
     },
+    /// Copy an existing file to the given name and then open it
+    DuplicateFileOpen {
+        existing_path: PathBuf,
+        new_path: PathBuf,
+    },
     RenamePath {
         from: PathBuf,
         to: PathBuf,
@@ -943,6 +948,17 @@ pub enum LapceUICommand {
     /// Move a file/directory to the os-specific trash
     TrashPath {
         path: PathBuf,
+    },
+    /// Start duplicating a specific file in view at the given index
+    ExplorerStartDuplicate {
+        /// The index into the explorer's file listing
+        list_index: usize,
+        /// The level that it should be indented to
+        indent_level: usize,
+        /// The folder that the file/directory is being created within
+        base_path: PathBuf,
+        /// The name of the file being duplicated
+        name: String,
     },
     /// Start renaming a specific file in view at the given index
     ExplorerStartRename {

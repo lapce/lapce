@@ -249,7 +249,7 @@ fn draw_name_input(
         Naming::Renaming { .. } => {
             name_edit_input.paint(ctx, data, env);
         }
-        Naming::Naming { .. } => {
+        Naming::Naming { .. } | Naming::Duplicating { .. } => {
             name_edit_input.paint(ctx, data, env);
             // Skip forward by an entry
             // This is fine since we aren't using i as an index, but as an offset-multiple in painting
@@ -831,6 +831,30 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             );
                             menu = menu.entry(item);
 
+                            if !node.is_dir {
+                                let item = druid::MenuItem::new("Duplicate")
+                                    .command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::ExplorerStartDuplicate {
+                                            list_index: index,
+                                            indent_level,
+                                            base_path: node
+                                                .path_buf
+                                                .parent()
+                                                .expect("file without parent")
+                                                .to_owned(),
+                                            name: node
+                                                .path_buf
+                                                .file_name()
+                                                .expect("file without name")
+                                                .to_string_lossy()
+                                                .into_owned(),
+                                        },
+                                        Target::Auto,
+                                    ));
+                                menu = menu.entry(item);
+                            }
+
                             let trash_text = if node.is_dir {
                                 "Move Directory to Trash"
                             } else {
@@ -949,6 +973,11 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     indent_level,
                 }
                 | Naming::Naming {
+                    list_index,
+                    indent_level,
+                    ..
+                }
+                | Naming::Duplicating {
                     list_index,
                     indent_level,
                     ..
