@@ -162,8 +162,8 @@ impl LapceData {
                         PathBuf::from(file), 
                         Some( 
                             LineCol { 
-                                line: line.parse().unwrap(), 
-                                column: 1 
+                                line: line.parse::<usize>().unwrap() - 1, 
+                                column: 0 
                             } 
                         )
                     ));
@@ -173,14 +173,19 @@ impl LapceData {
             
             // line and column are specified
             if let Some(regex) = Regex::new(r".*:[0-9]*[1-9]+[0-9]*:[0-9]*[1-9]+[0-9]*\z").unwrap().captures( path.to_str().unwrap() ) { // regex: *:{positive integer}:{positive integer}
-                let col_line_file:Vec<&str> = regex.get( regex.len() - 1 ).unwrap().as_str().rsplitn(2, ':').collect();
-                if PathBuf::from(col_line_file[2]).is_file() {
+                let (fileline, column) = regex.get( regex.len() - 1 ).unwrap().as_str().rsplit_once(':').unwrap();
+                let (file, line) = fileline.rsplit_once(':').unwrap();
+                let mut absolute_path = std::env::current_dir().unwrap();
+                absolute_path.push(file);
+                // if PathBuf::from(file).is_file() {
+                if absolute_path.is_file() {
                     files.push(( 
-                        PathBuf::from(col_line_file[2]), 
+                        absolute_path,
+                        // PathBuf::from(file).canonicalize().unwrap(), 
                         Some( 
                             LineCol { 
-                                line: col_line_file[1].parse().unwrap(), 
-                                column: col_line_file[0].parse().unwrap(), 
+                                line: line.parse::<usize>().unwrap() - 1,
+                                column: column.parse::<usize>().unwrap() - 1,
                             } 
                         )
                     ));
