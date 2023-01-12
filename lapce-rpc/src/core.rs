@@ -108,6 +108,9 @@ pub enum CoreNotification {
     CloseTerminal {
         term_id: TermId,
     },
+    RunInTerminal {
+        command: String,
+    },
     Log {
         level: String,
         message: String,
@@ -268,6 +271,10 @@ impl CoreRpcHandler {
             volt,
             only_installing,
         });
+    }
+
+    pub fn run_in_terminal(&self, command: String) {
+        self.notification(CoreNotification::RunInTerminal { command });
     }
 
     pub fn log(&self, level: log::Level, message: String) {

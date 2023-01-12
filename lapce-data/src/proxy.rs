@@ -262,6 +262,13 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
+            RunInTerminal { command } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunInTerminal(command),
+                    Target::Widget(self.tab_id),
+                );
+            }
             CompletionResponse {
                 request_id,
                 input,

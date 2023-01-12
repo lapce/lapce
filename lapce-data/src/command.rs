@@ -422,6 +422,9 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "toggle_problem_visual")]
     ToggleProblemVisual,
 
+    #[strum(serialize = "toggle_debug_visual")]
+    ToggleDebugVisual,
+
     #[strum(serialize = "toggle_search_visual")]
     ToggleSearchVisual,
 
@@ -889,6 +892,7 @@ pub enum LapceUICommand {
     /// updating the file explorer.
     WorkspaceFileChange,
     ProxyUpdateStatus(ProxyStatus),
+    RunInTerminal(String),
     CloseTerminal(TermId),
     OpenPluginInfo(VoltInfo),
     SplitTerminal(bool, WidgetId),

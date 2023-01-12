@@ -98,7 +98,7 @@ impl TerminalPanelData {
         proxy: Arc<LapceProxy>,
         config: &LapceConfig,
         event_sink: ExtEventSink,
-    ) {
+    ) -> WidgetId {
         let active_index = (self.active + 1).min(self.tabs_order.len());
         let new_term_split =
             TerminalSplitData::new(workspace, proxy, config, event_sink);
@@ -106,6 +106,7 @@ impl TerminalPanelData {
         Arc::make_mut(&mut self.tabs_order).insert(active_index, new_term_tab_id);
         self.tabs.insert(new_term_tab_id, new_term_split);
         self.active = active_index;
+        new_term_tab_id
     }
 }
 
@@ -562,13 +563,7 @@ impl KeyPressFocus for LapceTerminalViewData {
     }
 
     fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
-        if self.terminal.mode == Mode::Terminal {
-            self.terminal
-                .proxy
-                .proxy_rpc
-                .terminal_write(self.terminal.term_id, c);
-            self.terminal.raw.lock().term.scroll_display(Scroll::Bottom);
-        }
+        Arc::make_mut(&mut self.terminal).receive_char(c);
     }
 }
 
@@ -919,6 +914,13 @@ impl LapceTerminalData {
             Key::Insert => term_sequence!([all], key, "\x1b[2~", "\x1b[2;", "~"),
             Key::Delete => term_sequence!([all], key, "\x1b[3~", "\x1b[3;", "~"),
             _ => None,
+        }
+    }
+
+    pub fn receive_char(&mut self, c: &str) {
+        if self.mode == Mode::Terminal {
+            self.proxy.proxy_rpc.terminal_write(self.term_id, c);
+            self.raw.lock().term.scroll_display(Scroll::Bottom);
         }
     }
 }

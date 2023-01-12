@@ -48,10 +48,10 @@ use lsp_types::DiagnosticSeverity;
 
 use crate::{
     about::AboutBox, alert::AlertBox, completion::CompletionContainer,
-    editor::view::LapceEditorView, explorer::FileExplorer, hover::HoverContainer,
-    message::LapceMessage, panel::PanelContainer, picker::FilePicker,
-    plugin::Plugin, problem::new_problem_panel, scroll::LapceScroll,
-    search::new_search_panel, signature::SignatureContainer,
+    debug::new_debug_panel, editor::view::LapceEditorView, explorer::FileExplorer,
+    hover::HoverContainer, message::LapceMessage, panel::PanelContainer,
+    picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
+    scroll::LapceScroll, search::new_search_panel, signature::SignatureContainer,
     source_control::new_source_control_panel, split::split_data_widget,
     status::LapceStatus, terminal::TerminalPanel, title::Title,
 };
@@ -188,6 +188,12 @@ impl LapceTab {
                         panel.insert_panel(
                             *kind,
                             WidgetPod::new(new_problem_panel(&data.problem).boxed()),
+                        );
+                    }
+                    PanelKind::Debug => {
+                        panel.insert_panel(
+                            *kind,
+                            WidgetPod::new(new_debug_panel(&data.debug).boxed()),
                         );
                     }
                 }
@@ -965,6 +971,22 @@ impl LapceTab {
                     } => {
                         let signature = Arc::make_mut(&mut data.signature);
                         signature.receive(*request_id, resp.to_owned(), *plugin_id);
+                    }
+                    LapceUICommand::RunInTerminal(command) => {
+                        let terminal_panel = Arc::make_mut(&mut data.terminal);
+                        let new_tab_id = terminal_panel.new_tab(
+                            data.workspace.clone(),
+                            data.proxy.clone(),
+                            &data.config,
+                            ctx.get_external_handle(),
+                        );
+                        let terminal_tab =
+                            terminal_panel.tabs.get_mut(&new_tab_id).unwrap();
+                        let (_, terminal) =
+                            terminal_tab.terminals.iter_mut().next().unwrap();
+                        let terminal = Arc::make_mut(terminal);
+                        terminal.receive_char(command);
+                        terminal.receive_char("\n");
                     }
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);

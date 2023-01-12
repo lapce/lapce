@@ -23,7 +23,7 @@ use crate::{
     },
     document::{BufferContent, Document, LocalBufferKind},
     editor::EditorLocation,
-    panel::{PanelData, PanelOrder},
+    panel::{panel_position, PanelData, PanelKind, PanelOrder, PanelPosition},
     split::SplitDirection,
 };
 
@@ -589,7 +589,18 @@ impl LapceDb {
             .get("panel_orders")?
             .ok_or_else(|| anyhow!("can't find panel orders"))?;
         let panel_orders = std::str::from_utf8(&panel_orders)?;
-        let panel_orders: PanelOrder = serde_json::from_str(panel_orders)?;
+        let mut panel_orders: PanelOrder = serde_json::from_str(panel_orders)?;
+
+        use strum::IntoEnumIterator;
+        for kind in PanelKind::iter() {
+            if panel_position(&panel_orders, &kind).is_none() {
+                let panels = panel_orders
+                    .entry(PanelPosition::LeftTop)
+                    .or_insert_with(im::Vector::new);
+                panels.push_back(kind);
+            }
+        }
+
         Ok(panel_orders)
     }
 
