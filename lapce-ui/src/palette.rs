@@ -75,6 +75,7 @@ impl Widget<LapceTabData> for Palette {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::RunPalette(palette_type) => {
+                        println!("run palette {palette_type:?}");
                         ctx.set_handled();
                         let mut palette_data = data.palette_view_data();
                         palette_data.run(ctx, palette_type.to_owned(), None, true);
@@ -656,6 +657,44 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 format!("{ssh}"),
                 self.indices.to_vec(),
             ),
+            PaletteItemContent::RunConfig(config) => {
+                let text = config.name.clone();
+                let hint = format!("{} {}", config.program, config.args.join(" "));
+                let text_indices: Vec<usize> = self
+                    .indices
+                    .iter()
+                    .filter_map(|i| {
+                        let i = *i;
+                        if i < text.len() {
+                            Some(i)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let hint_indices: Vec<usize> = self
+                    .indices
+                    .iter()
+                    .filter_map(|i| {
+                        let i = *i;
+                        if i > text.len() {
+                            Some(i - text.len() - 1)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                PaletteItemPaintInfo {
+                    svg: None,
+                    svg_color: None,
+                    text,
+                    text_color: None,
+                    text_indices,
+                    hint,
+                    hint_indices,
+                    keymap: None,
+                }
+            }
         };
 
         let line_height = data.line_height() as f64;

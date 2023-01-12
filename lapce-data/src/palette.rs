@@ -37,6 +37,7 @@ use crate::{
         LapceWorkspaceType, SshHost,
     },
     db::LapceDb,
+    debug::{run_configs, RunConfig},
     document::BufferContent,
     editor::EditorLocation,
     find::Find,
@@ -62,23 +63,36 @@ pub enum PaletteType {
     IconTheme,
     SshHost,
     Language,
+    RunConfig,
 }
 
 impl PaletteType {
-    fn string(&self) -> String {
+    fn symbol(&self) -> &'static str {
         match &self {
-            PaletteType::Line => "/".to_string(),
-            PaletteType::DocumentSymbol => "@".to_string(),
-            PaletteType::WorkspaceSymbol => "#".to_string(),
-            PaletteType::GlobalSearch => "?".to_string(),
-            PaletteType::Workspace => ">".to_string(),
-            PaletteType::Command => ":".to_string(),
+            PaletteType::Line => "/",
+            PaletteType::DocumentSymbol => "@",
+            PaletteType::WorkspaceSymbol => "#",
+            PaletteType::GlobalSearch => "?",
+            PaletteType::Workspace => ">",
+            PaletteType::Command => ":",
             PaletteType::File
             | PaletteType::Reference
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::SshHost
-            | PaletteType::Language => "".to_string(),
+            | PaletteType::RunConfig
+            | PaletteType::Language => "",
+        }
+    }
+
+    fn from_input(input: &str) -> PaletteType {
+        match input {
+            _ if input.starts_with('/') => PaletteType::Line,
+            _ if input.starts_with('@') => PaletteType::DocumentSymbol,
+            _ if input.starts_with('#') => PaletteType::WorkspaceSymbol,
+            _ if input.starts_with('>') => PaletteType::Workspace,
+            _ if input.starts_with(':') => PaletteType::Command,
+            _ => PaletteType::File,
         }
     }
 
@@ -96,27 +110,11 @@ impl PaletteType {
     /// Get the palette type that it should be considered as based on the current
     /// [`PaletteType`] and the current input.
     fn get_palette_type(current_type: &PaletteType, input: &str) -> PaletteType {
-        match current_type {
-            PaletteType::Reference
-            | PaletteType::SshHost
-            | PaletteType::ColorTheme
-            | PaletteType::IconTheme
-            | PaletteType::Language => {
-                return current_type.clone();
-            }
-            _ => (),
+        println!("get palette type {current_type:?} input: {input}");
+        if current_type != &PaletteType::File && current_type.symbol() == "" {
+            return current_type.clone();
         }
-        if input.is_empty() {
-            return PaletteType::File;
-        }
-        match input {
-            _ if input.starts_with('/') => PaletteType::Line,
-            _ if input.starts_with('@') => PaletteType::DocumentSymbol,
-            _ if input.starts_with('#') => PaletteType::WorkspaceSymbol,
-            _ if input.starts_with('>') => PaletteType::Workspace,
-            _ if input.starts_with(':') => PaletteType::Command,
-            _ => PaletteType::File,
-        }
+        PaletteType::from_input(input)
     }
 }
 
@@ -155,6 +153,7 @@ pub enum PaletteItemContent {
     ReferenceLocation(PathBuf, EditorLocation<Position>),
     Workspace(LapceWorkspace),
     SshHost(SshHost),
+    RunConfig(RunConfig),
     Command(LapceCommand),
     ColorTheme(String),
     IconTheme(String),
@@ -305,6 +304,7 @@ impl PaletteItemContent {
                     ));
                 }
             }
+            PaletteItemContent::RunConfig(config) => if !preview {},
         }
         true
     }
@@ -521,6 +521,7 @@ impl PaletteData {
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::Language
+            | PaletteType::RunConfig
             | PaletteType::SshHost => &self.input,
             PaletteType::Line
             | PaletteType::DocumentSymbol
@@ -608,7 +609,10 @@ impl PaletteViewData {
         let palette = Arc::make_mut(&mut self.palette);
         palette.status = PaletteStatus::Started;
         palette.palette_type = palette_type.unwrap_or(PaletteType::File);
-        palette.input = input.unwrap_or_else(|| palette.palette_type.string());
+        palette.input =
+            input.unwrap_or_else(|| palette.palette_type.symbol().to_string());
+
+        println!("run palette {:?}", palette.palette_type);
 
         // Most usages of `run` will want to initialize the input
         // However, special types like workspace-symbol-search want to avoid it
@@ -656,6 +660,10 @@ impl PaletteViewData {
                 self.get_workspaces(ctx);
             }
             PaletteType::Reference => {}
+            PaletteType::RunConfig => {
+                println!("get run configs");
+                self.get_run_configs(ctx);
+            }
             PaletteType::SshHost => {
                 self.get_ssh_hosts(ctx);
             }
@@ -715,20 +723,7 @@ impl PaletteViewData {
             return;
         }
 
-        let start = match palette.palette_type {
-            PaletteType::File
-            | PaletteType::Reference
-            | PaletteType::ColorTheme
-            | PaletteType::IconTheme
-            | PaletteType::Language
-            | PaletteType::SshHost => 0,
-            PaletteType::Line
-            | PaletteType::DocumentSymbol
-            | PaletteType::WorkspaceSymbol
-            | PaletteType::Workspace
-            | PaletteType::Command
-            | PaletteType::GlobalSearch => 1,
-        };
+        let start = palette.palette_type.symbol().len();
 
         if palette.cursor == start {
             palette.input = "".to_string();
@@ -822,6 +817,7 @@ impl PaletteViewData {
         // If the input changed and the palette type is still/now workspace-symbol then we rerun it
         let palette_type =
             PaletteType::get_palette_type(&palette.palette_type, &input);
+        println!("palette type is {palette_type:?}");
         if input != palette.input && palette_type == PaletteType::WorkspaceSymbol {
             self.run(ctx, Some(PaletteType::WorkspaceSymbol), Some(input), false);
             return;
@@ -904,6 +900,29 @@ impl PaletteViewData {
                 );
             }
         });
+    }
+
+    fn get_run_configs(&mut self, _ctx: &mut EventCtx) {
+        let configs = run_configs(self.workspace.path.as_deref());
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.total_items.clear();
+        if let Some(configs) = configs.as_ref() {
+            palette.total_items = configs
+                .configs
+                .iter()
+                .map(|config| PaletteItem {
+                    content: PaletteItemContent::RunConfig(config.clone()),
+                    filter_text: format!(
+                        "{} {} {}",
+                        config.name,
+                        config.program,
+                        config.args.join(" ")
+                    ),
+                    score: 0,
+                    indices: vec![],
+                })
+                .collect();
+        }
     }
 
     fn get_ssh_hosts(&mut self, _ctx: &mut EventCtx) {

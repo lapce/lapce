@@ -117,7 +117,8 @@ impl LapceCommand {
                 | LapceWorkbenchCommand::ChangeIconTheme
                 | LapceWorkbenchCommand::ConnectSshHost
                 | LapceWorkbenchCommand::ConnectWsl
-                | LapceWorkbenchCommand::PaletteWorkspace => return true,
+                | LapceWorkbenchCommand::PaletteWorkspace
+                | LapceWorkbenchCommand::PaletteRunConfig => return true,
                 _ => {}
             }
         }
@@ -350,6 +351,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open Recent Workspace")]
     #[strum(serialize = "palette.workspace")]
     PaletteWorkspace,
+
+    #[strum(message = "Run and Debug")]
+    #[strum(serialize = "palette.run_configs")]
+    PaletteRunConfig,
 
     #[strum(serialize = "source_control.checkout_branch")]
     CheckoutBranch,
