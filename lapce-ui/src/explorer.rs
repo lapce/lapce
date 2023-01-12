@@ -847,7 +847,8 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                                                 .path_buf
                                                 .file_name()
                                                 .expect("file without name")
-                                                .to_owned(),
+                                                .to_string_lossy()
+                                                .into_owned(),
                                         },
                                         Target::Auto,
                                     ));

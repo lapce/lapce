@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ffi::OsString, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use druid::{
@@ -958,7 +958,7 @@ pub enum LapceUICommand {
         /// The folder that the file/directory is being created within
         base_path: PathBuf,
         /// The name of the file being duplicated
-        name: OsString,
+        name: String,
     },
     /// Start renaming a specific file in view at the given index
     ExplorerStartRename {

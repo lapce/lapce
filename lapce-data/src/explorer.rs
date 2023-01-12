@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    ffi::OsString,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -49,7 +48,7 @@ pub enum Naming {
         /// The folder that the file/directory is being created within
         base_path: PathBuf,
         /// The name of the file being duplicated
-        name: OsString,
+        name: String,
     },
 }
 impl Naming {
@@ -449,7 +448,7 @@ impl FileExplorerData {
         list_index: usize,
         indent_level: usize,
         base_path: PathBuf,
-        name: OsString,
+        name: String,
     ) {
         self.cancel_naming();
         self.naming = Some(Naming::Duplicating {
@@ -464,7 +463,7 @@ impl FileExplorerData {
             .local_docs
             .get_mut(&LocalBufferKind::PathName)
             .unwrap();
-        Arc::make_mut(doc).reload(Rope::from(name.to_string_lossy()), true);
+        Arc::make_mut(doc).reload(Rope::from(name), true);
 
         // TODO: We could provide a configuration option to only select the filename at first,
         // which would fit a common case of just wanting to change the filename and not the ext
