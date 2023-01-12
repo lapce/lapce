@@ -157,9 +157,11 @@ impl LapceData {
             // only line is specified
             if let Some(regex) = Regex::new(r".*:[0-9]*[1-9]+[0-9]*\z").unwrap().captures( path.to_str().unwrap() ) { // regex: *:{positive integer}
                 let (file, line) = regex.get( regex.len() - 1 ).unwrap().as_str().rsplit_once(':').unwrap();
-                if PathBuf::from(file).is_file() {
+                let mut absolute_path = std::env::current_dir().unwrap();
+                absolute_path.push(file);
+                if absolute_path.is_file() {
                     files.push(( 
-                        PathBuf::from(file), 
+                        absolute_path, 
                         Some( 
                             LineCol { 
                                 line: line.parse::<usize>().unwrap() - 1, 
