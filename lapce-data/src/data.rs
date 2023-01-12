@@ -177,11 +177,9 @@ impl LapceData {
                 let (file, line) = fileline.rsplit_once(':').unwrap();
                 let mut absolute_path = std::env::current_dir().unwrap();
                 absolute_path.push(file);
-                // if PathBuf::from(file).is_file() {
                 if absolute_path.is_file() {
                     files.push(( 
                         absolute_path,
-                        // PathBuf::from(file).canonicalize().unwrap(), 
                         Some( 
                             LineCol { 
                                 line: line.parse::<usize>().unwrap() - 1,
