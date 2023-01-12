@@ -60,6 +60,7 @@ use crate::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
     },
+    debug::DebugData,
     document::{BufferContent, Document, LocalBufferKind},
     editor::{EditorLocation, EditorPosition, LapceEditorBufferData, Line, TabRect},
     explorer::FileExplorerData,
@@ -282,6 +283,7 @@ impl LapceData {
             PanelPosition::LeftTop,
             im::vector![
                 PanelKind::FileExplorer,
+                PanelKind::Debug,
                 PanelKind::SourceControl,
                 PanelKind::Plugin,
             ],
@@ -625,6 +627,7 @@ pub struct LapceTabData {
     pub find: Arc<Find>,
     pub source_control: Arc<SourceControlData>,
     pub problem: Arc<ProblemData>,
+    pub debug: Arc<DebugData>,
     pub search: Arc<SearchData>,
     pub plugin: Arc<PluginData>,
     pub picker: Arc<FilePickerData>,
@@ -826,6 +829,7 @@ impl LapceTabData {
             event_sink.clone(),
         ));
         let problem = Arc::new(ProblemData::new());
+        let debug = Arc::new(DebugData::new());
         let panel = workspace_info
             .map(|i| {
                 let mut panel = i.panel;
@@ -852,6 +856,7 @@ impl LapceTabData {
             terminal,
             plugin,
             problem,
+            debug,
             search,
             find: Arc::new(Find::new(0)),
             picker: file_picker,
@@ -1626,6 +1631,9 @@ impl LapceTabData {
             LapceWorkbenchCommand::ToggleProblemVisual => {
                 self.toggle_panel_visual(ctx, PanelKind::Problem);
             }
+            LapceWorkbenchCommand::ToggleDebugVisual => {
+                self.toggle_panel_visual(ctx, PanelKind::Debug);
+            }
             LapceWorkbenchCommand::ToggleTerminalVisual => {
                 self.toggle_panel_visual(ctx, PanelKind::Terminal);
             }
@@ -2152,6 +2160,7 @@ impl LapceTabData {
             PanelKind::Terminal => self.terminal.widget_id,
             PanelKind::Search => self.search.active,
             PanelKind::Problem => self.problem.widget_id,
+            PanelKind::Debug => self.debug.widget_id,
         };
         if let PanelKind::Search = kind {
             ctx.submit_command(Command::new(
@@ -2182,7 +2191,10 @@ impl LapceTabData {
 
     fn toggle_panel_focus(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
         let should_hide = match kind {
-            PanelKind::FileExplorer | PanelKind::Plugin | PanelKind::Problem => {
+            PanelKind::FileExplorer
+            | PanelKind::Plugin
+            | PanelKind::Problem
+            | PanelKind::Debug => {
                 // Some panels don't accept focus (yet). Fall back to visibility check
                 // in those cases.
                 self.panel.is_panel_visible(&kind)

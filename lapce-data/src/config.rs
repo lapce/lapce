@@ -209,6 +209,7 @@ impl LapceIcons {
     pub const CLOSE: &str = "close";
     pub const REMOTE: &str = "remote";
     pub const PROBLEM: &str = "error";
+    pub const DEBUG: &str = "debug";
     pub const UNSAVED: &str = "unsaved";
     pub const WARNING: &str = "warning";
     pub const TERMINAL: &str = "terminal";

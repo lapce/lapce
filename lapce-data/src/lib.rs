@@ -9,6 +9,7 @@ pub mod config;
 pub mod container;
 pub mod data;
 pub mod db;
+pub mod debug;
 pub mod document;
 pub mod dropdown;
 pub mod editor;

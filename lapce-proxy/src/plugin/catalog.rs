@@ -50,20 +50,32 @@ impl PluginCatalog {
     ) -> Self {
         {
             let workspace = workspace.clone();
+            let core_rpc = plugin_rpc.core_rpc.clone();
             thread::spawn(move || {
-                let dap = DapClient::new(
-                    workspace,
-                    Url::parse("file:///opt/homebrew/opt/llvm@14/bin/lldb-vscode")
-                        .unwrap(),
-                    Vec::new(),
-                )
-                .unwrap();
-                let _ = dap.initialize();
-                let _ = dap.launch(serde_json::json!({
-                    "program": "/Users/dz/lapce/target/debug/lapce",
-                    "args": vec!["--wait", "--new"],
-                    "runInTerminal": true,
-                }));
+                // let mut dap = DapClient::new(
+                //     workspace,
+                //     Url::parse("file:///opt/homebrew/opt/llvm@14/bin/lldb-vscode")
+                //         .unwrap(),
+                //     Vec::new(),
+                //     core_rpc,
+                // )
+                // .unwrap();
+                // let dap_rpc = dap.dap_rpc.clone();
+                // // let _ = dap.initialize();
+
+                // {
+                //     let dap_rpc = dap_rpc.clone();
+                //     thread::spawn(move || {
+                //         dap_rpc.mainloop(&mut dap);
+                //     });
+                // }
+
+                // std::thread::sleep(std::time::Duration::from_secs(1));
+                // let _ = dap_rpc.launch(serde_json::json!({
+                //     "program": "/Users/dz/lapce/target/debug/lapce",
+                //     "args": vec!["--wait", "--new"],
+                //     "runInTerminal": true,
+                // }));
             });
         }
 
