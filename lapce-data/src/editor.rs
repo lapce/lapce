@@ -1873,7 +1873,13 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.run_focus_command(ctx, cmd);
+                    completion.run_focus_command(
+                        &self.editor,
+                        &mut self.doc,
+                        &self.config,
+                        ctx,
+                        cmd,
+                    );
                 }
             }
             ListNext => {
@@ -1888,7 +1894,13 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.run_focus_command(ctx, cmd);
+                    completion.run_focus_command(
+                        &self.editor,
+                        &mut self.doc,
+                        &self.config,
+                        ctx,
+                        cmd,
+                    );
                 }
             }
             ListNextPage => {
@@ -1903,7 +1915,13 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.run_focus_command(ctx, cmd);
+                    completion.run_focus_command(
+                        &self.editor,
+                        &mut self.doc,
+                        &self.config,
+                        ctx,
+                        cmd,
+                    );
                 }
             }
             ListPrevious => {
@@ -1918,7 +1936,13 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.run_focus_command(ctx, cmd);
+                    completion.run_focus_command(
+                        &self.editor,
+                        &mut self.doc,
+                        &self.config,
+                        ctx,
+                        cmd,
+                    );
                 }
             }
             ListPreviousPage => {
@@ -1933,7 +1957,13 @@ impl LapceEditorBufferData {
                     ));
                 } else {
                     let completion = Arc::make_mut(&mut self.completion);
-                    completion.run_focus_command(ctx, cmd);
+                    completion.run_focus_command(
+                        &self.editor,
+                        &mut self.doc,
+                        &self.config,
+                        ctx,
+                        cmd,
+                    );
                 }
             }
             JumpToNextSnippetPlaceholder => {

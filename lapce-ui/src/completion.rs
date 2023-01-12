@@ -12,6 +12,7 @@ use lapce_data::{
     completion::{CompletionData, CompletionStatus, ScoredCompletionItem},
     config::LapceTheme,
     data::LapceTabData,
+    document::BufferContent,
     list::ListData,
     markdown::parse_documentation,
     rich_text::RichText,
@@ -170,6 +171,24 @@ impl Widget<LapceTabData> for CompletionContainer {
         completion.completion_list.update_data(data.config.clone());
         self.completion
             .event(ctx, event, &mut completion.completion_list, env);
+
+        if let Some(editor) = data
+            .main_split
+            .active
+            .and_then(|active| data.main_split.editors.get(&active))
+            .cloned()
+        {
+            if let BufferContent::File(path) = &editor.content {
+                if let Some(doc) = data.main_split.open_docs.get_mut(path) {
+                    completion.update_document_completion(
+                        &editor,
+                        doc,
+                        &data.config,
+                    );
+                }
+            }
+        }
+
         self.documentation.event(ctx, event, data, env);
     }
 
