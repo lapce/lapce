@@ -35,6 +35,9 @@ enable-error-lens = true
 error-lens-end-of-line = true
 error-lens-font-family = ""
 error-lens-font-size = 0
+enable-completion-lens = false
+completion-lens-font-family = ""
+completion-lens-font-size = 0
 blink-interval = 500                    # ms
 multicursor-case-sensitive = true
 multicursor-whole-words = true
@@ -165,6 +168,8 @@ magenta = "#C678DD"
 "error_lens.warning.background" = "#E5C07B20"
 "error_lens.other.foreground" = "#5C6370"
 "error_lens.other.background" = "#5C637020"
+
+"completion_lens.foreground" = "#5C6370"
 
 "source_control.added" = "#50A14F32"
 "source_control.removed" = "#FF526632"

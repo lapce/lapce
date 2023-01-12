@@ -1,4 +1,4 @@
-use std::{fmt::Display, path::PathBuf, str::FromStr, sync::Arc};
+use std::{borrow::Cow, fmt::Display, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::Error;
 use core::fmt;
@@ -6,11 +6,17 @@ use druid::{EventCtx, Size, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use lapce_core::command::FocusCommand;
 use lapce_rpc::{buffer::BufferId, plugin::PluginId};
-use lsp_types::{CompletionItem, CompletionResponse, Position};
+use lsp_types::{CompletionItem, CompletionResponse, CompletionTextEdit, Position};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::{config::LapceConfig, list::ListData, proxy::LapceProxy};
+use crate::{
+    config::LapceConfig,
+    data::{LapceEditorData, LapceTabData},
+    document::{BufferContent, Document},
+    list::ListData,
+    proxy::LapceProxy,
+};
 
 #[derive(Debug, PartialEq)]
 pub struct Snippet {
@@ -487,8 +493,126 @@ impl CompletionData {
         self.completion_list.items = items;
     }
 
-    pub fn run_focus_command(&mut self, ctx: &mut EventCtx, command: &FocusCommand) {
+    pub fn run_focus_command(
+        &mut self,
+        editor: &LapceEditorData,
+        doc: &mut Arc<Document>,
+        config: &LapceConfig,
+        ctx: &mut EventCtx,
+        command: &FocusCommand,
+    ) {
+        let prev_index = self.completion_list.selected_index;
         self.completion_list.run_focus_command(ctx, command);
+
+        if prev_index != self.completion_list.selected_index {
+            self.update_document_completion(editor, doc, config);
+        }
+    }
+
+    /// Update the active document's completion phantomtext, if it is enabled and needed.
+    pub fn update_document_completion(
+        &self,
+        editor: &LapceEditorData,
+        doc: &mut Arc<Document>,
+        config: &LapceConfig,
+    ) {
+        if editor.content.is_file() {
+            let doc = Arc::make_mut(doc);
+
+            // It isn't enabled at all, so we just clear it (in case it was
+            // enabled, and then disalbled) which is cheap with no existing completion lens
+            if !config.editor.enable_completion_lens {
+                doc.clear_completion();
+                return;
+            }
+
+            let item = if let Some(item) = self.current_item() {
+                if let Some(edit) = &item.item.text_edit {
+                    // There's a text edit, which is used rather than the label
+
+                    let text_format = item
+                        .item
+                        .insert_text_format
+                        .unwrap_or(lsp_types::InsertTextFormat::PLAIN_TEXT);
+
+                    match edit {
+                        CompletionTextEdit::Edit(edit) => {
+                            // The completion offset can be different from the current
+                            // cursor offset
+                            let completion_offset = self.offset;
+
+                            let offset = editor.cursor.offset();
+                            let start_offset =
+                                doc.buffer().prev_code_boundary(offset);
+                            let edit_start =
+                                doc.buffer().offset_of_position(&edit.range.start);
+
+                            // If the start of the edit isn't where the cursor currently is
+                            // and it isn't at the start of the completion, then we ignore
+                            // it. This captures most cases that we want, even if it
+                            // skips over some easily displayeable edits.
+                            if start_offset != edit_start
+                                && completion_offset != edit_start
+                            {
+                                None
+                            } else {
+                                match text_format {
+                                    lsp_types::InsertTextFormat::PLAIN_TEXT => {
+                                        // This isn't entirely correcty because it assumes that the position is `{start,end}_offset` when it may not necessarily be.
+                                        let text = &edit.new_text;
+
+                                        Some(Cow::Borrowed(text))
+                                    }
+                                    lsp_types::InsertTextFormat::SNIPPET => {
+                                        // TODO: Don't unwrap
+                                        let snippet =
+                                            Snippet::from_str(&edit.new_text)
+                                                .unwrap();
+
+                                        let text = snippet.text();
+                                        Some(Cow::Owned(text))
+                                    }
+                                    _ => None,
+                                }
+                            }
+                        }
+                        CompletionTextEdit::InsertAndReplace(_) => None,
+                    }
+                } else {
+                    // There's no specific text edit, so we just use the label displayed in
+                    // the completion list
+                    let label = &item.item.label;
+
+                    Some(Cow::Borrowed(label))
+                }
+            } else {
+                None
+            };
+
+            // We strip the prefix of the currently inputted text off of it, so that
+            // 'p' with a completion of `println` only sets the completion to 'rintln'.
+            // If it does not include the prefix in the right position, then we don't
+            // display it. There's probably nicer ways to do this, but that's how it works
+            // in other editors that impl it atm and it is simpler to implement.
+            let item = item.as_ref().and_then(|x| x.strip_prefix(&self.input));
+            // Get only the first line of text, because Lapce does not currently support
+            // multi-line phantom-text.
+            // TODO: Once Lapce supports multi-line phantom text, then this can be
+            // removed/modified to support it.
+            let item = item.map(|x| x.lines().next().unwrap_or(x));
+
+            // If the item we got is different from the one stored, either in content or
+            // existence, then we update the document's stored completion text.
+            if doc.completion() != item {
+                if let Some(item) = item {
+                    let offset = self.offset + self.input.len();
+                    let (line, col) = doc.buffer().offset_to_line_col(offset);
+                    doc.set_completion(item.to_string(), line, col);
+                } else {
+                    doc.clear_completion();
+                }
+            }
+        }
     }
 }
 

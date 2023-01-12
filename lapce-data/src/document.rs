@@ -239,6 +239,7 @@ pub struct PhantomText {
 #[derive(Ord, Eq, PartialEq, PartialOrd)]
 pub enum PhantomTextKind {
     Ime,
+    Completion,
     InlayHint,
     Diagnostic,
 }
@@ -352,6 +353,10 @@ pub struct Document {
     pub code_actions: im::HashMap<usize, (PluginId, CodeActionResponse)>,
     pub inlay_hints: Option<Spans<InlayHint>>,
     pub diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
+    /// Current completion text which should be rendered at the `completion_pos`, as phantom text
+    completion: Option<Arc<String>>,
+    /// (line, col) position that the completion text should be displayed at.
+    completion_pos: (usize, usize),
     ime_text: Option<Arc<str>>,
     ime_pos: (usize, usize, usize),
     pub syntax_selection_range: Option<SyntaxSelectionRanges>,
@@ -399,6 +404,8 @@ impl Document {
             code_actions: im::HashMap::new(),
             inlay_hints: None,
             diagnostics: None,
+            completion: None,
+            completion_pos: (0, 0),
             ime_text: None,
             ime_pos: (0, 0, 0),
             find: Rc::new(RefCell::new(Find::new(0))),
@@ -509,6 +516,62 @@ impl Document {
                 diagnostic.diagnostic.range.end = new_end_pos;
             }
             self.diagnostics = Some(diagnostics);
+        }
+    }
+
+    /// Get the current completion phantomtext
+    pub fn completion(&self) -> Option<&str> {
+        self.completion.as_deref().map(String::as_str)
+    }
+
+    pub fn set_completion(&mut self, completion: String, line: usize, col: usize) {
+        self.clear_text_layout_cache();
+        self.completion = Some(Arc::new(completion));
+        self.completion_pos = (line, col);
+    }
+
+    pub fn clear_completion(&mut self) {
+        if self.completion.is_some() {
+            self.clear_text_layout_cache();
+        }
+        self.completion = None;
+    }
+
+    /// Update the completion phantomtext with the new edit
+    fn update_completion(&mut self, delta: &RopeDelta) {
+        if let Some(completion) = self.completion.clone() {
+            let (line, col) = self.completion_pos;
+            let offset = self.buffer().offset_of_line_col(line, col);
+
+            // If the edit is easily checkable & updateable from, then we change
+            // the completion's text. Because, in normal typing (if we didn't do this)
+            // then the text would jitter forward and then backwards as the completion widget
+            // updates it.
+            // TODO: this could also handle simple deletion, but we don't currently keep track of
+            // the past completion string content.
+            if delta.as_simple_insert().is_some() {
+                let (iv, new_len) = delta.summary();
+                if iv.start() == iv.end()
+                    && iv.start() == offset
+                    && new_len <= completion.len()
+                {
+                    // Remove the # of newly inserted characters
+                    // These aren't necessarily the same as the characters literally in the
+                    // text, but the completion will be updated when the completion widget
+                    // receives the update event, and it will fix this if needed.
+                    // TODO: this could be smarter and use the insert's content
+                    self.completion =
+                        Some(Arc::new(completion[new_len..].to_string()))
+                }
+            }
+
+            // Shift the position by the rope delta
+            let mut transformer = Transformer::new(delta);
+
+            let new_offset = transformer.transform(offset, true);
+            let new_pos = self.buffer().offset_to_line_col(new_offset);
+
+            self.completion_pos = new_pos;
         }
     }
 
@@ -1113,6 +1176,33 @@ impl Document {
 
         text.append(&mut diag_text);
 
+        let (completion_line, completion_col) = self.completion_pos;
+        let completion_text = config
+            .editor
+            .enable_completion_lens
+            .then_some(())
+            .and(self.completion.as_ref())
+            // TODO: We're probably missing on various useful completion things to include here!
+            .filter(|_| line == completion_line)
+            .map(|completion| PhantomText {
+                kind: PhantomTextKind::Completion,
+                col: completion_col,
+                text: completion.to_string(),
+                fg: Some(
+                    config
+                        .get_color_unchecked(LapceTheme::COMPLETION_LENS_FOREGROUND)
+                        .clone(),
+                ),
+                font_size: Some(config.editor.completion_lens_font_size()),
+                font_family: Some(config.editor.completion_lens_font_family()),
+                bg: None,
+                under_line: None,
+                // TODO: italics?
+            });
+        if let Some(completion_text) = completion_text {
+            text.push(completion_text);
+        }
+
         if let Some(ime_text) = self.ime_text.as_ref() {
             let (ime_line, col, _) = self.ime_pos;
             if line == ime_line {
@@ -1150,6 +1240,7 @@ impl Document {
             self.update_styles(delta);
             self.update_inlay_hints(delta);
             self.update_diagnostics(delta);
+            self.update_completion(delta);
             if let BufferContent::File(path) = &self.content {
                 self.proxy.proxy_rpc.update(
                     path.clone(),
