@@ -5,6 +5,7 @@ use druid::{
     Widget, WidgetId,
 };
 use lapce_core::buffer::DiffLines;
+use lapce_data::document::BufferContent;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{LapceIcons, LapceTheme},
@@ -67,6 +68,17 @@ impl Widget<LapceTabData> for LapceEditorGutter {
                         }
                     }
                 }
+                let editor = data.main_split.editors.get(&self.view_id).unwrap();
+                if let BufferContent::File(_) = &editor.content {
+                    if let EditorView::Diff(version) = &data.editor.view {
+                        if let Some(history) = data.doc.get_history(version) {
+                            history.trigger_update_change(
+                                &data.doc,
+                                history.diff_extend_lines() + 5,
+                            )
+                        }
+                    }
+                };
             }
             _ => {}
         }
@@ -323,6 +335,25 @@ impl LapceEditorGutter {
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
                         1.0,
                     );
+                    let pos = Point::new(
+                        (self_size.width - width * 3.0) / 2.0,
+                        line_height * line as f64 - scroll_offset.y,
+                    );
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout("...")
+                        .font(
+                            data.config.editor.font_family(),
+                            data.config.editor.font_size as f64,
+                        )
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    ctx.draw_text(&text_layout, pos);
                     line += 1;
                 }
                 DiffLines::Right(r) => {

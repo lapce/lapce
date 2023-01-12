@@ -55,6 +55,7 @@ use crate::{
     data::{EditorDiagnostic, EditorView},
     editor::{EditorLocation, EditorPosition},
     find::{Find, FindProgress},
+    history,
     history::DocumentHistory,
     proxy::LapceProxy,
     selection_range::{SelectionRangeDirection, SyntaxSelectionRanges},
@@ -684,7 +685,13 @@ impl Document {
 
     fn trigger_head_change(&self) {
         if let Some(head) = self.histories.get("head") {
-            head.trigger_update_change(self);
+            head.trigger_update_change(self, history::DEFAULT_DIFF_EXTEND_LINES);
+        }
+    }
+
+    pub fn trigger_history_change(&self, version: &str, extend_lines: usize) {
+        if let Some(history) = self.histories.get(version) {
+            history.trigger_update_change(self, extend_lines);
         }
     }
 
@@ -693,12 +700,13 @@ impl Document {
         rev: u64,
         version: &str,
         changes: Arc<Vec<DiffLines>>,
+        diff_extend_lines: usize,
     ) {
         if rev != self.rev() {
             return;
         }
         if let Some(history) = self.histories.get_mut(version) {
-            history.update_changes(changes);
+            history.update_changes(changes, diff_extend_lines);
         }
     }
 
