@@ -1904,7 +1904,10 @@ impl LapceTab {
                         );
                         ctx.set_handled();
                     }
-                    LapceUICommand::DuplicateFileOpen { existing_path, new_path } => {
+                    LapceUICommand::DuplicateFileOpen {
+                        existing_path,
+                        new_path,
+                    } => {
                         let new_path_clone = new_path.clone();
                         let event_sink = ctx.get_external_handle();
                         let tab_id = data.id;
@@ -1917,7 +1920,10 @@ impl LapceTab {
                                     Ok(_) => {
                                         let _ = event_sink.submit_command(
                                             LAPCE_UI_COMMAND,
-                                            LapceUICommand::OpenFile(new_path_clone, false),
+                                            LapceUICommand::OpenFile(
+                                                new_path_clone,
+                                                false,
+                                            ),
                                             Target::Widget(tab_id),
                                         );
                                     }

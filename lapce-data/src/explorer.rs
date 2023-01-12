@@ -1,8 +1,8 @@
 use std::{
     collections::HashMap,
+    ffi::OsString,
     path::{Path, PathBuf},
     sync::Arc,
-    ffi::OsString,
 };
 
 use druid::{Command, EventCtx, ExtEventSink, Target, WidgetId};

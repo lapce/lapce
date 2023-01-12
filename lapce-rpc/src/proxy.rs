@@ -586,7 +586,13 @@ impl ProxyRpcHandler {
         new_path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(ProxyRequest::DuplicatePath { existing_path, new_path }, f);
+        self.request_async(
+            ProxyRequest::DuplicatePath {
+                existing_path,
+                new_path,
+            },
+            f,
+        );
     }
 
     pub fn rename_path(

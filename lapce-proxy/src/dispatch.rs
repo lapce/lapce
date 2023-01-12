@@ -776,7 +776,7 @@ impl ProxyHandler for Dispatcher {
                                 message: error.to_string(),
                             });
                             self.respond_rpc(id, result);
-                            return
+                            return;
                         }
                     }
                     std::fs::copy(existing_path, new_path)

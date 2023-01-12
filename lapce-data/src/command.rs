@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc, ffi::OsString};
+use std::{collections::HashMap, ffi::OsString, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use druid::{

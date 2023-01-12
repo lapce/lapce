@@ -832,22 +832,25 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             menu = menu.entry(item);
 
                             if !node.is_dir {
-                                let item = druid::MenuItem::new("Duplicate").command(
-                                    Command::new(
+                                let item = druid::MenuItem::new("Duplicate")
+                                    .command(Command::new(
                                         LAPCE_UI_COMMAND,
                                         LapceUICommand::ExplorerStartDuplicate {
                                             list_index: index,
                                             indent_level,
-                                            base_path: node.path_buf.parent()
+                                            base_path: node
+                                                .path_buf
+                                                .parent()
                                                 .expect("file without parent")
                                                 .to_owned(),
-                                            name: node.path_buf.file_name()
+                                            name: node
+                                                .path_buf
+                                                .file_name()
                                                 .expect("file without name")
                                                 .to_owned(),
                                         },
                                         Target::Auto,
-                                    ),
-                                );
+                                    ));
                                 menu = menu.entry(item);
                             }
 
