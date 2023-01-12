@@ -99,6 +99,8 @@ impl LapceTheme {
     pub const ERROR_LENS_OTHER_FOREGROUND: &str = "error_lens.other.foreground";
     pub const ERROR_LENS_OTHER_BACKGROUND: &str = "error_lens.other.background";
 
+    pub const COMPLETION_LENS_FOREGROUND: &str = "completion_lens.foreground";
+
     pub const SOURCE_CONTROL_ADDED: &str = "source_control.added";
     pub const SOURCE_CONTROL_REMOVED: &str = "source_control.removed";
     pub const SOURCE_CONTROL_MODIFIED: &str = "source_control.modified";
@@ -409,6 +411,18 @@ pub struct EditorConfig {
     )]
     pub error_lens_font_size: usize,
     #[field_names(
+        desc = "If the editor should display the completion item as phantom text"
+    )]
+    pub enable_completion_lens: bool,
+    #[field_names(
+        desc = "Set completion lens font family. If empty, it uses the inlay hint font family."
+    )]
+    pub completion_lens_font_family: String,
+    #[field_names(
+        desc = "Set the completion lens font size. If 0 it uses the inlay hint font size."
+    )]
+    pub completion_lens_font_size: usize,
+    #[field_names(
         desc = "Set the cursor blink interval (in milliseconds). Set to 0 to completely disable."
     )]
     pub blink_interval: u64, // TODO: change to u128 when upgrading config-rs to >0.11
@@ -493,6 +507,22 @@ impl EditorConfig {
             self.inlay_hint_font_size()
         } else {
             self.error_lens_font_size
+        }
+    }
+
+    pub fn completion_lens_font_family(&self) -> FontFamily {
+        if self.completion_lens_font_family.is_empty() {
+            self.inlay_hint_font_family()
+        } else {
+            FontFamily::new_unchecked(self.completion_lens_font_family.clone())
+        }
+    }
+
+    pub fn completion_lens_font_size(&self) -> usize {
+        if self.completion_lens_font_size == 0 {
+            self.inlay_hint_font_size()
+        } else {
+            self.completion_lens_font_size
         }
     }
 }
