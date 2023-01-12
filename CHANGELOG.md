@@ -15,6 +15,7 @@
 - [#1574](https://github.com/lapce/lapce/pull/1574): Panel sections can be expanded/collapsed
 - [#1938](https://github.com/lapce/lapce/pull/1938): Use dropdown for theme selection in settings
 - [#1960](https://github.com/lapce/lapce/pull/1960): Add sticky headers and code lens for PHP
+- [#1972](https://github.com/lapce/lapce/pull/1972): Add file duplication option in fs tree context menu
 
 ### Bug Fixes
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys
