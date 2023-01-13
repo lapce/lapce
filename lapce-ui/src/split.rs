@@ -746,6 +746,7 @@ impl LapceSplit {
             ctx.get_external_handle(),
             data.proxy.clone(),
             &data.config,
+            None,
         ));
         let terminal = LapceTerminalView::new(&terminal_data);
         Arc::make_mut(&mut data.terminal)

@@ -146,7 +146,7 @@ impl Terminal {
                         if let Some(tty::ChildEvent::Exited) =
                             self.pty.next_child_event()
                         {
-                            core_rpc.close_terminal(self.term_id);
+                            core_rpc.terminal_process_stopped(self.term_id);
                             break 'event_loop;
                         }
                     }

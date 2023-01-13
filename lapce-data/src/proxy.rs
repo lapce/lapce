@@ -254,11 +254,11 @@ impl CoreHandler for LapceProxy {
                     .term_tx
                     .send((term_id, TermEvent::UpdateContent(content)));
             }
-            CloseTerminal { term_id } => {
+            TerminalProcessStopped { term_id } => {
                 let _ = self.term_tx.send((term_id, TermEvent::CloseTerminal));
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::CloseTerminal(term_id),
+                    LapceUICommand::TerminalProcessStopped(term_id),
                     Target::Widget(self.tab_id),
                 );
             }

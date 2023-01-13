@@ -1,0 +1,14 @@
+# The run config is used for both run mode and debug mode
+
+[[configs]]
+# the name of this config
+name = "Debug"
+
+# the program to run
+program = ""
+
+# the program arguments, e.g. args = ["arg1", "arg2"] 
+args = []
+
+# current working directory, optional
+# cwd = ""

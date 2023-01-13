@@ -38,6 +38,7 @@ use crate::{
         EditorTabChild, LapceMainSplitData, LapceTabData, LapceWorkspace,
         SplitContent,
     },
+    debug::{RunDebugConfig, RunDebugMode},
     document::BufferContent,
     editor::{EditorLocation, EditorPosition, Line, LineCol},
     images,
@@ -356,8 +357,12 @@ pub enum LapceWorkbenchCommand {
     PaletteWorkspace,
 
     #[strum(message = "Run and Debug")]
-    #[strum(serialize = "palette.run_configs")]
-    PaletteRunConfig,
+    #[strum(serialize = "palette.run_and_debug")]
+    PaletteRunAndDebug,
+
+    #[strum(message = "Run and Debug Restart Current Running")]
+    #[strum(serialize = "palette.run_and_debug_restart")]
+    RunAndDebugRestart,
 
     #[strum(serialize = "source_control.checkout_branch")]
     CheckoutBranch,
@@ -898,7 +903,12 @@ pub enum LapceUICommand {
     /// updating the file explorer.
     WorkspaceFileChange,
     ProxyUpdateStatus(ProxyStatus),
+    RunAndDebug {
+        mode: RunDebugMode,
+        config: RunDebugConfig,
+    },
     RunInTerminal(String),
+    TerminalProcessStopped(TermId),
     CloseTerminal(TermId),
     OpenPluginInfo(VoltInfo),
     SplitTerminal(bool, WidgetId),
