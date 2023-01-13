@@ -6,6 +6,7 @@ use druid::{
 };
 use lapce_core::buffer::DiffLines;
 use lapce_data::document::BufferContent;
+use lapce_data::history::DocumentHistory;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{LapceIcons, LapceTheme},
@@ -72,10 +73,19 @@ impl Widget<LapceTabData> for LapceEditorGutter {
                 if let BufferContent::File(_) = &editor.content {
                     if let EditorView::Diff(version) = &data.editor.view {
                         if let Some(history) = data.doc.get_history(version) {
-                            history.trigger_update_change(
-                                &data.doc,
-                                history.diff_extend_lines() + 5,
-                            )
+                            let diff_skip = self
+                                .check_and_get_diff_skip_mouse_within(
+                                    ctx,
+                                    &data,
+                                    history,
+                                    mouse_event.pos,
+                                );
+                            if diff_skip.is_some() {
+                                history.trigger_update_change(
+                                    &data.doc,
+                                    history.diff_extend_lines() + 5,
+                                )
+                            }
                         }
                     }
                 };
@@ -421,6 +431,55 @@ impl LapceEditorGutter {
                 }
             }
         }
+    }
+
+    fn check_and_get_diff_skip_mouse_within(
+        &self,
+        ctx: &mut EventCtx,
+        data: &LapceEditorBufferData,
+        history: &DocumentHistory,
+        mouse_pos: Point,
+    ) -> Option<DiffLines> {
+        let line_height = data.config.editor.line_height() as f64;
+        let self_size = ctx.size();
+        let rect = self_size.to_rect();
+        let scroll_offset = data.editor.scroll_offset;
+        let end_line =
+            (scroll_offset.y + rect.height() / line_height).ceil() as usize;
+
+        let mut line = 0;
+        for change in history.changes().iter() {
+            match change {
+                DiffLines::Left(r) => {
+                    let len = r.len();
+                    line += len;
+                }
+                DiffLines::Both(_, r) => {
+                    let len = r.len();
+                    line += len;
+                }
+                DiffLines::Skip(l, r) => {
+                    let rect = Size::new(self_size.width, line_height)
+                        .to_rect()
+                        .with_origin(Point::new(
+                            0.0,
+                            line_height * line as f64 - scroll_offset.y,
+                        ));
+                    if rect.contains(mouse_pos) {
+                        return Some(DiffLines::Skip(l.clone(), r.clone()));
+                    }
+                    line += 1;
+                }
+                DiffLines::Right(r) => {
+                    let len = r.len();
+                    line += len;
+                }
+            }
+            if line > end_line {
+                break;
+            }
+        }
+        return None;
     }
 
     fn paint_gutter_code_lens(
