@@ -15,15 +15,12 @@
 - [#1574](https://github.com/lapce/lapce/pull/1574): Panel sections can be expanded/collapsed
 - [#1938](https://github.com/lapce/lapce/pull/1938): Use dropdown for theme selection in settings
 - [#1960](https://github.com/lapce/lapce/pull/1960): Add sticky headers and code lens for PHP
-- [#1968](https://github.com/lapce/lapce/pull/1968): Completion lens (disabled by default)
-  - ![image](https://user-images.githubusercontent.com/13157904/211959283-c3229cfc-28d7-4676-a50d-aec7d47cde9f.png)
-- [#1972](https://github.com/lapce/lapce/pull/1972): Add file duplication option in fs tree context menu
 - [#19670](https://github.com/lapce/lapce/pull/1970): Support increase diff extend size(5 lines).
+
 
 ### Bug Fixes
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys
 - [#1939](https://github.com/lapce/lapce/pull/1939): Fix saving/editing newly saved-as files
-- [#1971](https://github.com/lapce/lapce/pull/1971): Fix up/down movement on first/last line
 
 ## 0.2.5
 
