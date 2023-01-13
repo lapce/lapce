@@ -31,7 +31,6 @@ use lapce_core::{
     },
     word::WordCursor,
 };
-use lapce_proxy::plugin::dap_types::SourceBreakpoint;
 use lapce_rpc::{
     buffer::BufferId,
     plugin::PluginId,

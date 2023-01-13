@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use alacritty_terminal::{
     ansi,
@@ -30,6 +30,7 @@ use crate::{
     },
     config::{LapceConfig, LapceTheme},
     data::LapceWorkspace,
+    debug::{RunDebugConfig, RunDebugMode, RunDebugProcess},
     document::SystemClipboard,
     find::Find,
     keypress::KeyPressFocus,
@@ -53,8 +54,10 @@ impl TerminalPanelData {
         proxy: Arc<LapceProxy>,
         config: &LapceConfig,
         event_sink: ExtEventSink,
+        run_debug: Option<RunDebugProcess>,
     ) -> Self {
-        let split = TerminalSplitData::new(worksapce, proxy, config, event_sink);
+        let split =
+            TerminalSplitData::new(worksapce, proxy, config, event_sink, run_debug);
         let tabs_order = Arc::new(vec![split.split_id]);
         let mut tabs = im::HashMap::new();
         tabs.insert(split.split_id, split);
@@ -92,16 +95,49 @@ impl TerminalPanelData {
             .and_then(|id| self.tabs.get_mut(id))
     }
 
+    pub fn get_terminal_mut(
+        &mut self,
+        id: &TermId,
+    ) -> Option<&mut Arc<LapceTerminalData>> {
+        for (_, tab) in self.tabs.iter_mut() {
+            if let Some(terminal) = tab.terminals.get_mut(id) {
+                return Some(terminal);
+            }
+        }
+        None
+    }
+
+    pub fn get_stopped_run_debug_terminal_mut(
+        &mut self,
+        mode: &RunDebugMode,
+        name: &str,
+    ) -> Option<&mut Arc<LapceTerminalData>> {
+        for (_, tab) in self.tabs.iter_mut() {
+            for (_, terminal) in tab.terminals.iter_mut() {
+                if let Some(run_debug) = terminal.run_debug.as_ref() {
+                    if run_debug.stopped
+                        && run_debug.name == name
+                        && &run_debug.mode == mode
+                    {
+                        return Some(terminal);
+                    }
+                }
+            }
+        }
+        None
+    }
+
     pub fn new_tab(
         &mut self,
         workspace: Arc<LapceWorkspace>,
         proxy: Arc<LapceProxy>,
         config: &LapceConfig,
         event_sink: ExtEventSink,
+        run_debug: Option<RunDebugProcess>,
     ) -> WidgetId {
         let active_index = (self.active + 1).min(self.tabs_order.len());
         let new_term_split =
-            TerminalSplitData::new(workspace, proxy, config, event_sink);
+            TerminalSplitData::new(workspace, proxy, config, event_sink, run_debug);
         let new_term_tab_id = new_term_split.split_id;
         Arc::make_mut(&mut self.tabs_order).insert(active_index, new_term_tab_id);
         self.tabs.insert(new_term_tab_id, new_term_split);
@@ -125,10 +161,11 @@ impl TerminalSplitData {
         proxy: Arc<LapceProxy>,
         config: &LapceConfig,
         event_sink: ExtEventSink,
+        run_debug: Option<RunDebugProcess>,
     ) -> Self {
         let split_id = WidgetId::next();
         let terminal_data = Arc::new(LapceTerminalData::new(
-            workspace, split_id, event_sink, proxy, config,
+            workspace, split_id, event_sink, proxy, config, run_debug,
         ));
         let term_id = terminal_data.term_id;
         let widget_id = terminal_data.widget_id;
@@ -617,6 +654,10 @@ pub struct LapceTerminalData {
     pub visual_mode: VisualMode,
     pub raw: Arc<Mutex<RawTerminal>>,
     pub proxy: Arc<LapceProxy>,
+    pub run_debug: Option<RunDebugProcess>,
+    workspace: Arc<LapceWorkspace>,
+    event_sink: ExtEventSink,
+    size: Rc<RefCell<(usize, usize)>>,
 }
 
 impl LapceTerminalData {
@@ -626,6 +667,7 @@ impl LapceTerminalData {
         event_sink: ExtEventSink,
         proxy: Arc<LapceProxy>,
         config: &LapceConfig,
+        run_debug: Option<RunDebugProcess>,
     ) -> Self {
         let cwd = workspace.path.as_ref().cloned();
         let widget_id = WidgetId::next();
@@ -634,20 +676,17 @@ impl LapceTerminalData {
         let raw = Arc::new(Mutex::new(RawTerminal::new(
             term_id,
             proxy.clone(),
-            event_sink,
+            event_sink.clone(),
         )));
 
         let local_proxy = proxy.clone();
         let local_raw = raw.clone();
-        let shell = config.terminal.shell.clone();
 
-        // TODO: replace with profile name, once we implement terminal profiles
-        let title = if !shell.is_empty() {
-            shell.clone()
+        let shell = if let Some(run_debug) = run_debug.as_ref() {
+            run_debug.command.clone()
         } else {
-            String::from("(no title)")
+            config.terminal.shell.clone()
         };
-
         std::thread::spawn(move || {
             local_proxy.new_terminal(term_id, cwd, shell, local_raw);
         });
@@ -662,12 +701,60 @@ impl LapceTerminalData {
             visual_mode: VisualMode::Normal,
             raw,
             proxy,
+            run_debug,
+            workspace,
+            event_sink,
+            size: Rc::new(RefCell::new((50, 50))),
         }
+    }
+
+    pub fn restart_run_debug(&mut self, config: &LapceConfig) {
+        let run_debug = match self.run_debug.as_ref() {
+            Some(run_debug) => run_debug,
+            None => return,
+        };
+        let mut run_debug = run_debug.clone();
+        run_debug.stopped = false;
+        self.proxy.proxy_rpc.terminal_close(self.term_id);
+        self.new_process(Some(run_debug), config);
+    }
+
+    pub fn new_process(
+        &mut self,
+        run_debug: Option<RunDebugProcess>,
+        config: &LapceConfig,
+    ) {
+        let raw = Arc::new(Mutex::new(RawTerminal::new(
+            self.term_id,
+            self.proxy.clone(),
+            self.event_sink.clone(),
+        )));
+
+        let local_proxy = self.proxy.clone();
+        let local_raw = raw.clone();
+
+        let shell = if let Some(run_debug) = run_debug.as_ref() {
+            run_debug.command.clone()
+        } else {
+            config.terminal.shell.clone()
+        };
+        let term_id = self.term_id;
+        let cwd = self.workspace.path.as_ref().cloned();
+        std::thread::spawn(move || {
+            local_proxy.new_terminal(term_id, cwd, shell, local_raw);
+        });
+
+        self.raw = raw;
+        self.run_debug = run_debug;
+
+        let (width, height) = *self.size.borrow();
+        self.resize(width, height);
     }
 
     pub fn resize(&self, width: usize, height: usize) {
         let width = width.max(1);
         let height = height.max(1);
+        *self.size.borrow_mut() = (width, height);
 
         let size = TermSize::new(width, height);
 

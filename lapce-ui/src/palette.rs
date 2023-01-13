@@ -9,8 +9,9 @@ use druid::{
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceTheme},
+    config::{LapceConfig, LapceIcons, LapceTheme},
     data::{LapceTabData, LapceWorkspaceType},
+    debug::RunDebugMode,
     keypress::{Alignment, KeyMap, KeyPressFocus},
     list::ListData,
     palette::{
@@ -75,7 +76,6 @@ impl Widget<LapceTabData> for Palette {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::RunPalette(palette_type) => {
-                        println!("run palette {palette_type:?}");
                         ctx.set_handled();
                         let mut palette_data = data.palette_view_data();
                         palette_data.run(ctx, palette_type.to_owned(), None, true);
@@ -657,8 +657,8 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 format!("{ssh}"),
                 self.indices.to_vec(),
             ),
-            PaletteItemContent::RunConfig(config) => {
-                let text = config.name.clone();
+            PaletteItemContent::RunAndDebug(mode, config) => {
+                let text = format!("{mode} {}", config.name);
                 let hint = format!("{} {}", config.program, config.args.join(" "));
                 let text_indices: Vec<usize> = self
                     .indices
@@ -684,8 +684,14 @@ impl ListPaint<PaletteListData> for PaletteItem {
                         }
                     })
                     .collect();
+                let svg = match mode {
+                    RunDebugMode::Run => data.config.ui_svg(LapceIcons::START),
+                    RunDebugMode::Debug => {
+                        data.config.ui_svg(LapceIcons::DEBUG_SMALL)
+                    }
+                };
                 PaletteItemPaintInfo {
-                    svg: None,
+                    svg: Some(svg),
                     svg_color: None,
                     text,
                     text_color: None,

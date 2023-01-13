@@ -37,7 +37,7 @@ use crate::{
         LapceWorkspaceType, SshHost,
     },
     db::LapceDb,
-    debug::{run_configs, RunConfig},
+    debug::{run_configs, RunDebugConfig, RunDebugMode},
     document::BufferContent,
     editor::EditorLocation,
     find::Find,
@@ -63,7 +63,7 @@ pub enum PaletteType {
     IconTheme,
     SshHost,
     Language,
-    RunConfig,
+    RunAndDebug,
 }
 
 impl PaletteType {
@@ -80,7 +80,7 @@ impl PaletteType {
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::SshHost
-            | PaletteType::RunConfig
+            | PaletteType::RunAndDebug
             | PaletteType::Language => "",
         }
     }
@@ -110,7 +110,6 @@ impl PaletteType {
     /// Get the palette type that it should be considered as based on the current
     /// [`PaletteType`] and the current input.
     fn get_palette_type(current_type: &PaletteType, input: &str) -> PaletteType {
-        println!("get palette type {current_type:?} input: {input}");
         if current_type != &PaletteType::File && current_type.symbol() == "" {
             return current_type.clone();
         }
@@ -153,7 +152,7 @@ pub enum PaletteItemContent {
     ReferenceLocation(PathBuf, EditorLocation<Position>),
     Workspace(LapceWorkspace),
     SshHost(SshHost),
-    RunConfig(RunConfig),
+    RunAndDebug(RunDebugMode, RunDebugConfig),
     Command(LapceCommand),
     ColorTheme(String),
     IconTheme(String),
@@ -304,7 +303,18 @@ impl PaletteItemContent {
                     ));
                 }
             }
-            PaletteItemContent::RunConfig(config) => if !preview {},
+            PaletteItemContent::RunAndDebug(mode, config) => {
+                if !preview {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::RunAndDebug {
+                            mode: *mode,
+                            config: config.clone(),
+                        },
+                        Target::Auto,
+                    ));
+                }
+            }
         }
         true
     }
@@ -394,6 +404,7 @@ pub struct PaletteData {
     pub preview_editor: WidgetId,
     pub input_editor: WidgetId,
     pub executed_commands: Rc<RefCell<HashMap<String, Instant>>>,
+    pub executed_run_configs: Rc<RefCell<HashMap<(RunDebugMode, String), Instant>>>,
 }
 
 impl KeyPressFocus for PaletteViewData {
@@ -489,6 +500,7 @@ impl PaletteData {
             preview_editor,
             input_editor: WidgetId::next(),
             executed_commands: Rc::new(RefCell::new(HashMap::new())),
+            executed_run_configs: Rc::new(RefCell::new(HashMap::new())),
         }
     }
 
@@ -521,7 +533,7 @@ impl PaletteData {
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::Language
-            | PaletteType::RunConfig
+            | PaletteType::RunAndDebug
             | PaletteType::SshHost => &self.input,
             PaletteType::Line
             | PaletteType::DocumentSymbol
@@ -612,8 +624,6 @@ impl PaletteViewData {
         palette.input =
             input.unwrap_or_else(|| palette.palette_type.symbol().to_string());
 
-        println!("run palette {:?}", palette.palette_type);
-
         // Most usages of `run` will want to initialize the input
         // However, special types like workspace-symbol-search want to avoid it
         // so that they do not cause loops, because they cause run when their
@@ -660,8 +670,7 @@ impl PaletteViewData {
                 self.get_workspaces(ctx);
             }
             PaletteType::Reference => {}
-            PaletteType::RunConfig => {
-                println!("get run configs");
+            PaletteType::RunAndDebug => {
                 self.get_run_configs(ctx);
             }
             PaletteType::SshHost => {
@@ -782,11 +791,20 @@ impl PaletteViewData {
         }
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.list_data.current_selected_item() {
-            if let PaletteItemContent::Command(cmd) = &item.content {
-                palette
-                    .executed_commands
-                    .borrow_mut()
-                    .insert(cmd.kind.str().to_string(), Instant::now());
+            match &item.content {
+                PaletteItemContent::Command(cmd) => {
+                    palette
+                        .executed_commands
+                        .borrow_mut()
+                        .insert(cmd.kind.str().to_string(), Instant::now());
+                }
+                PaletteItemContent::RunAndDebug(mode, config) => {
+                    palette
+                        .executed_run_configs
+                        .borrow_mut()
+                        .insert((mode.clone(), config.name.clone()), Instant::now());
+                }
+                _ => (),
             }
             if item.content.select(ctx, false, palette.preview_editor) {
                 self.cancel(ctx);
@@ -817,7 +835,6 @@ impl PaletteViewData {
         // If the input changed and the palette type is still/now workspace-symbol then we rerun it
         let palette_type =
             PaletteType::get_palette_type(&palette.palette_type, &input);
-        println!("palette type is {palette_type:?}");
         if input != palette.input && palette_type == PaletteType::WorkspaceSymbol {
             self.run(ctx, Some(PaletteType::WorkspaceSymbol), Some(input), false);
             return;
@@ -906,23 +923,52 @@ impl PaletteViewData {
         let configs = run_configs(self.workspace.path.as_deref());
         let palette = Arc::make_mut(&mut self.palette);
         palette.total_items.clear();
+        let executed_run_configs = palette.executed_run_configs.borrow();
+
+        let mut items = Vec::new();
         if let Some(configs) = configs.as_ref() {
-            palette.total_items = configs
-                .configs
-                .iter()
-                .map(|config| PaletteItem {
-                    content: PaletteItemContent::RunConfig(config.clone()),
-                    filter_text: format!(
-                        "{} {} {}",
-                        config.name,
-                        config.program,
-                        config.args.join(" ")
-                    ),
-                    score: 0,
-                    indices: vec![],
-                })
-                .collect();
+            for config in &configs.configs {
+                items.push((
+                    executed_run_configs
+                        .get(&(RunDebugMode::Run, config.name.clone())),
+                    PaletteItem {
+                        content: PaletteItemContent::RunAndDebug(
+                            RunDebugMode::Run,
+                            config.clone(),
+                        ),
+                        filter_text: format!(
+                            "Run {} {} {}",
+                            config.name,
+                            config.program,
+                            config.args.join(" ")
+                        ),
+                        score: 0,
+                        indices: vec![],
+                    },
+                ));
+                items.push((
+                    executed_run_configs
+                        .get(&(RunDebugMode::Debug, config.name.clone())),
+                    PaletteItem {
+                        content: PaletteItemContent::RunAndDebug(
+                            RunDebugMode::Debug,
+                            config.clone(),
+                        ),
+                        filter_text: format!(
+                            "Debug {} {} {}",
+                            config.name,
+                            config.program,
+                            config.args.join(" ")
+                        ),
+                        score: 0,
+                        indices: vec![],
+                    },
+                ));
+            }
         }
+
+        items.sort_by_key(|(executed, _item)| std::cmp::Reverse(executed.copied()));
+        palette.total_items = items.into_iter().map(|(_, item)| item).collect();
     }
 
     fn get_ssh_hosts(&mut self, _ctx: &mut EventCtx) {

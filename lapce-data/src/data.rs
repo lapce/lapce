@@ -60,7 +60,7 @@ use crate::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
     },
-    debug::DebugData,
+    debug::RunDebugData,
     document::{BufferContent, Document, LocalBufferKind},
     editor::{EditorLocation, EditorPosition, LapceEditorBufferData, Line, TabRect},
     explorer::FileExplorerData,
@@ -627,7 +627,7 @@ pub struct LapceTabData {
     pub find: Arc<Find>,
     pub source_control: Arc<SourceControlData>,
     pub problem: Arc<ProblemData>,
-    pub debug: Arc<DebugData>,
+    pub debug: Arc<RunDebugData>,
     pub search: Arc<SearchData>,
     pub plugin: Arc<PluginData>,
     pub picker: Arc<FilePickerData>,
@@ -827,9 +827,10 @@ impl LapceTabData {
             proxy.clone(),
             &config,
             event_sink.clone(),
+            None,
         ));
         let problem = Arc::new(ProblemData::new());
-        let debug = Arc::new(DebugData::new());
+        let debug = Arc::new(RunDebugData::new());
         let panel = workspace_info
             .map(|i| {
                 let mut panel = i.panel;
@@ -1534,12 +1535,32 @@ impl LapceTabData {
                     Target::Widget(self.palette.widget_id),
                 ));
             }
-            LapceWorkbenchCommand::PaletteRunConfig => {
+            LapceWorkbenchCommand::PaletteRunAndDebug => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::RunPalette(Some(PaletteType::RunConfig)),
+                    LapceUICommand::RunPalette(Some(PaletteType::RunAndDebug)),
                     Target::Widget(self.palette.widget_id),
                 ));
+            }
+            LapceWorkbenchCommand::RunAndDebugRestart => {
+                if let Some(active_terminal) =
+                    self.debug.active_term.as_ref().and_then(|t| {
+                        Arc::make_mut(&mut self.terminal).get_terminal_mut(t)
+                    })
+                {
+                    Arc::make_mut(active_terminal).restart_run_debug(&self.config);
+                    let _ = ctx.get_external_handle().submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(active_terminal.widget_id),
+                    );
+                } else {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::RunPalette(Some(PaletteType::RunAndDebug)),
+                        Target::Widget(self.palette.widget_id),
+                    ));
+                }
             }
             LapceWorkbenchCommand::PaletteWorkspace => {
                 ctx.submit_command(Command::new(
@@ -1909,6 +1930,7 @@ impl LapceTabData {
                     self.proxy.clone(),
                     &self.config,
                     ctx.get_external_handle(),
+                    None,
                 );
                 if !self.panel.is_panel_visible(&PanelKind::Terminal) {
                     Arc::make_mut(&mut self.panel).show_panel(&PanelKind::Terminal);

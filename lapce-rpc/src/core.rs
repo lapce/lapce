@@ -105,7 +105,7 @@ pub enum CoreNotification {
         term_id: TermId,
         content: Vec<u8>,
     },
-    CloseTerminal {
+    TerminalProcessStopped {
         term_id: TermId,
     },
     RunInTerminal {
@@ -300,8 +300,8 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::LogMessage { message });
     }
 
-    pub fn close_terminal(&self, term_id: TermId) {
-        self.notification(CoreNotification::CloseTerminal { term_id });
+    pub fn terminal_process_stopped(&self, term_id: TermId) {
+        self.notification(CoreNotification::TerminalProcessStopped { term_id });
     }
 
     pub fn update_terminal(&self, term_id: TermId, content: Vec<u8>) {
