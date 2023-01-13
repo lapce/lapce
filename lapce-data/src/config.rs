@@ -151,10 +151,22 @@ impl LapceTheme {
 
     pub const STATUS_BACKGROUND: &str = "status.background";
     pub const STATUS_FOREGROUND: &str = "status.foreground";
-    pub const STATUS_MODAL_NORMAL: &str = "status.modal.normal";
-    pub const STATUS_MODAL_INSERT: &str = "status.modal.insert";
-    pub const STATUS_MODAL_VISUAL: &str = "status.modal.visual";
-    pub const STATUS_MODAL_TERMINAL: &str = "status.modal.terminal";
+    pub const STATUS_MODAL_NORMAL_BACKGROUND: &str =
+        "status.modal.normal.background";
+    pub const STATUS_MODAL_NORMAL_FOREGROUND: &str =
+        "status.modal.normal.foreground";
+    pub const STATUS_MODAL_INSERT_BACKGROUND: &str =
+        "status.modal.insert.background";
+    pub const STATUS_MODAL_INSERT_FOREGROUND: &str =
+        "status.modal.insert.foreground";
+    pub const STATUS_MODAL_VISUAL_BACKGROUND: &str =
+        "status.modal.visual.background";
+    pub const STATUS_MODAL_VISUAL_FOREGROUND: &str =
+        "status.modal.visual.foreground";
+    pub const STATUS_MODAL_TERMINAL_BACKGROUND: &str =
+        "status.modal.terminal.background";
+    pub const STATUS_MODAL_TERMINAL_FOREGROUND: &str =
+        "status.modal.terminal.foreground";
 
     pub const PALETTE_INPUT_LINE_HEIGHT: druid::Key<f64> =
         druid::Key::new("lapce.palette_input_line_height");
