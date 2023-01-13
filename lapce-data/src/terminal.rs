@@ -645,6 +645,14 @@ impl LapceTerminalData {
         let local_proxy = proxy.clone();
         let local_raw = raw.clone();
         let shell = config.terminal.shell.clone();
+
+        // TODO: replace with profile name, once we implement terminal profiles
+        let title = if !shell.is_empty() {
+            shell.clone()
+        } else {
+            String::from("(no title)")
+        };
+
         std::thread::spawn(move || {
             local_proxy.new_terminal(term_id, cwd, shell, local_raw);
         });
@@ -654,7 +662,7 @@ impl LapceTerminalData {
             widget_id,
             view_id,
             split_id,
-            title: "".to_string(),
+            title,
             mode: Mode::Terminal,
             visual_mode: VisualMode::Normal,
             raw,
