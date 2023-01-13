@@ -1528,11 +1528,6 @@ impl Widget<LapceTabData> for LapceTerminal {
             );
         }
 
-        let draw_cursor = terminal
-            .run_debug
-            .as_ref()
-            .map(|run_debug| !run_debug.stopped)
-            .unwrap_or(true);
         let cursor_point = &content.cursor.point;
 
         let term_bg = data
@@ -1581,7 +1576,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                 ctx.fill(rect, &bg);
             }
 
-            if draw_cursor && cursor_point == &point {
+            if cursor_point == &point {
                 let rect = Size::new(
                     char_width * cell.c.width().unwrap_or(1) as f64,
                     line_height,

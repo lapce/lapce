@@ -696,7 +696,7 @@ impl LapceTerminalData {
             widget_id,
             view_id,
             split_id,
-            title,
+            title: "".to_string(),
             mode: Mode::Terminal,
             visual_mode: VisualMode::Normal,
             raw,
