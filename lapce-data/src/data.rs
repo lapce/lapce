@@ -149,17 +149,49 @@ impl LapceData {
         // interpret path argument differently depending on whether line/columns are apparently specified
         for path in paths.clone() {
             // entire argument is file name
-            if path.is_file() {
-                files.push( (path, None) );
+            if path.is_absolute() && path.is_file() {
+                files.push((
+                    path, 
+                    Some(
+                        LineCol {
+                            line: 0,
+                            column: 0,
+                        },
+                    ),
+                ));
+                break;
+            } else if path.is_file() {
+                let mut absolute_path = std::env::current_dir().unwrap();
+                absolute_path.push(path);
+                files.push((
+                    absolute_path, 
+                    Some(
+                        LineCol {
+                            line: 0,
+                            column: 0,
+                        },
+                    ),
+                ));
                 break;
             }
             
             // only line is specified
             if let Some(regex) = Regex::new(r".*:[0-9]*[1-9]+[0-9]*\z").unwrap().captures( path.to_str().unwrap() ) { // regex: *:{positive integer}
                 let (file, line) = regex.get( regex.len() - 1 ).unwrap().as_str().rsplit_once(':').unwrap();
-                let mut absolute_path = std::env::current_dir().unwrap();
-                absolute_path.push(file);
-                if absolute_path.is_file() {
+                if PathBuf::from(file).is_absolute() && PathBuf::from(file).is_file() {
+                    files.push(( 
+                        PathBuf::from(file), 
+                        Some( 
+                            LineCol { 
+                                line: line.parse::<usize>().unwrap() - 1, 
+                                column: 0 
+                            } 
+                        )
+                    ));
+                    break;
+                } else if PathBuf::from(file).is_file() {
+                    let mut absolute_path = std::env::current_dir().unwrap();
+                    absolute_path.push(file);
                     files.push(( 
                         absolute_path, 
                         Some( 
@@ -177,9 +209,19 @@ impl LapceData {
             if let Some(regex) = Regex::new(r".*:[0-9]*[1-9]+[0-9]*:[0-9]*[1-9]+[0-9]*\z").unwrap().captures( path.to_str().unwrap() ) { // regex: *:{positive integer}:{positive integer}
                 let (fileline, column) = regex.get( regex.len() - 1 ).unwrap().as_str().rsplit_once(':').unwrap();
                 let (file, line) = fileline.rsplit_once(':').unwrap();
-                let mut absolute_path = std::env::current_dir().unwrap();
-                absolute_path.push(file);
-                if absolute_path.is_file() {
+                if PathBuf::from(file).is_absolute() && PathBuf::from(file).is_file() {
+                    files.push(( 
+                        PathBuf::from(file),
+                        Some( 
+                            LineCol { 
+                                line: line.parse::<usize>().unwrap() - 1,
+                                column: column.parse::<usize>().unwrap() - 1,
+                            } 
+                        )
+                    ));
+                } else if PathBuf::from(file).is_file() {
+                    let mut absolute_path = std::env::current_dir().unwrap();
+                    absolute_path.push(file);
                     files.push(( 
                         absolute_path,
                         Some( 
