@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, path::PathBuf, rc::Rc, sync::Arc};
 
 use alacritty_terminal::{
     ansi,
@@ -116,7 +116,7 @@ impl TerminalPanelData {
             for (_, terminal) in tab.terminals.iter_mut() {
                 if let Some(run_debug) = terminal.run_debug.as_ref() {
                     if run_debug.stopped
-                        && run_debug.name == name
+                        && run_debug.config.name == name
                         && &run_debug.mode == mode
                     {
                         return Some(terminal);
@@ -669,27 +669,18 @@ impl LapceTerminalData {
         config: &LapceConfig,
         run_debug: Option<RunDebugProcess>,
     ) -> Self {
-        let cwd = workspace.path.as_ref().cloned();
         let widget_id = WidgetId::next();
         let view_id = WidgetId::next();
         let term_id = TermId::next();
-        let raw = Arc::new(Mutex::new(RawTerminal::new(
+
+        let raw = Self::new_raw_terminal(
+            &workspace,
             term_id,
             proxy.clone(),
             event_sink.clone(),
-        )));
-
-        let local_proxy = proxy.clone();
-        let local_raw = raw.clone();
-
-        let shell = if let Some(run_debug) = run_debug.as_ref() {
-            run_debug.command.clone()
-        } else {
-            config.terminal.shell.clone()
-        };
-        std::thread::spawn(move || {
-            local_proxy.new_terminal(term_id, cwd, shell, local_raw);
-        });
+            config,
+            run_debug.as_ref().map(|r| &r.config),
+        );
 
         Self {
             term_id,
@@ -708,6 +699,51 @@ impl LapceTerminalData {
         }
     }
 
+    pub fn new_raw_terminal(
+        workspace: &LapceWorkspace,
+        term_id: TermId,
+        proxy: Arc<LapceProxy>,
+        event_sink: ExtEventSink,
+        config: &LapceConfig,
+        run_debug: Option<&RunDebugConfig>,
+    ) -> Arc<Mutex<RawTerminal>> {
+        let raw = Arc::new(Mutex::new(RawTerminal::new(
+            term_id,
+            proxy.clone(),
+            event_sink,
+        )));
+
+        let mut cwd = workspace.path.as_ref().cloned();
+        let shell = if let Some(run_debug) = run_debug {
+            if let Some(path) = run_debug.cwd.as_ref() {
+                cwd = Some(PathBuf::from(path));
+                if path.contains("${workspace}") {
+                    if let Some(workspace) = workspace
+                        .path
+                        .as_ref()
+                        .and_then(|workspace| workspace.to_str())
+                    {
+                        cwd = Some(PathBuf::from(
+                            &path.replace("${workspace}", workspace),
+                        ));
+                    }
+                }
+            }
+
+            format!("{} {}", run_debug.program, run_debug.args.join(" "))
+        } else {
+            config.terminal.shell.clone()
+        };
+
+        {
+            let raw = raw.clone();
+            std::thread::spawn(move || {
+                proxy.new_terminal(term_id, cwd, shell, raw);
+            });
+        }
+        raw
+    }
+
     pub fn restart_run_debug(&mut self, config: &LapceConfig) {
         let run_debug = match self.run_debug.as_ref() {
             Some(run_debug) => run_debug,
@@ -724,25 +760,14 @@ impl LapceTerminalData {
         run_debug: Option<RunDebugProcess>,
         config: &LapceConfig,
     ) {
-        let raw = Arc::new(Mutex::new(RawTerminal::new(
+        let raw = Self::new_raw_terminal(
+            &self.workspace,
             self.term_id,
             self.proxy.clone(),
             self.event_sink.clone(),
-        )));
-
-        let local_proxy = self.proxy.clone();
-        let local_raw = raw.clone();
-
-        let shell = if let Some(run_debug) = run_debug.as_ref() {
-            run_debug.command.clone()
-        } else {
-            config.terminal.shell.clone()
-        };
-        let term_id = self.term_id;
-        let cwd = self.workspace.path.as_ref().cloned();
-        std::thread::spawn(move || {
-            local_proxy.new_terminal(term_id, cwd, shell, local_raw);
-        });
+            config,
+            run_debug.as_ref().map(|r| &r.config),
+        );
 
         self.raw = raw;
         self.run_debug = run_debug;

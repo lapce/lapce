@@ -919,8 +919,18 @@ impl PaletteViewData {
         });
     }
 
-    fn get_run_configs(&mut self, _ctx: &mut EventCtx) {
+    fn get_run_configs(&mut self, ctx: &mut EventCtx) {
         let configs = run_configs(self.workspace.path.as_deref());
+        if configs.is_none() {
+            if let Some(path) = self.workspace.path.as_ref() {
+                let path = path.join(".lapce").join("run.toml");
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::OpenFile(path, false),
+                    Target::Auto,
+                ));
+            }
+        }
         let palette = Arc::make_mut(&mut self.palette);
         palette.total_items.clear();
         let executed_run_configs = palette.executed_run_configs.borrow();
