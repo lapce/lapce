@@ -981,12 +981,7 @@ impl LapceTab {
                             Arc::make_mut(terminal).new_process(
                                 Some(RunDebugProcess {
                                     mode: *mode,
-                                    name: config.name.clone(),
-                                    command: format!(
-                                        "{} {}",
-                                        config.program,
-                                        config.args.join(" ")
-                                    ),
+                                    config: config.clone(),
                                     stopped: false,
                                 }),
                                 &data.config,
@@ -1005,12 +1000,7 @@ impl LapceTab {
                                 ctx.get_external_handle(),
                                 Some(RunDebugProcess {
                                     mode: *mode,
-                                    name: config.name.clone(),
-                                    command: format!(
-                                        "{} {}",
-                                        config.program,
-                                        config.args.join(" ")
-                                    ),
+                                    config: config.clone(),
                                     stopped: false,
                                 }),
                             );

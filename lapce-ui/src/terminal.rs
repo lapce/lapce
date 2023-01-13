@@ -809,7 +809,7 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContentItem {
             .and_then(|t| t.active_terminal())
             .map(|t| {
                 let title = if let Some(run_debug) = t.run_debug.as_ref() {
-                    run_debug.name.clone()
+                    run_debug.config.name.clone()
                 } else if !t.title.is_empty() {
                     t.title.clone()
                 } else {
