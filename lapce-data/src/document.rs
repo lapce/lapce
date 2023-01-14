@@ -12,6 +12,7 @@ use druid::{
     },
     Color, ExtEventSink, FontFamily, Point, Size, Target, Vec2, WidgetId,
 };
+#[cfg(target_os = "linux")]
 use druid_shell::platform::linux::ApplicationExt;
 use itertools::Itertools;
 use lapce_core::{
