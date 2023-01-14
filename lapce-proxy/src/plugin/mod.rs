@@ -1023,8 +1023,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
         archive.unpack(&plugin_dir)?;
     }
 
-    let meta_path = plugin_dir.join("volt.toml");
-    let meta = load_volt(&meta_path)?;
+    let meta = load_volt(&plugin_dir)?;
     Ok(meta)
 }
 
