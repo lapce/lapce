@@ -268,7 +268,7 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
 /// let _ = writeln!(file, "name = \"plugin\" \n version = \"0.1\"");
 /// let _ = writeln!(file, "display-name = \"Plugin\" \n author = \"Author\"");
 /// let _ = writeln!(file, "description = \"Useful plugin\"");///
-/// let volt_metadata = match load_volt(&parent_path.join("volt.toml")) {
+/// let volt_metadata = match load_volt(&parent_path) {
 ///     Ok(volt_metadata) => volt_metadata,
 ///     Err(error) => panic!("{}", error),
 /// };
