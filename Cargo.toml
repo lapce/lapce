@@ -39,7 +39,7 @@ flate2 = "1.0"
 hashbrown = { version = "0.12.3", features = ["serde"] }
 im = { version = "15.0.0", features = ["serde"] }
 include_dir = "0.6.2"
-indexmap = "1.9"
+indexmap = { version = "1.9", features = ["serde"] }
 interprocess = "1.1.1"
 itertools = "0.10.1"
 log = "0.4"
