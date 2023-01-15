@@ -94,9 +94,15 @@ pub struct TextLayoutLine {
     pub indent: f64,
 }
 
+/// Keeps track of the text layouts so that we can efficiently reuse them.
 #[derive(Clone, Default)]
 pub struct TextLayoutCache {
+    /// The id of the last config, which lets us know when the config changes so we can update
+    /// the cache.
     config_id: u64,
+    /// (Font Size -> (Line Number -> Text Layout))  
+    /// Different font-sizes are cached separately, which is useful for features like code lens
+    /// where the text becomes small but you may wish to revert quickly.
     pub layouts: HashMap<usize, HashMap<usize, Arc<TextLayoutLine>>>,
     pub max_width: f64,
 }
@@ -122,30 +128,45 @@ impl TextLayoutCache {
     }
 }
 
+/// Local buffers are certain special buffers that aren't files or scratch buffers
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub enum LocalBufferKind {
+    /// No buffer at all. Sometimes used as a temporary value.
     Empty,
+    /// The buffer for typing in the palette
     Palette,
+    /// The search buffer
     Search,
+    /// Commit message buffer
     SourceControl,
     FilePicker,
+    /// Keymap filter buffer
     Keymap,
+    /// Settings filter buffer
     Settings,
+    /// File explorer {re,}naming buffer
     PathName,
+    /// Symbol renaming buffer
     Rename,
+    /// Search buffer in plugin panel
     PluginSearch,
+    /// Source Control branch filter in the branch list
     BranchesFilter,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BufferContent {
+    /// A file at some location. This can be a remote path.
     File(PathBuf),
+    /// A special local buffer, like the palette or search.
     Local(LocalBufferKind),
     /// A setting input; with its name.
     SettingsValue(String),
+    /// A scratch buffer that doesn't have a location.
+    /// The `BufferId` identifies the underlying buffer, and the `String` is the scratch file's
+    /// name
     Scratch(BufferId, String),
 }
-
 impl BufferContent {
     pub fn path(&self) -> Option<&Path> {
         if let BufferContent::File(p) = self {
@@ -180,6 +201,8 @@ impl BufferContent {
         }
     }
 
+    /// Is the `BufferContent` an input-box style editor, (ex: uses ui font; and input box drawing
+    /// style)
     pub fn is_input(&self) -> bool {
         match self {
             BufferContent::File(_) => false,
@@ -228,8 +251,12 @@ impl BufferContent {
     }
 }
 
+/// `PhantomText` is for text that is not in the actual document, but should be rendered with it.  
+/// Ex: Inlay hints, IME text, error lens' diagnostics, etc
 pub struct PhantomText {
+    /// The kind is currently used for sorting the phantom text on a line
     kind: PhantomTextKind,
+    /// Column on the line that the phantom text should be displayed at
     col: usize,
     text: String,
     font_size: Option<usize>,
@@ -241,15 +268,25 @@ pub struct PhantomText {
 
 #[derive(Ord, Eq, PartialEq, PartialOrd)]
 pub enum PhantomTextKind {
+    /// Input methods
     Ime,
+    /// Completion lens
     Completion,
+    /// Inlay hints supplied by an LSP/PSP (like type annotations)
     InlayHint,
+    /// Error lens
     Diagnostic,
 }
 
+/// Information about the phantom text on a specific line.  
+/// This has various utility functions for transforming a coordinate (typically a column) into the
+/// resulting coordinate after the phantom text is combined with the line's real content.
 #[derive(Default)]
 pub struct PhantomTextLine {
+    /// This uses a smallvec because most lines rarely have more than a couple phantom texts
     text: SmallVec<[PhantomText; 6]>,
+    /// Maximum diagnostic severity, so that we can color the background as an error if there is a
+    /// warning and error on the line. (For error lens)
     max_severity: Option<DiagnosticSeverity>,
 }
 
@@ -337,34 +374,65 @@ impl PhantomTextLine {
     }
 }
 
+/// A [`Document`] is a core structure for files in the editor. All editors are merely views into a
+/// specific document, which is what allows views to be synchronized without any effort.  
+/// This builds on top of the held [`Buffer`], providing syntax/semantic highlighting, phantom
+/// text, and more.
 #[derive(Clone)]
 pub struct Document {
+    /// The id of the held buffer.  
+    /// If `content` is `BufferContent::Scratch` then their ids should be equivalent.
     id: BufferId,
+    /// The window-tab that this document is a part of.
     pub tab_id: WidgetId,
+    /// The underlying content held by the document.
     buffer: Buffer,
+    /// Information about what kind of buffer this is; like a file, a scratch buffer, or
+    /// the palette's input buffer.
     content: BufferContent,
+    /// Tree-sitter syntax highlighting information.
     syntax: Option<Syntax>,
     line_styles: Rc<RefCell<LineStyles>>,
+    /// Semantic highlighting information (which is provided by the LSP)
     semantic_styles: Option<Arc<Spans<Style>>>,
+    /// The ready-to-render text layouts for the document.  
+    /// This is an `Rc<RefCell<_>>` due to needing to access it even when the document is borrowed,
+    /// since we may need to fill it with constructed text layouts.
     pub text_layouts: Rc<RefCell<TextLayoutCache>>,
+    /// A cache for the sticky headers which maps a line to the lines it should show in the header.
     pub sticky_headers: Rc<RefCell<HashMap<usize, Option<Vec<usize>>>>>,
+    /// Whether we've started loading the buffer's content, used for file loading since that
+    /// has to be done through a request to the proxy.
     load_started: Rc<RefCell<bool>>,
+    /// Whether the buffer's content has been loaded/initialized into the buffer.
     loaded: bool,
+    /// Stores information about different versions of the document from source control.
     histories: im::HashMap<String, DocumentHistory>,
+    /// The cursor's offset into the document, which is synced to the [`LapceEditorData::cursor`]
+    /// (You may be wanting [`LapceEditorData::cursor`] instead)
     pub cursor_offset: usize,
+    /// The scroll offset into the document, which is synced to the widget's scroll offset
     pub scroll_offset: Vec2,
+    /// (Offset -> (Plugin the code actions are from, Code Actions))
     pub code_actions: im::HashMap<usize, (PluginId, CodeActionResponse)>,
+    /// Inlay hints for the document
     pub inlay_hints: Option<Spans<InlayHint>>,
+    /// The diagnostics for the document
     pub diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
     /// Current completion text which should be rendered at the `completion_pos`, as phantom text
     completion: Option<Arc<String>>,
     /// (line, col) position that the completion text should be displayed at.
     completion_pos: (usize, usize),
+    /// Current IME text which should be rendered at the `ime_pos`, as phantom text
     ime_text: Option<Arc<str>>,
+    /// (line, col, shift) position that the IME text should be displayed at.
     ime_pos: (usize, usize, usize),
+    /// Information about specific ranges that are used to do smarter selections, supplied by an LSP
     pub syntax_selection_range: Option<SyntaxSelectionRanges>,
+    /// Information about the file-specific find box
     pub find: Rc<RefCell<Find>>,
     find_progress: Rc<RefCell<FindProgress>>,
+    /// Event sink so that we can submit commands to the event loop
     pub event_sink: ExtEventSink,
     pub proxy: Arc<LapceProxy>,
 }
@@ -376,6 +444,8 @@ impl Document {
         event_sink: ExtEventSink,
         proxy: Arc<LapceProxy>,
     ) -> Self {
+        // Only files have syntax highlighing automatically,
+        // though scratch buffer can have it be set manually by the user.
         let syntax = match &content {
             BufferContent::File(path) => {
                 Self::syntax_to_option(&proxy, Syntax::init(path))
@@ -384,6 +454,7 @@ impl Document {
             BufferContent::SettingsValue(..) => None,
             BufferContent::Scratch(..) => None,
         };
+        // Since scratch specifies its own id, we have to use that as our buffer id.
         let id = match &content {
             BufferContent::Scratch(id, _) => *id,
             _ => BufferId::next(),
@@ -419,6 +490,8 @@ impl Document {
         }
     }
 
+    /// Converts a syntax highlighting result into an option, showing an error message if it is
+    /// anything unexpected.
     fn syntax_to_option(
         proxy: &Arc<LapceProxy>,
         syntax: Result<Syntax, HighlightIssue>,
@@ -439,10 +512,12 @@ impl Document {
         }
     }
 
+    /// The id of the document's buffer
     pub fn id(&self) -> BufferId {
         self.id
     }
 
+    /// Whether or not the underlying buffer is loaded
     pub fn loaded(&self) -> bool {
         self.loaded
     }
@@ -464,10 +539,12 @@ impl Document {
         &self.content
     }
 
+    /// Get the buffer's current revision. This is used to track whether the buffer has changed.
     pub fn rev(&self) -> u64 {
         self.buffer.rev()
     }
 
+    //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&mut self, content: Rope) {
         self.buffer.init_content(content);
         self.buffer.detect_indent(self.syntax.as_ref());
@@ -475,6 +552,7 @@ impl Document {
         self.on_update(None);
     }
 
+    /// Set the syntax highlighting this document should use.
     pub fn set_language(&mut self, language: LapceLanguage) {
         self.syntax =
             Self::syntax_to_option(&self.proxy, Syntax::from_language(language));
@@ -499,27 +577,29 @@ impl Document {
         ));
     }
 
+    /// Update the diagnostics' positions after an edit so that they appear in the correct place.
     fn update_diagnostics(&mut self, delta: &RopeDelta) {
-        if let Some(mut diagnostics) = self.diagnostics.clone() {
-            for diagnostic in Arc::make_mut(&mut diagnostics).iter_mut() {
-                let mut transformer = Transformer::new(delta);
-                let (start, end) = diagnostic.range;
-                let (new_start, new_end) = (
-                    transformer.transform(start, false),
-                    transformer.transform(end, true),
-                );
+        let Some(mut diagnostics) = self.diagnostics.clone() else { return };
 
-                let new_start_pos = self.buffer().offset_to_position(new_start);
+        for diagnostic in Arc::make_mut(&mut diagnostics).iter_mut() {
+            let mut transformer = Transformer::new(delta);
+            let (start, end) = diagnostic.range;
+            let (new_start, new_end) = (
+                transformer.transform(start, false),
+                transformer.transform(end, true),
+            );
 
-                let new_end_pos = self.buffer().offset_to_position(new_end);
+            let new_start_pos = self.buffer().offset_to_position(new_start);
 
-                diagnostic.range = (new_start, new_end);
+            let new_end_pos = self.buffer().offset_to_position(new_end);
 
-                diagnostic.diagnostic.range.start = new_start_pos;
-                diagnostic.diagnostic.range.end = new_end_pos;
-            }
-            self.diagnostics = Some(diagnostics);
+            diagnostic.range = (new_start, new_end);
+
+            diagnostic.diagnostic.range.start = new_start_pos;
+            diagnostic.diagnostic.range.end = new_end_pos;
         }
+
+        self.diagnostics = Some(diagnostics);
     }
 
     /// Get the current completion phantomtext
@@ -540,44 +620,45 @@ impl Document {
         self.completion = None;
     }
 
-    /// Update the completion phantomtext with the new edit
+    /// Update the completion lens position after an edit so that it appears in the correct place.
     fn update_completion(&mut self, delta: &RopeDelta) {
-        if let Some(completion) = self.completion.clone() {
-            let (line, col) = self.completion_pos;
-            let offset = self.buffer().offset_of_line_col(line, col);
+        let Some(completion) = self.completion.clone() else { return };
 
-            // If the edit is easily checkable & updateable from, then we change
-            // the completion's text. Because, in normal typing (if we didn't do this)
-            // then the text would jitter forward and then backwards as the completion widget
-            // updates it.
-            // TODO: this could also handle simple deletion, but we don't currently keep track of
-            // the past completion string content.
-            if delta.as_simple_insert().is_some() {
-                let (iv, new_len) = delta.summary();
-                if iv.start() == iv.end()
-                    && iv.start() == offset
-                    && new_len <= completion.len()
-                {
-                    // Remove the # of newly inserted characters
-                    // These aren't necessarily the same as the characters literally in the
-                    // text, but the completion will be updated when the completion widget
-                    // receives the update event, and it will fix this if needed.
-                    // TODO: this could be smarter and use the insert's content
-                    self.completion =
-                        Some(Arc::new(completion[new_len..].to_string()))
-                }
+        let (line, col) = self.completion_pos;
+        let offset = self.buffer().offset_of_line_col(line, col);
+
+        // If the edit is easily checkable & updateable from, then we change
+        // the completion's text. Because, in normal typing (if we didn't do this)
+        // then the text would jitter forward and then backwards as the completion widget
+        // updates it.
+        // TODO: this could also handle simple deletion, but we don't currently keep track of
+        // the past completion string content.
+        if delta.as_simple_insert().is_some() {
+            let (iv, new_len) = delta.summary();
+            if iv.start() == iv.end()
+                && iv.start() == offset
+                && new_len <= completion.len()
+            {
+                // Remove the # of newly inserted characters
+                // These aren't necessarily the same as the characters literally in the
+                // text, but the completion will be updated when the completion widget
+                // receives the update event, and it will fix this if needed.
+                // TODO: this could be smarter and use the insert's content
+                self.completion = Some(Arc::new(completion[new_len..].to_string()))
             }
-
-            // Shift the position by the rope delta
-            let mut transformer = Transformer::new(delta);
-
-            let new_offset = transformer.transform(offset, true);
-            let new_pos = self.buffer().offset_to_line_col(new_offset);
-
-            self.completion_pos = new_pos;
         }
+
+        // Shift the position by the rope delta
+        let mut transformer = Transformer::new(delta);
+
+        let new_offset = transformer.transform(offset, true);
+        let new_pos = self.buffer().offset_to_line_col(new_offset);
+
+        self.completion_pos = new_pos;
     }
 
+    /// Reload the document's content, and is what you should typically use when you want to *set*
+    /// an existing document's content.
     pub fn reload(&mut self, content: Rope, set_pristine: bool) {
         self.code_actions.clear();
         self.inlay_hints = None;
@@ -591,6 +672,8 @@ impl Document {
         }
     }
 
+    /// Retrieve a file from the poxy, initialized to a specific starting location.  
+    /// Has no effect if the file is already loaded.
     pub fn retrieve_file<P: EditorPosition + Send + 'static>(
         &mut self,
         locations: Vec<(WidgetId, EditorLocation<P>)>,
@@ -775,6 +858,7 @@ impl Document {
         }
     }
 
+    /// Request semantic styles for the buffer from the LSP through the proxy.
     fn get_semantic_styles(&self) {
         if !self.loaded() {
             return;
@@ -838,6 +922,7 @@ impl Document {
         }
     }
 
+    /// Request inlay hints for the buffer from the LSP through the proxy.
     pub fn get_inlay_hints(&self) {
         if !self.loaded() {
             return;
@@ -898,6 +983,7 @@ impl Document {
         self.notify_special();
     }
 
+    /// Notify special buffer content's about their content potentially changing.
     fn notify_special(&self) {
         match &self.content {
             BufferContent::File(_) => {}
@@ -989,12 +1075,12 @@ impl Document {
         &mut self,
         edits: Option<SmallVec<[SyntaxEdit; 3]>>,
     ) {
-        if let Some(syntax) = self.syntax.as_mut() {
-            let rev = self.buffer.rev();
-            let text = self.buffer.text().clone();
+        let Some(syntax)  = self.syntax.as_mut() else { return };
 
-            syntax.parse(rev, text, edits.as_deref());
-        }
+        let rev = self.buffer.rev();
+        let text = self.buffer.text().clone();
+
+        syntax.parse(rev, text, edits.as_deref());
     }
 
     /// Update the inlay hints with new ones
@@ -1016,6 +1102,8 @@ impl Document {
         self.syntax.as_ref()
     }
 
+    /// Update the styles after an edit, so the highlights are at the correct positions.  
+    /// This does not do a reparse of the document itself.
     fn update_styles(&mut self, delta: &RopeDelta) {
         if let Some(styles) = self.semantic_styles.as_mut() {
             Arc::make_mut(styles).apply_shape(delta);
@@ -1031,6 +1119,7 @@ impl Document {
         }
     }
 
+    /// Update the inlay hints so their positions are correct after an edit.
     fn update_inlay_hints(&mut self, delta: &RopeDelta) {
         if let Some(hints) = self.inlay_hints.as_mut() {
             hints.apply_shape(delta);
@@ -1061,6 +1150,7 @@ impl Document {
         }
     }
 
+    /// Get the phantom text for a given line
     pub fn line_phantom_text(
         &self,
         config: &LapceConfig,
@@ -1275,6 +1365,7 @@ impl Document {
             self.syntax.as_ref(),
             config.editor.auto_closing_matching_pairs,
         );
+        // Keep track of the change in the cursor mode for undo/redo
         self.buffer_mut().set_cursor_before(old_cursor);
         self.buffer_mut().set_cursor_after(cursor.mode.clone());
         self.apply_deltas(&deltas);
@@ -1578,6 +1669,8 @@ impl Document {
         self.apply_deltas(&deltas)
     }
 
+    /// Get the active style information, either the semantic styles or the
+    /// tree-sitter syntax styles.
     pub fn styles(&self) -> Option<&Arc<Spans<Style>>> {
         if let Some(semantic_styles) = self.semantic_styles.as_ref() {
             Some(semantic_styles)
@@ -1586,6 +1679,8 @@ impl Document {
         }
     }
 
+    /// Get the style information for the particular line from semantic/syntax highlighting.  
+    /// This caches the result if possible.
     fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
         if self.line_styles.borrow().get(&line).is_none() {
             let styles = self.styles();
@@ -1600,6 +1695,10 @@ impl Document {
         self.line_styles.borrow().get(&line).cloned().unwrap()
     }
 
+    /// Get the (line, col) of a particular point within the editor.
+    /// The boolean indicates whether the point is within the text bounds.  
+    /// Points outside of vertical bounds will return the last line.
+    /// Points outside of horizontal bounds will return the last column on the line.
     pub fn line_col_of_point(
         &self,
         text: &mut PietText,
@@ -1612,7 +1711,9 @@ impl Document {
             EditorView::Diff(version) => {
                 if let Some(history) = self.get_history(version) {
                     let line_height = config.editor.line_height();
+                    // Tracks the actual line in the file.
                     let mut line = 0;
+                    // Tracks the lines that are displayed in the editor.
                     let mut lines = 0;
                     for change in history.changes().iter() {
                         match change {
@@ -1623,10 +1724,13 @@ impl Document {
                                 }
                             }
                             DiffLines::Skip(_l, r) => {
+                                // Skip only has one line rendered, so we only update this by 1
                                 lines += 1;
                                 if (lines * line_height) as f64 > point.y {
                                     break;
                                 }
+                                // However, skip moves forward multiple lines in the underlying
+                                // file so we need to update this.
                                 line += r.len();
                             }
                             DiffLines::Both(_, r) | DiffLines::Right(r) => {
@@ -1645,11 +1749,15 @@ impl Document {
                     }
                     (line, config.editor.font_size)
                 } else {
+                    // There was no history, so default to assuming line 0
                     (0, config.editor.font_size)
                 }
             }
             EditorView::Lens => {
                 if let Some(syntax) = self.syntax() {
+                    // If we have a syntax, then we need to do logic which handles that some text
+                    // will be the smaller lens font size, and some text will be larger (like
+                    // function names). We can just use the utility functions on the lens for this.
                     let lens = &syntax.lens;
                     let line = lens.line_of_height(point.y.round() as usize);
                     let line_height =
@@ -1661,6 +1769,7 @@ impl Document {
                     };
                     (line, font_size)
                 } else {
+                    // The entire file is small, so we can just do a division.
                     (
                         (point.y / config.editor.line_height() as f64).floor()
                             as usize,
@@ -1688,6 +1797,8 @@ impl Document {
                 }
             }
 
+            // If there's indentation, then we look at the difference between the normal text
+            // and the shrunk text to shift the point over.
             if col > 0 {
                 let normal_text_layout = self.get_text_layout(
                     text,
@@ -1703,12 +1814,18 @@ impl Document {
             }
         }
 
+        // Since we have the line, we can do a hit test after shifting the point to be within the
+        // line itself
         let text_layout = self.get_text_layout(text, line, font_size, config);
         let hit_point = text_layout
             .text
             .hit_test_point(Point::new(point.x - x_shift, 0.0));
+        // We have to unapply the phantom text shifting in order to get back to the column in
+        // the actual buffer
         let phantom_text = self.line_phantom_text(config, line);
         let col = phantom_text.before_col(hit_point.idx);
+        // Ensure that the column doesn't end up out of bounds, so things like clicking on the far
+        // right end will just go to the end of the line.
         let max_col = self.buffer.line_end_col(line, mode != Mode::Normal);
         let mut col = col.min(max_col);
 
@@ -1725,6 +1842,10 @@ impl Document {
         ((line, col), hit_point.is_inside)
     }
 
+    /// Get the offset of a particular point within the editor.  
+    /// The boolean indicates whether the point is inside the text or not
+    /// Points outside of vertical bounds will return the last line.
+    /// Points outside of horizontal bounds will return the last column on the line.
     pub fn offset_of_point(
         &self,
         text: &mut PietText,
@@ -1738,6 +1859,7 @@ impl Document {
         (self.buffer.offset_of_line_col(line, col), is_inside)
     }
 
+    /// Get the (point above, point below) of a particular offset within the editor.
     pub fn points_of_offset(
         &self,
         text: &mut PietText,
@@ -1749,6 +1871,7 @@ impl Document {
         self.points_of_line_col(text, line, col, view, config)
     }
 
+    /// Get the (point above, point below) of a particular (line, col) within the editor.
     pub fn points_of_line_col(
         &self,
         text: &mut PietText,
@@ -1908,6 +2031,8 @@ impl Document {
         }
     }
 
+    /// Returns the point into the text layout of the line at the given offset.
+    /// `x` being the leading edge of the character, and `y` being the baseline.
     pub fn line_point_of_offset(
         &self,
         text: &mut PietText,
@@ -1919,6 +2044,8 @@ impl Document {
         self.line_point_of_line_col(text, line, col, font_size, config)
     }
 
+    /// Returns the point into the text layout of the line at the given line and column.
+    /// `x` being the leading edge of the character, and `y` being the baseline.
     pub fn line_point_of_line_col(
         &self,
         text: &mut PietText,
@@ -1931,6 +2058,8 @@ impl Document {
         text_layout.text.hit_test_text_position(col).point
     }
 
+    /// Get the text layout for the given line.  
+    /// If the text layout is not cached, it will be created and cached.
     pub fn get_text_layout(
         &self,
         text: &mut PietText,
@@ -1938,12 +2067,17 @@ impl Document {
         font_size: usize,
         config: &LapceConfig,
     ) -> Arc<TextLayoutLine> {
+        // Check if the text layout needs to update due to the config being changed
         self.text_layouts.borrow_mut().check_attributes(config.id);
+        // If we don't have a second layer of the hashmap initialized for this specific font size,
+        // do it now
         if self.text_layouts.borrow().layouts.get(&font_size).is_none() {
             let mut cache = self.text_layouts.borrow_mut();
             cache.layouts.insert(font_size, HashMap::new());
         }
-        let cache_exits = self
+
+        // Get whether there's an entry for this specific font size and line
+        let cache_exists = self
             .text_layouts
             .borrow()
             .layouts
@@ -1951,7 +2085,8 @@ impl Document {
             .unwrap()
             .get(&line)
             .is_some();
-        if !cache_exits {
+        // If there isn't an entry then we actually have to create it
+        if !cache_exists {
             let text_layout =
                 Arc::new(self.new_text_layout(text, line, font_size, config));
             let mut cache = self.text_layouts.borrow_mut();
@@ -1965,6 +2100,8 @@ impl Document {
                 .unwrap()
                 .insert(line, text_layout);
         }
+
+        // Just get the entry, assuming it has been created because we initialize it above.
         self.text_layouts
             .borrow()
             .layouts
@@ -1975,6 +2112,8 @@ impl Document {
             .unwrap()
     }
 
+    /// Create a new text layout for the given line.  
+    /// Typically you should use [`Document::get_text_layout`] instead.
     fn new_text_layout(
         &self,
         text: &mut PietText,
@@ -1984,6 +2123,8 @@ impl Document {
     ) -> TextLayoutLine {
         let line_content_original = self.buffer.line_content(line);
 
+        // Get the line content with newline characters replaced with spaces
+        // and the content without the newline characters
         let (line_content, line_content_original) =
             if let Some(s) = line_content_original.strip_suffix("\r\n") {
                 (
@@ -2001,12 +2142,14 @@ impl Document {
                     &line_content_original[..],
                 )
             };
+        // Combine the phantom text with the line content
         let phantom_text = self.line_phantom_text(config, line);
         let line_content = phantom_text.combine_with_text(line_content);
 
         let tab_width =
             config.tab_width(text, config.editor.font_family(), font_size);
 
+        // Inputs use the UI font instead of the editor font
         let font_family = if self.content.is_input() {
             config.ui.font_family()
         } else {
@@ -2027,7 +2170,7 @@ impl Document {
             )
             .set_tab_width(tab_width);
 
-        // Apply various styles to the lines text
+        // Apply various styles to the line's text based on our semantic/syntax highlighting
         let styles = self.line_style(line);
         for line_style in styles.iter() {
             if let Some(fg_color) = line_style.style.fg_color.as_ref() {
@@ -2042,6 +2185,7 @@ impl Document {
             }
         }
 
+        // Apply phantom text specific styling
         for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
             let start = col + offset;
             let end = start + size;
@@ -2065,7 +2209,11 @@ impl Document {
         }
 
         let text_layout = layout_builder.build().unwrap();
+
         let mut extra_style = Vec::new();
+
+        // Keep track of background styling from phantom text, which is done separately
+        // from the text layout attributes
         for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
             if phantom.bg.is_some() || phantom.under_line.is_some() {
                 let start = col + offset;
@@ -2083,6 +2231,7 @@ impl Document {
             }
         }
 
+        // Add the styling for the diagnostic severity, if applicable
         if let Some(max_severity) = phantom_text.max_severity {
             let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
                 LapceTheme::ERROR_LENS_ERROR_BACKGROUND
@@ -2150,7 +2299,7 @@ impl Document {
     }
 
     /// Create rendable whitespace layout by creating a new text layout
-    /// with invicible spaces and special utf8 characters that display
+    /// with invisible spaces and special utf8 characters that display
     /// the different white space characters.
     fn new_whitespace_layout(
         line_content: &str,
@@ -2243,6 +2392,9 @@ impl Document {
         }
     }
 
+    /// Move a selection region by a given movement.  
+    /// Much of the time, this will just be a matter of moving the cursor, but
+    /// some movements may depend on the current selection.
     #[allow(clippy::too_many_arguments)]
     fn move_region(
         &self,
@@ -2898,6 +3050,7 @@ impl Document {
         }
     }
 
+    /// Get the sticky headers for a particular line, creating them if necessary.
     pub fn sticky_headers(&self, line: usize) -> Option<Vec<usize>> {
         if let Some(lines) = self.sticky_headers.borrow().get(&line) {
             return lines.clone();
