@@ -1,9 +1,9 @@
 use std::ops::Range;
 
 use druid::{
-    theme, ArcStr, BoxConstraints, Color, Command, Env, FontDescriptor, FontWeight,
-    LayoutCtx, LifeCycle, PaintCtx, Point, RenderContext, Size, Target, TextLayout,
-    UpdateCtx, Widget, WidgetId, WidgetPod,
+    theme, ArcStr, BoxConstraints, Color, Command, Env, Event, EventCtx,
+    FontDescriptor, FontWeight, LayoutCtx, LifeCycle, PaintCtx, Point,
+    RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_core::{encoding::offset_utf16_to_utf8, language::LapceLanguage};
 use lapce_data::{
@@ -11,7 +11,13 @@ use lapce_data::{
     config::{LapceConfig, LapceTheme},
     data::LapceTabData,
     document::BufferContent,
-    markdown::{highlight_as_code, parse_documentation},
+    markdown::{
+        highlight_as_code,
+        layout_content::{
+            layout_content_clean_up, layouts_from_contents, LayoutContent,
+        },
+        parse_documentation, Content,
+    },
     rich_text::{RichText, RichTextBuilder},
     signature::{SignatureData, SignatureStatus},
 };
@@ -44,7 +50,7 @@ impl SignatureContainer {
         }
     }
 
-    fn update_signature(&mut self, data: &LapceTabData) {
+    fn update_signature(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         if data.signature.status == SignatureStatus::Inactive {
             return;
         }
@@ -83,14 +89,21 @@ impl SignatureContainer {
         } else {
             (RichText::new(ArcStr::from("")), None, None)
         };
-        let param_doc = param_doc.unwrap_or_else(|| RichText::new(ArcStr::from("")));
-        let doc = doc.unwrap_or_else(|| RichText::new(ArcStr::from("")));
+        let label_text = signature.map(|s| s.label.clone()).unwrap_or_default();
+        let param_doc = param_doc.unwrap_or_default();
+        let doc = doc.unwrap_or_default();
 
         let sig = self.signature.widget_mut().inner_mut().child_mut();
         sig.label_layout.set_text(label);
-        sig.param_doc_layout.set_text(param_doc);
-        sig.doc_layout.set_text(doc);
-        sig.label = signature.map(|s| s.label.clone()).unwrap_or_default();
+
+        layout_content_clean_up(&mut sig.param_doc_layout, data);
+        layout_content_clean_up(&mut sig.doc_layout, data);
+
+        sig.param_doc_layout = layouts_from_contents(ctx, data, param_doc.iter());
+
+        sig.doc_layout = layouts_from_contents(ctx, data, doc.iter());
+
+        sig.label = label_text;
 
         // Set font / text color information
         let font = FontDescriptor::new(data.config.ui.hover_font_family())
@@ -102,10 +115,16 @@ impl SignatureContainer {
 
         sig.label_layout.set_font(font.clone());
         sig.label_layout.set_text_color(text_color.clone());
-        sig.param_doc_layout.set_font(font.clone());
-        sig.param_doc_layout.set_text_color(text_color.clone());
-        sig.doc_layout.set_font(font);
-        sig.doc_layout.set_text_color(text_color);
+
+        for param_doc in sig.param_doc_layout.iter_mut() {
+            param_doc.set_font(font.clone());
+            param_doc.set_text_color(text_color.clone());
+        }
+
+        for doc in sig.doc_layout.iter_mut() {
+            doc.set_font(font.clone());
+            doc.set_text_color(text_color.clone());
+        }
     }
 }
 impl Widget<LapceTabData> for SignatureContainer {
@@ -115,11 +134,21 @@ impl Widget<LapceTabData> for SignatureContainer {
 
     fn event(
         &mut self,
-        ctx: &mut druid::EventCtx,
-        event: &druid::Event,
+        ctx: &mut EventCtx,
+        event: &Event,
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        if let Event::Command(cmd) = event {
+            if cmd.is(LAPCE_UI_COMMAND) {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                if let LapceUICommand::RefreshSignature = *command {
+                    self.update_signature(ctx, data);
+                    ctx.request_layout();
+                }
+            }
+        }
+
         self.signature.event(ctx, event, data, env);
     }
 
@@ -165,8 +194,11 @@ impl Widget<LapceTabData> for SignatureContainer {
                 || old_signature.signatures != signature.signatures
                 || old_signature.current_signature != signature.current_signature
             {
-                self.update_signature(data);
-                ctx.request_layout();
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RefreshSignature,
+                    Target::Widget(self.id),
+                ));
             }
 
             if old_signature.status == SignatureStatus::Inactive
@@ -183,10 +215,18 @@ impl Widget<LapceTabData> for SignatureContainer {
             // Note: this deliberately uses bitwise-or so that both are executed
             // since `needs_rebuild_after_update` alters internal state of the layout
             // (Is there a more clear way of doing this?)
-            if sig.label_layout.needs_rebuild_after_update(ctx)
-                | sig.param_doc_layout.needs_rebuild_after_update(ctx)
-                | sig.doc_layout.needs_rebuild_after_update(ctx)
-            {
+            let mut needs_layout = false;
+            needs_layout |= sig.label_layout.needs_rebuild_after_update(ctx);
+
+            for param_doc in sig.param_doc_layout.iter_mut() {
+                needs_layout |= param_doc.needs_rebuild_after_update(ctx);
+            }
+
+            for doc in sig.doc_layout.iter_mut() {
+                needs_layout |= doc.needs_rebuild_after_update(ctx);
+            }
+
+            if needs_layout {
                 ctx.request_layout();
             }
 
@@ -237,8 +277,8 @@ pub struct Signature {
     label: String,
     label_offset: f64,
     label_layout: TextLayout<RichText>,
-    param_doc_layout: TextLayout<RichText>,
-    doc_layout: TextLayout<RichText>,
+    param_doc_layout: Vec<LayoutContent>,
+    doc_layout: Vec<LayoutContent>,
 }
 impl Signature {
     const STARTING_Y: f64 = 5.0;
@@ -255,16 +295,8 @@ impl Signature {
                 layout.set_text(RichText::new(ArcStr::from("")));
                 layout
             },
-            param_doc_layout: {
-                let mut layout = TextLayout::new();
-                layout.set_text(RichText::new(ArcStr::from("")));
-                layout
-            },
-            doc_layout: {
-                let mut layout = TextLayout::new();
-                layout.set_text(RichText::new(ArcStr::from("")));
-                layout
-            },
+            param_doc_layout: Vec::new(),
+            doc_layout: Vec::new(),
         }
     }
 
@@ -276,17 +308,11 @@ impl Signature {
     }
 
     fn has_param_doc_text(&self) -> bool {
-        self.param_doc_layout
-            .text()
-            .map(|text| !text.is_empty())
-            .unwrap_or(false)
+        !self.param_doc_layout.is_empty()
     }
 
     fn has_doc_text(&self) -> bool {
-        self.doc_layout
-            .text()
-            .map(|text| !text.is_empty())
-            .unwrap_or(false)
+        !self.doc_layout.is_empty()
     }
 
     fn has_text(&self) -> bool {
@@ -296,8 +322,8 @@ impl Signature {
 impl Widget<LapceTabData> for Signature {
     fn event(
         &mut self,
-        _ctx: &mut druid::EventCtx,
-        _event: &druid::Event,
+        _ctx: &mut EventCtx,
+        _event: &Event,
         _data: &mut LapceTabData,
         _env: &Env,
     ) {
@@ -325,7 +351,7 @@ impl Widget<LapceTabData> for Signature {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        _data: &LapceTabData,
+        data: &LapceTabData,
         env: &Env,
     ) -> druid::Size {
         if !self.has_text() {
@@ -345,11 +371,15 @@ impl Widget<LapceTabData> for Signature {
             self.label_offset = self.label_layout.point_for_text_position(col + 1).x;
         }
 
-        self.param_doc_layout.set_wrap_width(max_width);
-        self.param_doc_layout.rebuild_if_needed(ctx.text(), env);
+        for param_doc in self.param_doc_layout.iter_mut() {
+            param_doc.set_max_width(&data.images, max_width);
+            param_doc.rebuild_if_needed(ctx.text(), env);
+        }
 
-        self.doc_layout.set_wrap_width(max_width);
-        self.doc_layout.rebuild_if_needed(ctx.text(), env);
+        for doc in self.doc_layout.iter_mut() {
+            doc.set_max_width(&data.images, max_width);
+            doc.rebuild_if_needed(ctx.text(), env);
+        }
 
         let mut height = 0.0;
 
@@ -363,20 +393,14 @@ impl Widget<LapceTabData> for Signature {
 
         // TODO: draw separator around param docs?
 
-        if self.has_param_doc_text() {
-            let text_metrics = self.param_doc_layout.layout_metrics();
-            ctx.set_baseline_offset(
-                text_metrics.size.height - text_metrics.first_baseline,
-            );
-            height += text_metrics.size.height + Self::PADDING;
+        for param_doc in self.param_doc_layout.iter() {
+            let size = param_doc.size(&data.images, &data.config);
+            height += size.height + Self::PADDING;
         }
 
-        if self.has_doc_text() {
-            let text_metrics = self.doc_layout.layout_metrics();
-            ctx.set_baseline_offset(
-                text_metrics.size.height - text_metrics.first_baseline,
-            );
-            height += text_metrics.size.height + Self::PADDING;
+        for doc in self.doc_layout.iter() {
+            let size = doc.size(&data.images, &data.config);
+            height += size.height + Self::PADDING;
         }
 
         Size::new(width, height + Self::STARTING_Y + Self::PADDING)
@@ -404,14 +428,16 @@ impl Widget<LapceTabData> for Signature {
                 self.label_layout.layout_metrics().size.height + Self::PADDING;
         }
 
-        if self.has_param_doc_text() {
-            self.param_doc_layout.draw(ctx, origin);
-            origin.y +=
-                self.param_doc_layout.layout_metrics().size.height + Self::PADDING;
+        for param_doc in self.param_doc_layout.iter() {
+            let size = param_doc.size(&data.images, &data.config);
+            param_doc.draw(ctx, &data.images, &data.config, origin);
+            origin.y += size.height + Self::PADDING;
         }
 
-        if self.has_doc_text() {
-            self.doc_layout.draw(ctx, origin);
+        for doc in self.doc_layout.iter() {
+            let size = doc.size(&data.images, &data.config);
+            doc.draw(ctx, &data.images, &data.config, origin);
+            origin.y += size.height + Self::PADDING;
         }
     }
 }
@@ -421,7 +447,7 @@ fn parse_signature(
     active_parameter: Option<usize>,
     language: Option<LapceLanguage>,
     config: &LapceConfig,
-) -> (RichText, Option<RichText>, Option<RichText>) {
+) -> (RichText, Option<Vec<Content>>, Option<Vec<Content>>) {
     let doc = sig
         .documentation
         .as_ref()

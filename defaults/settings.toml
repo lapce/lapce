@@ -260,6 +260,9 @@ name = ""
 "file_explorer" = "files.svg"
 "file_picker_up" = "arrow-up.svg"
 
+"image_loading" = "refresh.svg"
+"image_error" = "error.svg"
+
 "scm.icon" = "source-control.svg"
 "scm.diff.modified" = "diff-modified.svg"
 "scm.diff.added" = "diff-added.svg"

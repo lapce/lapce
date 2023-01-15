@@ -6,22 +6,23 @@ use druid::{
         InterpolationMode, PietImage, PietTextLayout, Text, TextAttribute,
         TextLayout as TextLayoutTrait, TextLayoutBuilder,
     },
-    ArcStr, BoxConstraints, Command, Cursor, Env, Event, EventCtx, FontDescriptor,
+    BoxConstraints, Command, Cursor, Env, Event, EventCtx, FontDescriptor,
     FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, TextLayout, TimerToken, UpdateCtx, Widget,
-    WidgetExt, WidgetId,
+    RenderContext, Size, Target, TimerToken, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{CommandKind, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     config::{LapceConfig, LapceIcons, LapceTheme},
     data::{FocusArea, LapceData, LapceTabData},
+    markdown::layout_content::{
+        layout_content_clean_up, layouts_from_contents, LayoutContent,
+    },
     panel::PanelKind,
     plugin::{
         plugin_install_status::PluginInstallType, PluginData, PluginLoadStatus,
         PluginStatus, VoltIconKind,
     },
-    rich_text::RichText,
     settings::LapceSettingsFocusData,
 };
 use lapce_rpc::plugin::VoltID;
@@ -693,14 +694,16 @@ pub struct PluginInfo {
     line_height: f64,
     icon_width: f64,
     title_width: f64,
-    readme_layout: TextLayout<RichText>,
+    readme_layout: Vec<LayoutContent>,
     status_rect: Rect,
 }
 
 impl PluginInfo {
     fn new(widget_id: WidgetId, editor_tab_id: WidgetId, volt_id: VoltID) -> Self {
-        let mut readme_layout = TextLayout::new();
-        readme_layout.set_text(RichText::new(ArcStr::from("")));
+        // TODO: Should this be an empty vec or a single string entry?
+        // let mut readme_layout = TextLayout::new();
+        // readme_layout.set_text(RichText::new(ArcStr::from("")));
+        let readme_layout = Vec::new();
         Self {
             widget_id,
             editor_tab_id,
@@ -835,7 +838,9 @@ impl Widget<LapceTabData> for PluginInfo {
                         self.request_focus(ctx, data);
                     }
                     LapceUICommand::UpdateVoltReadme(text) => {
-                        self.readme_layout.set_text(text.clone());
+                        layout_content_clean_up(&mut self.readme_layout, data);
+                        self.readme_layout =
+                            layouts_from_contents(ctx, data, text.iter());
                         ctx.request_layout();
                     }
                     _ => {}
@@ -976,15 +981,16 @@ impl Widget<LapceTabData> for PluginInfo {
                 .width
                 .max(self.desc_text_layout.as_ref().unwrap().size().width);
 
-            self.readme_layout.set_font(
-                FontDescriptor::new(data.config.ui.font_family())
-                    .with_size(data.config.ui.font_size() as f64),
-            );
-            self.readme_layout.set_text_color(
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            );
+            let font = FontDescriptor::new(data.config.ui.font_family())
+                .with_size(data.config.ui.font_size() as f64);
+            let text_color = data
+                .config
+                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                .clone();
+            for layout in &mut self.readme_layout {
+                layout.set_font(font.clone());
+                layout.set_text_color(text_color.clone());
+            }
 
             let info_width = self.padding * 4.0 + self.icon_width + self.title_width;
 
@@ -994,15 +1000,15 @@ impl Widget<LapceTabData> for PluginInfo {
 
             let readme_width = actual_width - margin * 2.0 - self.padding * 2.0;
 
-            self.readme_layout.set_wrap_width(readme_width);
-            self.readme_layout.rebuild_if_needed(ctx.text(), env);
+            let mut height = self.gap + self.icon_width + self.gap + self.gap;
+            for layout in &mut self.readme_layout {
+                layout.set_max_width(&data.images, readme_width);
+                layout.rebuild_if_needed(ctx.text(), env);
 
-            let height = self.gap
-                + self.icon_width
-                + self.gap
-                + self.gap
-                + self.readme_layout.size().height
-                + self.gap;
+                height += layout.size(&data.images, &data.config).height;
+            }
+
+            height += self.gap;
 
             self.repo_text_layout = {
                 let text = format!(
@@ -1212,8 +1218,12 @@ impl Widget<LapceTabData> for PluginInfo {
             );
 
             y += self.gap;
-            self.readme_layout
-                .draw(ctx, Point::new(padding + self.padding, y));
+
+            for layout in &self.readme_layout {
+                let origin = Point::new(padding + self.padding, y);
+                layout.draw(ctx, &data.images, &data.config, origin);
+                y += layout.size(&data.images, &data.config).height;
+            }
         }
     }
 }

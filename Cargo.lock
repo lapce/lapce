@@ -2682,6 +2682,7 @@ dependencies = [
  "tar",
  "thiserror",
  "toml_edit",
+ "url",
  "uuid",
  "zip",
 ]

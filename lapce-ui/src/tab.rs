@@ -2048,6 +2048,11 @@ impl LapceTab {
                         ctx.set_handled();
                         let _ = process::Command::new(cmd).args(args).spawn();
                     }
+                    LapceUICommand::ImageLoaded { url, image } => {
+                        ctx.set_handled();
+                        let images = Arc::make_mut(&mut data.images);
+                        images.load_finished(url, image)
+                    }
                     _ => (),
                 }
             }
