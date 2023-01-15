@@ -4360,7 +4360,9 @@ pub struct SelectionHistory {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorView {
     Normal,
+    /// Source Control Diffing
     Diff(String),
+    /// Code Lens
     Lens,
 }
 

@@ -141,10 +141,12 @@ impl Buffer {
         }
     }
 
+    /// The current buffer revision
     pub fn rev(&self) -> u64 {
         self.revs.last().unwrap().num
     }
 
+    /// Mark the buffer as pristine (aka 'saved')
     pub fn set_pristine(&mut self) {
         self.pristine_rev_id = self.rev();
     }
@@ -890,6 +892,10 @@ impl Buffer {
         }
     }
 
+    /// Get the content of the rope as a Cow string, for 'nice' ranges (small, and at the right
+    /// offsets) this will be a reference to the rope's data. Otherwise, it allocates a new string.
+    /// You should be somewhat wary of requesting large parts of the rope, as it will allocate
+    /// a new string since it isn't contiguous in memory for large chunks.
     pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<str> {
         self.text
             .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
