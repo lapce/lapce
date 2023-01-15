@@ -302,6 +302,9 @@ pub enum FocusCommand {
     #[strum(message = "Toggle Code Lens")]
     #[strum(serialize = "toggle_code_lens")]
     ToggleCodeLens,
+    #[strum(message = "Toggle History")]
+    #[strum(serialize = "toggle_history")]
+    ToggleHistory,
     #[strum(serialize = "format_document")]
     #[strum(message = "Format Document")]
     FormatDocument,
