@@ -54,6 +54,7 @@ structdesc = { git = "https://github.com/lapce/structdesc" }
 bytemuck = "1.8.0"
 # For parsing markdown data, such as in hovers
 pulldown-cmark = "0.9.1"
+url = "2.3.1"
 
 [target.'cfg(target_os="macos")'.dependencies]
 dmg = "0.1.1"

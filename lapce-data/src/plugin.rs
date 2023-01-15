@@ -345,7 +345,7 @@ impl PluginData {
             let text = parse_markdown("Plugin doesn't have a README", 2.0, config);
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateVoltReadme(text),
+                LapceUICommand::UpdateVoltReadme(Arc::new(text)),
                 Target::Widget(widget_id),
             );
             return Ok(());
@@ -354,7 +354,7 @@ impl PluginData {
         let text = parse_markdown(&text, 2.0, config);
         let _ = event_sink.submit_command(
             LAPCE_UI_COMMAND,
-            LapceUICommand::UpdateVoltReadme(text),
+            LapceUICommand::UpdateVoltReadme(Arc::new(text)),
             Target::Widget(widget_id),
         );
         Ok(())

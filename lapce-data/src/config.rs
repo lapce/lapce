@@ -221,6 +221,9 @@ impl LapceIcons {
     pub const FILE_EXPLORER: &str = "file_explorer";
     pub const FILE_PICKER_UP: &str = "file_picker_up";
 
+    pub const IMAGE_LOADING: &str = "image_loading";
+    pub const IMAGE_ERROR: &str = "image_error";
+
     pub const SCM: &str = "scm.icon";
     pub const SCM_DIFF_MODIFIED: &str = "scm.diff.modified";
     pub const SCM_DIFF_ADDED: &str = "scm.diff.added";

@@ -16,6 +16,7 @@ pub mod explorer;
 pub mod find;
 pub mod history;
 pub mod hover;
+pub mod images;
 pub mod keypress;
 pub mod list;
 pub mod markdown;

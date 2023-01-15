@@ -2,10 +2,9 @@ use std::sync::Arc;
 
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
-    theme, ArcStr, BoxConstraints, Command, Data, Env, Event, EventCtx,
-    FontDescriptor, FontFamily, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx,
-    Widget, WidgetId, WidgetPod,
+    theme, BoxConstraints, Command, Data, Env, Event, EventCtx, FontDescriptor,
+    FontFamily, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point,
+    Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -14,8 +13,12 @@ use lapce_data::{
     data::LapceTabData,
     document::BufferContent,
     list::ListData,
-    markdown::parse_documentation,
-    rich_text::RichText,
+    markdown::{
+        layout_content::{
+            layout_content_clean_up, layouts_from_contents, LayoutContent,
+        },
+        parse_documentation,
+    },
 };
 
 use crate::{
@@ -92,7 +95,7 @@ impl CompletionContainer {
         }
     }
 
-    fn update_documentation(&mut self, data: &LapceTabData) {
+    fn update_documentation(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         if data.completion.status == CompletionStatus::Inactive {
             return;
         }
@@ -107,16 +110,14 @@ impl CompletionContainer {
             None
         };
 
-        let text = if let Some(documentation) = documentation {
-            parse_documentation(documentation, &data.config)
-        } else {
-            // There is no documentation so we clear the text
-            RichText::new(ArcStr::from(""))
-        };
+        let content = documentation
+            .map(|doc| parse_documentation(doc, &data.config))
+            .unwrap_or_default();
 
         let doc = self.documentation.widget_mut().inner_mut().child_mut();
 
-        doc.doc_layout.set_text(text);
+        layout_content_clean_up(&mut doc.doc_content, data);
+        doc.doc_content = layouts_from_contents(ctx, data, content.iter());
 
         let font = FontDescriptor::new(data.config.ui.hover_font_family())
             .with_size(data.config.ui.hover_font_size() as f64);
@@ -125,8 +126,10 @@ impl CompletionContainer {
             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
             .clone();
 
-        doc.doc_layout.set_font(font);
-        doc.doc_layout.set_text_color(text_color);
+        for content in &mut doc.doc_content {
+            content.set_font(font.clone());
+            content.set_text_color(text_color.clone());
+        }
     }
 }
 
@@ -145,23 +148,30 @@ impl Widget<LapceTabData> for CompletionContainer {
         match event {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                if let LapceUICommand::ListItemSelected = command {
-                    if let Some(editor) = data
-                        .main_split
-                        .active
-                        .and_then(|active| data.main_split.editors.get(&active))
-                        .cloned()
-                    {
-                        let mut editor_data =
-                            data.editor_view_content(editor.view_id);
-                        let doc = editor_data.doc.clone();
-                        editor_data.completion_item_select(ctx);
-                        data.update_from_editor_buffer_data(
-                            editor_data,
-                            &editor,
-                            &doc,
-                        );
+                match command {
+                    LapceUICommand::RefreshCompletionDocumentation => {
+                        self.update_documentation(ctx, data);
+                        ctx.request_layout();
                     }
+                    LapceUICommand::ListItemSelected => {
+                        if let Some(editor) = data
+                            .main_split
+                            .active
+                            .and_then(|active| data.main_split.editors.get(&active))
+                            .cloned()
+                        {
+                            let mut editor_data =
+                                data.editor_view_content(editor.view_id);
+                            let doc = editor_data.doc.clone();
+                            editor_data.completion_item_select(ctx);
+                            data.update_from_editor_buffer_data(
+                                editor_data,
+                                &editor,
+                                &doc,
+                            );
+                        }
+                    }
+                    _ => {}
                 }
             }
             _ => {}
@@ -246,8 +256,11 @@ impl Widget<LapceTabData> for CompletionContainer {
                 || old_data.completion.status != data.completion.status
                 || completion_list_changed
             {
-                self.update_documentation(data);
-                ctx.request_layout();
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RefreshCompletionDocumentation,
+                    Target::Widget(self.id),
+                ));
             }
 
             if (old_completion.status == CompletionStatus::Inactive
@@ -266,7 +279,6 @@ impl Widget<LapceTabData> for CompletionContainer {
                 .widget_mut()
                 .inner_mut()
                 .child_mut()
-                .doc_layout
                 .needs_rebuild_after_update(ctx)
             {
                 ctx.request_layout();
@@ -442,7 +454,7 @@ impl<D: Data> ListPaint<D> for ScoredCompletionItem {
 }
 
 struct CompletionDocumentation {
-    doc_layout: TextLayout<RichText>,
+    doc_content: Vec<LayoutContent>,
 }
 impl CompletionDocumentation {
     const STARTING_Y: f64 = 5.0;
@@ -450,19 +462,22 @@ impl CompletionDocumentation {
 
     fn new() -> CompletionDocumentation {
         Self {
-            doc_layout: {
-                let mut layout = TextLayout::new();
-                layout.set_text(RichText::new(ArcStr::from("")));
-                layout
-            },
+            doc_content: Vec::new(),
         }
     }
 
     fn has_text(&self) -> bool {
-        self.doc_layout
-            .text()
-            .map(|text| !text.is_empty())
-            .unwrap_or(false)
+        !self.doc_content.is_empty()
+    }
+
+    fn needs_rebuild_after_update(&mut self, ctx: &mut UpdateCtx) -> bool {
+        for content in &mut self.doc_content {
+            if content.needs_rebuild_after_update(ctx) {
+                return true;
+            }
+        }
+
+        false
     }
 }
 impl Widget<LapceTabData> for CompletionDocumentation {
@@ -498,7 +513,7 @@ impl Widget<LapceTabData> for CompletionDocumentation {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        _data: &LapceTabData,
+        data: &LapceTabData,
         env: &Env,
     ) -> Size {
         if !self.has_text() {
@@ -511,18 +526,20 @@ impl Widget<LapceTabData> for CompletionDocumentation {
             - env.get(theme::SCROLLBAR_WIDTH)
             - env.get(theme::SCROLLBAR_PAD);
 
-        self.doc_layout.set_wrap_width(max_width);
-        self.doc_layout.rebuild_if_needed(ctx.text(), env);
+        let mut max_layout_width = 0.0;
+        let mut height = 0.0;
+        for layout in self.doc_content.iter_mut() {
+            layout.set_max_width(&data.images, max_width);
+            layout.rebuild_if_needed(ctx.text(), env);
+            let layout_size = layout.size(&data.images, &data.config);
+            if layout_size.width > max_layout_width {
+                max_layout_width = layout_size.width;
+            }
 
-        let text_metrics = self.doc_layout.layout_metrics();
-        ctx.set_baseline_offset(
-            text_metrics.size.height - text_metrics.first_baseline,
-        );
+            height += layout_size.height;
+        }
 
-        Size::new(
-            width,
-            text_metrics.size.height + CompletionDocumentation::STARTING_Y * 2.0,
-        )
+        Size::new(width, height + CompletionDocumentation::STARTING_Y * 2.0)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
@@ -541,6 +558,17 @@ impl Widget<LapceTabData> for CompletionDocumentation {
 
         let origin = Point::new(Self::STARTING_X, Self::STARTING_Y);
 
-        self.doc_layout.draw(ctx, origin);
+        let mut start_height = 0.0;
+        for layout in self.doc_content.iter_mut() {
+            layout.draw(
+                ctx,
+                &data.images,
+                &data.config,
+                origin + (0.0, start_height),
+            );
+
+            let height = layout.size(&data.images, &data.config).height;
+            start_height += height;
+        }
     }
 }

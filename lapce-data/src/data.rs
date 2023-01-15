@@ -65,6 +65,7 @@ use crate::{
     explorer::FileExplorerData,
     find::Find,
     hover::HoverData,
+    images::ImageCache,
     keypress::KeyPressData,
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::{
@@ -644,6 +645,7 @@ pub struct LapceTabData {
     pub window_origin: Rc<RefCell<Point>>,
     pub panel: Arc<PanelData>,
     pub config: Arc<LapceConfig>,
+    pub images: Arc<ImageCache>,
     pub focus: Arc<WidgetId>,
     pub focus_area: FocusArea,
     #[data(ignore)]
@@ -868,6 +870,7 @@ impl LapceTabData {
             window_origin: Rc::new(RefCell::new(Point::ZERO)),
             panel: Arc::new(panel),
             config,
+            images: Arc::new(ImageCache::default()),
             focus_area: FocusArea::Editor,
             db,
             progresses: Arc::new(Vec::new()),

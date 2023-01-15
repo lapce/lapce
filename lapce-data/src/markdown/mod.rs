@@ -15,47 +15,59 @@ use crate::{
     rich_text::{AttributesAdder, RichText, RichTextBuilder},
 };
 
+pub mod layout_content;
+
+#[derive(Clone)]
+pub enum Content {
+    Text(RichText),
+    Image { url: String, title: String },
+    Separator,
+}
+
 /// Parse the LSP documentation structure
-pub fn parse_documentation(doc: &Documentation, config: &LapceConfig) -> RichText {
+pub fn parse_documentation(
+    doc: &Documentation,
+    config: &LapceConfig,
+) -> Vec<Content> {
     match doc {
         // We assume this is plain text
         Documentation::String(text) => {
             let mut builder = RichTextBuilder::new();
             builder.set_line_height(1.5);
             builder.push(text);
-            builder.build()
+            vec![Content::Text(builder.build())]
         }
         Documentation::MarkupContent(content) => match content.kind {
             MarkupKind::PlainText => {
                 let mut builder = RichTextBuilder::new();
                 builder.set_line_height(1.5);
                 builder.push(&content.value);
-                builder.build()
+                vec![Content::Text(builder.build())]
             }
             MarkupKind::Markdown => parse_markdown(&content.value, 1.5, config),
         },
     }
 }
 
+// TODO: It would be nicer if this returned an iterator
 pub fn parse_markdown(
     text: &str,
     line_height: f64,
     config: &LapceConfig,
-) -> RichText {
+) -> Vec<Content> {
     use pulldown_cmark::{CowStr, Event, Options, Parser};
+
+    let mut res = Vec::new();
 
     let mut builder = RichTextBuilder::new();
     builder.set_line_height(line_height);
 
-    // Our position within the text
+    let mut builder_dirty = false;
+
     let mut pos = 0;
 
     let mut tag_stack: SmallVec<[(usize, Tag); 4]> = SmallVec::new();
 
-    let mut code_block_indices = Vec::new();
-
-    // Construct the markdown parser. We enable most of the options in order to provide the most
-    // compatibility that pulldown_cmark allows.
     let parser = Parser::new_ext(
         text,
         Options::ENABLE_TABLES
@@ -72,6 +84,7 @@ pub fn parse_markdown(
         // Add the newline since we're going to be outputting more
         if add_newline {
             builder.push("\n");
+            builder_dirty = true;
             pos += 1;
             add_newline = false;
         }
@@ -87,49 +100,75 @@ pub fn parse_markdown(
                         continue;
                     }
 
-                    if let Tag::CodeBlock(_kind) = &tag {
-                        code_block_indices.push(start_offset..pos);
-                    }
-
                     add_attribute_for_tag(
                         &tag,
                         builder.add_attributes_for_range(start_offset..pos),
                         config,
                     );
 
-                    if let Tag::CodeBlock(kind) = &tag {
-                        let language = if let CodeBlockKind::Fenced(language) = kind
-                        {
-                            md_language_to_lapce_language(language)
-                        } else {
-                            None
-                        };
-
-                        highlight_as_code(
-                            &mut builder,
-                            config,
-                            language,
-                            &last_text,
-                            start_offset,
-                        );
-                    }
-
                     if should_add_newline_after_tag(&tag) {
                         add_newline = true;
+                    }
+
+                    match &tag {
+                        Tag::CodeBlock(kind) => {
+                            let language =
+                                if let CodeBlockKind::Fenced(language) = kind {
+                                    md_language_to_lapce_language(language)
+                                } else {
+                                    None
+                                };
+
+                            highlight_as_code(
+                                &mut builder,
+                                config,
+                                language,
+                                &last_text,
+                                start_offset,
+                            );
+                            builder_dirty = true;
+                        }
+                        Tag::Image(_link_type, dest, title) => {
+                            // TODO: Are there any link types that would change how the
+                            // image is rendered?
+
+                            if builder_dirty {
+                                res.push(Content::Text(builder.build()));
+                                builder = RichTextBuilder::new();
+                                builder.set_line_height(line_height);
+                                pos = 0;
+                                builder_dirty = false;
+                            }
+
+                            res.push(Content::Image {
+                                url: dest.to_string(),
+                                title: title.to_string(),
+                            });
+                        }
+                        _ => {
+                            // Presumably?
+                            builder_dirty = true;
+                        }
                     }
                 } else {
                     log::warn!("Unbalanced markdown tag")
                 }
             }
             Event::Text(text) => {
+                if let Some((_, tag)) = tag_stack.last() {
+                    if should_skip_text_in_tag(tag) {
+                        continue;
+                    }
+                }
                 builder.push(&text);
                 pos += text.len();
                 last_text = text;
+                builder_dirty = true;
             }
             Event::Code(text) => {
                 builder.push(&text).font_family(config.editor.font_family());
-                code_block_indices.push(pos..(pos + text.len()));
                 pos += text.len();
+                builder_dirty = true;
             }
             // TODO: Some minimal 'parsing' of html could be useful here, since some things use
             // basic html like `<code>text</code>`.
@@ -143,14 +182,17 @@ pub fn parse_markdown(
                             .clone(),
                     );
                 pos += text.len();
+                builder_dirty = true;
             }
             Event::HardBreak => {
                 builder.push("\n");
                 pos += 1;
+                builder_dirty = true;
             }
             Event::SoftBreak => {
                 builder.push(" ");
                 pos += 1;
+                builder_dirty = true;
             }
             Event::Rule => {}
             Event::FootnoteReference(_text) => {}
@@ -158,7 +200,11 @@ pub fn parse_markdown(
         }
     }
 
-    builder.build()
+    if builder_dirty {
+        res.push(Content::Text(builder.build()));
+    }
+
+    res
 }
 
 /// Highlight the text in a richtext builder like it was a markdown codeblock
@@ -197,7 +243,7 @@ pub fn highlight_as_code(
     }
 }
 
-pub fn from_marked_string(text: MarkedString, config: &LapceConfig) -> RichText {
+pub fn from_marked_string(text: MarkedString, config: &LapceConfig) -> Vec<Content> {
     match text {
         MarkedString::String(text) => parse_markdown(&text, 1.5, config),
         // This is a short version of a code block
@@ -268,6 +314,12 @@ fn should_add_newline_after_tag(tag: &Tag) -> bool {
         tag,
         Tag::Emphasis | Tag::Strong | Tag::Strikethrough | Tag::Link(..)
     )
+}
+
+/// Whether it should skip the text node after a specific tag  
+/// For example, images are skipped because it emits their title as a separate text node.  
+fn should_skip_text_in_tag(tag: &Tag) -> bool {
+    matches!(tag, Tag::Image(..))
 }
 
 fn md_language_to_lapce_language(lang: &str) -> Option<LapceLanguage> {

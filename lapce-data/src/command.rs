@@ -25,7 +25,7 @@ use lapce_xi_rope::{spans::Spans, Rope};
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     InlayHint, Location, MessageType, Position, ProgressParams,
-    PublishDiagnosticsParams, SelectionRange, SignatureHelp, TextEdit,
+    PublishDiagnosticsParams, SelectionRange, SignatureHelp, TextEdit, Url,
     WorkspaceEdit,
 };
 use serde_json::Value;
@@ -40,12 +40,13 @@ use crate::{
     },
     document::BufferContent,
     editor::{EditorLocation, EditorPosition, Line, LineCol},
+    images,
     keypress::{KeyMap, KeyPress},
+    markdown::Content,
     menu::MenuKind,
     palette::{PaletteItem, PaletteType},
     plugin::{PluginsInfo, VoltIconKind},
     proxy::ProxyStatus,
-    rich_text::RichText,
     search::Match,
     selection_range::SelectionRangeDirection,
     settings::LapceSettingsKind,
@@ -624,19 +625,25 @@ pub enum LapceUICommand {
         offset: usize,
         item: Box<CompletionItem>,
     },
+    /// Completion 'internal' event that indicates that it should recompute the layouts for
+    /// the completion documentation.
+    RefreshCompletionDocumentation,
     /// Received when the request for signature information has completed
     UpdateSignature {
         request_id: usize,
         resp: SignatureHelp,
         plugin_id: PluginId,
     },
+    /// Signature 'internal' event that indicates that it should recompute the layouts for
+    /// the signature view.
+    RefreshSignature,
     /// Received when the request for hover information has completed
     UpdateHover {
         request_id: usize,
-        items: Arc<Vec<RichText>>,
+        items: Arc<Vec<Content>>,
     },
     /// Received when the request for the plugin's description completed
-    UpdateVoltReadme(RichText),
+    UpdateVoltReadme(Arc<Vec<Content>>),
     UpdateInlayHints {
         path: PathBuf,
         rev: u64,
@@ -1017,6 +1024,10 @@ pub enum LapceUICommand {
         message: String,
     },
     CloseMessage(WidgetId),
+    ImageLoaded {
+        url: Url,
+        image: Result<images::Image, anyhow::Error>,
+    },
 }
 
 /// This can't be an `FnOnce` because we only ever get a reference to
