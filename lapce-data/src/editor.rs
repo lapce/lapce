@@ -2280,6 +2280,14 @@ impl LapceEditorBufferData {
                     EditorView::Diff(_) => return CommandExecuted::Yes,
                 };
             }
+            ToggleHistory => {
+                let editor = Arc::make_mut(&mut self.editor);
+                editor.view = match editor.view {
+                    EditorView::Normal => EditorView::Diff(String::from("head")),
+                    EditorView::Diff(_) => EditorView::Normal,
+                    EditorView::Lens => return CommandExecuted::Yes,
+                };
+            }
             FormatDocument => {
                 if let BufferContent::File(path) = self.doc.content() {
                     let path = path.clone();
