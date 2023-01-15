@@ -1709,49 +1709,48 @@ impl Document {
     ) -> ((usize, usize), bool) {
         let (line, font_size) = match view {
             EditorView::Diff(version) => {
-                if let Some(history) = self.get_history(version) {
-                    let line_height = config.editor.line_height();
-                    // Tracks the actual line in the file.
-                    let mut line = 0;
-                    // Tracks the lines that are displayed in the editor.
-                    let mut lines = 0;
-                    for change in history.changes().iter() {
-                        match change {
-                            DiffLines::Left(l) => {
-                                lines += l.len();
-                                if (lines * line_height) as f64 > point.y {
-                                    break;
-                                }
-                            }
-                            DiffLines::Skip(_l, r) => {
-                                // Skip only has one line rendered, so we only update this by 1
-                                lines += 1;
-                                if (lines * line_height) as f64 > point.y {
-                                    break;
-                                }
-                                // However, skip moves forward multiple lines in the underlying
-                                // file so we need to update this.
-                                line += r.len();
-                            }
-                            DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                                lines += r.len();
-                                if (lines * line_height) as f64 > point.y {
-                                    line += ((point.y
-                                        - ((lines - r.len()) * line_height) as f64)
-                                        / line_height as f64)
-                                        .floor()
-                                        as usize;
-                                    break;
-                                }
-                                line += r.len();
+                let changes = self
+                    .get_history(version)
+                    .map(|h| h.changes())
+                    .unwrap_or_default();
+                let line_height = config.editor.line_height();
+                // Tracks the actual line in the file.
+                let mut line = 0;
+                // Tracks the lines that are displayed in the editor.
+                let mut lines = 0;
+                for change in changes {
+                    match change {
+                        DiffLines::Left(l) => {
+                            lines += l.len();
+                            if (lines * line_height) as f64 > point.y {
+                                break;
                             }
                         }
+                        DiffLines::Skip(_l, r) => {
+                            // Skip only has one line rendered, so we only update this by 1
+                            lines += 1;
+                            if (lines * line_height) as f64 > point.y {
+                                break;
+                            }
+                            // However, skip moves forward multiple lines in the underlying
+                            // file so we need to update this.
+                            line += r.len();
+                        }
+                        DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                            lines += r.len();
+                            if (lines * line_height) as f64 > point.y {
+                                line += ((point.y
+                                    - ((lines - r.len()) * line_height) as f64)
+                                    / line_height as f64)
+                                    .floor()
+                                    as usize;
+                                break;
+                            }
+                            line += r.len();
+                        }
                     }
-                    (line, config.editor.font_size)
-                } else {
-                    // There was no history, so default to assuming line 0
-                    (0, config.editor.font_size)
                 }
+                (line, config.editor.font_size)
             }
             EditorView::Lens => {
                 if let Some(syntax) = self.syntax() {
@@ -1882,36 +1881,36 @@ impl Document {
     ) -> (Point, Point) {
         let (y, line_height, font_size) = match view {
             EditorView::Diff(version) => {
-                if let Some(history) = self.get_history(version) {
-                    let line_height = config.editor.line_height();
-                    let mut current_line = 0;
-                    let mut y = 0;
-                    for change in history.changes().iter() {
-                        match change {
-                            DiffLines::Left(l) => {
-                                y += l.len() * line_height;
+                let changes = self
+                    .get_history(version)
+                    .map(|h| h.changes())
+                    .unwrap_or_default();
+                let line_height = config.editor.line_height();
+                let mut current_line = 0;
+                let mut y = 0;
+                for change in changes {
+                    match change {
+                        DiffLines::Left(l) => {
+                            y += l.len() * line_height;
+                        }
+                        DiffLines::Skip(_l, r) => {
+                            if current_line + r.len() > line {
+                                break;
                             }
-                            DiffLines::Skip(_l, r) => {
-                                if current_line + r.len() > line {
-                                    break;
-                                }
-                                y += line_height;
-                                current_line += r.len();
+                            y += line_height;
+                            current_line += r.len();
+                        }
+                        DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                            if current_line + r.len() > line {
+                                y += line_height * (line - current_line);
+                                break;
                             }
-                            DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                                if current_line + r.len() > line {
-                                    y += line_height * (line - current_line);
-                                    break;
-                                }
-                                y += r.len() * line_height;
-                                current_line += r.len();
-                            }
+                            y += r.len() * line_height;
+                            current_line += r.len();
                         }
                     }
-                    (y, config.editor.line_height(), config.editor.font_size)
-                } else {
-                    (0, config.editor.line_height(), config.editor.font_size)
                 }
+                (y, config.editor.line_height(), config.editor.font_size)
             }
             EditorView::Lens => {
                 if let Some(syntax) = self.syntax() {
