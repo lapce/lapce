@@ -147,6 +147,7 @@ impl Widget<LapceTabData> for FindBox {
         let input_bc =
             BoxConstraints::tight(Size::new(self.input_width, bc.max().height));
         let mut input_size = self.input.layout(ctx, &input_bc, data, env);
+        self.input.set_origin(ctx, data, env, Point::ZERO);
         let icons_len = self.icons.len() as f64;
         let height = input_size.height;
         let mut width = input_size.width + self.result_width + height * icons_len;
@@ -157,9 +158,9 @@ impl Widget<LapceTabData> for FindBox {
                 bc.max().height,
             ));
             input_size = self.input.layout(ctx, &input_bc, data, env);
+            self.input.set_origin(ctx, data, env, Point::ZERO);
             width = input_size.width + self.result_width + height * icons_len;
         }
-        self.input.set_origin(ctx, data, env, Point::ZERO);
 
         for (i, icon) in self.icons.iter_mut().enumerate() {
             icon.rect = Size::new(height, height)
@@ -292,8 +293,10 @@ impl Widget<LapceTabData> for FindBox {
             } else if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
                     icon.rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                    &data.config.get_hover_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                    ),
                 );
             }
 
