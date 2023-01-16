@@ -227,10 +227,11 @@ impl DocumentHistory {
             for (i, change) in old_changes.iter().enumerate() {
                 if let DiffLines::Skip(left, right) = change {
                     if *change == diff_skip {
-                        let l_incr = if left.len() < 5 { left.len() } else { incr };
-                        let r_incr =
-                            if right.len() < 5 { right.len() } else { incr };
                         if i == 0 {
+                            let l_incr =
+                                if left.len() < incr { left.len() } else { incr };
+                            let r_incr =
+                                if right.len() < 5 { right.len() } else { incr };
                             changes[i] = DiffLines::Skip(
                                 Range {
                                     start: left.start,
@@ -254,6 +255,10 @@ impl DocumentHistory {
                                 );
                             }
                         } else if i == changes_len - 1 {
+                            let l_incr =
+                                if left.len() < incr { left.len() } else { incr };
+                            let r_incr =
+                                if right.len() < 5 { right.len() } else { incr };
                             if let DiffLines::Both(l, r) = &old_changes[i - 1] {
                                 changes[i - 1] = DiffLines::Both(
                                     Range {
@@ -277,36 +282,49 @@ impl DocumentHistory {
                                 },
                             );
                         } else {
+                            let mut l_s_incr = incr; // left start increasement
+                            let mut l_e_incr = incr; // left end increasement
+                            let mut r_s_incr = incr; // right start increasement
+                            let mut r_e_incr = incr; // right end increasement
+                            if left.len() < incr * 2 {
+                                l_s_incr = left.len();
+                                l_e_incr = 0;
+                            }
+                            if right.len() < incr * 2 {
+                                r_s_incr = right.len();
+                                r_e_incr = 0;
+                            }
+
                             if let DiffLines::Both(l, r) = &old_changes[i - 1] {
                                 changes[i - 1] = DiffLines::Both(
                                     Range {
                                         start: l.start,
-                                        end: l.end + l_incr,
+                                        end: l.end + l_s_incr,
                                     },
                                     Range {
                                         start: r.start,
-                                        end: r.end + r_incr,
+                                        end: r.end + r_s_incr,
                                     },
                                 );
                             }
                             changes[i] = DiffLines::Skip(
                                 Range {
-                                    start: left.start + l_incr,
-                                    end: left.end - l_incr,
+                                    start: left.start + l_s_incr,
+                                    end: left.end - l_e_incr,
                                 },
                                 Range {
-                                    start: right.start + r_incr,
-                                    end: right.end - r_incr,
+                                    start: right.start + r_s_incr,
+                                    end: right.end - r_e_incr,
                                 },
                             );
                             if let DiffLines::Both(l, r) = &old_changes[i + 1] {
                                 changes[i + 1] = DiffLines::Both(
                                     Range {
-                                        start: l.start - l_incr,
+                                        start: l.start - l_e_incr,
                                         end: l.end,
                                     },
                                     Range {
-                                        start: r.start - r_incr,
+                                        start: r.start - r_e_incr,
                                         end: r.end,
                                     },
                                 );

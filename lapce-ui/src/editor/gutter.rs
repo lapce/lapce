@@ -478,7 +478,7 @@ impl LapceEditorGutter {
                 break;
             }
         }
-        return None;
+        None
     }
 
     fn paint_gutter_code_lens(
