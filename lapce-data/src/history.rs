@@ -319,11 +319,11 @@ impl DocumentHistory {
                 .iter()
                 .filter(|change| {
                     if let DiffLines::Skip(left, right) = change {
-                        if left.len() == 0 && right.len() == 0 {
+                        if left.is_empty() && right.is_empty() {
                             return false;
                         }
                     }
-                    return true;
+                    true
                 })
                 .cloned()
                 .collect_vec();
