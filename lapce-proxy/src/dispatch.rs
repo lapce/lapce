@@ -9,7 +9,7 @@ use std::{
 
 use alacritty_terminal::{event::WindowSize, event_loop::Msg};
 use anyhow::{anyhow, Context, Result};
-use crossbeam_channel::Sender;
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use git2::{build::CheckoutBuilder, DiffOptions, Repository};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
@@ -41,6 +41,9 @@ use crate::{
 
 const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(1);
 const WORKSPACE_EVENT_TOKEN: WatchToken = WatchToken(2);
+static GLOBAL_SEARCH_INPUT: Mutex<Option<GlobalSearchInput>> = Mutex::new(None);
+
+type GlobalSearchInput = (RequestId, Option<PathBuf>, String, bool);
 
 pub struct Dispatcher {
     workspace: Option<PathBuf>,
@@ -54,6 +57,7 @@ pub struct Dispatcher {
 
     window_id: usize,
     tab_id: usize,
+    global_search_tx: Sender<()>,
 }
 
 impl ProxyHandler for Dispatcher {
@@ -303,64 +307,11 @@ impl ProxyHandler for Dispatcher {
                 case_sensitive,
             } => {
                 let workspace = self.workspace.clone();
-                let proxy_rpc = self.proxy_rpc.clone();
-                // Perform the search on another thread to avoid blocking the proxy thread
-                thread::spawn(move || {
-                    let result = if let Some(workspace) = workspace.as_ref() {
-                        let mut matches = IndexMap::new();
-                        let pattern = regex::escape(&pattern);
-                        if let Ok(matcher) = RegexMatcherBuilder::new()
-                            .case_insensitive(!case_sensitive)
-                            .build_literals(&[&pattern])
-                        {
-                            let mut searcher = SearcherBuilder::new().build();
-                            for path in ignore::Walk::new(workspace).flatten() {
-                                if let Some(file_type) = path.file_type() {
-                                    if file_type.is_file() {
-                                        let path = path.into_path();
-                                        let mut line_matches = Vec::new();
-                                        let _ = searcher.search_path(
-                                            &matcher,
-                                            path.clone(),
-                                            UTF8(|lnum, line| {
-                                                let mymatch = matcher
-                                                    .find(line.as_bytes())?
-                                                    .unwrap();
-                                                // Shorten the line to avoid sending over absurdly long-lines
-                                                // (such as in minified javascript)
-                                                // Note that the start/end are column based, not absolute from the
-                                                // start of the file.
-                                                let display_range = mymatch
-                                                    .start()
-                                                    .saturating_sub(100)
-                                                    ..line
-                                                        .len()
-                                                        .min(mymatch.end() + 100);
-                                                line_matches.push((
-                                                    lnum as usize,
-                                                    (mymatch.start(), mymatch.end()),
-                                                    line[display_range].to_string(),
-                                                ));
-                                                Ok(true)
-                                            }),
-                                        );
-                                        if !line_matches.is_empty() {
-                                            matches
-                                                .insert(path.clone(), line_matches);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        Ok(ProxyResponse::GlobalSearchResponse { matches })
-                    } else {
-                        Err(RpcError {
-                            code: 0,
-                            message: "no workspace set".to_string(),
-                        })
-                    };
-                    proxy_rpc.handle_response(id, result);
-                });
+                let mut lock = GLOBAL_SEARCH_INPUT.lock();
+                *lock = Some((id, workspace, pattern, case_sensitive));
+                if let Err(err) = self.global_search_tx.send(()) {
+                    log::debug!("err:{}", err);
+                }
             }
             CompletionResolve {
                 plugin_id,
@@ -848,6 +799,13 @@ impl Dispatcher {
 
         let file_watcher = FileWatcher::new();
 
+        let (global_search_tx, global_search_rx) = unbounded::<()>();
+
+        let local_proxy_rpc = proxy_rpc.clone();
+        thread::spawn(move || {
+            start_global_search_job(local_proxy_rpc, global_search_rx)
+        });
+
         Self {
             workspace: None,
             proxy_rpc,
@@ -858,6 +816,7 @@ impl Dispatcher {
             file_watcher,
             window_id: 1,
             tab_id: 1,
+            global_search_tx,
         }
     }
 
@@ -1264,4 +1223,77 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
         head.peel_to_commit()?.id(),
         file.strip_prefix(workspace_path)?.to_str().unwrap()
     ))
+}
+
+fn start_global_search_job(
+    proxy_rpc: ProxyRpcHandler,
+    global_search_rx: Receiver<()>,
+) {
+    loop {
+        for _ in global_search_rx.iter() {
+            let input = {
+                let mut lock = GLOBAL_SEARCH_INPUT.lock();
+                lock.take()
+            };
+
+            if input.is_none() {
+                break;
+            }
+
+            let (id, workspace, pattern, case_sensitive) = input.unwrap();
+            let result = if let Some(workspace) = workspace.as_ref() {
+                let mut matches = IndexMap::new();
+                let pattern = regex::escape(&pattern);
+                if let Ok(matcher) = RegexMatcherBuilder::new()
+                    .case_insensitive(!case_sensitive)
+                    .build_literals(&[&pattern])
+                {
+                    let mut searcher = SearcherBuilder::new().build();
+                    for path in ignore::Walk::new(workspace).flatten() {
+                        if let Some(file_type) = path.file_type() {
+                            if file_type.is_file() {
+                                let path = path.into_path();
+                                let mut line_matches = Vec::new();
+                                let _ = searcher.search_path(
+                                    &matcher,
+                                    path.clone(),
+                                    UTF8(|lnum, line| {
+                                        let mymatch =
+                                            matcher.find(line.as_bytes())?.unwrap();
+                                        // Shorten the line to avoid sending over absurdly long-lines
+                                        // (such as in minified javascript)
+                                        // Note that the start/end are column based, not absolute from the
+                                        // start of the file.
+                                        line_matches.push((
+                                            lnum as usize,
+                                            (mymatch.start(), mymatch.end()),
+                                            line.chars()
+                                                .skip(
+                                                    mymatch
+                                                        .start()
+                                                        .saturating_sub(100),
+                                                )
+                                                .take(100)
+                                                .collect::<String>(),
+                                        ));
+                                        Ok(true)
+                                    }),
+                                );
+                                if !line_matches.is_empty() {
+                                    matches.insert(path.clone(), line_matches);
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(ProxyResponse::GlobalSearchResponse { matches })
+            } else {
+                Err(RpcError {
+                    code: 0,
+                    message: "no workspace set".to_string(),
+                })
+            };
+            proxy_rpc.handle_response(id, result);
+        }
+    }
 }
