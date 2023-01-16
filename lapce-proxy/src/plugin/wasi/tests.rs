@@ -40,7 +40,7 @@ fn test_load_volt() {
         Err(err) => assert_eq!(err.kind(), std::io::ErrorKind::NotFound),
     };
     // This should return Err since the file does not exist
-    if let Ok(volt_metadata) = load_volt(&lapce_proxy_dir.join("some-path")) {
+    if let Ok(volt_metadata) = load_volt(&lapce_proxy_dir) {
         panic!(
             "Unexpected result from `lapce_proxy::plugin::wasi::load_volt` function: {:?}",
             volt_metadata
@@ -93,9 +93,8 @@ fn test_load_volt() {
     }
 
     let parent_path = lapce_proxy_dir.join("some_author.test-plugin-one");
-    let path_one = parent_path.join("volt.toml");
 
-    let volt_metadata = match load_volt(&path_one) {
+    let volt_metadata = match load_volt(&parent_path) {
         Ok(volt_metadata) => volt_metadata,
         Err(error) => panic!("{}", error),
     };
@@ -154,9 +153,8 @@ fn test_load_volt() {
     );
 
     let parent_path = lapce_proxy_dir.join("some_author.test-plugin-two");
-    let path_two = parent_path.join("volt.toml");
 
-    let volt_metadata = match load_volt(&path_two) {
+    let volt_metadata = match load_volt(&parent_path) {
         Ok(volt_metadata) => volt_metadata,
         Err(error) => panic!("{}", error),
     };
@@ -215,9 +213,8 @@ fn test_load_volt() {
     );
 
     let parent_path = lapce_proxy_dir.join("some_author.test-plugin-three");
-    let path_three = parent_path.join("volt.toml");
 
-    let volt_metadata = match load_volt(&path_three) {
+    let volt_metadata = match load_volt(&parent_path) {
         Ok(volt_metadata) => volt_metadata,
         Err(error) => panic!("{}", error),
     };

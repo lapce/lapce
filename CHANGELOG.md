@@ -5,6 +5,7 @@
 ### Breaking changes
 
 - [#1820](https://github.com/lapce/lapce/pull/1820): Add remote svg icon colour to theme, disable plugin settings when none are available
+- [#1988](https://github.com/lapce/lapce/pull/1987): Replace modal status background with background/foreground theme keys
 
 ### Features/Changes
 - [#1899](https://github.com/lapce/lapce/pull/1899): Improve sorting files with numbers
@@ -18,6 +19,8 @@
 - [#1968](https://github.com/lapce/lapce/pull/1968): Completion lens (disabled by default)
   - ![image](https://user-images.githubusercontent.com/13157904/211959283-c3229cfc-28d7-4676-a50d-aec7d47cde9f.png)
 - [#1972](https://github.com/lapce/lapce/pull/1972): Add file duplication option in fs tree context menu
+- [#1991](https://github.com/lapce/lapce/pull/1991): Implement rendering of images in markdown views
+- [#2004](https://github.com/lapce/lapce/pull/2004): Add ToggleHistory command
 
 ### Bug Fixes
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys

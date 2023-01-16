@@ -8,6 +8,7 @@ use crate::{
     word::WordCursor,
 };
 
+/// A wrapper around a rope that provides utility functions atop it.
 pub struct RopeText<'a> {
     text: &'a Rope,
 }
@@ -25,10 +26,13 @@ impl<'a> RopeText<'a> {
         self.len() == 0
     }
 
+    /// The last line of the held rope
     pub fn last_line(&self) -> usize {
         self.line_of_offset(self.len())
     }
 
+    /// Get the offset into the rope of the start of the given line.  
+    /// If the line it out of bounds, then the last offset (the len) is returned.
     pub fn offset_of_line(&self, line: usize) -> usize {
         let last_line = self.last_line();
         let line = line.min(last_line + 1);
@@ -122,6 +126,19 @@ impl<'a> RopeText<'a> {
         offset - line_start
     }
 
+    /// Get the offset of the end of the line. The caret decides whether it is after the last
+    /// character, or before it.  
+    /// If the line is out of bounds, then the last offset (the len) is returned.
+    /// ```rust,ignore
+    /// let text = Rope::from("hello\nworld");
+    /// let text = RopeText::new(&text);
+    /// assert_eq!(text.line_end_offset(0, false), 4);  // "hell|o"
+    /// assert_eq!(text.line_end_offset(0, true), 5);   // "hello|"
+    /// assert_eq!(text.line_end_offset(1, false), 10); // "worl|d"
+    /// assert_eq!(text.line_end_offset(1, true), 11);  // "world|"
+    /// // Out of bounds
+    /// assert_eq!(text.line_end_offset(2, false), 11); // "world|"
+    /// ```
     pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
         let mut offset = self.offset_of_line(line + 1);
         let mut line_content: &str = &self.line_content(line);
@@ -138,11 +155,15 @@ impl<'a> RopeText<'a> {
         offset
     }
 
+    /// Returns the content of the given line.
+    /// Includes the line ending if it exists. (-> the last line won't have a line ending)    
+    /// Lines past the end of the document will return an empty string.
     pub fn line_content(&self, line: usize) -> Cow<'a, str> {
         self.text
             .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
     }
 
+    /// Get the offset of the previous grapheme cluster.
     pub fn prev_grapheme_offset(
         &self,
         offset: usize,
@@ -166,6 +187,9 @@ impl<'a> RopeText<'a> {
         new_offset
     }
 
+    /// Returns the offset of the first non-blank character on the given line.  
+    /// If the line is one past the last line, then the offset at the end of the rope is returned.
+    /// If the line is further past that, then it defaults to the last line.
     pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
         let last_line = self.last_line();
         let line = if line > last_line + 1 {
@@ -185,6 +209,10 @@ impl<'a> RopeText<'a> {
         indent.to_string()
     }
 
+    /// Get the content of the rope as a Cow string, for 'nice' ranges (small, and at the right
+    /// offsets) this will be a reference to the rope's data. Otherwise, it allocates a new string.
+    /// You should be somewhat wary of requesting large parts of the rope, as it will allocate
+    /// a new string since it isn't contiguous in memory for large chunks.
     pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<'a, str> {
         self.text
             .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
@@ -199,10 +227,12 @@ impl<'a> RopeText<'a> {
         CharIndicesJoin::new(self.text.iter_chunks(range).map(str::char_indices))
     }
 
+    /// The number of lines in the file
     pub fn num_lines(&self) -> usize {
         self.last_line() + 1
     }
 
+    /// The length of the given line
     pub fn line_len(&self, line: usize) -> usize {
         self.offset_of_line(line + 1) - self.offset_of_line(line)
     }
@@ -272,5 +302,160 @@ impl<I: Iterator<Item = (usize, char)>, O: Iterator<Item = I>> Iterator
             // We didn't get anything from the main iter, so we're completely done.
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use lapce_xi_rope::Rope;
+
+    use super::RopeText;
+
+    #[test]
+    fn test_line_content() {
+        let text = Rope::from("");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.line_content(0), "");
+        assert_eq!(text.line_content(1), "");
+        assert_eq!(text.line_content(2), "");
+
+        let text = Rope::from("abc\ndef\nghi");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.line_content(0), "abc\n");
+        assert_eq!(text.line_content(1), "def\n");
+        assert_eq!(text.line_content(2), "ghi");
+        assert_eq!(text.line_content(3), "");
+        assert_eq!(text.line_content(4), "");
+        assert_eq!(text.line_content(5), "");
+
+        let text = Rope::from("abc\r\ndef\r\nghi");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.line_content(0), "abc\r\n");
+        assert_eq!(text.line_content(1), "def\r\n");
+        assert_eq!(text.line_content(2), "ghi");
+        assert_eq!(text.line_content(3), "");
+        assert_eq!(text.line_content(4), "");
+        assert_eq!(text.line_content(5), "");
+    }
+
+    #[test]
+    fn test_offset_of_line() {
+        let text = Rope::from("");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.offset_of_line(0), 0);
+        assert_eq!(text.offset_of_line(1), 0);
+        assert_eq!(text.offset_of_line(2), 0);
+
+        let text = Rope::from("abc\ndef\nghi");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.offset_of_line(0), 0);
+        assert_eq!(text.offset_of_line(1), 4);
+        assert_eq!(text.offset_of_line(2), 8);
+        assert_eq!(text.offset_of_line(3), text.len()); // 11
+        assert_eq!(text.offset_of_line(4), text.len());
+        assert_eq!(text.offset_of_line(5), text.len());
+
+        let text = Rope::from("abc\r\ndef\r\nghi");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.offset_of_line(0), 0);
+        assert_eq!(text.offset_of_line(1), 5);
+        assert_eq!(text.offset_of_line(2), 10);
+        assert_eq!(text.offset_of_line(3), text.len()); // 13
+        assert_eq!(text.offset_of_line(4), text.len());
+        assert_eq!(text.offset_of_line(5), text.len());
+    }
+
+    #[test]
+    fn test_line_end_offset() {
+        let text = Rope::from("");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.line_end_offset(0, false), 0);
+        assert_eq!(text.line_end_offset(0, true), 0);
+        assert_eq!(text.line_end_offset(1, false), 0);
+        assert_eq!(text.line_end_offset(1, true), 0);
+        assert_eq!(text.line_end_offset(2, false), 0);
+        assert_eq!(text.line_end_offset(2, true), 0);
+
+        let text = Rope::from("abc\ndef\nghi");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.line_end_offset(0, false), 2);
+        assert_eq!(text.line_end_offset(0, true), 3);
+        assert_eq!(text.line_end_offset(1, false), 6);
+        assert_eq!(text.line_end_offset(1, true), 7);
+        assert_eq!(text.line_end_offset(2, false), 10);
+        assert_eq!(text.line_end_offset(2, true), text.len());
+        assert_eq!(text.line_end_offset(3, false), text.len());
+        assert_eq!(text.line_end_offset(3, true), text.len());
+        assert_eq!(text.line_end_offset(4, false), text.len());
+        assert_eq!(text.line_end_offset(4, true), text.len());
+
+        // This is equivalent to the doc test for RopeText::line_end_offset
+        // because you don't seem to be able to do a `use RopeText` in a doc test since it isn't
+        // public..
+        let text = Rope::from("hello\nworld");
+        let text = RopeText::new(&text);
+        assert_eq!(text.line_end_offset(0, false), 4); // "hell|o"
+        assert_eq!(text.line_end_offset(0, true), 5); // "hello|"
+        assert_eq!(text.line_end_offset(1, false), 10); // "worl|d"
+        assert_eq!(text.line_end_offset(1, true), 11); // "world|"
+                                                       // Out of bounds
+        assert_eq!(text.line_end_offset(2, false), 11); // "world|"
+    }
+
+    #[test]
+    fn test_prev_grapheme_offset() {
+        let text = Rope::from("");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.prev_grapheme_offset(0, 0, 0), 0);
+        assert_eq!(text.prev_grapheme_offset(0, 1, 0), 0);
+        assert_eq!(text.prev_grapheme_offset(0, 1, 1), 0);
+
+        let text = Rope::from("abc def ghi");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.prev_grapheme_offset(0, 0, 0), 0);
+        assert_eq!(text.prev_grapheme_offset(0, 1, 0), 0);
+        assert_eq!(text.prev_grapheme_offset(0, 1, 1), 0);
+        assert_eq!(text.prev_grapheme_offset(2, 1, 0), 1);
+        assert_eq!(text.prev_grapheme_offset(2, 1, 1), 1);
+    }
+
+    #[test]
+    fn test_first_non_blank_character_on_line() {
+        let text = Rope::from("");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.first_non_blank_character_on_line(0), 0);
+        assert_eq!(text.first_non_blank_character_on_line(1), 0);
+        assert_eq!(text.first_non_blank_character_on_line(2), 0);
+
+        let text = Rope::from("abc\ndef\nghi");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.first_non_blank_character_on_line(0), 0);
+        assert_eq!(text.first_non_blank_character_on_line(1), 4);
+        assert_eq!(text.first_non_blank_character_on_line(2), 8);
+        assert_eq!(text.first_non_blank_character_on_line(3), 11);
+        assert_eq!(text.first_non_blank_character_on_line(4), 8);
+        assert_eq!(text.first_non_blank_character_on_line(5), 8);
+
+        let text = Rope::from("abc\r\ndef\r\nghi");
+        let text = RopeText::new(&text);
+
+        assert_eq!(text.first_non_blank_character_on_line(0), 0);
+        assert_eq!(text.first_non_blank_character_on_line(1), 5);
+        assert_eq!(text.first_non_blank_character_on_line(2), 10);
+        assert_eq!(text.first_non_blank_character_on_line(3), 13);
+        assert_eq!(text.first_non_blank_character_on_line(4), 10);
+        assert_eq!(text.first_non_blank_character_on_line(5), 10);
     }
 }
