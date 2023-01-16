@@ -578,15 +578,7 @@ impl Syntax {
         new_text: Rope,
         edits: Option<&[SyntaxEdit]>,
     ) {
-        let edits = if let Some(edits) = edits {
-            if new_rev == self.rev + edits.len() as u64 {
-                Some(edits)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        let edits = edits.filter(|edits| new_rev == self.rev + edits.len() as u64);
         let _ = self.layers.update(self.rev, new_rev, &new_text, edits);
         let tree = self.layers.try_tree();
 
