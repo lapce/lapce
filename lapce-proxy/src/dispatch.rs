@@ -1232,71 +1232,67 @@ fn start_global_search_job(
     proxy_rpc: ProxyRpcHandler,
     global_search_rx: Receiver<()>,
 ) {
-    loop {
-        for _ in global_search_rx.iter() {
-            let input = {
-                let mut lock = GLOBAL_SEARCH_INPUT.lock();
-                lock.take()
-            };
+    for _ in global_search_rx.iter() {
+        let input = {
+            let mut lock = GLOBAL_SEARCH_INPUT.lock();
+            lock.take()
+        };
 
-            if input.is_none() {
-                break;
-            }
+        if input.is_none() {
+            continue;
+        }
 
-            let (id, workspace, pattern, case_sensitive) = input.unwrap();
-            let result = if let Some(workspace) = workspace.as_ref() {
-                let mut matches = IndexMap::new();
-                let pattern = regex::escape(&pattern);
-                if let Ok(matcher) = RegexMatcherBuilder::new()
-                    .case_insensitive(!case_sensitive)
-                    .build_literals(&[&pattern])
-                {
-                    let mut searcher = SearcherBuilder::new().build();
-                    for path in ignore::Walk::new(workspace).flatten() {
-                        if let Some(file_type) = path.file_type() {
-                            if file_type.is_file() {
-                                let path = path.into_path();
-                                let mut line_matches = Vec::new();
-                                let _ = searcher.search_path(
-                                    &matcher,
-                                    path.clone(),
-                                    UTF8(|lnum, line| {
-                                        let mymatch =
-                                            matcher.find(line.as_bytes())?.unwrap();
-                                        // Shorten the line to avoid sending over absurdly long-lines
-                                        // (such as in minified javascript)
-                                        // Note that the start/end are column based, not absolute from the
-                                        // start of the file.
-                                        line_matches.push((
-                                            lnum as usize,
-                                            (mymatch.start(), mymatch.end()),
-                                            line.chars()
-                                                .skip(
-                                                    mymatch
-                                                        .start()
-                                                        .saturating_sub(100),
-                                                )
-                                                .take(100)
-                                                .collect::<String>(),
-                                        ));
-                                        Ok(true)
-                                    }),
-                                );
-                                if !line_matches.is_empty() {
-                                    matches.insert(path.clone(), line_matches);
-                                }
+        let (id, workspace, pattern, case_sensitive) = input.unwrap();
+        let result = if let Some(workspace) = workspace.as_ref() {
+            let mut matches = IndexMap::new();
+            let pattern = regex::escape(&pattern);
+            if let Ok(matcher) = RegexMatcherBuilder::new()
+                .case_insensitive(!case_sensitive)
+                .build_literals(&[&pattern])
+            {
+                let mut searcher = SearcherBuilder::new().build();
+                for path in ignore::Walk::new(workspace).flatten() {
+                    if let Some(file_type) = path.file_type() {
+                        if file_type.is_file() {
+                            let path = path.into_path();
+                            let mut line_matches = Vec::new();
+                            let _ = searcher.search_path(
+                                &matcher,
+                                path.clone(),
+                                UTF8(|lnum, line| {
+                                    let mymatch =
+                                        matcher.find(line.as_bytes())?.unwrap();
+                                    // Shorten the line to avoid sending over absurdly long-lines
+                                    // (such as in minified javascript)
+                                    // Note that the start/end are column based, not absolute from the
+                                    // start of the file.
+                                    line_matches.push((
+                                        lnum as usize,
+                                        (mymatch.start(), mymatch.end()),
+                                        line.chars()
+                                            .skip(
+                                                mymatch.start().saturating_sub(100),
+                                            )
+                                            .take(100)
+                                            .collect::<String>(),
+                                    ));
+                                    Ok(true)
+                                }),
+                            );
+                            if !line_matches.is_empty() {
+                                matches.insert(path.clone(), line_matches);
                             }
                         }
                     }
                 }
-                Ok(ProxyResponse::GlobalSearchResponse { matches })
-            } else {
-                Err(RpcError {
-                    code: 0,
-                    message: "no workspace set".to_string(),
-                })
-            };
-            proxy_rpc.handle_response(id, result);
-        }
+            }
+            Ok(ProxyResponse::GlobalSearchResponse { matches })
+        } else {
+            Err(RpcError {
+                code: 0,
+                message: "no workspace set".to_string(),
+            })
+        };
+        proxy_rpc.handle_response(id, result);
     }
 }
