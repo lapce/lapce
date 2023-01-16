@@ -330,16 +330,17 @@ impl ProxyHandler for Dispatcher {
                                                 // (such as in minified javascript)
                                                 // Note that the start/end are column based, not absolute from the
                                                 // start of the file.
-                                                let display_range = mymatch
-                                                    .start()
-                                                    .saturating_sub(100)
-                                                    ..line
-                                                        .len()
-                                                        .min(mymatch.end() + 100);
                                                 line_matches.push((
                                                     lnum as usize,
                                                     (mymatch.start(), mymatch.end()),
-                                                    line[display_range].to_string(),
+                                                    line.chars()
+                                                        .skip(
+                                                            mymatch
+                                                                .start()
+                                                                .saturating_sub(100),
+                                                        )
+                                                        .take(100)
+                                                        .collect::<String>(),
                                                 ));
                                                 Ok(true)
                                             }),
