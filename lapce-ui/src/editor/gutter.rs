@@ -80,10 +80,9 @@ impl Widget<LapceTabData> for LapceEditorGutter {
                                     history,
                                     mouse_event.pos,
                                 );
-                            if diff_skip.is_some() {
-                                history.trigger_update_change(
-                                    &data.doc,
-                                    history.diff_extend_lines() + 5,
+                            if let Some(diff_skip) = diff_skip {
+                                history.trigger_increase_diff_extend_lines(
+                                    &data.doc, diff_skip,
                                 )
                             }
                         }

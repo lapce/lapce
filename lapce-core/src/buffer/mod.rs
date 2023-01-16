@@ -1049,7 +1049,7 @@ pub enum DiffResult<T> {
     Right(T),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DiffLines {
     Left(Range<usize>),
     Both(Range<usize>, Range<usize>),
