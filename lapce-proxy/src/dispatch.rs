@@ -802,9 +802,12 @@ impl Dispatcher {
         let (global_search_tx, global_search_rx) = unbounded::<()>();
 
         let local_proxy_rpc = proxy_rpc.clone();
-        thread::spawn(move || {
-            start_global_search_job(local_proxy_rpc, global_search_rx)
-        });
+        let _ = thread::Builder::new()
+            .name("global search worker".into())
+            .spawn(move || {
+                start_global_search_job(local_proxy_rpc, global_search_rx)
+            })
+            .unwrap();
 
         Self {
             workspace: None,
