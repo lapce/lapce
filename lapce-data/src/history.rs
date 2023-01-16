@@ -210,7 +210,7 @@ impl DocumentHistory {
         doc: &Document,
         diff_skip: DiffLines,
     ) {
-        let incr = 5 as usize;
+        let incr = 5_usize;
         if self.buffer.is_none() {
             return;
         }
