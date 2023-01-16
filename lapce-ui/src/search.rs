@@ -140,6 +140,7 @@ impl Widget<LapceTabData> for SearchInput {
                 bc.max().height,
             ));
             input_size = self.input.layout(ctx, &input_bc, data, env);
+            self.input.set_origin(ctx, data, env, Point::ZERO);
             width = input_size.width + self.result_width + height * icon_len;
         }
 
@@ -247,13 +248,13 @@ impl Widget<LapceTabData> for SearchInput {
                     data.config
                         .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_UNDERLINE),
                 );
-            } else if icon.rect.contains(self.mouse_pos)
-                && icon.icon != LapceIcons::SEARCH_CASE_SENSITIVE
-            {
+            } else if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
                     icon.rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                    &data.config.get_hover_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                    ),
                 );
             }
 

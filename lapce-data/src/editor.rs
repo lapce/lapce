@@ -1777,17 +1777,16 @@ impl LapceEditorBufferData {
             ToggleCaseSensitive => {
                 let tab_id = *self.main_split.tab_id;
                 let find = Arc::make_mut(&mut self.find);
-                if let Some(pattern) = find.search_string.clone() {
-                    let case_sensitive = find.toggle_case_sensitive();
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateSearchWithCaseSensitivity {
-                            pattern,
-                            case_sensitive,
-                        },
-                        Target::Widget(tab_id),
-                    ));
-                }
+                let case_sensitive = find.toggle_case_sensitive();
+                let pattern = find.search_string.clone().unwrap_or_default();
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSearchWithCaseSensitivity {
+                        pattern,
+                        case_sensitive,
+                    },
+                    Target::Widget(tab_id),
+                ));
                 return CommandExecuted::No;
             }
             GlobalSearchRefresh => {
