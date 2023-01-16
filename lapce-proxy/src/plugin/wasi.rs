@@ -243,8 +243,7 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
                     {
                         return None;
                     }
-                    let path = entry.path().join("volt.toml");
-                    load_volt(&path).ok()
+                    load_volt(&entry.path()).ok()
                 })
                 .collect()
             })
@@ -269,7 +268,7 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
 /// let _ = writeln!(file, "name = \"plugin\" \n version = \"0.1\"");
 /// let _ = writeln!(file, "display-name = \"Plugin\" \n author = \"Author\"");
 /// let _ = writeln!(file, "description = \"Useful plugin\"");///
-/// let volt_metadata = match load_volt(&parent_path.join("volt.toml")) {
+/// let volt_metadata = match load_volt(&parent_path) {
 ///     Ok(volt_metadata) => volt_metadata,
 ///     Err(error) => panic!("{}", error),
 /// };
@@ -294,20 +293,15 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
 /// let _ = std::fs::remove_file(parent_path.join("volt.toml"));
 /// ```
 pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
-    let mut file = fs::File::open(path)?;
+    let path = path.canonicalize()?;
+    let mut file = fs::File::open(path.join("volt.toml"))?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
     let mut meta: VoltMetadata = toml::from_str(&contents)?;
-    meta.dir = Some(path.parent().unwrap().canonicalize()?);
+
+    meta.dir = Some(path.clone());
     meta.wasm = meta.wasm.as_ref().and_then(|wasm| {
-        Some(
-            path.parent()?
-                .join(wasm)
-                .canonicalize()
-                .ok()?
-                .to_str()?
-                .to_string(),
-        )
+        Some(path.join(wasm).canonicalize().ok()?.to_str()?.to_string())
     });
     // FIXME: This does `meta.color_themes = Some([])` in case, for example,
     // it cannot find matching files, but in that case it should do `meta.color_themes = None`
@@ -315,14 +309,7 @@ pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
         themes
             .iter()
             .filter_map(|theme| {
-                Some(
-                    path.parent()?
-                        .join(theme)
-                        .canonicalize()
-                        .ok()?
-                        .to_str()?
-                        .to_string(),
-                )
+                Some(path.join(theme).canonicalize().ok()?.to_str()?.to_string())
             })
             .collect()
     });
@@ -332,14 +319,7 @@ pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
         themes
             .iter()
             .filter_map(|theme| {
-                Some(
-                    path.parent()?
-                        .join(theme)
-                        .canonicalize()
-                        .ok()?
-                        .to_str()?
-                        .to_string(),
-                )
+                Some(path.join(theme).canonicalize().ok()?.to_str()?.to_string())
             })
             .collect()
     });
@@ -353,8 +333,7 @@ pub fn enable_volt(
 ) -> Result<()> {
     let path = Directory::plugins_directory()
         .ok_or_else(|| anyhow!("can't get plugin directory"))?
-        .join(volt.id().to_string())
-        .join("volt.toml");
+        .join(volt.id().to_string());
     let meta = load_volt(&path)?;
     plugin_rpc.unactivated_volts(vec![meta])?;
     Ok(())
