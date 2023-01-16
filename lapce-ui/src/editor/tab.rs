@@ -633,37 +633,41 @@ impl TabRectRenderer for TabRect {
         let padding = 4.0;
         let editor_tab = data.main_split.editor_tabs.get(&widget_id).unwrap();
 
+        // Draw tab separator before first tab
+        if tab_idx == 0 {
+            draw_tab_separator(ctx, data, self.rect.x0, size.height);
+        }
+
+        // Shrink our tab rect and move origin point by 1px so tab separator isn't drawn on the tab
+        let self_rect = Size::new(self.rect.width() - 1., self.rect.height())
+            .to_rect()
+            .with_origin(Point::new(self.rect.x0 + 1., self.rect.y0));
+
+        // Draw tab separator to the right of our tab rect
+        draw_tab_separator(ctx, data, self_rect.x1, size.height);
+
         let svg_rect =
             Size::new(svg_size, svg_size)
                 .to_rect()
                 .with_origin(Point::new(
-                    self.rect.x0 + (svg_size) / 2.0,
-                    self.rect.y0 + (size.height - svg_size) / 2.0,
+                    self_rect.x0 + (svg_size) / 2.0,
+                    self_rect.y0 + (size.height - svg_size) / 2.0,
                 ));
 
         let is_active_tab = tab_idx == editor_tab.active;
-        let bg = if is_active_tab {
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_BACKGROUND)
-        } else {
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_BACKGROUND)
-        };
-        ctx.fill(self.rect, bg);
+
+        // Fill tab, simple
+        ctx.fill(self_rect, get_tab_background_color(data, is_active_tab));
+        // Stroke active tabs (active = selected but not necessarily focused)
+        // e.g. a tab might be active in separate pane that is currently not focused
         if is_active_tab {
-            let stroke = if data.focus_area == FocusArea::Editor
-                && Some(widget_id) == *data.main_split.active_tab
-            {
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_UNDERLINE)
-            } else {
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_UNDERLINE)
-            };
+            let stroke = get_tab_stroke_color(data, widget_id);
             ctx.stroke(
                 Line::new(
-                    Point::new(self.rect.x0 + 2.0, self.rect.y1 - 1.0),
-                    Point::new(self.rect.x1 - 2.0, self.rect.y1 - 1.0),
+                    // p0 must be +(n+1) and p1 must be -(n) to have same offset
+                    // don't ask me why
+                    Point::new(self_rect.x0 + 3.0, self_rect.y1 - 2.0),
+                    Point::new(self_rect.x1 - 2.0, self_rect.y1 - 2.0),
                 ),
                 stroke,
                 2.0,
@@ -681,30 +685,6 @@ impl TabRectRenderer for TabRect {
                     svg_rect.x1 + 5.0 + self.text_layout.layout.width() as f64 + 5.0,
                     path_layout.y_offset(size.height),
                 ),
-            );
-        }
-        let x = self.rect.x1;
-        ctx.stroke(
-            Line::new(
-                Point::new(x - 0.5, (size.height * 0.8).round()),
-                Point::new(x - 0.5, size.height - (size.height * 0.8).round()),
-            ),
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_TAB_SEPARATOR),
-            1.0,
-        );
-        if tab_idx == 0 {
-            ctx.stroke(
-                Line::new(
-                    Point::new(self.rect.x0 + 0.5, (size.height * 0.8).round()),
-                    Point::new(
-                        self.rect.x0 + 0.5,
-                        size.height - (size.height * 0.8).round(),
-                    ),
-                ),
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_TAB_SEPARATOR),
-                1.0,
             );
         }
 
@@ -756,4 +736,46 @@ impl TabRectRenderer for TabRect {
             }
         }
     }
+}
+
+#[inline]
+fn get_tab_background_color(data: &LapceTabData, active_tab: bool) -> &druid::Color {
+    if active_tab {
+        data.config
+            .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_BACKGROUND)
+    } else {
+        data.config
+            .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_BACKGROUND)
+    }
+}
+
+#[inline]
+fn get_tab_stroke_color(data: &LapceTabData, widget_id: WidgetId) -> &druid::Color {
+    if data.focus_area == FocusArea::Editor
+        && Some(widget_id) == *data.main_split.active_tab
+    {
+        data.config
+            .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_UNDERLINE)
+    } else {
+        data.config
+            .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_UNDERLINE)
+    }
+}
+
+#[inline]
+fn draw_tab_separator(
+    ctx: &mut druid::PaintCtx<'_, '_, '_>,
+    data: &LapceTabData,
+    x: f64,
+    y: f64,
+) {
+    ctx.stroke(
+        Line::new(
+            Point::new(x + 0.5, (y * 0.8).round()),
+            Point::new(x + 0.5, y - (y * 0.8).round()),
+        ),
+        data.config
+            .get_color_unchecked(LapceTheme::LAPCE_TAB_SEPARATOR),
+        1.0,
+    );
 }
