@@ -112,12 +112,7 @@ impl LapceEditorTabHeaderContent {
                     || editor_tab.active != tab_idx
                 {
                     data.main_split.active_tab = Arc::new(Some(self.widget_id));
-                    editor_tab.active = tab_idx;
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::Focus,
-                        Target::Widget(editor_tab.children[tab_idx].widget_id()),
-                    ));
+                    editor_tab.focus_tab(tab_idx, ctx);
                 }
                 self.mouse_pos = Some(mouse_event.pos);
                 self.mouse_down_target = Some((MouseAction::Drag, tab_idx));

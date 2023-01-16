@@ -9,6 +9,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
+use im::Vector;
 use lapce_core::directory::Directory;
 use lapce_rpc::plugin::VoltID;
 use lapce_xi_rope::Rope;
@@ -101,24 +102,27 @@ impl EditorTabInfo {
         event_sink: ExtEventSink,
     ) -> LapceEditorTabData {
         let editor_tab_id = WidgetId::next();
+        let children: Vector<EditorTabChild> = self
+            .children
+            .iter()
+            .map(|child| {
+                child.to_data(
+                    data,
+                    editor_tab_id,
+                    editor_positions,
+                    tab_id,
+                    config,
+                    event_sink.clone(),
+                )
+            })
+            .collect();
+        let history = children.iter().enumerate().map(|(i, _)| i).collect();
         let editor_tab_data = LapceEditorTabData {
             widget_id: editor_tab_id,
             split,
             active: self.active,
-            children: self
-                .children
-                .iter()
-                .map(|child| {
-                    child.to_data(
-                        data,
-                        editor_tab_id,
-                        editor_positions,
-                        tab_id,
-                        config,
-                        event_sink.clone(),
-                    )
-                })
-                .collect(),
+            children,
+            history,
             layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             content_is_hot: Rc::new(RefCell::new(false)),
         };

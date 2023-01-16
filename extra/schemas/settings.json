@@ -274,6 +274,9 @@
                 },
                 "atomic-soft-tabs": {
                     "type": "boolean"
+                },
+                "historic-next-tab": {
+                    "type": "boolean"
                 }
             },
             "required": [],
