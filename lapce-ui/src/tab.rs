@@ -1813,6 +1813,7 @@ impl LapceTab {
                         rev,
                         history,
                         changes,
+                        diff_extend_lines,
                         ..
                     } => {
                         ctx.set_handled();
@@ -1821,6 +1822,7 @@ impl LapceTab {
                             *rev,
                             history,
                             changes.clone(),
+                            *diff_extend_lines,
                         );
                     }
                     LapceUICommand::UpdateHistoryStyle {

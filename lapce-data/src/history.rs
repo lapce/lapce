@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
+    ops::Range,
     rc::Rc,
     sync::{atomic, Arc},
 };
@@ -9,6 +10,7 @@ use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
     Target,
 };
+use itertools::Itertools;
 use lapce_core::{
     buffer::{rope_diff, Buffer, DiffLines},
     style::line_styles,
@@ -34,6 +36,7 @@ pub struct DocumentHistory {
     line_styles: Rc<RefCell<LineStyles>>,
     changes: Arc<Vec<DiffLines>>,
     text_layouts: Rc<RefCell<TextLayoutCache>>,
+    diff_extend_lines: usize,
 }
 
 impl druid::Data for DocumentHistory {
@@ -55,7 +58,7 @@ impl druid::Data for DocumentHistory {
         }
     }
 }
-
+pub const DEFAULT_DIFF_EXTEND_LINES: usize = 3;
 impl DocumentHistory {
     pub fn new(version: String) -> Self {
         Self {
@@ -65,6 +68,7 @@ impl DocumentHistory {
             line_styles: Rc::new(RefCell::new(LineStyles::new())),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             changes: Arc::new(Vec::new()),
+            diff_extend_lines: DEFAULT_DIFF_EXTEND_LINES,
         }
     }
 
@@ -72,7 +76,7 @@ impl DocumentHistory {
         let mut buffer = Buffer::new("");
         buffer.init_content(content);
         self.buffer = Some(buffer);
-        self.trigger_update_change(doc);
+        self.trigger_update_change(doc, DEFAULT_DIFF_EXTEND_LINES);
         self.retrieve_history_styles(doc);
     }
 
@@ -201,7 +205,162 @@ impl DocumentHistory {
         }
     }
 
-    pub fn trigger_update_change(&self, doc: &Document) {
+    pub fn trigger_increase_diff_extend_lines(
+        &self,
+        doc: &Document,
+        diff_skip: DiffLines,
+    ) {
+        let incr = 5_usize;
+        if self.buffer.is_none() {
+            return;
+        }
+        if let BufferContent::File(path) = &doc.content() {
+            let id = doc.id();
+            let rev = doc.rev();
+            let path = path.clone();
+            let event_sink = doc.event_sink.clone();
+            let tab_id = doc.tab_id;
+
+            let old_changes = self.changes.clone();
+            let changes_len = old_changes.len();
+            let mut changes = self.changes.clone().to_vec();
+            for (i, change) in old_changes.iter().enumerate() {
+                if let DiffLines::Skip(left, right) = change {
+                    if *change == diff_skip {
+                        if i == 0 {
+                            let l_incr =
+                                if left.len() < incr { left.len() } else { incr };
+                            let r_incr =
+                                if right.len() < 5 { right.len() } else { incr };
+                            changes[i] = DiffLines::Skip(
+                                Range {
+                                    start: left.start,
+                                    end: left.end - l_incr,
+                                },
+                                Range {
+                                    start: right.start,
+                                    end: right.end - r_incr,
+                                },
+                            );
+                            if let DiffLines::Both(l, r) = &old_changes[i + 1] {
+                                changes[i + 1] = DiffLines::Both(
+                                    Range {
+                                        start: l.start - l_incr,
+                                        end: l.end,
+                                    },
+                                    Range {
+                                        start: r.start - r_incr,
+                                        end: r.end,
+                                    },
+                                );
+                            }
+                        } else if i == changes_len - 1 {
+                            let l_incr =
+                                if left.len() < incr { left.len() } else { incr };
+                            let r_incr =
+                                if right.len() < 5 { right.len() } else { incr };
+                            if let DiffLines::Both(l, r) = &old_changes[i - 1] {
+                                changes[i - 1] = DiffLines::Both(
+                                    Range {
+                                        start: l.start,
+                                        end: l.end + l_incr,
+                                    },
+                                    Range {
+                                        start: r.start,
+                                        end: r.end + r_incr,
+                                    },
+                                );
+                            }
+                            changes[i] = DiffLines::Skip(
+                                Range {
+                                    start: left.start + l_incr,
+                                    end: left.end,
+                                },
+                                Range {
+                                    start: right.start + r_incr,
+                                    end: right.end,
+                                },
+                            );
+                        } else {
+                            let mut l_s_incr = incr; // left start increasement
+                            let mut l_e_incr = incr; // left end increasement
+                            let mut r_s_incr = incr; // right start increasement
+                            let mut r_e_incr = incr; // right end increasement
+                            if left.len() < incr * 2 {
+                                l_s_incr = left.len();
+                                l_e_incr = 0;
+                            }
+                            if right.len() < incr * 2 {
+                                r_s_incr = right.len();
+                                r_e_incr = 0;
+                            }
+
+                            if let DiffLines::Both(l, r) = &old_changes[i - 1] {
+                                changes[i - 1] = DiffLines::Both(
+                                    Range {
+                                        start: l.start,
+                                        end: l.end + l_s_incr,
+                                    },
+                                    Range {
+                                        start: r.start,
+                                        end: r.end + r_s_incr,
+                                    },
+                                );
+                            }
+                            changes[i] = DiffLines::Skip(
+                                Range {
+                                    start: left.start + l_s_incr,
+                                    end: left.end - l_e_incr,
+                                },
+                                Range {
+                                    start: right.start + r_s_incr,
+                                    end: right.end - r_e_incr,
+                                },
+                            );
+                            if let DiffLines::Both(l, r) = &old_changes[i + 1] {
+                                changes[i + 1] = DiffLines::Both(
+                                    Range {
+                                        start: l.start - l_e_incr,
+                                        end: l.end,
+                                    },
+                                    Range {
+                                        start: r.start - r_e_incr,
+                                        end: r.end,
+                                    },
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            let changes = changes
+                .iter()
+                .filter(|change| {
+                    if let DiffLines::Skip(left, right) = change {
+                        if left.is_empty() && right.is_empty() {
+                            return false;
+                        }
+                    }
+                    true
+                })
+                .cloned()
+                .collect_vec();
+            let _ = event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdateHistoryChanges {
+                    id,
+                    path,
+                    rev,
+                    history: "head".to_string(),
+                    changes: Arc::new(changes),
+                    diff_extend_lines: self.diff_extend_lines,
+                },
+                Target::Widget(tab_id),
+            );
+        }
+    }
+
+    pub fn trigger_update_change(&self, doc: &Document, diff_extend_lines: usize) {
         if self.buffer.is_none() {
             return;
         }
@@ -218,8 +377,13 @@ impl DocumentHistory {
                 if atomic_rev.load(atomic::Ordering::Acquire) != rev {
                     return;
                 }
-                let changes =
-                    rope_diff(left_rope, right_rope, rev, atomic_rev.clone());
+                let changes = rope_diff(
+                    left_rope,
+                    right_rope,
+                    rev,
+                    atomic_rev.clone(),
+                    diff_extend_lines,
+                );
                 if changes.is_none() {
                     return;
                 }
@@ -236,6 +400,7 @@ impl DocumentHistory {
                         rev,
                         history: "head".to_string(),
                         changes: Arc::new(changes),
+                        diff_extend_lines,
                     },
                     Target::Widget(tab_id),
                 );
@@ -247,8 +412,17 @@ impl DocumentHistory {
         &self.changes
     }
 
-    pub fn update_changes(&mut self, changes: Arc<Vec<DiffLines>>) {
+    pub fn diff_extend_lines(&self) -> usize {
+        self.diff_extend_lines
+    }
+
+    pub fn update_changes(
+        &mut self,
+        changes: Arc<Vec<DiffLines>>,
+        diff_extend_lines: usize,
+    ) {
         self.changes = changes;
+        self.diff_extend_lines = diff_extend_lines;
     }
 
     pub fn update_styles(&mut self, styles: Arc<Spans<Style>>) {
