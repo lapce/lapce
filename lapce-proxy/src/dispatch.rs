@@ -314,56 +314,13 @@ impl ProxyHandler for Dispatcher {
                 // Perform the search on another thread to avoid blocking the proxy thread
                 thread::spawn(move || {
                     let result = if let Some(workspace) = workspace.as_ref() {
-                        let mut matches = IndexMap::new();
-                        let pattern = regex::escape(&pattern);
-                        if let Ok(matcher) = RegexMatcherBuilder::new()
-                            .case_insensitive(!case_sensitive)
-                            .build_literals(&[&pattern])
-                        {
-                            let mut searcher = SearcherBuilder::new().build();
-                            for path in ignore::Walk::new(workspace).flatten() {
-                                if WORKER_ID.load(Ordering::SeqCst) != our_id {
-                                    return;
-                                }
-
-                                if let Some(file_type) = path.file_type() {
-                                    if file_type.is_file() {
-                                        let path = path.into_path();
-                                        let mut line_matches = Vec::new();
-                                        let _ = searcher.search_path(
-                                            &matcher,
-                                            path.clone(),
-                                            UTF8(|lnum, line| {
-                                                let mymatch = matcher
-                                                    .find(line.as_bytes())?
-                                                    .unwrap();
-                                                // Shorten the line to avoid sending over absurdly long-lines
-                                                // (such as in minified javascript)
-                                                // Note that the start/end are column based, not absolute from the
-                                                // start of the file.
-                                                let display_range = mymatch
-                                                    .start()
-                                                    .saturating_sub(100)
-                                                    ..line
-                                                        .len()
-                                                        .min(mymatch.end() + 100);
-                                                line_matches.push((
-                                                    lnum as usize,
-                                                    (mymatch.start(), mymatch.end()),
-                                                    line[display_range].to_string(),
-                                                ));
-                                                Ok(true)
-                                            }),
-                                        );
-                                        if !line_matches.is_empty() {
-                                            matches
-                                                .insert(path.clone(), line_matches);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        Ok(ProxyResponse::GlobalSearchResponse { matches })
+                        search_in_path(
+                            our_id,
+                            &WORKER_ID,
+                            workspace,
+                            &pattern,
+                            case_sensitive,
+                        )
                     } else {
                         Err(RpcError {
                             code: 0,
@@ -1280,4 +1237,85 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
         head.peel_to_commit()?.id(),
         file.strip_prefix(workspace_path)?.to_str().unwrap()
     ))
+}
+
+fn search_in_path(
+    id: u64,
+    current_id: &AtomicU64,
+    path: &Path,
+    pattern: &str,
+    case_sensitive: bool,
+) -> Result<ProxyResponse, RpcError> {
+    let mut matches = IndexMap::new();
+    let pattern = regex::escape(pattern);
+    let matcher = RegexMatcherBuilder::new()
+        .case_insensitive(!case_sensitive)
+        .build_literals(&[&pattern])
+        .map_err(|_| RpcError {
+            code: 0,
+            message: "can't build matcher".to_string(),
+        })?;
+    let mut searcher = SearcherBuilder::new().build();
+    for path in ignore::Walk::new(path).flatten() {
+        if current_id.load(Ordering::SeqCst) != id {
+            return Err(RpcError {
+                code: 0,
+                message: "can't build matcher".to_string(),
+            });
+        }
+
+        if let Some(file_type) = path.file_type() {
+            if file_type.is_file() {
+                let path = path.into_path();
+                let mut line_matches = Vec::new();
+                let _ = searcher.search_path(
+                    &matcher,
+                    path.clone(),
+                    UTF8(|lnum, line| {
+                        let mymatch = matcher.find(line.as_bytes())?.unwrap();
+                        let line = if line.len() > 200 {
+                            // Shorten the line to avoid sending over absurdly long-lines
+                            // (such as in minified javascript)
+                            // Note that the start/end are column based, not absolute from the
+                            // start of the file.
+                            let left_keep = line[..mymatch.start()]
+                                .chars()
+                                .rev()
+                                .take(100)
+                                .map(|c| c.len_utf8())
+                                .sum::<usize>();
+                            let right_keep = line[mymatch.end()..]
+                                .chars()
+                                .take(100)
+                                .map(|c| c.len_utf8())
+                                .sum::<usize>();
+                            let display_range = mymatch.start() - left_keep
+                                ..mymatch.end() + right_keep;
+                            line[display_range].to_string()
+                        } else {
+                            line.to_string()
+                        };
+                        line_matches.push((
+                            lnum as usize,
+                            (mymatch.start(), mymatch.end()),
+                            line,
+                        ));
+                        Ok(true)
+                    }),
+                );
+                if !line_matches.is_empty() {
+                    matches.insert(path.clone(), line_matches);
+                }
+            }
+        }
+    }
+
+    if current_id.load(Ordering::SeqCst) != id {
+        return Err(RpcError {
+            code: 0,
+            message: "can't build matcher".to_string(),
+        });
+    }
+
+    Ok(ProxyResponse::GlobalSearchResponse { matches })
 }
