@@ -341,25 +341,16 @@ impl ProxyHandler for Dispatcher {
                                                 // (such as in minified javascript)
                                                 // Note that the start/end are column based, not absolute from the
                                                 // start of the file.
-                                                let match_start = mymatch
+                                                let display_range = mymatch
                                                     .start()
-                                                    .saturating_sub(100);
-                                                let match_end = line
-                                                    .len()
-                                                    .min(mymatch.end() + 100);
-                                                let display_line = line
-                                                    .get(match_start..match_end)
-                                                    .map(|s| s.to_string())
-                                                    .unwrap_or_else(|| {
-                                                        line.chars()
-                                                            .skip(match_start)
-                                                            .take(100)
-                                                            .collect::<String>()
-                                                    });
+                                                    .saturating_sub(100)
+                                                    ..line
+                                                        .len()
+                                                        .min(mymatch.end() + 100);
                                                 line_matches.push((
                                                     lnum as usize,
                                                     (mymatch.start(), mymatch.end()),
-                                                    display_line,
+                                                    line[display_range].to_string(),
                                                 ));
                                                 Ok(true)
                                             }),
