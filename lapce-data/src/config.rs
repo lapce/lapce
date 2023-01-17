@@ -13,6 +13,7 @@ use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
 use lapce_rpc::plugin::VoltID;
 use lsp_types::{CompletionItemKind, SymbolKind};
+use notify::event::{DataChange, ModifyKind};
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
@@ -985,7 +986,7 @@ impl notify::EventHandler for ConfigWatcher {
         if let Ok(event) = event {
             match event.kind {
                 notify::EventKind::Create(_)
-                | notify::EventKind::Modify(_)
+                | notify::EventKind::Modify(ModifyKind::Data(DataChange::Content))
                 | notify::EventKind::Remove(_) => {
                     *self.delay_handler.lock() = Some(());
                     let delay_handler = self.delay_handler.clone();
