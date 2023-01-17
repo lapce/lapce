@@ -2,7 +2,10 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
     thread,
     time::Duration,
 };
@@ -304,6 +307,10 @@ impl ProxyHandler for Dispatcher {
             } => {
                 let workspace = self.workspace.clone();
                 let proxy_rpc = self.proxy_rpc.clone();
+
+                static WORKER_ID: AtomicU64 = AtomicU64::new(0);
+                let our_id = WORKER_ID.fetch_add(1, Ordering::SeqCst) + 1;
+
                 // Perform the search on another thread to avoid blocking the proxy thread
                 thread::spawn(move || {
                     let result = if let Some(workspace) = workspace.as_ref() {
@@ -315,6 +322,10 @@ impl ProxyHandler for Dispatcher {
                         {
                             let mut searcher = SearcherBuilder::new().build();
                             for path in ignore::Walk::new(workspace).flatten() {
+                                if WORKER_ID.load(Ordering::SeqCst) != our_id {
+                                    return;
+                                }
+
                                 if let Some(file_type) = path.file_type() {
                                     if file_type.is_file() {
                                         let path = path.into_path();
@@ -359,6 +370,11 @@ impl ProxyHandler for Dispatcher {
                             message: "no workspace set".to_string(),
                         })
                     };
+
+                    if WORKER_ID.load(Ordering::SeqCst) != our_id {
+                        return;
+                    }
+
                     proxy_rpc.handle_response(id, result);
                 });
             }
