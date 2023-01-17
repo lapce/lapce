@@ -2281,9 +2281,12 @@ impl LapceEditorBufferData {
             }
             ToggleHistory => {
                 let editor = Arc::make_mut(&mut self.editor);
-                editor.view = match editor.view {
-                    EditorView::Normal => EditorView::Diff(String::from("head")),
-                    EditorView::Diff(_) => EditorView::Normal,
+                (editor.view, editor.compare) = match editor.view {
+                    EditorView::Normal => (
+                        EditorView::Diff(String::from("head")),
+                        Some(String::from("head")),
+                    ),
+                    EditorView::Diff(_) => (EditorView::Normal, None),
                     EditorView::Lens => return CommandExecuted::Yes,
                 };
             }
