@@ -545,7 +545,7 @@ pub fn read_message<T: BufRead>(reader: &mut T) -> Result<String> {
 
     loop {
         buffer.clear();
-        let _result = reader.read_line(&mut buffer);
+        let _ = reader.read_line(&mut buffer)?;
         // eprin
         match &buffer {
             s if s.trim().is_empty() => break,
