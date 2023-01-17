@@ -1273,27 +1273,32 @@ fn search_in_path(
                     path.clone(),
                     UTF8(|lnum, line| {
                         let mymatch = matcher.find(line.as_bytes())?.unwrap();
-                        // Shorten the line to avoid sending over absurdly long-lines
-                        // (such as in minified javascript)
-                        // Note that the start/end are column based, not absolute from the
-                        // start of the file.
-                        let left_keep = line[..mymatch.start()]
-                            .chars()
-                            .rev()
-                            .take(100)
-                            .map(|c| c.len_utf8())
-                            .sum::<usize>();
-                        let right_keep = line[mymatch.end()..]
-                            .chars()
-                            .take(100)
-                            .map(|c| c.len_utf8())
-                            .sum::<usize>();
-                        let display_range =
-                            mymatch.start() - left_keep..mymatch.end() + right_keep;
+                        let line = if line.len() > 200 {
+                            // Shorten the line to avoid sending over absurdly long-lines
+                            // (such as in minified javascript)
+                            // Note that the start/end are column based, not absolute from the
+                            // start of the file.
+                            let left_keep = line[..mymatch.start()]
+                                .chars()
+                                .rev()
+                                .take(100)
+                                .map(|c| c.len_utf8())
+                                .sum::<usize>();
+                            let right_keep = line[mymatch.end()..]
+                                .chars()
+                                .take(100)
+                                .map(|c| c.len_utf8())
+                                .sum::<usize>();
+                            let display_range = mymatch.start() - left_keep
+                                ..mymatch.end() + right_keep;
+                            line[display_range].to_string()
+                        } else {
+                            line.to_string()
+                        };
                         line_matches.push((
                             lnum as usize,
                             (mymatch.start(), mymatch.end()),
-                            line[display_range].to_string(),
+                            line,
                         ));
                         Ok(true)
                     }),
