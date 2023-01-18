@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, sync::Arc, time::SystemTime};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use druid::{
     menu::MenuEventCtx,
@@ -488,7 +488,6 @@ struct FileExplorerFileList {
     line_height: f64,
     hovered: Option<usize>,
     name_edit_input: NameEditInput,
-    last_clicked: Option<(SystemTime, usize)>,
 }
 
 impl FileExplorerFileList {
@@ -497,7 +496,6 @@ impl FileExplorerFileList {
             line_height: 25.0,
             hovered: None,
             name_edit_input: input,
-            last_clicked: None,
         }
     }
 
@@ -693,49 +691,9 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                 let index = ((mouse_event.pos.y + self.line_height)
                     / self.line_height) as usize;
 
-                if mouse_event.button.is_left() {
-                    // Check double click delay
-                    let f = || -> bool {
-                        if data.config.editor.double_click_delay != 0 {
-                            if let Some((s, first_index)) = self.last_clicked {
-                                if let Some(s) = s.elapsed().ok() {
-                                    if s.as_millis()
-                                        < data
-                                            .config
-                                            .editor
-                                            .double_click_delay
-                                            .into()
-                                        && index == first_index
-                                    {
-                                        // double click success
-                                        self.last_clicked = None;
-                                        return true;
-                                    } else {
-                                        // double click too slow
-                                        self.last_clicked = None;
-                                        return false;
-                                    }
-                                } else {
-                                    // elapsed fail
-                                    self.last_clicked = None;
-                                    return true;
-                                }
-                            } else {
-                                // first click
-                                self.last_clicked = Some((SystemTime::now(), index));
-                                return false;
-                            }
-                        } else {
-                            // double click delay disabled
-                            self.last_clicked = None;
-                            return true;
-                        }
-                    }();
-
-                    if !f {
-                        return;
-                    }
-
+                if mouse_event.button.is_left()
+                    && (!data.config.editor.double_click || mouse_event.count == 2)
+                {
                     if let Some((_, node)) =
                         file_explorer.get_node_by_index_mut(index)
                     {

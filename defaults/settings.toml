@@ -44,7 +44,7 @@ multicursor-whole-words = true
 render-whitespace = "none"
 show-indent-guide = true
 atomic-soft-tabs = false
-double-click-delay= 500 #ms
+double-click = false
 
 [terminal]
 font-family = ""
