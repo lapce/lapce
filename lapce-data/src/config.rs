@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
 };
 
+use crossbeam_channel::{bounded, Sender};
 use druid::{
     piet::{PietText, Svg, Text, TextLayout, TextLayoutBuilder},
     Color, ExtEventSink, FontFamily, Size, Target,
@@ -13,9 +14,8 @@ use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
 use lapce_rpc::plugin::VoltID;
 use lsp_types::{CompletionItemKind, SymbolKind};
-use notify::event::{DataChange, ModifyKind};
 use once_cell::sync::Lazy;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 use thiserror::Error;
@@ -970,16 +970,30 @@ impl LapceConfig {
 }
 
 pub struct ConfigWatcher {
-    event_sink: ExtEventSink,
-    delay_handler: Arc<Mutex<Option<()>>>,
+    config_change_tx: Sender<()>,
 }
 
 impl ConfigWatcher {
-    pub fn new(event_sink: ExtEventSink) -> Self {
-        Self {
-            event_sink,
-            delay_handler: Arc::new(Mutex::new(None)),
-        }
+    pub fn new(event_sink: ExtEventSink) -> (Self, Sender<()>) {
+        let (config_finish_tx, config_finish_rx) = bounded::<()>(1);
+        let (config_change_tx, config_change_rx) = bounded::<()>(2);
+
+        std::thread::spawn(move || {
+            for _ in config_change_rx {
+                let event_sink = event_sink.clone();
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ReloadConfig,
+                    Target::Auto,
+                );
+                // Sleep is necessary here because reloading config is way faster than downloading plugins
+                // Thus downloading plugins will constantly flood the channel with messages.
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                // Don't open the channel again until changes are fully handled
+                let _ = config_finish_rx.recv().unwrap();
+            }
+        });
+        (Self { config_change_tx }, config_finish_tx)
     }
 }
 
@@ -988,23 +1002,13 @@ impl notify::EventHandler for ConfigWatcher {
         if let Ok(event) = event {
             match event.kind {
                 notify::EventKind::Create(_)
-                | notify::EventKind::Modify(ModifyKind::Data(DataChange::Content))
+                | notify::EventKind::Modify(_)
                 | notify::EventKind::Remove(_) => {
-                    *self.delay_handler.lock() = Some(());
-                    let delay_handler = self.delay_handler.clone();
-                    let event_sink = self.event_sink.clone();
-                    std::thread::spawn(move || {
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                        if delay_handler.lock().take().is_some() {
-                            let _ = event_sink.submit_command(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::ReloadConfig,
-                                Target::Auto,
-                            );
-                        }
-                    });
+                    // If we fail to send, that means someone else already triggered the job
+                    // Don't unwrap because the channel will return an error on full instead of an Option<T>
+                    let _ = self.config_change_tx.try_send(());
                 }
-                _ => (),
+                _ => {}
             }
         }
     }

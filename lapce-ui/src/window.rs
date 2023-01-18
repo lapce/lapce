@@ -352,6 +352,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                         }
                         Arc::make_mut(&mut data.keypress)
                             .update_keymaps(&data.config);
+                        let _ = data.config_finish_tx.try_send(());
                         ctx.set_handled();
                     }
                     LapceUICommand::ReloadWindow => {

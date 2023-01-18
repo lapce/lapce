@@ -435,6 +435,8 @@ pub struct LapceWindowData {
     pub update_in_progress: bool,
     #[data(ignore)]
     pub log_file: Arc<Option<PathBuf>>,
+    // TODO: We could wrap Sender<T> so that it implements Data
+    pub config_finish_tx: Arc<Sender<()>>,
 }
 
 impl LapceWindowData {
@@ -513,8 +515,8 @@ impl LapceWindowData {
             Target::Widget(active_tab_id),
         );
 
-        let mut watcher =
-            notify::recommended_watcher(ConfigWatcher::new(event_sink)).unwrap();
+        let (config_watcher, config_finish_tx) = ConfigWatcher::new(event_sink);
+        let mut watcher = notify::recommended_watcher(config_watcher).unwrap();
         if let Some(path) = LapceConfig::settings_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
@@ -545,6 +547,7 @@ impl LapceWindowData {
             latest_release,
             update_in_progress,
             log_file,
+            config_finish_tx: Arc::new(config_finish_tx),
         }
     }
 
