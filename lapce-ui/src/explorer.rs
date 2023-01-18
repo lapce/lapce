@@ -690,7 +690,10 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                 let file_explorer = Arc::make_mut(&mut data.file_explorer);
                 let index = ((mouse_event.pos.y + self.line_height)
                     / self.line_height) as usize;
-                if mouse_event.button.is_left() {
+
+                if mouse_event.button.is_left()
+                    && (!data.config.editor.double_click || mouse_event.count == 2)
+                {
                     if let Some((_, node)) =
                         file_explorer.get_node_by_index_mut(index)
                     {

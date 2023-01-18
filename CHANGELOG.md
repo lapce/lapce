@@ -21,6 +21,7 @@
 - [#1972](https://github.com/lapce/lapce/pull/1972): Add file duplication option in fs tree context menu
 - [#1991](https://github.com/lapce/lapce/pull/1991): Implement rendering of images in markdown views
 - [#2004](https://github.com/lapce/lapce/pull/2004): Add ToggleHistory command
+- [#2033](https://github.com/lapce/lapce/pull/2033): Add setting for double click delay (Currently only works for opening file from the explorer)
 
 ### Bug Fixes
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys
