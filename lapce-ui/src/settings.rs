@@ -393,10 +393,11 @@ impl LapceSettings {
     fn update_children(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         fn into_settings_map(
             data: &impl Serialize,
-        ) -> HashMap<String, serde_json::Value> {
-            serde_json::to_value(data)
-                .and_then(serde_json::from_value)
-                .unwrap()
+        ) -> serde_json::Map<String, serde_json::Value> {
+            match serde_json::to_value(data).unwrap() {
+                serde_json::Value::Object(h) => h,
+                _ => serde_json::Map::default(),
+            }
         }
 
         self.children.clear();
@@ -941,19 +942,19 @@ impl Widget<LapceTabData> for EmptySettingsItem {
 struct CheckBoxSettingsItem {
     checked: bool,
     checkbox_width: f64,
-
     info: SettingsItemInfo,
 }
+
 impl CheckBoxSettingsItem {
     fn new(key: String, kind: String, desc: String, checked: bool) -> Self {
         Self {
             checked,
             checkbox_width: 20.0,
-
             info: SettingsItemInfo::new(key, kind, desc),
         }
     }
 }
+
 impl Widget<LapceTabData> for CheckBoxSettingsItem {
     fn event(
         &mut self,
@@ -981,6 +982,7 @@ impl Widget<LapceTabData> for CheckBoxSettingsItem {
             }
             Event::Timer(token) if self.info.idle_timer_triggered(*token) => {
                 ctx.set_handled();
+                println!("updatinng setting:{:#?}", token);
                 self.info.update_settings(
                     data,
                     ctx,
@@ -1240,6 +1242,7 @@ impl InputSettingsItem {
         }
     }
 }
+
 impl Widget<LapceTabData> for InputSettingsItem {
     fn event(
         &mut self,
