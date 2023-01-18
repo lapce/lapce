@@ -1278,6 +1278,11 @@ impl LapceTerminal {
             }
             panel.active = position;
         }
+        if let Some(terminal) = terminal_panel.get_terminal_mut(&self.term_id) {
+            if terminal.run_debug.is_some() {
+                Arc::make_mut(&mut data.debug).active_term = Some(self.term_id);
+            }
+        }
     }
 
     fn select(

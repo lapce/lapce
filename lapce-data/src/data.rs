@@ -1562,6 +1562,20 @@ impl LapceTabData {
                     ));
                 }
             }
+            LapceWorkbenchCommand::RunAndDebugStop => {
+                if let Some(active_terminal) =
+                    self.debug.active_term.as_ref().and_then(|t| {
+                        Arc::make_mut(&mut self.terminal).get_terminal_mut(t)
+                    })
+                {
+                    Arc::make_mut(active_terminal).stop_run_debug();
+                    let _ = ctx.get_external_handle().submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(active_terminal.widget_id),
+                    );
+                }
+            }
             LapceWorkbenchCommand::PaletteWorkspace => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,

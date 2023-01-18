@@ -361,6 +361,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "palette.run_and_debug_restart")]
     RunAndDebugRestart,
 
+    #[strum(message = "Run and Debug Stop Current Running")]
+    #[strum(serialize = "palette.run_and_debug_stop")]
+    RunAndDebugStop,
+
     #[strum(serialize = "source_control.checkout_branch")]
     CheckoutBranch,
 
