@@ -982,7 +982,6 @@ impl Widget<LapceTabData> for CheckBoxSettingsItem {
             }
             Event::Timer(token) if self.info.idle_timer_triggered(*token) => {
                 ctx.set_handled();
-                println!("updatinng setting:{:#?}", token);
                 self.info.update_settings(
                     data,
                     ctx,
