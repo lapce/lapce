@@ -95,6 +95,15 @@ impl TerminalPanelData {
             .and_then(|id| self.tabs.get_mut(id))
     }
 
+    pub fn get_terminal(&self, id: &TermId) -> Option<&Arc<LapceTerminalData>> {
+        for (_, tab) in self.tabs.iter() {
+            if let Some(terminal) = tab.terminals.get(id) {
+                return Some(terminal);
+            }
+        }
+        None
+    }
+
     pub fn get_terminal_mut(
         &mut self,
         id: &TermId,
@@ -143,6 +152,19 @@ impl TerminalPanelData {
         self.tabs.insert(new_term_tab_id, new_term_split);
         self.active = active_index;
         new_term_tab_id
+    }
+
+    pub fn run_debug_process(&self) -> Vec<(TermId, &RunDebugProcess)> {
+        let mut processes = Vec::new();
+        for (_, tab) in &self.tabs {
+            for (_, terminal) in &tab.terminals {
+                if let Some(run_debug) = terminal.run_debug.as_ref() {
+                    processes.push((terminal.term_id, run_debug));
+                }
+            }
+        }
+        processes.sort_by_key(|(_, process)| process.created);
+        processes
     }
 }
 
@@ -742,6 +764,15 @@ impl LapceTerminalData {
             });
         }
         raw
+    }
+
+    pub fn stop_run_debug(&mut self) {
+        let run_debug = match self.run_debug.as_mut() {
+            Some(run_debug) => run_debug,
+            None => return,
+        };
+        run_debug.stopped = true;
+        self.proxy.proxy_rpc.terminal_close(self.term_id);
     }
 
     pub fn restart_run_debug(&mut self, config: &LapceConfig) {

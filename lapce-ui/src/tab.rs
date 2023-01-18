@@ -1,4 +1,4 @@
-use std::{process, sync::Arc};
+use std::{process, sync::Arc, time::Instant};
 
 use druid::{
     kurbo::Line,
@@ -984,6 +984,7 @@ impl LapceTab {
                                     mode: *mode,
                                     config: config.clone(),
                                     stopped: false,
+                                    created: Instant::now(),
                                 }),
                                 &data.config,
                             );
@@ -1003,6 +1004,7 @@ impl LapceTab {
                                     mode: *mode,
                                     config: config.clone(),
                                     stopped: false,
+                                    created: Instant::now(),
                                 }),
                             );
                             let tab = terminal_panel

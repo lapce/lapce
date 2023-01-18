@@ -211,6 +211,8 @@ impl LapceIcons {
     pub const PROBLEM: &str = "error";
     pub const DEBUG: &str = "debug";
     pub const DEBUG_SMALL: &str = "debug_small";
+    pub const DEBUG_RESTART: &str = "debug_restart";
+    pub const DEBUG_STOP: &str = "debug_stop";
     pub const START: &str = "start";
     pub const RUN_ERRORS: &str = "run_errors";
     pub const UNSAVED: &str = "unsaved";
