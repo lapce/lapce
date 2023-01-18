@@ -2415,17 +2415,17 @@ impl Document {
         config: &LapceConfig,
     ) -> SelRegion {
         let (count, region) = if count >= 1 && !modify && !region.is_caret() {
-            // If we're not a caret, and we are moving left or right, we want to move
+            // If we're not a caret, and we are moving left/up or right/down, we want to move
             // the cursor to the left or right side of the selection.
-            // Ex: `|abc|` -> left arrow key -> `|abc`
-            // Ex: `|abc|` -> right arrow key -> `abc|`
+            // Ex: `|abc|` -> left/up arrow key -> `|abc`
+            // Ex: `|abc|` -> right/down arrow key -> `abc|`
             // and it doesn't matter which direction the selection os going, so we use min/max
             match movement {
-                Movement::Left => {
+                Movement::Left | Movement::Up => {
                     let leftmost = region.min();
                     (count - 1, SelRegion::new(leftmost, leftmost, region.horiz))
                 }
-                Movement::Right => {
+                Movement::Right | Movement::Down => {
                     let rightmost = region.max();
                     (
                         count - 1,
