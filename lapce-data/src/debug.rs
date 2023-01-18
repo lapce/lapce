@@ -1,4 +1,4 @@
-use std::{fmt::Display, path::Path};
+use std::{fmt::Display, path::Path, time::Instant};
 
 use druid::WidgetId;
 use lapce_rpc::terminal::TermId;
@@ -22,11 +22,32 @@ impl Display for RunDebugMode {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum RunDebugAction {
+    Run(RunAction),
+    Debug(DebugAction),
+}
+
+#[derive(Clone, Debug)]
+pub enum DebugAction {
+    Restart,
+    Stop,
+    Close,
+}
+
+#[derive(Clone, Debug)]
+pub enum RunAction {
+    Restart,
+    Stop,
+    Close,
+}
+
 #[derive(Clone)]
 pub struct RunDebugProcess {
     pub mode: RunDebugMode,
     pub config: RunDebugConfig,
     pub stopped: bool,
+    pub created: Instant,
 }
 
 #[derive(Deserialize, Serialize)]
