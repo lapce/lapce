@@ -26,6 +26,8 @@ use crate::{
 pub struct DebugProcessList {
     line_height: f64,
     mouse_down: Option<Point>,
+    mouse_pos: Point,
+    mouse_process: Option<TermId>,
 }
 
 #[derive(Clone, Debug)]
@@ -55,6 +57,8 @@ impl DebugProcessList {
         DebugProcessList {
             line_height: 25.0,
             mouse_down: None,
+            mouse_pos: Point::ZERO,
+            mouse_process: None,
         }
     }
 
@@ -131,8 +135,9 @@ impl Widget<LapceTabData> for DebugProcessList {
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
+                self.mouse_pos = mouse_event.pos;
                 ctx.clear_cursor();
-                if let Some((_, icon)) = self.clicked_icon(
+                let process = if let Some((term_id, icon)) = self.clicked_icon(
                     data,
                     ctx.size().width,
                     mouse_event.pos,
@@ -145,6 +150,13 @@ impl Widget<LapceTabData> for DebugProcessList {
                     } else {
                         ctx.set_cursor(&Cursor::Pointer);
                     }
+                    Some(term_id)
+                } else {
+                    None
+                };
+                if process != self.mouse_process {
+                    ctx.request_paint();
+                    self.mouse_process = process;
                 }
             }
             Event::MouseDown(mouse_event) => {
@@ -255,6 +267,7 @@ impl Widget<LapceTabData> for DebugProcessList {
 
         let processes = data.terminal.run_debug_process();
 
+        let mouse_at_line = (self.mouse_pos.y / self.line_height).floor() as usize;
         for (i, (term_id, process)) in processes.into_iter().enumerate() {
             if data.debug.active_term == Some(term_id) {
                 ctx.fill(
@@ -283,40 +296,53 @@ impl Widget<LapceTabData> for DebugProcessList {
                 }
                 RunDebugMode::Debug => LapceIcons::DEBUG,
             };
-            ctx.draw_svg(
-                &data.config.ui_svg(svg),
-                icon_rect,
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
-                ),
-            );
 
-            let text_layout = ctx
-                .text()
-                .new_text_layout(process.config.name.clone())
-                .font(
-                    data.config.ui.font_family(),
-                    data.config.ui.font_size() as f64,
-                )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            ctx.draw_text(
-                &text_layout,
-                Point::new(
-                    self.line_height,
-                    (i as f64 * self.line_height)
-                        + text_layout.y_offset(self.line_height),
-                ),
-            );
+            let icons = if ctx.is_hot() && mouse_at_line == i {
+                Self::process_icons(process)
+            } else {
+                Vec::new()
+            };
+            let icon_start_x = size.width - self.line_height * icons.len() as f64;
 
-            let icons = Self::process_icons(process);
-            let mut x = size.width - self.line_height * icons.len() as f64;
+            ctx.with_save(|ctx| {
+                ctx.clip(
+                    Rect::ZERO
+                        .with_size(Size::new(icon_start_x, size.height))
+                        .with_origin(Point::new(0.0, self.line_height * i as f64)),
+                );
+                ctx.draw_svg(
+                    &data.config.ui_svg(svg),
+                    icon_rect,
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                    ),
+                );
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(process.config.name.clone())
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(
+                        self.line_height,
+                        (i as f64 * self.line_height)
+                            + text_layout.y_offset(self.line_height),
+                    ),
+                );
+            });
+
+            let mut x = icon_start_x;
             for icon in icons {
                 let rect = Rect::ZERO
                     .with_origin(Point::new(
