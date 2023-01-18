@@ -26,6 +26,7 @@
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys
 - [#1939](https://github.com/lapce/lapce/pull/1939): Fix saving/editing newly saved-as files
 - [#1971](https://github.com/lapce/lapce/pull/1971): Fix up/down movement on first/last line
+- [#2036](https://github.com/lapce/lapce/pull/2036): Fix movement on selections with up/down arrow keys
 
 ## 0.2.5
 
