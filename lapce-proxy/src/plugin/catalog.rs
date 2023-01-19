@@ -430,9 +430,11 @@ impl PluginCatalog {
             DapLoaded(dap_rpc) => {
                 self.daps.insert(dap_rpc.dap_id, dap_rpc);
             }
+            DapDisconnected(dap_id) => {
+                self.daps.remove(&dap_id);
+            }
             DapStart { config } => {
                 let workspace = self.workspace.clone();
-                let core_rpc = self.plugin_rpc.core_rpc.clone();
                 let plugin_rpc = self.plugin_rpc.clone();
                 thread::spawn(move || {
                     if let Ok(dap_rpc) = DapClient::start(
@@ -440,7 +442,7 @@ impl PluginCatalog {
                         Vec::new(),
                         workspace,
                         config.clone(),
-                        core_rpc,
+                        plugin_rpc.clone(),
                     ) {
                         let _ = plugin_rpc.dap_loaded(dap_rpc.clone());
 
@@ -453,22 +455,36 @@ impl PluginCatalog {
                     }
                 });
             }
-            DapProcessId { dap_id, process_id } => {
+            DapProcessId {
+                dap_id,
+                process_id,
+                term_id,
+            } => {
                 println!("dap process id {process_id}");
                 if let Some(dap) = self.daps.get(&dap_id) {
-                    let _ = dap.termain_process_tx.send(process_id);
+                    let _ = dap.termain_process_tx.send((term_id, process_id));
                 }
             }
             DapContinue { dap_id, thread_id } => {
-                if let Some(dap) = self.daps.get(&dap_id) {
-                    if let Ok(_) = dap.continue_thread(thread_id) {
-                        self.plugin_rpc.core_rpc.dap_continued(dap_id);
-                    }
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    let plugin_rpc = self.plugin_rpc.clone();
+                    thread::spawn(move || {
+                        if let Ok(_) = dap.continue_thread(thread_id) {
+                            plugin_rpc.core_rpc.dap_continued(dap_id);
+                        }
+                    });
                 }
             }
             DapStop { dap_id } => {
                 if let Some(dap) = self.daps.get(&dap_id) {
-                    let _ = dap.disconnect();
+                    dap.stop();
+                }
+            }
+            DapDisconnect { dap_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    thread::spawn(move || {
+                        let _ = dap.disconnect();
+                    });
                 }
             }
             Shutdown => {
