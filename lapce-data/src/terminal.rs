@@ -141,7 +141,9 @@ impl TerminalPanelData {
         if let Some(run_debug) = terminal.run_debug.as_ref() {
             if run_debug.config.debug_command.is_some() {
                 let dap_id = run_debug.config.dap_id;
-                self.proxy.proxy_rpc.dap_process_id(dap_id, process_id);
+                self.proxy
+                    .proxy_rpc
+                    .dap_process_id(dap_id, process_id, term_id);
             }
         }
         None

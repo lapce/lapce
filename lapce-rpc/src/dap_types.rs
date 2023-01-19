@@ -640,3 +640,12 @@ impl Request for Disconnect {
     type Result = ();
     const COMMAND: &'static str = "disconnect";
 }
+
+#[derive(Debug)]
+pub enum Terminate {}
+
+impl Request for Terminate {
+    type Arguments = ();
+    type Result = ();
+    const COMMAND: &'static str = "terminate";
+}

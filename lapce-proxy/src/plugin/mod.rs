@@ -26,6 +26,7 @@ use lapce_rpc::{
     plugin::{PluginId, VoltInfo, VoltMetadata},
     proxy::ProxyRpcHandler,
     style::LineStyle,
+    terminal::TermId,
     RequestId, RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
@@ -128,10 +129,25 @@ pub enum PluginCatalogNotification {
     EnableVolt(VoltInfo),
     ReloadVolt(VoltMetadata),
     DapLoaded(DapRpcHandler),
-    DapStart { config: RunDebugConfig },
-    DapProcessId { dap_id: DapId, process_id: u32 },
-    DapContinue { dap_id: DapId, thread_id: ThreadId },
-    DapStop { dap_id: DapId },
+    DapDisconnected(DapId),
+    DapStart {
+        config: RunDebugConfig,
+    },
+    DapProcessId {
+        dap_id: DapId,
+        process_id: u32,
+        term_id: TermId,
+    },
+    DapContinue {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStop {
+        dap_id: DapId,
+    },
+    DapDisconnect {
+        dap_id: DapId,
+    },
     Shutdown,
 }
 
@@ -970,6 +986,10 @@ impl PluginCatalogRpcHandler {
         self.catalog_notification(PluginCatalogNotification::EnableVolt(volt))
     }
 
+    pub fn dap_disconnected(&self, dap_id: DapId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapDisconnected(dap_id))
+    }
+
     pub fn dap_loaded(&self, dap_rpc: DapRpcHandler) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::DapLoaded(dap_rpc))
     }
@@ -978,10 +998,16 @@ impl PluginCatalogRpcHandler {
         self.catalog_notification(PluginCatalogNotification::DapStart { config })
     }
 
-    pub fn dap_process_id(&self, dap_id: DapId, process_id: u32) -> Result<()> {
+    pub fn dap_process_id(
+        &self,
+        dap_id: DapId,
+        process_id: u32,
+        term_id: TermId,
+    ) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::DapProcessId {
             dap_id,
             process_id,
+            term_id,
         })
     }
 
@@ -994,6 +1020,12 @@ impl PluginCatalogRpcHandler {
 
     pub fn dap_stop(&self, dap_id: DapId) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::DapStop { dap_id })
+    }
+
+    pub fn dap_disconnect(&self, dap_id: DapId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapDisconnect {
+            dap_id,
+        })
     }
 }
 

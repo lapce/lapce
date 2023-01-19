@@ -27,7 +27,7 @@ use lapce_data::{
     proxy::LapceProxy,
     terminal::{EventProxy, LapceTerminalData, LapceTerminalViewData},
 };
-use lapce_rpc::terminal::TermId;
+use lapce_rpc::{dap_types::DapId, terminal::TermId};
 use smallvec::SmallVec;
 use unicode_width::UnicodeWidthChar;
 
@@ -1233,11 +1233,16 @@ struct LapceTerminal {
     width: f64,
     height: f64,
     proxy: Arc<LapceProxy>,
+    dap_id: Option<DapId>,
 }
 
 impl Drop for LapceTerminal {
     fn drop(&mut self) {
-        self.proxy.proxy_rpc.terminal_close(self.term_id);
+        if let Some(dap_id) = self.dap_id {
+            self.proxy.proxy_rpc.dap_disconnect(dap_id);
+        } else {
+            self.proxy.proxy_rpc.terminal_close(self.term_id);
+        }
     }
 }
 
@@ -1248,6 +1253,13 @@ impl LapceTerminal {
             widget_id: data.widget_id,
             split_id: data.split_id,
             proxy: data.proxy.clone(),
+            dap_id: data.run_debug.as_ref().and_then(|run_debug| {
+                if run_debug.config.debug_command.is_some() {
+                    Some(run_debug.config.dap_id)
+                } else {
+                    None
+                }
+            }),
             width: 0.0,
             height: 0.0,
         }

@@ -244,12 +244,16 @@ pub enum ProxyNotification {
     DapProcessId {
         dap_id: DapId,
         process_id: u32,
+        term_id: TermId,
     },
     DapContinue {
         dap_id: DapId,
         thread_id: ThreadId,
     },
     DapStop {
+        dap_id: DapId,
+    },
+    DapDisconnect {
         dap_id: DapId,
     },
 }
@@ -883,8 +887,12 @@ impl ProxyRpcHandler {
         self.notification(ProxyNotification::DapStart { config })
     }
 
-    pub fn dap_process_id(&self, dap_id: DapId, process_id: u32) {
-        self.notification(ProxyNotification::DapProcessId { dap_id, process_id })
+    pub fn dap_process_id(&self, dap_id: DapId, process_id: u32, term_id: TermId) {
+        self.notification(ProxyNotification::DapProcessId {
+            dap_id,
+            process_id,
+            term_id,
+        })
     }
 
     pub fn dap_continue(&self, dap_id: DapId, thread_id: ThreadId) {
@@ -893,6 +901,10 @@ impl ProxyRpcHandler {
 
     pub fn dap_stop(&self, dap_id: DapId) {
         self.notification(ProxyNotification::DapStop { dap_id })
+    }
+
+    pub fn dap_disconnect(&self, dap_id: DapId) {
+        self.notification(ProxyNotification::DapDisconnect { dap_id })
     }
 }
 

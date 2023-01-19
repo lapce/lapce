@@ -196,6 +196,7 @@ impl ProxyHandler for Dispatcher {
                 }
             }
             TerminalClose { term_id } => {
+                println!("close terminal {term_id:?}");
                 if let Some(tx) = self.terminals.remove(&term_id) {
                     #[allow(deprecated)]
                     let _ = tx.send(Msg::Shutdown);
@@ -204,14 +205,21 @@ impl ProxyHandler for Dispatcher {
             DapStart { config } => {
                 let _ = self.catalog_rpc.dap_start(config);
             }
-            DapProcessId { dap_id, process_id } => {
-                let _ = self.catalog_rpc.dap_process_id(dap_id, process_id);
+            DapProcessId {
+                dap_id,
+                process_id,
+                term_id,
+            } => {
+                let _ = self.catalog_rpc.dap_process_id(dap_id, process_id, term_id);
             }
             DapContinue { dap_id, thread_id } => {
                 let _ = self.catalog_rpc.dap_continue(dap_id, thread_id);
             }
             DapStop { dap_id } => {
                 let _ = self.catalog_rpc.dap_stop(dap_id);
+            }
+            DapDisconnect { dap_id } => {
+                let _ = self.catalog_rpc.dap_disconnect(dap_id);
             }
             InstallVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();
