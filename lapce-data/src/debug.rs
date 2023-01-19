@@ -1,7 +1,10 @@
 use std::{fmt::Display, path::Path, time::Instant};
 
 use druid::WidgetId;
-use lapce_rpc::terminal::TermId;
+use lapce_rpc::{
+    dap_types::{DapId, RunDebugConfig, ThreadId},
+    terminal::TermId,
+};
 use serde::{Deserialize, Serialize};
 
 const DEFAULT_RUN_TOML: &str = include_str!("../../defaults/run.toml");
@@ -30,6 +33,7 @@ pub enum RunDebugAction {
 
 #[derive(Clone, Debug)]
 pub enum DebugAction {
+    Continue,
     Restart,
     Stop,
     Close,
@@ -55,14 +59,6 @@ pub struct RunDebugConfigs {
     pub configs: Vec<RunDebugConfig>,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct RunDebugConfig {
-    pub name: String,
-    pub program: String,
-    pub args: Vec<String>,
-    pub cwd: Option<String>,
-}
-
 pub fn run_configs(workspace: Option<&Path>) -> Option<RunDebugConfigs> {
     let workspace = workspace?;
     let run_toml = workspace.join(".lapce").join("run.toml");
@@ -79,10 +75,30 @@ pub fn run_configs(workspace: Option<&Path>) -> Option<RunDebugConfigs> {
 }
 
 #[derive(Clone)]
+pub struct DapData {
+    pub term_id: TermId,
+    pub dap_id: DapId,
+    pub stopped: bool,
+    pub thread_id: Option<ThreadId>,
+}
+
+impl DapData {
+    pub fn new(dap_id: DapId, term_id: TermId) -> Self {
+        Self {
+            term_id,
+            dap_id,
+            stopped: false,
+            thread_id: None,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct RunDebugData {
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub active_term: Option<TermId>,
+    pub daps: im::HashMap<DapId, DapData>,
 }
 
 impl Default for RunDebugData {
@@ -97,6 +113,7 @@ impl RunDebugData {
             widget_id: WidgetId::next(),
             split_id: WidgetId::next(),
             active_term: None,
+            daps: im::HashMap::new(),
         }
     }
 }

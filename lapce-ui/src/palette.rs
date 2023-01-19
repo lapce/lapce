@@ -686,9 +686,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     .collect();
                 let svg = match mode {
                     RunDebugMode::Run => data.config.ui_svg(LapceIcons::START),
-                    RunDebugMode::Debug => {
-                        data.config.ui_svg(LapceIcons::DEBUG_SMALL)
-                    }
+                    RunDebugMode::Debug => data.config.ui_svg(LapceIcons::DEBUG),
                 };
                 PaletteItemPaintInfo {
                     svg: Some(svg),

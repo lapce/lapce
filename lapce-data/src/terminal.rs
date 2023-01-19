@@ -21,7 +21,10 @@ use lapce_core::{
     movement::{LinePosition, Movement},
     register::Clipboard,
 };
-use lapce_rpc::terminal::TermId;
+use lapce_rpc::{
+    dap_types::RunDebugConfig,
+    terminal::{self, TermId},
+};
 use parking_lot::Mutex;
 
 use crate::{
@@ -30,7 +33,7 @@ use crate::{
     },
     config::{LapceConfig, LapceTheme},
     data::LapceWorkspace,
-    debug::{RunDebugConfig, RunDebugMode, RunDebugProcess},
+    debug::{RunDebugData, RunDebugMode, RunDebugProcess},
     document::SystemClipboard,
     find::Find,
     keypress::KeyPressFocus,
@@ -46,6 +49,8 @@ pub struct TerminalPanelData {
     pub tabs: im::HashMap<WidgetId, TerminalSplitData>,
     pub tabs_order: Arc<Vec<WidgetId>>,
     pub active: usize,
+    pub debug: Arc<RunDebugData>,
+    pub proxy: Arc<LapceProxy>,
 }
 
 impl TerminalPanelData {
@@ -56,16 +61,24 @@ impl TerminalPanelData {
         event_sink: ExtEventSink,
         run_debug: Option<RunDebugProcess>,
     ) -> Self {
-        let split =
-            TerminalSplitData::new(worksapce, proxy, config, event_sink, run_debug);
+        let split = TerminalSplitData::new(
+            worksapce,
+            proxy.clone(),
+            config,
+            event_sink,
+            run_debug,
+        );
         let tabs_order = Arc::new(vec![split.split_id]);
         let mut tabs = im::HashMap::new();
         tabs.insert(split.split_id, split);
+        let debug = Arc::new(RunDebugData::new());
         Self {
             widget_id: WidgetId::next(),
             tabs,
             tabs_order,
             active: 0,
+            debug,
+            proxy,
         }
     }
 
@@ -114,6 +127,31 @@ impl TerminalPanelData {
             }
         }
         None
+    }
+
+    pub fn set_process_id(
+        &mut self,
+        term_id: TermId,
+        process_id: u32,
+    ) -> Option<()> {
+        println!("set process id");
+        let terminal = self.get_terminal_mut(&term_id)?;
+        let terminal = Arc::make_mut(terminal);
+        terminal.process_id = Some(process_id);
+        if let Some(run_debug) = terminal.run_debug.as_ref() {
+            if run_debug.config.debug_command.is_some() {
+                let dap_id = run_debug.config.dap_id;
+                self.proxy.proxy_rpc.dap_process_id(dap_id, process_id);
+            }
+        }
+        None
+    }
+
+    pub fn get_active_debug_terminal_mut(
+        &mut self,
+    ) -> Option<&mut Arc<LapceTerminalData>> {
+        let term_id = self.debug.active_term?;
+        self.get_terminal_mut(&term_id)
     }
 
     pub fn get_stopped_run_debug_terminal_mut(
@@ -165,6 +203,27 @@ impl TerminalPanelData {
         }
         processes.sort_by_key(|(_, process)| process.created);
         processes
+    }
+
+    pub fn dap_continue(&self, term_id: TermId) -> Option<()> {
+        let terminal = self.get_terminal(&term_id)?;
+        let dap = self
+            .debug
+            .daps
+            .get(&terminal.run_debug.as_ref()?.config.dap_id)?;
+        let thread_id = dap.thread_id?;
+        self.proxy.proxy_rpc.dap_continue(dap.dap_id, thread_id);
+        None
+    }
+
+    pub fn dap_stop(&self, term_id: TermId) -> Option<()> {
+        let terminal = self.get_terminal(&term_id)?;
+        let dap = self
+            .debug
+            .daps
+            .get(&terminal.run_debug.as_ref()?.config.dap_id)?;
+        self.proxy.proxy_rpc.dap_stop(dap.dap_id);
+        None
     }
 }
 
@@ -677,6 +736,7 @@ pub struct LapceTerminalData {
     pub raw: Arc<Mutex<RawTerminal>>,
     pub proxy: Arc<LapceProxy>,
     pub run_debug: Option<RunDebugProcess>,
+    pub process_id: Option<u32>,
     workspace: Arc<LapceWorkspace>,
     event_sink: ExtEventSink,
     size: Rc<RefCell<(usize, usize)>>,
@@ -710,6 +770,7 @@ impl LapceTerminalData {
             view_id,
             split_id,
             title: "".to_string(),
+            process_id: None,
             mode: Mode::Terminal,
             visual_mode: VisualMode::Normal,
             raw,
@@ -752,7 +813,11 @@ impl LapceTerminalData {
                 }
             }
 
-            format!("{} {}", run_debug.program, run_debug.args.join(" "))
+            if let Some(debug_command) = run_debug.debug_command.as_ref() {
+                debug_command.clone()
+            } else {
+                format!("{} {}", run_debug.program, run_debug.args.join(" "))
+            }
         } else {
             config.terminal.shell.clone()
         };

@@ -15,6 +15,7 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::BufferId,
+    dap_types::{DapId, RunDebugConfig, ThreadId},
     file::FileNodeItem,
     plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     source_control::DiffInfo,
@@ -38,7 +39,7 @@ use crate::{
         EditorTabChild, LapceMainSplitData, LapceTabData, LapceWorkspace,
         SplitContent,
     },
-    debug::{RunDebugConfig, RunDebugMode},
+    debug::RunDebugMode,
     document::BufferContent,
     editor::{EditorLocation, EditorPosition, Line, LineCol},
     images,
@@ -908,8 +909,12 @@ pub enum LapceUICommand {
         mode: RunDebugMode,
         config: RunDebugConfig,
     },
-    RunInTerminal(String),
+    RunInTerminal(RunDebugConfig),
     TerminalProcessStopped(TermId),
+    TerminalProcessId {
+        term_id: TermId,
+        process_id: u32,
+    },
     CloseTerminal(TermId),
     OpenPluginInfo(VoltInfo),
     SplitTerminal(bool, WidgetId),
@@ -1050,6 +1055,16 @@ pub enum LapceUICommand {
     ImageLoaded {
         url: Url,
         image: Result<images::Image, anyhow::Error>,
+    },
+    DapStopped {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapContinued {
+        dap_id: DapId,
+    },
+    DapTerminated {
+        dap_id: DapId,
     },
 }
 

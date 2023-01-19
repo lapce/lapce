@@ -30,7 +30,7 @@ pub type TermConfig = alacritty_terminal::config::Config;
 pub struct Terminal {
     term_id: TermId,
     poll: mio::Poll,
-    pty: alacritty_terminal::tty::Pty,
+    pub(crate) pty: alacritty_terminal::tty::Pty,
 
     #[allow(deprecated)]
     rx: Receiver<Msg>,

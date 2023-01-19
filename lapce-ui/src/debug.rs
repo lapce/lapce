@@ -11,7 +11,7 @@ use lapce_data::{
     config::{LapceIcons, LapceTheme},
     data::LapceTabData,
     debug::{
-        DebugAction, RunAction, RunDebugAction, RunDebugData, RunDebugMode,
+        DapData, DebugAction, RunAction, RunDebugAction, RunDebugData, RunDebugMode,
         RunDebugProcess,
     },
     panel::PanelKind,
@@ -62,7 +62,10 @@ impl DebugProcessList {
         }
     }
 
-    fn process_icons(process: &RunDebugProcess) -> Vec<ProcessIcon> {
+    fn process_icons(
+        process: &RunDebugProcess,
+        dap: Option<&DapData>,
+    ) -> Vec<ProcessIcon> {
         match process.mode {
             RunDebugMode::Run => vec![
                 ProcessIcon {
@@ -88,7 +91,32 @@ impl DebugProcessList {
                     active: true,
                 },
             ],
-            RunDebugMode::Debug => vec![],
+            RunDebugMode::Debug => {
+                let paused = dap.map(|dap| dap.stopped).unwrap_or(false);
+                let stopped = process.stopped;
+                vec![
+                    ProcessIcon {
+                        svg: LapceIcons::DEBUG_CONTINUE,
+                        color: if paused && !stopped {
+                            LapceTheme::LAPCE_ICON_ACTIVE
+                        } else {
+                            LapceTheme::LAPCE_ICON_INACTIVE
+                        },
+                        action: RunDebugAction::Debug(DebugAction::Continue),
+                        active: paused && !stopped,
+                    },
+                    ProcessIcon {
+                        svg: LapceIcons::DEBUG_STOP,
+                        color: if stopped {
+                            LapceTheme::LAPCE_ICON_INACTIVE
+                        } else {
+                            LapceTheme::LAPCE_ICON_ACTIVE
+                        },
+                        action: RunDebugAction::Debug(DebugAction::Stop),
+                        active: !stopped,
+                    },
+                ]
+            }
         }
     }
 
@@ -107,8 +135,9 @@ impl DebugProcessList {
 
         let processes = data.terminal.run_debug_process();
         let (term_id, process) = processes.get(up_line)?;
+        let dap = data.terminal.debug.daps.get(&process.config.dap_id);
 
-        let mut icons = Self::process_icons(process);
+        let mut icons = Self::process_icons(process, dap);
         icons.reverse();
 
         let down_icon = ((width - mouse_down.x) / self.line_height).floor() as usize;
@@ -192,8 +221,7 @@ impl Widget<LapceTabData> for DebugProcessList {
                                                 .restart_run_debug(&data.config);
                                         }
                                     }
-                                    RunDebugAction::Run(RunAction::Stop)
-                                    | RunDebugAction::Debug(DebugAction::Stop) => {
+                                    RunDebugAction::Run(RunAction::Stop) => {
                                         if let Some(terminal) =
                                             Arc::make_mut(&mut data.terminal)
                                                 .get_terminal_mut(&term_id)
@@ -201,11 +229,18 @@ impl Widget<LapceTabData> for DebugProcessList {
                                             Arc::make_mut(terminal).stop_run_debug();
                                         }
                                     }
+                                    RunDebugAction::Debug(DebugAction::Stop) => {
+                                        data.terminal.dap_stop(term_id);
+                                    }
+                                    RunDebugAction::Debug(DebugAction::Continue) => {
+                                        data.terminal.dap_continue(term_id);
+                                    }
                                 }
                             }
                         } else {
-                            Arc::make_mut(&mut data.debug).active_term =
-                                Some(term_id);
+                            let terminal = Arc::make_mut(&mut data.terminal);
+                            let debug = Arc::make_mut(&mut terminal.debug);
+                            debug.active_term = Some(term_id);
                         }
                         if let Some(terminal) = data.terminal.get_terminal(&term_id)
                         {
@@ -269,7 +304,7 @@ impl Widget<LapceTabData> for DebugProcessList {
 
         let mouse_at_line = (self.mouse_pos.y / self.line_height).floor() as usize;
         for (i, (term_id, process)) in processes.into_iter().enumerate() {
-            if data.debug.active_term == Some(term_id) {
+            if data.terminal.debug.active_term == Some(term_id) {
                 ctx.fill(
                     Size::new(size.width, self.line_height)
                         .to_rect()
@@ -286,19 +321,22 @@ impl Widget<LapceTabData> for DebugProcessList {
                     i as f64 * self.line_height + self.line_height / 2.0,
                 ))
                 .inflate(icon_size / 2.0, icon_size / 2.0);
+
+            let color = if !process.stopped {
+                LapceTheme::LAPCE_ICON_ACTIVE
+            } else {
+                LapceTheme::LAPCE_ICON_INACTIVE
+            };
             let svg = match process.mode {
-                RunDebugMode::Run => {
-                    if process.stopped {
-                        LapceIcons::RUN_ERRORS
-                    } else {
-                        LapceIcons::START
-                    }
-                }
+                RunDebugMode::Run => LapceIcons::START,
                 RunDebugMode::Debug => LapceIcons::DEBUG,
             };
 
-            let icons = if ctx.is_hot() && mouse_at_line == i {
-                Self::process_icons(process)
+            let icons = if data.terminal.debug.active_term == Some(term_id)
+                || (ctx.is_hot() && mouse_at_line == i)
+            {
+                let dap = data.terminal.debug.daps.get(&process.config.dap_id);
+                Self::process_icons(process, dap)
             } else {
                 Vec::new()
             };
@@ -313,10 +351,7 @@ impl Widget<LapceTabData> for DebugProcessList {
                 ctx.draw_svg(
                     &data.config.ui_svg(svg),
                     icon_rect,
-                    Some(
-                        data.config
-                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
-                    ),
+                    Some(data.config.get_color_unchecked(color)),
                 );
                 let text_layout = ctx
                     .text()

@@ -22,7 +22,9 @@ use lapce_core::{
     language::LapceLanguage,
     mode::Mode,
 };
-use lapce_rpc::{proxy::ProxyResponse, source_control::FileDiff};
+use lapce_rpc::{
+    dap_types::RunDebugConfig, proxy::ProxyResponse, source_control::FileDiff,
+};
 use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
 use uuid::Uuid;
 
@@ -37,7 +39,7 @@ use crate::{
         LapceWorkspaceType, SshHost,
     },
     db::LapceDb,
-    debug::{run_configs, RunDebugConfig, RunDebugMode},
+    debug::{run_configs, RunDebugMode},
     document::BufferContent,
     editor::EditorLocation,
     find::Find,

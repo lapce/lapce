@@ -1,6 +1,5 @@
 pub mod catalog;
 pub mod dap;
-pub mod dap_types;
 pub mod lsp;
 pub mod psp;
 pub mod wasi;
@@ -23,6 +22,7 @@ use flate2::read::GzDecoder;
 use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
+    dap_types::{DapId, RunDebugConfig, ThreadId},
     plugin::{PluginId, VoltInfo, VoltMetadata},
     proxy::ProxyRpcHandler,
     style::LineStyle,
@@ -67,6 +67,7 @@ use tar::Archive;
 
 use self::{
     catalog::PluginCatalog,
+    dap::DapRpcHandler,
     psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback},
     wasi::{load_volt, start_volt},
 };
@@ -126,6 +127,11 @@ pub enum PluginCatalogNotification {
     StopVolt(VoltInfo),
     EnableVolt(VoltInfo),
     ReloadVolt(VoltMetadata),
+    DapLoaded(DapRpcHandler),
+    DapStart { config: RunDebugConfig },
+    DapProcessId { dap_id: DapId, process_id: u32 },
+    DapContinue { dap_id: DapId, thread_id: ThreadId },
+    DapStop { dap_id: DapId },
     Shutdown,
 }
 
@@ -962,6 +968,32 @@ impl PluginCatalogRpcHandler {
 
     pub fn enable_volt(&self, volt: VoltInfo) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::EnableVolt(volt))
+    }
+
+    pub fn dap_loaded(&self, dap_rpc: DapRpcHandler) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapLoaded(dap_rpc))
+    }
+
+    pub fn dap_start(&self, config: RunDebugConfig) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStart { config })
+    }
+
+    pub fn dap_process_id(&self, dap_id: DapId, process_id: u32) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapProcessId {
+            dap_id,
+            process_id,
+        })
+    }
+
+    pub fn dap_continue(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapContinue {
+            dap_id,
+            thread_id,
+        })
+    }
+
+    pub fn dap_stop(&self, dap_id: DapId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStop { dap_id })
     }
 }
 
