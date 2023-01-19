@@ -912,29 +912,29 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContentItem {
 
         let icon_size = data.config.ui.icon_size() as f64;
 
-        let icon = data
+        let (icon, color) = data
             .terminal
             .tabs
             .get(&self.split_id)
             .and_then(|t| t.active_terminal())
             .map(|t| {
                 let icon = if let Some(run_debug) = t.run_debug.as_ref() {
-                    match run_debug.mode {
-                        RunDebugMode::Run => {
-                            if run_debug.stopped {
-                                LapceIcons::RUN_ERRORS
-                            } else {
-                                LapceIcons::START
-                            }
-                        }
+                    let icon = match run_debug.mode {
+                        RunDebugMode::Run => LapceIcons::START,
                         RunDebugMode::Debug => LapceIcons::DEBUG,
-                    }
+                    };
+                    let color = if !run_debug.stopped {
+                        LapceTheme::LAPCE_ICON_ACTIVE
+                    } else {
+                        LapceTheme::LAPCE_ICON_INACTIVE
+                    };
+                    (icon, color)
                 } else {
-                    LapceIcons::TERMINAL
+                    (LapceIcons::TERMINAL, LapceTheme::LAPCE_ICON_ACTIVE)
                 };
                 icon
             })
-            .unwrap_or(LapceIcons::TERMINAL);
+            .unwrap_or((LapceIcons::TERMINAL, LapceTheme::LAPCE_ICON_ACTIVE));
 
         let icon_rect = Rect::ZERO
             .with_origin(Point::new(
@@ -945,10 +945,7 @@ impl Widget<LapceTabData> for LapceTerminalPanelHeaderContentItem {
         ctx.draw_svg(
             &data.config.ui_svg(icon),
             icon_rect,
-            Some(
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
-            ),
+            Some(data.config.get_color_unchecked(color)),
         );
 
         let text_layout = self.text_layout.as_ref().unwrap();
@@ -1280,7 +1277,9 @@ impl LapceTerminal {
         }
         if let Some(terminal) = terminal_panel.get_terminal_mut(&self.term_id) {
             if terminal.run_debug.is_some() {
-                Arc::make_mut(&mut data.debug).active_term = Some(self.term_id);
+                let terminal = Arc::make_mut(&mut data.terminal);
+                let debug = Arc::make_mut(&mut terminal.debug);
+                debug.active_term = Some(self.term_id);
             }
         }
     }

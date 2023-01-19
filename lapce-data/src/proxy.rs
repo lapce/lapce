@@ -262,10 +262,23 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            RunInTerminal { command } => {
+            TerminalProcessId {
+                term_id,
+                process_id,
+            } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::RunInTerminal(command),
+                    LapceUICommand::TerminalProcessId {
+                        term_id,
+                        process_id,
+                    },
+                    Target::Widget(self.tab_id),
+                );
+            }
+            RunInTerminal { config } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunInTerminal(config),
                     Target::Widget(self.tab_id),
                 );
             }
@@ -305,6 +318,27 @@ impl CoreHandler for LapceProxy {
                 if let Ok(level) = log::Level::from_str(&level) {
                     log::log!(level, "{}", message);
                 }
+            }
+            DapStopped { dap_id, thread_id } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::DapStopped { dap_id, thread_id },
+                    Target::Widget(self.tab_id),
+                );
+            }
+            DapContinued { dap_id } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::DapContinued { dap_id },
+                    Target::Widget(self.tab_id),
+                );
+            }
+            DapTerminated { dap_id } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::DapTerminated { dap_id },
+                    Target::Widget(self.tab_id),
+                );
             }
         }
     }

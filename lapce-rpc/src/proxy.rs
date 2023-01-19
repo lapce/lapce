@@ -15,13 +15,14 @@ use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
     CompletionItem, Diagnostic, DocumentSymbolResponse, GotoDefinitionResponse,
     Hover, InlayHint, Location, Position, PrepareRenameResponse, SelectionRange,
-    SymbolInformation, TextDocumentItem, TextEdit, WorkspaceEdit,
+    SymbolInformation, TextDocumentItem, TextEdit, Url, WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     buffer::BufferId,
+    dap_types::{DapId, RunDebugConfig, ThreadId},
     file::FileNodeItem,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
@@ -236,6 +237,20 @@ pub enum ProxyNotification {
     },
     TerminalClose {
         term_id: TermId,
+    },
+    DapStart {
+        config: RunDebugConfig,
+    },
+    DapProcessId {
+        dap_id: DapId,
+        process_id: u32,
+    },
+    DapContinue {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStop {
+        dap_id: DapId,
     },
 }
 
@@ -862,6 +877,22 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::GetSelectionRange { path, positions }, f);
+    }
+
+    pub fn dap_start(&self, config: RunDebugConfig) {
+        self.notification(ProxyNotification::DapStart { config })
+    }
+
+    pub fn dap_process_id(&self, dap_id: DapId, process_id: u32) {
+        self.notification(ProxyNotification::DapProcessId { dap_id, process_id })
+    }
+
+    pub fn dap_continue(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapContinue { dap_id, thread_id })
+    }
+
+    pub fn dap_stop(&self, dap_id: DapId) {
+        self.notification(ProxyNotification::DapStop { dap_id })
     }
 }
 

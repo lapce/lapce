@@ -3,6 +3,36 @@ use std::{collections::HashMap, path::PathBuf};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::counter::Counter;
+
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct DapId(pub u64);
+
+impl Default for DapId {
+    fn default() -> Self {
+        Self::next()
+    }
+}
+
+impl DapId {
+    pub fn next() -> Self {
+        static DAP_ID_COUNTER: Counter = Counter::new();
+        Self(DAP_ID_COUNTER.next())
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct RunDebugConfig {
+    pub name: String,
+    pub program: String,
+    pub args: Vec<String>,
+    pub cwd: Option<String>,
+    #[serde(skip)]
+    pub debug_command: Option<String>,
+    #[serde(skip)]
+    pub dap_id: DapId,
+}
+
 pub trait Request {
     type Arguments: DeserializeOwned + Serialize;
     type Result: DeserializeOwned + Serialize;
@@ -35,7 +65,10 @@ pub enum DapEvent {
     Continued(Continued),
     Exited(Exited),
     Terminated(Option<Terminated>),
-    Thread(Thread),
+    Thread {
+        reason: String,
+        thread_id: ThreadId,
+    },
     Output(Output),
     Breakpoint {
         reason: String,
@@ -274,8 +307,8 @@ impl std::fmt::Display for ThreadId {
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Thread {
-    pub reason: String,
-    pub thread_id: ThreadId,
+    pub id: ThreadId,
+    pub name: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
@@ -489,4 +522,121 @@ impl Request for ConfigurationDone {
     type Arguments = ();
     type Result = ();
     const COMMAND: &'static str = "configurationDone";
+}
+
+#[derive(Debug, Default, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContinueArguments {
+    pub thread_id: ThreadId,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContinueResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub all_threads_continued: Option<bool>,
+}
+
+#[derive(Debug)]
+pub enum Continue {}
+
+impl Request for Continue {
+    type Arguments = ContinueArguments;
+    type Result = ContinueResponse;
+    const COMMAND: &'static str = "continue";
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadsResponse {
+    pub threads: Vec<Thread>,
+}
+
+#[derive(Debug)]
+pub enum Threads {}
+
+impl Request for Threads {
+    type Arguments = ();
+    type Result = ThreadsResponse;
+    const COMMAND: &'static str = "threads";
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StackFrame {
+    pub id: usize,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<Source>,
+    pub line: usize,
+    pub column: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_column: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub can_restart: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instruction_pointer_reference: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub module_id: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presentation_hint: Option<String>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StackFrameFormat {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter_types: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter_names: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter_values: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub module: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_all: Option<bool>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StackTraceArguments {
+    pub thread_id: ThreadId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_frame: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub levels: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<StackFrameFormat>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StackTraceResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_frames: Option<usize>,
+    pub stack_frames: Vec<StackFrame>,
+}
+
+#[derive(Debug)]
+pub enum StackTrace {}
+
+impl Request for StackTrace {
+    type Arguments = StackTraceArguments;
+    type Result = StackTraceResponse;
+    const COMMAND: &'static str = "stackTrace";
+}
+
+#[derive(Debug)]
+pub enum Disconnect {}
+
+impl Request for Disconnect {
+    type Arguments = ();
+    type Result = ();
+    const COMMAND: &'static str = "disconnect";
 }

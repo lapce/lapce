@@ -9,6 +9,7 @@ use std::{
 };
 
 use lapce_rpc::{
+    dap_types::DapId,
     plugin::{PluginId, VoltID, VoltMetadata},
     proxy::ProxyResponse,
     style::LineStyle,
@@ -24,7 +25,7 @@ use psp_types::Notification;
 use serde_json::Value;
 
 use super::{
-    dap::DapClient,
+    dap::{DapClient, DapRpcHandler},
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
     wasi::{load_all_volts, start_volt},
     PluginCatalogNotification, PluginCatalogRpcHandler,
@@ -35,7 +36,7 @@ pub struct PluginCatalog {
     workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
     plugins: HashMap<PluginId, PluginServerRpcHandler>,
-    daps: HashMap<PluginId, DapClient>,
+    daps: HashMap<DapId, DapRpcHandler>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
     unactivated_volts: HashMap<VoltID, VoltMetadata>,
     open_files: HashMap<PathBuf, String>,
@@ -425,6 +426,50 @@ impl PluginCatalog {
                 thread::spawn(move || {
                     let _ = enable_volt(plugin_rpc, volt);
                 });
+            }
+            DapLoaded(dap_rpc) => {
+                self.daps.insert(dap_rpc.dap_id, dap_rpc);
+            }
+            DapStart { config } => {
+                let workspace = self.workspace.clone();
+                let core_rpc = self.plugin_rpc.core_rpc.clone();
+                let plugin_rpc = self.plugin_rpc.clone();
+                thread::spawn(move || {
+                    if let Ok(dap_rpc) = DapClient::start(
+                        "/opt/homebrew/opt/llvm@14/bin/lldb-vscode".to_string(),
+                        Vec::new(),
+                        workspace,
+                        config.clone(),
+                        core_rpc,
+                    ) {
+                        let _ = plugin_rpc.dap_loaded(dap_rpc.clone());
+
+                        let _ = dap_rpc.launch(serde_json::json!({
+                            "program": config.program,
+                            "args": config.args,
+                            "cwd": config.cwd,
+                            "runInTerminal": true,
+                        }));
+                    }
+                });
+            }
+            DapProcessId { dap_id, process_id } => {
+                println!("dap process id {process_id}");
+                if let Some(dap) = self.daps.get(&dap_id) {
+                    let _ = dap.termain_process_tx.send(process_id);
+                }
+            }
+            DapContinue { dap_id, thread_id } => {
+                if let Some(dap) = self.daps.get(&dap_id) {
+                    if let Ok(_) = dap.continue_thread(thread_id) {
+                        self.plugin_rpc.core_rpc.dap_continued(dap_id);
+                    }
+                }
+            }
+            DapStop { dap_id } => {
+                if let Some(dap) = self.daps.get(&dap_id) {
+                    let _ = dap.disconnect();
+                }
             }
             Shutdown => {
                 for (_, plugin) in self.plugins.iter() {

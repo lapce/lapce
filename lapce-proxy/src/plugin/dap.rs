@@ -12,63 +12,54 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
-use lapce_rpc::{core::CoreRpcHandler, RpcError};
-use lsp_types::Url;
+use lapce_rpc::{
+    core::CoreRpcHandler,
+    dap_types::{
+        self, ConfigurationDone, Continue, ContinueArguments, ContinueResponse,
+        DapEvent, DapId, DapPayload, DapRequest, DapResponse, Disconnect,
+        Initialize, Launch, Request, RunDebugConfig, RunInTerminal,
+        RunInTerminalArguments, RunInTerminalResponse, StackFrame, StackTrace,
+        StackTraceArguments, StackTraceResponse, ThreadId, Threads, ThreadsResponse,
+    },
+    RpcError,
+};
 use parking_lot::Mutex;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::plugin::dap_types::Initialize;
-
-use super::{
-    dap_types,
-    dap_types::{
-        ConfigurationDone, DapEvent, DapPayload, DapRequest, DapResponse, Launch,
-        Request, RunInTerminal, RunInTerminalArguments, RunInTerminalResponse,
-    },
-    psp::ResponseHandler,
-};
+use super::psp::ResponseHandler;
 
 pub struct DapClient {
     core_rpc: CoreRpcHandler,
     pub(crate) dap_rpc: DapRpcHandler,
+    config: RunDebugConfig,
+    thread_id: Option<ThreadId>,
+    stack_frames: HashMap<ThreadId, Vec<StackFrame>>,
+    active_frame: Option<usize>,
 }
 
 impl DapClient {
     pub fn new(
-        workspace: Option<PathBuf>,
-        server_uri: Url,
+        program: String,
         args: Vec<String>,
+        cwd: Option<PathBuf>,
+        config: RunDebugConfig,
         core_rpc: CoreRpcHandler,
     ) -> Result<Self> {
-        let server = match server_uri.scheme() {
-            "file" => {
-                let path = server_uri.to_file_path().map_err(|_| anyhow!(""))?;
-                #[cfg(unix)]
-                let _ = std::process::Command::new("chmod")
-                    .arg("+x")
-                    .arg(&path)
-                    .output();
-                path.to_str().ok_or_else(|| anyhow!(""))?.to_string()
-            }
-            "urn" => server_uri.path().to_string(),
-            _ => return Err(anyhow!("uri not supported")),
-        };
-
-        let mut process = Self::process(workspace.as_ref(), &server, &args)?;
+        let mut process = Self::process(&program, &args, cwd.as_ref())?;
         let stdin = process.stdin.take().unwrap();
         let stdout = process.stdout.take().unwrap();
         let stderr = process.stderr.take().unwrap();
 
         let (io_tx, io_rx) = crossbeam_channel::unbounded();
         let mut writer = Box::new(BufWriter::new(stdin));
-        let dap_rpc = DapRpcHandler::new(io_tx);
+        let dap_rpc = DapRpcHandler::new(config.dap_id, io_tx);
         thread::spawn(move || {
             for msg in io_rx {
                 if let Ok(msg) = serde_json::to_string(&msg) {
+                    println!("send to dap server: {msg}");
                     let msg =
                         format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
-                    println!("writer write {msg}");
                     let _ = writer.write(msg.as_bytes());
                     let _ = writer.flush();
                 }
@@ -88,7 +79,7 @@ impl DapClient {
                         Err(_err) => {
                             core_rpc.log(
                                 log::Level::Error,
-                                format!("dap server {server} stopped!"),
+                                format!("dap server {program} stopped!"),
                             );
                             return;
                         }
@@ -97,17 +88,46 @@ impl DapClient {
             });
         }
 
-        Ok(Self { core_rpc, dap_rpc })
+        Ok(Self {
+            core_rpc,
+            dap_rpc,
+            config,
+            thread_id: None,
+            stack_frames: HashMap::new(),
+            active_frame: None,
+        })
+    }
+
+    pub fn start(
+        program: String,
+        args: Vec<String>,
+        cwd: Option<PathBuf>,
+        config: RunDebugConfig,
+        core_rpc: CoreRpcHandler,
+    ) -> Result<DapRpcHandler> {
+        let mut dap = Self::new(program, args, cwd, config.clone(), core_rpc)?;
+        let dap_rpc = dap.dap_rpc.clone();
+
+        dap.initialize()?;
+
+        {
+            let dap_rpc = dap_rpc.clone();
+            thread::spawn(move || {
+                dap_rpc.mainloop(&mut dap);
+            });
+        }
+
+        Ok(dap_rpc)
     }
 
     fn process(
-        workspace: Option<&PathBuf>,
         server: &str,
         args: &[String],
+        cwd: Option<&PathBuf>,
     ) -> Result<Child> {
         let mut process = Command::new(server);
-        if let Some(workspace) = workspace {
-            process.current_dir(workspace);
+        if let Some(cwd) = cwd {
+            process.current_dir(cwd);
         }
 
         process.args(args);
@@ -122,7 +142,7 @@ impl DapClient {
         Ok(child)
     }
 
-    fn handle_host_request(&self, req: &DapRequest) -> Result<Value> {
+    fn handle_host_request(&mut self, req: &DapRequest) -> Result<Value> {
         match req.command.as_str() {
             RunInTerminal::COMMAND => {
                 let value = req
@@ -132,9 +152,12 @@ impl DapClient {
                 let args: RunInTerminalArguments =
                     serde_json::from_value(value.clone())?;
                 let command = args.args.join(" ");
-                self.core_rpc.run_in_terminal(command);
+                let mut config = self.config.clone();
+                config.debug_command = Some(command);
+                self.core_rpc.run_in_terminal(config);
+                let process_id = self.dap_rpc.termain_process_rx.recv()?;
                 let resp = RunInTerminalResponse {
-                    process_id: None,
+                    process_id: Some(process_id),
                     shell_process_id: None,
                 };
                 let resp = serde_json::to_value(&resp)?;
@@ -144,25 +167,47 @@ impl DapClient {
         }
     }
 
-    fn handle_host_event(&self, event: &DapEvent) -> Result<()> {
+    fn handle_host_event(&mut self, event: &DapEvent) -> Result<()> {
         match event {
             DapEvent::Initialized(_) => {
-                let _ = self.dap_rpc.request::<ConfigurationDone>(());
+                // send dap configurations here
+                let result = self.dap_rpc.request::<ConfigurationDone>(());
             }
-            DapEvent::Stopped(_) => todo!(),
-            DapEvent::Continued(_) => todo!(),
-            DapEvent::Exited(exited) => {
-                println!("process exited {}", exited.exit_code);
+            DapEvent::Stopped(stopped) => {
+                self.core_rpc.dap_stopped(
+                    self.config.dap_id,
+                    stopped.thread_id.unwrap_or_default(),
+                );
+                let all_threads_stopped =
+                    stopped.all_threads_stopped.unwrap_or_default();
+
+                if all_threads_stopped {
+                    if let Ok(response) = self.dap_rpc.threads() {
+                        for thread in response.threads {
+                            self.fetch_stack_trace(thread.id);
+                        }
+                        self.select_thread_id(
+                            stopped.thread_id.unwrap_or_default(),
+                            false,
+                        );
+                    }
+                } else if let Some(thread_id) = stopped.thread_id {
+                    self.select_thread_id(thread_id, false);
+                }
             }
-            DapEvent::Terminated(_) => todo!(),
-            DapEvent::Thread(_) => todo!(),
+            DapEvent::Continued(_) => {
+                self.core_rpc.dap_continued(self.dap_rpc.dap_id);
+            }
+            DapEvent::Exited(exited) => {}
+            DapEvent::Terminated(_) => {
+                self.core_rpc.dap_terminated(self.dap_rpc.dap_id);
+            }
+            DapEvent::Thread { .. } => {}
             DapEvent::Output(_) => todo!(),
             DapEvent::Breakpoint { reason, breakpoint } => todo!(),
             DapEvent::Module { reason, module } => todo!(),
             DapEvent::LoadedSource { reason, source } => todo!(),
-            DapEvent::Process(process) => {
-                println!("process {process:?}");
-            }
+            DapEvent::Process(process) => {}
             DapEvent::Capabilities(_) => todo!(),
             DapEvent::Memory(_) => todo!(),
         }
@@ -190,10 +235,34 @@ impl DapClient {
             .dap_rpc
             .request::<Initialize>(params)
             .map_err(|e| anyhow!(e.message))?;
-        // println!("dap initilize result {resp:?}");
 
         Ok(())
     }
+
+    fn select_thread_id(&mut self, thread_id: ThreadId, force: bool) {
+        if !force && self.thread_id.is_some() {
+            return;
+        }
+
+        self.thread_id = Some(thread_id);
+        self.fetch_stack_trace(thread_id);
+
+        let frame = self.stack_frames[&thread_id].get(0).cloned();
+        if let Some(frame) = &frame {
+            self.jump_to_stack_frame(frame);
+        }
+    }
+
+    fn fetch_stack_trace(&mut self, thread_id: ThreadId) {
+        let frames = match self.dap_rpc.stack_trace(thread_id) {
+            Ok(frames) => frames.stack_frames,
+            Err(_) => return,
+        };
+        self.stack_frames.insert(thread_id, frames);
+        self.active_frame = Some(0);
+    }
+
+    fn jump_to_stack_frame(&self, frame: &StackFrame) {}
 }
 
 pub enum DapRpc {
@@ -203,27 +272,34 @@ pub enum DapRpc {
 
 #[derive(Clone)]
 pub struct DapRpcHandler {
+    pub dap_id: DapId,
     io_tx: Sender<DapPayload>,
     rpc_tx: Sender<DapRpc>,
     rpc_rx: Receiver<DapRpc>,
+    pub(crate) termain_process_tx: Sender<u32>,
+    termain_process_rx: Receiver<u32>,
     seq_counter: Arc<AtomicU64>,
     server_pending: Arc<Mutex<HashMap<u64, ResponseHandler<DapResponse, RpcError>>>>,
 }
 
 impl DapRpcHandler {
-    fn new(io_tx: Sender<DapPayload>) -> Self {
+    fn new(dap_id: DapId, io_tx: Sender<DapPayload>) -> Self {
         let (rpc_tx, rpc_rx) = crossbeam_channel::unbounded();
+        let (termain_process_tx, termain_process_rx) =
+            crossbeam_channel::unbounded();
         Self {
+            dap_id,
             io_tx,
             rpc_rx,
             rpc_tx,
+            termain_process_tx,
+            termain_process_rx,
             seq_counter: Arc::new(AtomicU64::new(0)),
             server_pending: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
     pub fn mainloop(&self, dap_client: &mut DapClient) {
-        let _ = dap_client.initialize();
         for msg in &self.rpc_rx {
             match msg {
                 DapRpc::HostRequest(req) => {
@@ -235,7 +311,6 @@ impl DapRpcHandler {
                         message: result.as_ref().err().map(|e| e.to_string()),
                         body: result.ok(),
                     };
-                    println!("request {req:?} resp {resp:?}");
                     let _ = self.io_tx.send(DapPayload::Response(resp));
                 }
                 DapRpc::HostEvent(event) => {
@@ -255,16 +330,19 @@ impl DapRpcHandler {
             code: 0,
             message: "io error".to_string(),
         })??;
-        let response =
-            serde_json::from_value(resp.body.ok_or_else(|| RpcError {
+        if resp.success {
+            let resp: R::Result =
+                serde_json::from_value(resp.body.into()).map_err(|e| RpcError {
+                    code: 0,
+                    message: e.to_string(),
+                })?;
+            Ok(resp)
+        } else {
+            Err(RpcError {
                 code: 0,
-                message: "no body in response".to_string(),
-            })?)
-            .map_err(|e| RpcError {
-                code: 0,
-                message: e.to_string(),
-            })?;
-        Ok(response)
+                message: resp.message.unwrap_or_default(),
+            })
+        }
     }
 
     fn request_common<P: Serialize>(
@@ -294,10 +372,10 @@ impl DapRpcHandler {
     }
 
     pub fn handle_server_message(&self, message_str: &str) {
+        println!("received from dap server: {message_str}");
         if let Ok(payload) = serde_json::from_str::<DapPayload>(message_str) {
             match payload {
                 DapPayload::Request(req) => {
-                    println!("got dap req {req:?}");
                     let _ = self.rpc_tx.send(DapRpc::HostRequest(req));
                 }
                 DapPayload::Event(event) => {
@@ -305,7 +383,6 @@ impl DapRpcHandler {
                 }
                 DapPayload::Response(resp) => {
                     self.handle_server_response(resp);
-                    println!("got response");
                 }
             }
         }
@@ -315,7 +392,38 @@ impl DapRpcHandler {
         let resp = self
             .request::<Launch>(params)
             .map_err(|e| anyhow!(e.message))?;
-        println!("launch resp {resp:?}");
         Ok(())
+    }
+
+    pub fn disconnect(&self) -> Result<()> {
+        self.request::<Disconnect>(())
+            .map_err(|e| anyhow!(e.message))?;
+        Ok(())
+    }
+
+    pub fn continue_thread(&self, thread_id: ThreadId) -> Result<ContinueResponse> {
+        let params = ContinueArguments { thread_id };
+        let resp = self
+            .request::<Continue>(params)
+            .map_err(|e| anyhow!(e.message))?;
+        Ok(resp)
+    }
+
+    pub fn threads(&self) -> Result<ThreadsResponse> {
+        let resp = self
+            .request::<Threads>(())
+            .map_err(|e| anyhow!(e.message))?;
+        Ok(resp)
+    }
+
+    pub fn stack_trace(&self, thread_id: ThreadId) -> Result<StackTraceResponse> {
+        let params = StackTraceArguments {
+            thread_id,
+            ..Default::default()
+        };
+        let resp = self
+            .request::<StackTrace>(params)
+            .map_err(|e| anyhow!(e.message))?;
+        Ok(resp)
     }
 }

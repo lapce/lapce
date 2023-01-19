@@ -163,6 +163,8 @@ impl ProxyHandler for Dispatcher {
                 shell,
             } => {
                 let mut terminal = Terminal::new(term_id, cwd, shell, 50, 10);
+                self.core_rpc
+                    .terminal_process_id(term_id, terminal.pty.child().id());
                 let tx = terminal.tx.clone();
                 self.terminals.insert(term_id, tx);
                 let rpc = self.core_rpc.clone();
@@ -198,6 +200,18 @@ impl ProxyHandler for Dispatcher {
                     #[allow(deprecated)]
                     let _ = tx.send(Msg::Shutdown);
                 }
+            }
+            DapStart { config } => {
+                let _ = self.catalog_rpc.dap_start(config);
+            }
+            DapProcessId { dap_id, process_id } => {
+                let _ = self.catalog_rpc.dap_process_id(dap_id, process_id);
+            }
+            DapContinue { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_continue(dap_id, thread_id);
+            }
+            DapStop { dap_id } => {
+                let _ = self.catalog_rpc.dap_stop(dap_id);
             }
             InstallVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();

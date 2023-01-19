@@ -28,7 +28,7 @@ use lapce_data::{
         LapceTabData, LapceWindowData, LapceWorkspace, LapceWorkspaceType,
         WorkProgress,
     },
-    debug::RunDebugProcess,
+    debug::{RunDebugMode, RunDebugProcess},
     document::{BufferContent, LocalBufferKind},
     editor::EditorLocation,
     hover::HoverStatus,
@@ -194,7 +194,9 @@ impl LapceTab {
                     PanelKind::Debug => {
                         panel.insert_panel(
                             *kind,
-                            WidgetPod::new(new_debug_panel(&data.debug).boxed()),
+                            WidgetPod::new(
+                                new_debug_panel(&data.terminal.debug).boxed(),
+                            ),
                         );
                     }
                 }
@@ -973,53 +975,53 @@ impl LapceTab {
                         let signature = Arc::make_mut(&mut data.signature);
                         signature.receive(*request_id, resp.to_owned(), *plugin_id);
                     }
+                    LapceUICommand::TerminalProcessId {
+                        term_id,
+                        process_id,
+                    } => {
+                        ctx.set_handled();
+                        let terminal = Arc::make_mut(&mut data.terminal);
+                        terminal.set_process_id(*term_id, *process_id);
+                    }
                     LapceUICommand::RunAndDebug { mode, config } => {
                         ctx.set_handled();
-                        let terminal_panel = Arc::make_mut(&mut data.terminal);
-                        let term_id = if let Some(terminal) = terminal_panel
-                            .get_stopped_run_debug_terminal_mut(mode, &config.name)
-                        {
-                            Arc::make_mut(terminal).new_process(
-                                Some(RunDebugProcess {
-                                    mode: *mode,
-                                    config: config.clone(),
-                                    stopped: false,
-                                    created: Instant::now(),
-                                }),
-                                &data.config,
-                            );
-                            let _ = ctx.get_external_handle().submit_command(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::Focus,
-                                Target::Widget(terminal.widget_id),
-                            );
-                            terminal.term_id
-                        } else {
-                            let new_terminal_tab_id = terminal_panel.new_tab(
-                                data.workspace.clone(),
-                                data.proxy.clone(),
-                                &data.config,
-                                ctx.get_external_handle(),
-                                Some(RunDebugProcess {
-                                    mode: *mode,
-                                    config: config.clone(),
-                                    stopped: false,
-                                    created: Instant::now(),
-                                }),
-                            );
-                            let tab = terminal_panel
-                                .tabs
-                                .get(&new_terminal_tab_id)
-                                .unwrap();
-                            tab.active_term_id
-                        };
-                        Arc::make_mut(&mut data.debug).active_term = Some(term_id);
-                        if !data.panel.is_panel_visible(&PanelKind::Terminal) {
-                            Arc::make_mut(&mut data.panel)
-                                .show_panel(&PanelKind::Terminal);
+                        data.run_and_debug(ctx, mode, config);
+                    }
+                    LapceUICommand::RunInTerminal(config) => {
+                        ctx.set_handled();
+                        data.run_in_terminal(ctx, &RunDebugMode::Debug, config);
+                    }
+                    LapceUICommand::DapStopped { dap_id, thread_id } => {
+                        ctx.set_handled();
+                        let terminal = Arc::make_mut(&mut data.terminal);
+                        let debug = Arc::make_mut(&mut terminal.debug);
+                        if let Some(dap) = debug.daps.get_mut(dap_id) {
+                            dap.stopped = true;
+                            if dap.thread_id.is_none() {
+                                dap.thread_id = Some(*thread_id);
+                            }
                         }
                     }
-                    LapceUICommand::RunInTerminal(command) => {}
+                    LapceUICommand::DapContinued { dap_id } => {
+                        ctx.set_handled();
+                        let terminal = Arc::make_mut(&mut data.terminal);
+                        let debug = Arc::make_mut(&mut terminal.debug);
+                        if let Some(dap) = debug.daps.get_mut(dap_id) {
+                            dap.stopped = false;
+                        }
+                    }
+                    LapceUICommand::DapTerminated { dap_id } => {
+                        let terminal = Arc::make_mut(&mut data.terminal);
+                        let debug = Arc::make_mut(&mut terminal.debug);
+                        if let Some(dap) = debug.daps.get_mut(dap_id) {
+                            let term_id = dap.term_id;
+                            if let Some(terminal) =
+                                terminal.get_terminal_mut(&term_id)
+                            {
+                                Arc::make_mut(terminal).stop_run_debug();
+                            }
+                        }
+                    }
                     LapceUICommand::TerminalProcessStopped(id) => {
                         ctx.set_handled();
                         let terminal_panel = Arc::make_mut(&mut data.terminal);

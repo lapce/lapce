@@ -16,6 +16,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    dap_types::{DapId, RunDebugConfig, ThreadId},
     file::FileNodeItem,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::DiffInfo,
@@ -105,15 +106,29 @@ pub enum CoreNotification {
         term_id: TermId,
         content: Vec<u8>,
     },
+    TerminalProcessId {
+        term_id: TermId,
+        process_id: u32,
+    },
     TerminalProcessStopped {
         term_id: TermId,
     },
     RunInTerminal {
-        command: String,
+        config: RunDebugConfig,
     },
     Log {
         level: String,
         message: String,
+    },
+    DapStopped {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapTerminated {
+        dap_id: DapId,
+    },
+    DapContinued {
+        dap_id: DapId,
     },
 }
 
@@ -273,8 +288,8 @@ impl CoreRpcHandler {
         });
     }
 
-    pub fn run_in_terminal(&self, command: String) {
-        self.notification(CoreNotification::RunInTerminal { command });
+    pub fn run_in_terminal(&self, config: RunDebugConfig) {
+        self.notification(CoreNotification::RunInTerminal { config });
     }
 
     pub fn log(&self, level: log::Level, message: String) {
@@ -300,12 +315,31 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::LogMessage { message });
     }
 
+    pub fn terminal_process_id(&self, term_id: TermId, process_id: u32) {
+        self.notification(CoreNotification::TerminalProcessId {
+            term_id,
+            process_id,
+        });
+    }
+
     pub fn terminal_process_stopped(&self, term_id: TermId) {
         self.notification(CoreNotification::TerminalProcessStopped { term_id });
     }
 
     pub fn update_terminal(&self, term_id: TermId, content: Vec<u8>) {
         self.notification(CoreNotification::UpdateTerminal { term_id, content });
+    }
+
+    pub fn dap_stopped(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(CoreNotification::DapStopped { dap_id, thread_id });
+    }
+
+    pub fn dap_continued(&self, dap_id: DapId) {
+        self.notification(CoreNotification::DapContinued { dap_id });
+    }
+
+    pub fn dap_terminated(&self, dap_id: DapId) {
+        self.notification(CoreNotification::DapTerminated { dap_id });
     }
 
     pub fn home_dir(&self, path: PathBuf) {
