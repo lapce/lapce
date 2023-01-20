@@ -16,7 +16,7 @@ use lapce_data::{
     },
     panel::PanelKind,
 };
-use lapce_rpc::terminal::TermId;
+use lapce_rpc::{dap_types::DapId, terminal::TermId};
 
 use crate::{
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
@@ -43,12 +43,20 @@ pub fn new_debug_panel(data: &RunDebugData) -> LapcePanel {
         PanelKind::Debug,
         data.widget_id,
         data.split_id,
-        vec![(
-            WidgetId::next(),
-            PanelHeaderKind::Simple("Processes".into()),
-            LapceScroll::new(DebugProcessList::new()).boxed(),
-            PanelSizing::Size(200.0),
-        )],
+        vec![
+            (
+                WidgetId::next(),
+                PanelHeaderKind::Simple("Processes".into()),
+                LapceScroll::new(DebugProcessList::new()).boxed(),
+                PanelSizing::Size(200.0),
+            ),
+            (
+                WidgetId::next(),
+                PanelHeaderKind::Simple("Stack Trace".into()),
+                LapceScroll::new(StackTrace::new()).boxed(),
+                PanelSizing::Flex(true),
+            ),
+        ],
     )
 }
 
@@ -106,6 +114,22 @@ impl DebugProcessList {
                         active: paused && !stopped,
                     },
                     ProcessIcon {
+                        svg: LapceIcons::DEBUG_PAUSE,
+                        color: if !paused && !stopped {
+                            LapceTheme::LAPCE_ICON_ACTIVE
+                        } else {
+                            LapceTheme::LAPCE_ICON_INACTIVE
+                        },
+                        action: RunDebugAction::Debug(DebugAction::Pause),
+                        active: !paused && !stopped,
+                    },
+                    ProcessIcon {
+                        svg: LapceIcons::DEBUG_RESTART,
+                        color: LapceTheme::LAPCE_ICON_ACTIVE,
+                        action: RunDebugAction::Run(RunAction::Restart),
+                        active: true,
+                    },
+                    ProcessIcon {
                         svg: LapceIcons::DEBUG_STOP,
                         color: if stopped {
                             LapceTheme::LAPCE_ICON_INACTIVE
@@ -114,6 +138,12 @@ impl DebugProcessList {
                         },
                         action: RunDebugAction::Debug(DebugAction::Stop),
                         active: !stopped,
+                    },
+                    ProcessIcon {
+                        svg: LapceIcons::CLOSE,
+                        color: LapceTheme::LAPCE_ICON_ACTIVE,
+                        action: RunDebugAction::Run(RunAction::Close),
+                        active: true,
                     },
                 ]
             }
@@ -213,27 +243,22 @@ impl Widget<LapceTabData> for DebugProcessList {
                                     }
                                     RunDebugAction::Run(RunAction::Restart)
                                     | RunDebugAction::Debug(DebugAction::Restart) => {
-                                        if let Some(terminal) =
-                                            Arc::make_mut(&mut data.terminal)
-                                                .get_terminal_mut(&term_id)
-                                        {
-                                            Arc::make_mut(terminal)
-                                                .restart_run_debug(&data.config);
-                                        }
+                                        Arc::make_mut(&mut data.terminal)
+                                            .restart_run_debug(
+                                                term_id,
+                                                &data.config,
+                                            );
                                     }
-                                    RunDebugAction::Run(RunAction::Stop) => {
-                                        if let Some(terminal) =
-                                            Arc::make_mut(&mut data.terminal)
-                                                .get_terminal_mut(&term_id)
-                                        {
-                                            Arc::make_mut(terminal).stop_run_debug();
-                                        }
-                                    }
-                                    RunDebugAction::Debug(DebugAction::Stop) => {
-                                        data.terminal.dap_stop(term_id);
+                                    RunDebugAction::Run(RunAction::Stop)
+                                    | RunDebugAction::Debug(DebugAction::Stop) => {
+                                        Arc::make_mut(&mut data.terminal)
+                                            .stop_run_debug(term_id);
                                     }
                                     RunDebugAction::Debug(DebugAction::Continue) => {
                                         data.terminal.dap_continue(term_id);
+                                    }
+                                    RunDebugAction::Debug(DebugAction::Pause) => {
+                                        data.terminal.dap_pause(term_id);
                                     }
                                 }
                             }
@@ -393,6 +418,156 @@ impl Widget<LapceTabData> for DebugProcessList {
                 );
 
                 x += self.line_height;
+            }
+        }
+    }
+}
+
+pub struct StackTrace {
+    line_height: f64,
+}
+
+impl Default for StackTrace {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StackTrace {
+    fn new() -> Self {
+        Self { line_height: 25.0 }
+    }
+
+    fn active_dap(data: &LapceTabData) -> Option<&DapData> {
+        let debug_term = data.terminal.get_active_debug_terminal()?;
+        let run_debug = debug_term.run_debug.as_ref()?;
+        let dap_id = &run_debug.config.dap_id;
+        data.terminal.debug.daps.get(dap_id)
+    }
+}
+
+impl Widget<LapceTabData> for StackTrace {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        _ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        _env: &Env,
+    ) -> Size {
+        let len = Self::active_dap(data)
+            .map(|dap| {
+                dap.stack_frames
+                    .iter()
+                    .map(|(_, stack)| {
+                        if dap.stopped && stack.expanded {
+                            stack.frames.len() + 1
+                        } else {
+                            1
+                        }
+                    })
+                    .sum::<usize>()
+            })
+            .unwrap_or(0);
+        Size::new(bc.max().width, len as f64 * self.line_height)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+        let rect = ctx.region().bounding_box();
+        let start = (rect.y0 / self.line_height).floor() as usize;
+        let end = (rect.y1 / self.line_height).ceil() as usize + 1;
+
+        let mut i = 0;
+        if let Some(dap) = Self::active_dap(data) {
+            for (thread_id, stack) in &dap.stack_frames {
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(format!("{thread_id}"))
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(
+                        self.line_height,
+                        (i as f64 * self.line_height)
+                            + text_layout.y_offset(self.line_height),
+                    ),
+                );
+                i += 1;
+                if i > end {
+                    return;
+                }
+                if dap.stopped && stack.expanded {
+                    for frame in &stack.frames {
+                        if i + 1 < start {
+                            i += 1;
+                            continue;
+                        }
+                        let text_layout = ctx
+                            .text()
+                            .new_text_layout(format!("{}", frame.name))
+                            .font(
+                                data.config.ui.font_family(),
+                                data.config.ui.font_size() as f64,
+                            )
+                            .text_color(
+                                data.config
+                                    .get_color_unchecked(
+                                        LapceTheme::PANEL_FOREGROUND,
+                                    )
+                                    .clone(),
+                            )
+                            .build()
+                            .unwrap();
+                        ctx.draw_text(
+                            &text_layout,
+                            Point::new(
+                                self.line_height + self.line_height * 2.0,
+                                (i as f64 * self.line_height)
+                                    + text_layout.y_offset(self.line_height),
+                            ),
+                        );
+                        i += 1;
+                        if i > end {
+                            return;
+                        }
+                    }
+                }
             }
         }
     }

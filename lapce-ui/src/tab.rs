@@ -990,15 +990,16 @@ impl LapceTab {
                         ctx.set_handled();
                         data.run_in_terminal(ctx, &RunDebugMode::Debug, config);
                     }
-                    LapceUICommand::DapStopped { dap_id, thread_id } => {
+                    LapceUICommand::DapStopped {
+                        dap_id,
+                        stopped,
+                        stack_frames,
+                    } => {
                         ctx.set_handled();
                         let terminal = Arc::make_mut(&mut data.terminal);
                         let debug = Arc::make_mut(&mut terminal.debug);
                         if let Some(dap) = debug.daps.get_mut(dap_id) {
-                            dap.stopped = true;
-                            if dap.thread_id.is_none() {
-                                dap.thread_id = Some(*thread_id);
-                            }
+                            dap.stopped(stopped, stack_frames);
                         }
                     }
                     LapceUICommand::DapContinued { dap_id } => {
@@ -1007,18 +1008,6 @@ impl LapceTab {
                         let debug = Arc::make_mut(&mut terminal.debug);
                         if let Some(dap) = debug.daps.get_mut(dap_id) {
                             dap.stopped = false;
-                        }
-                    }
-                    LapceUICommand::DapTerminated { dap_id } => {
-                        let terminal = Arc::make_mut(&mut data.terminal);
-                        let debug = Arc::make_mut(&mut terminal.debug);
-                        if let Some(dap) = debug.daps.get_mut(dap_id) {
-                            let term_id = dap.term_id;
-                            if let Some(terminal) =
-                                terminal.get_terminal_mut(&term_id)
-                            {
-                                Arc::make_mut(terminal).stop_run_debug();
-                            }
                         }
                     }
                     LapceUICommand::TerminalProcessStopped(id) => {

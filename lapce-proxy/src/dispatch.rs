@@ -215,11 +215,17 @@ impl ProxyHandler for Dispatcher {
             DapContinue { dap_id, thread_id } => {
                 let _ = self.catalog_rpc.dap_continue(dap_id, thread_id);
             }
+            DapPause { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_pause(dap_id, thread_id);
+            }
             DapStop { dap_id } => {
                 let _ = self.catalog_rpc.dap_stop(dap_id);
             }
             DapDisconnect { dap_id } => {
                 let _ = self.catalog_rpc.dap_disconnect(dap_id);
+            }
+            DapRestart { dap_id } => {
+                let _ = self.catalog_rpc.dap_restart(dap_id);
             }
             InstallVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();

@@ -1541,16 +1541,16 @@ impl LapceTabData {
                 ));
             }
             LapceWorkbenchCommand::RunAndDebugRestart => {
-                if let Some(active_terminal) =
-                    Arc::make_mut(&mut self.terminal).get_active_debug_terminal_mut()
+                if self
+                    .terminal
+                    .debug
+                    .active_term
+                    .and_then(|term_id| {
+                        Arc::make_mut(&mut self.terminal)
+                            .restart_run_debug(term_id, &self.config)
+                    })
+                    .is_none()
                 {
-                    Arc::make_mut(active_terminal).restart_run_debug(&self.config);
-                    let _ = ctx.get_external_handle().submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::Focus,
-                        Target::Widget(active_terminal.widget_id),
-                    );
-                } else {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::RunPalette(Some(PaletteType::RunAndDebug)),
@@ -1559,15 +1559,8 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::RunAndDebugStop => {
-                if let Some(active_terminal) =
-                    Arc::make_mut(&mut self.terminal).get_active_debug_terminal_mut()
-                {
-                    Arc::make_mut(active_terminal).stop_run_debug();
-                    let _ = ctx.get_external_handle().submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::Focus,
-                        Target::Widget(active_terminal.widget_id),
-                    );
+                if let Some(term_id) = self.terminal.debug.active_term {
+                    Arc::make_mut(&mut self.terminal).stop_run_debug(term_id);
                 }
             }
             LapceWorkbenchCommand::PaletteWorkspace => {
@@ -2335,7 +2328,7 @@ impl LapceTabData {
     ) {
         let terminal = Arc::make_mut(&mut self.terminal);
         let term_id = if let Some(terminal) =
-            terminal.get_stopped_run_debug_terminal_mut(mode, &config.name)
+            terminal.get_stopped_run_debug_terminal_mut(mode, config)
         {
             Arc::make_mut(terminal).new_process(
                 Some(RunDebugProcess {

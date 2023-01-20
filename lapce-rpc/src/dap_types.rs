@@ -21,6 +21,12 @@ impl DapId {
     }
 }
 
+pub struct DapServer {
+    pub program: String,
+    pub args: Vec<String>,
+    pub cwd: Option<PathBuf>,
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct RunDebugConfig {
     pub name: String,
@@ -648,4 +654,19 @@ impl Request for Terminate {
     type Arguments = ();
     type Result = ();
     const COMMAND: &'static str = "terminate";
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PauseArguments {
+    pub thread_id: ThreadId,
+}
+
+#[derive(Debug)]
+pub enum Pause {}
+
+impl Request for Pause {
+    type Arguments = PauseArguments;
+    type Result = ();
+    const COMMAND: &'static str = "pause";
 }

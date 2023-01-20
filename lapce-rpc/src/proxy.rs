@@ -250,10 +250,17 @@ pub enum ProxyNotification {
         dap_id: DapId,
         thread_id: ThreadId,
     },
+    DapPause {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
     DapStop {
         dap_id: DapId,
     },
     DapDisconnect {
+        dap_id: DapId,
+    },
+    DapRestart {
         dap_id: DapId,
     },
 }
@@ -895,8 +902,16 @@ impl ProxyRpcHandler {
         })
     }
 
+    pub fn dap_restart(&self, dap_id: DapId) {
+        self.notification(ProxyNotification::DapRestart { dap_id })
+    }
+
     pub fn dap_continue(&self, dap_id: DapId, thread_id: ThreadId) {
         self.notification(ProxyNotification::DapContinue { dap_id, thread_id })
+    }
+
+    pub fn dap_pause(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapPause { dap_id, thread_id })
     }
 
     pub fn dap_stop(&self, dap_id: DapId) {

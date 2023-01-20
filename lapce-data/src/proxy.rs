@@ -319,10 +319,18 @@ impl CoreHandler for LapceProxy {
                     log::log!(level, "{}", message);
                 }
             }
-            DapStopped { dap_id, thread_id } => {
+            DapStopped {
+                dap_id,
+                stopped,
+                stack_frames,
+            } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::DapStopped { dap_id, thread_id },
+                    LapceUICommand::DapStopped {
+                        dap_id,
+                        stopped,
+                        stack_frames,
+                    },
                     Target::Widget(self.tab_id),
                 );
             }
@@ -330,13 +338,6 @@ impl CoreHandler for LapceProxy {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::DapContinued { dap_id },
-                    Target::Widget(self.tab_id),
-                );
-            }
-            DapTerminated { dap_id } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::DapTerminated { dap_id },
                     Target::Widget(self.tab_id),
                 );
             }

@@ -16,11 +16,11 @@ use lapce_rpc::{
     core::CoreRpcHandler,
     dap_types::{
         self, ConfigurationDone, Continue, ContinueArguments, ContinueResponse,
-        DapEvent, DapId, DapPayload, DapRequest, DapResponse, DebuggerCapabilities,
-        Disconnect, Initialize, Launch, Request, RunDebugConfig, RunInTerminal,
-        RunInTerminalArguments, RunInTerminalResponse, StackFrame, StackTrace,
-        StackTraceArguments, StackTraceResponse, Terminate, ThreadId, Threads,
-        ThreadsResponse,
+        DapEvent, DapId, DapPayload, DapRequest, DapResponse, DapServer,
+        DebuggerCapabilities, Disconnect, Initialize, Launch, Pause, PauseArguments,
+        Request, RunDebugConfig, RunInTerminal, RunInTerminalArguments,
+        RunInTerminalResponse, StackFrame, StackTrace, StackTraceArguments,
+        StackTraceResponse, Terminate, ThreadId, Threads, ThreadsResponse,
     },
     terminal::TermId,
     RpcError,
@@ -34,88 +34,51 @@ use super::{psp::ResponseHandler, PluginCatalogRpcHandler};
 pub struct DapClient {
     plugin_rpc: PluginCatalogRpcHandler,
     pub(crate) dap_rpc: DapRpcHandler,
+    dap_server: DapServer,
     config: RunDebugConfig,
     thread_id: Option<ThreadId>,
     term_id: Option<TermId>,
     stack_frames: HashMap<ThreadId, Vec<StackFrame>>,
     active_frame: Option<usize>,
     capabilities: Option<DebuggerCapabilities>,
+    terminated: bool,
+    disconnected: bool,
+    restarted: bool,
 }
 
 impl DapClient {
     pub fn new(
-        program: String,
-        args: Vec<String>,
-        cwd: Option<PathBuf>,
+        dap_server: DapServer,
         config: RunDebugConfig,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Result<Self> {
-        let mut process = Self::process(&program, &args, cwd.as_ref())?;
-        let stdin = process.stdin.take().unwrap();
-        let stdout = process.stdout.take().unwrap();
-        let stderr = process.stderr.take().unwrap();
-
-        let (io_tx, io_rx) = crossbeam_channel::unbounded();
-        let mut writer = Box::new(BufWriter::new(stdin));
-        let dap_rpc = DapRpcHandler::new(config.dap_id, io_tx);
-        thread::spawn(move || {
-            for msg in io_rx {
-                if let Ok(msg) = serde_json::to_string(&msg) {
-                    // println!("send to dap server: {msg}");
-                    let msg =
-                        format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
-                    let _ = writer.write(msg.as_bytes());
-                    let _ = writer.flush();
-                }
-            }
-        });
-
-        {
-            let dap_rpc = dap_rpc.clone();
-            let plugin_rpc = plugin_rpc.clone();
-            thread::spawn(move || {
-                let mut reader = Box::new(BufReader::new(stdout));
-                loop {
-                    match crate::plugin::lsp::read_message(&mut reader) {
-                        Ok(message_str) => {
-                            dap_rpc.handle_server_message(&message_str);
-                        }
-                        Err(_err) => {
-                            plugin_rpc.core_rpc.log(
-                                log::Level::Error,
-                                format!("dap server {program} stopped!"),
-                            );
-                            dap_rpc.shutdown();
-                            let _ = plugin_rpc.dap_disconnected(dap_rpc.dap_id);
-                            return;
-                        }
-                    };
-                }
-            });
-        }
+        let dap_rpc = DapRpcHandler::new(config.dap_id);
 
         Ok(Self {
             plugin_rpc,
-            dap_rpc,
+            dap_server,
             config,
+            dap_rpc,
             thread_id: None,
             term_id: None,
             stack_frames: HashMap::new(),
             active_frame: None,
             capabilities: None,
+            terminated: false,
+            disconnected: false,
+            restarted: false,
         })
     }
 
     pub fn start(
-        program: String,
-        args: Vec<String>,
-        cwd: Option<PathBuf>,
+        dap_server: DapServer,
         config: RunDebugConfig,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Result<DapRpcHandler> {
-        let mut dap = Self::new(program, args, cwd, config.clone(), plugin_rpc)?;
-        let dap_rpc = dap.dap_rpc.clone();
+        let mut dap = Self::new(dap_server, config.clone(), plugin_rpc)?;
+        dap.start_process()?;
 
+        let dap_rpc = dap.dap_rpc.clone();
         dap.initialize()?;
 
         {
@@ -126,6 +89,62 @@ impl DapClient {
         }
 
         Ok(dap_rpc)
+    }
+
+    fn start_process(&self) -> Result<()> {
+        let program = self.dap_server.program.clone();
+        let mut process = Self::process(
+            &program,
+            &self.dap_server.args,
+            self.dap_server.cwd.as_ref(),
+        )?;
+        let stdin = process.stdin.take().unwrap();
+        let stdout = process.stdout.take().unwrap();
+        let stderr = process.stderr.take().unwrap();
+
+        let dap_rpc = self.dap_rpc.clone();
+        let io_rx = self.dap_rpc.io_rx.clone();
+        let io_tx = self.dap_rpc.io_tx.clone();
+        let mut writer = Box::new(BufWriter::new(stdin));
+        thread::spawn(move || -> Result<()> {
+            for msg in io_rx {
+                if let Ok(msg) = serde_json::to_string(&msg) {
+                    let msg =
+                        format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
+                    writer.write_all(msg.as_bytes())?;
+                    writer.flush()?;
+                }
+            }
+            Ok(())
+        });
+
+        {
+            let plugin_rpc = self.plugin_rpc.clone();
+            thread::spawn(move || {
+                let mut reader = Box::new(BufReader::new(stdout));
+                loop {
+                    match crate::plugin::lsp::read_message(&mut reader) {
+                        Ok(message_str) => {
+                            dap_rpc.handle_server_message(&message_str);
+                        }
+                        Err(_err) => {
+                            let _ = io_tx.send(DapPayload::Event(
+                                DapEvent::Initialized(None),
+                            ));
+                            plugin_rpc.core_rpc.log(
+                                log::Level::Error,
+                                format!("dap server {program} stopped!"),
+                            );
+
+                            dap_rpc.disconnected();
+                            return;
+                        }
+                    };
+                }
+            });
+        }
+
+        Ok(())
     }
 
     fn process(
@@ -185,33 +204,56 @@ impl DapClient {
             }
             DapEvent::Stopped(stopped) => {
                 // println!("stopped {stopped:?}");
-                self.plugin_rpc.core_rpc.dap_stopped(
-                    self.config.dap_id,
-                    stopped.thread_id.unwrap_or_default(),
-                );
+                if stopped.reason == "entry" {
+                    self.dap_rpc
+                        .continue_thread(stopped.thread_id.unwrap_or_default());
+                    return Ok(());
+                }
                 let all_threads_stopped =
                     stopped.all_threads_stopped.unwrap_or_default();
-
+                let mut stack_frames = HashMap::new();
                 if all_threads_stopped {
                     if let Ok(response) = self.dap_rpc.threads() {
                         for thread in response.threads {
-                            self.fetch_stack_trace(thread.id);
+                            if let Ok(frames) = self.dap_rpc.stack_trace(thread.id) {
+                                stack_frames.insert(thread.id, frames.stack_frames);
+                            }
                         }
-                        self.select_thread_id(
-                            stopped.thread_id.unwrap_or_default(),
-                            false,
-                        );
                     }
-                } else if let Some(thread_id) = stopped.thread_id {
-                    self.select_thread_id(thread_id, false);
                 }
+
+                self.plugin_rpc.core_rpc.dap_stopped(
+                    self.config.dap_id,
+                    stopped.clone(),
+                    stack_frames,
+                );
+
+                // if all_threads_stopped {
+                //     if let Ok(response) = self.dap_rpc.threads() {
+                //         for thread in response.threads {
+                //             self.fetch_stack_trace(thread.id);
+                //         }
+                //         self.select_thread_id(
+                //             stopped.thread_id.unwrap_or_default(),
+                //             false,
+                //         );
+                //     }
+                // } else if let Some(thread_id) = stopped.thread_id {
+                //     self.select_thread_id(thread_id, false);
+                // }
             }
             DapEvent::Continued(_) => {
                 self.plugin_rpc.core_rpc.dap_continued(self.dap_rpc.dap_id);
             }
             DapEvent::Exited(exited) => {}
             DapEvent::Terminated(_) => {
-                self.plugin_rpc.core_rpc.dap_terminated(self.dap_rpc.dap_id);
+                println!("dap process terminated");
+                self.terminated = true;
+                // self.plugin_rpc.core_rpc.dap_terminated(self.dap_rpc.dap_id);
+                if let Some(term_id) = self.term_id {
+                    self.plugin_rpc.proxy_rpc.terminal_close(term_id);
+                }
+                self.check_restart();
             }
             DapEvent::Thread { .. } => {}
             DapEvent::Output(_) => todo!(),
@@ -277,6 +319,7 @@ impl DapClient {
     fn jump_to_stack_frame(&self, frame: &StackFrame) {}
 
     fn stop(&self) {
+        let dap_rpc = self.dap_rpc.clone();
         if self
             .capabilities
             .as_ref()
@@ -284,10 +327,62 @@ impl DapClient {
             .unwrap_or(false)
         {
             println!("terminate");
-            let _ = self.dap_rpc.terminate();
+            thread::spawn(move || {
+                dap_rpc.terminate();
+            });
         } else {
             println!("discoonnect");
-            let _ = self.dap_rpc.disconnect();
+            thread::spawn(move || {
+                dap_rpc.disconnect();
+            });
+        }
+    }
+
+    // check if the DAP was restared when we received terminated or disconnected
+    // if the DAP doesn't suports terminate request, then we also need to wait for
+    // disconnected
+    fn check_restart(&mut self) -> Result<()> {
+        if !self.restarted {
+            return Ok(());
+        }
+        if !self
+            .capabilities
+            .as_ref()
+            .and_then(|c| c.supports_terminate_request)
+            .unwrap_or(false)
+            && !self.disconnected
+        {
+            return Ok(());
+        }
+
+        self.restarted = false;
+
+        if self.disconnected {
+            println!("now start process");
+            self.start_process()?;
+            println!("now initialize");
+            self.initialize()?;
+        }
+        self.terminated = false;
+        self.disconnected = false;
+
+        let dap_rpc = self.dap_rpc.clone();
+        let config = self.config.clone();
+        thread::spawn(move || {
+            println!("now luanch");
+            let _ = dap_rpc.launch(&config);
+            println!("launched");
+        });
+
+        Ok(())
+    }
+
+    fn restart(&mut self) {
+        self.restarted = true;
+        if !self.terminated {
+            self.stop();
+        } else {
+            let _ = self.check_restart();
         }
     }
 }
@@ -296,15 +391,18 @@ pub enum DapRpc {
     HostRequest(DapRequest),
     HostEvent(DapEvent),
     Stop,
+    Restart,
     Shutdown,
+    Disconnected,
 }
 
 #[derive(Clone)]
 pub struct DapRpcHandler {
     pub dap_id: DapId,
-    io_tx: Sender<DapPayload>,
     rpc_tx: Sender<DapRpc>,
     rpc_rx: Receiver<DapRpc>,
+    io_tx: Sender<DapPayload>,
+    io_rx: Receiver<DapPayload>,
     pub(crate) termain_process_tx: Sender<(TermId, u32)>,
     termain_process_rx: Receiver<(TermId, u32)>,
     seq_counter: Arc<AtomicU64>,
@@ -312,13 +410,15 @@ pub struct DapRpcHandler {
 }
 
 impl DapRpcHandler {
-    fn new(dap_id: DapId, io_tx: Sender<DapPayload>) -> Self {
+    fn new(dap_id: DapId) -> Self {
         let (rpc_tx, rpc_rx) = crossbeam_channel::unbounded();
+        let (io_tx, io_rx) = crossbeam_channel::unbounded();
         let (termain_process_tx, termain_process_rx) =
             crossbeam_channel::unbounded();
         Self {
             dap_id,
             io_tx,
+            io_rx,
             rpc_rx,
             rpc_tx,
             termain_process_tx,
@@ -332,6 +432,7 @@ impl DapRpcHandler {
         for msg in &self.rpc_rx {
             match msg {
                 DapRpc::HostRequest(req) => {
+                    // println!("got host request");
                     let result = dap_client.handle_host_request(&req);
                     let resp = DapResponse {
                         request_seq: req.seq,
@@ -341,18 +442,33 @@ impl DapRpcHandler {
                         body: result.ok(),
                     };
                     let _ = self.io_tx.send(DapPayload::Response(resp));
+                    // println!("finish host request");
                 }
                 DapRpc::HostEvent(event) => {
+                    // println!("got host event {event:?}");
                     let _ = dap_client.handle_host_event(&event);
+                    // println!("finish host event");
                 }
                 DapRpc::Stop => {
                     dap_client.stop();
+                }
+                DapRpc::Restart => {
+                    dap_client.restart();
                 }
                 DapRpc::Shutdown => {
                     if let Some(term_id) = dap_client.term_id {
                         dap_client.plugin_rpc.proxy_rpc.terminal_close(term_id);
                     }
+                    println!("dap shutdown");
                     return;
+                }
+                DapRpc::Disconnected => {
+                    dap_client.disconnected = true;
+                    if let Some(term_id) = dap_client.term_id {
+                        dap_client.plugin_rpc.proxy_rpc.terminal_close(term_id);
+                    }
+                    println!("disconnected");
+                    dap_client.check_restart();
                 }
             }
         }
@@ -364,10 +480,12 @@ impl DapRpcHandler {
     ) -> Result<R::Result, RpcError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.request_common(R::COMMAND, params, ResponseHandler::Chan(tx));
-        let resp = rx.recv().map_err(|_| RpcError {
-            code: 0,
-            message: "io error".to_string(),
-        })??;
+        let resp = rx
+            .recv_timeout(std::time::Duration::from_secs(30))
+            .map_err(|_| RpcError {
+                code: 0,
+                message: "io error".to_string(),
+            })??;
         if resp.success {
             let resp: R::Result =
                 serde_json::from_value(resp.body.into()).map_err(|e| RpcError {
@@ -426,7 +544,13 @@ impl DapRpcHandler {
         }
     }
 
-    pub fn launch(&self, params: Value) -> Result<()> {
+    pub fn launch(&self, config: &RunDebugConfig) -> Result<()> {
+        let params = serde_json::json!({
+            "program": config.program,
+            "args": config.args,
+            "cwd": config.cwd,
+            "runInTerminal": true,
+        });
         let resp = self
             .request::<Launch>(params)
             .map_err(|e| anyhow!(e.message))?;
@@ -437,8 +561,16 @@ impl DapRpcHandler {
         let _ = self.rpc_tx.send(DapRpc::Stop);
     }
 
+    pub fn restart(&self) {
+        let _ = self.rpc_tx.send(DapRpc::Restart);
+    }
+
     fn shutdown(&self) {
         let _ = self.rpc_tx.send(DapRpc::Shutdown);
+    }
+
+    fn disconnected(&self) {
+        let _ = self.rpc_tx.send(DapRpc::Disconnected);
     }
 
     pub fn disconnect(&self) -> Result<()> {
@@ -459,6 +591,13 @@ impl DapRpcHandler {
             .request::<Continue>(params)
             .map_err(|e| anyhow!(e.message))?;
         Ok(resp)
+    }
+
+    pub fn pause_thread(&self, thread_id: ThreadId) -> Result<()> {
+        let params = PauseArguments { thread_id };
+        self.request::<Pause>(params)
+            .map_err(|e| anyhow!(e.message))?;
+        Ok(())
     }
 
     pub fn threads(&self) -> Result<ThreadsResponse> {

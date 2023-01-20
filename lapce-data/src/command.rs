@@ -15,7 +15,7 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::BufferId,
-    dap_types::{DapId, RunDebugConfig, ThreadId},
+    dap_types::{DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
     file::FileNodeItem,
     plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     source_control::DiffInfo,
@@ -1058,12 +1058,10 @@ pub enum LapceUICommand {
     },
     DapStopped {
         dap_id: DapId,
-        thread_id: ThreadId,
+        stopped: Stopped,
+        stack_frames: HashMap<ThreadId, Vec<StackFrame>>,
     },
     DapContinued {
-        dap_id: DapId,
-    },
-    DapTerminated {
         dap_id: DapId,
     },
 }
