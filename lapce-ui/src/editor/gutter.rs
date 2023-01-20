@@ -18,6 +18,7 @@ pub struct LapceEditorGutter {
     view_id: WidgetId,
     width: f64,
     mouse_down_pos: Point,
+    breakpoint_width: f64,
 }
 
 impl LapceEditorGutter {
@@ -26,6 +27,7 @@ impl LapceEditorGutter {
             view_id,
             width: 0.0,
             mouse_down_pos: Point::ZERO,
+            breakpoint_width: 24.0,
         }
     }
 }
@@ -39,6 +41,12 @@ impl Widget<LapceTabData> for LapceEditorGutter {
         _env: &Env,
     ) {
         match event {
+            Event::MouseMove(mouse_event) => {
+                ctx.clear_cursor();
+                if mouse_event.pos.x <= self.breakpoint_width {
+                    ctx.set_cursor(&druid::Cursor::Pointer);
+                }
+            }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down_pos = mouse_event.pos;
             }
@@ -148,7 +156,7 @@ impl Widget<LapceTabData> for LapceEditorGutter {
         let last_line = data.doc.buffer().last_line() + 1;
         let char_width = data.config.editor_char_width(ctx.text());
         self.width = (char_width * last_line.to_string().len() as f64).ceil();
-        let mut width = self.width + 16.0 + char_width * 2.0;
+        let mut width = self.breakpoint_width + self.width + 16.0 + char_width * 2.0;
         if data.editor.compare.is_some() {
             width += self.width + char_width * 2.0;
         }
@@ -581,7 +589,7 @@ impl LapceEditorGutter {
         let height = 16.0;
         let char_width = data.config.editor_char_width(text);
         Size::new(width, height).to_rect().with_origin(Point::new(
-            self.width + char_width + 3.0,
+            self.breakpoint_width + self.width + char_width + 3.0,
             (line_height - height) / 2.0 + line_height * line as f64
                 - data.editor.scroll_offset.y,
         ))
@@ -657,7 +665,8 @@ impl LapceEditorGutter {
                     )
                     .build()
                     .unwrap();
-                let x = line_label_length - text_layout.size().width;
+                let x = self.breakpoint_width + line_label_length
+                    - text_layout.size().width;
                 let y = line_height * i as f64 + text_layout.y_offset(line_height)
                     - y_diff;
                 ctx.draw_text(&text_layout, Point::new(x, y));
@@ -725,8 +734,28 @@ impl LapceEditorGutter {
                     .build()
                     .unwrap();
 
+                if false {
+                    let icon_size = data.config.ui.icon_size() as f64;
+                    let icon_rect = Rect::ZERO
+                        .with_origin(Point::new(
+                            self.breakpoint_width / 2.0,
+                            line_height / 2.0 + line_height * line as f64
+                                - scroll_offset.y,
+                        ))
+                        .inflate(icon_size / 2.0, icon_size / 2.0);
+                    ctx.draw_svg(
+                        &data.config.ui_svg(LapceIcons::DEBUG_BREAKPOINT),
+                        icon_rect,
+                        Some(
+                            data.config
+                                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                        ),
+                    );
+                }
+
                 // Horizontally right aligned
-                let x = line_label_length - text_layout.size().width;
+                let x = self.breakpoint_width + line_label_length
+                    - text_layout.size().width;
 
                 // Vertically centered
                 let y = line_height * line as f64 - scroll_offset.y
@@ -780,7 +809,7 @@ impl LapceEditorGutter {
 
                     if let Some(color) = color.cloned() {
                         let removed_height = 10.0;
-                        let x = self.width + char_width;
+                        let x = self.breakpoint_width + self.width + char_width;
                         let mut y =
                             (line - len) as f64 * line_height - scroll_offset.y;
                         if len == 0 {

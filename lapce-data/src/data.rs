@@ -969,6 +969,7 @@ impl LapceTabData {
             focus_area: self.focus_area.clone(),
             source_control: self.source_control.clone(),
             proxy: self.proxy.clone(),
+            terminal: self.terminal.clone(),
             find: self.find.clone(),
             doc,
             palette: self.palette.clone(),
@@ -1043,6 +1044,7 @@ impl LapceTabData {
         self.rename = editor_buffer_data.rename.clone();
         self.main_split = editor_buffer_data.main_split.clone();
         self.find = editor_buffer_data.find.clone();
+        self.terminal = editor_buffer_data.terminal.clone();
         if !editor_buffer_data.editor.same(editor) {
             self.main_split
                 .editors
