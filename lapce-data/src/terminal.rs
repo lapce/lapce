@@ -22,7 +22,7 @@ use lapce_core::{
     register::Clipboard,
 };
 use lapce_rpc::{
-    dap_types::RunDebugConfig,
+    dap_types::{DapId, RunDebugConfig},
     terminal::{self, TermId},
 };
 use parking_lot::Mutex;
@@ -51,6 +51,7 @@ pub struct TerminalPanelData {
     pub active: usize,
     pub debug: Arc<RunDebugData>,
     pub proxy: Arc<LapceProxy>,
+    pub event_sink: ExtEventSink,
 }
 
 impl TerminalPanelData {
@@ -65,7 +66,7 @@ impl TerminalPanelData {
             worksapce,
             proxy.clone(),
             config,
-            event_sink,
+            event_sink.clone(),
             run_debug,
         );
         let tabs_order = Arc::new(vec![split.split_id]);
@@ -79,6 +80,7 @@ impl TerminalPanelData {
             active: 0,
             debug,
             proxy,
+            event_sink,
         }
     }
 
@@ -149,6 +151,11 @@ impl TerminalPanelData {
         None
     }
 
+    pub fn get_active_debug_terminal(&self) -> Option<&Arc<LapceTerminalData>> {
+        let term_id = self.debug.active_term?;
+        self.get_terminal(&term_id)
+    }
+
     pub fn get_active_debug_terminal_mut(
         &mut self,
     ) -> Option<&mut Arc<LapceTerminalData>> {
@@ -159,16 +166,24 @@ impl TerminalPanelData {
     pub fn get_stopped_run_debug_terminal_mut(
         &mut self,
         mode: &RunDebugMode,
-        name: &str,
+        config: &RunDebugConfig,
     ) -> Option<&mut Arc<LapceTerminalData>> {
         for (_, tab) in self.tabs.iter_mut() {
             for (_, terminal) in tab.terminals.iter_mut() {
                 if let Some(run_debug) = terminal.run_debug.as_ref() {
-                    if run_debug.stopped
-                        && run_debug.config.name == name
-                        && &run_debug.mode == mode
-                    {
-                        return Some(terminal);
+                    if run_debug.stopped && &run_debug.mode == mode {
+                        match run_debug.mode {
+                            RunDebugMode::Run => {
+                                if run_debug.config.name == config.name {
+                                    return Some(terminal);
+                                }
+                            }
+                            RunDebugMode::Debug => {
+                                if run_debug.config.dap_id == config.dap_id {
+                                    return Some(terminal);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -207,6 +222,63 @@ impl TerminalPanelData {
         processes
     }
 
+    pub fn stop_run_debug(&mut self, term_id: TermId) -> Option<()> {
+        let terminal = self.get_terminal_mut(&term_id)?;
+        let terminal = Arc::make_mut(terminal);
+        let run_debug = terminal.run_debug.as_mut()?;
+        let widget_id = terminal.widget_id;
+
+        match run_debug.mode {
+            RunDebugMode::Run => {
+                run_debug.stopped = true;
+                self.proxy.proxy_rpc.terminal_close(term_id);
+            }
+            RunDebugMode::Debug => {
+                let dap_id = terminal.run_debug.as_ref()?.config.dap_id;
+                let dap = self.debug.daps.get(&dap_id)?;
+                self.proxy.proxy_rpc.dap_stop(dap.dap_id);
+            }
+        }
+
+        let _ = self.event_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(widget_id),
+        );
+        Some(())
+    }
+
+    pub fn restart_run_debug(
+        &mut self,
+        term_id: TermId,
+        config: &LapceConfig,
+    ) -> Option<()> {
+        let proxy = self.proxy.clone();
+        let terminal = self.get_terminal_mut(&term_id)?;
+        let terminal = Arc::make_mut(terminal);
+        let widget_id = terminal.widget_id;
+        let run_debug = terminal.run_debug.as_ref()?;
+        match run_debug.mode {
+            RunDebugMode::Run => {
+                let mut run_debug = run_debug.clone();
+                run_debug.stopped = false;
+                proxy.proxy_rpc.terminal_close(term_id);
+                terminal.new_process(Some(run_debug), config);
+            }
+            RunDebugMode::Debug => {
+                let dap_id = terminal.run_debug.as_ref()?.config.dap_id;
+                let dap = self.debug.daps.get(&dap_id)?;
+                proxy.proxy_rpc.dap_restart(dap.dap_id);
+            }
+        }
+        let _ = self.event_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(widget_id),
+        );
+        Some(())
+    }
+
     pub fn dap_continue(&self, term_id: TermId) -> Option<()> {
         let terminal = self.get_terminal(&term_id)?;
         let dap = self
@@ -215,17 +287,18 @@ impl TerminalPanelData {
             .get(&terminal.run_debug.as_ref()?.config.dap_id)?;
         let thread_id = dap.thread_id?;
         self.proxy.proxy_rpc.dap_continue(dap.dap_id, thread_id);
-        None
+        Some(())
     }
 
-    pub fn dap_stop(&self, term_id: TermId) -> Option<()> {
+    pub fn dap_pause(&self, term_id: TermId) -> Option<()> {
         let terminal = self.get_terminal(&term_id)?;
         let dap = self
             .debug
             .daps
             .get(&terminal.run_debug.as_ref()?.config.dap_id)?;
-        self.proxy.proxy_rpc.dap_stop(dap.dap_id);
-        None
+        let thread_id = dap.thread_id?;
+        self.proxy.proxy_rpc.dap_pause(dap.dap_id, thread_id);
+        Some(())
     }
 }
 
@@ -831,26 +904,6 @@ impl LapceTerminalData {
             });
         }
         raw
-    }
-
-    pub fn stop_run_debug(&mut self) {
-        let run_debug = match self.run_debug.as_mut() {
-            Some(run_debug) => run_debug,
-            None => return,
-        };
-        run_debug.stopped = true;
-        self.proxy.proxy_rpc.terminal_close(self.term_id);
-    }
-
-    pub fn restart_run_debug(&mut self, config: &LapceConfig) {
-        let run_debug = match self.run_debug.as_ref() {
-            Some(run_debug) => run_debug,
-            None => return,
-        };
-        let mut run_debug = run_debug.clone();
-        run_debug.stopped = false;
-        self.proxy.proxy_rpc.terminal_close(self.term_id);
-        self.new_process(Some(run_debug), config);
     }
 
     pub fn new_process(

@@ -9,7 +9,7 @@ use std::{
 };
 
 use lapce_rpc::{
-    dap_types::DapId,
+    dap_types::{DapId, DapServer},
     plugin::{PluginId, VoltID, VoltMetadata},
     proxy::ProxyResponse,
     style::LineStyle,
@@ -438,20 +438,18 @@ impl PluginCatalog {
                 let plugin_rpc = self.plugin_rpc.clone();
                 thread::spawn(move || {
                     if let Ok(dap_rpc) = DapClient::start(
-                        "/opt/homebrew/opt/llvm@14/bin/lldb-vscode".to_string(),
-                        Vec::new(),
-                        workspace,
+                        DapServer {
+                            program: "/opt/homebrew/opt/llvm@14/bin/lldb-vscode"
+                                .to_string(),
+                            args: Vec::new(),
+                            cwd: workspace,
+                        },
                         config.clone(),
                         plugin_rpc.clone(),
                     ) {
                         let _ = plugin_rpc.dap_loaded(dap_rpc.clone());
 
-                        let _ = dap_rpc.launch(serde_json::json!({
-                            "program": config.program,
-                            "args": config.args,
-                            "cwd": config.cwd,
-                            "runInTerminal": true,
-                        }));
+                        let _ = dap_rpc.launch(&config);
                     }
                 });
             }
@@ -475,6 +473,13 @@ impl PluginCatalog {
                     });
                 }
             }
+            DapPause { dap_id, thread_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    thread::spawn(move || {
+                        let _ = dap.pause_thread(thread_id);
+                    });
+                }
+            }
             DapStop { dap_id } => {
                 if let Some(dap) = self.daps.get(&dap_id) {
                     dap.stop();
@@ -485,6 +490,11 @@ impl PluginCatalog {
                     thread::spawn(move || {
                         let _ = dap.disconnect();
                     });
+                }
+            }
+            DapRestart { dap_id } => {
+                if let Some(dap) = self.daps.get(&dap_id) {
+                    dap.restart();
                 }
             }
             Shutdown => {

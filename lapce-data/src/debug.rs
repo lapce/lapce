@@ -1,8 +1,8 @@
-use std::{fmt::Display, path::Path, time::Instant};
+use std::{collections::HashMap, fmt::Display, path::Path, time::Instant};
 
 use druid::WidgetId;
 use lapce_rpc::{
-    dap_types::{DapId, RunDebugConfig, ThreadId},
+    dap_types::{DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
     terminal::TermId,
 };
 use serde::{Deserialize, Serialize};
@@ -34,6 +34,7 @@ pub enum RunDebugAction {
 #[derive(Clone, Debug)]
 pub enum DebugAction {
     Continue,
+    Pause,
     Restart,
     Stop,
     Close,
@@ -75,11 +76,18 @@ pub fn run_configs(workspace: Option<&Path>) -> Option<RunDebugConfigs> {
 }
 
 #[derive(Clone)]
+pub struct StackTraceData {
+    pub expanded: bool,
+    pub frames: Vec<StackFrame>,
+}
+
+#[derive(Clone)]
 pub struct DapData {
     pub term_id: TermId,
     pub dap_id: DapId,
     pub stopped: bool,
     pub thread_id: Option<ThreadId>,
+    pub stack_frames: im::HashMap<ThreadId, StackTraceData>,
 }
 
 impl DapData {
@@ -89,7 +97,34 @@ impl DapData {
             dap_id,
             stopped: false,
             thread_id: None,
+            stack_frames: im::HashMap::new(),
         }
+    }
+
+    pub fn stopped(
+        &mut self,
+        stopped: &Stopped,
+        stack_frames: &HashMap<ThreadId, Vec<StackFrame>>,
+    ) {
+        self.stopped = true;
+        if self.thread_id.is_none() {
+            self.thread_id = Some(stopped.thread_id.unwrap_or_default());
+        }
+        for (thread_id, frames) in stack_frames {
+            if let Some(current) = self.stack_frames.get_mut(thread_id) {
+                current.frames = frames.to_owned();
+            } else {
+                self.stack_frames.insert(
+                    *thread_id,
+                    StackTraceData {
+                        expanded: true,
+                        frames: frames.to_owned(),
+                    },
+                );
+            }
+        }
+        self.stack_frames
+            .retain(|thread_id, _| stack_frames.contains_key(thread_id));
     }
 }
 

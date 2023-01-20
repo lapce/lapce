@@ -142,10 +142,17 @@ pub enum PluginCatalogNotification {
         dap_id: DapId,
         thread_id: ThreadId,
     },
+    DapPause {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
     DapStop {
         dap_id: DapId,
     },
     DapDisconnect {
+        dap_id: DapId,
+    },
+    DapRestart {
         dap_id: DapId,
     },
     Shutdown,
@@ -1018,6 +1025,13 @@ impl PluginCatalogRpcHandler {
         })
     }
 
+    pub fn dap_pause(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapPause {
+            dap_id,
+            thread_id,
+        })
+    }
+
     pub fn dap_stop(&self, dap_id: DapId) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::DapStop { dap_id })
     }
@@ -1026,6 +1040,10 @@ impl PluginCatalogRpcHandler {
         self.catalog_notification(PluginCatalogNotification::DapDisconnect {
             dap_id,
         })
+    }
+
+    pub fn dap_restart(&self, dap_id: DapId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapRestart { dap_id })
     }
 }
 
