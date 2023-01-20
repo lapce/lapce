@@ -1,8 +1,15 @@
-use std::{collections::HashMap, fmt::Display, path::Path, time::Instant};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt::Display,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 use druid::WidgetId;
 use lapce_rpc::{
-    dap_types::{DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
+    dap_types::{
+        DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped, ThreadId,
+    },
     terminal::TermId,
 };
 use serde::{Deserialize, Serialize};
@@ -82,6 +89,14 @@ pub struct StackTraceData {
 }
 
 #[derive(Clone)]
+pub struct LapceBreakpoint {
+    pub id: Option<usize>,
+    pub verified: bool,
+    pub line: usize,
+    pub offset: usize,
+}
+
+#[derive(Clone)]
 pub struct DapData {
     pub term_id: TermId,
     pub dap_id: DapId,
@@ -134,6 +149,7 @@ pub struct RunDebugData {
     pub split_id: WidgetId,
     pub active_term: Option<TermId>,
     pub daps: im::HashMap<DapId, DapData>,
+    pub breakpoints: BTreeMap<PathBuf, Vec<LapceBreakpoint>>,
 }
 
 impl Default for RunDebugData {
@@ -149,6 +165,7 @@ impl RunDebugData {
             split_id: WidgetId::next(),
             active_term: None,
             daps: im::HashMap::new(),
+            breakpoints: BTreeMap::new(),
         }
     }
 }

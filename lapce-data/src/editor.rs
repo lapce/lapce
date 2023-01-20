@@ -58,6 +58,7 @@ use crate::{
     signature::{SignatureData, SignatureStatus},
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
+    terminal::TerminalPanelData,
 };
 
 pub struct LapceUI {}
@@ -228,6 +229,7 @@ pub struct LapceEditorBufferData {
     pub find: Arc<Find>,
     pub proxy: Arc<LapceProxy>,
     pub command_keymaps: Arc<IndexMap<String, Vec<KeyMap>>>,
+    pub terminal: Arc<TerminalPanelData>,
     pub config: Arc<LapceConfig>,
 }
 
@@ -987,6 +989,22 @@ impl LapceEditorBufferData {
         );
     }
 
+    fn update_breakpoints(&mut self, delta: &RopeDelta) -> Option<()> {
+        let path = self.doc.content().path()?;
+        if !self.terminal.debug.breakpoints.contains_key(path) {
+            return None;
+        }
+        let terminal = Arc::make_mut(&mut self.terminal);
+        let debug = Arc::make_mut(&mut terminal.debug);
+        let breakpoints = debug.breakpoints.get_mut(path)?;
+        for breakpoint in breakpoints {
+            let mut transformer = Transformer::new(delta);
+            breakpoint.offset = transformer.transform(breakpoint.offset, false);
+            breakpoint.line = self.doc.buffer().line_of_offset(breakpoint.offset);
+        }
+        Some(())
+    }
+
     fn update_snippet_offset(&mut self, delta: &RopeDelta) {
         if let Some(snippet) = &self.editor.snippet {
             let mut transformer = Transformer::new(delta);
@@ -1448,6 +1466,7 @@ impl LapceEditorBufferData {
         for (delta, _, _) in deltas {
             self.inactive_apply_delta(delta);
             self.update_snippet_offset(delta);
+            self.update_breakpoints(delta);
         }
         self.update_signature();
     }
