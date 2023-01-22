@@ -314,6 +314,15 @@ impl LapceEditor {
                 MenuKind::Item(MenuItem {
                     desc: None,
                     command: LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::Rename),
+                        data: None,
+                    },
+                    enabled: true,
+                }),
+                MenuKind::Separator,
+                MenuKind::Item(MenuItem {
+                    desc: None,
+                    command: LapceCommand {
                         kind: CommandKind::Edit(EditCommand::ClipboardCut),
                         data: None,
                     },
