@@ -563,12 +563,11 @@ pub enum LapceUICommand {
     /// Update global search input with the given pattern
     UpdateSearchInput(String),
     /// Update the global search with the given pattern (actually performs the search)
-    UpdateSearch(String),
-    /// Update the global search with the given pattern (actually performs the search)
-    UpdateSearchWithCaseSensitivity {
-        pattern: String,
-        case_sensitive: bool,
-    },
+    UpdateSearch(
+        String,
+        // If present, will update the case-sensitivity
+        Option<bool>,
+    ),
     /// Informs the editor of the results from the global search, this is caused by the
     /// `UpdateSearch{,WithCaseSensitivity}` commands
     GlobalSearchResult(String, Arc<IndexMap<PathBuf, Vec<Match>>>),

@@ -305,35 +305,43 @@ impl ProxyHandler for Dispatcher {
                 pattern,
                 case_sensitive,
             } => {
-                let workspace = self.workspace.clone();
-                let proxy_rpc = self.proxy_rpc.clone();
-
                 static WORKER_ID: AtomicU64 = AtomicU64::new(0);
                 let our_id = WORKER_ID.fetch_add(1, Ordering::SeqCst) + 1;
+                if let Some(workspace) = self.workspace.as_ref() {
+                    let workspace = workspace.clone();
 
-                // Perform the search on another thread to avoid blocking the proxy thread
-                thread::spawn(move || {
-                    let result = if let Some(workspace) = workspace.as_ref() {
-                        search_in_path(
+                    let proxy_rpc = self.proxy_rpc.clone();
+                    // Perform the search on another thread to avoid blocking the proxy thread
+                    thread::spawn(move || {
+                        let result = search_in_path(
                             our_id,
                             &WORKER_ID,
-                            workspace,
+                            &workspace,
                             &pattern,
                             case_sensitive,
-                        )
-                    } else {
+                        );
+
+                        if WORKER_ID.load(Ordering::SeqCst) != our_id {
+                            proxy_rpc.handle_response(
+                                id,
+                                Err(RpcError {
+                                    code: 0,
+                                    message: "expired search job".to_string(),
+                                }),
+                            );
+                        } else {
+                            proxy_rpc.handle_response(id, result);
+                        }
+                    });
+                } else {
+                    self.proxy_rpc.handle_response(
+                        id,
                         Err(RpcError {
                             code: 0,
                             message: "no workspace set".to_string(),
-                        })
-                    };
-
-                    if WORKER_ID.load(Ordering::SeqCst) != our_id {
-                        return;
-                    }
-
-                    proxy_rpc.handle_response(id, result);
-                });
+                        }),
+                    );
+                };
             }
             CompletionResolve {
                 plugin_id,
@@ -1260,7 +1268,7 @@ fn search_in_path(
         if current_id.load(Ordering::SeqCst) != id {
             return Err(RpcError {
                 code: 0,
-                message: "can't build matcher".to_string(),
+                message: "expired search job".to_string(),
             });
         }
 
@@ -1313,7 +1321,7 @@ fn search_in_path(
     if current_id.load(Ordering::SeqCst) != id {
         return Err(RpcError {
             code: 0,
-            message: "can't build matcher".to_string(),
+            message: "expired search job".to_string(),
         });
     }
 

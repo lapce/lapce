@@ -808,17 +808,16 @@ impl LapceTab {
                             Arc::make_mut(doc).reload(Rope::from(pattern), true);
                         }
                     }
-                    LapceUICommand::UpdateSearchWithCaseSensitivity {
-                        pattern,
-                        case_sensitive,
-                    } => {
+                    LapceUICommand::UpdateSearch(pattern, new_cs) => {
                         if pattern.is_empty() {
                             Arc::make_mut(&mut data.find).unset();
                             Arc::make_mut(&mut data.search).matches =
                                 Arc::new(Default::default());
                         } else {
                             let find = Arc::make_mut(&mut data.find);
-                            find.set_case_sensitive(*case_sensitive);
+                            if let Some(cs) = new_cs {
+                                find.set_case_sensitive(*cs);
+                            }
                             find.set_find(pattern, false, false);
                             find.visual = true;
                             if data.focus_area == FocusArea::Panel(PanelKind::Search)
@@ -861,17 +860,6 @@ impl LapceTab {
                                 }),
                             )
                         }
-                    }
-                    LapceUICommand::UpdateSearch(pattern) => {
-                        let case_sensitive = data.find.case_sensitive();
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSearchWithCaseSensitivity {
-                                pattern: pattern.clone(),
-                                case_sensitive,
-                            },
-                            Target::Widget(self.id),
-                        ))
                     }
                     LapceUICommand::OpenPluginInfo(volt) => {
                         data.main_split.open_plugin_info(ctx, volt);

@@ -1781,10 +1781,7 @@ impl LapceEditorBufferData {
                 let pattern = find.search_string.clone().unwrap_or_default();
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSearchWithCaseSensitivity {
-                        pattern,
-                        case_sensitive,
-                    },
+                    LapceUICommand::UpdateSearch(pattern, Some(case_sensitive)),
                     Target::Widget(tab_id),
                 ));
                 return CommandExecuted::No;
@@ -1794,7 +1791,7 @@ impl LapceEditorBufferData {
                 let pattern = self.doc.buffer().to_string();
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSearch(pattern),
+                    LapceUICommand::UpdateSearch(pattern, None),
                     Target::Widget(tab_id),
                 ));
             }
