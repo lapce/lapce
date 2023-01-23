@@ -51,7 +51,7 @@ config = { version = "0.13.2", default-features = false, features = ["toml"] }
 fuzzy-matcher = "0.3.7"
 uuid = { version = "1.2.2", features = ["v4"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
-bytemuck = "1.8.0"
+bytemuck = "1.13.0"
 # For parsing markdown data, such as in hovers
 pulldown-cmark = "0.9.1"
 url = "2.3.1"
