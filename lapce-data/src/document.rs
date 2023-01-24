@@ -1002,7 +1002,7 @@ impl Document {
                     LocalBufferKind::Search => {
                         let _ = self.event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSearch(s),
+                            LapceUICommand::UpdateSearch(s, None),
                             Target::Widget(self.tab_id),
                         );
                     }

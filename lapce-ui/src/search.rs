@@ -25,6 +25,7 @@ use crate::{
     tab::LapceIcon,
 };
 
+// Global search widget
 pub struct SearchInput {
     input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     icons: Vec<LapceIcon>,
