@@ -7,19 +7,19 @@ rust-version = "1.65"
 default-run = "lapce"
 
 [dependencies]
-lapce-ui = { path = "./lapce-ui" }
+lapce-app = { path = "./lapce-app" }
 lapce-proxy = { path = "./lapce-proxy" }
 
 [[bin]]
 name = "lapce"
-path = "lapce-ui/src/bin/lapce.rs"
+path = "lapce-app/src/bin/lapce.rs"
 
 [[bin]]
 name = "lapce-proxy"
 path = "lapce-proxy/src/bin/lapce-proxy.rs"
 
 [workspace]
-members = ["lapce-ui", "lapce-proxy", "lapce-rpc", "lapce-data", "lapce-core"]
+members = ["lapce-app", "lapce-ui", "lapce-proxy", "lapce-rpc", "lapce-data", "lapce-core"]
 
 [workspace.package]
 version = "0.2.5"

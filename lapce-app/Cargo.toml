@@ -1,0 +1,8 @@
+[package]
+name = "lapce-app"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+xilem = { git = "https://github.com/linebender/xilem" }
