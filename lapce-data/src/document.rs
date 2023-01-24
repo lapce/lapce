@@ -1511,7 +1511,7 @@ impl Document {
                         let end = self.buffer.offset_of_line(end_line + 1);
                         new_selection.add_region(SelRegion::new(start, end, None));
                     }
-                    cursor.set_insert(selection);
+                    cursor.set_insert(new_selection);
                 }
             }
             SelectAllCurrent => {
