@@ -480,7 +480,7 @@ pub fn handle_plugin_server_message(
 ) -> Option<JsonRpc> {
     match JsonRpc::parse(message) {
         Ok(value @ JsonRpc::Request(_)) => {
-            let (tx, rx) = crossbeam_channel::unbounded();
+            let (tx, rx) = crossbeam_channel::bounded(1);
             let id = value.get_id().unwrap();
             let rpc = PluginServerRpc::HostRequest {
                 id: id.clone(),
