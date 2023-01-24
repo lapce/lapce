@@ -95,6 +95,13 @@ impl ProxyHandler for Dispatcher {
                     plugin_rpc.mainloop(&mut plugin);
                 });
                 self.core_rpc.proxy_connected();
+
+                // send home directory for initinal filepicker dir
+                let dirs = directories::UserDirs::new();
+
+                if let Some(dirs) = dirs {
+                    self.core_rpc.home_dir(dirs.home_dir().into());
+                }
             }
             OpenPaths { folders, files } => {
                 self.core_rpc.notification(CoreNotification::OpenPaths {
