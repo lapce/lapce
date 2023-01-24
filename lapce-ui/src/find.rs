@@ -13,6 +13,7 @@ use lapce_data::{
 
 use crate::{editor::view::LapceEditorView, tab::LapceIcon};
 
+// Local search widget
 pub struct FindBox {
     parent_view_id: WidgetId,
     input_width: f64,

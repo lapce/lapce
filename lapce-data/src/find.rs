@@ -148,9 +148,7 @@ impl Find {
             CaseMatching::CaseInsensitive
         };
 
-        if self.case_matching != case_matching {
-            self.case_matching = case_matching;
-        }
+        self.case_matching = case_matching;
     }
 
     /// Sets find parameters and search query. Returns `true` if parameters have been updated.
