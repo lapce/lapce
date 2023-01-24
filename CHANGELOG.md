@@ -29,6 +29,7 @@
 - [#1939](https://github.com/lapce/lapce/pull/1939): Fix saving/editing newly saved-as files
 - [#1971](https://github.com/lapce/lapce/pull/1971): Fix up/down movement on first/last line
 - [#2036](https://github.com/lapce/lapce/pull/2036): Fix movement on selections with up/down arrow keys
+- [#2056](https://github.com/lapce/lapce/pull/2056): Fix default directory of remote session file picker
 
 ## 0.2.5
 

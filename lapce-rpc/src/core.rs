@@ -300,6 +300,10 @@ impl CoreRpcHandler {
     pub fn update_terminal(&self, term_id: TermId, content: Vec<u8>) {
         self.notification(CoreNotification::UpdateTerminal { term_id, content });
     }
+
+    pub fn home_dir(&self, path: PathBuf) {
+        self.notification(CoreNotification::HomeDir { path });
+    }
 }
 
 impl Default for CoreRpcHandler {
