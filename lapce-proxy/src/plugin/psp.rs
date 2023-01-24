@@ -427,12 +427,16 @@ impl PluginServerRpcHandler {
                     text_document,
                     text,
                 } => {
-                    handler.handle_did_save_text_document(
-                        language_id,
-                        path,
-                        text_document,
-                        text,
-                    );
+                    if handler
+                        .document_supported(Some(language_id.as_str()), Some(&path))
+                    {
+                        handler.handle_did_save_text_document(
+                            language_id,
+                            path,
+                            text_document,
+                            text,
+                        );
+                    }
                 }
                 PluginServerRpc::DidChangeTextDocument {
                     language_id,
@@ -442,14 +446,19 @@ impl PluginServerRpcHandler {
                     new_text,
                     change,
                 } => {
-                    handler.handle_did_change_text_document(
-                        language_id,
-                        document,
-                        delta,
-                        text,
-                        new_text,
-                        change,
-                    );
+                    if handler.document_supported(
+                        Some(language_id.as_str()),
+                        Some(&document.uri.to_file_path().unwrap()),
+                    ) {
+                        handler.handle_did_change_text_document(
+                            language_id,
+                            document,
+                            delta,
+                            text,
+                            new_text,
+                            change,
+                        );
+                    }
                 }
                 PluginServerRpc::FormatSemanticTokens { tokens, text, f } => {
                     handler.format_semantic_tokens(tokens, text, f);

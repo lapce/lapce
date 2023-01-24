@@ -363,7 +363,8 @@ impl PluginCatalogRpcHandler {
             Url::from_file_path(path).unwrap(),
             rev as i32,
         );
-        let language_id = language_id_from_path(path).unwrap_or("").to_string();
+        let language_id =
+            language_id_from_path(path).unwrap_or_default().to_string();
         let _ = self
             .plugin_tx
             .send(PluginCatalogRpc::DidChangeTextDocument {
