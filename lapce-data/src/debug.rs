@@ -14,6 +14,8 @@ use lapce_rpc::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::db::WorkspaceInfo;
+
 const DEFAULT_RUN_TOML: &str = include_str!("../../defaults/run.toml");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -152,20 +154,36 @@ pub struct RunDebugData {
     pub breakpoints: BTreeMap<PathBuf, Vec<LapceBreakpoint>>,
 }
 
-impl Default for RunDebugData {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl RunDebugData {
-    pub fn new() -> Self {
+    pub fn new(workspace_info: Option<&WorkspaceInfo>) -> Self {
+        let breakpoints = workspace_info
+            .and_then(|info| info.breakpoints.as_ref())
+            .map(|breakpoints| {
+                breakpoints
+                    .iter()
+                    .map(|(path, breakpoints)| {
+                        (
+                            path.to_path_buf(),
+                            breakpoints
+                                .iter()
+                                .map(|line| LapceBreakpoint {
+                                    id: None,
+                                    verified: false,
+                                    line: *line,
+                                    offset: 0,
+                                })
+                                .collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         Self {
             widget_id: WidgetId::next(),
             split_id: WidgetId::next(),
             active_term: None,
             daps: im::HashMap::new(),
-            breakpoints: BTreeMap::new(),
+            breakpoints,
         }
     }
 }
