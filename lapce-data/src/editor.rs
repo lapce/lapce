@@ -47,6 +47,7 @@ use crate::{
         EditorDiagnostic, EditorView, FocusArea, InlineFindDirection,
         LapceEditorData, LapceMainSplitData, SplitContent,
     },
+    debug::LapceBreakpoint,
     document::{BufferContent, Document, LocalBufferKind},
     find::Find,
     hover::{HoverData, HoverStatus},
@@ -987,6 +988,26 @@ impl LapceEditorBufferData {
             event_sink,
             self.config.clone(),
         );
+    }
+
+    pub fn toggle_breakpoint(&mut self, line: usize) -> Option<()> {
+        let path = self.doc.content().path()?.to_path_buf();
+        let terminal = Arc::make_mut(&mut self.terminal);
+        let debug = Arc::make_mut(&mut terminal.debug);
+        let breakpoints = debug.breakpoints.entry(path).or_insert_with(Vec::new);
+        let pos = breakpoints.iter().position(|b| b.line == line);
+        if let Some(index) = pos {
+            breakpoints.remove(index);
+        } else {
+            breakpoints.push(LapceBreakpoint {
+                id: None,
+                line,
+                verified: false,
+                offset: self.doc.buffer().offset_of_line(line),
+            });
+            breakpoints.sort_by_key(|b| b.line);
+        }
+        Some(())
     }
 
     fn update_breakpoints(&mut self, delta: &RopeDelta) -> Option<()> {
