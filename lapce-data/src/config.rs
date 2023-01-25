@@ -139,6 +139,9 @@ impl LapceTheme {
     pub const ACTIVITY_BACKGROUND: &str = "activity.background";
     pub const ACTIVITY_CURRENT: &str = "activity.current";
 
+    pub const DEBUG_BREAKPOINT: &str = "debug.breakpoint";
+    pub const DEBUG_BREAKPOINT_HOVER: &str = "debug.breakpoint.hover";
+
     pub const PANEL_BACKGROUND: &str = "panel.background";
     pub const PANEL_FOREGROUND: &str = "panel.foreground";
     pub const PANEL_FOREGROUND_DIM: &str = "panel.foreground.dim";

@@ -136,6 +136,9 @@ yellow = "#E5C07B"
 "activity.background" = "#21252B"
 "activity.current" = "$black"
 
+"debug.breakpoint" = "$red"
+"debug.breakpoint.hover" = "$grey"
+
 "panel.background" = "#21252B"
 "panel.foreground" = "$white"
 "panel.foreground.dim" = "#5C6370"

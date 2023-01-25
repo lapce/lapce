@@ -345,10 +345,6 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::DapContinued { dap_id });
     }
 
-    pub fn dap_terminated(&self, dap_id: DapId) {
-        self.notification(CoreNotification::DapTerminated { dap_id });
-    }
-
     pub fn home_dir(&self, path: PathBuf) {
         self.notification(CoreNotification::HomeDir { path });
     }

@@ -17,6 +17,8 @@ use lapce_data::{
 pub struct LapceEditorGutter {
     view_id: WidgetId,
     width: f64,
+    mouse_pos: Point,
+    mouse_hover_line: Option<usize>,
     mouse_down_pos: Point,
     breakpoint_width: f64,
 }
@@ -26,6 +28,8 @@ impl LapceEditorGutter {
         Self {
             view_id,
             width: 0.0,
+            mouse_pos: Point::ZERO,
+            mouse_hover_line: None,
             mouse_down_pos: Point::ZERO,
             breakpoint_width: 24.0,
         }
@@ -42,55 +46,91 @@ impl Widget<LapceTabData> for LapceEditorGutter {
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
+                self.mouse_pos = mouse_event.pos;
                 ctx.clear_cursor();
+                let mut mouse_hover_line = None;
                 if mouse_event.pos.x <= self.breakpoint_width {
-                    ctx.set_cursor(&druid::Cursor::Pointer);
+                    let data = data.editor_view_content(self.view_id);
+                    let line_height = data.config.editor.line_height() as f64;
+                    let scroll_offset = data.editor.scroll_offset;
+                    let line = ((mouse_event.pos.y + scroll_offset.y) / line_height)
+                        .floor() as usize;
+                    if line <= data.doc.buffer().last_line() {
+                        ctx.set_cursor(&druid::Cursor::Pointer);
+                        mouse_hover_line = Some(line);
+                    }
+                }
+                if self.mouse_hover_line != mouse_hover_line {
+                    self.mouse_hover_line = mouse_hover_line;
+                    ctx.request_paint();
                 }
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down_pos = mouse_event.pos;
             }
             Event::MouseUp(mouse_event) => {
-                let data = data.editor_view_content(self.view_id);
-                if let Some((_plugin_id, actions)) = data.current_code_actions() {
+                let mut editor_data = data.editor_view_content(self.view_id);
+                if mouse_event.pos.x <= self.breakpoint_width {
+                    let line_height = editor_data.config.editor.line_height() as f64;
+                    let scroll_offset = editor_data.editor.scroll_offset;
+                    let line = ((mouse_event.pos.y + scroll_offset.y) / line_height)
+                        .floor() as usize;
+                    if line <= editor_data.doc.buffer().last_line() {
+                        let min_y = line as f64 * line_height;
+                        let max_y = (line + 1) as f64 * line_height;
+                        if self.mouse_down_pos.x <= self.breakpoint_width
+                            && min_y <= self.mouse_down_pos.y + scroll_offset.y
+                            && self.mouse_down_pos.y + scroll_offset.y <= max_y
+                        {
+                            editor_data.toggle_breakpoint(line);
+                            data.terminal = editor_data.terminal.clone();
+                            ctx.request_paint();
+                            println!("toggle breakpint on line {line}");
+                        }
+                    }
+                } else if let Some((_plugin_id, actions)) =
+                    editor_data.current_code_actions()
+                {
                     if !actions.is_empty() {
-                        let rect = self.code_actions_rect(ctx.text(), &data);
+                        let rect = self.code_actions_rect(ctx.text(), &editor_data);
                         if rect.contains(self.mouse_down_pos)
                             && rect.contains(mouse_event.pos)
                         {
                             let line_height =
-                                data.config.editor.line_height() as f64;
-                            let offset = data.editor.cursor.offset();
+                                editor_data.config.editor.line_height() as f64;
+                            let offset = editor_data.editor.cursor.offset();
                             let (line, _) =
-                                data.doc.buffer().offset_to_line_col(offset);
+                                editor_data.doc.buffer().offset_to_line_col(offset);
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::ShowCodeActions(Some(
                                     ctx.to_window(Point::new(
                                         rect.x0,
                                         (line + 1) as f64 * line_height
-                                            - data.editor.scroll_offset.y,
+                                            - editor_data.editor.scroll_offset.y,
                                     )),
                                 )),
-                                Target::Widget(data.editor.editor_id),
+                                Target::Widget(editor_data.editor.editor_id),
                             ))
                         }
                     }
                 }
-                let editor = data.main_split.editors.get(&self.view_id).unwrap();
+                let editor =
+                    editor_data.main_split.editors.get(&self.view_id).unwrap();
                 if let BufferContent::File(_) = &editor.content {
-                    if let EditorView::Diff(version) = &data.editor.view {
-                        if let Some(history) = data.doc.get_history(version) {
+                    if let EditorView::Diff(version) = &editor_data.editor.view {
+                        if let Some(history) = editor_data.doc.get_history(version) {
                             let diff_skip = self
                                 .check_and_get_diff_skip_mouse_within(
                                     ctx,
-                                    &data,
+                                    &editor_data,
                                     history,
                                     mouse_event.pos,
                                 );
                             if let Some(diff_skip) = diff_skip {
                                 history.trigger_increase_diff_extend_lines(
-                                    &data.doc, diff_skip,
+                                    &editor_data.doc,
+                                    diff_skip,
                                 )
                             }
                         }
@@ -697,6 +737,11 @@ impl LapceEditorGutter {
                 .buffer()
                 .line_of_offset(data.editor.cursor.offset());
             let char_width = data.config.editor_char_width(ctx.text());
+            let breakpoints = data
+                .doc
+                .content()
+                .path()
+                .and_then(|path| data.terminal.debug.breakpoints.get(path));
 
             let line_label_length =
                 (last_line + 1).to_string().len() as f64 * char_width;
@@ -734,7 +779,9 @@ impl LapceEditorGutter {
                     .build()
                     .unwrap();
 
-                if false {
+                if let Some(_breakpoint) = breakpoints.and_then(|breakpoints| {
+                    breakpoints.iter().find(|b| b.line == line)
+                }) {
                     let icon_size = data.config.ui.icon_size() as f64;
                     let icon_rect = Rect::ZERO
                         .with_origin(Point::new(
@@ -748,9 +795,27 @@ impl LapceEditorGutter {
                         icon_rect,
                         Some(
                             data.config
-                                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                                .get_color_unchecked(LapceTheme::DEBUG_BREAKPOINT),
                         ),
                     );
+                } else if let Some(mouse_hover_line) = self.mouse_hover_line {
+                    if mouse_hover_line == line {
+                        let icon_size = data.config.ui.icon_size() as f64;
+                        let icon_rect = Rect::ZERO
+                            .with_origin(Point::new(
+                                self.breakpoint_width / 2.0,
+                                line_height / 2.0 + line_height * line as f64
+                                    - scroll_offset.y,
+                            ))
+                            .inflate(icon_size / 2.0, icon_size / 2.0);
+                        ctx.draw_svg(
+                            &data.config.ui_svg(LapceIcons::DEBUG_BREAKPOINT),
+                            icon_rect,
+                            Some(data.config.get_color_unchecked(
+                                LapceTheme::DEBUG_BREAKPOINT_HOVER,
+                            )),
+                        );
+                    }
                 }
 
                 // Horizontally right aligned
