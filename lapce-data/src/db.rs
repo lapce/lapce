@@ -242,6 +242,7 @@ impl SplitInfo {
 pub struct WorkspaceInfo {
     pub split: SplitInfo,
     pub panel: PanelData,
+    pub breakpoints: Option<HashMap<PathBuf, Vec<usize>>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

@@ -824,6 +824,7 @@ impl LapceTabData {
 
         let terminal = Arc::new(TerminalPanelData::new(
             Arc::new(workspace.clone()),
+            workspace_info.as_ref(),
             proxy.clone(),
             &config,
             event_sink.clone(),
@@ -896,6 +897,19 @@ impl LapceTabData {
         WorkspaceInfo {
             split: main_split_data.split_info(self),
             panel: (*self.panel).clone(),
+            breakpoints: Some(
+                self.terminal
+                    .debug
+                    .breakpoints
+                    .iter()
+                    .map(|(path, breakpints)| {
+                        (
+                            path.to_path_buf(),
+                            breakpints.iter().map(|b| b.line).collect(),
+                        )
+                    })
+                    .collect(),
+            ),
         }
     }
 

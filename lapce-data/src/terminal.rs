@@ -33,6 +33,7 @@ use crate::{
     },
     config::{LapceConfig, LapceTheme},
     data::LapceWorkspace,
+    db::WorkspaceInfo,
     debug::{RunDebugData, RunDebugMode, RunDebugProcess},
     document::SystemClipboard,
     find::Find,
@@ -57,6 +58,7 @@ pub struct TerminalPanelData {
 impl TerminalPanelData {
     pub fn new(
         worksapce: Arc<LapceWorkspace>,
+        workspace_info: Option<&WorkspaceInfo>,
         proxy: Arc<LapceProxy>,
         config: &LapceConfig,
         event_sink: ExtEventSink,
@@ -72,7 +74,7 @@ impl TerminalPanelData {
         let tabs_order = Arc::new(vec![split.split_id]);
         let mut tabs = im::HashMap::new();
         tabs.insert(split.split_id, split);
-        let debug = Arc::new(RunDebugData::new());
+        let debug = Arc::new(RunDebugData::new(workspace_info));
         Self {
             widget_id: WidgetId::next(),
             tabs,
