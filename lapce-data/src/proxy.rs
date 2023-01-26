@@ -341,6 +341,21 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
+            DapBreakpointsResp {
+                dap_id,
+                path,
+                breakpoints,
+            } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::DapBreakpointsResp {
+                        dap_id,
+                        path,
+                        breakpoints,
+                    },
+                    Target::Widget(self.tab_id),
+                );
+            }
         }
     }
 

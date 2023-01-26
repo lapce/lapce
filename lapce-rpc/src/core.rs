@@ -16,7 +16,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    dap_types::{DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
+    dap_types::{self, DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
     file::FileNodeItem,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::DiffInfo,
@@ -127,6 +127,11 @@ pub enum CoreNotification {
     },
     DapContinued {
         dap_id: DapId,
+    },
+    DapBreakpointsResp {
+        dap_id: DapId,
+        path: PathBuf,
+        breakpoints: Vec<dap_types::Breakpoint>,
     },
 }
 
@@ -343,6 +348,19 @@ impl CoreRpcHandler {
 
     pub fn dap_continued(&self, dap_id: DapId) {
         self.notification(CoreNotification::DapContinued { dap_id });
+    }
+
+    pub fn dap_breakpoints_resp(
+        &self,
+        dap_id: DapId,
+        path: PathBuf,
+        breakpoints: Vec<dap_types::Breakpoint>,
+    ) {
+        self.notification(CoreNotification::DapBreakpointsResp {
+            dap_id,
+            path,
+            breakpoints,
+        });
     }
 
     pub fn home_dir(&self, path: PathBuf) {

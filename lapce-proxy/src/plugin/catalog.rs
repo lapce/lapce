@@ -433,7 +433,10 @@ impl PluginCatalog {
             DapDisconnected(dap_id) => {
                 self.daps.remove(&dap_id);
             }
-            DapStart { config } => {
+            DapStart {
+                config,
+                breakpoints,
+            } => {
                 let workspace = self.workspace.clone();
                 let plugin_rpc = self.plugin_rpc.clone();
                 thread::spawn(move || {
@@ -445,6 +448,7 @@ impl PluginCatalog {
                             cwd: workspace,
                         },
                         config.clone(),
+                        breakpoints,
                         plugin_rpc.clone(),
                     ) {
                         let _ = plugin_rpc.dap_loaded(dap_rpc.clone());
@@ -492,9 +496,12 @@ impl PluginCatalog {
                     });
                 }
             }
-            DapRestart { dap_id } => {
+            DapRestart {
+                dap_id,
+                breakpoints,
+            } => {
                 if let Some(dap) = self.daps.get(&dap_id) {
-                    dap.restart();
+                    dap.restart(breakpoints);
                 }
             }
             Shutdown => {

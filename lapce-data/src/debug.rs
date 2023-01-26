@@ -2,19 +2,20 @@ use std::{
     collections::{BTreeMap, HashMap},
     fmt::Display,
     path::{Path, PathBuf},
+    sync::Arc,
     time::Instant,
 };
 
 use druid::WidgetId;
 use lapce_rpc::{
     dap_types::{
-        DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped, ThreadId,
+        self, DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped, ThreadId,
     },
     terminal::TermId,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::db::WorkspaceInfo;
+use crate::{db::WorkspaceInfo, document::Document};
 
 const DEFAULT_RUN_TOML: &str = include_str!("../../defaults/run.toml");
 
@@ -94,6 +95,7 @@ pub struct StackTraceData {
 pub struct LapceBreakpoint {
     pub id: Option<usize>,
     pub verified: bool,
+    pub message: Option<String>,
     pub line: usize,
     pub offset: usize,
 }
@@ -171,6 +173,7 @@ impl RunDebugData {
                                     verified: false,
                                     line: *line,
                                     offset: 0,
+                                    message: None,
                                 })
                                 .collect(),
                         )
@@ -184,6 +187,50 @@ impl RunDebugData {
             active_term: None,
             daps: im::HashMap::new(),
             breakpoints,
+        }
+    }
+
+    pub fn source_breakpoints(&self) -> HashMap<PathBuf, Vec<SourceBreakpoint>> {
+        self.breakpoints
+            .iter()
+            .map(|(path, breakpoints)| {
+                (
+                    path.to_path_buf(),
+                    breakpoints
+                        .iter()
+                        .map(|b| SourceBreakpoint {
+                            line: b.line,
+                            column: None,
+                            condition: None,
+                            hit_condition: None,
+                            log_message: None,
+                        })
+                        .collect(),
+                )
+            })
+            .collect()
+    }
+
+    pub fn set_breakpoints_resp(
+        &mut self,
+        path: &PathBuf,
+        dap_breakpoints: &Vec<dap_types::Breakpoint>,
+        doc: Option<&Arc<Document>>,
+    ) {
+        println!("set breakpoints {dap_breakpoints:?}");
+        if let Some(breakpoints) = self.breakpoints.get_mut(path) {
+            for (breakpoint, dap_breakpoint) in
+                breakpoints.iter_mut().zip(dap_breakpoints)
+            {
+                breakpoint.id = dap_breakpoint.id;
+                breakpoint.verified = dap_breakpoint.verified;
+                breakpoint.message = dap_breakpoint.message.clone();
+                let line = dap_breakpoint.line.unwrap_or(0);
+                breakpoint.line = line;
+                breakpoint.offset = doc
+                    .map(|doc| doc.buffer().offset_of_line(line))
+                    .unwrap_or(0);
+            }
         }
     }
 }

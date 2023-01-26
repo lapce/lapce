@@ -1010,6 +1010,17 @@ impl LapceTab {
                             dap.stopped = false;
                         }
                     }
+                    LapceUICommand::DapBreakpointsResp {
+                        dap_id,
+                        path,
+                        breakpoints,
+                    } => {
+                        ctx.set_handled();
+                        let doc = data.main_split.open_docs.get(path);
+                        let terminal = Arc::make_mut(&mut data.terminal);
+                        let debug = Arc::make_mut(&mut terminal.debug);
+                        debug.set_breakpoints_resp(path, breakpoints, doc);
+                    }
                     LapceUICommand::TerminalProcessStopped(id) => {
                         ctx.set_handled();
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
