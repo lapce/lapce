@@ -209,7 +209,7 @@ impl Widget<LapceTabData> for SearchInput {
             .new_text_layout(if match_count > 0 {
                 match index {
                     Some(index) => format!("{}/{}", index + 1, match_count),
-                    None => format!("{} results", match_count),
+                    None => format!("{match_count} results"),
                 }
             } else {
                 "No results".to_string()

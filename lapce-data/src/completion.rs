@@ -278,14 +278,14 @@ impl Display for SnippetElement {
             SnippetElement::Text(text) => f.write_str(text),
             SnippetElement::PlaceHolder(tab, elements) => {
                 // Trying to write to the provided buffer in the form "${tab:text}"
-                write!(f, "${{{}:", tab)?;
+                write!(f, "${{{tab}:")?;
                 for child_snippet_elm in elements {
                     // call ourselves recursively
                     fmt::Display::fmt(child_snippet_elm, f)?;
                 }
                 f.write_str("}")
             }
-            SnippetElement::Tabstop(tab) => write!(f, "${}", tab),
+            SnippetElement::Tabstop(tab) => write!(f, "${tab}"),
         }
     }
 }

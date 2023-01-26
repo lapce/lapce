@@ -1720,7 +1720,7 @@ impl ThemeSettingItem {
         color: String,
         event_sink: ExtEventSink,
     ) -> Self {
-        let name = format!("{}.{color}", kind);
+        let name = format!("{kind}.{color}");
         let content = BufferContent::SettingsValue(name.clone());
         let mut doc =
             Document::new(content.clone(), data.id, event_sink, data.proxy.clone());

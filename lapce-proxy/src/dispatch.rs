@@ -749,7 +749,7 @@ impl ProxyHandler for Dispatcher {
                 let result = if new_path.exists() {
                     Err(RpcError {
                         code: 0,
-                        message: format!("{:?} already exists", new_path),
+                        message: format!("{new_path:?} already exists"),
                     })
                 } else {
                     if let Some(parent) = new_path.parent() {
@@ -777,7 +777,7 @@ impl ProxyHandler for Dispatcher {
                 let result = if to.exists() {
                     Err(RpcError {
                         code: 0,
-                        message: format!("{:?} already exists", to),
+                        message: format!("{to:?} already exists"),
                     })
                 } else {
                     std::fs::rename(from, to)

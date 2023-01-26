@@ -57,8 +57,7 @@ impl LayoutContent {
                     // TODO: highlight this with red text and make it italics or something?
                     let mut layout = TextLayout::new();
                     layout.set_text(RichText::new(ArcStr::from(format!(
-                        "Bad Image URL: {}",
-                        url
+                        "Bad Image URL: {url}"
                     ))));
                     LayoutContent::BrokenImage { text: layout }
                 }
