@@ -94,7 +94,7 @@ impl PluginServerHandler for Plugin {
     }
 
     fn document_supported(
-        &mut self,
+        &self,
         language_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool {
@@ -138,8 +138,8 @@ impl PluginServerHandler for Plugin {
         text: Rope,
     ) {
         self.host.handle_did_save_text_document(
-            language_id,
-            path,
+            Some(language_id),
+            Some(path),
             text_document,
             text,
         );
@@ -160,7 +160,7 @@ impl PluginServerHandler for Plugin {
         >,
     ) {
         self.host.handle_did_change_text_document(
-            language_id,
+            Some(language_id),
             document,
             delta,
             text,

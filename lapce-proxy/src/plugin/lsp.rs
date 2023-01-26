@@ -10,6 +10,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
+use globset::{Glob, GlobMatcher};
 use jsonrpc_lite::{Id, Params};
 use lapce_core::meta;
 use lapce_rpc::plugin::VoltID;
@@ -21,7 +22,7 @@ use lsp_types::{
     *,
 };
 use parking_lot::Mutex;
-use serde_json::{json, Value};
+use serde_json::Value;
 
 use super::psp::{
     handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
@@ -67,7 +68,7 @@ impl PluginServerHandler for LspClient {
     }
 
     fn document_supported(
-        &mut self,
+        &self,
         lanaguage_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool {
@@ -111,8 +112,8 @@ impl PluginServerHandler for LspClient {
         text: lapce_xi_rope::Rope,
     ) {
         self.host.handle_did_save_text_document(
-            language_id,
-            path,
+            Some(language_id),
+            Some(path),
             text_document,
             text,
         );
@@ -133,7 +134,7 @@ impl PluginServerHandler for LspClient {
         >,
     ) {
         self.host.handle_did_change_text_document(
-            language_id,
+            Some(language_id),
             document,
             delta,
             text,
@@ -395,16 +396,17 @@ impl LspClient {
                 ..Default::default()
             }),
             workspace: Some(WorkspaceClientCapabilities {
+                did_change_watched_files: Some(
+                    DidChangeWatchedFilesClientCapabilities {
+                        dynamic_registration: Some(true),
+                    },
+                ),
                 symbol: Some(WorkspaceSymbolClientCapabilities {
                     ..Default::default()
                 }),
                 configuration: Some(false),
                 ..Default::default()
             }),
-
-            experimental: Some(json!({
-                "serverStatusNotification": true,
-            })),
             ..Default::default()
         };
 
@@ -493,28 +495,46 @@ impl LspClient {
     }
 }
 
-pub struct DocumentFilter {
+pub enum DocumentFilter {
     /// The document must have this language id, if it exists
-    pub language_id: Option<String>,
+    Language(String),
     /// The document's path must match this glob, if it exists
-    pub pattern: Option<globset::GlobMatcher>,
+    Pattern(GlobMatcher),
     // TODO: URI Scheme from lsp-types document filter
 }
+
 impl DocumentFilter {
     /// Constructs a document filter from the LSP version
     /// This ignores any fields that are badly constructed
     pub(crate) fn from_lsp_filter_loose(
         filter: &lsp_types::DocumentFilter,
-    ) -> DocumentFilter {
-        DocumentFilter {
-            language_id: filter.language.clone(),
-            // TODO: clean this up
-            pattern: filter
-                .pattern
-                .as_deref()
-                .map(globset::Glob::new)
-                .and_then(Result::ok)
-                .map(|x| globset::Glob::compile_matcher(&x)),
+    ) -> Vec<DocumentFilter> {
+        filter
+            .language
+            .iter()
+            .map(|l| DocumentFilter::Language(l.to_string()))
+            .chain(
+                filter
+                    .pattern
+                    .as_deref()
+                    .map(Glob::new)
+                    .and_then(Result::ok)
+                    .map(|x| DocumentFilter::Pattern(Glob::compile_matcher(&x))),
+            )
+            .collect()
+    }
+
+    pub fn matches_any(
+        &self,
+        language_id: Option<&str>,
+        path: Option<&Path>,
+    ) -> bool {
+        match self {
+            DocumentFilter::Language(l) => Some(l.as_str()) == language_id,
+            DocumentFilter::Pattern(g) => match path {
+                Some(p) => g.is_match(p),
+                None => false,
+            },
         }
     }
 }

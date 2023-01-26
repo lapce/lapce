@@ -11,6 +11,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
+use globset::Glob;
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::{buffer::rope_text::RopeText, encoding::offset_utf16_to_utf8};
 use lapce_rpc::{
@@ -21,9 +22,9 @@ use lapce_rpc::{
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::{
-        DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument,
-        Initialized, LogMessage, Notification, Progress, PublishDiagnostics,
-        ShowMessage,
+        DidChangeTextDocument, DidChangeWatchedFiles, DidOpenTextDocument,
+        DidSaveTextDocument, Initialized, LogMessage, Notification, Progress,
+        PublishDiagnostics, ShowMessage,
     },
     request::{
         CodeActionRequest, CodeActionResolveRequest, Completion,
@@ -34,14 +35,15 @@ use lsp_types::{
         WorkDoneProgressCreate, WorkspaceSymbol,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
-    LogMessageParams, OneOf, ProgressParams, PublishDiagnosticsParams, Range,
-    Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
+    DidChangeWatchedFilesRegistrationOptions, DidSaveTextDocumentParams,
+    DocumentSelector, HoverProviderCapability, LogMessageParams, OneOf,
+    ProgressParams, PublishDiagnosticsParams, Range, Registration,
+    RegistrationParams, SemanticTokens, SemanticTokensLegend,
     SemanticTokensServerCapabilities, ServerCapabilities, ShowMessageParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncSaveOptions,
-    VersionedTextDocumentIdentifier,
+    VersionedTextDocumentIdentifier, WatchKind,
 };
 use parking_lot::Mutex;
 use psp_types::{
@@ -165,7 +167,7 @@ pub struct PluginServerRpcHandler {
 
 pub trait PluginServerHandler {
     fn document_supported(
-        &mut self,
+        &self,
         language_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool;
@@ -446,10 +448,7 @@ impl PluginServerRpcHandler {
                     new_text,
                     change,
                 } => {
-                    if handler.document_supported(
-                        Some(language_id.as_str()),
-                        Some(&document.uri.to_file_path().unwrap()),
-                    ) {
+                    if handler.document_supported(Some(language_id.as_str()), None) {
                         handler.handle_did_change_text_document(
                             language_id,
                             document,
@@ -542,6 +541,7 @@ struct SaveRegistration {
 #[derive(Default)]
 struct ServerRegistrations {
     save: Option<SaveRegistration>,
+    did_change: Vec<(WatchKind, DocumentFilter)>,
 }
 
 pub struct PluginHostHandler {
@@ -568,7 +568,7 @@ impl PluginHostHandler {
     ) -> Self {
         let document_selector = document_selector
             .iter()
-            .map(DocumentFilter::from_lsp_filter_loose)
+            .flat_map(DocumentFilter::from_lsp_filter_loose)
             .collect();
         Self {
             pwd,
@@ -588,26 +588,7 @@ impl PluginHostHandler {
         language_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool {
-        match language_id {
-            Some(language_id) => {
-                for filter in self.document_selector.iter() {
-                    if (filter.language_id.is_none()
-                        || filter.language_id.as_deref() == Some(language_id))
-                        && (path.is_none()
-                            || filter.pattern.is_none()
-                            || filter
-                                .pattern
-                                .as_ref()
-                                .unwrap()
-                                .is_match(path.as_ref().unwrap()))
-                    {
-                        return true;
-                    }
-                }
-                false
-            }
-            None => true,
-        }
+        check_document_filters(&self.document_selector, language_id, path)
     }
 
     pub fn method_registered(&mut self, method: &'static str) -> bool {
@@ -728,42 +709,75 @@ impl PluginHostHandler {
         }
     }
 
-    fn check_save_capability(&self, language_id: &str, path: &Path) -> (bool, bool) {
-        if self.document_supported(Some(language_id), Some(path)) {
-            let (should_send, include_text) = self
-                .server_capabilities
-                .text_document_sync
-                .as_ref()
-                .and_then(|sync| match sync {
-                    TextDocumentSyncCapability::Kind(_) => None,
-                    TextDocumentSyncCapability::Options(options) => Some(options),
-                })
-                .and_then(|o| o.save.as_ref())
-                .map(|o| match o {
-                    TextDocumentSyncSaveOptions::Supported(is_supported) => {
-                        (*is_supported, true)
+    /// Check if the server is capable of handling the given text document sync event specified by `tds_kind`.
+    /// See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_synchronization
+    fn check_server_capability_for_text_document_sync(&self, tds_kind: Tds) -> bool {
+        if let Some(server_tds_capability) =
+            self.server_capabilities.text_document_sync.as_ref()
+        {
+            match server_tds_capability {
+                TextDocumentSyncCapability::Kind(k) => match *k {
+                    TextDocumentSyncKind::NONE => return false,
+                    _ => return true,
+                },
+                TextDocumentSyncCapability::Options(o) => match tds_kind {
+                    Tds::Change => {
+                        if let Some(o) = o.change {
+                            match o {
+                                TextDocumentSyncKind::NONE => return false,
+                                _ => return true,
+                            }
+                        }
                     }
-                    TextDocumentSyncSaveOptions::SaveOptions(options) => {
-                        (true, options.include_text.unwrap_or(false))
+                    Tds::Save => {
+                        if let Some(o) = o.save.as_ref() {
+                            match o {
+                                TextDocumentSyncSaveOptions::Supported(s) => {
+                                    return *s
+                                }
+                                TextDocumentSyncSaveOptions::SaveOptions(_) => {
+                                    return true
+                                }
+                            }
+                        }
                     }
-                })
-                .unwrap_or((false, false));
-            return (should_send, include_text);
+                },
+            }
         }
 
-        if let Some(options) = self.server_registrations.save.as_ref() {
-            for filter in options.filters.iter() {
-                if (filter.language_id.is_none()
-                    || filter.language_id.as_deref() == Some(language_id))
-                    && (filter.pattern.is_none()
-                        || filter.pattern.as_ref().unwrap().is_match(path))
-                {
-                    return (true, options.include_text);
+        return false;
+    }
+
+    /// Check if the server is interested in the given `language_id` or `path` given the text document sync event in `tds`.
+    /// Sometimes an LSP server will dynamically register for files it is interested in for a given text document sync events.
+    /// This will check that.
+    fn check_server_file_filter(
+        &self,
+        language_id: Option<&str>,
+        path: Option<&Path>,
+        tds: Tds,
+    ) -> bool {
+        match tds {
+            Tds::Change => {
+                return self.server_registrations.did_change.iter().any(
+                    |(kind, doc)| {
+                        kind.contains(WatchKind::Change)
+                            && doc.matches_any(language_id, path)
+                    },
+                )
+            }
+            Tds::Save => {
+                if let Some(options) = self.server_registrations.save.as_ref() {
+                    return check_document_filters(
+                        &options.filters,
+                        language_id,
+                        path,
+                    );
                 }
             }
         }
 
-        (false, false)
+        return false;
     }
 
     fn register_capabilities(&mut self, registrations: Vec<Registration>) {
@@ -774,6 +788,8 @@ impl PluginHostHandler {
 
     fn register_capability(&mut self, registration: Registration) -> Result<()> {
         match registration.method.as_str() {
+            // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_didSave
+            // Tells us that the LSP is interested if we are saving the files that match the pattern
             DidSaveTextDocument::METHOD => {
                 let options = registration
                     .register_options
@@ -787,11 +803,31 @@ impl PluginHostHandler {
                         .document_selector
                         .map(|s| {
                             s.iter()
-                                .map(DocumentFilter::from_lsp_filter_loose)
+                                .flat_map(DocumentFilter::from_lsp_filter_loose)
                                 .collect()
                         })
                         .unwrap_or_default(),
                 });
+            }
+            // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#workspace_didChangeWatchedFiles
+            // Tells us that the LSP is interested in any changes to the files/folders that match
+            DidChangeWatchedFiles::METHOD => {
+                let options = registration
+                    .register_options
+                    .ok_or_else(|| anyhow!("don't have options"))?;
+                let options: DidChangeWatchedFilesRegistrationOptions =
+                    serde_json::from_value(options)?;
+                self.server_registrations.did_change = options
+                    .watchers
+                    .iter()
+                    .filter_map(|s| match Glob::new(s.glob_pattern.as_str()).ok() {
+                        Some(ok) => Some((
+                            s.kind.unwrap_or(WatchKind::all()),
+                            DocumentFilter::Pattern(ok.compile_matcher()),
+                        )),
+                        None => None,
+                    })
+                    .collect();
             }
             _ => {
                 eprintln!(
@@ -902,16 +938,29 @@ impl PluginHostHandler {
 
     pub fn handle_did_save_text_document(
         &self,
-        language_id: String,
-        path: PathBuf,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
         text_document: TextDocumentIdentifier,
         text: Rope,
     ) {
-        let (should_send, include_text) =
-            self.check_save_capability(language_id.as_str(), &path);
-        if !should_send {
+        if !self.check_server_capability_for_text_document_sync(Tds::Save)
+            || !self.check_server_file_filter(
+                language_id.as_deref(),
+                path.as_deref(),
+                Tds::Save,
+            )
+        {
             return;
         }
+
+        let include_text = self.server_registrations.save.iter().any(|d| {
+            check_document_filters(
+                &d.filters,
+                language_id.as_deref(),
+                path.as_deref(),
+            ) && d.include_text
+        });
+
         let params = DidSaveTextDocumentParams {
             text_document,
             text: if include_text {
@@ -923,15 +972,15 @@ impl PluginHostHandler {
         self.server_rpc.server_notification(
             DidSaveTextDocument::METHOD,
             params,
-            Some(language_id),
-            Some(path),
+            language_id,
+            path,
             false,
         );
     }
 
     pub fn handle_did_change_text_document(
         &mut self,
-        lanaguage_id: String,
+        language_id: Option<String>,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -943,6 +992,18 @@ impl PluginHostHandler {
             )>,
         >,
     ) {
+        let path = document.uri.to_file_path().ok();
+
+        if !self.check_server_capability_for_text_document_sync(Tds::Change)
+            || !self.check_server_file_filter(
+                language_id.as_deref(),
+                path.as_deref(),
+                Tds::Change,
+            )
+        {
+            return;
+        }
+
         let kind = match &self.server_capabilities.text_document_sync {
             Some(TextDocumentSyncCapability::Kind(kind)) => *kind,
             Some(TextDocumentSyncCapability::Options(options)) => {
@@ -984,8 +1045,6 @@ impl PluginHostHandler {
             _ => return,
         };
 
-        let path = document.uri.to_file_path().ok();
-
         let params = DidChangeTextDocumentParams {
             text_document: document,
             content_changes: vec![change],
@@ -994,7 +1053,7 @@ impl PluginHostHandler {
         self.server_rpc.server_notification(
             DidChangeTextDocument::METHOD,
             params,
-            Some(lanaguage_id),
+            language_id,
             path,
             false,
         );
@@ -1121,4 +1180,27 @@ fn semantic_tokens_legend(
             options,
         ) => &options.semantic_tokens_options.legend,
     }
+}
+
+/// The kind of text document sync.
+/// Correspond to each key of this object:
+/// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentSyncOptions
+enum Tds {
+    Change,
+    Save,
+    // TODO: Implement the following
+    // OpenClose,
+    // WillSave,
+    // WillSaveWaitUntil,
+}
+
+// TODO: Add support for scheme
+pub fn check_document_filters(
+    document_filters: &[DocumentFilter],
+    language_id: Option<&str>,
+    path: Option<&Path>,
+) -> bool {
+    document_filters
+        .iter()
+        .any(|d| d.matches_any(language_id, path))
 }
