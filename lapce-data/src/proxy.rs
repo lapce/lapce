@@ -25,7 +25,7 @@ use lapce_rpc::{
     RequestId, RpcMessage,
 };
 use lapce_xi_rope::Rope;
-use lsp_types::Url;
+use lsp_types::{LogMessageParams, MessageType, Url};
 use parking_lot::Mutex;
 use serde_json::Value;
 use thiserror::Error;
@@ -175,7 +175,23 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            LogMessage { .. } => {}
+            LogMessage {
+                message: LogMessageParams { message, typ },
+            } => match typ {
+                MessageType::ERROR => {
+                    log::error!("{message}")
+                }
+                MessageType::WARNING => {
+                    log::warn!("{message}")
+                }
+                MessageType::INFO => {
+                    log::info!("{message}")
+                }
+                MessageType::LOG => {
+                    log::debug!("{message}")
+                }
+                _ => {}
+            },
             ShowMessage { title, message } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
