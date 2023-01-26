@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Copy, Clone, Debug, Serialize, PartialEq, Eq)]
+#[derive(Deserialize, Clone, Debug, Serialize, PartialEq, Eq)]
 pub enum LanguageId {
     Cpp,
     ObjectiveC,
@@ -233,4 +233,11 @@ impl LanguageId {
             LanguageId::Unknown => todo!(),
         }
     }
+}
+
+#[test]
+fn test_language_id_size() {
+    assert_eq!(std::mem::size_of::<LanguageId>(), 1);
+    assert_eq!(std::mem::size_of::<String>(), 24);
+    assert_eq!(std::mem::size_of::<Option<String>>(), 24);
 }
