@@ -179,16 +179,16 @@ impl CoreHandler for LapceProxy {
                 message: LogMessageParams { message, typ },
             } => match typ {
                 MessageType::ERROR => {
-                    log::error!("{}", message)
+                    log::error!("{message}")
                 }
                 MessageType::WARNING => {
-                    log::warn!("{}", message)
+                    log::warn!("{message}")
                 }
                 MessageType::INFO => {
-                    log::info!("{}", message)
+                    log::info!("{message}")
                 }
                 MessageType::LOG => {
-                    log::debug!("{}", message)
+                    log::debug!("{message}")
                 }
                 _ => {}
             },
