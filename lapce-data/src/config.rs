@@ -990,7 +990,7 @@ impl ConfigWatcher {
                 // Thus downloading plugins will constantly flood the channel with messages.
                 std::thread::sleep(std::time::Duration::from_secs(1));
                 // Don't open the channel again until changes are fully handled
-                let _ = config_finish_rx.recv().unwrap();
+                config_finish_rx.recv().unwrap();
             }
         });
         (Self { config_change_tx }, config_finish_tx)
