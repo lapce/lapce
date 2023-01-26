@@ -4,7 +4,7 @@ use std::{collections::HashMap, path::PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::counter::Counter;
+use crate::{counter::Counter, language_id::LanguageId};
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct PluginId(pub u64);
@@ -45,7 +45,7 @@ impl VoltInfo {
 #[derive(Deserialize, Clone, Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub struct VoltActivation {
-    pub language: Option<Vec<String>>,
+    pub language: Option<Vec<LanguageId>>,
     pub workspace_contains: Option<Vec<String>>,
 }
 

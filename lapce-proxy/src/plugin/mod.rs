@@ -21,6 +21,7 @@ use flate2::read::GzDecoder;
 use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
+    language_id::LanguageId,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     proxy::ProxyRpcHandler,
     style::LineStyle,
@@ -58,7 +59,6 @@ use self::{
     psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback},
     wasi::{load_volt, start_volt},
 };
-use crate::buffer::language_id_from_path;
 
 pub type PluginName = String;
 
@@ -69,14 +69,14 @@ pub enum PluginCatalogRpc {
         request_sent: Option<Arc<AtomicUsize>>,
         method: &'static str,
         params: Value,
-        language_id: Option<String>,
+        language_id: LanguageId,
         path: Option<PathBuf>,
         f: Box<dyn ClonableCallback>,
     },
     ServerNotification {
         method: &'static str,
         params: Value,
-        language_id: Option<String>,
+        language_id: LanguageId,
         path: Option<PathBuf>,
     },
     FormatSemanticTokens {
@@ -89,14 +89,14 @@ pub enum PluginCatalogRpc {
         document: TextDocumentItem,
     },
     DidChangeTextDocument {
-        language_id: String,
+        language_id: LanguageId,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
         new_text: Rope,
     },
     DidSaveTextDocument {
-        language_id: String,
+        language_id: LanguageId,
         path: PathBuf,
         text_document: TextDocumentIdentifier,
         text: Rope,
@@ -253,7 +253,7 @@ impl PluginCatalogRpcHandler {
         &self,
         method: &'static str,
         params: P,
-        language_id: Option<String>,
+        language_id: LanguageId,
         path: Option<PathBuf>,
         cb: impl FnOnce(PluginId, Result<Resp, RpcError>) + Clone + Send + 'static,
     ) where
@@ -307,7 +307,7 @@ impl PluginCatalogRpcHandler {
         request_sent: Option<Arc<AtomicUsize>>,
         method: &'static str,
         params: P,
-        language_id: Option<String>,
+        language_id: LanguageId,
         path: Option<PathBuf>,
         f: impl FnOnce(PluginId, Result<Value, RpcError>) + Send + DynClone + 'static,
     ) {
@@ -342,7 +342,7 @@ impl PluginCatalogRpcHandler {
     pub fn did_save_text_document(&self, path: &Path, text: Rope) {
         let text_document =
             TextDocumentIdentifier::new(Url::from_file_path(path).unwrap());
-        let language_id = language_id_from_path(path).unwrap_or("").to_string();
+        let language_id = LanguageId::from_path(path);
         let _ = self.plugin_tx.send(PluginCatalogRpc::DidSaveTextDocument {
             language_id,
             text_document,
@@ -363,7 +363,7 @@ impl PluginCatalogRpcHandler {
             Url::from_file_path(path).unwrap(),
             rev as i32,
         );
-        let language_id = language_id_from_path(path).unwrap_or("").to_string();
+        let language_id = LanguageId::from_path(path);
         let _ = self
             .plugin_tx
             .send(PluginCatalogRpc::DidChangeTextDocument {
@@ -395,8 +395,7 @@ impl PluginCatalogRpcHandler {
             partial_result_params: PartialResultParams::default(),
         };
 
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -426,8 +425,7 @@ impl PluginCatalogRpcHandler {
             partial_result_params: PartialResultParams::default(),
         };
 
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -460,8 +458,7 @@ impl PluginCatalogRpcHandler {
             },
         };
 
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -496,8 +493,7 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -523,8 +519,7 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             range,
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -549,8 +544,7 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -574,7 +568,13 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         };
-        self.send_request_to_all_plugins(method, params, None, None, cb);
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            LanguageId::Unknown,
+            None,
+            cb,
+        );
     }
 
     pub fn get_document_formatting(
@@ -596,8 +596,7 @@ impl PluginCatalogRpcHandler {
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -622,8 +621,7 @@ impl PluginCatalogRpcHandler {
             text_document: TextDocumentIdentifier { uri },
             position,
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -653,8 +651,7 @@ impl PluginCatalogRpcHandler {
             new_name,
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -679,8 +676,7 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -707,8 +703,7 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: Default::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -733,9 +728,7 @@ impl PluginCatalogRpcHandler {
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
-
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -765,9 +758,7 @@ impl PluginCatalogRpcHandler {
         };
 
         let core_rpc = self.core_rpc.clone();
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
-
+        let language_id = LanguageId::from_path(path);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -798,7 +789,7 @@ impl PluginCatalogRpcHandler {
             None,
             method,
             item,
-            None,
+            LanguageId::Unknown,
             None,
             move |_, result| {
                 let result = match result {
@@ -841,8 +832,7 @@ impl PluginCatalogRpcHandler {
         };
 
         let core_rpc = self.core_rpc.clone();
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = LanguageId::from_path(path);
         self.send_request(
             None,
             None,
@@ -874,7 +864,7 @@ impl PluginCatalogRpcHandler {
             None,
             method,
             item,
-            None,
+            LanguageId::Unknown,
             None,
             move |_, result| {
                 let result = match result {
@@ -900,14 +890,14 @@ impl PluginCatalogRpcHandler {
     pub fn did_open_document(
         &self,
         path: &Path,
-        language_id: String,
+        language_id: LanguageId,
         version: i32,
         text: String,
     ) {
         let _ = self.plugin_tx.send(PluginCatalogRpc::DidOpenTextDocument {
             document: TextDocumentItem::new(
                 Url::from_file_path(path).unwrap(),
-                language_id,
+                language_id.as_str().to_string(),
                 version,
                 text,
             ),
@@ -959,7 +949,7 @@ impl PluginCatalogRpcHandler {
 pub enum PluginNotification {
     StartLspServer {
         exec_path: String,
-        language_id: String,
+        language_id: LanguageId,
         options: Option<Value>,
         system_lsp: Option<bool>,
     },

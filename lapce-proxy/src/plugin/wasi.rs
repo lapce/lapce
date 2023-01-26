@@ -16,6 +16,7 @@ use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_core::directory::Directory;
 use lapce_rpc::{
+    language_id::LanguageId,
     plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     style::LineStyle,
     RpcError,
@@ -94,8 +95,8 @@ impl PluginServerHandler for Plugin {
     }
 
     fn document_supported(
-        &mut self,
-        language_id: Option<&str>,
+        &self,
+        language_id: LanguageId,
         path: Option<&Path>,
     ) -> bool {
         self.host.document_supported(language_id, path)
@@ -132,7 +133,7 @@ impl PluginServerHandler for Plugin {
 
     fn handle_did_save_text_document(
         &self,
-        language_id: String,
+        language_id: LanguageId,
         path: PathBuf,
         text_document: TextDocumentIdentifier,
         text: Rope,
@@ -147,7 +148,7 @@ impl PluginServerHandler for Plugin {
 
     fn handle_did_change_text_document(
         &mut self,
-        language_id: String,
+        language_id: LanguageId,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -200,7 +201,7 @@ impl Plugin {
                     initialization_options: configurations,
                     workspace_folders: None,
                 },
-                None,
+                LanguageId::Unknown,
                 None,
                 false,
             );

@@ -9,6 +9,7 @@ use std::{
 };
 
 use lapce_rpc::{
+    language_id::LanguageId,
     plugin::{PluginId, VoltID, VoltMetadata},
     proxy::ProxyResponse,
     style::LineStyle,
@@ -36,7 +37,7 @@ pub struct PluginCatalog {
     plugins: HashMap<PluginId, PluginServerRpcHandler>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
     unactivated_volts: HashMap<VoltID, VoltMetadata>,
-    open_files: HashMap<PathBuf, String>,
+    open_files: HashMap<PathBuf, LanguageId>,
 }
 
 impl PluginCatalog {
@@ -69,7 +70,7 @@ impl PluginCatalog {
         request_sent: Option<Arc<AtomicUsize>>,
         method: &'static str,
         params: Value,
-        language_id: Option<String>,
+        language_id: LanguageId,
         path: Option<PathBuf>,
         f: Box<dyn ClonableCallback>,
     ) {
@@ -137,7 +138,7 @@ impl PluginCatalog {
         &mut self,
         method: &'static str,
         params: Value,
-        language_id: Option<String>,
+        language_id: LanguageId,
         path: Option<PathBuf>,
     ) {
         for (_, plugin) in self.plugins.iter() {
@@ -218,7 +219,7 @@ impl PluginCatalog {
     }
 
     pub fn handle_did_open_text_document(&mut self, document: TextDocumentItem) {
-        let language_id = document.language_id.clone();
+        let language_id = LanguageId::from_str(&document.language_id);
         if let Ok(path) = document.uri.to_file_path() {
             self.open_files.insert(path, language_id.clone());
         }
@@ -248,7 +249,7 @@ impl PluginCatalog {
                 DidOpenTextDocumentParams {
                     text_document: document.clone(),
                 },
-                Some(language_id.clone()),
+                language_id,
                 path.clone(),
                 true,
             );
@@ -257,7 +258,7 @@ impl PluginCatalog {
 
     pub fn handle_did_save_text_document(
         &mut self,
-        language_id: String,
+        language_id: LanguageId,
         path: PathBuf,
         text_document: TextDocumentIdentifier,
         text: Rope,
@@ -274,7 +275,7 @@ impl PluginCatalog {
 
     pub fn handle_did_change_text_document(
         &mut self,
-        language_id: String,
+        language_id: LanguageId,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -333,7 +334,7 @@ impl PluginCatalog {
                     self.plugin_rpc.proxy_rpc.get_open_files_content()
                 {
                     for item in items {
-                        let language_id = Some(item.language_id.clone());
+                        let language_id = LanguageId::from_str(&item.language_id);
                         let path = item.uri.to_file_path().ok();
                         plugin.server_notification(
                             DidOpenTextDocument::METHOD,

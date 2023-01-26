@@ -4,6 +4,7 @@ pub mod buffer;
 pub mod core;
 pub mod counter;
 pub mod file;
+pub mod language_id;
 mod parse;
 pub mod plugin;
 pub mod proxy;

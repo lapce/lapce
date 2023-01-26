@@ -12,7 +12,7 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_core::meta;
-use lapce_rpc::plugin::VoltID;
+use lapce_rpc::{language_id::LanguageId, plugin::VoltID};
 use lapce_rpc::{style::LineStyle, RpcError};
 use lapce_xi_rope::Rope;
 use lsp_types::{
@@ -67,11 +67,11 @@ impl PluginServerHandler for LspClient {
     }
 
     fn document_supported(
-        &mut self,
-        lanaguage_id: Option<&str>,
+        &self,
+        language_id: LanguageId,
         path: Option<&Path>,
     ) -> bool {
-        self.host.document_supported(lanaguage_id, path)
+        self.host.document_supported(language_id, path)
     }
 
     fn handle_handler_notification(
@@ -105,7 +105,7 @@ impl PluginServerHandler for LspClient {
 
     fn handle_did_save_text_document(
         &self,
-        language_id: String,
+        language_id: LanguageId,
         path: PathBuf,
         text_document: TextDocumentIdentifier,
         text: lapce_xi_rope::Rope,
@@ -120,7 +120,7 @@ impl PluginServerHandler for LspClient {
 
     fn handle_did_change_text_document(
         &mut self,
-        language_id: String,
+        language_id: LanguageId,
         document: lsp_types::VersionedTextDocumentIdentifier,
         delta: lapce_xi_rope::RopeDelta,
         text: lapce_xi_rope::Rope,
@@ -431,7 +431,7 @@ impl LspClient {
         if let Ok(value) = self.server_rpc.server_request(
             Initialize::METHOD,
             params,
-            None,
+            LanguageId::Unknown,
             None,
             false,
         ) {
@@ -440,7 +440,7 @@ impl LspClient {
             self.server_rpc.server_notification(
                 Initialized::METHOD,
                 InitializedParams {},
-                None,
+                LanguageId::Unknown,
                 None,
                 false,
             );
@@ -495,7 +495,7 @@ impl LspClient {
 
 pub struct DocumentFilter {
     /// The document must have this language id, if it exists
-    pub language_id: Option<String>,
+    pub language_id: LanguageId,
     /// The document's path must match this glob, if it exists
     pub pattern: Option<globset::GlobMatcher>,
     // TODO: URI Scheme from lsp-types document filter
@@ -507,7 +507,11 @@ impl DocumentFilter {
         filter: &lsp_types::DocumentFilter,
     ) -> DocumentFilter {
         DocumentFilter {
-            language_id: filter.language.clone(),
+            language_id: filter
+                .language
+                .as_deref()
+                .map(LanguageId::from_str)
+                .unwrap_or(LanguageId::Unknown),
             // TODO: clean this up
             pattern: filter
                 .pattern

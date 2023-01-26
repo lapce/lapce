@@ -14,6 +14,7 @@ use dyn_clone::DynClone;
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::{buffer::rope_text::RopeText, encoding::offset_utf16_to_utf8};
 use lapce_rpc::{
+    language_id::LanguageId,
     plugin::{PluginId, VoltID},
     style::{LineStyle, Style},
     RpcError,
@@ -106,14 +107,14 @@ pub enum PluginServerRpc {
         id: Id,
         method: &'static str,
         params: Params,
-        language_id: Option<String>,
+        language_id: LanguageId,
         path: Option<PathBuf>,
         rh: ResponseHandler<Value, RpcError>,
     },
     ServerNotification {
         method: &'static str,
         params: Params,
-        language_id: Option<String>,
+        language_id: LanguageId,
         path: Option<PathBuf>,
     },
     HostRequest {
@@ -127,13 +128,13 @@ pub enum PluginServerRpc {
         params: Params,
     },
     DidSaveTextDocument {
-        language_id: String,
+        language_id: LanguageId,
         path: PathBuf,
         text_document: TextDocumentIdentifier,
         text: Rope,
     },
     DidChangeTextDocument {
-        language_id: String,
+        language_id: LanguageId,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -165,8 +166,8 @@ pub struct PluginServerRpcHandler {
 
 pub trait PluginServerHandler {
     fn document_supported(
-        &mut self,
-        language_id: Option<&str>,
+        &self,
+        language_id: LanguageId,
         path: Option<&Path>,
     ) -> bool;
     fn method_registered(&mut self, method: &'static str) -> bool;
@@ -184,14 +185,14 @@ pub trait PluginServerHandler {
     );
     fn handle_did_save_text_document(
         &self,
-        language_id: String,
+        language_id: LanguageId,
         path: PathBuf,
         text_document: TextDocumentIdentifier,
         text: Rope,
     );
     fn handle_did_change_text_document(
         &mut self,
-        language_id: String,
+        language_id: LanguageId,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -267,7 +268,7 @@ impl PluginServerRpcHandler {
         &self,
         method: &'static str,
         params: P,
-        language_id: Option<String>,
+        language_id: LanguageId,
         path: Option<PathBuf>,
         check: bool,
     ) {
@@ -293,7 +294,7 @@ impl PluginServerRpcHandler {
         &self,
         method: &'static str,
         params: P,
-        language_id: Option<String>,
+        language_id: LanguageId,
         path: Option<PathBuf>,
         check: bool,
     ) -> Result<Value, RpcError> {
@@ -318,7 +319,7 @@ impl PluginServerRpcHandler {
         &self,
         method: &'static str,
         params: P,
-        language_id: Option<String>,
+        language_id: LanguageId,
         path: Option<PathBuf>,
         check: bool,
         f: impl RpcCallback<Value, RpcError> + 'static,
@@ -337,7 +338,7 @@ impl PluginServerRpcHandler {
         &self,
         method: &'static str,
         params: P,
-        language_id: Option<String>,
+        language_id: LanguageId,
         path: Option<PathBuf>,
         check: bool,
         rh: ResponseHandler<Value, RpcError>,
@@ -385,8 +386,7 @@ impl PluginServerRpcHandler {
                     path,
                     rh,
                 } => {
-                    if handler
-                        .document_supported(language_id.as_deref(), path.as_deref())
+                    if handler.document_supported(language_id, path.as_deref())
                         && handler.method_registered(method)
                     {
                         self.send_server_request(id, method, params, rh);
@@ -403,8 +403,7 @@ impl PluginServerRpcHandler {
                     language_id,
                     path,
                 } => {
-                    if handler
-                        .document_supported(language_id.as_deref(), path.as_deref())
+                    if handler.document_supported(language_id, path.as_deref())
                         && handler.method_registered(method)
                     {
                         self.send_server_notification(method, params);
@@ -576,29 +575,24 @@ impl PluginHostHandler {
 
     pub fn document_supported(
         &self,
-        language_id: Option<&str>,
+        language_id: LanguageId,
         path: Option<&Path>,
     ) -> bool {
-        match language_id {
-            Some(language_id) => {
-                for filter in self.document_selector.iter() {
-                    if (filter.language_id.is_none()
-                        || filter.language_id.as_deref() == Some(language_id))
-                        && (path.is_none()
-                            || filter.pattern.is_none()
-                            || filter
-                                .pattern
-                                .as_ref()
-                                .unwrap()
-                                .is_match(path.as_ref().unwrap()))
-                    {
-                        return true;
-                    }
-                }
-                false
+        for filter in self.document_selector.iter() {
+            if filter.language_id == language_id
+                && (path.is_none()
+                    || filter.pattern.is_none()
+                    || filter
+                        .pattern
+                        .as_ref()
+                        .unwrap()
+                        .is_match(path.as_ref().unwrap()))
+            {
+                return true;
             }
-            None => true,
         }
+
+        return false;
     }
 
     pub fn method_registered(&mut self, method: &'static str) -> bool {
@@ -719,8 +713,12 @@ impl PluginHostHandler {
         }
     }
 
-    fn check_save_capability(&self, language_id: &str, path: &Path) -> (bool, bool) {
-        if self.document_supported(Some(language_id), Some(path)) {
+    fn check_save_capability(
+        &self,
+        language_id: LanguageId,
+        path: &Path,
+    ) -> (bool, bool) {
+        if self.document_supported(language_id, Some(path)) {
             let (should_send, include_text) = self
                 .server_capabilities
                 .text_document_sync
@@ -744,8 +742,7 @@ impl PluginHostHandler {
 
         if let Some(options) = self.server_registrations.save.as_ref() {
             for filter in options.filters.iter() {
-                if (filter.language_id.is_none()
-                    || filter.language_id.as_deref() == Some(language_id))
+                if filter.language_id == language_id
                     && (filter.pattern.is_none()
                         || filter.pattern.as_ref().unwrap().is_match(path))
                 {
@@ -893,13 +890,13 @@ impl PluginHostHandler {
 
     pub fn handle_did_save_text_document(
         &self,
-        language_id: String,
+        language_id: LanguageId,
         path: PathBuf,
         text_document: TextDocumentIdentifier,
         text: Rope,
     ) {
         let (should_send, include_text) =
-            self.check_save_capability(language_id.as_str(), &path);
+            self.check_save_capability(language_id, &path);
         if !should_send {
             return;
         }
@@ -914,7 +911,7 @@ impl PluginHostHandler {
         self.server_rpc.server_notification(
             DidSaveTextDocument::METHOD,
             params,
-            Some(language_id),
+            language_id,
             Some(path),
             false,
         );
@@ -922,7 +919,7 @@ impl PluginHostHandler {
 
     pub fn handle_did_change_text_document(
         &mut self,
-        lanaguage_id: String,
+        language_id: LanguageId,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -985,7 +982,7 @@ impl PluginHostHandler {
         self.server_rpc.server_notification(
             DidChangeTextDocument::METHOD,
             params,
-            Some(lanaguage_id),
+            language_id,
             path,
             false,
         );
