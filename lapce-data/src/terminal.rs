@@ -270,7 +270,9 @@ impl TerminalPanelData {
             RunDebugMode::Debug => {
                 let dap_id = terminal.run_debug.as_ref()?.config.dap_id;
                 let dap = self.debug.daps.get(&dap_id)?;
-                proxy.proxy_rpc.dap_restart(dap.dap_id);
+                proxy
+                    .proxy_rpc
+                    .dap_restart(dap.dap_id, self.debug.source_breakpoints());
             }
         }
         let _ = self.event_sink.submit_command(

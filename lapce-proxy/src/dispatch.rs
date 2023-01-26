@@ -202,8 +202,11 @@ impl ProxyHandler for Dispatcher {
                     let _ = tx.send(Msg::Shutdown);
                 }
             }
-            DapStart { config } => {
-                let _ = self.catalog_rpc.dap_start(config);
+            DapStart {
+                config,
+                breakpoints,
+            } => {
+                let _ = self.catalog_rpc.dap_start(config, breakpoints);
             }
             DapProcessId {
                 dap_id,
@@ -224,8 +227,11 @@ impl ProxyHandler for Dispatcher {
             DapDisconnect { dap_id } => {
                 let _ = self.catalog_rpc.dap_disconnect(dap_id);
             }
-            DapRestart { dap_id } => {
-                let _ = self.catalog_rpc.dap_restart(dap_id);
+            DapRestart {
+                dap_id,
+                breakpoints,
+            } => {
+                let _ = self.catalog_rpc.dap_restart(dap_id, breakpoints);
             }
             InstallVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();

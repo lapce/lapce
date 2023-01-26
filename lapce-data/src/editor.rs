@@ -1004,6 +1004,7 @@ impl LapceEditorBufferData {
                 line,
                 verified: false,
                 offset: self.doc.buffer().offset_of_line(line),
+                message: None,
             });
             breakpoints.sort_by_key(|b| b.line);
         }

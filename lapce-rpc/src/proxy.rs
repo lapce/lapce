@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     buffer::BufferId,
-    dap_types::{DapId, RunDebugConfig, ThreadId},
+    dap_types::{DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
     file::FileNodeItem,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
@@ -240,6 +240,7 @@ pub enum ProxyNotification {
     },
     DapStart {
         config: RunDebugConfig,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
     },
     DapProcessId {
         dap_id: DapId,
@@ -262,6 +263,7 @@ pub enum ProxyNotification {
     },
     DapRestart {
         dap_id: DapId,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
     },
 }
 
@@ -890,8 +892,15 @@ impl ProxyRpcHandler {
         self.request_async(ProxyRequest::GetSelectionRange { path, positions }, f);
     }
 
-    pub fn dap_start(&self, config: RunDebugConfig) {
-        self.notification(ProxyNotification::DapStart { config })
+    pub fn dap_start(
+        &self,
+        config: RunDebugConfig,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+    ) {
+        self.notification(ProxyNotification::DapStart {
+            config,
+            breakpoints,
+        })
     }
 
     pub fn dap_process_id(&self, dap_id: DapId, process_id: u32, term_id: TermId) {
@@ -902,8 +911,15 @@ impl ProxyRpcHandler {
         })
     }
 
-    pub fn dap_restart(&self, dap_id: DapId) {
-        self.notification(ProxyNotification::DapRestart { dap_id })
+    pub fn dap_restart(
+        &self,
+        dap_id: DapId,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+    ) {
+        self.notification(ProxyNotification::DapRestart {
+            dap_id,
+            breakpoints,
+        })
     }
 
     pub fn dap_continue(&self, dap_id: DapId, thread_id: ThreadId) {

@@ -19,8 +19,10 @@ use lapce_rpc::{
         DapEvent, DapId, DapPayload, DapRequest, DapResponse, DapServer,
         DebuggerCapabilities, Disconnect, Initialize, Launch, Pause, PauseArguments,
         Request, RunDebugConfig, RunInTerminal, RunInTerminalArguments,
-        RunInTerminalResponse, StackFrame, StackTrace, StackTraceArguments,
-        StackTraceResponse, Terminate, ThreadId, Threads, ThreadsResponse,
+        RunInTerminalResponse, SetBreakpoints, SetBreakpointsArguments,
+        SetBreakpointsResponse, Source, SourceBreakpoint, StackFrame, StackTrace,
+        StackTraceArguments, StackTraceResponse, Terminate, ThreadId, Threads,
+        ThreadsResponse,
     },
     terminal::TermId,
     RpcError,
@@ -29,13 +31,17 @@ use parking_lot::Mutex;
 use serde::Serialize;
 use serde_json::Value;
 
-use super::{psp::ResponseHandler, PluginCatalogRpcHandler};
+use super::{
+    psp::{ResponseHandler, RpcCallback},
+    PluginCatalogRpcHandler,
+};
 
 pub struct DapClient {
     plugin_rpc: PluginCatalogRpcHandler,
     pub(crate) dap_rpc: DapRpcHandler,
     dap_server: DapServer,
     config: RunDebugConfig,
+    breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
     thread_id: Option<ThreadId>,
     term_id: Option<TermId>,
     stack_frames: HashMap<ThreadId, Vec<StackFrame>>,
@@ -50,6 +56,7 @@ impl DapClient {
     pub fn new(
         dap_server: DapServer,
         config: RunDebugConfig,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Result<Self> {
         let dap_rpc = DapRpcHandler::new(config.dap_id);
@@ -59,6 +66,7 @@ impl DapClient {
             dap_server,
             config,
             dap_rpc,
+            breakpoints,
             thread_id: None,
             term_id: None,
             stack_frames: HashMap::new(),
@@ -73,9 +81,10 @@ impl DapClient {
     pub fn start(
         dap_server: DapServer,
         config: RunDebugConfig,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Result<DapRpcHandler> {
-        let mut dap = Self::new(dap_server, config.clone(), plugin_rpc)?;
+        let mut dap = Self::new(dap_server, config, breakpoints, plugin_rpc)?;
         dap.start_process()?;
 
         let dap_rpc = dap.dap_rpc.clone();
@@ -199,6 +208,17 @@ impl DapClient {
     fn handle_host_event(&mut self, event: &DapEvent) -> Result<()> {
         match event {
             DapEvent::Initialized(_) => {
+                for (path, breakpoints) in self.breakpoints.clone().into_iter() {
+                    if let Ok(breakpoints) =
+                        self.dap_rpc.set_breakpoints(path.clone(), breakpoints)
+                    {
+                        self.plugin_rpc.core_rpc.dap_breakpoints_resp(
+                            self.config.dap_id,
+                            path,
+                            breakpoints.breakpoints.unwrap_or_default(),
+                        );
+                    }
+                }
                 // send dap configurations here
                 let result = self.dap_rpc.request::<ConfigurationDone>(());
             }
@@ -257,7 +277,9 @@ impl DapClient {
             }
             DapEvent::Thread { .. } => {}
             DapEvent::Output(_) => todo!(),
-            DapEvent::Breakpoint { reason, breakpoint } => todo!(),
+            DapEvent::Breakpoint { reason, breakpoint } => {
+                println!("breakpoint  {reason} {breakpoint:?}");
+            }
             DapEvent::Module { reason, module } => todo!(),
             DapEvent::LoadedSource { reason, source } => todo!(),
             DapEvent::Process(process) => {}
@@ -377,8 +399,9 @@ impl DapClient {
         Ok(())
     }
 
-    fn restart(&mut self) {
+    fn restart(&mut self, breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>) {
         self.restarted = true;
+        self.breakpoints = breakpoints;
         if !self.terminated {
             self.stop();
         } else {
@@ -391,7 +414,7 @@ pub enum DapRpc {
     HostRequest(DapRequest),
     HostEvent(DapEvent),
     Stop,
-    Restart,
+    Restart(HashMap<PathBuf, Vec<SourceBreakpoint>>),
     Shutdown,
     Disconnected,
 }
@@ -452,8 +475,8 @@ impl DapRpcHandler {
                 DapRpc::Stop => {
                     dap_client.stop();
                 }
-                DapRpc::Restart => {
-                    dap_client.restart();
+                DapRpc::Restart(breakpoints) => {
+                    dap_client.restart(breakpoints);
                 }
                 DapRpc::Shutdown => {
                     if let Some(term_id) = dap_client.term_id {
@@ -474,12 +497,46 @@ impl DapRpcHandler {
         }
     }
 
+    fn request_async<R: Request>(
+        &self,
+        params: R::Arguments,
+        f: impl RpcCallback<R::Result, RpcError> + 'static,
+    ) {
+        self.request_common::<R>(
+            R::COMMAND,
+            params,
+            ResponseHandler::Callback(Box::new(
+                |result: Result<DapResponse, RpcError>| {
+                    let result = match result {
+                        Ok(resp) => {
+                            if resp.success {
+                                serde_json::from_value(resp.body.into()).map_err(
+                                    |e| RpcError {
+                                        code: 0,
+                                        message: e.to_string(),
+                                    },
+                                )
+                            } else {
+                                Err(RpcError {
+                                    code: 0,
+                                    message: resp.message.unwrap_or_default(),
+                                })
+                            }
+                        }
+                        Err(e) => Err(e),
+                    };
+                    Box::new(f).call(result);
+                },
+            )),
+        );
+    }
+
     fn request<R: Request>(
         &self,
         params: R::Arguments,
     ) -> Result<R::Result, RpcError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
-        self.request_common(R::COMMAND, params, ResponseHandler::Chan(tx));
+        self.request_common::<R>(R::COMMAND, params, ResponseHandler::Chan(tx));
         let resp = rx
             .recv_timeout(std::time::Duration::from_secs(30))
             .map_err(|_| RpcError {
@@ -501,10 +558,10 @@ impl DapRpcHandler {
         }
     }
 
-    fn request_common<P: Serialize>(
+    fn request_common<R: Request>(
         &self,
         command: &'static str,
-        arguments: P,
+        arguments: R::Arguments,
         rh: ResponseHandler<DapResponse, RpcError>,
     ) {
         let seq = self.seq_counter.fetch_add(1, Ordering::Relaxed);
@@ -561,8 +618,8 @@ impl DapRpcHandler {
         let _ = self.rpc_tx.send(DapRpc::Stop);
     }
 
-    pub fn restart(&self) {
-        let _ = self.rpc_tx.send(DapRpc::Restart);
+    pub fn restart(&self, breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>) {
+        let _ = self.rpc_tx.send(DapRpc::Restart(breakpoints));
     }
 
     fn shutdown(&self) {
@@ -583,6 +640,31 @@ impl DapRpcHandler {
         self.request::<Terminate>(())
             .map_err(|e| anyhow!(e.message))?;
         Ok(())
+    }
+
+    pub fn set_breakpoints(
+        &self,
+        file: PathBuf,
+        breakpoints: Vec<SourceBreakpoint>,
+    ) -> Result<SetBreakpointsResponse> {
+        let params = SetBreakpointsArguments {
+            source: Source {
+                path: Some(file),
+                name: None,
+                source_reference: None,
+                presentation_hint: None,
+                origin: None,
+                sources: None,
+                adapter_data: None,
+                checksums: None,
+            },
+            breakpoints: Some(breakpoints),
+            source_modified: Some(false),
+        };
+        let resp = self
+            .request::<SetBreakpoints>(params)
+            .map_err(|e| anyhow!(e.message))?;
+        Ok(resp)
     }
 
     pub fn continue_thread(&self, thread_id: ThreadId) -> Result<ContinueResponse> {

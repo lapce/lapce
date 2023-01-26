@@ -34,7 +34,7 @@ use lapce_core::{
 use lapce_rpc::{
     buffer::BufferId,
     core::{CoreMessage, CoreNotification},
-    dap_types::RunDebugConfig,
+    dap_types::{RunDebugConfig, SourceBreakpoint},
     plugin::{VoltID, VoltInfo},
     proxy::ProxyResponse,
     source_control::FileDiff,
@@ -2400,7 +2400,10 @@ impl LapceTabData {
                 self.run_in_terminal(ctx, mode, config);
             }
             RunDebugMode::Debug => {
-                self.proxy.proxy_rpc.dap_start(config.clone());
+                self.proxy.proxy_rpc.dap_start(
+                    config.clone(),
+                    self.terminal.debug.source_breakpoints(),
+                );
             }
         }
     }
