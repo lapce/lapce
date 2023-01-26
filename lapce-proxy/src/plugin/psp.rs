@@ -745,7 +745,7 @@ impl PluginHostHandler {
             }
         }
 
-        return false;
+        false
     }
 
     /// Check if the server is interested in the given `language_id` or `path` given the text document sync event in `tds`.
@@ -777,7 +777,7 @@ impl PluginHostHandler {
             }
         }
 
-        return false;
+        false
     }
 
     fn register_capabilities(&mut self, registrations: Vec<Registration>) {
@@ -820,12 +820,13 @@ impl PluginHostHandler {
                 self.server_registrations.did_change = options
                     .watchers
                     .iter()
-                    .filter_map(|s| match Glob::new(s.glob_pattern.as_str()).ok() {
-                        Some(ok) => Some((
-                            s.kind.unwrap_or(WatchKind::all()),
-                            DocumentFilter::Pattern(ok.compile_matcher()),
-                        )),
-                        None => None,
+                    .filter_map(|fsw| {
+                        Glob::new(fsw.glob_pattern.as_str()).ok().map(|ok| {
+                            (
+                                fsw.kind.unwrap_or(WatchKind::all()),
+                                DocumentFilter::Pattern(ok.compile_matcher()),
+                            )
+                        })
                     })
                     .collect();
             }
