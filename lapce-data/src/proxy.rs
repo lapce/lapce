@@ -926,13 +926,7 @@ pub fn path_from_url(url: &Url) -> PathBuf {
     if let Some(path) = path.strip_prefix('/') {
         if let Some((maybe_drive_letter, _)) = path.split_once(['/', '\\']) {
             let b = maybe_drive_letter.as_bytes();
-            if b.len() == 2
-                && matches!(
-                    b[0],
-                    b'a'..=b'z' | b'A'..=b'Z'
-                )
-                && b[1] == b':'
-            {
+            if b.len() == 2 && b[0].is_ascii_alphabetic() && b[1] == b':' {
                 return PathBuf::from(path);
             }
         }
