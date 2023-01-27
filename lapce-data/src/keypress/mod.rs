@@ -1,34 +1,33 @@
 #![allow(clippy::module_inception)]
 
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-use druid::piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder};
-use druid::{Command, KbKey};
 use druid::{
-    Env, EventCtx, ExtEventSink, FontFamily, KeyEvent, Modifiers, PaintCtx, Point,
-    Rect, RenderContext, Size, Target,
+    piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
+    Command, Env, EventCtx, ExtEventSink, KbKey, KeyEvent, Modifiers, PaintCtx,
+    Point, Rect, RenderContext, Size, Target,
 };
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::mode::{Mode, Modes};
-use toml;
 
 mod keypress;
 mod loader;
 
-use crate::command::{
-    lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
-    LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
-};
-use crate::config::{Config, LapceTheme};
-use crate::keypress::loader::KeyMapLoader;
-
 pub use keypress::KeyPress;
+
+use keypress::Key;
+
+use crate::{
+    command::{
+        lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
+        LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
+    },
+    config::{LapceConfig, LapceTheme},
+    keypress::loader::KeyMapLoader,
+};
 
 const DEFAULT_KEYMAPS_COMMON: &str =
     include_str!("../../../defaults/keymaps-common.toml");
@@ -49,12 +48,12 @@ pub fn paint_key(
     ctx: &mut PaintCtx,
     text: &str,
     origin: Point,
-    config: &Config,
+    config: &LapceConfig,
 ) -> (Rect, PietTextLayout, Point) {
     let text_layout = ctx
         .text()
         .new_text_layout(text.to_string())
-        .font(FontFamily::SYSTEM_UI, 13.0)
+        .font(config.ui.font_family(), config.ui.font_size() as f64)
         .text_color(
             config
                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -63,7 +62,7 @@ pub fn paint_key(
         .build()
         .unwrap();
     let text_size = text_layout.size();
-    let text_layout_point = origin + (5.0, -(text_size.height / 2.0));
+    let text_layout_point = origin + (5.0, -text_layout.cap_center());
     let rect = Size::new(text_size.width, 0.0)
         .to_rect()
         .with_origin(origin + (5.0, 0.0))
@@ -86,12 +85,18 @@ pub enum Alignment {
 }
 
 impl KeyMap {
+    /// Returns the first [`KeyPress`] of this [`KeyMap`] that can be converted into
+    /// [`druid::HotKey`].
+    pub fn hotkey(&self) -> Option<druid::HotKey> {
+        self.key.iter().find_map(KeyPress::hotkey)
+    }
+
     pub fn paint(
         &self,
         ctx: &mut PaintCtx,
         origin: Point,
         align: Alignment,
-        config: &Config,
+        config: &LapceConfig,
     ) {
         let old_origin = origin;
 
@@ -106,7 +111,7 @@ impl KeyMap {
         let x_shift = match align {
             Alignment::Left => 0.0,
             Alignment::Center => (origin.x - old_origin.x) / 2.0,
-            Alignment::Right => (origin.x - old_origin.x),
+            Alignment::Right => origin.x - old_origin.x,
         };
 
         for (rect, text_layout, text_layout_pos) in items {
@@ -138,7 +143,28 @@ pub trait KeyPressFocus {
     fn expect_char(&self) -> bool {
         false
     }
+    fn focus_only(&self) -> bool {
+        false
+    }
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str);
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum EventRef<'a> {
+    Keyboard(&'a druid::KeyEvent),
+    Mouse(&'a druid::MouseEvent),
+}
+
+impl<'a> From<&'a druid::KeyEvent> for EventRef<'a> {
+    fn from(ev: &'a druid::KeyEvent) -> Self {
+        Self::Keyboard(ev)
+    }
+}
+
+impl<'a> From<&'a druid::MouseEvent> for EventRef<'a> {
+    fn from(ev: &'a druid::MouseEvent) -> Self {
+        Self::Mouse(ev)
+    }
 }
 
 #[derive(Clone)]
@@ -160,7 +186,7 @@ pub struct KeyPressData {
 }
 
 impl KeyPressData {
-    pub fn new(config: &Config, event_sink: ExtEventSink) -> Self {
+    pub fn new(config: &LapceConfig, event_sink: ExtEventSink) -> Self {
         let (keymaps, command_keymaps) =
             Self::get_keymaps(config).unwrap_or((IndexMap::new(), IndexMap::new()));
         let mut keypress = Self {
@@ -180,7 +206,7 @@ impl KeyPressData {
         keypress
     }
 
-    pub fn update_keymaps(&mut self, config: &Config) {
+    pub fn update_keymaps(&mut self, config: &LapceConfig) {
         if let Ok((new_keymaps, new_command_keymaps)) = Self::get_keymaps(config) {
             self.keymaps = Arc::new(new_keymaps);
             self.command_keymaps = Arc::new(new_command_keymaps);
@@ -224,11 +250,13 @@ impl KeyPressData {
         if let Some(cmd) = self.commands.get(command) {
             match cmd.kind {
                 CommandKind::Workbench(_) => {
-                    ctx.submit_command(Command::new(
-                        LAPCE_COMMAND,
-                        cmd.clone(),
-                        Target::Auto,
-                    ));
+                    if !focus.focus_only() {
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            cmd.clone(),
+                            Target::Auto,
+                        ));
+                    }
                     CommandExecuted::Yes
                 }
                 CommandKind::Move(_)
@@ -261,7 +289,7 @@ impl KeyPressData {
             return false;
         }
 
-        if let druid::KbKey::Character(c) = &keypress.key {
+        if let Key::Keyboard(druid::KbKey::Character(c)) = &keypress.key {
             if let Ok(n) = c.parse::<usize>() {
                 if self.count.is_some() || n > 0 {
                     self.count = Some(self.count.unwrap_or(0) * 10 + n);
@@ -274,10 +302,21 @@ impl KeyPressData {
     }
 
     fn get_key_modifiers(key_event: &KeyEvent) -> Modifiers {
-        let mut mods = key_event.mods;
+        // We only care about some modifiers
+        let mods = (Modifiers::ALT
+            | Modifiers::CONTROL
+            | Modifiers::SHIFT
+            | Modifiers::META)
+            & key_event.mods;
 
-        if matches!(key_event.key, KbKey::Shift | KbKey::Character(_)) {
-            mods.set(Modifiers::SHIFT, false);
+        if mods == Modifiers::SHIFT {
+            if let druid::KbKey::Character(c) = &key_event.key {
+                if !c.chars().all(|c| c.is_alphabetic()) {
+                    // We remove the shift if there's only shift pressed,
+                    // and the character isn't a letter
+                    return Modifiers::empty();
+                }
+            }
         }
 
         mods
@@ -291,32 +330,44 @@ impl KeyPressData {
             | KbKey::Alt
             | KbKey::Control => None,
             ref key => Some(KeyPress {
-                key: key.clone(),
+                key: Key::Keyboard(match key {
+                    druid::KbKey::Character(c) => {
+                        druid::KbKey::Character(c.to_lowercase())
+                    }
+                    key => key.clone(),
+                }),
                 mods: Self::get_key_modifiers(key_event),
             }),
         }
     }
 
-    pub fn key_down<T: KeyPressFocus>(
+    pub fn key_down<'a, T: KeyPressFocus>(
         &mut self,
         ctx: &mut EventCtx,
-        key_event: &KeyEvent,
+        event: impl Into<EventRef<'a>>,
         focus: &mut T,
         env: &Env,
     ) -> bool {
-        log::info!("Keypress: {key_event:?}");
+        let event = event.into();
+        log::info!(target: "lapce_data::keypress::key_down", "{event:?}");
 
-        // We are removing Shift modifier since the character is already upper case.
-        let mods = Self::get_key_modifiers(key_event);
-
-        if key_event.key == KbKey::Shift && mods.is_empty() {
-            return false;
-        }
-
-        let keypress = KeyPress {
-            key: key_event.key.clone(),
-            mods,
+        let keypress = match event {
+            EventRef::Keyboard(ev)
+                if ev.key == KbKey::Shift && ev.mods.is_empty() =>
+            {
+                return false;
+            }
+            EventRef::Keyboard(ev) => KeyPress {
+                key: Key::Keyboard(ev.key.clone()),
+                // We are removing Shift modifier since the character is already upper case.
+                mods: Self::get_key_modifiers(ev),
+            },
+            EventRef::Mouse(ev) => KeyPress {
+                key: Key::Mouse(ev.button),
+                mods: ev.mods,
+            },
         };
+        let mods = keypress.mods;
 
         let mode = focus.get_mode();
         if self.handle_count(focus, &keypress) {
@@ -379,12 +430,22 @@ impl KeyPressData {
 
         self.count = None;
 
-        if keypress.mods.is_empty() {
-            if let druid::KbKey::Character(c) = &key_event.key {
+        #[cfg(not(target_os = "macos"))]
+        if (keypress.mods - Modifiers::SHIFT).is_empty() {
+            if let Key::Keyboard(druid::KbKey::Character(c)) = &keypress.key {
                 focus.receive_char(ctx, c);
                 return true;
             }
         }
+
+        #[cfg(target_os = "macos")]
+        if (keypress.mods - (Modifiers::SHIFT | Modifiers::ALT)).is_empty() {
+            if let Key::Keyboard(druid::KbKey::Character(c)) = &keypress.key {
+                focus.receive_char(ctx, c);
+                return true;
+            }
+        }
+
         false
     }
 
@@ -393,9 +454,11 @@ impl KeyPressData {
         keypresses: &[KeyPress],
         check: &T,
     ) -> KeymapMatch {
+        let keypresses: Vec<KeyPress> =
+            keypresses.iter().map(KeyPress::to_lowercase).collect();
         let matches = self
             .keymaps
-            .get(keypresses)
+            .get(&keypresses)
             .map(|keymaps| {
                 keymaps
                     .iter()
@@ -467,12 +530,15 @@ impl KeyPressData {
         }
     }
 
-    fn get_file_array() -> Option<toml::value::Array> {
+    fn get_file_array() -> Option<toml_edit::ArrayOfTables> {
         let path = Self::file()?;
-        let content = std::fs::read(&path).ok()?;
-        let toml_value: toml::Value = toml::from_slice(&content).ok()?;
-        let table = toml_value.as_table()?;
-        table.get("keymaps")?.as_array().cloned()
+        let content = std::fs::read_to_string(path).ok()?;
+        let document: toml_edit::Document = content.parse().ok()?;
+        document
+            .as_table()
+            .get("keymaps")?
+            .as_array_of_tables()
+            .cloned()
     }
 
     pub fn filter_commands(&mut self, pattern: &str) {
@@ -512,11 +578,11 @@ impl KeyPressData {
 
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::FilterKeymaps(
+                LapceUICommand::FilterKeymaps {
                     pattern,
-                    Arc::new(filtered_commands_with_keymap),
-                    Arc::new(filtered_commands_without_keymap),
-                ),
+                    keymaps: Arc::new(filtered_commands_with_keymap),
+                    commands: Arc::new(filtered_commands_without_keymap),
+                },
                 Target::Auto,
             );
         });
@@ -524,7 +590,7 @@ impl KeyPressData {
 
     pub fn update_file(keymap: &KeyMap, keys: &[KeyPress]) -> Option<()> {
         let mut array = Self::get_file_array().unwrap_or_default();
-        if let Some(index) = array.iter().position(|value| {
+        let index = array.iter().position(|value| {
             Some(keymap.command.as_str())
                 == value.get("command").and_then(|c| c.as_str())
                 && keymap.when.as_deref()
@@ -535,103 +601,87 @@ impl KeyPressData {
                         .get("key")
                         .and_then(|v| v.as_str())
                         .map(KeyPress::parse)
-        }) {
+        });
+
+        if let Some(index) = index {
             if !keys.is_empty() {
-                array[index].as_table_mut()?.insert(
-                    "key".to_string(),
-                    toml::Value::String(
+                array.get_mut(index)?.insert(
+                    "key",
+                    toml_edit::value(toml_edit::Value::from(
                         keys.iter().map(|k| k.to_string()).join(" "),
-                    ),
+                    )),
                 );
             } else {
                 array.remove(index);
             };
         } else {
-            let mut table = toml::value::Table::new();
+            let mut table = toml_edit::Table::new();
             table.insert(
-                "command".to_string(),
-                toml::Value::String(keymap.command.clone()),
+                "command",
+                toml_edit::value(toml_edit::Value::from(keymap.command.clone())),
             );
             if !keymap.modes.is_empty() {
                 table.insert(
-                    "mode".to_string(),
-                    toml::Value::String(keymap.modes.to_string()),
+                    "mode",
+                    toml_edit::value(toml_edit::Value::from(
+                        keymap.modes.to_string(),
+                    )),
                 );
             }
             if let Some(when) = keymap.when.as_ref() {
                 table.insert(
-                    "when".to_string(),
-                    toml::Value::String(when.to_string()),
+                    "when",
+                    toml_edit::value(toml_edit::Value::from(when.to_string())),
                 );
             }
 
             if !keys.is_empty() {
                 table.insert(
-                    "key".to_string(),
-                    toml::Value::String(
+                    "key",
+                    toml_edit::value(toml_edit::Value::from(
                         keys.iter().map(|k| k.to_string()).join(" "),
-                    ),
+                    )),
                 );
-                array.push(toml::Value::Table(table.clone()));
+                array.push(table.clone());
             }
 
             if !keymap.key.is_empty() {
                 table.insert(
-                    "key".to_string(),
-                    toml::Value::String(
+                    "key",
+                    toml_edit::value(toml_edit::Value::from(
                         keymap.key.iter().map(|k| k.to_string()).join(" "),
-                    ),
+                    )),
                 );
                 table.insert(
-                    "command".to_string(),
-                    toml::Value::String(format!("-{}", keymap.command)),
+                    "command",
+                    toml_edit::value(toml_edit::Value::from(format!(
+                        "-{}",
+                        keymap.command
+                    ))),
                 );
-                array.push(toml::Value::Table(table.clone()));
+                array.push(table.clone());
             }
         }
 
-        let mut table = toml::value::Table::new();
-        table.insert("keymaps".to_string(), toml::Value::Array(array));
-        let value = toml::Value::Table(table);
-
+        let mut table = toml_edit::Document::new();
+        table.insert("keymaps", toml_edit::Item::ArrayOfTables(array));
         let path = Self::file()?;
-        std::fs::write(&path, toml::to_string(&value).ok()?.as_bytes()).ok()?;
+        std::fs::write(path, table.to_string().as_bytes()).ok()?;
         None
     }
 
     pub fn file() -> Option<PathBuf> {
-        let path = Config::dir().map(|d| {
-            d.join(if !cfg!(debug_assertions) {
-                "keymaps.toml"
-            } else {
-                "debug-keymaps.toml"
-            })
-        })?;
-
-        if let Some(dir) = path.parent() {
-            if !dir.exists() {
-                let _ = std::fs::create_dir_all(dir);
-            }
-        }
-
-        if !path.exists() {
-            let _ = std::fs::OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .open(&path);
-        }
-
-        Some(path)
+        LapceConfig::keymaps_file()
     }
 
     #[allow(clippy::type_complexity)]
     fn get_keymaps(
-        config: &Config,
+        config: &LapceConfig,
     ) -> Result<(
         IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
         IndexMap<String, Vec<KeyMap>>,
     )> {
-        let is_modal = config.lapce.modal;
+        let is_modal = config.core.modal;
 
         let mut loader = KeyMapLoader::new();
 
@@ -686,7 +736,7 @@ impl KeyPressFocus for DefaultKeyPressHandler {
     fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
-fn get_modes(toml_keymap: &toml::Value) -> Modes {
+fn get_modes(toml_keymap: &toml_edit::Table) -> Modes {
     toml_keymap
         .get("mode")
         .and_then(|v| v.as_str())
@@ -727,8 +777,9 @@ impl<'a> Condition<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::keypress::{Condition, KeyPressData, KeyPressFocus};
     use lapce_core::mode::Mode;
+
+    use crate::keypress::{Condition, KeyPressData, KeyPressFocus};
 
     struct MockFocus {
         accepted_conditions: &'static [&'static str],

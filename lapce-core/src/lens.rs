@@ -1,6 +1,6 @@
 use std::mem;
 
-use xi_rope::{
+use lapce_xi_rope::{
     interval::IntervalBounds,
     tree::{DefaultMetric, Leaf, Node, NodeInfo, TreeBuilder},
     Cursor, Delta, Interval, Metric,
@@ -53,10 +53,7 @@ impl Lens {
     }
 
     pub fn height_of_line(&self, line: usize) -> usize {
-        let max_line = self.0.len();
-        if line >= max_line {
-            return self.0.count::<LensMetric>(self.0.len());
-        }
+        let line = self.0.len().min(line);
         self.0.count::<LensMetric>(line)
     }
 

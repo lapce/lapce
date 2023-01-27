@@ -1,6 +1,7 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use druid::WidgetId;
+use indexmap::IndexMap;
 
 pub type Match = (usize, (usize, usize), String);
 #[derive(Clone)]
@@ -9,7 +10,7 @@ pub struct SearchData {
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub editor_view_id: WidgetId,
-    pub matches: Arc<HashMap<PathBuf, Vec<Match>>>,
+    pub matches: Arc<IndexMap<PathBuf, Vec<Match>>>,
 }
 
 impl SearchData {
@@ -20,7 +21,7 @@ impl SearchData {
             widget_id: WidgetId::next(),
             split_id: WidgetId::next(),
             editor_view_id,
-            matches: Arc::new(HashMap::new()),
+            matches: Arc::new(IndexMap::new()),
         }
     }
 }

@@ -1,3 +1,9 @@
+# --------------------------------- Window ---------------------------------------------
+
+[[keymaps]]
+command = "close_window"
+key = "Alt+F4"
+
 # --------------------------------- General --------------------------------------------
 
 [[keymaps]]
@@ -5,7 +11,7 @@ key = "ctrl+p"
 command = "palette"
 
 [[keymaps]]
-key = "Ctrl+P"
+key = "ctrl+shift+p"
 command = "palette.command"
 
 [[keymaps]]
@@ -21,6 +27,18 @@ command = "open_settings"
 key = "ctrl+k ctrl+s"
 command = "open_keyboard_shortcuts"
 
+# --------------------------------- Terminal copy/paste ---------------------------------
+
+[[keymaps]]
+key = "ctrl+shift+c"
+command = "clipboard_copy"
+mode = "t"
+
+[[keymaps]]
+key = "ctrl+shift+v"
+command = "clipboard_paste"
+mode = "t"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
@@ -29,7 +47,13 @@ command = "undo"
 mode = "i"
 
 [[keymaps]]
-key = "ctrl+Z"
+key = "ctrl+shift+z"
+command = "redo"
+mode = "i"
+
+
+[[keymaps]]
+key = "ctrl+y"
 command = "redo"
 mode = "i"
 
@@ -39,7 +63,17 @@ command = "clipboard_cut"
 mode = "i"
 
 [[keymaps]]
+key = "shift+Delete"
+command = "clipboard_cut"
+mode = "i"
+
+[[keymaps]]
 key = "ctrl+c"
+command = "clipboard_copy"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+insert"
 command = "clipboard_copy"
 mode = "i"
 
@@ -49,12 +83,17 @@ command = "clipboard_paste"
 mode = "i"
 
 [[keymaps]]
+key = "shift+insert"
+command = "clipboard_paste"
+mode = "i"
+
+[[keymaps]]
 key = "ctrl+f"
 command = "search"
 
 [[keymaps]]
 key = "ctrl+right"
-command = "word_forward"
+command = "word_end_forward"
 mode = "i"
 
 [[keymaps]]
@@ -121,7 +160,7 @@ command = "select_current_line"
 mode = "i"
 
 [[keymaps]]
-key = "ctrl+L"
+key = "ctrl+shift+l"
 command = "select_all_current"
 mode = "i"
 
@@ -150,6 +189,10 @@ command = "save"
 key = "ctrl+o"
 command = "open_file"
 
+[[keymaps]]
+key = "ctrl+n"
+command = "new_file"
+
 # ----------------------------------- Editor Management -------------------------------
 
 [[keymaps]]
@@ -169,7 +212,7 @@ command = "split_close"
 key = "ctrl+\\"
 command = "split_vertical"
 
-# --------------------------------- Rich Lanaguage Editing ----------------------------
+# --------------------------------- Rich Language Editing ----------------------------
 
 [[keymaps]]
 key = "ctrl+space"
@@ -182,25 +225,30 @@ command = "get_completion"
 mode = "i"
 
 [[keymaps]]
+key = "ctrl+shift+space"
+command = "get_signature"
+mode = "i"
+
+[[keymaps]]
 key = "ctrl+."
 command = "show_code_actions"
 
 # --------------------------------- Display -------------------------------------------
 
 [[keymaps]]
-key = "ctrl+E"
+key = "ctrl+shift+e"
 command = "toggle_file_explorer_focus"
 
 [[keymaps]]
-key = "ctrl+F"
+key = "ctrl+shift+f"
 command = "toggle_search_focus"
 
 [[keymaps]]
-key = "ctrl+X"
+key = "ctrl+shift+x"
 command = "toggle_plugin_focus"
 
 [[keymaps]]
-key = "ctrl+M"
+key = "ctrl+shift+m"
 command = "toggle_problem_focus"
 
 # ------------------------------------ Navigation -------------------------------------
@@ -214,8 +262,12 @@ key = "Ctrl+End"
 command = "document_end"
 
 [[keymaps]]
-key = "ctrl+O"
+key = "ctrl+shift+o"
 command = "palette.symbol"
+
+[[keymaps]]
+key = "ctrl+t"
+command = "palette.workspace_symbol"
 
 [[keymaps]]
 key = "ctrl+g"

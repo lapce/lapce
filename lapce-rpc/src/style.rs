@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -11,7 +11,15 @@ pub struct LineStyle {
     pub style: Style,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Style {
     pub fg_color: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SemanticStyles {
+    pub rev: u64,
+    pub path: PathBuf,
+    pub len: usize,
+    pub styles: Vec<LineStyle>,
 }

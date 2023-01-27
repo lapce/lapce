@@ -5,7 +5,7 @@
   </a>
 </h1>
 
-<h4 align="center">Lightning-fast and Powerful Code Editor written in Rust</h4>
+<h4 align="center">Lightning-fast And Powerful Code Editor</h4>
 
 <div align="center">
   <a href="https://github.com/lapce/lapce/actions/workflows/ci.yml" target="_blank">
@@ -24,41 +24,35 @@
 <br/>
 
 
-Lapce is written in pure Rust, with the UI in [Druid](https://github.com/linebender/druid). It uses [Xi-Editor's](https://github.com/xi-editor/xi-editor) [Rope Science](https://xi-editor.io/docs/rope_science_00.html) for text editing, and the [Wgpu Graphics API](https://github.com/gfx-rs/wgpu) for rendering. More information can be found on the [website](https://lapce.dev).
+Lapce (IPA: /læps/) is written in pure Rust with a UI in [Druid](https://github.com/linebender/druid) (which is also written in Rust). It is designed with [Rope Science](https://xi-editor.io/docs/rope_science_00.html) from the [Xi-Editor](https://github.com/xi-editor/xi-editor) which makes for lightning-fast computation, and leverages [OpenGL](https://www.opengl.org/) for rendering. More information about the features of Lapce can be found on the [main website](https://lapce.dev) and user documentation can be found on [GitBook](https://docs.lapce.dev/).
 
 ![](https://github.com/lapce/lapce/blob/master/extra/images/screenshot.png?raw=true)
 
 ## Features
 
-* Modal Editing (Vim like) support as first class citizen (can be turned off as well)
-* Built-in LSP (Language Server Protocol) support to give you code intelligence like code completion, diagnostics and code actions etc.
-* Built-in remote development support (inspired by [VSCode Remote Development](https://code.visualstudio.com/docs/remote/remote-overview)) for a seamless "local" experience, benefiting from the full power of the remote system.
+* Built-in LSP ([Language Server Protocol](https://microsoft.github.io/language-server-protocol/)) support to give you intelligent code features such as: completion, diagnostics and code actions
+* Modal editing support as first class citizen (Vim-like, and toggleable)
+* Built-in remote development support inspired by [VSCode Remote Development](https://code.visualstudio.com/docs/remote/remote-overview). Enjoy the benefits of a "local" experience, and seamlessly gain the full power of a remote system.
 * Plugins can be written in programming languages that can compile to the [WASI](https://wasi.dev/) format (C, Rust, [AssemblyScript](https://www.assemblyscript.org/))
 * Built-in terminal, so you can execute commands in your workspace, without leaving Lapce.
 
+## Installation
+
+You can find pre-built releases for Windows, Linux and macOS [here](https://github.com/lapce/lapce/releases), or [installing with a package manager](docs/installing-with-package-manager.md).
+If you'd like to compile from source, you can find the [guide](docs/building-from-source.md).
+
 ## Contributing
 
-The guidelines about contributing to Lapce can be found in
-[`CONTRIBUTING.md`](CONTRIBUTING.md).
+Guidelines for contributing to Lapce can be found in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## Build from source
+## Feedback & Contact
 
-### Install the Rust compiler with `rustup`
+The most popular place for Lapce developers and users is on the [Discord server](https://discord.gg/n8tGJ6Rn6D).
 
-1. Install [`rustup.rs`](https://rustup.rs/).
+Or, join the discussion on [Reddit](https://www.reddit.com/r/lapce/) where we are just getting started.
 
-### Dependencies
-#### Ubuntu
-```sh
-sudo apt install cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev python3
-```
-### Building
-```sh
-cargo build --release
-```
-The compiled executable will be available at `target/release/lapce`
+There is also a [Matrix Space](https://matrix.to/#/#lapce-editor:matrix.org), which is linked to the content from the Discord server.
 
-## Feedback
+## License
 
-* Chat on [Discord](https://discord.gg/n8tGJ6Rn6D)
-* Or join the discussion on [Reddit](https://www.reddit.com/r/lapce/)
+Lapce is released under the Apache License Version 2, which is an open source license. You may contribute to this project, or use the code as you please as long as you adhere to its conditions. You can find a copy of the license text here: [`LICENSE`](LICENSE).

@@ -8,28 +8,30 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
-use directories::ProjectDirs;
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
-use lsp_types::Position;
+use lapce_core::directory::Directory;
+use lapce_rpc::plugin::VoltID;
+use lapce_xi_rope::Rope;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    buffer::{Buffer, BufferContent},
-    config::Config,
+    config::LapceConfig,
     data::{
         EditorTabChild, LapceData, LapceEditorData, LapceEditorTabData,
-        LapceMainSplitData, LapceTabData, LapceWindowData, SplitContent, SplitData,
+        LapceMainSplitData, LapceTabData, LapceWindowData, LapceWorkspace,
+        SplitContent, SplitData,
     },
-    document::Document,
-    editor::EditorLocationNew,
+    document::{BufferContent, Document, LocalBufferKind},
+    editor::EditorLocation,
+    panel::{PanelData, PanelOrder},
     split::SplitDirection,
-    state::LapceWorkspace,
 };
 
 pub enum SaveEvent {
     Workspace(LapceWorkspace, WorkspaceInfo),
     Tabs(TabsInfo),
     Buffer(BufferInfo),
+    RecentWorkspace(LapceWorkspace),
 }
 
 #[derive(Clone)]
@@ -49,9 +51,9 @@ impl SplitContentInfo {
         &self,
         data: &mut LapceMainSplitData,
         parent_split: Option<WidgetId>,
-        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
+        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> SplitContent {
         match &self {
@@ -93,9 +95,9 @@ impl EditorTabInfo {
         &self,
         data: &mut LapceMainSplitData,
         split: WidgetId,
-        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
+        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> LapceEditorTabData {
         let editor_tab_id = WidgetId::next();
@@ -135,6 +137,8 @@ impl EditorTabInfo {
 #[derive(Clone, Serialize, Deserialize)]
 pub enum EditorTabChildInfo {
     Editor(EditorInfo),
+    Settings,
+    Plugin { volt_id: VoltID, volt_name: String },
 }
 
 impl EditorTabChildInfo {
@@ -142,9 +146,9 @@ impl EditorTabChildInfo {
         &self,
         data: &mut LapceMainSplitData,
         editor_tab_id: WidgetId,
-        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
+        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> EditorTabChild {
         match &self {
@@ -157,7 +161,36 @@ impl EditorTabChildInfo {
                     config,
                     event_sink,
                 );
-                EditorTabChild::Editor(editor_data.view_id, editor_data.find_view_id)
+                EditorTabChild::Editor(
+                    editor_data.view_id,
+                    editor_data.editor_id,
+                    editor_data.find_view_id,
+                )
+            }
+            EditorTabChildInfo::Settings => {
+                let editor = LapceEditorData::new(
+                    None,
+                    None,
+                    None,
+                    BufferContent::Local(LocalBufferKind::Keymap),
+                    config,
+                );
+                let keymap_input_view_id = editor.view_id;
+                data.editors.insert(editor.view_id, Arc::new(editor));
+
+                EditorTabChild::Settings {
+                    settings_widget_id: WidgetId::next(),
+                    editor_tab_id,
+                    keymap_input_view_id,
+                }
+            }
+            EditorTabChildInfo::Plugin { volt_id, volt_name } => {
+                EditorTabChild::Plugin {
+                    widget_id: WidgetId::next(),
+                    volt_id: volt_id.clone(),
+                    volt_name: volt_name.to_string(),
+                    editor_tab_id,
+                }
             }
         }
     }
@@ -174,9 +207,9 @@ impl SplitInfo {
         &self,
         data: &mut LapceMainSplitData,
         parent_split: Option<WidgetId>,
-        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
+        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> SplitData {
         let split_id = WidgetId::next();
@@ -208,12 +241,14 @@ impl SplitInfo {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WorkspaceInfo {
     pub split: SplitInfo,
+    pub panel: PanelData,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WindowInfo {
     pub size: Size,
     pub pos: Point,
+    pub maximised: bool,
     pub tabs: TabsInfo,
 }
 
@@ -234,8 +269,9 @@ pub struct BufferInfo {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct EditorInfo {
     pub content: BufferContent,
+    pub unsaved: Option<String>,
     pub scroll_offset: (f64, f64),
-    pub position: Option<Position>,
+    pub position: Option<usize>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -248,12 +284,13 @@ impl EditorInfo {
         &self,
         data: &mut LapceMainSplitData,
         editor_tab_id: WidgetId,
-        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
+        editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocation)>>,
         tab_id: WidgetId,
-        config: &Config,
+        config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> LapceEditorData {
         let editor_data = LapceEditorData::new(
+            None,
             None,
             Some(editor_tab_id),
             self.content.clone(),
@@ -266,7 +303,7 @@ impl EditorInfo {
 
             editor_positions.get_mut(path).unwrap().push((
                 editor_data.view_id,
-                EditorLocationNew {
+                EditorLocation {
                     path: path.clone(),
                     position: self.position,
                     scroll_offset: Some(Vec2::new(
@@ -277,20 +314,29 @@ impl EditorInfo {
                 },
             ));
 
-            if !data.open_files.contains_key(path) {
-                let buffer = Arc::new(Buffer::new(
-                    BufferContent::File(path.clone()),
-                    tab_id,
-                    event_sink.clone(),
-                ));
-                data.open_files.insert(path.clone(), buffer);
-                let doc = Arc::new(Document::new(
-                    BufferContent::File(path.clone()),
+            if !data.open_docs.contains_key(path) {
+                data.open_docs.insert(
+                    path.clone(),
+                    Arc::new(Document::new(
+                        BufferContent::File(path.clone()),
+                        tab_id,
+                        event_sink,
+                        data.proxy.clone(),
+                    )),
+                );
+            }
+        } else if let BufferContent::Scratch(id, _) = &self.content {
+            if !data.scratch_docs.contains_key(id) {
+                let mut doc = Document::new(
+                    self.content.clone(),
                     tab_id,
                     event_sink,
                     data.proxy.clone(),
-                ));
-                data.open_docs.insert(path.clone(), doc);
+                );
+                if let Some(text) = &self.unsaved {
+                    doc.reload(Rope::from(text), false);
+                }
+                data.scratch_docs.insert(*id, Arc::new(doc));
             }
         }
         data.insert_editor(Arc::new(editor_data.clone()), config);
@@ -300,17 +346,13 @@ impl EditorInfo {
 
 impl LapceDb {
     pub fn new() -> Result<Self> {
-        let proj_dirs = ProjectDirs::from("", "", "Lapce")
-            .ok_or_else(|| anyhow!("can't find project dirs"))?;
-        let path = proj_dirs.config_dir().join(if !cfg!(debug_assertions) {
-            "lapce.db"
-        } else {
-            "debug-lapce.db"
-        });
+        let path = Directory::config_directory()
+            .ok_or_else(|| anyhow!("can't get config directory"))?
+            .join("lapce.db");
         let (save_tx, save_rx) = unbounded();
 
         let sled_db = sled::Config::default()
-            .path(&path)
+            .path(path)
             .flush_every_ms(None)
             .open()
             .ok();
@@ -329,6 +371,9 @@ impl LapceDb {
                     }
                     SaveEvent::Buffer(info) => {
                         let _ = local_db.insert_buffer(&info);
+                    }
+                    SaveEvent::RecentWorkspace(workspace) => {
+                        let _ = local_db.insert_recent_workspace(workspace);
                     }
                 }
             }
@@ -387,7 +432,7 @@ impl LapceDb {
         let key = "recent_workspaces";
         let sled_db = self.get_db()?;
         let workspaces = sled_db
-            .get(&key)?
+            .get(key)?
             .ok_or_else(|| anyhow!("can't find recent workspaces"))?;
         let workspaces = std::str::from_utf8(&workspaces)?;
         let workspaces: Vec<LapceWorkspace> = serde_json::from_str(workspaces)?;
@@ -401,11 +446,43 @@ impl LapceDb {
         let workspace = workspace.to_string();
         let sled_db = self.get_db()?;
         let info = sled_db
-            .get(&workspace)?
+            .get(workspace)?
             .ok_or_else(|| anyhow!("can't find workspace info"))?;
         let info = std::str::from_utf8(&info)?;
         let info: WorkspaceInfo = serde_json::from_str(info)?;
         Ok(info)
+    }
+
+    /// fetches all the files stored in the database that are tagged as `unsaved_buffer`.<br>
+    /// Returns a hashmap of the form HashMap<path, file_content><br>
+    /// *Note: The file is deleted from the database right after as to prevent "ghost" buffers*
+    pub fn get_unsaved_buffers(&self) -> Result<im::HashMap<String, String>> {
+        let sled_db = self.get_db()?;
+        let mut buffers = im::HashMap::new();
+
+        let res = match sled_db.get("unsaved_buffers") {
+            Ok(val) => match val {
+                Some(buffers) => buffers,
+                None => return Ok(buffers),
+            },
+            Err(err) => return Err(anyhow!(err)),
+        };
+
+        let res = String::from_utf8(res.to_vec())
+            .expect("invalid utf-8 sequence retrieving unsaved buffer");
+
+        let res: Vec<String> = serde_json::from_str(&res)?;
+        if res.len() % 2 != 0 {
+            return Err(anyhow!("Deserialized Unsaved buffer size is not even: this should never happen"));
+        }
+
+        for i in (0..res.len()).step_by(2) {
+            let key = res.get(i).unwrap().clone();
+            let value = res.get(i + 1).unwrap().clone();
+            buffers.insert(key, value);
+        }
+        sled_db.remove("unsaved_buffers")?;
+        Ok(buffers)
     }
 
     pub fn get_buffer_info(
@@ -440,6 +517,49 @@ impl LapceDb {
         Ok(())
     }
 
+    pub fn save_disabled_volts(&self, volts: Vec<&VoltID>) -> Result<()> {
+        let sled_db = self.get_db()?;
+        let volts = serde_json::to_string(&volts)?;
+        sled_db.insert(b"disabled_volts", volts.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
+    pub fn get_disabled_volts(&self) -> Result<Vec<VoltID>> {
+        let sled_db = self.get_db()?;
+        let volts = sled_db
+            .get("disabled_volts")?
+            .ok_or_else(|| anyhow!("can't find disable volts"))?;
+        let volts = std::str::from_utf8(&volts)?;
+        let volts: Vec<VoltID> = serde_json::from_str(volts)?;
+        Ok(volts)
+    }
+
+    pub fn save_workspace_disabled_volts(
+        &self,
+        workspace: &LapceWorkspace,
+        volts: Vec<&VoltID>,
+    ) -> Result<()> {
+        let sled_db = self.get_db()?;
+        let volts = serde_json::to_string(&volts)?;
+        sled_db.insert(format!("disabled_volts:{workspace}"), volts.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
+    pub fn get_workspace_disabled_volts(
+        &self,
+        workspace: &LapceWorkspace,
+    ) -> Result<Vec<VoltID>> {
+        let sled_db = self.get_db()?;
+        let volts = sled_db
+            .get(format!("disabled_volts:{workspace}"))?
+            .ok_or_else(|| anyhow!("can't find disable volts"))?;
+        let volts = std::str::from_utf8(&volts)?;
+        let volts: Vec<VoltID> = serde_json::from_str(volts)?;
+        Ok(volts)
+    }
+
     pub fn save_last_window(&self, window: &LapceWindowData) {
         let info = window.info();
         let _ = self.insert_last_window_info(info);
@@ -463,6 +583,24 @@ impl LapceDb {
         Ok(info)
     }
 
+    pub fn get_panel_orders(&self) -> Result<PanelOrder> {
+        let sled_db = self.get_db()?;
+        let panel_orders = sled_db
+            .get("panel_orders")?
+            .ok_or_else(|| anyhow!("can't find panel orders"))?;
+        let panel_orders = std::str::from_utf8(&panel_orders)?;
+        let panel_orders: PanelOrder = serde_json::from_str(panel_orders)?;
+        Ok(panel_orders)
+    }
+
+    pub fn save_panel_orders(&self, order: &PanelOrder) -> Result<()> {
+        let info = serde_json::to_string(order)?;
+        let sled_db = self.get_db()?;
+        sled_db.insert("panel_orders", info.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
     fn insert_workspace(
         &self,
         workspace: &LapceWorkspace,
@@ -480,7 +618,34 @@ impl LapceDb {
         let workspace = (*data.workspace).clone();
         let workspace_info = data.workspace_info();
 
+        // Buffer for auto save on quit
+        let main_split = &data.main_split;
+
         self.insert_workspace(&workspace, &workspace_info)?;
+        self.insert_unsaved_buffer(main_split)?;
+
+        Ok(())
+    }
+
+    fn insert_unsaved_buffer(&self, main_split: &LapceMainSplitData) -> Result<()> {
+        let sled_db = self.get_db()?;
+        // Vec of all unsaved buffers of format path_buff, file_content
+        let mut unsaved_buffers = Vec::new();
+
+        for (path, doc) in &main_split.open_docs {
+            if !doc.buffer().is_pristine() && doc.content().is_file() {
+                let path_str = path.to_str().unwrap();
+                let buf_text = doc.buffer().to_string();
+                unsaved_buffers.push(path_str.to_string());
+                unsaved_buffers.push(buf_text);
+            }
+        }
+        if !unsaved_buffers.is_empty() {
+            let tmp = serde_json::to_string(&unsaved_buffers).unwrap();
+            sled_db.insert("unsaved_buffers", tmp.as_str())?;
+            sled_db.flush()?;
+        }
+
         Ok(())
     }
 
@@ -523,7 +688,7 @@ impl LapceDb {
             .enumerate()
             .map(|(i, w)| {
                 let tab = data.tabs.get(w).unwrap();
-                if tab.id == data.active_id {
+                if tab.id == *data.active_id {
                     active_tab = i;
                 }
                 (*tab.workspace).clone()
@@ -534,6 +699,57 @@ impl LapceDb {
             workspaces,
         };
         self.save_tx.send(SaveEvent::Tabs(info))?;
+        Ok(())
+    }
+
+    pub fn recent_workspaces(&self) -> Result<Vec<LapceWorkspace>> {
+        let sled_db = self.get_db()?;
+        let workspaces = sled_db
+            .get("recent_workspaces")?
+            .ok_or_else(|| anyhow!("can't find disable volts"))?;
+        let workspaces = std::str::from_utf8(&workspaces)?;
+        let workspaces: Vec<LapceWorkspace> = serde_json::from_str(workspaces)?;
+        Ok(workspaces)
+    }
+
+    pub fn update_recent_workspace(&self, workspace: LapceWorkspace) -> Result<()> {
+        if workspace.path.is_none() {
+            return Ok(());
+        }
+        self.save_tx.send(SaveEvent::RecentWorkspace(workspace))?;
+        Ok(())
+    }
+
+    fn insert_recent_workspace(&self, workspace: LapceWorkspace) -> Result<()> {
+        let sled_db = self.get_db()?;
+
+        let mut workspaces = self.recent_workspaces().unwrap_or_default();
+
+        let mut exits = false;
+        for w in workspaces.iter_mut() {
+            if w.path == workspace.path && w.kind == workspace.kind {
+                w.last_open = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                exits = true;
+                break;
+            }
+        }
+        if !exits {
+            let mut workspace = workspace;
+            workspace.last_open = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            workspaces.push(workspace);
+        }
+        workspaces.sort_by_key(|w| -(w.last_open as i64));
+        let workspaces = serde_json::to_string(&workspaces)?;
+
+        sled_db.insert("recent_workspaces", workspaces.as_str())?;
+        sled_db.flush()?;
+
         Ok(())
     }
 }

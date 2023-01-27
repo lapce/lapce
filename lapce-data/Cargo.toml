@@ -1,60 +1,67 @@
 [package]
 name = "lapce-data"
-version = "0.0.12"
-authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-bitflags = "1"
-chrono = "0.4.19"
-log = "0.4.14"
-fern = "0.6.0"
-Inflector = "0.11.4"
-rayon = "1.5.1"
-diff = "0.1.12"
-libloading = "0.7"
-flate2 = "1.0.22"
-ureq = { version = "2.4.0", features = ["json"] }
-hashbrown = "0.11.2"
+alacritty_terminal.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+crossbeam-channel.workspace = true
+directories.workspace = true
+flate2.workspace = true
+hashbrown.workspace = true
+im.workspace = true
+include_dir.workspace = true
+indexmap.workspace = true
+interprocess.workspace = true
+itertools.workspace = true
+log.workspace = true
+notify.workspace = true
+once_cell.workspace = true
+parking_lot.workspace = true
+rayon.workspace = true
+regex.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+smallvec.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+tar.workspace = true
+thiserror.workspace = true
+toml_edit.workspace = true
+
+lsp-types.workspace = true
+
+lapce-xi-rope.workspace = true
+
+lapce-core.workspace = true
+lapce-rpc.workspace = true
+lapce-proxy.workspace = true
+
+druid.workspace = true
+
+sha2 = "0.10.6"
+fs_extra = "1.2.0"
 sled = "0.34.7"
-base64 = "0.13.0"
-alacritty_terminal = "0.16"
-config = "0.11"
-indexmap = "1.7.0"
-directories = "4.0.1"
-tinyfiledialogs = "3.8.3"
-itertools = "0.10.1"
-unicode-width = "0.1.8"
-unicode-segmentation = "1.7.1"
-im = { version = "15.0.0", features = ["serde"] }
-crossbeam-channel = "0.5.0"
-crossbeam-utils = "0.8.4"
-regex = "1.4.2"
-jsonrpc-lite = "0.5.0"
-bit-vec = "0.5.0"
-parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
-include_dir = "0.6.0"
-thiserror = "1.0"
-anyhow = "1.0.32"
-strum = "0.24.0"
-strum_macros = "0.24"
-lazy_static = "1.4.0"
-serde = "1.0"
-serde_json = "1.0"
-notify = "5.0.0-pre.13"
-xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
-xi-unicode = "0.3.0"
+config = { version = "0.13.2", default-features = false, features = ["toml"] }
 fuzzy-matcher = "0.3.7"
-uuid = { version = "0.8.2", features = ["v4"] }
-lsp-types = { version = "0.89.2", features = ["proposed"] }
-druid = { git = "https://github.com/lapce/druid", branch = "opengl", features = [ "svg", "im", "serde", ] }
-# druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
-toml = { version = "0.5.8", features = ["preserve_order"] }
+uuid = { version = "1.2.2", features = ["v4"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
-#structdesc = { path = "../../structdesc" }
-lapce-core = { path = "../lapce-core" }
-lapce-rpc = { path = "../lapce-rpc" }
-lapce-proxy = { path = "../lapce-proxy" }
 bytemuck = "1.8.0"
 # For parsing markdown data, such as in hovers
 pulldown-cmark = "0.9.1"
+url = "2.3.1"
+
+[target.'cfg(target_os="macos")'.dependencies]
+dmg = "0.1.1"
+
+[target.'cfg(target_os="windows")'.dependencies]
+zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
+
+[features]
+updater = []
+portable = []

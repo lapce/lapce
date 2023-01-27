@@ -13,14 +13,8 @@ pub struct RegisterData {
 
 #[derive(Clone, Default)]
 pub struct Register {
-    pub unamed: RegisterData,
+    pub unnamed: RegisterData,
     last_yank: RegisterData,
-
-    #[allow(dead_code)]
-    last_deletes: [RegisterData; 10],
-
-    #[allow(dead_code)]
-    newest_delete: usize,
 }
 
 pub enum RegisterKind {
@@ -37,11 +31,11 @@ impl Register {
     }
 
     pub fn add_delete(&mut self, data: RegisterData) {
-        self.unamed = data;
+        self.unnamed = data;
     }
 
     pub fn add_yank(&mut self, data: RegisterData) {
-        self.unamed = data.clone();
+        self.unnamed = data.clone();
         self.last_yank = data;
     }
 }

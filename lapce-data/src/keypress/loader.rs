@@ -22,10 +22,10 @@ impl KeyMapLoader {
         s: &str,
         modal: bool,
     ) -> Result<&'a mut Self> {
-        let toml_keymaps: toml::Value = toml::from_str(s)?;
+        let toml_keymaps: toml_edit::Document = s.parse()?;
         let toml_keymaps = toml_keymaps
             .get("keymaps")
-            .and_then(|v| v.as_array())
+            .and_then(|v| v.as_array_of_tables())
             .ok_or_else(|| anyhow!("no keymaps"))?;
 
         for toml_keymap in toml_keymaps {
@@ -90,7 +90,10 @@ impl KeyMapLoader {
         (map, command_map)
     }
 
-    fn get_keymap(toml_keymap: &toml::Value, modal: bool) -> Result<Option<KeyMap>> {
+    fn get_keymap(
+        toml_keymap: &toml_edit::Table,
+        modal: bool,
+    ) -> Result<Option<KeyMap>> {
         let key = toml_keymap
             .get("key")
             .and_then(|v| v.as_str())
@@ -98,7 +101,11 @@ impl KeyMapLoader {
 
         let modes = get_modes(toml_keymap);
         // If not using modal editing, remove keymaps that only make sense in modal.
-        if !modal && !modes.is_empty() && !modes.contains(Modes::INSERT) {
+        if !modal
+            && !modes.is_empty()
+            && !modes.contains(Modes::INSERT)
+            && !modes.contains(Modes::TERMINAL)
+        {
             log::debug!("Keymap ignored: {}", key);
             return Ok(None);
         }
@@ -126,14 +133,47 @@ mod tests {
     #[test]
     fn test_keymap() {
         let keymaps = r###"
-keymaps = [
-    { key = "ctrl+w l l", command = "right", when = "n" },
-    { key = "ctrl+w l", command = "right", when = "n" },
-    { key = "ctrl+w h", command = "left", when = "n" },
-    { key = "ctrl+w",   command = "left", when = "n" },
-    { key = "End", command = "line_end", when = "n" },
-    { key = "I", command = "insert_first_non_blank", when = "n" },
-]
+[[keymaps]]
+key = "ctrl+w l l"
+command = "right"
+when = "n"
+
+[[keymaps]]
+key = "ctrl+w l"
+command = "right"
+when = "n"
+
+[[keymaps]]
+key = "ctrl+w h"
+command = "left"
+when = "n"
+
+[[keymaps]]
+key = "ctrl+w"
+command = "left"
+when = "n"
+
+[[keymaps]]
+key = "End"
+command = "line_end"
+when = "n"
+
+[[keymaps]]
+key = "shift+i"
+command = "insert_first_non_blank"
+when = "n"
+        
+[[keymaps]]
+key = "MouseForward"
+command = "jump_location_forward"
+
+[[keymaps]]
+key = "MouseBackward"
+command = "jump_location_backward"
+        
+[[keymaps]]
+key = "Ctrl+MouseMiddle"
+command = "goto_definition"
         "###;
         let mut loader = KeyMapLoader::new();
         loader.load_from_str(keymaps, true).unwrap();
@@ -173,7 +213,17 @@ keymaps = [
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
         // No modifier
-        let keypress = KeyPress::parse("I");
+        let keypress = KeyPress::parse("shift+i");
+        assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
+
+        // Mouse keys
+        let keypress = KeyPress::parse("MouseForward");
+        assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
+
+        let keypress = KeyPress::parse("mousebackward");
+        assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
+
+        let keypress = KeyPress::parse("Ctrl+MouseMiddle");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
     }
 }

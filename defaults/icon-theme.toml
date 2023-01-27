@@ -1,0 +1,12 @@
+#:schema ../extra/schemas/icon-theme.json
+
+[icon-theme]
+name = "Lapce Codicons"
+
+[icon-theme.ui]
+
+[icon-theme.foldername]
+
+[icon-theme.filename]
+
+[icon-theme.extension]

@@ -1,24 +1,37 @@
-use std::{iter::Iterator, sync::Arc};
+use std::{
+    collections::HashSet,
+    iter::Iterator,
+    ops::Sub,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+};
 
 use druid::{
     kurbo::Line,
+    menu::MenuEventCtx,
     piet::{Text, TextLayout as TextLayoutTrait, TextLayoutBuilder},
-    BoxConstraints, Command, Env, Event, EventCtx, FontFamily, LayoutCtx, LifeCycle,
+    BoxConstraints, Command, Env, Event, EventCtx, FontStyle, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetId,
 };
+use im::HashMap;
+use lapce_core::{command::FocusCommand, meta};
 use lapce_data::{
-    buffer::BufferContent,
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
-    data::{DragContent, EditorTabChild, LapceTabData},
+    command::{
+        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
+    },
+    config::{LapceIcons, LapceTheme},
+    data::{
+        DragContent, EditorTabChild, LapceData, LapceEditorTabData, LapceTabData,
+    },
+    db::EditorTabChildInfo,
+    document::BufferContent,
     editor::TabRect,
 };
+use lapce_rpc::source_control::FileDiff;
 
-use crate::{
-    editor::tab::TabRectRenderer,
-    svg::{file_svg_new, get_svg},
-};
+use crate::editor::tab::TabRectRenderer;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MouseAction {
@@ -30,8 +43,9 @@ enum MouseAction {
 pub struct LapceEditorTabHeaderContent {
     pub widget_id: WidgetId,
     pub rects: Vec<TabRect>,
-    mouse_pos: Point,
+    mouse_pos: Option<Point>,
     mouse_down_target: Option<(MouseAction, usize)>,
+    dedup_paths: HashMap<PathBuf, PathBuf>,
 }
 
 impl LapceEditorTabHeaderContent {
@@ -39,8 +53,9 @@ impl LapceEditorTabHeaderContent {
         Self {
             widget_id,
             rects: Vec::new(),
-            mouse_pos: Point::ZERO,
+            mouse_pos: None,
             mouse_down_target: None,
+            dedup_paths: HashMap::default(),
         }
     }
 
@@ -54,6 +69,9 @@ impl LapceEditorTabHeaderContent {
     }
 
     fn cancel_pending_drag(&mut self, data: &mut LapceTabData) {
+        if data.drag.is_none() {
+            return;
+        }
         *Arc::make_mut(&mut data.drag) = None;
     }
 
@@ -90,7 +108,10 @@ impl LapceEditorTabHeaderContent {
                     .unwrap();
                 let editor_tab = Arc::make_mut(editor_tab);
 
-                if editor_tab.active != tab_idx {
+                if *data.main_split.active_tab != Some(self.widget_id)
+                    || editor_tab.active != tab_idx
+                {
+                    data.main_split.active_tab = Arc::new(Some(self.widget_id));
                     editor_tab.active = tab_idx;
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
@@ -98,12 +119,50 @@ impl LapceEditorTabHeaderContent {
                         Target::Widget(editor_tab.children[tab_idx].widget_id()),
                     ));
                 }
-                self.mouse_pos = mouse_event.pos;
+                self.mouse_pos = Some(mouse_event.pos);
                 self.mouse_down_target = Some((MouseAction::Drag, tab_idx));
 
                 ctx.request_paint();
 
                 return;
+            }
+
+            if mouse_event.button.is_right() {
+                let file_explorer_id = data.file_explorer.widget_id;
+                let editor_tab =
+                    data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+                let tab_info = editor_tab.children[tab_idx].child_info(data);
+
+                let path = match tab_info {
+                    EditorTabChildInfo::Editor(info) => match info.content {
+                        BufferContent::File(path) => Some(path),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+
+                let is_worksapce_member = data
+                    .workspace
+                    .path
+                    .as_ref()
+                    .and_then(|workspace| {
+                        path.as_deref()
+                            .map(|path| path.starts_with(workspace.as_path()))
+                    })
+                    .unwrap_or(false);
+
+                let menu = LapceEditorTabHeaderContextMenu::new(
+                    tab_idx,
+                    editor_tab,
+                    file_explorer_id,
+                    path,
+                    is_worksapce_member,
+                )
+                .to_menu();
+                ctx.show_context_menu::<LapceData>(
+                    menu,
+                    ctx.to_window(mouse_event.pos),
+                );
             }
 
             if mouse_event.button.is_middle() {
@@ -120,13 +179,12 @@ impl LapceEditorTabHeaderContent {
         data: &mut LapceTabData,
         mouse_event: &MouseEvent,
     ) {
-        self.mouse_pos = mouse_event.pos;
+        self.mouse_pos = Some(mouse_event.pos);
         if self.tab_hit_test(mouse_event) {
             ctx.set_cursor(&druid::Cursor::Pointer);
         } else {
             ctx.clear_cursor();
         }
-        ctx.request_paint();
 
         if !mouse_event.buttons.contains(MouseButton::Left) {
             // If drag data exists, mouse was released outside of the view.
@@ -146,14 +204,72 @@ impl LapceEditorTabHeaderContent {
                     mouse_event.pos.to_vec2() - tab_rect.rect.origin().to_vec2();
                 *Arc::make_mut(&mut data.drag) = Some((
                     offset,
+                    mouse_event.window_pos.to_vec2(),
                     DragContent::EditorTab(
                         editor_tab.widget_id,
                         target,
                         editor_tab.children[target].clone(),
-                        tab_rect.clone(),
+                        Box::new(tab_rect.clone()),
                     ),
                 ));
             }
+        }
+    }
+
+    fn mouse_up(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        mouse_event: &MouseEvent,
+    ) {
+        let editor_tab = data
+            .main_split
+            .editor_tabs
+            .get_mut(&self.widget_id)
+            .unwrap();
+
+        let mut close_tab = |tab_idx: usize, was_active: bool| {
+            if was_active {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ActiveFileChanged { path: None },
+                    Target::Widget(data.file_explorer.widget_id),
+                ));
+            }
+
+            ctx.submit_command(Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Focus(FocusCommand::SplitClose),
+                    data: None,
+                },
+                Target::Widget(editor_tab.children[tab_idx].widget_id()),
+            ));
+        };
+
+        match self.mouse_down_target.take() {
+            // Was the left button released on the close icon that started the close?
+            Some((MouseAction::CloseViaIcon, target))
+                if self.is_close_icon_hit(target, mouse_event.pos)
+                    && mouse_event.button.is_left() =>
+            {
+                close_tab(target, target == editor_tab.active);
+            }
+
+            // Was the middle button released on the tab that started the close?
+            Some((MouseAction::CloseViaMiddleClick, target))
+                if self.is_tab_hit(target, mouse_event.pos)
+                    && mouse_event.button.is_middle() =>
+            {
+                close_tab(target, target == editor_tab.active);
+            }
+
+            None if mouse_event.button.is_left() => {
+                let mouse_index = self.drag_target_idx(mouse_event.pos);
+                self.handle_drag(mouse_index, ctx, data)
+            }
+
+            _ => {}
         }
     }
 
@@ -182,7 +298,7 @@ impl LapceEditorTabHeaderContent {
         ctx: &mut EventCtx,
         data: &mut LapceTabData,
     ) {
-        if let Some((_, DragContent::EditorTab(from_id, from_index, child, _))) =
+        if let Some((_, _, DragContent::EditorTab(from_id, from_index, child, _))) =
             Arc::make_mut(&mut data.drag).take()
         {
             let editor_tab = data
@@ -215,6 +331,7 @@ impl LapceEditorTabHeaderContent {
                 return;
             }
 
+            let mut child = child;
             child.set_editor_tab(data, editor_tab.widget_id);
             let editor_tab = data
                 .main_split
@@ -240,6 +357,41 @@ impl LapceEditorTabHeaderContent {
             ));
         }
     }
+
+    pub fn update_dedup_paths(&mut self, data: &LapceTabData) {
+        let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+        // Collect all the filenames we currently have
+        let mut dup_filenames: HashMap<&str, Vec<PathBuf>> = HashMap::default();
+        for child in &editor_tab.children {
+            if let EditorTabChild::Editor(view_id, _, _) = child {
+                let editor = data.main_split.editors.get(view_id).unwrap();
+                if let BufferContent::File(path) = &editor.content {
+                    if let Some(file_name) = path.file_name() {
+                        dup_filenames
+                            .entry(file_name.to_str().unwrap())
+                            .and_modify(|v| v.push(path.clone()))
+                            .or_insert(vec![path.clone()]);
+                    }
+                }
+            }
+        }
+
+        // Clear dedup paths so that we dont store closed files
+        // TODO: Can be optimized by listening to close file events?
+        self.dedup_paths.clear();
+
+        // Resolve each group of duplicates and insert into `self.dedup_paths`.
+        for (_, dup_paths) in dup_filenames.iter().filter(|v| v.1.len() > 1) {
+            for (original_path, truncated_path) in
+                dup_paths.iter().zip(get_truncated_path(dup_paths).iter())
+            {
+                self.dedup_paths.insert(
+                    original_path.to_path_buf(),
+                    truncated_path.to_path_buf(),
+                );
+            }
+        }
+    }
 }
 
 impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
@@ -258,52 +410,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 self.mouse_down(ctx, data, mouse_event);
             }
             Event::MouseUp(mouse_event) => {
-                let mut close_tab = |tab_idx: usize, was_active: bool| {
-                    if was_active {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::ActiveFileChanged { path: None },
-                            Target::Widget(data.file_explorer.widget_id),
-                        ));
-                    }
-
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::EditorTabRemove(tab_idx, true, true),
-                        Target::Widget(self.widget_id),
-                    ));
-                };
-
-                let editor_tab = data
-                    .main_split
-                    .editor_tabs
-                    .get_mut(&self.widget_id)
-                    .unwrap();
-
-                match self.mouse_down_target.take() {
-                    // Was the left button released on the close icon that started the close?
-                    Some((MouseAction::CloseViaIcon, target))
-                        if self.is_close_icon_hit(target, mouse_event.pos)
-                            && mouse_event.button.is_left() =>
-                    {
-                        close_tab(target, target == editor_tab.active);
-                    }
-
-                    // Was the middle button released on the tab that started the close?
-                    Some((MouseAction::CloseViaMiddleClick, target))
-                        if self.is_tab_hit(target, mouse_event.pos)
-                            && mouse_event.button.is_middle() =>
-                    {
-                        close_tab(target, target == editor_tab.active);
-                    }
-
-                    None if mouse_event.button.is_left() => {
-                        let mouse_index = self.drag_target_idx(mouse_event.pos);
-                        self.handle_drag(mouse_index, ctx, data)
-                    }
-
-                    _ => {}
-                }
+                self.mouse_up(ctx, data, mouse_event);
             }
             _ => (),
         }
@@ -321,10 +428,20 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
     fn update(
         &mut self,
         _ctx: &mut UpdateCtx,
-        _old_data: &LapceTabData,
-        _data: &LapceTabData,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
         _env: &Env,
     ) {
+        let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+        let old_editor_tab = old_data
+            .main_split
+            .editor_tabs
+            .get(&self.widget_id)
+            .unwrap();
+
+        if !editor_tab.children.ptr_eq(&old_editor_tab.children) {
+            self.update_dedup_paths(data);
+        }
     }
 
     fn layout(
@@ -335,44 +452,103 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
         _env: &Env,
     ) -> Size {
         let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
-        let _child_min_width = 200.0;
         let height = bc.max().height;
 
         self.rects.clear();
         let mut x = 0.0;
-        for (_i, child) in editor_tab.children.iter().enumerate() {
+
+        for child in editor_tab.children.iter() {
             let mut text = "".to_string();
-            let mut svg = get_svg("default_file.svg").unwrap();
+            let mut svg = data.config.ui_svg(LapceIcons::FILE);
+            let mut svg_color = Some(
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+            );
+            let mut text_color = match editor_tab.active_child() {
+                Some(active_child)
+                    if active_child.widget_id() == child.widget_id() =>
+                {
+                    LapceTheme::LAPCE_TAB_ACTIVE_FOREGROUND
+                }
+                _ => LapceTheme::LAPCE_TAB_INACTIVE_FOREGROUND,
+            };
+            let mut file_path = None;
             match child {
-                EditorTabChild::Editor(view_id, _) => {
+                EditorTabChild::Editor(view_id, _, _) => {
                     let editor = data.main_split.editors.get(view_id).unwrap();
                     if let BufferContent::File(path) = &editor.content {
-                        svg = file_svg_new(path);
+                        (svg, svg_color) = data.config.file_svg(path);
+
                         if let Some(file_name) = path.file_name() {
                             if let Some(s) = file_name.to_str() {
                                 text = s.to_string();
+                                if let Some(dedup_path) = self.dedup_paths.get(path)
+                                {
+                                    file_path = Some(
+                                        dedup_path.to_string_lossy().to_string(),
+                                    );
+                                }
                             }
                         }
+                        if let Some(diff) = data.source_control.file_diffs.get(path)
+                        {
+                            text_color = match diff.0 {
+                                FileDiff::Modified(_) | FileDiff::Renamed(_, _) => {
+                                    LapceTheme::SOURCE_CONTROL_MODIFIED
+                                }
+                                FileDiff::Added(_) => {
+                                    LapceTheme::SOURCE_CONTROL_ADDED
+                                }
+                                FileDiff::Deleted(_) => {
+                                    LapceTheme::SOURCE_CONTROL_REMOVED
+                                }
+                            };
+                        }
+                    } else if let BufferContent::Scratch(..) = &editor.content {
+                        text = editor.content.file_name().to_string();
                     }
                 }
+                EditorTabChild::Settings { .. } => {
+                    text = format!("Settings (ver. {})", *meta::VERSION);
+                    svg = data.config.ui_svg(LapceIcons::SETTINGS);
+                }
+                EditorTabChild::Plugin { volt_name, .. } => {
+                    text = format!("Plugin: {volt_name}");
+                    svg = data.config.ui_svg(LapceIcons::EXTENSIONS);
+                }
             }
+            let font_size = data.config.ui.font_size() as f64;
             let text_layout = ctx
                 .text()
                 .new_text_layout(text)
-                .font(FontFamily::SYSTEM_UI, 13.0)
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
+                .font(data.config.ui.font_family(), font_size)
+                .text_color(data.config.get_color_unchecked(text_color).clone())
                 .build()
                 .unwrap();
-            let text_size = text_layout.size();
-            let width = (text_size.width + height * 2.0).max(100.0);
+            let path_layout = file_path.map(|f| {
+                ctx.text()
+                    .new_text_layout(f)
+                    .default_attribute(FontStyle::Italic)
+                    .font(data.config.ui.font_family(), font_size.sub(2.0).max(1.0))
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap()
+            });
+            let text_size = text_layout.size()
+                + path_layout.as_ref().map(|p| p.size()).unwrap_or(Size::ZERO);
+            let width =
+                (text_size.width + height + (height - font_size) / 2.0 + font_size)
+                    .max(data.config.ui.tab_min_width() as f64)
+                    + 1.; // +1. for tab separator
             let close_size = 24.0;
             let inflate = (height - close_size) / 2.0;
             let tab_rect = TabRect {
                 svg,
+                svg_color: svg_color.cloned(),
                 rect: Size::new(width, height)
                     .to_rect()
                     .with_origin(Point::new(x, 0.0)),
@@ -381,6 +557,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     .with_origin(Point::new(x + width - height, 0.0))
                     .inflate(-inflate, -inflate),
                 text_layout,
+                path_layout,
             };
             x += width;
             self.rects.push(tab_rect);
@@ -392,12 +569,19 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let size = ctx.size();
 
-        for (i, tab_rect) in self.rects.iter().enumerate() {
-            tab_rect.paint(ctx, data, self.widget_id, i, size, self.mouse_pos);
+        ctx.fill(
+            size.to_rect(),
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_TAB_INACTIVE_BACKGROUND),
+        );
+
+        for (tab_idx, tab_rect) in self.rects.iter().enumerate() {
+            tab_rect.paint(ctx, data, self.widget_id, tab_idx, size, self.mouse_pos);
         }
 
-        if ctx.is_hot() && data.drag.is_some() {
-            let mouse_index = self.drag_target_idx(self.mouse_pos);
+        if ctx.is_hot() && data.is_drag_editor() {
+            // SAFETY: unwrap here is safe because `ctx.is_hot` is true if mouse is hovered over it.
+            let mouse_index = self.drag_target_idx(self.mouse_pos.unwrap());
 
             let tab_rect;
             let x = if mouse_index == self.after_last_tab_index() {
@@ -420,5 +604,298 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 4.0,
             );
         }
+    }
+}
+
+fn get_truncated_path(full_paths: &[PathBuf]) -> Vec<PathBuf> {
+    let mut skip_left = 0;
+    'stop_left: loop {
+        if full_paths
+            .iter()
+            .map(|p| p.iter().nth(skip_left))
+            .collect::<Option<HashSet<_>>>()
+            .map(|h| h.len() == 1)
+            .unwrap_or(false)
+        {
+            skip_left += 1;
+        } else {
+            break 'stop_left;
+        }
+    }
+
+    let mut skip_right = 0;
+    'stop_right: loop {
+        if full_paths
+            .iter()
+            .map(|p| p.iter().rev().nth(skip_right))
+            .collect::<Option<HashSet<_>>>()
+            .map(|h| h.len() == 1)
+            .unwrap_or(false)
+        {
+            skip_right += 1;
+        } else {
+            break 'stop_right;
+        }
+    }
+
+    let skip_left = if skip_left == 1 { 0 } else { skip_left };
+
+    let truncated_paths = full_paths
+        .iter()
+        .map(|p| {
+            let length = p.iter().count();
+            let mut result = p
+                .iter()
+                .skip(skip_left)
+                .take(length.saturating_sub(skip_left).saturating_sub(skip_right))
+                .collect::<PathBuf>();
+
+            if skip_left > 0 {
+                result = PathBuf::from_str("...").unwrap().join(result);
+            }
+
+            if skip_right > 1 {
+                result.push("...")
+            }
+
+            result
+        })
+        .collect::<Vec<_>>();
+
+    truncated_paths
+}
+
+struct LapceEditorTabHeaderContextMenu<'a> {
+    tab_idx: usize,
+    editor_tab: &'a Arc<LapceEditorTabData>,
+    file_explorer_id: WidgetId,
+    tab_path: Option<PathBuf>,
+    is_workspace_member: bool,
+}
+
+impl<'a> LapceEditorTabHeaderContextMenu<'a> {
+    fn new(
+        tab_idx: usize,
+        editor_tab: &'a Arc<LapceEditorTabData>,
+        file_explorer_id: WidgetId,
+        tab_path: Option<PathBuf>,
+        is_workspace_member: bool,
+    ) -> Self {
+        Self {
+            tab_idx,
+            editor_tab,
+            file_explorer_id,
+            tab_path,
+            is_workspace_member,
+        }
+    }
+
+    fn to_menu(&self) -> druid::Menu<LapceData> {
+        let entry_close_tab = druid::MenuItem::new("Close Tab")
+            .on_activate(self.create_close_tab_callback());
+
+        let entry_close_tabs_other = druid::MenuItem::new("Close Other Tabs")
+            .on_activate(self.create_close_all_tabs_callback());
+
+        let entry_close_tabs_left = druid::MenuItem::new("Close Tabs to the Left")
+            .on_activate(self.create_close_tabs_left_callback());
+
+        let entry_close_tabs_right = druid::MenuItem::new("Close Tabs to the Right")
+            .on_activate(self.create_close_tabs_right_callback());
+
+        let entry_reveal_file = self.tab_path.as_deref().map(|path| {
+            druid::MenuItem::new("Reveal in File Tree")
+                .on_activate(self.create_reveal_file_callback(path))
+                .enabled(self.is_workspace_member)
+        });
+
+        let mut menu = druid::Menu::<LapceData>::new("Tab Header")
+            .entry(entry_close_tab)
+            .entry(entry_close_tabs_other)
+            .entry(entry_close_tabs_left)
+            .entry(entry_close_tabs_right)
+            .separator();
+
+        if let Some(entry) = entry_reveal_file {
+            menu = menu.entry(entry);
+        }
+
+        menu
+    }
+
+    fn create_close_tab_callback(
+        &self,
+    ) -> impl FnMut(&mut MenuEventCtx, &mut LapceData, &Env) + 'static {
+        let editor_tab = self.editor_tab.clone();
+        let file_explorer_id = self.file_explorer_id;
+        let tab_idx = self.tab_idx;
+
+        move |ctx, _, _| {
+            if editor_tab.active == tab_idx {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ActiveFileChanged { path: None },
+                    Target::Widget(file_explorer_id),
+                ));
+            }
+
+            ctx.submit_command(Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Focus(FocusCommand::SplitClose),
+                    data: None,
+                },
+                Target::Widget(editor_tab.children[tab_idx].widget_id()),
+            ));
+        }
+    }
+
+    fn create_close_all_tabs_callback(
+        &self,
+    ) -> impl FnMut(&mut MenuEventCtx, &mut LapceData, &Env) + 'static {
+        let editor_tab = self.editor_tab.clone();
+        let tab_idx = self.tab_idx;
+
+        move |ctx, _, _| {
+            editor_tab
+                .children
+                .iter()
+                .enumerate()
+                .rev()
+                .filter_map(
+                    |(idx, tab)| if idx != tab_idx { Some(tab) } else { None },
+                )
+                .for_each(|tab| {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::SplitClose),
+                            data: None,
+                        },
+                        Target::Widget(tab.widget_id()),
+                    ))
+                })
+        }
+    }
+
+    fn create_close_tabs_left_callback(
+        &self,
+    ) -> impl FnMut(&mut MenuEventCtx, &mut LapceData, &Env) + 'static {
+        let editor_tab = self.editor_tab.clone();
+        let tab_idx = self.tab_idx;
+
+        move |ctx, _, _| {
+            editor_tab
+                .children
+                .iter()
+                .take(tab_idx)
+                .rev()
+                .for_each(|tab| {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::SplitClose),
+                            data: None,
+                        },
+                        Target::Widget(tab.widget_id()),
+                    ));
+                });
+        }
+    }
+
+    fn create_close_tabs_right_callback(
+        &self,
+    ) -> impl FnMut(&mut MenuEventCtx, &mut LapceData, &Env) + 'static {
+        let editor_tab = self.editor_tab.clone();
+        let tab_idx = self.tab_idx;
+
+        move |ctx, _, _| {
+            editor_tab
+                .children
+                .iter()
+                .skip(tab_idx + 1)
+                .rev()
+                .for_each(|tab| {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::SplitClose),
+                            data: None,
+                        },
+                        Target::Widget(tab.widget_id()),
+                    ))
+                })
+        }
+    }
+
+    fn create_reveal_file_callback(
+        &self,
+        tab_path: &Path,
+    ) -> impl FnMut(&mut MenuEventCtx, &mut LapceData, &Env) + 'static {
+        let file_explorer_id = self.file_explorer_id;
+        let path = tab_path.to_path_buf();
+
+        move |ctx, _data, _env| {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ExplorerRevealPath {
+                    path: path.to_owned(),
+                },
+                Target::Widget(file_explorer_id),
+            ));
+        }
+    }
+}
+
+#[allow(unused_imports)]
+mod test {
+    use std::{path::PathBuf, str::FromStr};
+
+    use druid::WidgetId;
+
+    use crate::editor::tab_header_content::{
+        get_truncated_path, LapceEditorTabHeaderContent,
+    };
+
+    #[test]
+    fn test_all_truncated_paths() {
+        let f1 = PathBuf::from("/home/user/myproject/folder1/file.rs");
+        let f2 = PathBuf::from("/home/user/myproject/folder2/file.rs");
+        let f3 = PathBuf::from("/file.rs");
+        let f4 = PathBuf::from("/home/user/proj/file.rs");
+        let f5 = PathBuf::from("/home/user/toolongprojectshouldtruncate/file.rs");
+        let f6 = PathBuf::from("/home/user/myproject/file.rs");
+
+        let result = get_truncated_path(&[f1, f2, f3, f4, f5, f6]);
+
+        assert_eq!(
+            result[0],
+            PathBuf::from_str("/home/user/myproject/folder1").unwrap()
+        );
+        assert_eq!(
+            result[1],
+            PathBuf::from_str("/home/user/myproject/folder2").unwrap()
+        );
+        assert_eq!(result[2], PathBuf::from_str("/").unwrap());
+        assert_eq!(result[3], PathBuf::from_str("/home/user/proj").unwrap());
+        assert_eq!(
+            result[4],
+            PathBuf::from_str("/home/user/toolongprojectshouldtruncate").unwrap()
+        );
+        assert_eq!(
+            result[5],
+            PathBuf::from_str("/home/user/myproject/").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_almost_same_paths() {
+        let f1 = PathBuf::from("/home/user/myproject/folder1/file.rs");
+        let f2 = PathBuf::from("/home/user/myproject/folder2/file.rs");
+
+        let result = get_truncated_path(&[f1, f2]);
+
+        assert_eq!(result[0], PathBuf::from_str(".../folder1").unwrap());
+        assert_eq!(result[1], PathBuf::from_str(".../folder2").unwrap());
     }
 }

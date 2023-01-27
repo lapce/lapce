@@ -4,6 +4,10 @@
 key = "F1"
 command = "palette.command"
 
+# [[keymaps]]
+# key = "ctrl+q"
+# command = "quit"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
@@ -23,6 +27,11 @@ mode = "i"
 
 [[keymaps]]
 key = "backspace"
+command = "delete_backward"
+mode = "i"
+
+[[keymaps]]
+key = "shift+backspace"
 command = "delete_backward"
 mode = "i"
 
@@ -55,15 +64,34 @@ command = "scroll_down"
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]
-key = "alt+I"
+key = "alt+shift+i"
 command = "insert_cursor_end_of_line"
 mode = "i"
 
-# --------------------------------- Rich Lanaguage Editing ----------------------------
+# ----------------------------------- Editor Management -------------------------------
+
+[[keymaps]]
+key = "ctrl+tab"
+command = "next_editor_tab"
+
+[[keymaps]]
+key = "ctrl+shift+tab"
+command = "previous_editor_tab"
+
+# --------------------------------- Rich Language Editing ----------------------------
+
+[[keymaps]]
+key = "F2"
+command = "rename_symbol"
 
 [[keymaps]]
 key = "F12"
 command = "goto_definition"
+
+[[keymaps]]
+key = "g f"
+command = "show_code_actions"
+mode = "n"
 
 # ------------------------------------ Navigation -------------------------------------
 
@@ -108,12 +136,25 @@ mode = "i"
 [[keymaps]]
 key = "esc"
 command = "clear_search"
-when = "search_focus"
+when = "search_active || search_focus"
+
+[[keymaps]]
+key = "ctrl+shift+up"
+command = "select_next_syntax_item"
+
+[[keymaps]]
+key = "ctrl+shift+down"
+command = "select_previous_syntax_item"
 
 [[keymaps]]
 key = "ctrl+m"
 command = "list.select"
 when = "list_focus"
+
+[[keymaps]]
+key = "tab"
+command = "list.select"
+when = "completion_focus"
 
 [[keymaps]]
 key = "enter"
@@ -131,6 +172,11 @@ command = "list.previous"
 when = "list_focus"
 
 [[keymaps]]
+key = "PageUp"
+command = "list.previous_page"
+when = "list_focus"
+
+[[keymaps]]
 key = "ctrl+n"
 command = "list.next"
 when = "list_focus"
@@ -138,6 +184,11 @@ when = "list_focus"
 [[keymaps]]
 key = "down"
 command = "list.next"
+when = "list_focus"
+
+[[keymaps]]
+key = "PageDown"
+command = "list.next_page"
 when = "list_focus"
 
 [[keymaps]]
@@ -218,9 +269,15 @@ when = "global_search_focus"
 mode = "i"
 
 [[keymaps]]
+key = "enter"
+command = "confirm_rename"
+when = "rename_focus"
+mode = "i"
+
+[[keymaps]]
 key = "tab"
 command = "insert_tab"
-when = "!in_snippet"
+when = "!in_snippet && !completion_focus"
 mode = "i"
 
 [[keymaps]]
@@ -229,19 +286,35 @@ command = "insert_new_line"
 when = "!list_focus"
 mode = "i"
 
+[[keymaps]]
+key = "alt+shift+up"
+command = "duplicate_line_up"
+mode = "i"
+
+[[keymaps]]
+key = "alt+shift+down"
+command = "duplicate_line_down"
+mode = "i"
+
 # ------------------------------------ Modal -----------------------------------------
 
 [[keymaps]]
 key = "esc"
 command = "normal_mode"
 mode = "niv"
-when = "!search_focus && !modal_focus"
+when = "!search_focus && !modal_focus && !search_active"
+
+[[keymaps]]
+key = "ctrl+c"
+command = "normal_mode"
+mode = "niv"
+when = "!search_focus && !modal_focus && !search_active"
 
 [[keymaps]]
 key = "ctrl+["
 command = "normal_mode"
 mode = "niv"
-when = "!search_focus"
+when = "!search_focus && !search_active"
 
 [[keymaps]]
 key = ":"
@@ -249,7 +322,7 @@ command = "palette.command"
 mode = "n"
 
 [[keymaps]]
-key = "G"
+key = "shift+g"
 command = "go_to_line_default_last"
 mode = "nv"
 
@@ -284,7 +357,7 @@ command = "append"
 mode = "n"
 
 [[keymaps]]
-key = "A"
+key = "shift+a"
 command = "append_end_of_line"
 mode = "n"
 
@@ -324,12 +397,22 @@ command = "goto_definition"
 mode = "n"
 
 [[keymaps]]
+key = "g h"
+command = "show_hover"
+mode = "n"
+
+[[keymaps]]
 key = "p"
 command = "paste"
 mode = "nv"
 
 [[keymaps]]
-key = "J"
+key = "shift+p"
+command = "paste_before"
+mode = "nv"
+
+[[keymaps]]
+key = "shift+j"
 command = "join_lines"
 mode = "n"
 
@@ -354,7 +437,32 @@ command = "delete_forward_and_insert"
 mode = "nv"
 
 [[keymaps]]
-key = "I"
+key = "c"
+command = "delete_forward_and_insert"
+mode = "v"
+
+[[keymaps]]
+key = "shift+s"
+command = "delete_line_and_insert"
+mode = "n"
+
+[[keymaps]]
+key = "c c"
+command = "delete_line_and_insert"
+mode = "n"
+
+[[keymaps]]
+key = "c w"
+command = "delete_word_and_insert"
+mode = "n"
+
+[[keymaps]]
+key = "c e"
+command = "delete_word_and_insert"
+mode = "n"
+
+[[keymaps]]
+key = "shift+i"
 command = "insert_first_non_blank"
 mode = "nv"
 
@@ -394,7 +502,7 @@ command = "word_backward"
 mode = "nv"
 
 [[keymaps]]
-key = "O"
+key = "shift+o"
 command = "new_line_above"
 mode = "nv"
 
@@ -424,6 +532,16 @@ command = "center_of_window"
 mode = "nv"
 
 [[keymaps]]
+key = "z t"
+command = "top_of_window"
+mode = "nv"
+
+[[keymaps]]
+key = "z b"
+command = "bottom_of_window"
+mode = "nv"
+
+[[keymaps]]
 key = "d"
 command = "delete_forward"
 mode = "v"
@@ -434,7 +552,7 @@ command = "inline_find_right"
 mode = "nv"
 
 [[keymaps]]
-key = "F"
+key = "shift+f"
 command = "inline_find_left"
 mode = "nv"
 
@@ -474,7 +592,7 @@ command = "search_forward"
 mode = "nv"
 
 [[keymaps]]
-key = "N"
+key = "shift+n"
 command = "search_backward"
 mode = "nv"
 
@@ -509,7 +627,7 @@ command = "toggle_visual_mode"
 mode = "nv"
 
 [[keymaps]]
-key = "V"
+key = "shift+v"
 command = "toggle_linewise_visual_mode"
 mode = "nv"
 
@@ -572,3 +690,8 @@ mode = "v"
 key = "<"
 command = "outdent_line"
 mode = "v"
+
+[[keymaps]]
+key = "shift+c"
+command = "delete_to_end_and_insert"
+mode = "n"

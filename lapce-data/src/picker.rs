@@ -3,8 +3,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use druid::WidgetId;
-use lapce_rpc::file::FileNodeItem;
+use druid::{ExtEventSink, Target, WidgetId};
+use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
+
+use crate::{
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    proxy::LapceProxy,
+};
 
 #[derive(Clone)]
 pub struct FilePickerData {
@@ -37,22 +42,6 @@ impl FilePickerData {
             home,
             pwd,
             index: 0,
-        }
-    }
-
-    pub fn set_item_children(
-        &mut self,
-        path: &Path,
-        children: HashMap<PathBuf, FileNodeItem>,
-    ) {
-        if let Some(node) = self.get_file_node_mut(path) {
-            node.open = true;
-            node.read = true;
-            node.children = children;
-        }
-
-        for p in path.ancestors() {
-            self.update_node_count(&PathBuf::from(p));
         }
     }
 
@@ -90,40 +79,24 @@ impl FilePickerData {
         self.pwd = home.to_path_buf();
     }
 
-    pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
-        let mut node = Some(&mut self.root);
-
-        let ancestors = path.ancestors().collect::<Vec<&Path>>();
-        for p in ancestors[..ancestors.len() - 1].iter().rev() {
-            node = Some(node?.children.get_mut(&PathBuf::from(p))?);
-        }
-        node
-    }
-
-    pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
-        let mut node = Some(&self.root);
-
-        let ancestors = path.ancestors().collect::<Vec<&Path>>();
-        for p in ancestors[..ancestors.len() - 1].iter().rev() {
-            node = Some(node?.children.get(&PathBuf::from(p))?);
-        }
-        node
-    }
-
-    pub fn update_node_count(&mut self, path: &Path) -> Option<()> {
-        let node = self.get_file_node_mut(path)?;
-        if node.is_dir {
-            if node.open {
-                node.children_open_count = node
-                    .children
-                    .iter()
-                    .map(|(_, item)| item.children_open_count + 1)
-                    .sum::<usize>();
-            } else {
-                node.children_open_count = 0;
+    pub fn read_dir(
+        path: &Path,
+        tab_id: WidgetId,
+        proxy: &LapceProxy,
+        event_sink: ExtEventSink,
+    ) {
+        let path = PathBuf::from(path);
+        let local_path = path.clone();
+        proxy.proxy_rpc.read_dir(local_path, move |result| {
+            if let Ok(ProxyResponse::ReadDirResponse { items }) = result {
+                let path = path.clone();
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdatePickerItems(path, items),
+                    Target::Widget(tab_id),
+                );
             }
-        }
-        None
+        });
     }
 }
 

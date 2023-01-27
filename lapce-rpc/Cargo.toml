@@ -1,15 +1,22 @@
 [package]
 name = "lapce-rpc"
-version = "0.0.1"
-authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
-edition = "2018"
+description = "Data formats between lapce components"
+license = "Apache-2.0"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-parking_lot = "0.11.2"
-anyhow = "1.0.34"
-serde_json = "1.0.59"
-serde = "1.0"
-jsonrpc-lite = "0.5.0"
-crossbeam-channel = "0.5.0"
-lsp-types = { version = "0.89.2", features = ["proposed"] }
-xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
+anyhow.workspace = true
+crossbeam-channel.workspace = true
+indexmap.workspace = true
+log.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+lsp-types.workspace = true
+
+lapce-xi-rope.workspace = true
+
+human-sort = { git = "https://github.com/dragazo/human-sort" }

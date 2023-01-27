@@ -1,0 +1,19 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+
+Name=Lapce
+Comment=Lightning-fast and powerful code editor written in Rust
+Categories=Development;IDE;
+GenericName=Code Editor
+
+Icon=dev.lapce.lapce
+Exec=lapce
+Terminal=false
+MimeType=text/plain;inode/directory;
+Actions=new-window;
+
+[Desktop Action new-window]
+Name=New Window
+Exec=lapce --new %F
+Icon=dev.lapce.lapce

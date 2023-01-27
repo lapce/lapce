@@ -1,56 +1,53 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontFamily,
-    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext,
-    Size, Target, UpdateCtx, Widget, WidgetExt,
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, LayoutCtx,
+    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size,
+    Target, UpdateCtx, Widget, WidgetExt,
 };
-use itertools::Itertools;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
-    data::{EditorDiagnostic, LapceTabData, PanelKind},
-    editor::EditorLocationNew,
+    config::{LapceIcons, LapceTheme},
+    data::{EditorDiagnostic, LapceTabData},
+    editor::EditorLocation,
+    panel::PanelKind,
     problem::ProblemData,
     proxy::path_from_url,
-    split::SplitDirection,
 };
 use lsp_types::DiagnosticSeverity;
 
-use crate::{
-    panel::{LapcePanel, PanelHeaderKind},
-    svg::{file_svg_new, get_svg},
-};
+use crate::panel::{LapcePanel, PanelHeaderKind, PanelSizing};
 
 pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
     LapcePanel::new(
         PanelKind::Problem,
         data.widget_id,
         data.split_id,
-        SplitDirection::Vertical,
-        PanelHeaderKind::Simple("Problem".to_string()),
         vec![
             (
                 data.error_widget_id,
-                PanelHeaderKind::Simple("Errors".to_string()),
-                ProblemContent::new(DiagnosticSeverity::Error).boxed(),
-                None,
+                PanelHeaderKind::Simple("Errors".into()),
+                ProblemContent::new(DiagnosticSeverity::ERROR).boxed(),
+                PanelSizing::Flex(true),
             ),
             (
                 data.warning_widget_id,
-                PanelHeaderKind::Simple("Warnings".to_string()),
-                ProblemContent::new(DiagnosticSeverity::Warning).boxed(),
-                None,
+                PanelHeaderKind::Simple("Warnings".into()),
+                ProblemContent::new(DiagnosticSeverity::WARNING).boxed(),
+                PanelSizing::Flex(true),
             ),
         ],
     )
 }
 
-pub struct ProblemContent {
+fn is_collapsed(data: &LapceTabData, path: &Path) -> bool {
+    data.problem.collapsed.get(path).copied().unwrap_or(false)
+}
+
+struct ProblemContent {
     severity: DiagnosticSeverity,
     mouse_pos: Point,
-    line_height: f64,
     content_height: f64,
 }
 
@@ -59,33 +56,8 @@ impl ProblemContent {
         Self {
             severity,
             mouse_pos: Point::ZERO,
-            line_height: 25.0,
             content_height: 0.0,
         }
-    }
-
-    fn items<'a>(
-        &self,
-        data: &'a LapceTabData,
-    ) -> Vec<(&'a PathBuf, Vec<&'a EditorDiagnostic>)> {
-        let items: Vec<(&PathBuf, Vec<&EditorDiagnostic>)> = data
-            .main_split
-            .diagnostics
-            .iter()
-            .filter_map(|(path, diagnostic)| {
-                let diagnostics: Vec<&EditorDiagnostic> = diagnostic
-                    .iter()
-                    .filter(|d| d.diagnositc.severity == Some(self.severity))
-                    .collect();
-                if !diagnostics.is_empty() {
-                    Some((path, diagnostics))
-                } else {
-                    None
-                }
-            })
-            .sorted_by_key(|(path, _)| (*path).clone())
-            .collect();
-        items
     }
 
     fn mouse_down(
@@ -94,75 +66,154 @@ impl ProblemContent {
         mouse_event: &MouseEvent,
         data: &LapceTabData,
     ) {
-        let n = (mouse_event.pos.y / self.line_height).floor() as usize;
+        // If it isn't hot then we don't bother checking
+        if !ctx.is_hot() {
+            return;
+        }
 
-        let items = self.items(data);
-        let mut i = 0;
-        for (path, diagnositcs) in items {
-            let diagnositcs_len = diagnositcs
-                .iter()
-                .map(|d| {
-                    d.diagnositc
-                        .related_information
-                        .as_ref()
-                        .map(|r| r.len())
-                        .unwrap_or(0)
-                        + 1
-                })
-                .sum::<usize>();
-            if diagnositcs_len + 1 + i < n {
-                i += diagnositcs_len + 1;
-                continue;
+        let line_height = data.config.editor.line_height() as f64;
+        let click_line = (mouse_event.pos.y / line_height).floor() as usize;
+
+        let items = data.main_split.diagnostics_items(self.severity);
+
+        let mut line_cursor = 0;
+
+        // Skip files before clicked section.
+        let mut current_file = None;
+        for (path, diagnostics) in items {
+            let diag_lines = if is_collapsed(data, path) {
+                // If section is collapsed count only header with file name.
+                1
+            } else {
+                // Total file lines and header with file name.
+                diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1 /* file name header */
+            };
+            let line_range = line_cursor..(line_cursor + diag_lines);
+
+            // Did we reach the clicked section?
+            if line_range.contains(&click_line) {
+                // The current file is what we are looking for.
+                current_file = Some((path, diagnostics));
+                break;
             }
 
-            for d in diagnositcs {
-                i += 1;
-                if i == n {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::JumpToLocation(
-                            None,
-                            EditorLocationNew {
-                                path: path.clone(),
-                                position: Some(d.diagnositc.range.start),
-                                scroll_offset: None,
-                                history: None,
-                            },
-                        ),
-                        Target::Widget(data.id),
-                    ));
-                    return;
-                }
-                for related in d
-                    .diagnositc
-                    .related_information
-                    .as_ref()
-                    .unwrap_or(&Vec::new())
-                {
-                    i += 1;
-                    if i == n {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::JumpToLocation(
-                                None,
-                                EditorLocationNew {
-                                    path: related
-                                        .location
-                                        .uri
-                                        .to_file_path()
-                                        .unwrap(),
-                                    position: Some(related.location.range.start),
-                                    scroll_offset: None,
-                                    history: None,
-                                },
-                            ),
-                            Target::Widget(data.id),
-                        ));
-                        return;
-                    }
-                }
+            // No. Move line cursor.
+            line_cursor += diag_lines;
+        }
+
+        // Check if we have clicked something interesting.
+        let (path, diagnostics) = if let Some(diag) = current_file {
+            diag
+        } else {
+            // The user clicked an empty area.
+            return;
+        };
+
+        // Handle click on header with file name.
+        if line_cursor == click_line {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ToggleProblem(path.to_path_buf()),
+                Target::Widget(data.id),
+            ));
+            return;
+        }
+
+        assert!(
+            !is_collapsed(data, path),
+            "Can't click any element because the file is collapsed. This shouldn't happen, please report a bug."
+        );
+
+        // Skip header.
+        line_cursor += 1;
+
+        // Skip to clicked diagnostic.
+        let mut clicked_file_diagnostic = None;
+        for file_diagnostic in diagnostics {
+            let line_range = line_cursor..(line_cursor + file_diagnostic.lines);
+
+            // Is the current diagnostic the clicked one?
+            if line_range.contains(&click_line) {
+                // We found the diagnostic we are looking for.
+                clicked_file_diagnostic = Some(file_diagnostic);
+                break;
             }
-            i += 1;
+
+            // No. Move line cursor and consume diagnostic.
+            line_cursor += file_diagnostic.lines;
+        }
+
+        // Handle current diagnostic.
+        let file_diagnostic = clicked_file_diagnostic.expect("Editor diagnostic not found. We should have found something, please report a bug");
+
+        assert!(
+            line_cursor <= click_line,
+            "Line cursor ({line_cursor}) is larger than clicked line ({click_line}). This should never happen!"
+        );
+
+        let msg_lines = message_lines(file_diagnostic);
+
+        // Widget has mouse about it and line is clicked one.
+        if (line_cursor..(line_cursor + msg_lines)).contains(&click_line) {
+            // Rust example: description without location.
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::JumpToLspLocation(
+                    None,
+                    EditorLocation {
+                        path: path.to_path_buf(),
+                        position: Some(file_diagnostic.diagnostic.range.start),
+                        scroll_offset: None,
+                        history: None,
+                    },
+                    false,
+                ),
+                Target::Widget(data.id),
+            ));
+            return;
+        }
+        line_cursor += msg_lines;
+
+        // Skip to clicked related information.
+        let related = file_diagnostic
+            .diagnostic
+            .related_information
+            .as_deref()
+            .unwrap_or(&[]);
+
+        let mut clicked_related = None;
+        for related in related {
+            let lines = related.message.lines().count();
+            let item_line_range = line_cursor..(line_cursor + lines);
+
+            // Is the current line the clicked one?
+            if item_line_range.contains(&click_line) {
+                // We found the related info we are looking for.
+                clicked_related = Some(related);
+                break;
+            }
+
+            // No. Move line cursor.
+            line_cursor += lines;
+        }
+
+        if let Some(related) = clicked_related {
+            let path = related.location.uri.to_file_path().unwrap();
+            let start = related.location.range.start;
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::JumpToLspLocation(
+                    None,
+                    EditorLocation {
+                        path,
+                        position: Some(start),
+                        scroll_offset: None,
+                        history: None,
+                    },
+                    false,
+                ),
+                Target::Widget(data.id),
+            ));
         }
     }
 }
@@ -217,6 +268,10 @@ impl Widget<LapceTabData> for ProblemContent {
         {
             ctx.request_layout();
         }
+
+        if data.problem.collapsed != old_data.problem.collapsed {
+            ctx.request_layout();
+        }
     }
 
     fn layout(
@@ -226,84 +281,65 @@ impl Widget<LapceTabData> for ProblemContent {
         data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        let items = self.items(data);
-        let n = items
+        let items = data.main_split.diagnostics_items(self.severity);
+        let lines = items
             .iter()
-            .map(|(_, diagnositcs)| {
-                diagnositcs
-                    .iter()
-                    .map(|d| {
-                        d.diagnositc
-                            .related_information
-                            .as_ref()
-                            .map(|r| r.len())
-                            .unwrap_or(0)
-                            + 1
-                    })
-                    .sum::<usize>()
-                    + 1
+            .map(|(path, diagnostics)| {
+                if is_collapsed(data, path) {
+                    1
+                } else {
+                    diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1 /* file name header */
+                }
             })
             .sum::<usize>();
-        let line_height = data.config.editor.line_height as f64;
-        self.content_height = line_height * n as f64;
+        let line_height = data.config.editor.line_height() as f64;
+        self.content_height = line_height * lines as f64;
 
         Size::new(bc.max().width, self.content_height.max(bc.max().height))
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        let line_height = data.config.editor.line_height as f64;
-
-        if ctx.is_hot() {
-            let size = ctx.size();
-            if self.mouse_pos.y < self.content_height {
-                let n = (self.mouse_pos.y / line_height).floor() as usize;
-                ctx.fill(
-                    Size::new(size.width, line_height)
-                        .to_rect()
-                        .with_origin(Point::new(0.0, line_height * n as f64)),
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
-                );
-            }
-        }
+        let line_height = data.config.editor.line_height() as f64;
+        let padding = (line_height - 14.0) / 2.0;
+        let size = ctx.size();
+        let mouse_line = (self.mouse_pos.y / line_height).floor() as usize;
 
         let rect = ctx.region().bounding_box();
         let min = (rect.y0 / line_height).floor() as usize;
         let max = (rect.y1 / line_height) as usize + 2;
 
-        let items = self.items(data);
-        let mut i = 0;
-        for (path, diagnositcs) in items {
-            let diagnositcs_len = diagnositcs
-                .iter()
-                .map(|d| {
-                    d.diagnositc
-                        .related_information
-                        .as_ref()
-                        .map(|r| r.len())
-                        .unwrap_or(0)
-                        + 1
-                })
-                .sum::<usize>();
-            if diagnositcs_len + 1 + i < min {
-                i += diagnositcs_len + 1;
+        let ui_font_family = data.config.ui.font_family();
+        let ui_font_size = data.config.ui.font_size() as f64;
+
+        let items = data.main_split.diagnostics_items(self.severity);
+        let mut current_line = 0;
+        for (path, diagnostics) in items {
+            let diagnostics_len =
+                diagnostics.iter().map(|d| d.lines).sum::<usize>() + 1 /* file name header */;
+
+            if !is_collapsed(data, path) && diagnostics_len + current_line < min {
+                current_line += diagnostics_len + 1;
                 continue;
             }
 
-            let padding = (line_height - 14.0) / 2.0;
-            let svg = file_svg_new(path);
-            let rect = Size::new(line_height, line_height)
-                .to_rect()
-                .with_origin(Point::new(0.0, line_height * i as f64))
-                .inflate(-padding, -padding);
-            ctx.draw_svg(&svg, rect, None);
+            let svg_size = data.config.ui.icon_size() as f64;
+            let (svg, svg_color) = data.config.file_svg(path);
+            let rect =
+                Size::new(svg_size, svg_size)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        (line_height - svg_size) / 2.0,
+                        line_height * current_line as f64
+                            + (line_height - svg_size) / 2.0,
+                    ));
+            ctx.draw_svg(&svg, rect, svg_color);
 
             let text_layout = ctx
                 .text()
                 .new_text_layout(
                     path.file_name().unwrap().to_str().unwrap().to_string(),
                 )
-                .font(FontFamily::SYSTEM_UI, 13.0)
+                .font(ui_font_family.clone(), ui_font_size)
                 .text_color(
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -315,30 +351,34 @@ impl Widget<LapceTabData> for ProblemContent {
                 &text_layout,
                 Point::new(
                     line_height,
-                    line_height * i as f64
-                        + (line_height - text_layout.size().height) / 2.0,
+                    line_height * current_line as f64
+                        + text_layout.y_offset(line_height),
                 ),
             );
 
-            let mut path = path.clone();
-            if let Some(workspace_path) = data.workspace.path.as_ref() {
-                path = path
-                    .strip_prefix(workspace_path)
-                    .unwrap_or(&path)
-                    .to_path_buf();
+            if is_collapsed(data, path) {
+                current_line += 1;
+                continue;
             }
-            let folder = path
+
+            let folder = data
+                .workspace
+                .path
+                .as_ref()
+                .and_then(|workspace_path| path.strip_prefix(workspace_path).ok())
+                .unwrap_or(path)
                 .parent()
-                .and_then(|s| s.to_str())
+                .and_then(Path::to_str)
                 .unwrap_or("")
                 .to_string();
+
             if !folder.is_empty() {
                 let x = text_layout.size().width + line_height + 5.0;
 
                 let text_layout = ctx
                     .text()
                     .new_text_layout(folder)
-                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .font(ui_font_family.clone(), ui_font_size)
                     .text_color(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_DIM)
@@ -350,40 +390,67 @@ impl Widget<LapceTabData> for ProblemContent {
                     &text_layout,
                     Point::new(
                         x,
-                        line_height * i as f64
-                            + (line_height - text_layout.size().height) / 2.0,
+                        line_height * current_line as f64
+                            + text_layout.y_offset(line_height),
                     ),
                 );
             }
 
-            for d in diagnositcs {
-                i += 1;
-                if i > max {
+            for d in diagnostics {
+                if current_line > max {
                     return;
                 }
+                let msg_lines = message_lines(d);
+                let related_lines = related_line_count(d);
+                if current_line + 1 + msg_lines + related_lines < min {
+                    current_line += msg_lines + related_lines;
+                    continue;
+                }
 
-                if i >= min {
-                    let svg = match self.severity {
-                        DiagnosticSeverity::Error => get_svg("error.svg").unwrap(),
-                        _ => get_svg("warning.svg").unwrap(),
-                    };
-                    let rect = Size::new(line_height, line_height)
-                        .to_rect()
-                        .with_origin(Point::new(line_height, line_height * i as f64))
-                        .inflate(-padding, -padding);
-                    ctx.draw_svg(
-                        &svg,
-                        rect,
-                        Some(
-                            data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                        ),
+                if ctx.is_hot()
+                    && current_line < mouse_line
+                    && mouse_line < current_line + 1 + msg_lines
+                {
+                    ctx.fill(
+                        Size::new(size.width, line_height * msg_lines as f64)
+                            .to_rect()
+                            .with_origin(Point::new(
+                                0.0,
+                                line_height * (current_line + 1) as f64,
+                            )),
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
                     );
+                }
 
+                let svg = match self.severity {
+                    DiagnosticSeverity::ERROR => {
+                        data.config.ui_svg(LapceIcons::ERROR)
+                    }
+                    _ => data.config.ui_svg(LapceIcons::WARNING),
+                };
+                let rect = Size::new(line_height, line_height)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        line_height,
+                        line_height * (current_line + 1) as f64,
+                    ))
+                    .inflate(-padding, -padding);
+                ctx.draw_svg(
+                    &svg,
+                    rect,
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                    ),
+                );
+
+                for line in d.diagnostic.message.lines() {
+                    current_line += 1;
                     let text_layout = ctx
                         .text()
-                        .new_text_layout(d.diagnositc.message.clone())
-                        .font(FontFamily::SYSTEM_UI, 13.0)
+                        .new_text_layout(line.to_string())
+                        .font(ui_font_family.clone(), ui_font_size)
                         .text_color(
                             data.config
                                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -395,53 +462,83 @@ impl Widget<LapceTabData> for ProblemContent {
                         &text_layout,
                         Point::new(
                             2.0 * line_height,
-                            line_height * i as f64
-                                + (line_height - text_layout.size().height) / 2.0,
+                            line_height * current_line as f64
+                                + text_layout.y_offset(line_height),
                         ),
                     );
                 }
 
-                for related in d
-                    .diagnositc
-                    .related_information
-                    .as_ref()
-                    .unwrap_or(&Vec::new())
+                for related in
+                    d.diagnostic.related_information.as_deref().unwrap_or(&[])
                 {
-                    i += 1;
+                    current_line += 1;
 
-                    if i >= min {
-                        let svg = get_svg("link.svg").unwrap();
-                        let rect = Size::new(line_height, line_height)
-                            .to_rect()
-                            .with_origin(Point::new(
-                                2.0 * line_height,
-                                line_height * i as f64,
-                            ))
-                            .inflate(-padding, -padding);
-                        ctx.draw_svg(
-                            &svg,
-                            rect,
-                            Some(
+                    if ctx.is_hot() && mouse_line >= current_line {
+                        let lines = related.message.lines().count() + 1;
+                        if mouse_line < current_line + lines {
+                            ctx.fill(
+                                Size::new(size.width, line_height * lines as f64)
+                                    .to_rect()
+                                    .with_origin(Point::new(
+                                        0.0,
+                                        line_height * current_line as f64,
+                                    )),
                                 data.config.get_color_unchecked(
-                                    LapceTheme::EDITOR_FOREGROUND,
+                                    LapceTheme::EDITOR_CURRENT_LINE,
                                 ),
-                            ),
-                        );
+                            );
+                        }
+                    }
 
-                        let text = format!(
-                            "{}[{}, {}]: {}",
-                            path_from_url(&related.location.uri)
-                                .file_name()
-                                .and_then(|f| f.to_str())
-                                .unwrap_or(""),
-                            related.location.range.start.line,
-                            related.location.range.start.character,
-                            related.message
-                        );
+                    let svg = data.config.ui_svg(LapceIcons::LINK);
+                    let rect = Size::new(line_height, line_height)
+                        .to_rect()
+                        .with_origin(Point::new(
+                            2.0 * line_height,
+                            line_height * current_line as f64,
+                        ))
+                        .inflate(-padding, -padding);
+                    ctx.draw_svg(
+                        &svg,
+                        rect,
+                        Some(
+                            data.config
+                                .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                        ),
+                    );
+                    let path = path_from_url(&related.location.uri);
+                    let text = format!(
+                        "{}[{}, {}]:",
+                        path.file_name().and_then(|f| f.to_str()).unwrap_or(""),
+                        related.location.range.start.line,
+                        related.location.range.start.character,
+                    );
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout(text)
+                        .font(ui_font_family.clone(), ui_font_size)
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    ctx.draw_text(
+                        &text_layout,
+                        Point::new(
+                            3.0 * line_height,
+                            line_height * current_line as f64
+                                + text_layout.y_offset(line_height),
+                        ),
+                    );
+                    for line in related.message.lines() {
+                        current_line += 1;
+
                         let text_layout = ctx
                             .text()
-                            .new_text_layout(text)
-                            .font(FontFamily::SYSTEM_UI, 13.0)
+                            .new_text_layout(line.to_string())
+                            .font(ui_font_family.clone(), ui_font_size)
                             .text_color(
                                 data.config
                                     .get_color_unchecked(LapceTheme::EDITOR_DIM)
@@ -453,15 +550,27 @@ impl Widget<LapceTabData> for ProblemContent {
                             &text_layout,
                             Point::new(
                                 3.0 * line_height,
-                                line_height * i as f64
-                                    + (line_height - text_layout.size().height)
-                                        / 2.0,
+                                line_height * current_line as f64
+                                    + text_layout.y_offset(line_height),
                             ),
                         );
                     }
                 }
             }
-            i += 1;
+            current_line += 1;
         }
     }
+}
+
+fn message_lines(diagnostic: &EditorDiagnostic) -> usize {
+    diagnostic.diagnostic.message.lines().count()
+}
+
+fn related_line_count(diagnostic: &EditorDiagnostic) -> usize {
+    diagnostic
+        .diagnostic
+        .related_information
+        .as_ref()
+        .map(|r| r.iter().map(|r| r.message.lines().count() + 1).sum())
+        .unwrap_or(0)
 }

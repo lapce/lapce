@@ -1,35 +1,70 @@
 [package]
 name = "lapce-proxy"
-version = "0.0.12"
-authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
+alacritty_terminal.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+crossbeam-channel.workspace = true
+directories.workspace = true
+flate2.workspace = true
+indexmap.workspace = true
+interprocess.workspace = true
+log.workspace = true
+notify.workspace = true
+once_cell.workspace = true
+parking_lot.workspace = true
+regex.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+tar.workspace = true
+toml_edit.workspace = true
+
+lsp-types.workspace = true
+psp-types.workspace = true
+
+lapce-xi-rope.workspace = true
+
+lapce-core.workspace = true
+lapce-rpc.workspace = true
+
+# proxy specific dependencies
+
+url = "2.3.1"
+zstd = "0.11.2" # follow same version wasmtime-cache in lockfile
+dyn-clone = "1.0.10"
+walkdir = "2.3.2"
+globset = "0.4.9"
+locale_config = "0.3.0"
+mio = "0.6.20"
+jsonrpc-lite = "0.6.0"
+
+# finding terminal shell
 which = "4.2.5"
-regex = "1.5.4"
+
+# git
+git2 = { version = "0.14.4", features = ["vendored-openssl"] }
+
+# deleting files
+trash = "2.1.5"
+
+# search
+ignore = "0.4.18"
 grep-searcher = "0.1.8"
 grep-matcher = "0.1.5"
 grep-regex = "0.1.9"
-ignore = "0.4.18"
-ureq = { version = "2.4.0", features = ["json"] }
-wasmer = "2.1.1"
-wasmer-wasi = "2.1.1"
-directories = "4.0.1"
-locale_config = "0.3.0"
-base64 = "0.13.0"
-alacritty_terminal = "0.16"
-mio = "0.6.20"
-hotwatch = "0.4.6"
-notify = "5.0.0-pre.13"
-xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
-serde = { version = "1.0", features = ["derive"] }
-lsp-types = { version = "0.89.2", features = ["proposed"] }
-parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
-crossbeam-channel = "0.5.0"
-jsonrpc-lite = "0.5.0"
-serde_json = "1.0.59"
-anyhow = "1.0.32"
-home = "0.5.3"
-toml = "0.5.6"
-git2 = { version = "0.13.23", features = ["vendored-openssl"] }
-lapce-rpc = { path = "../lapce-rpc" }
+
+# wasm
+wasmtime = "1.0.0"
+wasmtime-wasi = "1.0.0"
+wasi-common = "1.0.0"
+
+[dependencies.wasi-experimental-http-wasmtime]
+git = "https://github.com/lapce/wasi-experimental-http"
+# path = "../../wasi-experimental-http/crates/wasi-experimental-http-wasmtime"

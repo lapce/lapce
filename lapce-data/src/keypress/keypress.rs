@@ -1,56 +1,85 @@
-use std::fmt::Display;
+use std::{
+    fmt::Display,
+    hash::{Hash, Hasher},
+    str::FromStr,
+};
 
 use druid::{
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    FontFamily, Modifiers, PaintCtx, Point, Rect,
+    Modifiers, PaintCtx, Point, Rect,
 };
 
 use crate::{
-    config::{Config, LapceTheme},
+    config::{LapceConfig, LapceTheme},
     keypress::paint_key,
 };
 
+use super::KeyPressData;
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KeyPress {
-    pub key: druid::KbKey,
-    pub mods: Modifiers,
-}
-
-impl Display for KeyPress {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.mods.ctrl() {
-            let _ = f.write_str("Ctrl+");
-        }
-        if self.mods.alt() {
-            let _ = f.write_str("Alt+");
-        }
-        if self.mods.meta() {
-            let _ = f.write_str("Meta+");
-        }
-        if self.mods.shift() {
-            let _ = f.write_str("Shift+");
-        }
-        f.write_str(&self.key.to_string())
-    }
+    pub(super) key: Key,
+    pub(super) mods: Modifiers,
 }
 
 impl KeyPress {
+    pub fn keyboard(ev: &druid::KeyEvent) -> Option<KeyPress> {
+        use druid::KbKey as K;
+
+        match ev.key {
+            K::Shift | K::Meta | K::Super | K::Alt | K::Control => None,
+            ref key => Some(Self {
+                key: Key::Keyboard(match key {
+                    K::Character(c) => K::Character(c.to_lowercase()),
+                    key => key.clone(),
+                }),
+                mods: KeyPressData::get_key_modifiers(ev),
+            }),
+        }
+    }
+
+    pub fn mouse(ev: &druid::MouseEvent) -> KeyPress {
+        Self {
+            key: Key::Mouse(ev.button),
+            mods: ev.mods,
+        }
+    }
+
+    pub fn hotkey(&self) -> Option<druid::HotKey> {
+        self.key
+            .as_keyboard()
+            .map(|k| druid::HotKey::new(self.mods, k.clone()))
+    }
+
     pub fn is_char(&self) -> bool {
         let mut mods = self.mods;
         mods.set(Modifiers::SHIFT, false);
         if mods.is_empty() {
-            if let druid::KbKey::Character(_c) = &self.key {
+            if let Key::Keyboard(druid::KbKey::Character(_c)) = &self.key {
                 return true;
             }
         }
         false
     }
 
+    pub fn to_lowercase(&self) -> Self {
+        let key = match &self.key {
+            Key::Keyboard(druid::KbKey::Character(c)) => {
+                Key::Keyboard(druid::KbKey::Character(c.to_lowercase()))
+            }
+            _ => self.key.clone(),
+        };
+        Self {
+            key,
+            mods: self.mods,
+        }
+    }
+
     pub fn paint(
         &self,
         ctx: &mut PaintCtx,
         origin: Point,
-        config: &Config,
+        config: &LapceConfig,
     ) -> (Point, Vec<(Option<Rect>, PietTextLayout, Point)>) {
         let mut origin = origin;
         let mut keys = Vec::new();
@@ -71,20 +100,7 @@ impl KeyPress {
         if self.mods.shift() {
             keys.push("Shift".to_string());
         }
-        match &self.key {
-            druid::keyboard_types::Key::Character(c) => {
-                if *c == c.to_uppercase()
-                    && c.to_lowercase() != c.to_uppercase()
-                    && !self.mods.shift()
-                {
-                    keys.push("Shift".to_string());
-                }
-                keys.push(c.to_uppercase());
-            }
-            _ => {
-                keys.push(self.key.to_string());
-            }
-        }
+        keys.push(self.key.to_string());
 
         let mut items = Vec::new();
         let keys_len = keys.len();
@@ -99,7 +115,7 @@ impl KeyPress {
                 let text_layout = ctx
                     .text()
                     .new_text_layout("+")
-                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .font(config.ui.font_family(), config.ui.font_size() as f64)
                     .text_color(
                         config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -125,7 +141,7 @@ impl KeyPress {
                     None => ("", k),
                 };
 
-                let key = match Self::map_str_to_key(key) {
+                let key = match key.parse().ok() {
                     Some(key) => key,
                     None => {
                         // Skip past unrecognized key definitions
@@ -141,18 +157,50 @@ impl KeyPress {
                         "meta" => mods.set(Modifiers::META, true),
                         "shift" => mods.set(Modifiers::SHIFT, true),
                         "alt" => mods.set(Modifiers::ALT, true),
+                        "" => (),
                         other => log::warn!("Invalid key modifier: {}", other),
                     }
                 }
 
-                Some(KeyPress { mods, key })
+                Some(KeyPress { key, mods })
             })
             .collect()
     }
+}
 
-    /// Convert a piece of text representing a key in a keymaps file to the actual key
-    /// Returns `None` if it was not able to find a key with that name
-    fn map_str_to_key(key_part: &str) -> Option<druid::KbKey> {
+impl Display for KeyPress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.mods.ctrl() {
+            let _ = f.write_str("Ctrl+");
+        }
+        if self.mods.alt() {
+            let _ = f.write_str("Alt+");
+        }
+        if self.mods.meta() {
+            let _ = f.write_str("Meta+");
+        }
+        if self.mods.shift() {
+            let _ = f.write_str("Shift+");
+        }
+        f.write_str(&self.key.to_string())
+    }
+}
+
+#[derive(Clone, Debug, Eq)]
+pub(super) enum Key {
+    Keyboard(druid::KbKey),
+    Mouse(druid::MouseButton),
+}
+
+impl Key {
+    pub(super) fn as_keyboard(&self) -> Option<&'_ druid::KbKey> {
+        match self {
+            Self::Keyboard(key) => Some(key),
+            Self::Mouse(_) => None,
+        }
+    }
+
+    fn keyboard_from_str(s: &str) -> Option<druid::KbKey> {
         // Checks if it is a character key
         fn is_key_string(s: &str) -> bool {
             s.chars().all(|c| !c.is_control())
@@ -161,8 +209,8 @@ impl KeyPress {
 
         // Import into scope to reduce noise
         use druid::keyboard_types::Key::*;
-        Some(match key_part.to_lowercase().as_str() {
-            s if is_key_string(s) => Character(key_part.to_string()),
+        Some(match s {
+            s if is_key_string(s) => Character(s.to_string()),
             "unidentified" => Unidentified,
             "alt" => Alt,
             "altgraph" => AltGraph,
@@ -460,5 +508,64 @@ impl KeyPress {
 
             _ => return None,
         })
+    }
+
+    fn mouse_from_str(s: &str) -> Option<druid::MouseButton> {
+        use druid::MouseButton as B;
+
+        Some(match s {
+            "mousemiddle" => B::Middle,
+            "mouseforward" => B::X2,
+            "mousebackward" => B::X1,
+            _ => return None,
+        })
+    }
+}
+
+impl Display for Key {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use druid::MouseButton as B;
+
+        match self {
+            Self::Keyboard(key) => return key.fmt(f),
+            Self::Mouse(B::Middle) => "MouseMiddle",
+            Self::Mouse(B::X2) => "MouseForward",
+            Self::Mouse(B::X1) => "MouseBackward",
+            Self::Mouse(_) => "MouseUnimplemented",
+        }
+        .fmt(f)
+    }
+}
+
+impl FromStr for Key {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_lowercase();
+
+        Key::keyboard_from_str(&s)
+            .map(Key::Keyboard)
+            .or_else(|| Key::mouse_from_str(&s).map(Key::Mouse))
+            .ok_or(())
+    }
+}
+
+impl Hash for Key {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Keyboard(key) => key.hash(state),
+            // TODO: Implement `Hash` for `druid::MouseButton`
+            Self::Mouse(btn) => (*btn as u8).hash(state),
+        }
+    }
+}
+
+impl PartialEq for Key {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Key::Keyboard(a), Key::Keyboard(b)) => a.eq(b),
+            (Key::Mouse(a), Key::Mouse(b)) => a.eq(b),
+            _ => false,
+        }
     }
 }

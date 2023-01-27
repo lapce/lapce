@@ -1,4 +1,4 @@
-use xi_rope::Rope;
+use lapce_xi_rope::Rope;
 
 use crate::{
     buffer::Buffer,

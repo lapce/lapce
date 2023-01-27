@@ -1,14 +1,20 @@
-pub mod activity;
+#![allow(clippy::manual_clamp)]
+
+pub mod about;
+pub mod alert;
 pub mod app;
-pub mod code_action;
+pub mod button;
 pub mod completion;
+pub mod dropdown;
 pub mod editor;
 pub mod explorer;
 pub mod find;
 pub mod hover;
+pub mod ime;
 pub mod keymap;
-pub mod menu;
-pub mod outline;
+pub mod list;
+mod logging;
+pub mod message;
 pub mod palette;
 pub mod panel;
 pub mod picker;
@@ -20,10 +26,9 @@ pub mod settings;
 pub mod signature;
 pub mod source_control;
 pub mod split;
-mod svg;
 pub mod status;
+pub mod svg;
 mod tab;
 pub mod terminal;
 pub mod title;
 pub mod window;
-mod logging;

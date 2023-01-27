@@ -1,0 +1,60 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/IconTheme",
+    "definitions": {
+        "IconTheme": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "icon-theme": {
+                    "$ref": "#/definitions/IconThemeClass"
+                }
+            },
+            "required": [],
+            "title": "IconTheme"
+        },
+        "IconThemeClass": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "ui": {
+                    "$ref": "#/definitions/IconMapping"
+                },
+                "foldername": {
+                    "$ref": "#/definitions/IconMapping"
+                },
+                "filename": {
+                    "$ref": "#/definitions/IconMapping"
+                },
+                "extension": {
+                    "$ref": "#/definitions/IconMapping"
+                }
+            },
+            "required": [],
+            "title": "IconThemeClass"
+        },
+        "IconMapping": {
+            "type": "object",
+            "additionalProperties": false,
+            "patternProperties": {
+                "*" : {
+                    "type": "string"
+                }
+            },
+            "title": "IconMapping"
+        },
+        "Extension": {
+            "type": "object",
+            "additionalProperties": false,
+            "patternProperties": {
+                "[a-zA-Z0-9]" : {
+                    "type": "string"
+                }
+            },
+            "title": "IconMapping"
+        }
+    }
+}

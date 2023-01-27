@@ -1,38 +1,65 @@
 use std::{
     cell::RefCell,
+    collections::HashMap,
+    ops::Range,
     rc::Rc,
     sync::{atomic, Arc},
 };
 
 use druid::{
-    piet::{PietText, PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
+    piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
     Target,
 };
-use lapce_core::{buffer::Buffer, style::line_styles, syntax::Syntax};
+use itertools::Itertools;
+use lapce_core::{
+    buffer::{rope_diff, Buffer, DiffLines},
+    style::line_styles,
+    syntax::Syntax,
+};
 use lapce_rpc::{
-    buffer::BufferHeadResponse,
+    proxy::ProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
-use xi_rope::{spans::Spans, Rope};
+use lapce_xi_rope::{spans::Spans, Rope};
 
 use crate::{
-    buffer::{rope_diff, BufferContent, DiffLines},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
-    document::{Document, TextLayoutCache},
+    config::{LapceConfig, LapceTheme},
+    document::{BufferContent, Document, TextLayoutCache, TextLayoutLine},
 };
 
 #[derive(Clone)]
-pub struct DocumentHisotry {
+pub struct DocumentHistory {
     version: String,
     buffer: Option<Buffer>,
     styles: Arc<Spans<Style>>,
     line_styles: Rc<RefCell<LineStyles>>,
     changes: Arc<Vec<DiffLines>>,
     text_layouts: Rc<RefCell<TextLayoutCache>>,
+    diff_extend_lines: usize,
 }
 
-impl DocumentHisotry {
+impl druid::Data for DocumentHistory {
+    fn same(&self, other: &Self) -> bool {
+        if !self.changes.same(&other.changes) {
+            return false;
+        }
+
+        if !self.styles.same(&other.styles) {
+            return false;
+        }
+
+        match (self.buffer.as_ref(), other.buffer.as_ref()) {
+            (None, None) => true,
+            (None, Some(_)) | (Some(_), None) => false,
+            (Some(buffer), Some(other_buffer)) => {
+                buffer.text().ptr_eq(other_buffer.text())
+            }
+        }
+    }
+}
+pub const DEFAULT_DIFF_EXTEND_LINES: usize = 3;
+impl DocumentHistory {
     pub fn new(version: String) -> Self {
         Self {
             version,
@@ -41,14 +68,15 @@ impl DocumentHisotry {
             line_styles: Rc::new(RefCell::new(LineStyles::new())),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             changes: Arc::new(Vec::new()),
+            diff_extend_lines: DEFAULT_DIFF_EXTEND_LINES,
         }
     }
 
     pub fn load_content(&mut self, content: Rope, doc: &Document) {
         let mut buffer = Buffer::new("");
-        buffer.load_content(&content.slice_to_cow(..));
+        buffer.init_content(content);
         self.buffer = Some(buffer);
-        self.trigger_update_change(doc);
+        self.trigger_update_change(doc, DEFAULT_DIFF_EXTEND_LINES);
         self.retrieve_history_styles(doc);
     }
 
@@ -56,22 +84,35 @@ impl DocumentHisotry {
         &self,
         text: &mut PietText,
         line: usize,
-        config: &Config,
-    ) -> Arc<PietTextLayout> {
-        self.text_layouts.borrow_mut().check_attributes(
-            config.editor.font_size,
-            config.editor.font_family(),
-            config.editor.tab_width,
-        );
-        if self.text_layouts.borrow().layouts.get(&line).is_none() {
+        config: &LapceConfig,
+    ) -> Arc<TextLayoutLine> {
+        let font_size = 0;
+        self.text_layouts.borrow_mut().check_attributes(config.id);
+        if self.text_layouts.borrow().layouts.get(&font_size).is_none() {
+            let mut cache = self.text_layouts.borrow_mut();
+            cache.layouts.insert(font_size, HashMap::new());
+        }
+        if self
+            .text_layouts
+            .borrow()
+            .layouts
+            .get(&font_size)
+            .unwrap()
+            .get(&line)
+            .is_none()
+        {
             self.text_layouts
                 .borrow_mut()
                 .layouts
+                .get_mut(&font_size)
+                .unwrap()
                 .insert(line, Arc::new(self.new_text_layout(text, line, config)));
         }
         self.text_layouts
             .borrow()
             .layouts
+            .get(&font_size)
+            .unwrap()
             .get(&line)
             .cloned()
             .unwrap()
@@ -81,8 +122,8 @@ impl DocumentHisotry {
         &self,
         text: &mut PietText,
         line: usize,
-        config: &Config,
-    ) -> PietTextLayout {
+        config: &LapceConfig,
+    ) -> TextLayoutLine {
         let line_content = self.buffer.as_ref().unwrap().line_content(line);
         let font_family = config.editor.font_family();
         let font_size = config.editor.font_size;
@@ -110,7 +151,12 @@ impl DocumentHisotry {
             }
         }
 
-        layout_builder.build().unwrap()
+        TextLayoutLine {
+            text: layout_builder.build().unwrap(),
+            extra_style: Vec::new(),
+            whitespaces: None,
+            indent: 0.0,
+        }
     }
 
     fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
@@ -127,6 +173,7 @@ impl DocumentHisotry {
         self.line_styles.borrow().get(&line).cloned().unwrap()
     }
 
+    /// Retrieve the `head` version of the buffer
     pub fn retrieve(&self, doc: &Document) {
         if let BufferContent::File(path) = &doc.content() {
             let id = doc.id();
@@ -135,32 +182,185 @@ impl DocumentHisotry {
             let proxy = doc.proxy.clone();
             let event_sink = doc.event_sink.clone();
             std::thread::spawn(move || {
-                proxy.get_buffer_head(
-                    id,
-                    path.clone(),
-                    Box::new(move |result| {
-                        if let Ok(res) = result {
-                            if let Ok(resp) =
-                                serde_json::from_value::<BufferHeadResponse>(res)
-                            {
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::LoadBufferHead {
-                                        path,
-                                        content: Rope::from(resp.content),
-                                        version: resp.version,
-                                    },
-                                    Target::Widget(tab_id),
-                                );
-                            }
+                proxy
+                    .proxy_rpc
+                    .get_buffer_head(id, path.clone(), move |result| {
+                        if let Ok(ProxyResponse::BufferHeadResponse {
+                            version,
+                            content,
+                        }) = result
+                        {
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::LoadBufferHead {
+                                    path,
+                                    content: Rope::from(content),
+                                    version,
+                                },
+                                Target::Widget(tab_id),
+                            );
                         }
-                    }),
-                )
+                    })
             });
         }
     }
 
-    pub fn trigger_update_change(&self, doc: &Document) {
+    pub fn trigger_increase_diff_extend_lines(
+        &self,
+        doc: &Document,
+        diff_skip: DiffLines,
+    ) {
+        let incr = 5_usize;
+        if self.buffer.is_none() {
+            return;
+        }
+        if let BufferContent::File(path) = &doc.content() {
+            let id = doc.id();
+            let rev = doc.rev();
+            let path = path.clone();
+            let event_sink = doc.event_sink.clone();
+            let tab_id = doc.tab_id;
+
+            let old_changes = self.changes.clone();
+            let changes_len = old_changes.len();
+            let mut changes = self.changes.clone().to_vec();
+            for (i, change) in old_changes.iter().enumerate() {
+                if let DiffLines::Skip(left, right) = change {
+                    if *change == diff_skip {
+                        if i == 0 {
+                            let l_incr =
+                                if left.len() < incr { left.len() } else { incr };
+                            let r_incr =
+                                if right.len() < 5 { right.len() } else { incr };
+                            changes[i] = DiffLines::Skip(
+                                Range {
+                                    start: left.start,
+                                    end: left.end - l_incr,
+                                },
+                                Range {
+                                    start: right.start,
+                                    end: right.end - r_incr,
+                                },
+                            );
+                            if let DiffLines::Both(l, r) = &old_changes[i + 1] {
+                                changes[i + 1] = DiffLines::Both(
+                                    Range {
+                                        start: l.start - l_incr,
+                                        end: l.end,
+                                    },
+                                    Range {
+                                        start: r.start - r_incr,
+                                        end: r.end,
+                                    },
+                                );
+                            }
+                        } else if i == changes_len - 1 {
+                            let l_incr =
+                                if left.len() < incr { left.len() } else { incr };
+                            let r_incr =
+                                if right.len() < 5 { right.len() } else { incr };
+                            if let DiffLines::Both(l, r) = &old_changes[i - 1] {
+                                changes[i - 1] = DiffLines::Both(
+                                    Range {
+                                        start: l.start,
+                                        end: l.end + l_incr,
+                                    },
+                                    Range {
+                                        start: r.start,
+                                        end: r.end + r_incr,
+                                    },
+                                );
+                            }
+                            changes[i] = DiffLines::Skip(
+                                Range {
+                                    start: left.start + l_incr,
+                                    end: left.end,
+                                },
+                                Range {
+                                    start: right.start + r_incr,
+                                    end: right.end,
+                                },
+                            );
+                        } else {
+                            let mut l_s_incr = incr; // left start increasement
+                            let mut l_e_incr = incr; // left end increasement
+                            let mut r_s_incr = incr; // right start increasement
+                            let mut r_e_incr = incr; // right end increasement
+                            if left.len() < incr * 2 {
+                                l_s_incr = left.len();
+                                l_e_incr = 0;
+                            }
+                            if right.len() < incr * 2 {
+                                r_s_incr = right.len();
+                                r_e_incr = 0;
+                            }
+
+                            if let DiffLines::Both(l, r) = &old_changes[i - 1] {
+                                changes[i - 1] = DiffLines::Both(
+                                    Range {
+                                        start: l.start,
+                                        end: l.end + l_s_incr,
+                                    },
+                                    Range {
+                                        start: r.start,
+                                        end: r.end + r_s_incr,
+                                    },
+                                );
+                            }
+                            changes[i] = DiffLines::Skip(
+                                Range {
+                                    start: left.start + l_s_incr,
+                                    end: left.end - l_e_incr,
+                                },
+                                Range {
+                                    start: right.start + r_s_incr,
+                                    end: right.end - r_e_incr,
+                                },
+                            );
+                            if let DiffLines::Both(l, r) = &old_changes[i + 1] {
+                                changes[i + 1] = DiffLines::Both(
+                                    Range {
+                                        start: l.start - l_e_incr,
+                                        end: l.end,
+                                    },
+                                    Range {
+                                        start: r.start - r_e_incr,
+                                        end: r.end,
+                                    },
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            let changes = changes
+                .iter()
+                .filter(|change| {
+                    if let DiffLines::Skip(left, right) = change {
+                        if left.is_empty() && right.is_empty() {
+                            return false;
+                        }
+                    }
+                    true
+                })
+                .cloned()
+                .collect_vec();
+            let _ = event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdateHistoryChanges {
+                    id,
+                    path,
+                    rev,
+                    history: "head".to_string(),
+                    changes: Arc::new(changes),
+                    diff_extend_lines: self.diff_extend_lines,
+                },
+                Target::Widget(tab_id),
+            );
+        }
+    }
+
+    pub fn trigger_update_change(&self, doc: &Document, diff_extend_lines: usize) {
         if self.buffer.is_none() {
             return;
         }
@@ -177,8 +377,13 @@ impl DocumentHisotry {
                 if atomic_rev.load(atomic::Ordering::Acquire) != rev {
                     return;
                 }
-                let changes =
-                    rope_diff(left_rope, right_rope, rev, atomic_rev.clone());
+                let changes = rope_diff(
+                    left_rope,
+                    right_rope,
+                    rev,
+                    atomic_rev.clone(),
+                    diff_extend_lines,
+                );
                 if changes.is_none() {
                     return;
                 }
@@ -195,6 +400,7 @@ impl DocumentHisotry {
                         rev,
                         history: "head".to_string(),
                         changes: Arc::new(changes),
+                        diff_extend_lines,
                     },
                     Target::Widget(tab_id),
                 );
@@ -206,8 +412,17 @@ impl DocumentHisotry {
         &self.changes
     }
 
-    pub fn update_changes(&mut self, changes: Arc<Vec<DiffLines>>) {
+    pub fn diff_extend_lines(&self) -> usize {
+        self.diff_extend_lines
+    }
+
+    pub fn update_changes(
+        &mut self,
+        changes: Arc<Vec<DiffLines>>,
+        diff_extend_lines: usize,
+    ) {
         self.changes = changes;
+        self.diff_extend_lines = diff_extend_lines;
     }
 
     pub fn update_styles(&mut self, styles: Arc<Spans<Style>>) {
@@ -228,9 +443,8 @@ impl DocumentHisotry {
 
             let content = self.buffer.as_ref().unwrap().text().clone();
             rayon::spawn(move || {
-                if let Some(syntax) =
-                    Syntax::init(&path).map(|s| s.parse(0, content, None))
-                {
+                if let Ok(mut syntax) = Syntax::init(&path) {
+                    syntax.parse(0, content, None);
                     if let Some(styles) = syntax.styles {
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,

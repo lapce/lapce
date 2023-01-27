@@ -1,14 +1,17 @@
+use std::path::PathBuf;
+
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
+use indexmap::IndexMap;
 use lapce_core::{
     command::{FocusCommand, MoveCommand},
     mode::Mode,
+    movement::Movement,
 };
 use lapce_rpc::source_control::FileDiff;
 
 use crate::{
     command::{CommandExecuted, CommandKind, LapceUICommand, LAPCE_UI_COMMAND},
     keypress::KeyPressFocus,
-    movement::Movement,
     split::{SplitDirection, SplitMoveDirection},
 };
 
@@ -24,9 +27,11 @@ pub struct SourceControlData {
     pub file_list_id: WidgetId,
     pub file_list_index: usize,
     pub editor_view_id: WidgetId,
-    pub file_diffs: Vec<(FileDiff, bool)>,
+    pub commit_button_id: WidgetId,
+    // VCS modified files & whether they should be included in the next commit
+    pub file_diffs: IndexMap<PathBuf, (FileDiff, bool)>,
     pub branch: String,
-    pub branches: Vec<String>,
+    pub branches: im::Vector<String>,
 }
 
 impl SourceControlData {
@@ -39,11 +44,12 @@ impl SourceControlData {
             editor_view_id,
             file_list_id,
             file_list_index: 0,
+            commit_button_id: WidgetId::next(),
             split_id: WidgetId::next(),
             split_direction: SplitDirection::Horizontal,
-            file_diffs: Vec::new(),
+            file_diffs: IndexMap::new(),
             branch: "".to_string(),
-            branches: Vec::new(),
+            branches: im::Vector::new(),
         }
     }
 }
@@ -180,13 +186,15 @@ impl KeyPressFocus for SourceControlData {
                     if !self.file_diffs.is_empty() {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::OpenFileDiff(
-                                self.file_diffs[self.file_list_index]
+                            LapceUICommand::OpenFileDiff {
+                                path: self
+                                    .file_diffs
+                                    .get_index(self.file_list_index)
+                                    .unwrap()
                                     .0
-                                    .path()
                                     .clone(),
-                                "head".to_string(),
-                            ),
+                                history: "head".to_string(),
+                            },
                             Target::Auto,
                         ));
                     }

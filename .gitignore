@@ -1,6 +1,10 @@
 .vscode
 .lapce
 .idea
+.fleet
+shell.nix
 lib/
 target/
 core/languages/
+
+.DS_Store

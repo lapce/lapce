@@ -1,23 +1,163 @@
-white = "#ABB2BF"
-black = "#282C34"
-grey = "#3E4451"
-light_grey = "#2c313c"
-blue = "#61AFEF"
-red = "#E06C75"
-yellow = "#e5c07b"
-orange = "#D19A66"
-green = "#98C379"
-purple = "#C678DD"
-cyan = "#56b6c2"
-magenta = "#C678DD"
+#:schema ../extra/schemas/color-theme.json
 
-"lapce.active_tab" = "$black"
-"lapce.inactive_tab" = "$grey"
+[color-theme]
+name = "Lapce Dark"
+
+[ui]
+font-family = ""
+font-size = 13
+header-height = 35
+status-height = 25
+tab-min-width = 100
+activity-width = 50
+scroll-width = 10
+drop-shadow-width = 0
+
+[color-theme.base]
+black = "#282C34"
+blue = "#61AFEF"
+cyan = "#56B6C2"
+green = "#98C379"
+grey = "#3E4451"
+magenta = "#C678DD"
+orange = "#D19A66"
+purple = "#C678DD"
+red = "#E06C75"
+white = "#ABB2BF"
+yellow = "#E5C07B"
+
+[color-theme.syntax]
+"comment" = "#5C6370"
+"constant" = "$yellow"
+"type" = "$yellow"
+"typeAlias" = "$yellow"
+"number" = "$yellow"
+"enum" = "$yellow"
+"struct" = "$yellow"
+"structure" = "$yellow"
+"interface" = "$yellow"
+"attribute" = "$yellow"
+"constructor" = "$yellow"
+"function" = "$blue"
+"method" = "$blue"
+"function.method" = "$blue"
+"keyword" = "$purple"
+"selfKeyword" = "$purple"
+"field" = "$red"
+"property" = "$red"
+"enumMember" = "$red"
+"enum-member" = "$red"
+"string" = "$green"
+"type.builtin" = "$cyan"
+"builtinType" = "$cyan"
+"escape" = "$cyan"
+"string.escape" = "$cyan"
+"embedded" = "$cyan"
+"punctuation.delimiter" = "$yellow"
+"text.title" = "$orange"
+"text.uri" = "$cyan"
+"text.reference" = "$yellow"
+"variable" = "$red"
+"variable.other.member" = "$green"
+"tag" = "$blue"
+
+[color-theme.ui]
 "lapce.error" = "$red"
 "lapce.warn" = "$yellow"
 "lapce.dropdown_shadow" = "#000000"
 "lapce.border" = "#000000"
 "lapce.scroll_bar" = "$grey"
+
+"lapce.button.primary.background" = "#50a14f"
+"lapce.button.primary.foreground" = "$black"
+
+# tab
+"lapce.tab.active.background" = "$black"
+"lapce.tab.active.foreground" = "$white"
+"lapce.tab.active.underline" = "#528BFF"
+
+"lapce.tab.inactive.background" = "#21252b"
+"lapce.tab.inactive.foreground" = "$white"
+"lapce.tab.inactive.underline" = "#528BFF77"
+
+"lapce.tab.separator" = ""
+
+"lapce.icon.active" = "$white"
+"lapce.icon.inactive" = "#5C6370"
+
+"lapce.remote.icon" = "$black"
+"lapce.remote.local" = "#4078F2"
+"lapce.remote.connected" = "#50A14F"
+"lapce.remote.connecting" = "#C18401"
+"lapce.remote.disconnected" = "#E45649"
+
+"lapce.plugin.name" = "#DDDDDD"
+"lapce.plugin.description" = "$white"
+"lapce.plugin.author" = "#B0B0B0"
+
+"editor.background" = "$black"
+"editor.foreground" = "$white"
+"editor.dim" = "#5C6370"
+"editor.focus" = "#CCCCCC"
+"editor.caret" = "#528BFF"
+"editor.selection" = "$grey"
+"editor.current_line" = "#2C313C"
+"editor.link" = "$blue"
+"editor.visible_whitespace" = "$grey"
+"editor.indent_guide" = "$grey"
+"editor.drag_drop_background" = "#79c1fc55"
+"editor.drag_drop_tab_background" = "#0b0e1455"
+"editor.sticky_header_background" = "$black"
+
+"inlay_hint.foreground" = "$white"
+"inlay_hint.background" = "#528abF37"
+
+"error_lens.error.foreground" = "$red"
+"error_lens.error.background" = "#E06C7520"
+"error_lens.warning.foreground" = "$yellow"
+"error_lens.warning.background" = "#E5C07B20"
+"error_lens.other.foreground" = "#5C6370"
+"error_lens.other.background" = "#5C637020"
+
+"source_control.added" = "#50A14F32"
+"source_control.removed" = "#FF526632"
+"source_control.modified" = "#0184BC32"
+
+"palette.background" = "#21252B"
+"palette.foreground" = "$white"
+"palette.current.background" = "#2C313A"
+"palette.current.foreground" = "$white"
+
+"completion.background" = "#21252B"
+"completion.current" = "#2C313A"
+
+"hover.background" = "#21252B"
+
+"activity.background" = "#21252B"
+"activity.current" = "$black"
+
+"panel.background" = "#21252B"
+"panel.foreground" = "$white"
+"panel.foreground.dim" = "#5C6370"
+"panel.current.background" = "#2C313A"
+"panel.current.foreground" = "$white"
+"panel.current.foreground.dim" = "#5C6370"
+"panel.hovered.background" = "#343A45"
+"panel.hovered.foreground" = "$white"
+"panel.hovered.foreground.dim" = "#5C6370"
+
+"status.background" = "#21252B"
+"status.foreground" = "$white"
+"status.modal.normal.background" = "$blue"
+"status.modal.normal.foreground" = "$black"
+"status.modal.insert.background" = "$red"
+"status.modal.insert.foreground" = "$black"
+"status.modal.visual.background" = "$yellow"
+"status.modal.visual.foreground" = "$black"
+"status.modal.terminal.background" = "$purple"
+"status.modal.terminal.foreground" = "$black"
+
+"markdown.blockquote" = "#898989"
 
 "terminal.cursor" = "$white"
 "terminal.foreground" = "$white"
@@ -38,69 +178,3 @@ magenta = "#C678DD"
 "terminal.bright_cyan" = "$cyan"
 "terminal.bright_magenta" = "$magenta"
 "terminal.bright_black" = "#545862"
-
-"editor.background" = "$black"
-"editor.foreground" = "$white"
-"editor.dim" = "#5C6370"
-"editor.focus" = "#CCCCCC"
-"editor.caret" = "#528bff"
-"editor.selection" = "$grey"
-"editor.current_line" = "$light_grey"
-"editor.link" = "$cyan"
-
-"source_control.added" = "#50a14f32"
-"source_control.removed" = "#ff526632"
-"source_control.modified" = "#0184bc32"
-
-"palette.background" = "#21252B"
-"palette.current" = "#2C313A"
-
-"completion.background" = "#21252B"
-"completion.current" = "#2C313A"
-
-"hover.background" = "#21252B"
-
-"panel.background" = "#21252B"
-"panel.current" = "#2C313A"
-"panel.hovered" = "#343A45"
-
-"status.background" = "#21252B"
-"status.modal.normal" = "$blue"
-"status.modal.insert" = "$red"
-"status.modal.visual" = "$yellow"
-"status.modal.terminal" = "$purple"
-
-"markdown.blockquote" = "#898989"
-
-"style.comment" = "#5C6370"
-
-"style.constant" = "$yellow"
-"style.type" = "$yellow"
-"style.typeAlias" = "$yellow"
-"style.number" = "$yellow"
-"style.enum" = "$yellow"
-"style.struct" = "$yellow"
-"style.structure" = "$yellow"
-"style.interface" = "$yellow"
-"style.attribute" = "$yellow"
-"style.constructor" = "$yellow"
-
-"style.function" = "$blue"
-"style.method" = "$blue"
-"style.function.method" = "$blue"
-
-"style.keyword" = "$purple"
-"style.selfKeyword" = "$purple"
-
-"style.field" = "$red"
-"style.property" = "$red"
-"style.enumMember" = "$red"
-"style.enum-member" = "$red"
-"style.variable.other.member" = "$red"
-
-"style.string" = "$green"
-
-"style.type.builtin" = "$cyan"
-"style.builtinType" = "$cyan"
-"style.escape" = "$cyan"
-"style.embedded" = "$cyan"

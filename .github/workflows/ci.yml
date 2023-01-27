@@ -1,36 +1,102 @@
-on: 
+on:
   push:
     branches:
       - master
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 name: CI
 
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    name: Rust (${{ matrix.toolchain }}) on ${{ matrix.os }}
+    name: Rust on ${{ matrix.os }}
+    if: github.event.pull_request.draft == false
+    needs: [fmt, clippy]
     strategy:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest, windows-latest, macos-latest ]
-        toolchain: [ stable ]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
       - name: Install dependencies on Ubuntu
         if: startsWith(matrix.os, 'ubuntu')
-        run: sudo apt-get install cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev
+        run: sudo apt-get update && sudo apt-get install cmake pkg-config libgtk-3-dev
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: ${{ matrix.toolchain }}
+      - name: Update toolchain & add llvm-tools
+        run: |
+          rustup update
+          rustup component add llvm-tools-preview
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        
+      - name: Fetch dependencies
+        run: cargo fetch --locked
+
+      - name: Build
+        run: cargo build --frozen
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Run tests and coverage
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
           
-      - uses: actions-rs/cargo@v1
+      - name: Run doc tests
+        run: cargo test --doc --workspace
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
         with:
-          command: build
-  
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace
+          files: lcov.info
+
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Update toolchain & add rustfmt
+        run: |
+          rustup update
+          rustup component add rustfmt
+
+      - name: Run rustfmt
+        run: cargo fmt --all --check
+
+  clippy:
+    name: Clippy on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Update toolchain & add clippy
+        run: |
+          rustup update
+          rustup component add clippy
+
+      - name: Install dependencies on Ubuntu
+        if: startsWith(matrix.os, 'ubuntu')
+        run: sudo apt-get update && sudo apt-get install cmake pkg-config libgtk-3-dev
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        
+      - name: Fetch dependencies
+        run: cargo fetch --locked
+
+      - name: Run clippy
+        run: cargo clippy -- -D warnings

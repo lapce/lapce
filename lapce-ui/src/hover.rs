@@ -1,32 +1,36 @@
 use std::sync::Arc;
 
 use druid::{
-    theme, BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
-    TextLayout, UpdateCtx, Widget, WidgetId, WidgetPod,
+    kurbo::Line, theme, ArcStr, BoxConstraints, Command, Data, Env, Event, EventCtx,
+    FontDescriptor, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point,
+    RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
-    hover::{HoverData, HoverStatus, HoverTextStyle, MarkdownText},
+    hover::{HoverData, HoverStatus},
+    markdown::layout_content::{
+        layout_content_clean_up, layouts_from_contents, LayoutContent,
+    },
+    rich_text::RichText,
 };
 
-use crate::scroll::{LapceIdentityWrapper, LapceScrollNew};
+use crate::scroll::{LapceIdentityWrapper, LapceScroll};
 
 pub struct HoverContainer {
     id: WidgetId,
     scroll_id: WidgetId,
     hover: WidgetPod<
         LapceTabData,
-        LapceIdentityWrapper<LapceScrollNew<LapceTabData, Hover>>,
+        LapceIdentityWrapper<LapceScroll<LapceTabData, Hover>>,
     >,
     content_size: Size,
 }
 impl HoverContainer {
     pub fn new(data: &HoverData) -> Self {
         let hover = LapceIdentityWrapper::wrap(
-            LapceScrollNew::new(Hover::new()).vertical(),
+            LapceScroll::new(Hover::new()).vertical(),
             data.scroll_id,
         );
         Self {
@@ -74,10 +78,17 @@ impl Widget<LapceTabData> for HoverContainer {
         match event {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                if let LapceUICommand::UpdateHover(request_id, resp) = command {
-                    let style = HoverTextStyle::from_data(data);
+                if let LapceUICommand::UpdateHover { request_id, items } = command {
+                    // TODO: Should we check whether it has actually changed?
                     let hover = Arc::make_mut(&mut data.hover);
-                    hover.receive(&style, *request_id, resp.to_owned());
+                    hover.receive(*request_id, items.clone());
+
+                    self.hover
+                        .widget_mut()
+                        .inner_mut()
+                        .child_mut()
+                        .update_layouts(ctx, data);
+
                     ctx.request_paint();
                 }
             }
@@ -128,6 +139,7 @@ impl Widget<LapceTabData> for HoverContainer {
             || old_hover.status != hover.status
             || !old_hover.items.same(&hover.items)
         {
+            self.ensure_visible(ctx, data, env);
             ctx.request_layout();
         }
 
@@ -139,11 +151,6 @@ impl Widget<LapceTabData> for HoverContainer {
                 LapceUICommand::ResetFade,
                 Target::Widget(self.scroll_id),
             ));
-        }
-
-        if old_hover.active_item_index != hover.active_item_index {
-            self.ensure_visible(ctx, data, env);
-            ctx.request_paint();
         }
 
         self.hover.update(ctx, data, env);
@@ -159,113 +166,123 @@ impl Widget<LapceTabData> for HoverContainer {
         let size = data.hover.size;
         let bc = BoxConstraints::new(Size::ZERO, size);
         self.content_size = self.hover.layout(ctx, &bc, data, env);
+        *data.hover.content_size.borrow_mut() = self.content_size;
         self.hover.set_origin(ctx, data, env, Point::ZERO);
-        ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
         size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         if data.hover.status != HoverStatus::Inactive && !data.hover.is_empty() {
-            let shadow_width = 5.0;
             let rect = self.content_size.to_rect();
-            ctx.blurred_rect(
-                rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
+            let shadow_width = data.config.ui.drop_shadow_width() as f64;
+            if shadow_width > 0.0 {
+                ctx.blurred_rect(
+                    rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            } else {
+                ctx.stroke(
+                    rect.inflate(0.5, 0.5),
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
+            }
             self.hover.paint(ctx, data, env);
         }
     }
 }
 
 #[derive(Default)]
-pub struct Hover {
-    /// The active text layout to be rendered
-    /// Uses [`MarkdownText`] to unify non-markdown and markdown text together, instead of two
-    /// separate layout types. Plaintext is just [`MarkdownText`] without special styling or newline
-    /// collapsing.
-    active_layout: TextLayout<MarkdownText>,
+struct Hover {
+    active_layout: Vec<LayoutContent>,
+    active_diagnostic_layout: TextLayout<RichText>,
 }
+
 impl Hover {
     const STARTING_Y: f64 = 5.0;
     const STARTING_X: f64 = 10.0;
 
     fn new() -> Self {
         Hover {
-            active_layout: {
+            active_layout: { Vec::new() },
+            active_diagnostic_layout: {
                 let mut layout = TextLayout::new();
-                layout.set_text(MarkdownText::empty());
+                layout.set_text(RichText::new(ArcStr::from("")));
                 layout
             },
         }
+    }
+
+    fn update_layouts(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        let items = data.hover.items.clone();
+
+        layout_content_clean_up(&mut self.active_layout, data);
+        self.active_layout = layouts_from_contents(ctx, data, items.iter());
+
+        if let Some(diagnostic_content) = &data.hover.diagnostic_content {
+            self.active_diagnostic_layout
+                .set_text(diagnostic_content.clone());
+        } else {
+            self.active_diagnostic_layout
+                .set_text(RichText::new(ArcStr::from("")));
+        }
+
+        let font = FontDescriptor::new(data.config.ui.hover_font_family())
+            .with_size(data.config.ui.hover_font_size() as f64);
+        let text_color = data
+            .config
+            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+            .clone();
+
+        for layout in self.active_layout.iter_mut() {
+            layout.set_font(font.clone());
+            layout.set_text_color(text_color.clone());
+        }
+
+        self.active_diagnostic_layout.set_font(font);
+        self.active_diagnostic_layout.set_text_color(text_color);
+
+        ctx.request_layout();
     }
 }
 impl Widget<LapceTabData> for Hover {
     fn event(
         &mut self,
-        _ctx: &mut EventCtx,
-        _event: &Event,
+        ctx: &mut EventCtx,
+        event: &Event,
         _data: &mut LapceTabData,
         _env: &Env,
     ) {
+        if let Event::MouseMove(_) = event {
+            ctx.set_handled();
+        }
     }
 
     fn lifecycle(
         &mut self,
         _ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
         _env: &Env,
     ) {
-        match event {
-            LifeCycle::WidgetAdded => {
-                if let Some(item) = data.hover.get_current_item() {
-                    let text = item.as_markdown_text();
-                    self.active_layout.set_text(text);
-                }
-            }
-            _ => {}
-        }
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
         _env: &Env,
     ) {
-        // If the active item has changed or we've switched our current item existence status then
-        // update the layout
-        if old_data.hover.active_item_index != data.hover.active_item_index
-            || old_data.hover.get_current_item().is_some()
-                != data.hover.get_current_item().is_some()
-        {
-            if let Some(item) = data.hover.get_current_item() {
-                let text = item.as_markdown_text();
-                self.active_layout.set_text(text);
-            } else {
-                self.active_layout.set_text(MarkdownText::empty());
-            }
-        }
-
-        self.active_layout.set_text_color(
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                .clone(),
-        );
-
-        if self.active_layout.needs_rebuild_after_update(ctx) {
-            ctx.request_layout();
-        }
     }
 
     fn layout(
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        _data: &LapceTabData,
+        data: &LapceTabData,
         env: &Env,
     ) -> Size {
         let width = bc.max().width;
@@ -274,24 +291,74 @@ impl Widget<LapceTabData> for Hover {
             - env.get(theme::SCROLLBAR_WIDTH)
             - env.get(theme::SCROLLBAR_PAD);
 
-        self.active_layout.set_wrap_width(max_width);
-        self.active_layout.rebuild_if_needed(ctx.text(), env);
+        let mut max_layout_width = 0.0;
+        for layout in self.active_layout.iter_mut() {
+            layout.set_max_width(&data.images, max_width);
+            layout.rebuild_if_needed(ctx.text(), env);
+            let layout_width = layout.size(&data.images, &data.config).width;
+            if layout_width > max_layout_width {
+                max_layout_width = layout_width;
+            }
+        }
 
-        let text_metrics = self.active_layout.layout_metrics();
-        ctx.set_baseline_offset(
-            text_metrics.size.height - text_metrics.first_baseline,
-        );
+        self.active_diagnostic_layout.set_wrap_width(max_width);
+        self.active_diagnostic_layout
+            .rebuild_if_needed(ctx.text(), env);
 
-        Size::new(width, text_metrics.size.height)
+        let items_height = if self.active_layout.is_empty() {
+            0.0
+        } else {
+            let mut height = 0.0;
+            for layout in self.active_layout.iter() {
+                height += layout.size(&data.images, &data.config).height;
+            }
+
+            if self.active_layout.len() > 1 {
+                let line_height = data.config.editor.line_height() as f64;
+                height += (self.active_layout.len() - 1) as f64 * line_height
+            }
+            height
+        };
+
+        let diagnostic_size = self.active_diagnostic_layout.size();
+        let diagnostic_height = if diagnostic_size.is_empty() {
+            0.0
+        } else {
+            let diagnostic_text_metrics =
+                self.active_diagnostic_layout.layout_metrics();
+
+            diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0
+        };
+
+        if diagnostic_size.width > max_layout_width {
+            max_layout_width = diagnostic_size.width;
+        }
+
+        let width = if max_layout_width < max_width {
+            max_layout_width
+                + Hover::STARTING_X
+                + env.get(theme::SCROLLBAR_WIDTH)
+                + env.get(theme::SCROLLBAR_PAD)
+        } else {
+            width
+        };
+
+        Size::new(
+            width,
+            items_height + diagnostic_height + Hover::STARTING_Y * 2.0,
+        )
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        if data.hover.status == HoverStatus::Inactive {
+        if data.hover.status != HoverStatus::Done {
             return;
         }
 
+        let side_margin =
+            env.get(theme::SCROLLBAR_WIDTH) + env.get(theme::SCROLLBAR_PAD);
+
         let rect = ctx.region().bounding_box();
-        let origin = Point::new(Self::STARTING_X, Self::STARTING_Y);
+        let diagnostic_origin = Point::new(Self::STARTING_X, Self::STARTING_Y);
 
         ctx.fill(
             rect,
@@ -299,8 +366,46 @@ impl Widget<LapceTabData> for Hover {
                 .get_color_unchecked(LapceTheme::HOVER_BACKGROUND),
         );
 
-        if let Some(text) = self.active_layout.text() {
-            text.draw(ctx, env, origin, &self.active_layout, &data.config);
+        // Draw diagnostic text if it exists
+        let height = if self.active_diagnostic_layout.size().is_empty() {
+            0.0
+        } else {
+            let diagnostic_text_metrics =
+                self.active_diagnostic_layout.layout_metrics();
+
+            let line = {
+                let x0 = rect.x0 + side_margin;
+                let y =
+                    diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0;
+                let x1 = rect.x1 - side_margin;
+                Line::new(Point::new(x0, y), Point::new(x1, y))
+            };
+
+            ctx.stroke(
+                line,
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
+
+            self.active_diagnostic_layout.draw(ctx, diagnostic_origin);
+
+            diagnostic_text_metrics.size.height + Hover::STARTING_Y * 3.0
+        };
+
+        let doc_origin = diagnostic_origin + (0.0, height);
+
+        let mut start_height = 0.0;
+
+        for layout in self.active_layout.iter_mut() {
+            layout.draw(
+                ctx,
+                &data.images,
+                &data.config,
+                doc_origin + (0.0, start_height),
+            );
+
+            let layout_size = layout.size(&data.images, &data.config);
+            start_height += layout_size.height;
         }
     }
 }

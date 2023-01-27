@@ -1,22 +1,105 @@
-white = "#fafafa"
-black = "#383a42"
-grey = "#E5E5E6"
-light_grey = "#f2f2f2"
-blue = "#4078f2"
-red = "#e45649"
-yellow = "#c18401"
-green = "#50A14F"
-purple = "#A626A4"
-cyan = "#0184bc"
-magenta = "#A626A4"
+#:schema ../extra/schemas/color-theme.json
 
-"lapce.active_tab" = "$white"
-"lapce.inactive_tab" = "$grey"
-"lapce.error" = "#e51400"
-"lapce.warn" = "#e9a700"
-"lapce.dropdown_shadow" = "#b4b4b4"
-"lapce.border" = "#b4b4b4"
-"lapce.scroll_bar" = "#b4b4b4"
+[color-theme]
+name = "Lapce Light"
+
+[ui]
+font-family = ""
+font-size = 13
+header-height = 35
+status-height = 25
+tab-min-width = 100
+activity-width = 50
+scroll-width = 10
+drop-shadow-width = 0
+
+[color-theme.base]
+black = "#383A42"
+blue = "#4078F2"
+cyan = "#0184BC"
+green = "#50A14F"
+grey = "#E5E5E6"
+magenta = "#A626A4"
+orange = "#D19A66"
+purple = "#A626A4"
+red = "#E45649"
+white = "#FAFAFA"
+yellow = "#C18401"
+
+[color-theme.syntax]
+"comment" = "#A0A1A7"
+"constant" = "$yellow"
+"type" = "$yellow"
+"typeAlias" = "$yellow"
+"number" = "$yellow"
+"enum" = "$yellow"
+"struct" = "$yellow"
+"structure" = "$yellow"
+"interface" = "$yellow"
+"attribute" = "$yellow"
+"constructor" = "$yellow"
+
+"function" = "$blue"
+"method" = "$blue"
+"function.method" = "$blue"
+
+"keyword" = "$purple"
+"selfKeyword" = "$purple"
+
+"field" = "$red"
+"property" = "$red"
+"enumMember" = "$red"
+"enum-member" = "$red"
+
+"string" = "$green"
+"string.escape" = "$cyan"
+
+"type.builtin" = "$cyan"
+"builtinType" = "$cyan"
+"escape" = "$cyan"
+"embedded" = "$cyan"
+
+"punctuation.delimiter" = "$yellow"
+"text.title" = "$orange"
+"text.uri" = "$cyan"
+"text.reference" = "$yellow"
+"variable" = "$red"
+"variable.other.member" = "$green"
+"tag" = "$blue"
+
+[color-theme.ui]
+"lapce.error" = "#E51400"
+"lapce.warn" = "#E9A700"
+"lapce.dropdown_shadow" = "#B4B4B4"
+"lapce.border" = "#B4B4B4"
+"lapce.scroll_bar" = "#B4B4B4"
+
+"lapce.button.primary.background" = "#50a14f"
+"lapce.button.primary.foreground" = "$white"
+
+# tab
+"lapce.tab.active.background" = "$white"
+"lapce.tab.active.foreground" = "$black"
+"lapce.tab.active.underline" = "#528BFF"
+
+"lapce.tab.inactive.background" = "#EAEAEB"
+"lapce.tab.inactive.foreground" = "$black"
+"lapce.tab.inactive.underline" = "#528BFF77"
+
+"lapce.tab.separator" = "#B4B4B4"
+
+"lapce.icon.active" = "$black"
+"lapce.icon.inactive" = "#A0A1A7"
+
+"lapce.remote.icon" = "$white"
+"lapce.remote.local" = "#4078F2"
+"lapce.remote.connected" = "#50A14F"
+"lapce.remote.connecting" = "#C18401"
+"lapce.remote.disconnected" = "#E45649"
+
+"lapce.plugin.name" = "#444444"
+"lapce.plugin.description" = "$black"
+"lapce.plugin.author" = "#707070"
 
 "terminal.cursor" = "$black"
 "terminal.foreground" = "$black"
@@ -44,62 +127,60 @@ magenta = "#A626A4"
 "editor.focus" = "#000000"
 "editor.caret" = "#526FFF"
 "editor.selection" = "$grey"
-"editor.current_line" = "$light_grey"
-"editor.link" = "$cyan"
+"editor.current_line" = "#F2F2F2"
+"editor.link" = "$blue"
+"editor.visible_whitespace" = "$grey"
+"editor.indent_guide" = "$grey"
+"editor.drag_drop_background" = "#79c1fc33"
+"editor.drag_drop_tab_background" = "#0b0e1433"
+"editor.sticky_header_background" = "$white"
 
-"source_control.added" = "#50a14f32"
-"source_control.removed" = "#ff526632"
-"source_control.modified" = "#0184bc32"
+"inlay_hint.foreground" = "$black"
+"inlay_hint.background" = "#528bFF55"
 
-"palette.background" = "#eaeaeb"
-"palette.current" = "#dbdbdc"
+"error_lens.error.foreground" = "$red"
+"error_lens.error.background" = "#E4564920"
+"error_lens.warning.foreground" = "$yellow"
+"error_lens.warning.background" = "#C1840120"
+"error_lens.other.foreground" = "#A0A1A7"
+"error_lens.other.background" = "#A0A1A720"
 
-"completion.background" = "#eaeaeb"
-"completion.current" = "#dbdbdc"
+"source_control.added" = "#50A14F32"
+"source_control.removed" = "#FF526632"
+"source_control.modified" = "#0184BC32"
 
-"hover.background" = "#eaeaeb"
+"palette.background" = "#EAEAEB"
+"palette.foreground" = "$black"
+"palette.current.background" = "#DBDBDC"
+"palette.current.foreground" = "$black"
 
-"panel.background" = "#eaeaeb"
-"panel.current" = "#dbdbdc"
-"panel.hovered" = "#E4E4E6"
+"completion.background" = "#EAEAEB"
+"completion.current" = "#DBDBDC"
 
-"status.background" = "#eaeaeb"
-"status.modal.normal" = "$blue"
-"status.modal.insert" = "$red"
-"status.modal.visual" = "$yellow"
-"status.modal.terminal" = "$purple"
+"hover.background" = "#EAEAEB"
+
+"activity.background" = "#EAEAEB"
+"activity.current" = "$white"
+
+"panel.background" = "#EAEAEB"
+"panel.foreground" = "$black"
+"panel.foreground.dim" = "#A0A1A7"
+"panel.current.background" = "#DBDBDC"
+"panel.current.foreground" = "$black"
+"panel.current.foreground.dim" = "#A0A1A7"
+"panel.hovered.background" = "#E4E4E6"
+"panel.hovered.foreground" = "$black"
+"panel.hovered.foreground.dim" = "#A0A1A7"
+
+"status.background" = "#EAEAEB"
+"status.foreground" = "$black"
+"status.modal.normal.background" = "$blue"
+"status.modal.normal.foreground" = "$white"
+"status.modal.insert.background" = "$red"
+"status.modal.insert.foreground" = "$white"
+"status.modal.visual.background" = "$yellow"
+"status.modal.visual.foreground" = "$white"
+"status.modal.terminal.background" = "$purple"
+"status.modal.terminal.foreground" = "$white"
 
 "markdown.blockquote" = "#686868"
-
-"style.comment" = "#A0A1A7"
-
-"style.constant" = "$yellow"
-"style.type" = "$yellow"
-"style.typeAlias" = "$yellow"
-"style.number" = "$yellow"
-"style.enum" = "$yellow"
-"style.struct" = "$yellow"
-"style.structure" = "$yellow"
-"style.interface" = "$yellow"
-"style.attribute" = "$yellow"
-"style.constructor" = "$yellow"
-
-"style.function" = "$blue"
-"style.method" = "$blue"
-"style.function.method" = "$blue"
-
-"style.keyword" = "$purple"
-"style.selfKeyword" = "$purple"
-
-"style.field" = "$red"
-"style.property" = "$red"
-"style.enumMember" = "$red"
-"style.enum-member" = "$red"
-"style.variable.other.member" = "$red"
-
-"style.string" = "$green"
-
-"style.type.builtin" = "$cyan"
-"style.builtinType" = "$cyan"
-"style.escape" = "$cyan"
-"style.embedded" = "$cyan"

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Lapce community on Discord
+    url: https://discord.gg/n8tGJ6Rn6D
+    about: Please ask and answer questions here.
+  - name: Lapce community on Matrix
+    url: https://matrix.to/#/#lapce-editor:matrix.org
+    about: Please ask and answer questions here.
+  - name: Lapce documentation
+    url: https://docs.lapce.dev/
+    about: Documentation for Lapce
