@@ -20,6 +20,7 @@ pub struct DropdownData<T: Clone, D: Data> {
     pub list_active: bool,
     pub list: ListData<T, D>,
 }
+
 impl<T: Clone, D: Data> DropdownData<T, D> {
     pub fn new(config: Arc<LapceConfig>, parent: WidgetId, data: D) -> Self {
         let list = ListData::new(config, parent, data);
@@ -61,6 +62,7 @@ impl<T: Clone, D: Data> DropdownData<T, D> {
         self.list.items.get(self.active_item_index)
     }
 }
+
 impl<D: Data> DropdownData<String, D> {
     pub fn update_from_info(&mut self, info: DropdownInfo) {
         self.active_item_index = info.active_index;
@@ -68,6 +70,7 @@ impl<D: Data> DropdownData<String, D> {
         self.list.selected_index = info.active_index;
     }
 }
+
 impl<T: Clone + PartialEq + 'static, D: Data> Data for DropdownData<T, D> {
     fn same(&self, other: &Self) -> bool {
         self.active_item_index == other.active_item_index

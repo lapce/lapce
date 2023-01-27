@@ -7,7 +7,6 @@ use std::{
     },
 };
 
-use super::plugin::VoltID;
 use crossbeam_channel::{Receiver, Sender};
 use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
@@ -20,13 +19,14 @@ use lsp_types::{
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
+use super::plugin::VoltID;
 use crate::{
     buffer::BufferId,
     file::FileNodeItem,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
     style::SemanticStyles,
-    terminal::TermId,
+    terminal::{TermId, TerminalProfile},
     RequestId, RpcError, RpcMessage,
 };
 
@@ -196,7 +196,7 @@ pub enum ProxyNotification {
     NewTerminal {
         term_id: TermId,
         cwd: Option<PathBuf>,
-        shell: String,
+        profile: TerminalProfile,
     },
     InstallVolt {
         volt: VoltInfo,
@@ -522,12 +522,12 @@ impl ProxyRpcHandler {
         &self,
         term_id: TermId,
         cwd: Option<PathBuf>,
-        shell: String,
+        profile: TerminalProfile,
     ) {
         self.notification(ProxyNotification::NewTerminal {
             term_id,
             cwd,
-            shell,
+            profile,
         })
     }
 

@@ -1,4 +1,3 @@
-use hashbrown::HashMap;
 use std::{fmt::Display, sync::Arc, time::Duration};
 
 use druid::{
@@ -12,6 +11,7 @@ use druid::{
     RenderContext, Size, Target, TimerToken, UpdateCtx, Widget, WidgetExt, WidgetId,
     WidgetPod,
 };
+use hashbrown::HashMap;
 use inflector::Inflector;
 use itertools::Itertools;
 use lapce_core::{
@@ -1059,6 +1059,7 @@ struct DropdownSettingsItem {
     // We could have map of the key to a function to get the current items and selected item?
     info: SettingsItemInfo,
 }
+
 impl DropdownSettingsItem {
     fn new(
         data: &mut LapceTabData,
@@ -1102,6 +1103,7 @@ impl DropdownSettingsItem {
             .clone_with(data.config.clone())
     }
 }
+
 impl Widget<LapceTabData> for DropdownSettingsItem {
     fn id(&self) -> Option<WidgetId> {
         Some(self.widget_id)

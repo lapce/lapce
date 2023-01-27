@@ -161,9 +161,9 @@ impl ProxyHandler for Dispatcher {
             NewTerminal {
                 term_id,
                 cwd,
-                shell,
+                profile,
             } => {
-                let mut terminal = Terminal::new(term_id, cwd, shell, 50, 10);
+                let mut terminal = Terminal::new(term_id, cwd, profile, 50, 10);
                 let tx = terminal.tx.clone();
                 self.terminals.insert(term_id, tx);
                 let rpc = self.core_rpc.clone();

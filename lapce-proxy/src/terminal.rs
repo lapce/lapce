@@ -14,7 +14,10 @@ use alacritty_terminal::{
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
 use directories::BaseDirs;
-use lapce_rpc::{core::CoreRpcHandler, terminal::TermId};
+use lapce_rpc::{
+    core::CoreRpcHandler,
+    terminal::{TermId, TerminalProfile},
+};
 #[cfg(not(windows))]
 use mio::unix::UnixReady;
 #[allow(deprecated)]
@@ -43,7 +46,7 @@ impl Terminal {
     pub fn new(
         term_id: TermId,
         cwd: Option<PathBuf>,
-        shell: String,
+        profile: TerminalProfile,
         width: usize,
         height: usize,
     ) -> Terminal {
@@ -55,41 +58,18 @@ impl Terminal {
             } else {
                 BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
             };
-        let shell = shell.trim();
-        let flatpak_use_host_terminal = flatpak_should_use_host_terminal();
 
-        if !shell.is_empty() || flatpak_use_host_terminal {
-            let mut parts = shell.split(' ');
-
-            if flatpak_use_host_terminal {
-                let flatpak_spawn_path = "/usr/bin/flatpak-spawn".to_string();
-                let host_shell = flatpak_get_default_host_shell();
-
-                let args = if shell.is_empty() {
-                    vec!["--host".to_string(), host_shell]
-                } else {
-                    vec![
-                        "--host".to_string(),
-                        host_shell,
-                        "-c".to_string(),
-                        shell.to_string(),
-                    ]
-                };
-
+        if let Some(command) = profile.command {
+            if let Some(arguments) = profile.arguments {
                 config.pty_config.shell = Some(Program::WithArgs {
-                    program: flatpak_spawn_path,
-                    args,
-                })
+                    program: command,
+                    args: arguments,
+                });
             } else {
-                let program = parts.next().unwrap();
-                if let Ok(p) = which::which(program) {
-                    config.pty_config.shell = Some(Program::WithArgs {
-                        program: p.to_str().unwrap().to_string(),
-                        args: parts.map(|p| p.to_string()).collect::<Vec<String>>(),
-                    })
-                }
+                config.pty_config.shell = Some(Program::Just(command));
             }
         }
+
         setup_env(&config);
 
         #[cfg(target_os = "macos")]
@@ -334,65 +314,4 @@ fn set_locale_environment() {
         .to_string()
         .replace('-', "_");
     std::env::set_var("LC_ALL", locale + ".UTF-8");
-}
-
-#[inline]
-#[cfg(not(target_os = "linux"))]
-fn flatpak_get_default_host_shell() -> String {
-    panic!(
-        "This should never be reached. If it is, ensure you don't have a file
-        called .flatpak-info in your root directory"
-    );
-}
-
-#[inline]
-#[cfg(target_os = "linux")]
-fn flatpak_get_default_host_shell() -> String {
-    let env_string = Command::new("flatpak-spawn")
-        .arg("--host")
-        .arg("printenv")
-        .output()
-        .unwrap()
-        .stdout;
-
-    let env_string = String::from_utf8(env_string).unwrap();
-
-    for env_pair in env_string.split('\n') {
-        let name_value: Vec<&str> = env_pair.split('=').collect();
-
-        if name_value[0] == "SHELL" {
-            return name_value[1].to_string();
-        }
-    }
-
-    // In case SHELL isn't set for whatever reason, fall back to this
-    "/bin/sh".to_string()
-}
-
-#[inline]
-#[cfg(not(target_os = "linux"))]
-fn flatpak_should_use_host_terminal() -> bool {
-    false // Flatpak is only available on Linux
-}
-
-#[inline]
-#[cfg(target_os = "linux")]
-fn flatpak_should_use_host_terminal() -> bool {
-    use std::path::Path;
-
-    const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
-
-    // The de-facto way of checking whether one is inside of a Flatpak container is by checking for
-    // the presence of /.flatpak-info in the filesystem
-    if !Path::new(FLATPAK_INFO_PATH).exists() {
-        return false;
-    }
-
-    // Ensure flatpak-spawn --host can execute a basic command
-    Command::new("flatpak-spawn")
-        .arg("--host")
-        .arg("true")
-        .status()
-        .map(|status| status.success())
-        .unwrap_or(false)
 }

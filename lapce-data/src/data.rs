@@ -599,6 +599,7 @@ pub enum FocusArea {
     Panel(PanelKind),
     FilePicker,
     BranchPicker,
+    ProfilePicker,
 }
 
 #[derive(Clone)]

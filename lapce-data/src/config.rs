@@ -680,9 +680,31 @@ pub struct TerminalConfig {
         desc = "Set the terminal line height, If 0, it uses editor line height"
     )]
     pub line_height: usize,
-    #[field_names(desc = "Set the terminal Shell")]
-    pub shell: String,
+    #[field_names(desc = "Profiles available in terminal pane")]
+    pub profiles: HashMap<String, TerminalProfile>,
+    #[field_names(desc = "Default profile for each platform")]
+    pub default_profile: HashMap<String, String>,
 }
+
+#[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct TerminalProfile {
+    #[field_names(desc = "Command to execute when launching terminal")]
+    pub command: Option<String>,
+    #[field_names(desc = "Arguments passed to command")]
+    pub arguments: Option<Vec<String>>,
+}
+
+// #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
+// #[serde(rename_all = "kebab-case")]
+// pub struct DefaultTerminalProfile {
+//     #[field_names(desc = "Default profile for OSX")]
+//     pub osx: String,
+//     #[field_names(desc = "Default profile for Linux")]
+//     pub linux: String,
+//     #[field_names(desc = "Default profile for Windows")]
+//     pub windows: String,
+// }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]

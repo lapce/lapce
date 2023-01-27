@@ -12,7 +12,7 @@ use alacritty_terminal::{
 };
 use druid::{
     keyboard_types::Key, Color, Command, Env, EventCtx, ExtEventSink, KeyEvent,
-    Modifiers, Target, WidgetId,
+    Modifiers, Point, Target, WidgetId,
 };
 use hashbrown::HashMap;
 use lapce_core::{
@@ -28,11 +28,12 @@ use crate::{
     command::{
         CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
-    config::{LapceConfig, LapceTheme},
+    config::{LapceConfig, LapceTheme, TerminalProfile},
     data::LapceWorkspace,
     document::SystemClipboard,
     find::Find,
     keypress::KeyPressFocus,
+    list::ListData,
     proxy::LapceProxy,
     split::SplitMoveDirection,
 };
@@ -45,6 +46,7 @@ pub struct TerminalPanelData {
     pub tabs: im::HashMap<WidgetId, TerminalSplitData>,
     pub tabs_order: Arc<Vec<WidgetId>>,
     pub active: usize,
+    pub profiles: TerminalProfilesListData,
 }
 
 impl TerminalPanelData {
@@ -54,15 +56,19 @@ impl TerminalPanelData {
         config: &LapceConfig,
         event_sink: ExtEventSink,
     ) -> Self {
+        let widget_id = WidgetId::next();
         let split = TerminalSplitData::new(worksapce, proxy, config, event_sink);
         let tabs_order = Arc::new(vec![split.split_id]);
         let mut tabs = im::HashMap::new();
         tabs.insert(split.split_id, split);
+        let profiles =
+            TerminalProfilesListData::new(Arc::new(config.to_owned()), widget_id);
         Self {
-            widget_id: WidgetId::next(),
+            widget_id,
             tabs,
             tabs_order,
             active: 0,
+            profiles,
         }
     }
 
@@ -622,6 +628,7 @@ pub struct LapceTerminalData {
     pub visual_mode: VisualMode,
     pub raw: Arc<Mutex<RawTerminal>>,
     pub proxy: Arc<LapceProxy>,
+    pub profiles: TerminalProfilesListData,
 }
 
 impl LapceTerminalData {
@@ -641,20 +648,36 @@ impl LapceTerminalData {
             proxy.clone(),
             event_sink,
         )));
+        let profiles =
+            TerminalProfilesListData::new(Arc::new(config.to_owned()), widget_id);
 
         let local_proxy = proxy.clone();
         let local_raw = raw.clone();
-        let shell = config.terminal.shell.clone();
 
-        // TODO: replace with profile name, once we implement terminal profiles
-        let title = if !shell.is_empty() {
-            shell.clone()
+        let default_profile = if let Some(profile) = config
+            .terminal
+            .default_profile
+            .get(&std::env::consts::OS.to_string())
+        {
+            profile.clone()
         } else {
-            String::from("(no title)")
+            String::from("default")
+        };
+        let profile = if let Some(term_profile) =
+            config.terminal.profiles.get(&default_profile)
+        {
+            term_profile.clone()
+        } else {
+            TerminalProfile {
+                command: None,
+                arguments: None,
+            }
         };
 
+        let title = default_profile;
+
         std::thread::spawn(move || {
-            local_proxy.new_terminal(term_id, cwd, shell, local_raw);
+            local_proxy.new_terminal(term_id, cwd, profile, local_raw);
         });
 
         Self {
@@ -667,6 +690,7 @@ impl LapceTerminalData {
             visual_mode: VisualMode::Normal,
             raw,
             proxy,
+            profiles,
         }
     }
 
@@ -918,6 +942,8 @@ impl LapceTerminalData {
             Key::End => term_sequence!([all], key, "\x1bOF", "\x1b[1;", "F"),
             Key::Insert => term_sequence!([all], key, "\x1b[2~", "\x1b[2;", "~"),
             Key::Delete => term_sequence!([all], key, "\x1b[3~", "\x1b[3;", "~"),
+            Key::PageUp => term_sequence!([all], key, "\x1b[5~", "\x1b[5;", "~"),
+            Key::PageDown => term_sequence!([all], key, "\x1b[6~", "\x1b[6;", "~"),
             _ => None,
         }
     }
@@ -947,6 +973,57 @@ impl EventListener for EventProxy {
             }
             _ => (),
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct TerminalProfilesListData {
+    pub filter_editor: WidgetId,
+    pub list: ListData<String, ()>,
+    pub active: bool,
+    /// The origin the list should appear at, this is updated whenever the
+    /// branch list is opened in the titlebar
+    pub origin: Point,
+}
+
+impl TerminalProfilesListData {
+    fn new(config: Arc<LapceConfig>, parent: WidgetId) -> Self {
+        let list = ListData::new(config, parent, ());
+        TerminalProfilesListData {
+            filter_editor: WidgetId::next(),
+            list,
+            active: false,
+            origin: Point::ZERO,
+        }
+    }
+}
+
+impl KeyPressFocus for TerminalProfilesListData {
+    fn get_mode(&self) -> Mode {
+        Mode::Insert
+    }
+
+    fn check_condition(&self, condition: &str) -> bool {
+        matches!(condition, "list_focus" | "modal_focus")
+    }
+
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &LapceCommand,
+        _count: Option<usize>,
+        _mods: druid::Modifiers,
+        _env: &Env,
+    ) -> CommandExecuted {
+        if let CommandKind::Focus(FocusCommand::ModalClose) = command.kind {
+            self.active = false;
+            return CommandExecuted::Yes;
+        }
+        self.list.run_command(ctx, command)
+    }
+
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {
+        // Currently, this does not have any sort of input (such as for filtering)
     }
 }
 

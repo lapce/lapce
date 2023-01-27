@@ -35,6 +35,7 @@ pub struct BranchListData {
     /// branch list is opened in the titlebar
     pub origin: Point,
 }
+
 impl BranchListData {
     fn new(config: Arc<LapceConfig>, parent: WidgetId) -> Self {
         let list = ListData::new(config, parent, ());

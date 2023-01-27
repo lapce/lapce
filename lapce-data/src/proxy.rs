@@ -32,6 +32,7 @@ use thiserror::Error;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::TerminalProfile,
     data::{LapceWorkspace, LapceWorkspaceType, SshHost},
     terminal::RawTerminal,
 };
@@ -767,11 +768,18 @@ impl LapceProxy {
         &self,
         term_id: TermId,
         cwd: Option<PathBuf>,
-        shell: String,
+        profile: TerminalProfile,
         raw: Arc<Mutex<RawTerminal>>,
     ) {
         let _ = self.term_tx.send((term_id, TermEvent::NewTerminal(raw)));
-        self.proxy_rpc.new_terminal(term_id, cwd, shell);
+        self.proxy_rpc.new_terminal(
+            term_id,
+            cwd,
+            lapce_rpc::terminal::TerminalProfile {
+                command: profile.command,
+                arguments: profile.arguments,
+            },
+        );
     }
 
     pub fn stop(&self) {

@@ -11,3 +11,9 @@ impl TermId {
         Self(TERMINAL_ID_COUNTER.next())
     }
 }
+
+#[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
+pub struct TerminalProfile {
+    pub command: Option<String>,
+    pub arguments: Option<Vec<String>>,
+}
