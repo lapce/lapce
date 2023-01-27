@@ -85,10 +85,11 @@ pub fn run_configs(workspace: Option<&Path>) -> Option<RunDebugConfigs> {
     Some(configs)
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct StackTraceData {
     pub expanded: bool,
     pub frames: Vec<StackFrame>,
+    pub frames_shown: usize,
 }
 
 #[derive(Clone)]
@@ -98,6 +99,7 @@ pub struct LapceBreakpoint {
     pub message: Option<String>,
     pub line: usize,
     pub offset: usize,
+    pub dap_line: Option<usize>,
 }
 
 #[derive(Clone)]
@@ -106,7 +108,7 @@ pub struct DapData {
     pub dap_id: DapId,
     pub stopped: bool,
     pub thread_id: Option<ThreadId>,
-    pub stack_frames: im::HashMap<ThreadId, StackTraceData>,
+    pub stack_frames: BTreeMap<ThreadId, StackTraceData>,
 }
 
 impl DapData {
@@ -116,7 +118,7 @@ impl DapData {
             dap_id,
             stopped: false,
             thread_id: None,
-            stack_frames: im::HashMap::new(),
+            stack_frames: BTreeMap::new(),
         }
     }
 
@@ -130,14 +132,17 @@ impl DapData {
             self.thread_id = Some(stopped.thread_id.unwrap_or_default());
         }
         for (thread_id, frames) in stack_frames {
+            let main_thread_expanded = self.thread_id.as_ref() == Some(thread_id);
             if let Some(current) = self.stack_frames.get_mut(thread_id) {
                 current.frames = frames.to_owned();
+                current.expanded |= main_thread_expanded;
             } else {
                 self.stack_frames.insert(
                     *thread_id,
                     StackTraceData {
-                        expanded: true,
+                        expanded: main_thread_expanded,
                         frames: frames.to_owned(),
+                        frames_shown: 20,
                     },
                 );
             }
@@ -174,6 +179,7 @@ impl RunDebugData {
                                     line: *line,
                                     offset: 0,
                                     message: None,
+                                    dap_line: None,
                                 })
                                 .collect(),
                         )
@@ -199,7 +205,7 @@ impl RunDebugData {
                     breakpoints
                         .iter()
                         .map(|b| SourceBreakpoint {
-                            line: b.line,
+                            line: b.line + 1,
                             column: None,
                             condition: None,
                             hit_condition: None,
@@ -215,9 +221,8 @@ impl RunDebugData {
         &mut self,
         path: &PathBuf,
         dap_breakpoints: &Vec<dap_types::Breakpoint>,
-        doc: Option<&Arc<Document>>,
     ) {
-        println!("set breakpoints {dap_breakpoints:?}");
+        println!("set dap breakpoints {dap_breakpoints:?}");
         if let Some(breakpoints) = self.breakpoints.get_mut(path) {
             for (breakpoint, dap_breakpoint) in
                 breakpoints.iter_mut().zip(dap_breakpoints)
@@ -225,11 +230,8 @@ impl RunDebugData {
                 breakpoint.id = dap_breakpoint.id;
                 breakpoint.verified = dap_breakpoint.verified;
                 breakpoint.message = dap_breakpoint.message.clone();
-                let line = dap_breakpoint.line.unwrap_or(0);
-                breakpoint.line = line;
-                breakpoint.offset = doc
-                    .map(|doc| doc.buffer().offset_of_line(line))
-                    .unwrap_or(0);
+                breakpoint.dap_line =
+                    dap_breakpoint.line.map(|l| l.saturating_sub(1));
             }
         }
     }

@@ -157,6 +157,11 @@ pub enum PluginCatalogNotification {
         dap_id: DapId,
         breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
     },
+    DapSetBreakpoints {
+        dap_id: DapId,
+        path: PathBuf,
+        breakpoints: Vec<SourceBreakpoint>,
+    },
     Shutdown,
 }
 
@@ -1058,6 +1063,19 @@ impl PluginCatalogRpcHandler {
     ) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::DapRestart {
             dap_id,
+            breakpoints,
+        })
+    }
+
+    pub fn dap_set_breakpoints(
+        &self,
+        dap_id: DapId,
+        path: PathBuf,
+        breakpoints: Vec<SourceBreakpoint>,
+    ) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapSetBreakpoints {
+            dap_id,
+            path,
             breakpoints,
         })
     }

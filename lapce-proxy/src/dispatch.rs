@@ -233,6 +233,15 @@ impl ProxyHandler for Dispatcher {
             } => {
                 let _ = self.catalog_rpc.dap_restart(dap_id, breakpoints);
             }
+            DapSetBreakpoints {
+                dap_id,
+                path,
+                breakpoints,
+            } => {
+                let _ =
+                    self.catalog_rpc
+                        .dap_set_breakpoints(dap_id, path, breakpoints);
+            }
             InstallVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();
                 let _ = catalog_rpc.install_volt(volt);

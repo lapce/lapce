@@ -1008,6 +1008,7 @@ impl LapceTab {
                         let debug = Arc::make_mut(&mut terminal.debug);
                         if let Some(dap) = debug.daps.get_mut(dap_id) {
                             dap.stopped = false;
+                            dap.thread_id = None;
                         }
                     }
                     LapceUICommand::DapBreakpointsResp {
@@ -1016,10 +1017,9 @@ impl LapceTab {
                         breakpoints,
                     } => {
                         ctx.set_handled();
-                        let doc = data.main_split.open_docs.get(path);
                         let terminal = Arc::make_mut(&mut data.terminal);
                         let debug = Arc::make_mut(&mut terminal.debug);
-                        debug.set_breakpoints_resp(path, breakpoints, doc);
+                        debug.set_breakpoints_resp(path, breakpoints);
                     }
                     LapceUICommand::TerminalProcessStopped(id) => {
                         ctx.set_handled();

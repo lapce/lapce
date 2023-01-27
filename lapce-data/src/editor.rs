@@ -26,7 +26,9 @@ use lapce_core::{
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
-use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
+use lapce_rpc::{
+    dap_types::SourceBreakpoint, plugin::PluginId, proxy::ProxyResponse,
+};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionOrCommand,
@@ -994,7 +996,10 @@ impl LapceEditorBufferData {
         let path = self.doc.content().path()?.to_path_buf();
         let terminal = Arc::make_mut(&mut self.terminal);
         let debug = Arc::make_mut(&mut terminal.debug);
-        let breakpoints = debug.breakpoints.entry(path).or_insert_with(Vec::new);
+        let breakpoints = debug
+            .breakpoints
+            .entry(path.clone())
+            .or_insert_with(Vec::new);
         let pos = breakpoints.iter().position(|b| b.line == line);
         if let Some(index) = pos {
             breakpoints.remove(index);
@@ -1005,8 +1010,27 @@ impl LapceEditorBufferData {
                 verified: false,
                 offset: self.doc.buffer().offset_of_line(line),
                 message: None,
+                dap_line: None,
             });
             breakpoints.sort_by_key(|b| b.line);
+        }
+
+        let source_breakpoints = breakpoints
+            .iter()
+            .map(|b| SourceBreakpoint {
+                line: b.line + 1,
+                column: None,
+                condition: None,
+                hit_condition: None,
+                log_message: None,
+            })
+            .collect::<Vec<_>>();
+        for (dap_id, _) in debug.daps.iter() {
+            self.proxy.proxy_rpc.dap_set_breakpoints(
+                *dap_id,
+                path.clone(),
+                source_breakpoints.clone(),
+            );
         }
         Some(())
     }
