@@ -437,6 +437,12 @@ impl LapceSettings {
             LapceSettingsKind::Theme | LapceSettingsKind::Keymap => {
                 return;
             }
+            LapceSettingsKind::Plugins => (
+                "plugins",
+                &PluginsConfig::FIELDS[..],
+                &PluginsConfig::DESCS[..],
+                into_settings_map(&data.config.plugin_config),
+            ),
             LapceSettingsKind::Plugin(volt_id) => {
                 if let Some(volt) = data.plugin.installed.get(volt_id).cloned() {
                     if let Some(config) = volt.config.as_ref() {
@@ -466,12 +472,6 @@ impl LapceSettings {
                 }
                 return;
             }
-            LapceSettingsKind::Plugins => (
-                "plugins",
-                &PluginsConfig::FIELDS[..],
-                &PluginsConfig::DESCS[..],
-                into_settings_map(&data.config.plugin_config),
-            ),
         };
 
         for (field, desc) in fields.iter().zip(descs.iter()) {
@@ -2017,10 +2017,18 @@ impl Widget<LapceTabData> for ThemeSettingItem {
     }
 }
 
+const SETTING_KINDS: [LapceSettingsKind; 7] = [
+    LapceSettingsKind::Core,
+    LapceSettingsKind::UI,
+    LapceSettingsKind::Editor,
+    LapceSettingsKind::Terminal,
+    LapceSettingsKind::Theme,
+    LapceSettingsKind::Keymap,
+    LapceSettingsKind::Plugins,
+];
+
 struct SettingsSwitcher {
     settings_widget_id: WidgetId,
-    plugin_settings_expanded: bool,
-    plugin_settings_disabled: bool,
     line_height: f64,
     last_mouse_down: Option<usize>,
     active: LapceSettingsKind,
@@ -2031,8 +2039,6 @@ impl SettingsSwitcher {
     fn new(settings_widget_id: WidgetId) -> Self {
         Self {
             settings_widget_id,
-            plugin_settings_expanded: true,
-            plugin_settings_disabled: true,
             line_height: 40.0,
             last_mouse_down: None,
             active: LapceSettingsKind::Core,
@@ -2041,16 +2047,13 @@ impl SettingsSwitcher {
     }
 
     fn num_items(&self, data: &LapceTabData) -> usize {
-        let mut n = if self.plugin_settings_disabled { 6 } else { 7 };
-        if self.plugin_settings_expanded {
-            n += data
+        SETTING_KINDS.len()
+            + data
                 .plugin
                 .installed
                 .iter()
                 .filter(|(_, v)| v.config.is_some())
-                .count();
-        }
-        n
+                .count()
     }
 
     pub fn set_active(&mut self, active: LapceSettingsKind, data: &LapceTabData) {
@@ -2066,22 +2069,13 @@ impl SettingsSwitcher {
                 .enumerate()
             {
                 if active_volt_id == volt_id {
-                    self.active_index = Some(i + 6);
+                    self.active_index = Some(i + SETTING_KINDS.len());
                     return;
                 }
             }
         }
 
-        let kinds = [
-            LapceSettingsKind::Core,
-            LapceSettingsKind::UI,
-            LapceSettingsKind::Editor,
-            LapceSettingsKind::Terminal,
-            LapceSettingsKind::Theme,
-            LapceSettingsKind::Keymap,
-        ];
-
-        for (i, kind) in kinds.iter().enumerate() {
+        for (i, kind) in SETTING_KINDS.iter().enumerate() {
             if kind == &self.active {
                 self.active_index = Some(i);
                 return;
@@ -2110,51 +2104,30 @@ impl Widget<LapceTabData> for SettingsSwitcher {
                 if let Some(last_index) = self.last_mouse_down.take() {
                     let index = (mouse_event.pos.y / self.line_height) as usize;
                     if index < self.num_items(data) && index == last_index {
-                        match index {
-                            6 => {
-                                self.plugin_settings_expanded =
-                                    !self.plugin_settings_expanded;
-                                ctx.request_layout();
+                        if index < SETTING_KINDS.len() {
+                            if let Some(kind) = SETTING_KINDS.get(index) {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::ShowSettingsKind(kind.clone()),
+                                    Target::Widget(self.settings_widget_id),
+                                ));
                             }
-                            _ if index > 6 => {
-                                if let Some((volt_id, _)) = data
-                                    .plugin
-                                    .installed
-                                    .iter()
-                                    .filter(|(_, v)| v.config.is_some())
-                                    .sorted_by_key(|(_, v)| &v.display_name)
-                                    .nth(index - 7)
-                                {
-                                    ctx.submit_command(Command::new(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::ShowSettingsKind(
-                                            LapceSettingsKind::Plugin(
-                                                volt_id.clone(),
-                                            ),
-                                        ),
-                                        Target::Widget(self.settings_widget_id),
-                                    ));
-                                }
-                            }
-                            _ => {
-                                if let Some(kind) = [
-                                    LapceSettingsKind::Core,
-                                    LapceSettingsKind::UI,
-                                    LapceSettingsKind::Editor,
-                                    LapceSettingsKind::Terminal,
-                                    LapceSettingsKind::Theme,
-                                    LapceSettingsKind::Keymap,
-                                ]
-                                .get(index)
-                                {
-                                    ctx.submit_command(Command::new(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::ShowSettingsKind(
-                                            kind.clone(),
-                                        ),
-                                        Target::Widget(self.settings_widget_id),
-                                    ));
-                                }
+                        } else {
+                            if let Some((volt_id, _)) = data
+                                .plugin
+                                .installed
+                                .iter()
+                                .filter(|(_, v)| v.config.is_some())
+                                .sorted_by_key(|(_, v)| &v.display_name)
+                                .nth(index - 7)
+                            {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::ShowSettingsKind(
+                                        LapceSettingsKind::Plugin(volt_id.clone()),
+                                    ),
+                                    Target::Widget(self.settings_widget_id),
+                                ));
                             }
                         }
                     }
@@ -2189,9 +2162,6 @@ impl Widget<LapceTabData> for SettingsSwitcher {
         _data: &LapceTabData,
         _env: &Env,
     ) {
-        if self.plugin_settings_disabled {
-            self.plugin_settings_expanded = true;
-        }
     }
 
     fn layout(
@@ -2217,7 +2187,6 @@ impl Widget<LapceTabData> for SettingsSwitcher {
             "Plugin Settings",
         ];
 
-        self.plugin_settings_disabled = true;
         for (_, volt) in data
             .plugin
             .installed
@@ -2225,14 +2194,11 @@ impl Widget<LapceTabData> for SettingsSwitcher {
             .filter(|(_, v)| v.config.is_some())
             .sorted_by_key(|(_, v)| &v.display_name)
         {
-            if self.plugin_settings_expanded {
-                settings_sections.push(volt.display_name.as_str());
-            }
-            self.plugin_settings_disabled = false;
+            settings_sections.push(volt.display_name.as_str());
         }
 
         for (i, text) in settings_sections.iter().enumerate() {
-            let font_size = if i <= 6 {
+            let font_size = if i < SETTING_KINDS.len() {
                 data.config.ui.font_size() + 1
             } else {
                 data.config.ui.font_size()
@@ -2242,20 +2208,14 @@ impl Widget<LapceTabData> for SettingsSwitcher {
                 .new_text_layout(text.to_string())
                 .font(data.config.ui.font_family(), font_size as f64)
                 .text_color(
-                    if self.plugin_settings_disabled && text == &"Plugin Settings" {
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                            .clone()
-                    } else {
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                            .clone()
-                    },
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
                 )
                 .build()
                 .unwrap();
 
-            let x = if i <= 6 { 20.0 } else { 40.0 };
+            let x = if i < SETTING_KINDS.len() { 20.0 } else { 40.0 };
             ctx.draw_text(
                 &text_layout,
                 Point::new(
@@ -2268,10 +2228,7 @@ impl Widget<LapceTabData> for SettingsSwitcher {
 
         let x = 2.0;
         let active = self.active_index.unwrap_or(0);
-        let active = if active > 5 { active + 1 } else { active };
-        if (active <= 6 || self.plugin_settings_expanded)
-            && !self.plugin_settings_disabled
-        {
+        if active < SETTING_KINDS.len() {
             let y0 = self.line_height * active as f64;
             let y1 = y0 + self.line_height;
             ctx.stroke(
