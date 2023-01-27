@@ -989,46 +989,30 @@ impl notify::EventHandler for ConfigWatcher {
                 notify::EventKind::Create(_)
                 | notify::EventKind::Modify(_)
                 | notify::EventKind::Remove(_) => {
-                    let short = event
-                        .paths
-                        .iter()
-                        .filter_map(|p| p.file_name())
-                        .any(|p| p == "settings.toml" || p == "keymaps.toml");
-
-                    if short {
-                        let _ = self.event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::ReloadConfig,
-                            Target::Auto,
-                        );
-                    } else {
-                        if self
-                            .delay_handler
-                            .compare_exchange(
-                                false,
-                                true,
-                                std::sync::atomic::Ordering::Relaxed,
-                                std::sync::atomic::Ordering::Relaxed,
-                            )
-                            .is_ok()
-                        {
-                            let config_mutex = self.delay_handler.clone();
-                            let event_sink = self.event_sink.clone();
-                            std::thread::spawn(move || {
-                                std::thread::sleep(std::time::Duration::from_secs(
-                                    2,
-                                ));
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::ReloadConfig,
-                                    Target::Auto,
-                                );
-                                config_mutex.store(
-                                    false,
-                                    std::sync::atomic::Ordering::Relaxed,
-                                );
-                            });
-                        }
+                    if self
+                        .delay_handler
+                        .compare_exchange(
+                            false,
+                            true,
+                            std::sync::atomic::Ordering::Relaxed,
+                            std::sync::atomic::Ordering::Relaxed,
+                        )
+                        .is_ok()
+                    {
+                        let config_mutex = self.delay_handler.clone();
+                        let event_sink = self.event_sink.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(
+                                500,
+                            ));
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ReloadConfig,
+                                Target::Auto,
+                            );
+                            config_mutex
+                                .store(false, std::sync::atomic::Ordering::Relaxed);
+                        });
                     }
                 }
                 _ => {}
