@@ -1,10 +1,9 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{atomic::AtomicBool, Arc},
 };
 
-use crossbeam_channel::{bounded, Sender};
 use druid::{
     piet::{PietText, Svg, Text, TextLayout, TextLayoutBuilder},
     Color, ExtEventSink, FontFamily, Size, Target,
@@ -970,30 +969,16 @@ impl LapceConfig {
 }
 
 pub struct ConfigWatcher {
-    config_change_tx: Sender<()>,
+    event_sink: ExtEventSink,
+    delay_handler: Arc<AtomicBool>,
 }
 
 impl ConfigWatcher {
-    pub fn new(event_sink: ExtEventSink) -> (Self, Sender<()>) {
-        let (config_finish_tx, config_finish_rx) = bounded::<()>(1);
-        let (config_change_tx, config_change_rx) = bounded::<()>(2);
-
-        std::thread::spawn(move || {
-            for _ in config_change_rx {
-                let event_sink = event_sink.clone();
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::ReloadConfig,
-                    Target::Auto,
-                );
-                // Sleep is necessary here because reloading config is way faster than downloading plugins
-                // Thus downloading plugins will constantly flood the channel with messages.
-                std::thread::sleep(std::time::Duration::from_secs(1));
-                // Don't open the channel again until changes are fully handled
-                config_finish_rx.recv().unwrap();
-            }
-        });
-        (Self { config_change_tx }, config_finish_tx)
+    pub fn new(event_sink: ExtEventSink) -> Self {
+        Self {
+            event_sink,
+            delay_handler: Arc::new(AtomicBool::new(false)),
+        }
     }
 }
 
@@ -1004,9 +989,47 @@ impl notify::EventHandler for ConfigWatcher {
                 notify::EventKind::Create(_)
                 | notify::EventKind::Modify(_)
                 | notify::EventKind::Remove(_) => {
-                    // If we fail to send, that means someone else already triggered the job
-                    // Don't unwrap because the channel will return an error on full instead of an Option<T>
-                    let _ = self.config_change_tx.try_send(());
+                    let short = event
+                        .paths
+                        .iter()
+                        .filter_map(|p| p.file_name())
+                        .any(|p| p == "settings.toml" || p == "keymaps.toml");
+
+                    if short {
+                        let _ = self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ReloadConfig,
+                            Target::Auto,
+                        );
+                    } else {
+                        if self
+                            .delay_handler
+                            .compare_exchange(
+                                false,
+                                true,
+                                std::sync::atomic::Ordering::Relaxed,
+                                std::sync::atomic::Ordering::Relaxed,
+                            )
+                            .is_ok()
+                        {
+                            let config_mutex = self.delay_handler.clone();
+                            let event_sink = self.event_sink.clone();
+                            std::thread::spawn(move || {
+                                std::thread::sleep(std::time::Duration::from_secs(
+                                    2,
+                                ));
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::ReloadConfig,
+                                    Target::Auto,
+                                );
+                                config_mutex.store(
+                                    false,
+                                    std::sync::atomic::Ordering::Relaxed,
+                                );
+                            });
+                        }
+                    }
                 }
                 _ => {}
             }
