@@ -2027,12 +2027,22 @@ const SETTING_KINDS: [LapceSettingsKind; 7] = [
     LapceSettingsKind::Plugins,
 ];
 
+const SETTING_SECTIONS: [&'static str; 7] = [
+    "Core Settings",
+    "UI Settings",
+    "Editor Settings",
+    "Terminal Settings",
+    "Theme Settings",
+    "Keybindings",
+    "Plugin Settings",
+];
+
 struct SettingsSwitcher {
     settings_widget_id: WidgetId,
     line_height: f64,
     last_mouse_down: Option<usize>,
     active: LapceSettingsKind,
-    active_index: Option<usize>,
+    active_index: usize,
 }
 
 impl SettingsSwitcher {
@@ -2042,7 +2052,7 @@ impl SettingsSwitcher {
             line_height: 40.0,
             last_mouse_down: None,
             active: LapceSettingsKind::Core,
-            active_index: Some(0),
+            active_index: 0,
         }
     }
 
@@ -2069,7 +2079,7 @@ impl SettingsSwitcher {
                 .enumerate()
             {
                 if active_volt_id == volt_id {
-                    self.active_index = Some(i + SETTING_KINDS.len());
+                    self.active_index = i + SETTING_KINDS.len();
                     return;
                 }
             }
@@ -2077,7 +2087,7 @@ impl SettingsSwitcher {
 
         for (i, kind) in SETTING_KINDS.iter().enumerate() {
             if kind == &self.active {
-                self.active_index = Some(i);
+                self.active_index = i;
                 return;
             }
         }
@@ -2177,27 +2187,19 @@ impl Widget<LapceTabData> for SettingsSwitcher {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        let mut settings_sections: Vec<&str> = vec![
-            "Core Settings",
-            "UI Settings",
-            "Editor Settings",
-            "Terminal Settings",
-            "Theme Settings",
-            "Keybindings",
-            "Plugin Settings",
-        ];
-
-        for (_, volt) in data
-            .plugin
-            .installed
-            .iter()
-            .filter(|(_, v)| v.config.is_some())
-            .sorted_by_key(|(_, v)| &v.display_name)
+        for (i, text) in SETTING_SECTIONS
+            .into_iter()
+            .chain(
+                data.plugin
+                    .installed
+                    .iter()
+                    .map(|v| v.1)
+                    .filter(|v| v.config.is_some())
+                    .map(|v| v.display_name.as_str())
+                    .sorted(),
+            )
+            .enumerate()
         {
-            settings_sections.push(volt.display_name.as_str());
-        }
-
-        for (i, text) in settings_sections.iter().enumerate() {
             let font_size = if i < SETTING_KINDS.len() {
                 data.config.ui.font_size() + 1
             } else {
@@ -2226,16 +2228,30 @@ impl Widget<LapceTabData> for SettingsSwitcher {
             );
         }
 
-        let x = 2.0;
-        let active = self.active_index.unwrap_or(0);
-        if active < SETTING_KINDS.len() {
-            let y0 = self.line_height * active as f64;
+        let mut draw_caret = |index: usize, offset: f64| {
+            let y0 = self.line_height * index as f64;
             let y1 = y0 + self.line_height;
             ctx.stroke(
-                Line::new(Point::new(x, y0 + 5.0), Point::new(x, y1 - 5.0)),
+                Line::new(
+                    Point::new(offset, y0 + 5.0),
+                    Point::new(offset, y1 - 5.0),
+                ),
                 data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
                 2.0,
             );
+        };
+
+        draw_caret(
+            self.active_index,
+            if self.active_index >= SETTING_KINDS.len() {
+                20.0
+            } else {
+                2.0
+            },
+        );
+
+        if self.active_index >= SETTING_KINDS.len() {
+            draw_caret(SETTING_KINDS.len() - 1, 2.0);
         }
     }
 }

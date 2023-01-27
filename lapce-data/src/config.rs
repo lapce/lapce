@@ -912,7 +912,9 @@ pub struct DropdownInfo {
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct PluginsConfig {
-    #[field_names(desc = "Check for plugins automatically")]
+    #[field_names(
+        desc = "Check for plugins automatically. Must restart to take effect."
+    )]
     pub auto_check: bool,
 }
 
