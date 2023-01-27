@@ -542,7 +542,7 @@ impl LapceDb {
     ) -> Result<()> {
         let sled_db = self.get_db()?;
         let volts = serde_json::to_string(&volts)?;
-        sled_db.insert(format!("disabled_volts:{}", workspace), volts.as_str())?;
+        sled_db.insert(format!("disabled_volts:{workspace}"), volts.as_str())?;
         sled_db.flush()?;
         Ok(())
     }
@@ -553,7 +553,7 @@ impl LapceDb {
     ) -> Result<Vec<VoltID>> {
         let sled_db = self.get_db()?;
         let volts = sled_db
-            .get(format!("disabled_volts:{}", workspace))?
+            .get(format!("disabled_volts:{workspace}"))?
             .ok_or_else(|| anyhow!("can't find disable volts"))?;
         let volts = std::str::from_utf8(&volts)?;
         let volts: Vec<VoltID> = serde_json::from_str(volts)?;

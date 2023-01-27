@@ -172,8 +172,7 @@ pub fn restart(path: &Path) -> Result<()> {
         .ok_or_else(|| anyhow!("can't get path to str"))?;
     std::process::Command::new("cmd")
         .raw_arg(format!(
-            r#"/C taskkill /PID {} & start "" "{}""#,
-            process_id, path
+            r#"/C taskkill /PID {process_id} & start "" "{path}""#
         ))
         .creation_flags(DETACHED_PROCESS)
         .spawn()?;
@@ -198,8 +197,7 @@ pub fn restart(path: &Path) -> Result<()> {
 
     std::process::Command::new("cmd")
         .raw_arg(format!(
-            r#"/C taskkill /PID {} & msiexec /i "{}" /qb & start "" "{}""#,
-            process_id, path, lapce_exe
+            r#"/C taskkill /PID {process_id} & msiexec /i "{path}" /qb & start "" "{lapce_exe}""#,
         ))
         .creation_flags(DETACHED_PROCESS)
         .spawn()?;

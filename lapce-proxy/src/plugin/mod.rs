@@ -1061,7 +1061,7 @@ pub fn remove_volt(
             anyhow::anyhow!("don't have dir")
         })?;
         if let Err(e) = std::fs::remove_dir_all(path) {
-            eprintln!("Could not delete plugin folder: {}", e);
+            eprintln!("Could not delete plugin folder: {e}");
             catalog_rpc.core_rpc.volt_removing(
                 volt.clone(),
                 "Could not remove Plugin Directory".to_string(),

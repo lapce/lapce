@@ -182,7 +182,7 @@ impl LapceEditorHeader {
                     .unwrap_or("")
                     .to_string();
                 if !folder.is_empty() {
-                    file_name = format!("{} {}", file_name, folder);
+                    file_name = format!("{file_name} {folder}");
                 }
                 let total_len = file_name.len();
                 let mut text_layout = ctx

@@ -1337,7 +1337,7 @@ impl OpenEditorList {
         ctx.draw_svg(&svg, svg_rect, svg_color);
 
         if !hint.is_empty() {
-            text = format!("{} {}", text, hint);
+            text = format!("{text} {hint}");
         }
         let total_len = text.len();
         let mut text_layout = ctx
@@ -1516,7 +1516,7 @@ impl Widget<LapceTabData> for OpenEditorList {
                 if self.line_height * ((i + 1) as f64) >= rect.y0 {
                     let text_layout = ctx
                         .text()
-                        .new_text_layout(format!("Group {}", g))
+                        .new_text_layout(format!("Group {g}"))
                         .font(
                             data.config.ui.font_family(),
                             data.config.ui.font_size() as f64,

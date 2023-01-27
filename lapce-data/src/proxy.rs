@@ -25,7 +25,7 @@ use lapce_rpc::{
     RequestId, RpcMessage,
 };
 use lapce_xi_rope::Rope;
-use lsp_types::Url;
+use lsp_types::{LogMessageParams, MessageType, Url};
 use parking_lot::Mutex;
 use serde_json::Value;
 use thiserror::Error;
@@ -175,7 +175,23 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            LogMessage { .. } => {}
+            LogMessage {
+                message: LogMessageParams { message, typ },
+            } => match typ {
+                MessageType::ERROR => {
+                    log::error!("{message}")
+                }
+                MessageType::WARNING => {
+                    log::warn!("{message}")
+                }
+                MessageType::INFO => {
+                    log::info!("{message}")
+                }
+                MessageType::LOG => {
+                    log::debug!("{message}")
+                }
+                _ => {}
+            },
             ShowMessage { title, message } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -500,7 +516,7 @@ impl LapceProxy {
             _ => format!("{remote_proxy_path}/lapce"),
         };
 
-        let proxy_filename = format!("lapce-proxy-{}-{}", platform, architecture);
+        let proxy_filename = format!("lapce-proxy-{platform}-{architecture}");
 
         log::debug!(target: "lapce_data::proxy::start_remote", "remote proxy path: {remote_proxy_path}");
 
@@ -926,13 +942,7 @@ pub fn path_from_url(url: &Url) -> PathBuf {
     if let Some(path) = path.strip_prefix('/') {
         if let Some((maybe_drive_letter, _)) = path.split_once(['/', '\\']) {
             let b = maybe_drive_letter.as_bytes();
-            if b.len() == 2
-                && matches!(
-                    b[0],
-                    b'a'..=b'z' | b'A'..=b'Z'
-                )
-                && b[1] == b':'
-            {
+            if b.len() == 2 && b[0].is_ascii_alphabetic() && b[1] == b':' {
                 return PathBuf::from(path);
             }
         }

@@ -36,14 +36,13 @@ fn test_load_volt() {
     // Invalid path (file does not exist)
     let path = lapce_proxy_dir.join("some-path");
     match path.canonicalize() {
-        Ok(path) => panic!("{:?} file must not exast, but it is", path),
+        Ok(path) => panic!("{path:?} file must not exast, but it is"),
         Err(err) => assert_eq!(err.kind(), std::io::ErrorKind::NotFound),
     };
     // This should return Err since the file does not exist
     if let Ok(volt_metadata) = load_volt(&lapce_proxy_dir) {
         panic!(
-            "Unexpected result from `lapce_proxy::plugin::wasi::load_volt` function: {:?}",
-            volt_metadata
+            "Unexpected result from `lapce_proxy::plugin::wasi::load_volt` function: {volt_metadata:?}"
         );
     }
 
@@ -52,21 +51,19 @@ fn test_load_volt() {
     let path = lapce_proxy_dir.join("smiley.png");
     let path = match path.canonicalize() {
         Ok(path) => path,
-        Err(err) => panic!("{:?} file must exast, but: {:?}", path, err),
+        Err(err) => panic!("{path:?} file must exast, but: {err:?}"),
     };
     // Making sure the data in the file is invalid utf-8
     match std::fs::read_to_string(path.clone()) {
         Ok(str) => panic!(
-            "{:?} file must be invalid utf-8, but it is valid utf-8: {:?}",
-            path, str
+            "{path:?} file must be invalid utf-8, but it is valid utf-8: {str:?}",
         ),
         Err(err) => assert_eq!(err.kind(), std::io::ErrorKind::InvalidData),
     }
     // This should return Err since the `*.png` file cannot be read as a String
     if let Ok(volt_metadata) = load_volt(&path) {
         panic!(
-            "Unexpected result from `lapce_proxy::plugin::wasi::load_volt` function: {:?}",
-            volt_metadata
+            "Unexpected result from `lapce_proxy::plugin::wasi::load_volt` function: {volt_metadata:?}",
         );
     }
 
@@ -77,18 +74,17 @@ fn test_load_volt() {
         .join("Light.svg");
     let path = match path.canonicalize() {
         Ok(path) => path,
-        Err(err) => panic!("{:?} file must exast, but: {:?}", path, err),
+        Err(err) => panic!("{path:?} file must exast, but: {err:?}"),
     };
     // Making sure the data in the file is valid utf-8 (*.svg file is must be a valid utf-8)
     match std::fs::read_to_string(path.clone()) {
         Ok(_) => {}
-        Err(err) => panic!("{:?} file must be valid utf-8, but {:?}", path, err),
+        Err(err) => panic!("{path:?} file must be valid utf-8, but {err:?}"),
     }
     // This should return Err since the data in the file cannot be interpreted as VoltMetadata
     if let Ok(volt_metadata) = load_volt(&path) {
         panic!(
-            "Unexpected result from `lapce_proxy::plugin::wasi::load_volt` function: {:?}",
-            volt_metadata
+            "Unexpected result from `lapce_proxy::plugin::wasi::load_volt` function: {volt_metadata:?}",
         );
     }
 
