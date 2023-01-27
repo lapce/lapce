@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use druid::{
     piet::{Text, TextLayoutBuilder},
-    BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
-    Widget, WidgetExt, WidgetId,
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -12,11 +12,14 @@ use lapce_data::{
     data::LapceTabData,
     debug::{
         DapData, DebugAction, RunAction, RunDebugAction, RunDebugData, RunDebugMode,
-        RunDebugProcess,
+        RunDebugProcess, StackTraceData,
     },
     panel::PanelKind,
 };
-use lapce_rpc::{dap_types::DapId, terminal::TermId};
+use lapce_rpc::{
+    dap_types::{DapId, ThreadId},
+    terminal::TermId,
+};
 
 use crate::{
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
@@ -438,11 +441,110 @@ impl StackTrace {
         Self { line_height: 25.0 }
     }
 
-    fn active_dap(data: &LapceTabData) -> Option<&DapData> {
+    pub fn active_dap(data: &LapceTabData) -> Option<&DapData> {
         let debug_term = data.terminal.get_active_debug_terminal()?;
         let run_debug = debug_term.run_debug.as_ref()?;
         let dap_id = &run_debug.config.dap_id;
         data.terminal.debug.daps.get(dap_id)
+    }
+
+    fn paint_stack(
+        &self,
+        ctx: &mut PaintCtx,
+        i: &mut usize,
+        start: usize,
+        end: usize,
+        thread_id: &ThreadId,
+        stack: &StackTraceData,
+        dap: &DapData,
+        data: &LapceTabData,
+    ) {
+        let text_layout = ctx
+            .text()
+            .new_text_layout(format!("{thread_id}"))
+            .font(
+                data.config.ui.font_family(),
+                data.config.ui.font_size() as f64,
+            )
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        ctx.draw_text(
+            &text_layout,
+            Point::new(
+                self.line_height,
+                (*i as f64 * self.line_height)
+                    + text_layout.y_offset(self.line_height),
+            ),
+        );
+        *i += 1;
+        if *i > end {
+            return;
+        }
+        if dap.stopped && stack.expanded {
+            for (frame_index, frame) in stack.frames.iter().enumerate() {
+                if frame_index > stack.frames_shown {
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout("load more frames ...")
+                        .font(
+                            data.config.ui.font_family(),
+                            data.config.ui.font_size() as f64,
+                        )
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    ctx.draw_text(
+                        &text_layout,
+                        Point::new(
+                            self.line_height + self.line_height * 2.0,
+                            (*i as f64 * self.line_height)
+                                + text_layout.y_offset(self.line_height),
+                        ),
+                    );
+                    *i += 1;
+                    break;
+                }
+                if *i + 1 < start {
+                    *i += 1;
+                    continue;
+                }
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(format!("{}", frame.name))
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(
+                        self.line_height + self.line_height * 2.0,
+                        (*i as f64 * self.line_height)
+                            + text_layout.y_offset(self.line_height),
+                    ),
+                );
+                *i += 1;
+                if *i > end {
+                    return;
+                }
+            }
+        }
     }
 }
 
@@ -467,11 +569,26 @@ impl Widget<LapceTabData> for StackTrace {
 
     fn update(
         &mut self,
-        _ctx: &mut UpdateCtx,
-        _old_data: &LapceTabData,
-        _data: &LapceTabData,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
         _env: &Env,
     ) {
+        if !data.terminal.debug.same(&old_data.terminal.debug) {
+            match (Self::active_dap(data), Self::active_dap(old_data)) {
+                (Some(dap), Some(old_dap)) => {
+                    if dap.dap_id != old_dap.dap_id
+                        || dap.stopped != old_dap.stopped
+                        || dap.stack_frames != old_dap.stack_frames
+                    {
+                        ctx.request_layout();
+                    }
+                }
+                _ => {
+                    ctx.request_layout();
+                }
+            }
+        }
     }
 
     fn layout(
@@ -484,13 +601,19 @@ impl Widget<LapceTabData> for StackTrace {
         let len = Self::active_dap(data)
             .map(|dap| {
                 dap.stack_frames
-                    .iter()
-                    .map(|(_, stack)| {
-                        if dap.stopped && stack.expanded {
-                            stack.frames.len() + 1
+                    .values()
+                    .map(|stack| {
+                        let frames_len = if dap.stopped && stack.expanded {
+                            if stack.frames.len() > stack.frames_shown {
+                                stack.frames_shown + 1
+                            } else {
+                                stack.frames.len()
+                            }
                         } else {
-                            1
-                        }
+                            0
+                        };
+
+                        frames_len + 1
                     })
                     .sum::<usize>()
             })
@@ -505,67 +628,30 @@ impl Widget<LapceTabData> for StackTrace {
 
         let mut i = 0;
         if let Some(dap) = Self::active_dap(data) {
-            for (thread_id, stack) in &dap.stack_frames {
-                let text_layout = ctx
-                    .text()
-                    .new_text_layout(format!("{thread_id}"))
-                    .font(
-                        data.config.ui.font_family(),
-                        data.config.ui.font_size() as f64,
-                    )
-                    .text_color(
-                        data.config
-                            .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
-                            .clone(),
-                    )
-                    .build()
-                    .unwrap();
-                ctx.draw_text(
-                    &text_layout,
-                    Point::new(
-                        self.line_height,
-                        (i as f64 * self.line_height)
-                            + text_layout.y_offset(self.line_height),
-                    ),
-                );
-                i += 1;
-                if i > end {
-                    return;
+            if let Some(main_thread) = dap.thread_id.as_ref() {
+                if let Some(stack) = dap.stack_frames.get(main_thread) {
+                    self.paint_stack(
+                        ctx,
+                        &mut i,
+                        start,
+                        end,
+                        main_thread,
+                        stack,
+                        dap,
+                        data,
+                    );
+                    if i > end {
+                        return;
+                    }
                 }
-                if dap.stopped && stack.expanded {
-                    for frame in &stack.frames {
-                        if i + 1 < start {
-                            i += 1;
-                            continue;
-                        }
-                        let text_layout = ctx
-                            .text()
-                            .new_text_layout(format!("{}", frame.name))
-                            .font(
-                                data.config.ui.font_family(),
-                                data.config.ui.font_size() as f64,
-                            )
-                            .text_color(
-                                data.config
-                                    .get_color_unchecked(
-                                        LapceTheme::PANEL_FOREGROUND,
-                                    )
-                                    .clone(),
-                            )
-                            .build()
-                            .unwrap();
-                        ctx.draw_text(
-                            &text_layout,
-                            Point::new(
-                                self.line_height + self.line_height * 2.0,
-                                (i as f64 * self.line_height)
-                                    + text_layout.y_offset(self.line_height),
-                            ),
-                        );
-                        i += 1;
-                        if i > end {
-                            return;
-                        }
+            }
+            for (thread_id, stack) in &dap.stack_frames {
+                if dap.thread_id.as_ref() != Some(thread_id) {
+                    self.paint_stack(
+                        ctx, &mut i, start, end, thread_id, stack, dap, data,
+                    );
+                    if i > end {
+                        return;
                     }
                 }
             }

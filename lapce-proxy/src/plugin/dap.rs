@@ -224,7 +224,7 @@ impl DapClient {
             }
             DapEvent::Stopped(stopped) => {
                 // println!("stopped {stopped:?}");
-                if stopped.reason == "entry" {
+                if stopped.reason == "entry" || stopped.reason == "exception" {
                     self.dap_rpc
                         .continue_thread(stopped.thread_id.unwrap_or_default());
                     return Ok(());
@@ -295,8 +295,8 @@ impl DapClient {
             client_name: Some("Lapce".to_owned()),
             adapter_id: "".to_string(),
             locale: Some("en-us".to_owned()),
-            lines_start_at_one: Some(false),
-            columns_start_at_one: Some(false),
+            lines_start_at_one: Some(true),
+            columns_start_at_one: Some(true),
             path_format: Some("path".to_owned()),
             supports_variable_type: Some(true),
             supports_variable_paging: Some(false),
@@ -640,6 +640,30 @@ impl DapRpcHandler {
         self.request::<Terminate>(())
             .map_err(|e| anyhow!(e.message))?;
         Ok(())
+    }
+
+    pub fn set_breakpoints_async(
+        &self,
+        file: PathBuf,
+        breakpoints: Vec<SourceBreakpoint>,
+        f: impl RpcCallback<SetBreakpointsResponse, RpcError> + 'static,
+    ) {
+        println!("set breakpoints async");
+        let params = SetBreakpointsArguments {
+            source: Source {
+                path: Some(file),
+                name: None,
+                source_reference: None,
+                presentation_hint: None,
+                origin: None,
+                sources: None,
+                adapter_data: None,
+                checksums: None,
+            },
+            breakpoints: Some(breakpoints),
+            source_modified: Some(false),
+        };
+        self.request_async::<SetBreakpoints>(params, f);
     }
 
     pub fn set_breakpoints(

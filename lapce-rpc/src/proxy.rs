@@ -265,6 +265,11 @@ pub enum ProxyNotification {
         dap_id: DapId,
         breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
     },
+    DapSetBreakpoints {
+        dap_id: DapId,
+        path: PathBuf,
+        breakpoints: Vec<SourceBreakpoint>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -936,6 +941,19 @@ impl ProxyRpcHandler {
 
     pub fn dap_disconnect(&self, dap_id: DapId) {
         self.notification(ProxyNotification::DapDisconnect { dap_id })
+    }
+
+    pub fn dap_set_breakpoints(
+        &self,
+        dap_id: DapId,
+        path: PathBuf,
+        breakpoints: Vec<SourceBreakpoint>,
+    ) {
+        self.notification(ProxyNotification::DapSetBreakpoints {
+            dap_id,
+            path,
+            breakpoints,
+        })
     }
 }
 

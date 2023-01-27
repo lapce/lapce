@@ -9,7 +9,7 @@ use std::{
 };
 
 use lapce_rpc::{
-    dap_types::{DapId, DapServer},
+    dap_types::{DapId, DapServer, SetBreakpointsResponse},
     plugin::{PluginId, VoltID, VoltMetadata},
     proxy::ProxyResponse,
     style::LineStyle,
@@ -502,6 +502,28 @@ impl PluginCatalog {
             } => {
                 if let Some(dap) = self.daps.get(&dap_id) {
                     dap.restart(breakpoints);
+                }
+            }
+            DapSetBreakpoints {
+                dap_id,
+                path,
+                breakpoints,
+            } => {
+                if let Some(dap) = self.daps.get(&dap_id) {
+                    let core_rpc = self.plugin_rpc.core_rpc.clone();
+                    dap.set_breakpoints_async(
+                        path.clone(),
+                        breakpoints,
+                        move |result: Result<SetBreakpointsResponse, RpcError>| {
+                            if let Ok(resp) = result {
+                                core_rpc.dap_breakpoints_resp(
+                                    dap_id,
+                                    path,
+                                    resp.breakpoints.unwrap_or_default(),
+                                );
+                            }
+                        },
+                    );
                 }
             }
             Shutdown => {
