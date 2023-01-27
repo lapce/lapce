@@ -1712,16 +1712,16 @@ impl Widget<LapceTabData> for LapceTerminalProfiles {
             //         .cloned();
             //     terminal.profiles.list.items = im::Vector::from_iter(filtered_profiles);
             // }
-            Event::KeyDown(key_event) => {
-                let mut keypress = data.keypress.clone();
-                let terminal = Arc::make_mut(&mut data.terminal);
-                Arc::make_mut(&mut keypress).key_down(
-                    ctx,
-                    key_event,
-                    &mut terminal.profiles,
-                    env,
-                );
-            }
+            // Event::KeyDown(key_event) => {
+            //     let mut keypress = data.keypress.clone();
+            //     let terminal = Arc::make_mut(&mut data.terminal);
+            //     Arc::make_mut(&mut keypress).key_down(
+            //         ctx,
+            //         key_event,
+            //         &mut terminal.profiles,
+            //         env,
+            //     );
+            // }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
