@@ -469,6 +469,8 @@ pub struct EditorConfig {
     pub atomic_soft_tabs: bool,
     #[field_names(desc = "Use double click to open interact with file explorer")]
     pub double_click: bool,
+    #[field_names(desc = "Move the focus as you type in the global search box")]
+    pub move_focus_while_search: bool,
 }
 
 impl EditorConfig {
