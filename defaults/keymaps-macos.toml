@@ -82,6 +82,16 @@ command = "line_end"
 mode = "i"
 
 [[keymaps]]
+key = "ctrl+a"
+command = "line_start_non_blank"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+e"
+command = "line_end"
+mode = "i"
+
+[[keymaps]]
 key = "meta+shift+k"
 command = "delete_line"
 mode = "i"
@@ -94,6 +104,11 @@ mode = "i"
 [[keymaps]]
 key = "meta+backspace"
 command = "delete_to_beginning_of_line"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+k"
+command = "delete_to_end_of_line"
 mode = "i"
 
 [[keymaps]]
