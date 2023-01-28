@@ -262,6 +262,14 @@ impl ProxyHandler for Dispatcher {
                     }
                 }
             }
+            GitFetch {} => {
+                if let Some(workspace) = self.workspace.as_ref() {
+                    match git_fetch(workspace) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
+            }
         }
     }
 
@@ -1225,6 +1233,24 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
     let url = format!("https://{host}{namespace}/blob/{commit}/{file_path}",);
 
     Ok(url)
+}
+
+fn git_fetch(workspace_path: &Path) -> Result<()> {
+    let repo = Repository::open(
+        workspace_path
+            .to_str()
+            .ok_or_else(|| anyhow!("can't to str"))?,
+    )?;
+
+    for remote_name in repo.remotes().unwrap().iter() {
+        let mut remote = repo.find_remote(remote_name.unwrap())?;
+        let refspecs: Vec<_> = remote
+            .refspecs()
+            .map(|r| r.str().unwrap().to_string())
+            .collect();
+        remote.fetch(&refspecs, None, None)?;
+    }
+    Ok(())
 }
 
 fn search_in_path(

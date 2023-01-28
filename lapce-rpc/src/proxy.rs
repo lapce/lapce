@@ -225,6 +225,7 @@ pub enum ProxyNotification {
     },
     GitDiscardWorkspaceChanges {},
     GitInit {},
+    GitFetch {},
     TerminalWrite {
         term_id: TermId,
         content: String,
@@ -853,6 +854,10 @@ impl ProxyRpcHandler {
 
     pub fn git_discard_workspace_changes(&self) {
         self.notification(ProxyNotification::GitDiscardWorkspaceChanges {});
+    }
+
+    pub fn git_fetch(&self) {
+        self.notification(ProxyNotification::GitFetch {});
     }
 
     pub fn get_selection_range(

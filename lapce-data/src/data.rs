@@ -1730,6 +1730,9 @@ impl LapceTabData {
                     Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
                 };
             }
+            LapceWorkbenchCommand::SourceControlFetch => {
+                self.proxy.proxy_rpc.git_fetch()
+            }
             LapceWorkbenchCommand::SourceControlCopyActiveFileRemoteUrl => {
                 if let Some(editor) = self.main_split.active_editor() {
                     if let BufferContent::File(path) = &editor.content {

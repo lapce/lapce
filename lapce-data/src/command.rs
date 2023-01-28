@@ -436,6 +436,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "source_control_commit")]
     SourceControlCommit,
 
+    #[strum(message = "Source Control: Fetch")]
+    #[strum(serialize = "source_control_fetch")]
+    SourceControlFetch,
+
     #[strum(message = "Source Control: Copy Remote File Url")]
     #[strum(serialize = "source_control_copy_active_file_remote_url")]
     SourceControlCopyActiveFileRemoteUrl,
