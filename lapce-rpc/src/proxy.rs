@@ -73,9 +73,6 @@ pub enum ProxyRequest {
         path: PathBuf,
         positions: Vec<Position>,
     },
-    GitGetRemoteFileUrl {
-        file: PathBuf,
-    },
     GetReferences {
         path: PathBuf,
         position: Position,
@@ -805,14 +802,6 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::PrepareRename { path, position }, f);
-    }
-
-    pub fn git_get_remote_file_url(
-        &self,
-        file: PathBuf,
-        f: impl ProxyCallback + 'static,
-    ) {
-        self.request_async(ProxyRequest::GitGetRemoteFileUrl { file }, f);
     }
 
     pub fn rename(

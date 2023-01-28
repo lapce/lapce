@@ -6,6 +6,7 @@
 
 - [#1820](https://github.com/lapce/lapce/pull/1820): Add remote svg icon colour to theme, disable plugin settings when none are available
 - [#1988](https://github.com/lapce/lapce/pull/1987): Replace modal status background with background/foreground theme keys
+- [#2068](https://github.com/lapce/lapce/pull/2068): Remove `Copy remote file URL` command
 
 ### Features/Changes
 - [#1899](https://github.com/lapce/lapce/pull/1899): Improve sorting files with numbers
