@@ -1225,6 +1225,23 @@ impl Editor {
                 cursor.update_selection(buffer, selection);
                 vec![(delta, inval_lines, edits)]
             }
+            DeleteLine => {
+                let selection = cursor.edit_selection(buffer);
+                let (start, end) = format_start_end(
+                    buffer,
+                    selection.min_offset(),
+                    selection.max_offset(),
+                    true,
+                    true,
+                );
+                let selection = Selection::region(start, end);
+                let (delta, inval_lines, edits) =
+                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                let selection =
+                    selection.apply_delta(&delta, true, InsertDrift::Default);
+                cursor.mode = CursorMode::Insert(selection);
+                vec![(delta, inval_lines, edits)]
+            }
             DeleteWordForward => {
                 let selection = match cursor.mode {
                     CursorMode::Normal(_) | CursorMode::Visual { .. } => {

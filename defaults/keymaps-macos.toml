@@ -82,6 +82,11 @@ command = "line_end"
 mode = "i"
 
 [[keymaps]]
+key = "meta+shift+k"
+command = "delete_line"
+mode = "i"
+
+[[keymaps]]
 key = "alt+backspace"
 command = "delete_word_backward"
 mode = "i"
