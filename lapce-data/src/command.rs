@@ -563,7 +563,6 @@ pub enum LapceUICommand {
     /// Display the terminal profiles picker at the specified point
     ShowTerminalProfiles {
         origin: Point,
-        profiles: im::Vector<String>,
     },
     /// Update global search input with the given pattern
     UpdateSearchInput(String),

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc};
 
 use alacritty_terminal::{
     grid::{Dimensions, Scroll},
@@ -11,8 +11,7 @@ use druid::{
     widget::{Click, ControllerHost},
     BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, TimerToken, UpdateCtx, Widget, WidgetExt, WidgetId,
-    WidgetPod,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_core::{mode::Mode, register::Clipboard};
 use lapce_data::{
@@ -369,13 +368,21 @@ impl LapceTerminalPanelHeader {
         let icon_padding = 4.0;
         let icon = LapcePadding::new(4.0, LapceIconSvg::new(LapceIcons::ADD))
             .controller(Click::new(|ctx, _data, _env| {
+                // ctx.submit_command(Command::new(
+                //     LAPCE_COMMAND,
+                //     LapceCommand {
+                //         kind: CommandKind::Workbench(
+                //             LapceWorkbenchCommand::NewTerminalTab,
+                //         ),
+                //         data: None,
+                //     },
+                //     Target::Auto,
+                // ));
+                // let config: Arc<LapceConfig> = data.config;
                 ctx.submit_command(Command::new(
-                    LAPCE_COMMAND,
-                    LapceCommand {
-                        kind: CommandKind::Workbench(
-                            LapceWorkbenchCommand::NewTerminalTab,
-                        ),
-                        data: None,
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ShowTerminalProfiles {
+                        origin: Point::new(-20.0, 0.0),
                     },
                     Target::Auto,
                 ));
@@ -1640,33 +1647,25 @@ impl Widget<LapceTabData> for LapceTerminal {
 
 pub struct LapceTerminalProfiles {
     widget_id: WidgetId,
-    // input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     list: WidgetPod<ListData<String, ()>, List<String, ()>>,
-    last_idle_timer: TimerToken,
     profiles: im::Vector<String>,
 }
 
 impl LapceTerminalProfiles {
-    fn new(_data: &LapceTabData) -> Self {
+    fn new(data: &LapceTabData) -> Self {
         let widget_id = WidgetId::next();
         let scroll_id = WidgetId::next();
+        let profiles = data
+            .config
+            .terminal
+            .profiles
+            .keys()
+            .map(|name| name.to_owned())
+            .collect::<im::Vector<String>>();
         Self {
             widget_id,
-            // input: WidgetPod::new(
-            //     LapceEditorView::new(
-            //         data.title.branches.filter_editor,
-            //         WidgetId::next(),
-            //         None,
-            //     )
-            //     .hide_header()
-            //     .hide_gutter()
-            //     .hide_border()
-            //     .padding((5.0, 2.0, 5.0, 2.0))
-            //     .boxed(),
-            // ),
             list: WidgetPod::new(List::new(scroll_id)),
-            profiles: im::Vector::new(),
-            last_idle_timer: TimerToken::INVALID,
+            profiles,
         }
     }
 
@@ -1689,39 +1688,12 @@ impl Widget<LapceTabData> for LapceTerminalProfiles {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        // self.input.event(ctx, event, data, env);
         let terminal = Arc::make_mut(&mut data.terminal);
         terminal.profiles.list.update_data(data.config.clone());
         self.list
             .event(ctx, event, &mut terminal.profiles.list, env);
 
         match event {
-            // Event::Timer(token) if token == &self.last_idle_timer => {
-            //     log::warn!("title timer");
-            //     ctx.set_handled();
-            //     let editor_data =
-            //         data.editor_view_content(data.terminal.profiles.filter_editor);
-            //     let query = editor_data.doc.buffer().text().to_string();
-            //     log::warn!("terminal profiles filter: {}", query);
-            //     let terminal = Arc::make_mut(&mut data.terminal);
-            //     terminal.profiles.list.clear_items();
-            //     let filtered_profiles = self
-            //         .profiles
-            //         .iter()
-            //         .filter(|branch| branch.contains(&query))
-            //         .cloned();
-            //     terminal.profiles.list.items = im::Vector::from_iter(filtered_profiles);
-            // }
-            // Event::KeyDown(key_event) => {
-            //     let mut keypress = data.keypress.clone();
-            //     let terminal = Arc::make_mut(&mut data.terminal);
-            //     Arc::make_mut(&mut keypress).key_down(
-            //         ctx,
-            //         key_event,
-            //         &mut terminal.profiles,
-            //         env,
-            //     );
-            // }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
@@ -1732,26 +1704,11 @@ impl Widget<LapceTabData> for LapceTerminalProfiles {
                         self.request_focus(ctx, data);
                         ctx.set_handled();
                     }
-                    LapceUICommand::ShowTerminalProfiles { origin, profiles } => {
+                    LapceUICommand::ShowTerminalProfiles { origin } => {
                         let terminal = Arc::make_mut(&mut data.terminal);
                         terminal.profiles.list.clear_items();
-                        self.profiles = profiles.clone();
-                        terminal.profiles.list.items = profiles.clone();
+                        terminal.profiles.list.items = self.profiles.clone();
                         terminal.profiles.origin = *origin;
-
-                        // Make so the default selected entry is the current branch
-                        // let current_branch = &data.source_control.branch;
-                        // let current_item_index = terminal
-                        //     .profiles
-                        //     .list
-                        //     .items
-                        //     .iter()
-                        //     .enumerate()
-                        //     .find(|(_, branch)| *branch == current_branch)
-                        //     .map(|(i, _)| i);
-                        // terminal.profiles.list.selected_index =
-                        // current_item_index.unwrap_or(0);
-
                         terminal.profiles.active = true;
 
                         self.request_focus(ctx, data);
@@ -1799,7 +1756,6 @@ impl Widget<LapceTabData> for LapceTerminalProfiles {
                 ));
             }
         }
-        // self.input.lifecycle(ctx, event, data, env);
         self.list.lifecycle(
             ctx,
             event,
@@ -1819,24 +1775,11 @@ impl Widget<LapceTabData> for LapceTerminalProfiles {
             ctx.request_layout();
         }
 
-        // self.input.update(ctx, data, env);
         self.list.update(
             ctx,
             &data.terminal.profiles.list.clone_with(data.config.clone()),
             env,
         );
-
-        let editor_data =
-            data.editor_view_content(data.terminal.profiles.filter_editor);
-        let old_editor_data =
-            old_data.editor_view_content(data.terminal.profiles.filter_editor);
-        if editor_data.doc.buffer().len() != old_editor_data.doc.buffer().len()
-            || editor_data.doc.buffer().text().slice_to_cow(..)
-                != old_editor_data.doc.buffer().text().slice_to_cow(..)
-        {
-            self.last_idle_timer =
-                ctx.request_timer(Duration::from_millis(300), None);
-        }
     }
 
     fn layout(
@@ -1848,13 +1791,6 @@ impl Widget<LapceTabData> for LapceTerminalProfiles {
     ) -> Size {
         let max_width = bc.max().width;
         let max_height = bc.max().height;
-        // let input_size = self.input.layout(
-        //     ctx,
-        //     &BoxConstraints::tight(Size::new(max_width, max_height)),
-        //     data,
-        //     env,
-        // );
-        // self.input.set_origin(ctx, data, env, Point::ZERO);
         let list_data = &data.terminal.profiles.list.clone_with(data.config.clone());
         let list_size = self.list.layout(
             ctx,
@@ -1880,7 +1816,6 @@ impl Widget<LapceTabData> for LapceTerminalProfiles {
             data.config
                 .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
         );
-        // self.input.paint(ctx, data, env);
         self.list.paint(
             ctx,
             &data.title.branches.list.clone_with(data.config.clone()),
