@@ -1,5 +1,3 @@
-#[cfg(target_os = "linux")]
-use std::process::Command;
 use std::{
     borrow::Cow,
     collections::VecDeque,
