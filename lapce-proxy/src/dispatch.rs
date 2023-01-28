@@ -976,7 +976,9 @@ pub struct DiffHunk {
 }
 
 fn git_init(workspace_path: &Path) -> Result<()> {
-    Repository::init(workspace_path)?;
+    if Repository::discover(workspace_path).is_err() {
+        Repository::init(workspace_path)?;
+    };
     Ok(())
 }
 
@@ -985,11 +987,7 @@ fn git_commit(
     message: &str,
     diffs: Vec<FileDiff>,
 ) -> Result<()> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("workspace path can't changed to str"))?,
-    )?;
+    let repo = Repository::discover(workspace_path)?;
     let mut index = repo.index()?;
     for diff in diffs {
         match diff {
@@ -1023,11 +1021,7 @@ fn git_commit(
 }
 
 fn git_checkout(workspace_path: &Path, branch: &str) -> Result<()> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("workspace path can't changed to str"))?,
-    )?;
+    let repo = Repository::discover(workspace_path)?;
     let (object, reference) = repo.revparse_ext(branch)?;
     repo.checkout_tree(&object, None)?;
     repo.set_head(reference.unwrap().name().unwrap())?;
@@ -1038,7 +1032,7 @@ fn git_discard_files_changes<'a>(
     workspace_path: &Path,
     files: impl Iterator<Item = &'a Path>,
 ) -> Result<()> {
-    let repo = Repository::open(workspace_path)?;
+    let repo = Repository::discover(workspace_path)?;
 
     let mut checkout_b = CheckoutBuilder::new();
     checkout_b.update_only(false).force();
@@ -1065,7 +1059,7 @@ fn git_discard_files_changes<'a>(
 }
 
 fn git_discard_workspace_changes(workspace_path: &Path) -> Result<()> {
-    let repo = Repository::open(workspace_path)?;
+    let repo = Repository::discover(workspace_path)?;
     let mut checkout_b = CheckoutBuilder::new();
     checkout_b.force();
 
@@ -1099,7 +1093,7 @@ fn git_delta_format(
 }
 
 fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
-    let repo = Repository::open(workspace_path.to_str()?).ok()?;
+    let repo = Repository::discover(workspace_path).ok()?;
     let head = repo.head().ok()?;
     let name = head.shorthand()?.to_string();
 
@@ -1181,11 +1175,7 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
 }
 
 fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("can't to str"))?,
-    )?;
+    let repo = Repository::discover(workspace_path)?;
     let head = repo.head()?;
     let tree = head.peel_to_tree()?;
     let tree_entry = tree.get_path(path.strip_prefix(workspace_path)?)?;
@@ -1198,14 +1188,8 @@ fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)>
 }
 
 fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("can't to str"))?,
-    )?;
-
+    let repo = Repository::discover(workspace_path)?;
     let head = repo.head()?;
-
     let target_remote = repo.find_remote("origin")?;
 
     let target_remote_file_url =
