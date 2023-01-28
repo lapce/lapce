@@ -33,7 +33,6 @@ use lapce_rpc::{
 use lapce_xi_rope::Rope;
 use lsp_types::{Position, Range, TextDocumentItem, Url};
 use parking_lot::Mutex;
-use regex::Regex;
 
 use crate::{
     buffer::{get_mod_time, load_file, Buffer},
@@ -1198,55 +1197,44 @@ fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)>
 }
 
 fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("can't to str"))?,
-    )?;
-
+    let repo = Repository::discover(workspace_path)?;
     let head = repo.head()?;
-
     let target_remote = repo.find_remote("origin")?;
 
-    let target_remote_file_url =
-        target_remote.url().ok_or_else(|| anyhow!("can't to str"))?;
+    // Grab URL part of remote
+    let remote = target_remote
+        .url()
+        .ok_or(anyhow!("Failed to convert remote to str"))?;
 
-    // This Regex isn't perfect, but it's good enough for now
-    // git@github.com:rust-lang/rust.git
-    // https://github.com/rust-lang/rust.git
+    let remote_url = match Url::parse(remote) {
+        Ok(url) => url,
+        Err(_) => {
+            // Parse URL as ssh
+            Url::parse(&format!("ssh://{}", remote.replacen(':', "/", 1)))?
+        }
+    };
 
-    let git_repo_remote_regex = Regex::new(
-        r"^(?:git@|https://)(?P<host>[^:/]+)[:/](?P<org>[^/]+)/(?P<repo>.+)$",
-    )
-    .unwrap();
+    // Get host part
+    let host = remote_url
+        .host_str()
+        .ok_or(anyhow!("Couldn't find remote host"))?;
+    // Get namespace (e.g. organisation/project in case of GitHub, org/team/team/team/../project on GitLab)
+    let namespace = if let Some(stripped) = remote_url.path().strip_suffix(".git") {
+        stripped
+    } else {
+        remote_url.path()
+    };
 
-    let (host, org, repo) =
-        if let Some(v) = git_repo_remote_regex.captures(target_remote_file_url) {
-            let host = v
-                .name("host")
-                .ok_or_else(|| anyhow!("can't to str"))?
-                .as_str();
-            let org = v
-                .name("org")
-                .ok_or_else(|| anyhow!("can't to str"))?
-                .as_str();
-            let repo = v
-                .name("repo")
-                .ok_or_else(|| anyhow!("can't to str"))?
-                .as_str();
-            (host, org, repo)
-        } else {
-            return Err(anyhow!("can't parse remote url"));
-        };
+    let commit = head.peel_to_commit()?.id();
 
-    Ok(format!(
-        "https://{}/{}/{}/blob/{}/{}",
-        host,
-        org,
-        repo,
-        head.peel_to_commit()?.id(),
-        file.strip_prefix(workspace_path)?.to_str().unwrap()
-    ))
+    let file_path = file
+        .strip_prefix(workspace_path)?
+        .to_str()
+        .ok_or(anyhow!("Couldn't convert file path to str"))?;
+
+    let url = format!("https://{host}{namespace}/blob/{commit}/{file_path}",);
+
+    Ok(url)
 }
 
 fn search_in_path(
