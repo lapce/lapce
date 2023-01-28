@@ -24,7 +24,7 @@ if [ -e "${_DIR}/lapce" ]; then
 
   _ver=$("${_DIR}/lapce" --version | cut -d'v' -f2)
 
-  printf '[DEBUG]: %s = %s' "${_ver}" "${_VER}"
+  printf '[DEBUG]: %s = %s\n' "${_ver}" "${_VER}"
   if [ "${_ver}" = "${_VER}" ]; then
     printf 'Proxy outdated. Replacing proxy\n'
     rm "${_DIR}/lapce"
