@@ -1190,7 +1190,11 @@ fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)>
 fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String> {
     let repo = Repository::discover(workspace_path)?;
     let head = repo.head()?;
-    let target_remote = repo.find_remote("origin")?;
+    let target_remote = repo.find_remote(
+        repo.branch_upstream_remote(head.name().unwrap())?
+            .as_str()
+            .unwrap(),
+    )?;
 
     let target_remote_file_url =
         target_remote.url().ok_or_else(|| anyhow!("can't to str"))?;
@@ -1218,7 +1222,7 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
                 .name("repo")
                 .ok_or_else(|| anyhow!("can't to str"))?
                 .as_str();
-            (host, org, repo)
+            (host, org, repo.strip_suffix(".git").unwrap_or(repo))
         } else {
             return Err(anyhow!("can't parse remote url"));
         };
