@@ -443,6 +443,9 @@ impl KeyPressFocus for PaletteViewData {
                 EditCommand::DeleteToBeginningOfLine => {
                     self.delete_to_beginning_of_line(ctx);
                 }
+                EditCommand::DeleteToEndOfLine => {
+                    self.delete_to_beginning_of_line(ctx);
+                }
                 _ => return CommandExecuted::No,
             },
             _ => return CommandExecuted::No,
@@ -733,6 +736,24 @@ impl PaletteViewData {
         } else {
             palette.input.replace_range(start..palette.cursor, "");
             palette.cursor = start;
+        }
+        self.update_palette(ctx);
+    }
+
+    pub fn delete_to_end_of_line(&mut self, ctx: &mut EventCtx) {
+        let palette = Arc::make_mut(&mut self.palette);
+        if palette.cursor == 0 {
+            return;
+        }
+
+        let end = palette.input.len();
+
+        if palette.cursor == end {
+            palette.input = "".to_string();
+            palette.cursor = 0;
+        } else {
+            palette.input.replace_range(palette.cursor..end, "");
+            palette.cursor = end;
         }
         self.update_palette(ctx);
     }

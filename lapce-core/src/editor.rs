@@ -59,11 +59,12 @@ pub enum EditType {
     Completion,
     DeleteWord,
     DeleteToBeginningOfLine,
+    DeleteToEndOfLine,
+    DeleteToEndOfLineAndInsert,
     MotionDelete,
     Undo,
     Redo,
     Other,
-    DeleteToEndOfLineAndInsert,
 }
 
 impl EditType {
@@ -1313,6 +1314,31 @@ impl Editor {
                 };
                 let (delta, inval_lines, edits) = buffer
                     .edit(&[(&selection, "")], EditType::DeleteToBeginningOfLine);
+                let selection =
+                    selection.apply_delta(&delta, true, InsertDrift::Default);
+                cursor.update_selection(buffer, selection);
+                vec![(delta, inval_lines, edits)]
+            }
+            DeleteToEndOfLine => {
+                let selection = match cursor.mode {
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        cursor.edit_selection(buffer)
+                    }
+                    CursorMode::Insert(_) => {
+                        let mut selection = cursor.edit_selection(buffer);
+
+                        let cursor_offset = cursor.offset();
+                        let line = buffer.line_of_offset(cursor_offset);
+                        let end_of_line_offset = buffer.line_end_offset(line, true);
+                        let new_region =
+                            SelRegion::new(cursor_offset, end_of_line_offset, None);
+                        selection.add_region(new_region);
+
+                        selection
+                    }
+                };
+                let (delta, inval_lines, edits) =
+                    buffer.edit(&[(&selection, "")], EditType::DeleteToEndOfLine);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);

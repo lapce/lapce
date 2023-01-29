@@ -24,6 +24,7 @@
 - [#2033](https://github.com/lapce/lapce/pull/2033): Add setting for double click delay (Currently only works for opening file from the explorer)
 - [#2045](https://github.com/lapce/lapce/pull/2045): Add 'Rename Symbol' option on right-click
 - [#2071](https://github.com/lapce/lapce/pull/2071): Add command and keybinds to delete line
+- [#2073](https://github.com/lapce/lapce/pull/2073): Add Ctrl+{a,e,k} keybinds on macOS
 
 ### Bug Fixes
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys
