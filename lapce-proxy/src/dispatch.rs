@@ -1222,7 +1222,7 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
                 .name("repo")
                 .ok_or_else(|| anyhow!("can't to str"))?
                 .as_str();
-            (host, org, repo.strip_suffix(".git").unwrap_or(repo))
+            (host, org, repo)
         } else {
             return Err(anyhow!("can't parse remote url"));
         };
