@@ -454,7 +454,7 @@ pub fn start_volt(
     })?;
     linker.func_wrap("lapce", "host_handle_stderr", move || {
         if let Ok(msg) = wasi_read_string(&stderr) {
-            eprintln!("got stderr from plugin: {msg}");
+            log::error!("got stderr from plugin: {msg}");
         }
     })?;
     linker.module(&mut store, "", &module)?;

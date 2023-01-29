@@ -31,7 +31,9 @@ use lapce_rpc::{
     RequestId, RpcError,
 };
 use lapce_xi_rope::Rope;
-use lsp_types::{Position, Range, TextDocumentItem, Url};
+use lsp_types::{
+    MessageType, Position, Range, ShowMessageParams, TextDocumentItem, Url,
+};
 use parking_lot::Mutex;
 
 use crate::{
@@ -221,44 +223,76 @@ impl ProxyHandler for Dispatcher {
             }
             GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.as_ref() {
-                    match git_commit(workspace, &message, diffs) {
-                        Ok(()) => (),
-                        Err(e) => eprintln!("{e:?}"),
+                    if let Err(e) = git_commit(workspace, &message, diffs) {
+                        self.core_rpc.show_message(
+                            String::from("Source Control: Commit"),
+                            ShowMessageParams {
+                                typ: MessageType::ERROR,
+                                message: format!("Failed to checkout: {e}"),
+                            },
+                        );
+                        log::error!(target: "lapce_proxy::dispatch::proxy_handler::handle_notification::git_commit", "{e}");
                     }
                 }
             }
             GitCheckout { branch } => {
                 if let Some(workspace) = self.workspace.as_ref() {
-                    match git_checkout(workspace, &branch) {
-                        Ok(()) => (),
-                        Err(e) => eprintln!("{e:?}"),
+                    if let Err(e) = git_checkout(workspace, &branch) {
+                        self.core_rpc.show_message(
+                            String::from("Source Control: Checkout"),
+                            ShowMessageParams {
+                                typ: MessageType::ERROR,
+                                message: format!("Failed to checkout: {e}"),
+                            },
+                        );
+                        log::error!(target: "lapce_proxy::dispatch::proxy_handler::handle_notification::git_checkout", "{e}");
                     }
                 }
             }
             GitDiscardFilesChanges { files } => {
                 if let Some(workspace) = self.workspace.as_ref() {
-                    match git_discard_files_changes(
+                    if let Err(e) = git_discard_files_changes(
                         workspace,
                         files.iter().map(AsRef::as_ref),
                     ) {
-                        Ok(()) => (),
-                        Err(e) => eprintln!("{e:?}"),
+                        self.core_rpc.show_message(
+                            String::from("Source Control: Discard File Changes"),
+                            ShowMessageParams {
+                                typ: MessageType::ERROR,
+                                message: format!("Failed to checkout: {e}"),
+                            },
+                        );
+                        log::error!(target: "lapce_proxy::dispatch::proxy_handler::handle_notification::git_discard_files_change", "{e}");
                     }
                 }
             }
             GitDiscardWorkspaceChanges {} => {
                 if let Some(workspace) = self.workspace.as_ref() {
-                    match git_discard_workspace_changes(workspace) {
-                        Ok(()) => (),
-                        Err(e) => eprintln!("{e:?}"),
+                    if let Err(e) = git_discard_workspace_changes(workspace) {
+                        self.core_rpc.show_message(
+                            String::from(
+                                "Source Control: Discard Workspace Changes",
+                            ),
+                            ShowMessageParams {
+                                typ: MessageType::ERROR,
+                                message: format!("Failed to checkout: {e}"),
+                            },
+                        );
+                        log::error!(target: "lapce_proxy::dispatch::proxy_handler::handle_notification::git_discard_workspace_changes", "{e}");
                     }
                 }
             }
             GitInit {} => {
                 if let Some(workspace) = self.workspace.as_ref() {
-                    match git_init(workspace) {
-                        Ok(()) => (),
-                        Err(e) => eprintln!("{e:?}"),
+                    if let Err(e) = git_init(workspace) {
+                        self.core_rpc.show_message(
+                            String::from("Source Control: Init"),
+                            ShowMessageParams {
+                                typ: MessageType::ERROR,
+                                message: format!("Failed to checkout: {e}"),
+                            },
+                        );
+                        log::error!(target: "lapce_proxy::dispatch::proxy_handler::handle_notification::git_init", "{e}");
                     }
                 }
             }
@@ -397,7 +431,9 @@ impl ProxyHandler for Dispatcher {
                             id,
                             Ok(ProxyResponse::GitGetRemoteFileUrl { file_url: s }),
                         ),
-                        Err(e) => eprintln!("{e:?}"),
+                        Err(e) => {
+                            log::error!(target: "lapce_proxy::dispatch::proxy_handler::handle_request::git_get_remote_file_url", "{e:?}");
+                        }
                     }
                 }
             }
@@ -1209,11 +1245,10 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
         .host_str()
         .ok_or(anyhow!("Couldn't find remote host"))?;
     // Get namespace (e.g. organisation/project in case of GitHub, org/team/team/team/../project on GitLab)
-    let namespace = if let Some(stripped) = remote_url.path().strip_suffix(".git") {
-        stripped
-    } else {
-        remote_url.path()
-    };
+    let namespace = remote_url
+        .path()
+        .strip_suffix(".git")
+        .unwrap_or(remote_url.path());
 
     let commit = head.peel_to_commit()?.id();
 
@@ -1222,7 +1257,7 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
         .to_str()
         .ok_or(anyhow!("Couldn't convert file path to str"))?;
 
-    let url = format!("https://{host}{namespace}/blob/{commit}/{file_path}",);
+    let url = format!("https://{host}{namespace}/blob/{commit}/{file_path}");
 
     Ok(url)
 }

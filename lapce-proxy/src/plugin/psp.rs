@@ -522,7 +522,7 @@ pub fn handle_plugin_server_message(
             None
         }
         Err(err) => {
-            eprintln!("parse error {err} message {message}");
+            log::error!("parse error {err} message {message}");
             None
         }
     }
@@ -788,7 +788,7 @@ impl PluginHostHandler {
                 });
             }
             _ => {
-                eprintln!(
+                log::error!(
                     "don't handle register capability for {}",
                     registration.method
                 );
@@ -890,7 +890,7 @@ impl PluginHostHandler {
                 self.catalog_rpc.core_rpc.log_message(message);
             }
             _ => {
-                eprintln!("host notificaton {method} not handled");
+                log::error!("host notificaton {method} not handled");
             }
         }
         Ok(())
