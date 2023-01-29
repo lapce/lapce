@@ -1236,11 +1236,7 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
 }
 
 fn git_fetch(workspace_path: &Path) -> Result<()> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("can't to str"))?,
-    )?;
+    let repo = Repository::discover(workspace_path)?;
 
     for remote_name in repo.remotes().unwrap().iter() {
         let mut remote = repo.find_remote(remote_name.unwrap())?;
