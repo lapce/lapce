@@ -1238,17 +1238,18 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
 fn git_fetch(workspace_path: &Path) -> Result<()> {
     let repo = Repository::discover(workspace_path)?;
 
-    for remote_name in repo.remotes().unwrap().iter() {
-        let mut remote = repo.find_remote(remote_name.unwrap())?;
-        let refspecs: Vec<_> = remote
-            .refspecs()
-            .map(|r| r.str().unwrap().to_string())
-            .collect();
-        remote.fetch(&refspecs, None, None)?;
+    for remote_name in repo.remotes()?.iter() {
+        if let Some(remote) = remote_name {
+            let mut remote = repo.find_remote(remote)?;
+            let refspecs: Vec<String> = remote
+                .refspecs()
+                .filter_map(|r| Some(r.str()?.to_string()))
+                .collect();
+            remote.fetch(&refspecs, FetchOptions::default(), None)?;
+        }
     }
     Ok(())
 }
-
 fn search_in_path(
     id: u64,
     current_id: &AtomicU64,
