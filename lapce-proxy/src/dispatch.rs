@@ -1245,7 +1245,7 @@ fn git_fetch(workspace_path: &Path) -> Result<()> {
                 .refspecs()
                 .filter_map(|r| Some(r.str()?.to_string()))
                 .collect();
-            remote.fetch(&refspecs, FetchOptions::default(), None)?;
+            remote.fetch(&refspecs, Some(&mut FetchOptions::default()), None)?;
         }
     }
     Ok(())
