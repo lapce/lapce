@@ -17,11 +17,13 @@ use lapce_data::{
     },
     config::{LapceIcons, LapceTheme},
     data::{FocusArea, LapceTabData, LapceWorkspaceType},
+    document::LocalBufferKind,
     list::ListData,
     menu::{MenuItem, MenuKind},
     palette::PaletteStatus,
     proxy::ProxyStatus,
 };
+use lapce_xi_rope::Rope;
 
 use crate::editor::view::LapceEditorView;
 #[cfg(not(target_os = "macos"))]
@@ -1122,6 +1124,13 @@ impl Widget<LapceTabData> for SourceControlBranches {
                         ctx.set_handled();
                     }
                     LapceUICommand::ShowGitBranches { origin, branches } => {
+                        let doc = data
+                            .main_split
+                            .local_docs
+                            .get_mut(&LocalBufferKind::BranchesFilter)
+                            .unwrap();
+                        Arc::make_mut(doc).reload(Rope::from(""), true);
+
                         let title = Arc::make_mut(&mut data.title);
                         title.branches.list.clear_items();
                         self.branches = branches.clone();
