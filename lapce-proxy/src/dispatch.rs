@@ -1238,15 +1238,13 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
 fn git_fetch(workspace_path: &Path) -> Result<()> {
     let repo = Repository::discover(workspace_path)?;
 
-    for remote_name in repo.remotes()?.iter() {
-        if let Some(remote) = remote_name {
-            let mut remote = repo.find_remote(remote)?;
-            let refspecs: Vec<String> = remote
-                .refspecs()
-                .filter_map(|r| Some(r.str()?.to_string()))
-                .collect();
-            remote.fetch(&refspecs, None, None)?;
-        }
+    for remote in repo.remotes()?.iter().flatten() {
+        let mut remote = repo.find_remote(remote)?;
+        let refspecs: Vec<String> = remote
+            .refspecs()
+            .filter_map(|r| Some(r.str()?.to_string()))
+            .collect();
+        remote.fetch(&refspecs, None, None)?;
     }
     Ok(())
 }
