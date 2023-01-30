@@ -1006,6 +1006,81 @@ impl LapceEditorBufferData {
             );
         }
     }
+    fn diff_file_positions(&self) -> Vec<(PathBuf, Vec<usize>)> {
+        let buffer = self.doc.buffer();
+        let mut diff_files: Vec<(PathBuf, Vec<usize>)> = self
+            .source_control
+            .file_diffs
+            .iter()
+            .map(|(path, _)| {
+                let mut positions = Vec::new();
+                if let Some(doc) = self.main_split.open_docs.get(path) {
+                    if let Some(history) = doc.get_history("head") {
+                        for (i, change) in history.changes().iter().enumerate() {
+                            match change {
+                                DiffLines::Left(_) => {
+                                    if let Some(next) = history.changes().get(i + 1)
+                                    {
+                                        match next {
+                                            DiffLines::Right(_) => {}
+                                            DiffLines::Left(_) => {}
+                                            DiffLines::Both(_, r) => {
+                                                let start =
+                                                    buffer.offset_of_line(r.start);
+                                                positions.push(start);
+                                            }
+                                            DiffLines::Skip(_, r) => {
+                                                let start =
+                                                    buffer.offset_of_line(r.start);
+                                                positions.push(start);
+                                            }
+                                        }
+                                    }
+                                }
+                                DiffLines::Both(_, _) => {}
+                                DiffLines::Skip(_, _) => {}
+                                DiffLines::Right(r) => {
+                                    let start = buffer.offset_of_line(r.start);
+                                    positions.push(start);
+                                }
+                            }
+                        }
+                    }
+                }
+                if positions.is_empty() {
+                    positions.push(0);
+                }
+                (path.clone(), positions)
+            })
+            .collect();
+        diff_files.sort();
+        diff_files
+    }
+
+    fn prev_diff(&mut self, ctx: &mut EventCtx) {
+        if let BufferContent::File(buffer_path) = self.doc.content() {
+            if self.source_control.file_diffs.is_empty() {
+                return;
+            }
+
+            let diff_files: Vec<(PathBuf, Vec<usize>)> = self.diff_file_positions();
+
+            let offset = self.editor.cursor.offset();
+            let (path, offset) =
+                prev_in_file_diff_offset(offset, buffer_path, &diff_files);
+            let location = EditorLocation {
+                path: path.to_path_buf(),
+                position: Some(offset),
+                scroll_offset: None,
+                history: Some("head".to_string()),
+            };
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::JumpToLocation(None, location, true),
+                Target::Widget(*self.main_split.tab_id),
+            ));
+        }
+    }
 
     fn next_diff(&mut self, ctx: &mut EventCtx) {
         if let BufferContent::File(buffer_path) = self.doc.content() {
@@ -1013,54 +1088,7 @@ impl LapceEditorBufferData {
                 return;
             }
 
-            let buffer = self.doc.buffer();
-            let mut diff_files: Vec<(PathBuf, Vec<usize>)> = self
-                .source_control
-                .file_diffs
-                .iter()
-                .map(|(path, _)| {
-                    let mut positions = Vec::new();
-                    if let Some(doc) = self.main_split.open_docs.get(path) {
-                        if let Some(history) = doc.get_history("head") {
-                            for (i, change) in history.changes().iter().enumerate() {
-                                match change {
-                                    DiffLines::Left(_) => {
-                                        if let Some(next) =
-                                            history.changes().get(i + 1)
-                                        {
-                                            match next {
-                                                DiffLines::Right(_) => {}
-                                                DiffLines::Left(_) => {}
-                                                DiffLines::Both(_, r) => {
-                                                    let start = buffer
-                                                        .offset_of_line(r.start);
-                                                    positions.push(start);
-                                                }
-                                                DiffLines::Skip(_, r) => {
-                                                    let start = buffer
-                                                        .offset_of_line(r.start);
-                                                    positions.push(start);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    DiffLines::Both(_, _) => {}
-                                    DiffLines::Skip(_, _) => {}
-                                    DiffLines::Right(r) => {
-                                        let start = buffer.offset_of_line(r.start);
-                                        positions.push(start);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if positions.is_empty() {
-                        positions.push(0);
-                    }
-                    (path.clone(), positions)
-                })
-                .collect();
-            diff_files.sort();
+            let diff_files: Vec<(PathBuf, Vec<usize>)> = self.diff_file_positions();
 
             let offset = self.editor.cursor.offset();
             let (path, offset) =
@@ -2265,6 +2293,9 @@ impl LapceEditorBufferData {
             NextError => {
                 self.next_error(ctx);
             }
+            PreviousDiff => {
+                self.prev_diff(ctx);
+            }
             NextDiff => {
                 self.next_diff(ctx);
             }
@@ -2712,6 +2743,26 @@ pub struct HighlightTextLayout {
     pub layout: PietTextLayout,
     pub text: String,
     pub highlights: Vec<(usize, usize, String)>,
+}
+
+fn prev_in_file_diff_offset<'a>(
+    offset: usize,
+    path: &Path,
+    file_diffs: &'a [(PathBuf, Vec<usize>)],
+) -> (&'a Path, usize) {
+    for (current_path, offsets) in file_diffs {
+        if path == current_path {
+            for diff_offset in offsets.iter().rev() {
+                if *diff_offset < offset {
+                    return (current_path.as_ref(), *diff_offset);
+                }
+            }
+        }
+        if current_path < path {
+            return (current_path.as_ref(), offsets[0]);
+        }
+    }
+    (file_diffs[0].0.as_ref(), file_diffs[0].1[0])
 }
 
 fn next_in_file_diff_offset<'a>(
