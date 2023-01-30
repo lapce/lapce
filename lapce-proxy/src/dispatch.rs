@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -13,7 +13,10 @@ use std::{
 use alacritty_terminal::{event::WindowSize, event_loop::Msg};
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
-use git2::{build::CheckoutBuilder, DiffOptions, Repository};
+use git2::{
+    build::CheckoutBuilder, Cred, DiffOptions, FetchOptions, RemoteCallbacks,
+    Repository,
+};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{sinks::UTF8, SearcherBuilder};
@@ -1244,10 +1247,25 @@ fn git_fetch(workspace_path: &Path) -> Result<()> {
             .refspecs()
             .filter_map(|r| Some(r.str()?.to_string()))
             .collect();
-        remote.fetch(&refspecs, None, None)?;
+        let mut callbacks = RemoteCallbacks::new();
+        callbacks.credentials(|_url, username_from_url, _allowed_types| {
+            Cred::ssh_key(
+                username_from_url.unwrap(),
+                None,
+                std::path::Path::new(&format!(
+                    "{}/.ssh/id_rsa",
+                    env::var("HOME").unwrap()
+                )),
+                None,
+            )
+        });
+        let mut opts = FetchOptions::new();
+        opts.remote_callbacks(callbacks);
+        remote.fetch(&refspecs, Some(&mut opts), None)?;
     }
     Ok(())
 }
+
 fn search_in_path(
     id: u64,
     current_id: &AtomicU64,
