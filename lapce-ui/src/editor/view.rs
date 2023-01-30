@@ -1153,7 +1153,7 @@ impl Widget<LapceTabData> for LapceEditorView {
             ctx,
             data,
             env,
-            Point::new(size.width - find_size.width - 10.0, header_size.height),
+            Point::new(size.width - diff_size.width - 10.0, header_size.height),
         );
         size
     }
