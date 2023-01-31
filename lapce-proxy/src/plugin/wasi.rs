@@ -22,17 +22,19 @@ use lapce_rpc::{
 };
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
-    request::Initialize, ClientCapabilities, InitializeParams,
+    notification::Initialized, request::Initialize, DocumentFilter,
+    InitializeParams, InitializeResult, InitializedParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
     VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
-use psp_types::Request;
+use psp_types::{Notification, Request};
 use toml_edit::easy as toml;
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
 
 use super::{
+    client_capabilities,
     psp::{
         handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
         PluginServerHandler, RpcCallback,
@@ -181,30 +183,37 @@ impl PluginServerHandler for Plugin {
 
 impl Plugin {
     fn initialize(&mut self) {
-        let server_rpc = self.host.server_rpc.clone();
         let workspace = self.host.workspace.clone();
         let configurations = self.configurations.as_ref().map(unflatten_map);
-        thread::spawn(move || {
-            let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
-            let _ = server_rpc.server_request(
-                Initialize::METHOD,
-                #[allow(deprecated)]
-                InitializeParams {
-                    process_id: Some(process::id()),
-                    root_path: None,
-                    root_uri,
-                    capabilities: ClientCapabilities::default(),
-                    trace: None,
-                    client_info: None,
-                    locale: None,
-                    initialization_options: configurations,
-                    workspace_folders: None,
-                },
+        let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
+        if let Ok(value) = self.host.server_rpc.server_request(
+            Initialize::METHOD,
+            #[allow(deprecated)]
+            InitializeParams {
+                process_id: Some(process::id()),
+                root_path: None,
+                root_uri,
+                capabilities: client_capabilities(),
+                trace: None,
+                client_info: None,
+                locale: None,
+                initialization_options: configurations,
+                workspace_folders: None,
+            },
+            None,
+            None,
+            false,
+        ) {
+            let result: InitializeResult = serde_json::from_value(value).unwrap();
+            self.host.server_capabilities = result.capabilities;
+            self.host.server_rpc.server_notification(
+                Initialized::METHOD,
+                InitializedParams {},
                 None,
                 None,
                 false,
             );
-        });
+        };
     }
 
     fn shutdown(&self) {}
@@ -464,7 +473,16 @@ pub fn start_volt(
             meta.dir.clone(),
             meta.id(),
             meta.display_name.clone(),
-            Vec::new(),
+            meta.activation
+                .iter()
+                .flat_map(|m| m.language.iter().flatten())
+                .cloned()
+                .map(|s| DocumentFilter {
+                    language: Some(s),
+                    pattern: None,
+                    scheme: None,
+                })
+                .collect(),
             rpc.clone(),
             plugin_rpc.clone(),
         ),
