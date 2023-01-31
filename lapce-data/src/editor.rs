@@ -1448,50 +1448,53 @@ impl LapceEditorBufferData {
             let event_sink = ctx.get_external_handle();
             let view_id = self.editor.view_id;
             let tab_id = self.main_split.tab_id.clone();
-            let (sender, receiver) = bounded(1);
-            thread::spawn(move || {
-                proxy.proxy_rpc.get_document_formatting(
-                    path.clone(),
-                    Box::new(move |result| {
-                        let _ = sender.send(result);
-                    }),
-                );
+            let exit = if exit { Some(view_id) } else { None };
 
-                let result =
-                    receiver.recv_timeout(Duration::from_secs(1)).map_or_else(
-                        |e| Err(anyhow!("{}", e)),
-                        |v| {
-                            v.map_err(|e| anyhow!("{:?}", e)).and_then(|r| {
-                                if let ProxyResponse::GetDocumentFormatting {
-                                    edits,
-                                } = r
-                                {
-                                    Ok(edits)
-                                } else {
-                                    Err(anyhow!("wrong response"))
-                                }
-                            })
-                        },
+            if format_on_save {
+                let (sender, receiver) = bounded(1);
+                thread::spawn(move || {
+                    proxy.proxy_rpc.get_document_formatting(
+                        path.clone(),
+                        Box::new(move |result| {
+                            let _ = sender.send(result);
+                        }),
                     );
 
-                let exit = if exit { Some(view_id) } else { None };
-                let cmd = if format_on_save {
-                    LapceUICommand::DocumentFormatAndSave {
-                        path,
-                        rev,
-                        result,
-                        exit,
-                    }
-                } else {
-                    LapceUICommand::DocumentSave { path, exit }
-                };
+                    let result =
+                        receiver.recv_timeout(Duration::from_secs(1)).map_or_else(
+                            |e| Err(anyhow!("{}", e)),
+                            |v| {
+                                v.map_err(|e| anyhow!("{:?}", e)).and_then(|r| {
+                                    if let ProxyResponse::GetDocumentFormatting {
+                                        edits,
+                                    } = r
+                                    {
+                                        Ok(edits)
+                                    } else {
+                                        Err(anyhow!("wrong response"))
+                                    }
+                                })
+                            },
+                        );
 
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::DocumentFormatAndSave {
+                            path,
+                            rev,
+                            result,
+                            exit,
+                        },
+                        Target::Widget(*tab_id),
+                    );
+                });
+            } else {
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    cmd,
+                    LapceUICommand::DocumentSave { path, exit },
                     Target::Widget(*tab_id),
                 );
-            });
+            }
         } else if let BufferContent::Scratch(..) = self.doc.content() {
             let content = self.doc.content().clone();
             let view_id = self.editor.view_id;
