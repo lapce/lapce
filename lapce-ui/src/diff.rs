@@ -182,14 +182,8 @@ impl Widget<LapceTabData> for DiffBox {
                 .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
         );
 
-        let mut index = 0;
-        let mut count = 0;
-        let buffer = editor_data.doc.buffer();
-        let offset = editor_data.editor.cursor.offset();
-        let line = buffer.line_of_offset(offset);
-        let mut prev_block_end = 0;
-        let mut blocks = Vec::new();
-        // find the diff block where the cursor within, and get the total count of diff blocks
+        let mut diff_blocks = Vec::new();
+        // find all diff blocks, ignore Both and Skip
         if let Some(history) = editor_data.doc.get_history("head") {
             for (i, change) in history.changes().iter().enumerate() {
                 match change {
@@ -199,20 +193,16 @@ impl Widget<LapceTabData> for DiffBox {
                                 DiffLines::Right(_) => {}
                                 DiffLines::Left(_) => {}
                                 DiffLines::Both(_, r) => {
-                                    count += 1;
-                                    blocks.push(Range {
-                                        start: prev_block_end,
+                                    diff_blocks.push(Range {
+                                        start: r.start,
                                         end: r.start,
                                     });
-                                    prev_block_end = r.start;
                                 }
                                 DiffLines::Skip(_, r) => {
-                                    count += 1;
-                                    blocks.push(Range {
-                                        start: prev_block_end,
+                                    diff_blocks.push(Range {
+                                        start: r.start,
                                         end: r.start,
                                     });
-                                    prev_block_end = r.start;
                                 }
                             }
                         }
@@ -220,22 +210,46 @@ impl Widget<LapceTabData> for DiffBox {
                     DiffLines::Both(_, _) => {}
                     DiffLines::Skip(_, _) => {}
                     DiffLines::Right(r) => {
-                        count += 1;
-                        blocks.push(r.clone());
-                        prev_block_end = r.end;
+                        diff_blocks.push(Range {
+                            start: r.start,
+                            end: r.start,
+                        });
                     }
                 }
             }
         }
-        for (i, block) in blocks.iter().enumerate() {
-            if block.contains(&line) {
-                index = i;
-                break;
+        let mut index = 0;
+        let buffer = editor_data.doc.buffer();
+        let line = buffer.line_of_offset(editor_data.editor.cursor.offset());
+        let count = diff_blocks.len();
+        if count > 0 {
+            // find the block where the cursor in
+            let mut prev_end = 0;
+            for (i, block) in diff_blocks.iter().enumerate() {
+                if (i == 0 && line < block.start)
+                    || (i == count - 1 && line > block.end - 1)
+                    || (line >= block.start && line < block.end)
+                {
+                    index = i + 1;
+                    break;
+                }
+                if line < block.start {
+                    let half = (block.start + prev_end) / 2;
+                    if line > half {
+                        index = i + 1;
+                        break;
+                    } else {
+                        index = i;
+                        break;
+                    }
+                }
+                prev_end = block.end;
             }
         }
+
         let text_layout = ctx
             .text()
-            .new_text_layout(format!("{}/{}", index, count))
+            .new_text_layout(format!("{index}/{count}"))
             .font(
                 data.config.ui.font_family(),
                 data.config.ui.font_size() as f64,

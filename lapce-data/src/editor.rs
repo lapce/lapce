@@ -2750,7 +2750,7 @@ fn prev_in_file_diff_offset<'a>(
     path: &Path,
     file_diffs: &'a [(PathBuf, Vec<usize>)],
 ) -> (&'a Path, usize) {
-    for (current_path, offsets) in file_diffs {
+    for (current_path, offsets) in file_diffs.iter().rev() {
         if path == current_path {
             for diff_offset in offsets.iter().rev() {
                 if *diff_offset < offset {
