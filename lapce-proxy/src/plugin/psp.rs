@@ -831,6 +831,8 @@ impl PluginHostHandler {
                     .output()?;
                 Ok(serde_json::to_value(ExecuteProcessResult {
                     success: output.status.success(),
+                    stdout: output.stdout,
+                    stderr: output.stderr,
                 })?)
             }
             _ => Err(anyhow!("request not supported")),
