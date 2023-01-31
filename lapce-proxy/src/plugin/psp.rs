@@ -285,10 +285,12 @@ impl PluginServerRpcHandler {
         }
     }
 
-    /// Make a request to plugin/language server and get the response
-    /// when check is true, the request will be in the handler mainloop to
-    /// do checks like if the server has the capability of the request
-    /// when check is false, the request will be sent out straight away
+    /// Make a request to plugin/language server and get the response.
+    ///
+    /// When check is true, the request will be in the handler mainloop to
+    /// do checks like if the server has the capability of the request.
+    ///
+    /// When check is false, the request will be sent out straight away.
     pub fn server_request<P: Serialize>(
         &self,
         method: &'static str,
