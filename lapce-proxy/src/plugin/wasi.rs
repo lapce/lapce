@@ -449,14 +449,14 @@ pub fn start_volt(
         }
     })?;
     linker.module(&mut store, "", &module)?;
-    let handle_rpc = linker
-        .get(&mut store, "", "handle_rpc")
-        .ok_or_else(|| anyhow!("no function in wasm"))?
-        .into_func()
-        .ok_or_else(|| anyhow!("can't convet to function"))?
-        .typed::<(), (), _>(&mut store)?;
-
     thread::spawn(move || {
+        let instance = linker.instantiate(&mut store, &module).unwrap();
+        let handle_rpc = instance
+            .get_func(&mut store, "handle_rpc")
+            .ok_or_else(|| anyhow!("can't convet to function"))
+            .unwrap()
+            .typed::<(), (), _>(&mut store)
+            .unwrap();
         for msg in io_rx {
             if let Ok(msg) = serde_json::to_string(&msg) {
                 let _ = writeln!(stdin.write().unwrap(), "{msg}");
