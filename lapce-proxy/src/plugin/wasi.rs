@@ -482,6 +482,17 @@ pub fn start_volt(
                     pattern: None,
                     scheme: None,
                 })
+                .chain(
+                    meta.activation
+                        .iter()
+                        .flat_map(|m| m.workspace_contains.iter().flatten())
+                        .cloned()
+                        .map(|s| DocumentFilter {
+                            language: None,
+                            pattern: Some(s),
+                            scheme: None,
+                        }),
+                )
                 .collect(),
             rpc.clone(),
             plugin_rpc.clone(),
