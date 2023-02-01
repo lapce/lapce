@@ -849,7 +849,7 @@ pub enum LapceUICommand {
         rev: u64,
         history: String,
         changes: Arc<Vec<DiffLines>>,
-        diff_extend_lines: usize,
+        diff_context_lines: i32,
     },
     /// Publish diagnostics changes (from the proxy)
     PublishDiagnostics(PublishDiagnosticsParams),
