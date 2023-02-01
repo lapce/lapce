@@ -1197,65 +1197,67 @@ pub fn rope_diff(
             right_count - trailing_equals..right_count,
         ));
     }
-    if !changes.is_empty() && context_lines.is_some() {
-        let context_lines = context_lines.unwrap();
-        let changes_last = changes.len() - 1;
-        for (i, change) in changes.clone().iter().enumerate().rev() {
-            if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                return None;
-            }
-            if let DiffLines::Both(l, r) = change {
-                if i == 0 || i == changes_last {
-                    if r.len() > context_lines {
-                        if i == 0 {
-                            changes[i] = DiffLines::Both(
-                                l.end - context_lines..l.end,
-                                r.end - context_lines..r.end,
-                            );
-                            changes.insert(
-                                i,
-                                DiffLines::Skip(
-                                    l.start..l.end - context_lines,
-                                    r.start..r.end - context_lines,
-                                ),
-                            );
-                        } else {
-                            changes[i] = DiffLines::Skip(
-                                l.start + context_lines..l.end,
-                                r.start + context_lines..r.end,
-                            );
-                            changes.insert(
-                                i,
-                                DiffLines::Both(
-                                    l.start..l.start + context_lines,
-                                    r.start..r.start + context_lines,
-                                ),
-                            );
+    if let Some(context_lines) = context_lines {
+        if !changes.is_empty() {
+            let changes_last = changes.len() - 1;
+            for (i, change) in changes.clone().iter().enumerate().rev() {
+                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                    return None;
+                }
+                if let DiffLines::Both(l, r) = change {
+                    if i == 0 || i == changes_last {
+                        if r.len() > context_lines {
+                            if i == 0 {
+                                changes[i] = DiffLines::Both(
+                                    l.end - context_lines..l.end,
+                                    r.end - context_lines..r.end,
+                                );
+                                changes.insert(
+                                    i,
+                                    DiffLines::Skip(
+                                        l.start..l.end - context_lines,
+                                        r.start..r.end - context_lines,
+                                    ),
+                                );
+                            } else {
+                                changes[i] = DiffLines::Skip(
+                                    l.start + context_lines..l.end,
+                                    r.start + context_lines..r.end,
+                                );
+                                changes.insert(
+                                    i,
+                                    DiffLines::Both(
+                                        l.start..l.start + context_lines,
+                                        r.start..r.start + context_lines,
+                                    ),
+                                );
+                            }
                         }
+                    } else if r.len() > context_lines * 2 {
+                        changes[i] = DiffLines::Both(
+                            l.end - context_lines..l.end,
+                            r.end - context_lines..r.end,
+                        );
+                        changes.insert(
+                            i,
+                            DiffLines::Skip(
+                                l.start + context_lines..l.end - context_lines,
+                                r.start + context_lines..r.end - context_lines,
+                            ),
+                        );
+                        changes.insert(
+                            i,
+                            DiffLines::Both(
+                                l.start..l.start + context_lines,
+                                r.start..r.start + context_lines,
+                            ),
+                        );
                     }
-                } else if r.len() > context_lines * 2 {
-                    changes[i] = DiffLines::Both(
-                        l.end - context_lines..l.end,
-                        r.end - context_lines..r.end,
-                    );
-                    changes.insert(
-                        i,
-                        DiffLines::Skip(
-                            l.start + context_lines..l.end - context_lines,
-                            r.start + context_lines..r.end - context_lines,
-                        ),
-                    );
-                    changes.insert(
-                        i,
-                        DiffLines::Both(
-                            l.start..l.start + context_lines,
-                            r.start..r.start + context_lines,
-                        ),
-                    );
                 }
             }
         }
     }
+
     Some(changes)
 }
 
