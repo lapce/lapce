@@ -14,7 +14,7 @@ test_cmd() {
 
 _TMP='/tmp'
 # proxy version
-_VER="${1}"
+_VER=$(echo ${1} | grep -Po '\d+.\d+.\d+')
 # proxy directory
 # eval to resolve '~' into proper user dir
 eval _DIR="'${2}'"
@@ -22,10 +22,10 @@ eval _DIR="'${2}'"
 if [ -e "${_DIR}/lapce" ]; then
   chmod +x "${_DIR}/lapce"
 
-  _ver=$("${_DIR}/lapce" --version | cut -d'v' -f2)
+  _ver=$("${_DIR}/lapce" --version | grep -Po '\d+.\d+.\d+')
 
   printf '[DEBUG]: %s = %s\n' "${_ver}" "${_VER}"
-  if [ "${_ver}" = "${_VER}" ]; then
+  if [ "${_ver}" != "${_VER}" ]; then
     printf 'Proxy outdated. Replacing proxy\n'
     rm "${_DIR}/lapce"
   else
