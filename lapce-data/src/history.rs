@@ -410,7 +410,7 @@ impl DocumentHistory {
                         rev,
                         history: "head".to_string(),
                         changes: Arc::new(changes),
-                        diff_context_lines: diff_context_lines,
+                        diff_context_lines,
                     },
                     Target::Widget(tab_id),
                 );
