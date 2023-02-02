@@ -1042,7 +1042,7 @@ dependencies = [
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#0b9c00fcda238e392e758382f25166cd748fd305"
+source = "git+https://github.com/lapce/druid?rev=0b9c00fcda238e392e758382f25166cd748fd305#0b9c00fcda238e392e758382f25166cd748fd305"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -1065,7 +1065,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#0b9c00fcda238e392e758382f25166cd748fd305"
+source = "git+https://github.com/lapce/druid?rev=0b9c00fcda238e392e758382f25166cd748fd305#0b9c00fcda238e392e758382f25166cd748fd305"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1075,7 +1075,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#0b9c00fcda238e392e758382f25166cd748fd305"
+source = "git+https://github.com/lapce/druid?rev=0b9c00fcda238e392e758382f25166cd748fd305#0b9c00fcda238e392e758382f25166cd748fd305"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -2143,7 +2143,7 @@ checksum = "c4a1e36c821dbe04574f602848a19f742f4fb3c98d40449f11bcad18d6b17421"
 [[package]]
 name = "human-sort"
 version = "0.2.2"
-source = "git+https://github.com/dragazo/human-sort#1e74db1e09e8194ba88ad983723cf6f8b0c365da"
+source = "git+https://github.com/dragazo/human-sort?rev=1e74db1e09e8194ba88ad983723cf6f8b0c365da#1e74db1e09e8194ba88ad983723cf6f8b0c365da"
 
 [[package]]
 name = "humantime"
@@ -3765,7 +3765,7 @@ dependencies = [
 [[package]]
 name = "psp-types"
 version = "0.1.0"
-source = "git+https://github.com/lapce/psp-types#2513ff3c510377b2c2a003892d07bc91bec00c7a"
+source = "git+https://github.com/lapce/psp-types?rev=2513ff3#2513ff3c510377b2c2a003892d07bc91bec00c7a"
 dependencies = [
  "lsp-types",
  "serde",
@@ -4451,7 +4451,7 @@ checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 [[package]]
 name = "structdesc"
 version = "0.1.0"
-source = "git+https://github.com/lapce/structdesc#a6a2b8ab65d43475238f889736c4aa5dfff4500a"
+source = "git+https://github.com/lapce/structdesc?rev=a6a2b8ab65d43475238f889736c4aa5dfff4500a#a6a2b8ab65d43475238f889736c4aa5dfff4500a"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -5769,7 +5769,7 @@ dependencies = [
 [[package]]
 name = "wasi-experimental-http-wasmtime"
 version = "0.10.0"
-source = "git+https://github.com/lapce/wasi-experimental-http#5c6d970fe0750932f76979678384bf1c5ab5be2e"
+source = "git+https://github.com/lapce/wasi-experimental-http?rev=5c6d970fe0750932f76979678384bf1c5ab5be2e#5c6d970fe0750932f76979678384bf1c5ab5be2e"
 dependencies = [
  "anyhow",
  "bytes",

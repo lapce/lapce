@@ -59,7 +59,7 @@ thiserror = "1.0"
 toml_edit = { version = "0.14.4", features = ["easy"] }
 
 lsp-types = { version = "0.93", features = ["proposed"] }
-psp-types = { git = "https://github.com/lapce/psp-types" }
+psp-types = { git = "https://github.com/lapce/psp-types", rev = "2513ff3" }
 
 
 lapce-xi-rope = { version = "0.3.1", features = ["serde"] }
@@ -71,7 +71,8 @@ lapce-proxy = { path = "./lapce-proxy" }
 
 [workspace.dependencies.druid]
 git = "https://github.com/lapce/druid"
-branch = "shell_opengl"
+# branch = "shell_opengl"
+rev = "0b9c00fcda238e392e758382f25166cd748fd305" # branch: shell_opengl
 # path = "../../druid/druid"
 features = ["svg", "im", "serde"]
 
