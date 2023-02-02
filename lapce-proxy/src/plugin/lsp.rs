@@ -66,7 +66,7 @@ pub struct LspClient {
 
 impl PluginServerHandler for LspClient {
     fn server_info(&self) -> Option<ServerInfo> {
-        return self.host.server_initialisation.lock().server_info.clone();
+        return self.host.server_init.lock().server_info.clone();
     }
 
     fn method_registered(&self, method: &'static str) -> bool {
@@ -336,7 +336,7 @@ impl LspClient {
         ) {
             let result: InitializeResult = serde_json::from_value(value).unwrap();
             {
-                *self.host.server_initialisation.lock() = result;
+                *self.host.server_init.lock() = result;
             }
             self.server_rpc.server_notification(
                 Initialized::METHOD,

@@ -91,7 +91,7 @@ pub struct Plugin {
 
 impl PluginServerHandler for Plugin {
     fn server_info(&self) -> Option<ServerInfo> {
-        return self.host.server_initialisation.lock().server_info.clone();
+        return self.host.server_init.lock().server_info.clone();
     }
 
     fn method_registered(&self, method: &'static str) -> bool {
@@ -189,7 +189,7 @@ impl Plugin {
         let server_rpc = self.host.server_rpc.clone();
         let workspace = self.host.workspace.clone();
         let configurations = self.configurations.as_ref().map(unflatten_map);
-        let server_capabilities = self.host.server_initialisation.clone();
+        let server_capabilities = self.host.server_init.clone();
         thread::spawn(move || {
             let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
             if let Ok(value) = server_rpc.server_request(
