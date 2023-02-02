@@ -65,12 +65,16 @@ pub struct LspClient {
 }
 
 impl PluginServerHandler for LspClient {
-    fn method_registered(&mut self, method: &'static str) -> bool {
+    fn server_info(&self) -> Option<ServerInfo> {
+        return self.host.server_initialisation.lock().server_info.clone();
+    }
+
+    fn method_registered(&self, method: &'static str) -> bool {
         self.host.method_registered(method)
     }
 
     fn document_supported(
-        &mut self,
+        &self,
         lanaguage_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool {
@@ -331,7 +335,9 @@ impl LspClient {
             false,
         ) {
             let result: InitializeResult = serde_json::from_value(value).unwrap();
-            self.host.server_capabilities = result.capabilities;
+            {
+                *self.host.server_initialisation.lock() = result;
+            }
             self.server_rpc.server_notification(
                 Initialized::METHOD,
                 InitializedParams {},

@@ -22,13 +22,12 @@ use lapce_rpc::{
 };
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
-    notification::Initialized, request::Initialize, DocumentFilter,
-    InitializeParams, InitializeResult, InitializedParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
+    request::Initialize, DocumentFilter, InitializeParams, InitializeResult,
+    ServerInfo, TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
     VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
-use psp_types::{Notification, Request};
+use psp_types::Request;
 use toml_edit::easy as toml;
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
@@ -91,12 +90,16 @@ pub struct Plugin {
 }
 
 impl PluginServerHandler for Plugin {
-    fn method_registered(&mut self, method: &'static str) -> bool {
+    fn server_info(&self) -> Option<ServerInfo> {
+        return self.host.server_initialisation.lock().server_info.clone();
+    }
+
+    fn method_registered(&self, method: &'static str) -> bool {
         self.host.method_registered(method)
     }
 
     fn document_supported(
-        &mut self,
+        &self,
         language_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool {
@@ -183,37 +186,37 @@ impl PluginServerHandler for Plugin {
 
 impl Plugin {
     fn initialize(&mut self) {
+        let server_rpc = self.host.server_rpc.clone();
         let workspace = self.host.workspace.clone();
         let configurations = self.configurations.as_ref().map(unflatten_map);
-        let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
-        if let Ok(value) = self.host.server_rpc.server_request(
-            Initialize::METHOD,
-            #[allow(deprecated)]
-            InitializeParams {
-                process_id: Some(process::id()),
-                root_path: None,
-                root_uri,
-                capabilities: client_capabilities(),
-                trace: None,
-                client_info: None,
-                locale: None,
-                initialization_options: configurations,
-                workspace_folders: None,
-            },
-            None,
-            None,
-            false,
-        ) {
-            let result: InitializeResult = serde_json::from_value(value).unwrap();
-            self.host.server_capabilities = result.capabilities;
-            self.host.server_rpc.server_notification(
-                Initialized::METHOD,
-                InitializedParams {},
+        let server_capabilities = self.host.server_initialisation.clone();
+        thread::spawn(move || {
+            let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
+            if let Ok(value) = server_rpc.server_request(
+                Initialize::METHOD,
+                #[allow(deprecated)]
+                InitializeParams {
+                    process_id: Some(process::id()),
+                    root_path: None,
+                    root_uri,
+                    capabilities: client_capabilities(),
+                    trace: None,
+                    client_info: None,
+                    locale: None,
+                    initialization_options: configurations,
+                    workspace_folders: None,
+                },
                 None,
                 None,
                 false,
-            );
-        };
+            ) {
+                let result: InitializeResult =
+                    serde_json::from_value(value).unwrap();
+                {
+                    *server_capabilities.lock() = result;
+                }
+            }
+        });
     }
 
     fn shutdown(&self) {}

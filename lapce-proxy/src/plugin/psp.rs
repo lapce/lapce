@@ -6,6 +6,7 @@ use std::{
         Arc,
     },
     thread,
+    time::Duration,
 };
 
 use anyhow::{anyhow, Result};
@@ -35,12 +36,12 @@ use lsp_types::{
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
-    LogMessageParams, OneOf, ProgressParams, PublishDiagnosticsParams, Range,
-    Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
-    SemanticTokensServerCapabilities, ServerCapabilities, ShowMessageParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncSaveOptions,
+    InitializeResult, LogMessageParams, OneOf, ProgressParams,
+    PublishDiagnosticsParams, Range, Registration, RegistrationParams,
+    SemanticTokens, SemanticTokensLegend, SemanticTokensServerCapabilities,
+    ServerInfo, ShowMessageParams, TextDocumentContentChangeEvent,
+    TextDocumentIdentifier, TextDocumentSaveRegistrationOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncSaveOptions,
     VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
@@ -164,12 +165,13 @@ pub struct PluginServerRpcHandler {
 }
 
 pub trait PluginServerHandler {
+    fn server_info(&self) -> Option<ServerInfo>;
     fn document_supported(
-        &mut self,
+        &self,
         language_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool;
-    fn method_registered(&mut self, method: &'static str) -> bool;
+    fn method_registered(&self, method: &'static str) -> bool;
     fn handle_host_notification(&mut self, method: String, params: Params);
     fn handle_host_request(
         &mut self,
@@ -308,12 +310,15 @@ impl PluginServerRpcHandler {
             check,
             ResponseHandler::Chan(tx),
         );
-        rx.recv().unwrap_or_else(|_| {
-            Err(RpcError {
-                code: 0,
-                message: "io error".to_string(),
+        // TODO: add some kind of logging/visual cue for this timeout issues?
+        // TODO: customizable timeout durations
+        rx.recv_timeout(Duration::from_secs(10))
+            .unwrap_or_else(|_| {
+                Err(RpcError {
+                    code: 0,
+                    message: "io error".to_string(),
+                })
             })
-        })
     }
 
     pub fn server_request_async<P: Serialize>(
@@ -545,7 +550,11 @@ pub struct PluginHostHandler {
     document_selector: Vec<DocumentFilter>,
     catalog_rpc: PluginCatalogRpcHandler,
     pub server_rpc: PluginServerRpcHandler,
-    pub server_capabilities: ServerCapabilities,
+    // What the server returned from the initialization request
+    // TODO: Use this to reject requests since the LSP says
+    // that a client/server should not respond/request until it receives
+    // initialization requests/responds.
+    pub server_initialisation: Arc<Mutex<InitializeResult>>,
     server_registrations: ServerRegistrations,
 }
 
@@ -571,7 +580,7 @@ impl PluginHostHandler {
             document_selector,
             catalog_rpc,
             server_rpc,
-            server_capabilities: ServerCapabilities::default(),
+            server_initialisation: Arc::new(Mutex::new(InitializeResult::default())),
             server_registrations: ServerRegistrations::default(),
         }
     }
@@ -603,21 +612,22 @@ impl PluginHostHandler {
         }
     }
 
-    pub fn method_registered(&mut self, method: &'static str) -> bool {
+    pub fn method_registered(&self, method: &'static str) -> bool {
+        let server_cap = self.server_initialisation.lock();
         match method {
             Initialize::METHOD => true,
             Initialized::METHOD => true,
             Completion::METHOD => {
-                self.server_capabilities.completion_provider.is_some()
+                server_cap.capabilities.completion_provider.is_some()
             }
-            ResolveCompletionItem::METHOD => self
-                .server_capabilities
+            ResolveCompletionItem::METHOD => server_cap
+                .capabilities
                 .completion_provider
                 .as_ref()
                 .and_then(|c| c.resolve_provider)
                 .unwrap_or(false),
             DidOpenTextDocument::METHOD => {
-                match &self.server_capabilities.text_document_sync {
+                match &server_cap.capabilities.text_document_sync {
                     Some(TextDocumentSyncCapability::Kind(kind)) => {
                         kind != &TextDocumentSyncKind::NONE
                     }
@@ -633,7 +643,7 @@ impl PluginHostHandler {
                 }
             }
             DidChangeTextDocument::METHOD => {
-                match &self.server_capabilities.text_document_sync {
+                match &server_cap.capabilities.text_document_sync {
                     Some(TextDocumentSyncCapability::Kind(kind)) => {
                         kind != &TextDocumentSyncKind::NONE
                     }
@@ -645,10 +655,10 @@ impl PluginHostHandler {
                 }
             }
             SignatureHelpRequest::METHOD => {
-                self.server_capabilities.signature_help_provider.is_some()
+                server_cap.capabilities.signature_help_provider.is_some()
             }
-            HoverRequest::METHOD => self
-                .server_capabilities
+            HoverRequest::METHOD => server_cap
+                .capabilities
                 .hover_provider
                 .as_ref()
                 .map(|c| match c {
@@ -656,8 +666,8 @@ impl PluginHostHandler {
                     HoverProviderCapability::Options(_) => true,
                 })
                 .unwrap_or(false),
-            GotoDefinition::METHOD => self
-                .server_capabilities
+            GotoDefinition::METHOD => server_cap
+                .capabilities
                 .definition_provider
                 .as_ref()
                 .map(|d| match d {
@@ -666,10 +676,10 @@ impl PluginHostHandler {
                 })
                 .unwrap_or(false),
             GotoTypeDefinition::METHOD => {
-                self.server_capabilities.type_definition_provider.is_some()
+                server_cap.capabilities.type_definition_provider.is_some()
             }
-            References::METHOD => self
-                .server_capabilities
+            References::METHOD => server_cap
+                .capabilities
                 .references_provider
                 .as_ref()
                 .map(|r| match r {
@@ -677,8 +687,8 @@ impl PluginHostHandler {
                     OneOf::Right(_) => true,
                 })
                 .unwrap_or(false),
-            CodeActionRequest::METHOD => self
-                .server_capabilities
+            CodeActionRequest::METHOD => server_cap
+                .capabilities
                 .code_action_provider
                 .as_ref()
                 .map(|a| match a {
@@ -686,8 +696,8 @@ impl PluginHostHandler {
                     CodeActionProviderCapability::Options(_) => true,
                 })
                 .unwrap_or(false),
-            Formatting::METHOD => self
-                .server_capabilities
+            Formatting::METHOD => server_cap
+                .capabilities
                 .document_formatting_provider
                 .as_ref()
                 .map(|f| match f {
@@ -696,35 +706,36 @@ impl PluginHostHandler {
                 })
                 .unwrap_or(false),
             SemanticTokensFullRequest::METHOD => {
-                self.server_capabilities.semantic_tokens_provider.is_some()
+                server_cap.capabilities.semantic_tokens_provider.is_some()
             }
             InlayHintRequest::METHOD => {
-                self.server_capabilities.inlay_hint_provider.is_some()
+                server_cap.capabilities.inlay_hint_provider.is_some()
             }
             DocumentSymbolRequest::METHOD => {
-                self.server_capabilities.document_symbol_provider.is_some()
+                server_cap.capabilities.document_symbol_provider.is_some()
             }
             WorkspaceSymbol::METHOD => {
-                self.server_capabilities.workspace_symbol_provider.is_some()
+                server_cap.capabilities.workspace_symbol_provider.is_some()
             }
             PrepareRenameRequest::METHOD => {
-                self.server_capabilities.rename_provider.is_some()
+                server_cap.capabilities.rename_provider.is_some()
             }
-            Rename::METHOD => self.server_capabilities.rename_provider.is_some(),
+            Rename::METHOD => server_cap.capabilities.rename_provider.is_some(),
             SelectionRangeRequest::METHOD => {
-                self.server_capabilities.selection_range_provider.is_some()
+                server_cap.capabilities.selection_range_provider.is_some()
             }
             CodeActionResolveRequest::METHOD => {
-                self.server_capabilities.code_action_provider.is_some()
+                server_cap.capabilities.code_action_provider.is_some()
             }
             _ => false,
         }
     }
 
     fn check_save_capability(&self, language_id: &str, path: &Path) -> (bool, bool) {
+        let server_cap = self.server_initialisation.lock();
         if self.document_supported(Some(language_id), Some(path)) {
-            let (should_send, include_text) = self
-                .server_capabilities
+            let (should_send, include_text) = server_cap
+                .capabilities
                 .text_document_sync
                 .as_ref()
                 .and_then(|sync| match sync {
@@ -936,7 +947,8 @@ impl PluginHostHandler {
             )>,
         >,
     ) {
-        let kind = match &self.server_capabilities.text_document_sync {
+        let server_cap = self.server_initialisation.lock();
+        let kind = match &server_cap.capabilities.text_document_sync {
             Some(TextDocumentSyncCapability::Kind(kind)) => *kind,
             Some(TextDocumentSyncCapability::Options(options)) => {
                 options.change.unwrap_or(TextDocumentSyncKind::NONE)
@@ -999,9 +1011,10 @@ impl PluginHostHandler {
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
     ) {
+        let server_cap = self.server_initialisation.lock();
         let result = format_semantic_styles(
             &text,
-            self.server_capabilities.semantic_tokens_provider.as_ref(),
+            server_cap.capabilities.semantic_tokens_provider.as_ref(),
             &tokens,
         )
         .ok_or_else(|| RpcError {

@@ -117,6 +117,7 @@ impl PluginCatalog {
                 request_sent.fetch_add(self.plugins.len(), Ordering::Relaxed);
             }
         }
+
         for (plugin_id, plugin) in self.plugins.iter() {
             let f = dyn_clone::clone_box(&*f);
             let plugin_id = *plugin_id;
