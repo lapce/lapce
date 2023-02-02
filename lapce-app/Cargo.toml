@@ -5,4 +5,4 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-xilem = { git = "https://github.com/linebender/xilem" }
+floem = { path = "../../workspaces/floem" }
