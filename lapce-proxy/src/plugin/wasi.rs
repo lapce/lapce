@@ -91,7 +91,7 @@ pub struct Plugin {
 
 impl PluginServerHandler for Plugin {
     fn server_info(&self) -> Option<ServerInfo> {
-        return self.host.server_init.server_info.clone();
+        self.host.server_init.server_info.clone()
     }
 
     fn method_registered(&self, method: &'static str) -> bool {
