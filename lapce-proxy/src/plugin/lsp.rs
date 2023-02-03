@@ -418,15 +418,21 @@ impl DocumentFilter {
             .collect()
     }
 
-    pub fn matches_any(
+    pub fn matches_any<S1, S2>(
         &self,
-        language_id: Option<&str>,
-        path: Option<&Path>,
-    ) -> bool {
+        language_id: Option<S1>,
+        path: Option<S2>,
+    ) -> bool
+    where
+        S1: AsRef<str>,
+        S2: AsRef<Path>,
+    {
         match self {
-            DocumentFilter::Language(l) => Some(l.as_str()) == language_id,
+            DocumentFilter::Language(l) => {
+                Some(l.as_str()) == language_id.as_ref().map(|s| s.as_ref())
+            }
             DocumentFilter::Pattern(g) => match path {
-                Some(p) => g.is_match(p),
+                Some(p) => g.is_match(p.as_ref()),
                 None => false,
             },
         }

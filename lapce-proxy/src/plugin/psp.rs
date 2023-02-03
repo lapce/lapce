@@ -590,7 +590,9 @@ impl PluginHostHandler {
         language_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool {
-        check_document_filters(&self.document_selector, language_id, path)
+        self.document_selector
+            .iter()
+            .any(|d| d.matches_any(language_id, path))
     }
 
     pub fn method_registered(&mut self, method: &'static str) -> bool {
@@ -770,11 +772,10 @@ impl PluginHostHandler {
             }
             Tds::Save => {
                 if let Some(options) = self.server_registrations.save.as_ref() {
-                    return check_document_filters(
-                        &options.filters,
-                        language_id,
-                        path,
-                    );
+                    return options
+                        .filters
+                        .iter()
+                        .any(|d| d.matches_any(language_id, path));
                 }
             }
         }
@@ -957,11 +958,10 @@ impl PluginHostHandler {
         }
 
         let include_text = self.server_registrations.save.iter().any(|d| {
-            check_document_filters(
-                &d.filters,
-                language_id.as_deref(),
-                path.as_deref(),
-            ) && d.include_text
+            d.filters
+                .iter()
+                .any(|d| d.matches_any(language_id.as_ref(), path.as_ref()))
+                && d.include_text
         });
 
         let params = DidSaveTextDocumentParams {
@@ -1195,15 +1195,4 @@ enum Tds {
     // OpenClose,
     // WillSave,
     // WillSaveWaitUntil,
-}
-
-// TODO: Add support for scheme
-pub fn check_document_filters(
-    document_filters: &[DocumentFilter],
-    language_id: Option<&str>,
-    path: Option<&Path>,
-) -> bool {
-    document_filters
-        .iter()
-        .any(|d| d.matches_any(language_id, path))
 }
