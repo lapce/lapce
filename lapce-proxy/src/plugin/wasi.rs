@@ -91,7 +91,7 @@ pub struct Plugin {
 
 impl PluginServerHandler for Plugin {
     fn server_info(&self) -> Option<ServerInfo> {
-        return self.host.server_init.lock().server_info.clone();
+        return self.host.server_init.server_info.clone();
     }
 
     fn method_registered(&self, method: &'static str) -> bool {
@@ -186,37 +186,41 @@ impl PluginServerHandler for Plugin {
 
 impl Plugin {
     fn initialize(&mut self) {
-        let server_rpc = self.host.server_rpc.clone();
-        let workspace = self.host.workspace.clone();
         let configurations = self.configurations.as_ref().map(unflatten_map);
-        let server_capabilities = self.host.server_init.clone();
-        thread::spawn(move || {
-            let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
-            if let Ok(value) = server_rpc.server_request(
-                Initialize::METHOD,
-                #[allow(deprecated)]
-                InitializeParams {
-                    process_id: Some(process::id()),
-                    root_path: None,
-                    root_uri,
-                    capabilities: client_capabilities(),
-                    trace: None,
-                    client_info: None,
-                    locale: None,
-                    initialization_options: configurations,
-                    workspace_folders: None,
-                },
-                None,
-                None,
-                false,
-            ) {
-                let result: InitializeResult =
-                    serde_json::from_value(value).unwrap();
-                {
-                    *server_capabilities.lock() = result;
-                }
+        let root_uri = self
+            .host
+            .workspace
+            .as_ref()
+            .map(|p| Url::from_directory_path(p).unwrap());
+        match self.host.server_rpc.server_request(
+            Initialize::METHOD,
+            #[allow(deprecated)]
+            InitializeParams {
+                process_id: Some(process::id()),
+                root_path: None,
+                root_uri,
+                capabilities: client_capabilities(),
+                trace: None,
+                client_info: None,
+                locale: None,
+                initialization_options: configurations,
+                workspace_folders: None,
+            },
+            None,
+            None,
+            false,
+        ) {
+            Ok(value) => {
+                self.host.server_init =
+                    serde_json::from_value::<InitializeResult>(value).unwrap()
             }
-        });
+            Err(_) => {
+                log::debug!(
+                    "Request to initialize plugin '{}' received timeout",
+                    self.host.server_rpc.volt_id.name
+                )
+            }
+        }
     }
 
     fn shutdown(&self) {}

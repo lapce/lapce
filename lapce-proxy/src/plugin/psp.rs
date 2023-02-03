@@ -554,7 +554,7 @@ pub struct PluginHostHandler {
     // TODO: Use this to reject requests since the LSP says
     // that a client/server should not respond/request until it receives
     // initialization requests/responds.
-    pub server_init: Arc<Mutex<InitializeResult>>,
+    pub server_init: InitializeResult,
     server_registrations: ServerRegistrations,
 }
 
@@ -580,7 +580,7 @@ impl PluginHostHandler {
             document_selector,
             catalog_rpc,
             server_rpc,
-            server_init: Arc::new(Mutex::new(InitializeResult::default())),
+            server_init: InitializeResult::default(),
             server_registrations: ServerRegistrations::default(),
         }
     }
@@ -613,21 +613,21 @@ impl PluginHostHandler {
     }
 
     pub fn method_registered(&self, method: &'static str) -> bool {
-        let server_init = self.server_init.lock();
         match method {
             Initialize::METHOD => true,
             Initialized::METHOD => true,
             Completion::METHOD => {
-                server_init.capabilities.completion_provider.is_some()
+                self.server_init.capabilities.completion_provider.is_some()
             }
-            ResolveCompletionItem::METHOD => server_init
+            ResolveCompletionItem::METHOD => self
+                .server_init
                 .capabilities
                 .completion_provider
                 .as_ref()
                 .and_then(|c| c.resolve_provider)
                 .unwrap_or(false),
             DidOpenTextDocument::METHOD => {
-                match &server_init.capabilities.text_document_sync {
+                match &self.server_init.capabilities.text_document_sync {
                     Some(TextDocumentSyncCapability::Kind(kind)) => {
                         kind != &TextDocumentSyncKind::NONE
                     }
@@ -643,7 +643,7 @@ impl PluginHostHandler {
                 }
             }
             DidChangeTextDocument::METHOD => {
-                match &server_init.capabilities.text_document_sync {
+                match &self.server_init.capabilities.text_document_sync {
                     Some(TextDocumentSyncCapability::Kind(kind)) => {
                         kind != &TextDocumentSyncKind::NONE
                     }
@@ -654,10 +654,13 @@ impl PluginHostHandler {
                     None => false,
                 }
             }
-            SignatureHelpRequest::METHOD => {
-                server_init.capabilities.signature_help_provider.is_some()
-            }
-            HoverRequest::METHOD => server_init
+            SignatureHelpRequest::METHOD => self
+                .server_init
+                .capabilities
+                .signature_help_provider
+                .is_some(),
+            HoverRequest::METHOD => self
+                .server_init
                 .capabilities
                 .hover_provider
                 .as_ref()
@@ -666,7 +669,8 @@ impl PluginHostHandler {
                     HoverProviderCapability::Options(_) => true,
                 })
                 .unwrap_or(false),
-            GotoDefinition::METHOD => server_init
+            GotoDefinition::METHOD => self
+                .server_init
                 .capabilities
                 .definition_provider
                 .as_ref()
@@ -675,10 +679,13 @@ impl PluginHostHandler {
                     OneOf::Right(_) => true,
                 })
                 .unwrap_or(false),
-            GotoTypeDefinition::METHOD => {
-                server_init.capabilities.type_definition_provider.is_some()
-            }
-            References::METHOD => server_init
+            GotoTypeDefinition::METHOD => self
+                .server_init
+                .capabilities
+                .type_definition_provider
+                .is_some(),
+            References::METHOD => self
+                .server_init
                 .capabilities
                 .references_provider
                 .as_ref()
@@ -687,7 +694,8 @@ impl PluginHostHandler {
                     OneOf::Right(_) => true,
                 })
                 .unwrap_or(false),
-            CodeActionRequest::METHOD => server_init
+            CodeActionRequest::METHOD => self
+                .server_init
                 .capabilities
                 .code_action_provider
                 .as_ref()
@@ -696,7 +704,8 @@ impl PluginHostHandler {
                     CodeActionProviderCapability::Options(_) => true,
                 })
                 .unwrap_or(false),
-            Formatting::METHOD => server_init
+            Formatting::METHOD => self
+                .server_init
                 .capabilities
                 .document_formatting_provider
                 .as_ref()
@@ -705,36 +714,46 @@ impl PluginHostHandler {
                     OneOf::Right(_) => true,
                 })
                 .unwrap_or(false),
-            SemanticTokensFullRequest::METHOD => {
-                server_init.capabilities.semantic_tokens_provider.is_some()
-            }
+            SemanticTokensFullRequest::METHOD => self
+                .server_init
+                .capabilities
+                .semantic_tokens_provider
+                .is_some(),
             InlayHintRequest::METHOD => {
-                server_init.capabilities.inlay_hint_provider.is_some()
+                self.server_init.capabilities.inlay_hint_provider.is_some()
             }
-            DocumentSymbolRequest::METHOD => {
-                server_init.capabilities.document_symbol_provider.is_some()
-            }
-            WorkspaceSymbol::METHOD => {
-                server_init.capabilities.workspace_symbol_provider.is_some()
-            }
+            DocumentSymbolRequest::METHOD => self
+                .server_init
+                .capabilities
+                .document_symbol_provider
+                .is_some(),
+            WorkspaceSymbol::METHOD => self
+                .server_init
+                .capabilities
+                .workspace_symbol_provider
+                .is_some(),
             PrepareRenameRequest::METHOD => {
-                server_init.capabilities.rename_provider.is_some()
+                self.server_init.capabilities.rename_provider.is_some()
             }
-            Rename::METHOD => server_init.capabilities.rename_provider.is_some(),
-            SelectionRangeRequest::METHOD => {
-                server_init.capabilities.selection_range_provider.is_some()
+            Rename::METHOD => {
+                self.server_init.capabilities.rename_provider.is_some()
             }
+            SelectionRangeRequest::METHOD => self
+                .server_init
+                .capabilities
+                .selection_range_provider
+                .is_some(),
             CodeActionResolveRequest::METHOD => {
-                server_init.capabilities.code_action_provider.is_some()
+                self.server_init.capabilities.code_action_provider.is_some()
             }
             _ => false,
         }
     }
 
     fn check_save_capability(&self, language_id: &str, path: &Path) -> (bool, bool) {
-        let server_cap = self.server_init.lock();
         if self.document_supported(Some(language_id), Some(path)) {
-            let (should_send, include_text) = server_cap
+            let (should_send, include_text) = self
+                .server_init
                 .capabilities
                 .text_document_sync
                 .as_ref()
@@ -947,8 +966,7 @@ impl PluginHostHandler {
             )>,
         >,
     ) {
-        let server_cap = self.server_init.lock();
-        let kind = match &server_cap.capabilities.text_document_sync {
+        let kind = match &self.server_init.capabilities.text_document_sync {
             Some(TextDocumentSyncCapability::Kind(kind)) => *kind,
             Some(TextDocumentSyncCapability::Options(options)) => {
                 options.change.unwrap_or(TextDocumentSyncKind::NONE)
@@ -1011,10 +1029,12 @@ impl PluginHostHandler {
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
     ) {
-        let server_cap = self.server_init.lock();
         let result = format_semantic_styles(
             &text,
-            server_cap.capabilities.semantic_tokens_provider.as_ref(),
+            self.server_init
+                .capabilities
+                .semantic_tokens_provider
+                .as_ref(),
             &tokens,
         )
         .ok_or_else(|| RpcError {
