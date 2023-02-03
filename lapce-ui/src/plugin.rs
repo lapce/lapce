@@ -1159,7 +1159,7 @@ impl Widget<LapceTabData> for PluginInfo {
             let text = if status == PluginStatus::Install {
                 status.to_string()
             } else {
-                format!("{} ▼", status)
+                format!("{status} ▼")
             };
             let button_text_layout = ctx
                 .text()

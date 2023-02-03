@@ -443,6 +443,9 @@ impl KeyPressFocus for PaletteViewData {
                 EditCommand::DeleteToBeginningOfLine => {
                     self.delete_to_beginning_of_line(ctx);
                 }
+                EditCommand::DeleteToEndOfLine => {
+                    self.delete_to_beginning_of_line(ctx);
+                }
                 _ => return CommandExecuted::No,
             },
             _ => return CommandExecuted::No,
@@ -737,6 +740,24 @@ impl PaletteViewData {
         self.update_palette(ctx);
     }
 
+    pub fn delete_to_end_of_line(&mut self, ctx: &mut EventCtx) {
+        let palette = Arc::make_mut(&mut self.palette);
+        if palette.cursor == 0 {
+            return;
+        }
+
+        let end = palette.input.len();
+
+        if palette.cursor == end {
+            palette.input = "".to_string();
+            palette.cursor = 0;
+        } else {
+            palette.input.replace_range(palette.cursor..end, "");
+            palette.cursor = end;
+        }
+        self.update_palette(ctx);
+    }
+
     // TODO: This is a bit weird, its wanting to iterate over items, but it could be called before we fill the list!
     fn preselect_matching(&mut self, ctx: &mut EventCtx, matching: &str) {
         let palette = Arc::make_mut(&mut self.palette);
@@ -916,7 +937,7 @@ impl PaletteViewData {
                 let filter_text = match &w.kind {
                     LapceWorkspaceType::Local => text,
                     LapceWorkspaceType::RemoteSSH(ssh) => {
-                        format!("[{ssh}] {}", text)
+                        format!("[{ssh}] {text}")
                     }
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")

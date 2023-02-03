@@ -33,7 +33,6 @@ use lapce_rpc::{
 use lapce_xi_rope::Rope;
 use lsp_types::{Position, Range, TextDocumentItem, Url};
 use parking_lot::Mutex;
-use regex::Regex;
 
 use crate::{
     buffer::{get_mod_time, load_file, Buffer},
@@ -749,7 +748,7 @@ impl ProxyHandler for Dispatcher {
                 let result = if new_path.exists() {
                     Err(RpcError {
                         code: 0,
-                        message: format!("{:?} already exists", new_path),
+                        message: format!("{new_path:?} already exists"),
                     })
                 } else {
                     if let Some(parent) = new_path.parent() {
@@ -777,7 +776,7 @@ impl ProxyHandler for Dispatcher {
                 let result = if to.exists() {
                     Err(RpcError {
                         code: 0,
-                        message: format!("{:?} already exists", to),
+                        message: format!("{to:?} already exists"),
                     })
                 } else {
                     std::fs::rename(from, to)
@@ -976,7 +975,9 @@ pub struct DiffHunk {
 }
 
 fn git_init(workspace_path: &Path) -> Result<()> {
-    Repository::init(workspace_path)?;
+    if Repository::discover(workspace_path).is_err() {
+        Repository::init(workspace_path)?;
+    };
     Ok(())
 }
 
@@ -985,11 +986,7 @@ fn git_commit(
     message: &str,
     diffs: Vec<FileDiff>,
 ) -> Result<()> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("workspace path can't changed to str"))?,
-    )?;
+    let repo = Repository::discover(workspace_path)?;
     let mut index = repo.index()?;
     for diff in diffs {
         match diff {
@@ -1023,11 +1020,7 @@ fn git_commit(
 }
 
 fn git_checkout(workspace_path: &Path, branch: &str) -> Result<()> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("workspace path can't changed to str"))?,
-    )?;
+    let repo = Repository::discover(workspace_path)?;
     let (object, reference) = repo.revparse_ext(branch)?;
     repo.checkout_tree(&object, None)?;
     repo.set_head(reference.unwrap().name().unwrap())?;
@@ -1038,7 +1031,7 @@ fn git_discard_files_changes<'a>(
     workspace_path: &Path,
     files: impl Iterator<Item = &'a Path>,
 ) -> Result<()> {
-    let repo = Repository::open(workspace_path)?;
+    let repo = Repository::discover(workspace_path)?;
 
     let mut checkout_b = CheckoutBuilder::new();
     checkout_b.update_only(false).force();
@@ -1065,7 +1058,7 @@ fn git_discard_files_changes<'a>(
 }
 
 fn git_discard_workspace_changes(workspace_path: &Path) -> Result<()> {
-    let repo = Repository::open(workspace_path)?;
+    let repo = Repository::discover(workspace_path)?;
     let mut checkout_b = CheckoutBuilder::new();
     checkout_b.force();
 
@@ -1099,7 +1092,7 @@ fn git_delta_format(
 }
 
 fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
-    let repo = Repository::open(workspace_path.to_str()?).ok()?;
+    let repo = Repository::discover(workspace_path).ok()?;
     let head = repo.head().ok()?;
     let name = head.shorthand()?.to_string();
 
@@ -1181,11 +1174,7 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
 }
 
 fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("can't to str"))?,
-    )?;
+    let repo = Repository::discover(workspace_path)?;
     let head = repo.head()?;
     let tree = head.peel_to_tree()?;
     let tree_entry = tree.get_path(path.strip_prefix(workspace_path)?)?;
@@ -1198,55 +1187,44 @@ fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)>
 }
 
 fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("can't to str"))?,
-    )?;
-
+    let repo = Repository::discover(workspace_path)?;
     let head = repo.head()?;
-
     let target_remote = repo.find_remote("origin")?;
 
-    let target_remote_file_url =
-        target_remote.url().ok_or_else(|| anyhow!("can't to str"))?;
+    // Grab URL part of remote
+    let remote = target_remote
+        .url()
+        .ok_or(anyhow!("Failed to convert remote to str"))?;
 
-    // This Regex isn't perfect, but it's good enough for now
-    // git@github.com:rust-lang/rust.git
-    // https://github.com/rust-lang/rust.git
+    let remote_url = match Url::parse(remote) {
+        Ok(url) => url,
+        Err(_) => {
+            // Parse URL as ssh
+            Url::parse(&format!("ssh://{}", remote.replacen(':', "/", 1)))?
+        }
+    };
 
-    let git_repo_remote_regex = Regex::new(
-        r"^(?:git@|https://)(?P<host>[^:/]+)[:/](?P<org>[^/]+)/(?P<repo>.+)$",
-    )
-    .unwrap();
+    // Get host part
+    let host = remote_url
+        .host_str()
+        .ok_or(anyhow!("Couldn't find remote host"))?;
+    // Get namespace (e.g. organisation/project in case of GitHub, org/team/team/team/../project on GitLab)
+    let namespace = if let Some(stripped) = remote_url.path().strip_suffix(".git") {
+        stripped
+    } else {
+        remote_url.path()
+    };
 
-    let (host, org, repo) =
-        if let Some(v) = git_repo_remote_regex.captures(target_remote_file_url) {
-            let host = v
-                .name("host")
-                .ok_or_else(|| anyhow!("can't to str"))?
-                .as_str();
-            let org = v
-                .name("org")
-                .ok_or_else(|| anyhow!("can't to str"))?
-                .as_str();
-            let repo = v
-                .name("repo")
-                .ok_or_else(|| anyhow!("can't to str"))?
-                .as_str();
-            (host, org, repo)
-        } else {
-            return Err(anyhow!("can't parse remote url"));
-        };
+    let commit = head.peel_to_commit()?.id();
 
-    Ok(format!(
-        "https://{}/{}/{}/blob/{}/{}",
-        host,
-        org,
-        repo,
-        head.peel_to_commit()?.id(),
-        file.strip_prefix(workspace_path)?.to_str().unwrap()
-    ))
+    let file_path = file
+        .strip_prefix(workspace_path)?
+        .to_str()
+        .ok_or(anyhow!("Couldn't convert file path to str"))?;
+
+    let url = format!("https://{host}{namespace}/blob/{commit}/{file_path}",);
+
+    Ok(url)
 }
 
 fn search_in_path(

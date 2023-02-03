@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{atomic::AtomicBool, Arc},
 };
 
 use druid::{
@@ -13,9 +13,8 @@ use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
 use lapce_rpc::plugin::VoltID;
 use lsp_types::{CompletionItemKind, SymbolKind};
-use notify::event::{DataChange, ModifyKind};
 use once_cell::sync::Lazy;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 use thiserror::Error;
@@ -470,6 +469,8 @@ pub struct EditorConfig {
     pub atomic_soft_tabs: bool,
     #[field_names(desc = "Use double click to open interact with file explorer")]
     pub double_click: bool,
+    #[field_names(desc = "Move the focus as you type in the global search box")]
+    pub move_focus_while_search: bool,
 }
 
 impl EditorConfig {
@@ -971,14 +972,14 @@ impl LapceConfig {
 
 pub struct ConfigWatcher {
     event_sink: ExtEventSink,
-    delay_handler: Arc<Mutex<Option<()>>>,
+    delay_handler: Arc<AtomicBool>,
 }
 
 impl ConfigWatcher {
     pub fn new(event_sink: ExtEventSink) -> Self {
         Self {
             event_sink,
-            delay_handler: Arc::new(Mutex::new(None)),
+            delay_handler: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -988,23 +989,35 @@ impl notify::EventHandler for ConfigWatcher {
         if let Ok(event) = event {
             match event.kind {
                 notify::EventKind::Create(_)
-                | notify::EventKind::Modify(ModifyKind::Data(DataChange::Content))
+                | notify::EventKind::Modify(_)
                 | notify::EventKind::Remove(_) => {
-                    *self.delay_handler.lock() = Some(());
-                    let delay_handler = self.delay_handler.clone();
-                    let event_sink = self.event_sink.clone();
-                    std::thread::spawn(move || {
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                        if delay_handler.lock().take().is_some() {
+                    if self
+                        .delay_handler
+                        .compare_exchange(
+                            false,
+                            true,
+                            std::sync::atomic::Ordering::Relaxed,
+                            std::sync::atomic::Ordering::Relaxed,
+                        )
+                        .is_ok()
+                    {
+                        let config_mutex = self.delay_handler.clone();
+                        let event_sink = self.event_sink.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(
+                                500,
+                            ));
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::ReloadConfig,
                                 Target::Auto,
                             );
-                        }
-                    });
+                            config_mutex
+                                .store(false, std::sync::atomic::Ordering::Relaxed);
+                        });
+                    }
                 }
-                _ => (),
+                _ => {}
             }
         }
     }

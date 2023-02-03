@@ -3242,7 +3242,7 @@ impl LapceMainSplitData {
             .unwrap_or(0)
             + 1;
 
-        format!("{}{}", PREFIX, new_num)
+        format!("{PREFIX}{new_num}")
     }
 
     pub fn install_theme(&mut self, ctx: &mut EventCtx, _config: &LapceConfig) {
@@ -4552,7 +4552,7 @@ impl Display for SshHost {
         }
         write!(f, "{}", self.host)?;
         if let Some(port) = self.port {
-            write!(f, ":{}", port)?;
+            write!(f, ":{port}")?;
         }
         Ok(())
     }

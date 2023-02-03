@@ -821,6 +821,7 @@ impl LapceTab {
                             find.set_find(pattern, false, false);
                             find.visual = true;
                             if data.focus_area == FocusArea::Panel(PanelKind::Search)
+                                && data.config.editor.move_focus_while_search
                             {
                                 if let Some(widget_id) = *data.main_split.active {
                                     ctx.submit_command(Command::new(

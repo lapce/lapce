@@ -30,6 +30,8 @@ pub enum EditCommand {
     DeleteBackward,
     #[strum(serialize = "delete_forward")]
     DeleteForward,
+    #[strum(serialize = "delete_line")]
+    DeleteLine,
     #[strum(serialize = "delete_forward_and_insert")]
     DeleteForwardAndInsert,
     #[strum(serialize = "delete_word_and_insert")]
@@ -42,6 +44,9 @@ pub enum EditCommand {
     DeleteWordBackward,
     #[strum(serialize = "delete_to_beginning_of_line")]
     DeleteToBeginningOfLine,
+    #[strum(serialize = "delete_to_end_of_line")]
+    DeleteToEndOfLine,
+
     #[strum(serialize = "delete_to_end_and_insert")]
     DeleteToEndOfLineAndInsert,
     #[strum(message = "Join Lines")]

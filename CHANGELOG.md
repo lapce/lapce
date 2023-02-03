@@ -23,6 +23,8 @@
 - [#2004](https://github.com/lapce/lapce/pull/2004): Add ToggleHistory command
 - [#2033](https://github.com/lapce/lapce/pull/2033): Add setting for double click delay (Currently only works for opening file from the explorer)
 - [#2045](https://github.com/lapce/lapce/pull/2045): Add 'Rename Symbol' option on right-click
+- [#2071](https://github.com/lapce/lapce/pull/2071): Add command and keybinds to delete line
+- [#2073](https://github.com/lapce/lapce/pull/2073): Add Ctrl+{a,e,k} keybinds on macOS
 
 ### Bug Fixes
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys
@@ -30,6 +32,8 @@
 - [#1971](https://github.com/lapce/lapce/pull/1971): Fix up/down movement on first/last line
 - [#2036](https://github.com/lapce/lapce/pull/2036): Fix movement on selections with up/down arrow keys
 - [#2056](https://github.com/lapce/lapce/pull/2056): Fix default directory of remote session file picker
+- [#2072](https://github.com/lapce/lapce/pull/2072): Fix connection issues from Windows to lapce proxy
+- [#2069](https://github.com/lapce/lapce/pull/2045): Fix not finding git repositories in parent path
 
 ## 0.2.5
 

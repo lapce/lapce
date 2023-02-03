@@ -275,12 +275,12 @@ impl LapceStatus {
             let selection_range = selection.0.abs_diff(selection.1);
 
             if selection.0 != selection.1 {
-                string += &format!(" ({} selected)", selection_range);
+                string += &format!(" ({selection_range} selected)");
             }
         }
         let selection_count = editor.cursor.get_selection_count();
         if selection_count > 1 {
-            string += &format!(" {} selections", selection_count);
+            string += &format!(" {selection_count} selections");
         }
 
         if !string.is_empty() {
