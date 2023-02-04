@@ -5,7 +5,6 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-lapce-data.workspace = true
 lapce-rpc.workspace = true
 lapce-proxy.workspace = true
 crossbeam-channel.workspace = true
