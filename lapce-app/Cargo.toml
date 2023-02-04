@@ -5,4 +5,11 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+lapce-data.workspace = true
+lapce-rpc.workspace = true
+lapce-proxy.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+tokio = { version = "1.21", features = ["full"] }
+futures = "0.3.26"
 floem = { path = "../../workspaces/floem" }
