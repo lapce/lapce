@@ -3389,7 +3389,7 @@ impl LapceMainSplitData {
 
             // Since we don't have document loaded, we'll have to retrieve it from the proxy
             // So, the document is not immediately filled with content!
-            doc.retrieve_file(vec![(editor_view_id, location)], None, cb);
+            doc.retrieve_file(vec![(editor_view_id, location)], None, cb, config);
             self.open_docs.insert(path.clone(), Arc::new(doc));
         } else {
             let doc = self.open_docs.get_mut(&path).unwrap().clone();
@@ -3423,7 +3423,8 @@ impl LapceMainSplitData {
                 let doc = self.open_docs.get_mut(&path).unwrap();
                 // TODO(minor): Could we avoid this make mut definitely cloning the `Document` by
                 // early-dropping our held doc above?
-                Arc::make_mut(doc).retrieve_history(version);
+                Arc::make_mut(doc)
+                    .retrieve_history(version, config.editor.diff_context_lines);
             }
 
             let editor = self.get_editor_or_new(
@@ -3601,7 +3602,7 @@ impl LapceMainSplitData {
                     .get(&path.to_str().unwrap().to_string())
                     .map(Rope::from);
                 Arc::make_mut(main_split_data.open_docs.get_mut(&path).unwrap())
-                    .retrieve_file(locations.clone(), unsaved_buffer, None);
+                    .retrieve_file(locations.clone(), unsaved_buffer, None, config);
             }
         } else {
             main_split_data.splits.insert(

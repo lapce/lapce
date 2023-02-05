@@ -36,7 +36,7 @@ pub struct DocumentHistory {
     line_styles: Rc<RefCell<LineStyles>>,
     changes: Arc<Vec<DiffLines>>,
     text_layouts: Rc<RefCell<TextLayoutCache>>,
-    diff_extend_lines: usize,
+    diff_context_lines: i32,
 }
 
 impl druid::Data for DocumentHistory {
@@ -58,9 +58,9 @@ impl druid::Data for DocumentHistory {
         }
     }
 }
-pub const DEFAULT_DIFF_EXTEND_LINES: usize = 3;
+pub const DEFAULT_DIFF_CONTEXT_LINES: usize = 3;
 impl DocumentHistory {
-    pub fn new(version: String) -> Self {
+    pub fn new(version: String, diff_context_lines: i32) -> Self {
         Self {
             version,
             buffer: None,
@@ -68,7 +68,7 @@ impl DocumentHistory {
             line_styles: Rc::new(RefCell::new(LineStyles::new())),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             changes: Arc::new(Vec::new()),
-            diff_extend_lines: DEFAULT_DIFF_EXTEND_LINES,
+            diff_context_lines,
         }
     }
 
@@ -76,7 +76,7 @@ impl DocumentHistory {
         let mut buffer = Buffer::new("");
         buffer.init_content(content);
         self.buffer = Some(buffer);
-        self.trigger_update_change(doc, DEFAULT_DIFF_EXTEND_LINES);
+        self.trigger_update_change(doc);
         self.retrieve_history_styles(doc);
     }
 
@@ -353,14 +353,14 @@ impl DocumentHistory {
                     rev,
                     history: "head".to_string(),
                     changes: Arc::new(changes),
-                    diff_extend_lines: self.diff_extend_lines,
+                    diff_context_lines: self.diff_context_lines,
                 },
                 Target::Widget(tab_id),
             );
         }
     }
 
-    pub fn trigger_update_change(&self, doc: &Document, diff_extend_lines: usize) {
+    pub fn trigger_update_change(&self, doc: &Document) {
         if self.buffer.is_none() {
             return;
         }
@@ -373,7 +373,17 @@ impl DocumentHistory {
             let right_rope = doc.buffer().text().clone();
             let event_sink = doc.event_sink.clone();
             let tab_id = doc.tab_id;
+            let diff_context_lines = self.diff_context_lines;
             rayon::spawn(move || {
+                let context_lines = if diff_context_lines == -1 {
+                    // infinite context lines
+                    None
+                } else if diff_context_lines < 0 {
+                    // default context lines
+                    Some(DEFAULT_DIFF_CONTEXT_LINES)
+                } else {
+                    Some(diff_context_lines as usize)
+                };
                 if atomic_rev.load(atomic::Ordering::Acquire) != rev {
                     return;
                 }
@@ -382,7 +392,7 @@ impl DocumentHistory {
                     right_rope,
                     rev,
                     atomic_rev.clone(),
-                    diff_extend_lines,
+                    context_lines,
                 );
                 if changes.is_none() {
                     return;
@@ -400,7 +410,7 @@ impl DocumentHistory {
                         rev,
                         history: "head".to_string(),
                         changes: Arc::new(changes),
-                        diff_extend_lines,
+                        diff_context_lines,
                     },
                     Target::Widget(tab_id),
                 );
@@ -412,17 +422,17 @@ impl DocumentHistory {
         &self.changes
     }
 
-    pub fn diff_extend_lines(&self) -> usize {
-        self.diff_extend_lines
+    pub fn diff_context_lines(&self) -> i32 {
+        self.diff_context_lines
     }
 
     pub fn update_changes(
         &mut self,
         changes: Arc<Vec<DiffLines>>,
-        diff_extend_lines: usize,
+        diff_context_lines: i32,
     ) {
         self.changes = changes;
-        self.diff_extend_lines = diff_extend_lines;
+        self.diff_context_lines = diff_context_lines;
     }
 
     pub fn update_styles(&mut self, styles: Arc<Spans<Style>>) {

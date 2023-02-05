@@ -471,6 +471,10 @@ pub struct EditorConfig {
     pub double_click: bool,
     #[field_names(desc = "Move the focus as you type in the global search box")]
     pub move_focus_while_search: bool,
+    #[field_names(
+        desc = "Set the default number of visible lines above and below the diff block (-1 for infinite)"
+    )]
+    pub diff_context_lines: i32,
 }
 
 impl EditorConfig {
