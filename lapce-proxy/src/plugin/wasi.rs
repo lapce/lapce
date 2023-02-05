@@ -465,7 +465,6 @@ pub fn start_volt(
             .unwrap();
         for msg in io_rx {
             if let Ok(msg) = serde_json::to_string(&msg) {
-                println!("plugin stdin:\n{msg}");
                 let _ = writeln!(stdin.write().unwrap(), "{msg}");
             }
             if let Err(err) = handle_rpc.call(&mut store, ()) {
