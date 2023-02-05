@@ -312,13 +312,12 @@ impl PluginServerRpcHandler {
         );
         // TODO: add some kind of logging/visual cue for this timeout issues?
         // TODO: customizable timeout durations
-        rx.recv_timeout(Duration::from_secs(10))
-            .unwrap_or_else(|_| {
-                Err(RpcError {
-                    code: 0,
-                    message: "io error".to_string(),
-                })
+        rx.recv_timeout(Duration::from_secs(5)).unwrap_or_else(|_| {
+            Err(RpcError {
+                code: 0,
+                message: "io error".to_string(),
             })
+        })
     }
 
     pub fn server_request_async<P: Serialize>(

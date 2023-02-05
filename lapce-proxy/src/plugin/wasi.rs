@@ -22,12 +22,13 @@ use lapce_rpc::{
 };
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
-    request::Initialize, DocumentFilter, InitializeParams, InitializeResult,
-    ServerInfo, TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
+    notification::Initialized, request::Initialize, DocumentFilter,
+    InitializeParams, InitializeResult, InitializedParams, ServerInfo,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
     VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
-use psp_types::Request;
+use psp_types::{Notification, Request};
 use toml_edit::easy as toml;
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
@@ -212,7 +213,23 @@ impl Plugin {
         ) {
             Ok(value) => {
                 self.host.server_init =
-                    serde_json::from_value::<InitializeResult>(value).unwrap()
+                    serde_json::from_value::<InitializeResult>(value).unwrap();
+                self.host.server_rpc.server_notification(
+                    Initialized::METHOD,
+                    InitializedParams {},
+                    None,
+                    None,
+                    false,
+                );
+                log::debug!(
+                    "started {}",
+                    self.host
+                        .server_init
+                        .server_info
+                        .as_ref()
+                        .map(|s| s.name.as_str())
+                        .unwrap_or("a nameless plugin")
+                );
             }
             Err(_) => {
                 log::debug!(
