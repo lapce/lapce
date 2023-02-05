@@ -86,13 +86,13 @@ impl Seek for WasiPipe {
 pub struct Plugin {
     #[allow(dead_code)]
     id: PluginId,
-    host: PluginHostHandler,
+    host: Arc<Mutex<PluginHostHandler>>,
     configurations: Option<HashMap<String, serde_json::Value>>,
 }
 
 impl PluginServerHandler for Plugin {
     fn method_registered(&mut self, method: &'static str) -> bool {
-        self.host.method_registered(method)
+        self.host.lock().method_registered(method)
     }
 
     fn document_supported(
@@ -100,7 +100,7 @@ impl PluginServerHandler for Plugin {
         language_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool {
-        self.host.document_supported(language_id, path)
+        self.host.lock().document_supported(language_id, path)
     }
 
     fn handle_handler_notification(
@@ -119,7 +119,7 @@ impl PluginServerHandler for Plugin {
     }
 
     fn handle_host_notification(&mut self, method: String, params: Params) {
-        let _ = self.host.handle_notification(method, params);
+        let _ = self.host.lock().handle_notification(method, params);
     }
 
     fn handle_host_request(
@@ -129,7 +129,7 @@ impl PluginServerHandler for Plugin {
         params: Params,
         chan: Sender<Result<serde_json::Value, RpcError>>,
     ) {
-        self.host.handle_request(id, method, params, chan);
+        self.host.lock().handle_request(id, method, params, chan);
     }
 
     fn handle_did_save_text_document(
@@ -139,7 +139,7 @@ impl PluginServerHandler for Plugin {
         text_document: TextDocumentIdentifier,
         text: Rope,
     ) {
-        self.host.handle_did_save_text_document(
+        self.host.lock().handle_did_save_text_document(
             language_id,
             path,
             text_document,
@@ -161,7 +161,7 @@ impl PluginServerHandler for Plugin {
             )>,
         >,
     ) {
-        self.host.handle_did_change_text_document(
+        self.host.lock().handle_did_change_text_document(
             language_id,
             document,
             delta,
@@ -177,16 +177,20 @@ impl PluginServerHandler for Plugin {
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
     ) {
-        self.host.format_semantic_tokens(tokens, text, f);
+        self.host.lock().format_semantic_tokens(tokens, text, f);
     }
 }
 
 impl Plugin {
     fn initialize(&mut self) {
-        let workspace = self.host.workspace.clone();
+        let host_clone = self.host.clone();
+        let host = self.host.lock();
         let configurations = self.configurations.as_ref().map(unflatten_map);
-        let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
-        if let Ok(value) = self.host.server_rpc.server_request(
+        let root_uri = host
+            .workspace
+            .as_ref()
+            .map(|p| Url::from_directory_path(p).unwrap());
+        host.server_rpc.server_request_async(
             Initialize::METHOD,
             #[allow(deprecated)]
             InitializeParams {
@@ -203,17 +207,22 @@ impl Plugin {
             None,
             None,
             false,
-        ) {
-            let result: InitializeResult = serde_json::from_value(value).unwrap();
-            self.host.server_capabilities = result.capabilities;
-            self.host.server_rpc.server_notification(
-                Initialized::METHOD,
-                InitializedParams {},
-                None,
-                None,
-                false,
-            );
-        };
+            move |value| {
+                if let Ok(value) = value {
+                    let mut host = host_clone.lock();
+                    let result: InitializeResult =
+                        serde_json::from_value(value).unwrap();
+                    host.server_capabilities = result.capabilities;
+                    host.server_rpc.server_notification(
+                        Initialized::METHOD,
+                        InitializedParams {},
+                        None,
+                        None,
+                        false,
+                    );
+                }
+            },
+        );
     }
 
     fn shutdown(&self) {}
@@ -452,23 +461,23 @@ pub fn start_volt(
     thread::spawn(move || {
         let instance = linker.instantiate(&mut store, &module).unwrap();
         let handle_rpc = instance
-            .get_func(&mut store, "handle_rpc")
-            .ok_or_else(|| anyhow!("can't convet to function"))
-            .unwrap()
-            .typed::<(), (), _>(&mut store)
+            .get_typed_func::<(), (), _>(&mut store, "handle_rpc")
             .unwrap();
         for msg in io_rx {
             if let Ok(msg) = serde_json::to_string(&msg) {
+                println!("plugin stdin:\n{msg}");
                 let _ = writeln!(stdin.write().unwrap(), "{msg}");
             }
-            let _ = handle_rpc.call(&mut store, ());
+            if let Err(err) = handle_rpc.call(&mut store, ()) {
+                log::debug!("plugin crashed because '{}'", err);
+            }
         }
     });
 
     let id = PluginId::next();
     let mut plugin = Plugin {
         id,
-        host: PluginHostHandler::new(
+        host: Arc::new(Mutex::new(PluginHostHandler::new(
             workspace,
             meta.dir.clone(),
             meta.id(),
@@ -496,7 +505,7 @@ pub fn start_volt(
                 .collect(),
             rpc.clone(),
             plugin_rpc.clone(),
-        ),
+        ))),
         configurations,
     };
     let local_rpc = rpc.clone();
