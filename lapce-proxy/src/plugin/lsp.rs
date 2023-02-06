@@ -86,6 +86,9 @@ impl PluginServerHandler for LspClient {
             Initialize => {
                 self.initialize();
             }
+            InitializeResult(result) => {
+                self.host.server_capabilities = result.capabilities;
+            }
             Shutdown => {
                 self.shutdown();
             }
