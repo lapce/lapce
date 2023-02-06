@@ -23,9 +23,8 @@ use lapce_rpc::{
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::Initialized, request::Initialize, DocumentFilter,
-    InitializeParams, InitializeResult, InitializedParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
-    VersionedTextDocumentIdentifier,
+    InitializeParams, InitializedParams, TextDocumentContentChangeEvent,
+    TextDocumentIdentifier, Url, VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
@@ -37,7 +36,7 @@ use super::{
     client_capabilities,
     psp::{
         handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
-        PluginServerHandler, RpcCallback,
+        PluginServerHandler, PluginServerRpc, RpcCallback,
     },
     volt_icon, PluginCatalogRpcHandler,
 };
@@ -111,6 +110,9 @@ impl PluginServerHandler for Plugin {
         match notification {
             Initialize => {
                 self.initialize();
+            }
+            InitializeResult(result) => {
+                self.host.server_capabilities = result.capabilities;
             }
             Shutdown => {
                 self.shutdown();
@@ -186,7 +188,8 @@ impl Plugin {
         let workspace = self.host.workspace.clone();
         let configurations = self.configurations.as_ref().map(unflatten_map);
         let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
-        if let Ok(value) = self.host.server_rpc.server_request(
+        let server_rpc = self.host.server_rpc.clone();
+        self.host.server_rpc.server_request_async(
             Initialize::METHOD,
             #[allow(deprecated)]
             InitializeParams {
@@ -203,17 +206,23 @@ impl Plugin {
             None,
             None,
             false,
-        ) {
-            let result: InitializeResult = serde_json::from_value(value).unwrap();
-            self.host.server_capabilities = result.capabilities;
-            self.host.server_rpc.server_notification(
-                Initialized::METHOD,
-                InitializedParams {},
-                None,
-                None,
-                false,
-            );
-        };
+            move |value| {
+                if let Ok(value) = value {
+                    if let Ok(result) = serde_json::from_value(value) {
+                        server_rpc.handle_rpc(PluginServerRpc::Handler(
+                            PluginHandlerNotification::InitializeResult(result),
+                        ));
+                        server_rpc.server_notification(
+                            Initialized::METHOD,
+                            InitializedParams {},
+                            None,
+                            None,
+                            false,
+                        );
+                    }
+                }
+            },
+        );
     }
 
     fn shutdown(&self) {}

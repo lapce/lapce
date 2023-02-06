@@ -35,12 +35,12 @@ use lsp_types::{
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
-    LogMessageParams, OneOf, ProgressParams, PublishDiagnosticsParams, Range,
-    Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
-    SemanticTokensServerCapabilities, ServerCapabilities, ShowMessageParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncSaveOptions,
+    InitializeResult, LogMessageParams, OneOf, ProgressParams,
+    PublishDiagnosticsParams, Range, Registration, RegistrationParams,
+    SemanticTokens, SemanticTokensLegend, SemanticTokensServerCapabilities,
+    ServerCapabilities, ShowMessageParams, TextDocumentContentChangeEvent,
+    TextDocumentIdentifier, TextDocumentSaveRegistrationOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncSaveOptions,
     VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
@@ -96,6 +96,7 @@ impl<Resp, Error, F: Send + FnOnce(Result<Resp, Error>)> RpcCallback<Resp, Error
 
 pub enum PluginHandlerNotification {
     Initialize,
+    InitializeResult(InitializeResult),
     Shutdown,
 }
 
