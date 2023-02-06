@@ -1,6 +1,7 @@
 use floem::{
     app::AppContext,
     button::button,
+    event::{Event, EventListner},
     reactive::create_signal,
     stack::stack,
     style::{AlignItems, Dimension, FlexDirection, Style},
@@ -49,6 +50,10 @@ fn app_logic(cx: AppContext) -> impl View {
         height: Dimension::Percent(1.0),
         flex_direction: FlexDirection::Column,
         ..Default::default()
+    })
+    .event(EventListner::KeyDown, |event| {
+        if let Event::KeyDown = event {}
+        true
     })
 }
 
