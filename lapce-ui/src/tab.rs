@@ -883,7 +883,11 @@ impl LapceTab {
                     } => {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
                         let doc = Arc::make_mut(doc);
-                        doc.load_history(version, content.clone());
+                        doc.load_history(
+                            version,
+                            content.clone(),
+                            data.config.editor.diff_context_lines,
+                        );
                         ctx.set_handled();
                     }
                     LapceUICommand::PrepareRename {
@@ -1802,7 +1806,7 @@ impl LapceTab {
                         rev,
                         history,
                         changes,
-                        diff_extend_lines,
+                        diff_context_lines,
                         ..
                     } => {
                         ctx.set_handled();
@@ -1811,7 +1815,7 @@ impl LapceTab {
                             *rev,
                             history,
                             changes.clone(),
-                            *diff_extend_lines,
+                            *diff_context_lines,
                         );
                     }
                     LapceUICommand::UpdateHistoryStyle {

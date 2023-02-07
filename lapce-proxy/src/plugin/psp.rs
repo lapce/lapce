@@ -36,8 +36,8 @@ use lsp_types::{
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidChangeWatchedFilesRegistrationOptions, DidSaveTextDocumentParams,
-    DocumentSelector, HoverProviderCapability, LogMessageParams, OneOf,
-    ProgressParams, PublishDiagnosticsParams, Range, Registration,
+    DocumentSelector, HoverProviderCapability, InitializeResult, LogMessageParams,
+    OneOf, ProgressParams, PublishDiagnosticsParams, Range, Registration,
     RegistrationParams, SemanticTokens, SemanticTokensLegend,
     SemanticTokensServerCapabilities, ServerCapabilities, ShowMessageParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier,
@@ -98,6 +98,7 @@ impl<Resp, Error, F: Send + FnOnce(Result<Resp, Error>)> RpcCallback<Resp, Error
 
 pub enum PluginHandlerNotification {
     Initialize,
+    InitializeResult(InitializeResult),
     Shutdown,
 }
 

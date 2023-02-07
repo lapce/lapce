@@ -55,7 +55,6 @@ use crate::{
     data::{EditorDiagnostic, EditorView},
     editor::{EditorLocation, EditorPosition},
     find::{Find, FindProgress},
-    history,
     history::DocumentHistory,
     proxy::LapceProxy,
     selection_range::{SelectionRangeDirection, SyntaxSelectionRanges},
@@ -680,6 +679,7 @@ impl Document {
         locations: Vec<(WidgetId, EditorLocation<P>)>,
         unsaved_buffer: Option<Rope>,
         cb: Option<InitBufferContentCb>,
+        config: &LapceConfig,
     ) {
         if self.loaded || *self.load_started.borrow() {
             return;
@@ -712,15 +712,15 @@ impl Document {
             });
         }
 
-        self.retrieve_history("head");
+        self.retrieve_history("head", config.editor.diff_context_lines);
     }
 
-    pub fn retrieve_history(&mut self, version: &str) {
+    pub fn retrieve_history(&mut self, version: &str, diff_context_lines: i32) {
         if self.histories.contains_key(version) {
             return;
         }
 
-        let history = DocumentHistory::new(version.to_string());
+        let history = DocumentHistory::new(version.to_string(), diff_context_lines);
         history.retrieve(self);
         self.histories.insert(version.to_string(), history);
     }
@@ -731,8 +731,14 @@ impl Document {
         }
     }
 
-    pub fn load_history(&mut self, version: &str, content: Rope) {
-        let mut history = DocumentHistory::new(version.to_string());
+    pub fn load_history(
+        &mut self,
+        version: &str,
+        content: Rope,
+        diff_context_lines: i32,
+    ) {
+        let mut history =
+            DocumentHistory::new(version.to_string(), diff_context_lines);
         history.load_content(content, self);
         self.histories.insert(version.to_string(), history);
     }
@@ -831,13 +837,13 @@ impl Document {
 
     fn trigger_head_change(&self) {
         if let Some(head) = self.histories.get("head") {
-            head.trigger_update_change(self, history::DEFAULT_DIFF_EXTEND_LINES);
+            head.trigger_update_change(self);
         }
     }
 
-    pub fn trigger_history_change(&self, version: &str, extend_lines: usize) {
+    pub fn trigger_history_change(&self, version: &str) {
         if let Some(history) = self.histories.get(version) {
-            history.trigger_update_change(self, extend_lines);
+            history.trigger_update_change(self);
         }
     }
 
@@ -846,13 +852,13 @@ impl Document {
         rev: u64,
         version: &str,
         changes: Arc<Vec<DiffLines>>,
-        diff_extend_lines: usize,
+        diff_context_lines: i32,
     ) {
         if rev != self.rev() {
             return;
         }
         if let Some(history) = self.histories.get_mut(version) {
-            history.update_changes(changes, diff_extend_lines);
+            history.update_changes(changes, diff_context_lines);
         }
     }
 
