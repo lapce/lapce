@@ -19,7 +19,10 @@ use lapce_xi_rope::Rope;
 use lsp_types::{
     notification::{Initialized, Notification},
     request::{Initialize, Request},
-    *,
+    ClientInfo, DocumentFilter, DocumentSelector, InitializeParams,
+    InitializeResult, InitializedParams, SemanticTokens,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentSyncKind,
+    TraceValue, Url, WorkspaceFolder,
 };
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -389,7 +392,7 @@ impl LspClient {
     }
 }
 
-pub enum DocumentFilter {
+pub enum FileFilter {
     /// The document must have this language id, if it exists
     Language(String),
     /// The document's path must match this glob, if it exists
@@ -397,23 +400,21 @@ pub enum DocumentFilter {
     // TODO: URI Scheme from lsp-types document filter
 }
 
-impl DocumentFilter {
+impl FileFilter {
     /// Constructs a document filter from the LSP version
     /// This ignores any fields that are badly constructed
-    pub(crate) fn from_lsp_filter_loose(
-        filter: &lsp_types::DocumentFilter,
-    ) -> Vec<DocumentFilter> {
+    pub(crate) fn from_lsp_filter_loose(filter: &DocumentFilter) -> Vec<FileFilter> {
         filter
             .language
             .iter()
-            .map(|l| DocumentFilter::Language(l.to_string()))
+            .map(|l| FileFilter::Language(l.to_string()))
             .chain(
                 filter
                     .pattern
                     .as_deref()
                     .map(Glob::new)
                     .and_then(Result::ok)
-                    .map(|x| DocumentFilter::Pattern(Glob::compile_matcher(&x))),
+                    .map(|x| FileFilter::Pattern(Glob::compile_matcher(&x))),
             )
             .collect()
     }
@@ -428,10 +429,10 @@ impl DocumentFilter {
         S2: AsRef<Path>,
     {
         match self {
-            DocumentFilter::Language(l) => {
+            FileFilter::Language(l) => {
                 Some(l.as_str()) == language_id.as_ref().map(|s| s.as_ref())
             }
-            DocumentFilter::Pattern(g) => match path {
+            FileFilter::Pattern(g) => match path {
                 Some(p) => g.is_match(p.as_ref()),
                 None => false,
             },

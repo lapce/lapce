@@ -54,7 +54,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::{
-    lsp::{DocumentFilter, LspClient},
+    lsp::{FileFilter, LspClient},
     PluginCatalogRpcHandler,
 };
 
@@ -537,13 +537,13 @@ pub fn handle_plugin_server_message(
 
 struct SaveRegistration {
     include_text: bool,
-    filters: Vec<DocumentFilter>,
+    filters: Vec<FileFilter>,
 }
 
 #[derive(Default)]
 struct ServerRegistrations {
     save: Option<SaveRegistration>,
-    did_change: Vec<(WatchKind, DocumentFilter)>,
+    did_change: Vec<(WatchKind, FileFilter)>,
 }
 
 pub struct PluginHostHandler {
@@ -551,7 +551,7 @@ pub struct PluginHostHandler {
     volt_display_name: String,
     pwd: Option<PathBuf>,
     pub(crate) workspace: Option<PathBuf>,
-    document_selector: Vec<DocumentFilter>,
+    document_selector: Vec<FileFilter>,
     catalog_rpc: PluginCatalogRpcHandler,
     pub server_rpc: PluginServerRpcHandler,
     pub server_capabilities: ServerCapabilities,
@@ -570,7 +570,7 @@ impl PluginHostHandler {
     ) -> Self {
         let document_selector = document_selector
             .iter()
-            .flat_map(DocumentFilter::from_lsp_filter_loose)
+            .flat_map(FileFilter::from_lsp_filter_loose)
             .collect();
         Self {
             pwd,
@@ -806,7 +806,7 @@ impl PluginHostHandler {
                         .document_selector
                         .map(|s| {
                             s.iter()
-                                .flat_map(DocumentFilter::from_lsp_filter_loose)
+                                .flat_map(FileFilter::from_lsp_filter_loose)
                                 .collect()
                         })
                         .unwrap_or_default(),
@@ -827,7 +827,7 @@ impl PluginHostHandler {
                         Glob::new(fsw.glob_pattern.as_str()).ok().map(|ok| {
                             (
                                 fsw.kind.unwrap_or(WatchKind::all()),
-                                DocumentFilter::Pattern(ok.compile_matcher()),
+                                FileFilter::Pattern(ok.compile_matcher()),
                             )
                         })
                     })
