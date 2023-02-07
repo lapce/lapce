@@ -5,10 +5,26 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+lapce-core.workspace = true
 lapce-rpc.workspace = true
 lapce-proxy.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+once_cell.workspace = true
 crossbeam-channel.workspace = true
 parking_lot.workspace = true
+indexmap.workspace = true
+log.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+directories.workspace = true
+notify.workspace = true
+toml_edit.workspace = true
+sled = "0.34.7"
 tokio = { version = "1.21", features = ["full"] }
 futures = "0.3.26"
 floem = { path = "../../workspaces/floem" }
+config = { version = "0.13.2", default-features = false, features = ["toml"] }
+structdesc = { git = "https://github.com/lapce/structdesc" }

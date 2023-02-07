@@ -1,3 +1,10 @@
 pub mod app;
+pub mod command;
+pub mod config;
+pub mod db;
+pub mod keypress;
+pub mod palette;
 pub mod proxy;
 pub mod title;
+pub mod window_tab;
+pub mod workspace;

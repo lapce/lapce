@@ -17,7 +17,9 @@ pub struct Proxy {
     pub tx: Sender<CoreNotification>,
 }
 
+#[derive(Clone)]
 pub struct ProxyData {
+    pub rpc: ProxyRpcHandler,
     pub connected: ReadSignal<bool>,
     pub diff_info: ReadSignal<Option<DiffInfo>>,
 }
@@ -56,6 +58,7 @@ pub fn start_proxy(cx: AppContext) -> ProxyData {
     let (diff_info, set_diff_info) = create_signal(cx.scope, None);
 
     let proxy_data = ProxyData {
+        rpc: proxy_rpc,
         connected: proxy_connected,
         diff_info,
     };
