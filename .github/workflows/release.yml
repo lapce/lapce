@@ -103,7 +103,16 @@ jobs:
 
   linux:
     runs-on: ubuntu-latest
-    container: ubuntu:18.04
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            triple: x86_64-unknown-linux-gnu
+          - platform: linux/arm64
+            triple: aarch64-unknown-linux-gnu
+    container:
+      image: ubuntu:18.04
+      options: --platform ${{ matrix.platform }}
     needs: tagname
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
@@ -117,11 +126,10 @@ jobs:
           apt-get -y install cmake pkg-config libfontconfig-dev libgtk-3-dev
       
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: x86_64-unknown-linux-gnu
-          profile: minimal
+        run: |
+          curl https://sh.rustup.rs --proto '=https' --tlsv1.2 -sSf > rustup.sh
+          chmod +x rustup.sh
+          ./rustup.sh --profile minimal --default-toolchain stable --default-host ${{ matrix.triple }}
 
       - name: Fetch dependencies
         run: cargo fetch --locked
