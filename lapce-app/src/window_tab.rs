@@ -10,7 +10,7 @@ use crate::{
     config::LapceConfig,
     db::LapceDb,
     keypress::{KeyPressData, KeyPressFocus},
-    palette::PaletteData,
+    palette::{kind::PaletteKind, PaletteData},
     proxy::{start_proxy, ProxyData},
     workspace::LapceWorkspace,
 };
@@ -45,7 +45,7 @@ impl WindowTabData {
 
         let proxy = start_proxy(cx);
 
-        let palette = PaletteData::new(cx, proxy.rpc.clone());
+        let palette = PaletteData::new(cx, workspace, proxy.rpc.clone());
 
         Self {
             palette,
@@ -55,7 +55,7 @@ impl WindowTabData {
         }
     }
 
-    pub fn run_workbench_command(&self, cmd: LapceWorkbenchCommand) {
+    pub fn run_workbench_command(&self, cx: AppContext, cmd: LapceWorkbenchCommand) {
         use LapceWorkbenchCommand::*;
         match cmd {
             EnableModal => todo!(),
@@ -92,7 +92,9 @@ impl WindowTabData {
             ConnectWsl => todo!(),
             DisconnectRemote => todo!(),
             PaletteLine => todo!(),
-            Palette => todo!(),
+            Palette => {
+                self.palette.run(cx, PaletteKind::File);
+            }
             PaletteSymbol => todo!(),
             PaletteWorkspaceSymbol => todo!(),
             PaletteCommand => todo!(),

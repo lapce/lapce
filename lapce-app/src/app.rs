@@ -8,10 +8,13 @@ use floem::{
         create_effect, create_signal, provide_context, use_context, WriteSignal,
     },
     stack::stack,
-    style::{AlignItems, Dimension, FlexDirection, Style},
+    style::{
+        AlignContent, AlignItems, Dimension, FlexDirection, JustifyContent,
+        Position, Style,
+    },
     view::View,
     views::label,
-    views::Decorators,
+    views::{container, Decorators},
 };
 
 use crate::{
@@ -20,13 +23,13 @@ use crate::{
     db::LapceDb,
     keypress::{condition::Condition, DefaultKeyPress, KeyPressData, KeyPressFocus},
     palette::PaletteData,
-    proxy::start_proxy,
+    proxy::{start_proxy, ProxyData},
     title::title,
     window_tab::WindowTabData,
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
-fn workbench(cx: AppContext) -> impl View {
+fn main_split(cx: AppContext) -> impl View {
     let (couter, set_couter) = create_signal(cx.scope, 0);
     stack(cx, move |cx| {
         (
@@ -54,32 +57,41 @@ fn status(cx: AppContext) -> impl View {
     label(cx, move || "status".to_string())
 }
 
-fn app_logic(cx: AppContext) -> impl View {
-    let db = Arc::new(LapceDb::new().unwrap());
-    provide_context(cx.scope, db.clone());
+fn palette(cx: AppContext) -> impl View {
+    container(cx, |cx| {
+        container(cx, |cx| {
+            stack(cx, move |cx| {
+                (
+                    label(cx, move || "palette".to_string()),
+                    label(cx, move || "palette content".to_string()),
+                )
+            })
+            .style(cx, || Style {
+                width: Dimension::Percent(1.0),
+                flex_direction: FlexDirection::Column,
+                ..Default::default()
+            })
+        })
+        .style(cx, || Style {
+            width: Dimension::Points(500.0),
+            border: 1.0,
+            ..Default::default()
+        })
+    })
+    .style(cx, || Style {
+        position: Position::Absolute,
+        width: Dimension::Percent(1.0),
+        height: Dimension::Percent(1.0),
+        justify_content: Some(AlignContent::Center),
+        ..Default::default()
+    })
+}
 
-    let workspace = Arc::new(LapceWorkspace {
-        kind: LapceWorkspaceType::Local,
-        path: Some(PathBuf::from("/Users/Lulu/lapce")),
-        last_open: 0,
-    });
-
-    let window_tab = WindowTabData::new(cx, workspace);
-    let workbench_command = window_tab.workbench_command;
-
-    {
-        let window_tab = window_tab.clone();
-        create_effect(cx.scope, move |_| {
-            if let Some(cmd) = workbench_command.get() {
-                window_tab.run_workbench_command(cmd);
-            }
-        });
-    }
-
-    let proxy_data = window_tab.proxy.clone();
-    let keypress = window_tab.keypress;
-    let app = stack(cx, move |cx| {
-        (title(cx, &proxy_data), workbench(cx), status(cx))
+fn workbench(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+    let proxy_data = window_tab_data.proxy;
+    let keypress = window_tab_data.keypress;
+    let workbench = stack(cx, move |cx| {
+        (title(cx, &proxy_data), main_split(cx), status(cx))
     })
     .style(cx, || Style {
         width: Dimension::Percent(1.0),
@@ -96,9 +108,46 @@ fn app_logic(cx: AppContext) -> impl View {
         }
         true
     });
-    let id = app.id();
+
+    let id = workbench.id();
     cx.update_focus(id);
-    app
+    workbench
+}
+
+fn window_tab(cx: AppContext, workspace: Arc<LapceWorkspace>) -> impl View {
+    let window_tab_data = WindowTabData::new(cx, workspace);
+    let workbench_command = window_tab_data.workbench_command;
+
+    {
+        let window_tab_data = window_tab_data.clone();
+        create_effect(cx.scope, move |_| {
+            if let Some(cmd) = workbench_command.get() {
+                window_tab_data.run_workbench_command(cx, cmd);
+            }
+        });
+    }
+
+    stack(cx, move |cx| {
+        (workbench(cx, window_tab_data.clone()), palette(cx))
+    })
+    .style(cx, || Style {
+        width: Dimension::Percent(1.0),
+        height: Dimension::Percent(1.0),
+        ..Default::default()
+    })
+}
+
+fn app_logic(cx: AppContext) -> impl View {
+    let db = Arc::new(LapceDb::new().unwrap());
+    provide_context(cx.scope, db);
+
+    let workspace = Arc::new(LapceWorkspace {
+        kind: LapceWorkspaceType::Local,
+        path: Some(PathBuf::from("/Users/Lulu/lapce")),
+        last_open: 0,
+    });
+
+    window_tab(cx, workspace)
 }
 
 pub fn launch() {
