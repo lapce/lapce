@@ -22,9 +22,9 @@ use lapce_rpc::{
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::{
-        DidChangeTextDocument, DidChangeWatchedFiles, DidOpenTextDocument,
-        DidSaveTextDocument, Initialized, LogMessage, Notification, Progress,
-        PublishDiagnostics, ShowMessage,
+        DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument,
+        DidOpenTextDocument, DidSaveTextDocument, Initialized, LogMessage,
+        Notification, Progress, PublishDiagnostics, ShowMessage,
     },
     request::{
         CodeActionRequest, CodeActionResolveRequest, Completion,
@@ -35,14 +35,15 @@ use lsp_types::{
         WorkDoneProgressCreate, WorkspaceSymbol,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
-    DidChangeWatchedFilesRegistrationOptions, DidSaveTextDocumentParams,
-    DocumentSelector, HoverProviderCapability, InitializeResult, LogMessageParams,
-    OneOf, ProgressParams, PublishDiagnosticsParams, Range, Registration,
+    DidChangeWatchedFilesRegistrationOptions, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentSelector,
+    HoverProviderCapability, InitializeResult, LogMessageParams, OneOf,
+    ProgressParams, PublishDiagnosticsParams, Range, Registration,
     RegistrationParams, SemanticTokens, SemanticTokensLegend,
     SemanticTokensServerCapabilities, ServerCapabilities, ShowMessageParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncSaveOptions,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentRegistrationOptions, TextDocumentSaveRegistrationOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncSaveOptions,
     VersionedTextDocumentIdentifier, WatchKind,
 };
 use parking_lot::Mutex;
@@ -135,6 +136,15 @@ pub enum PluginServerRpc {
         text_document: TextDocumentIdentifier,
         text: Rope,
     },
+    DidOpenTextDocument {
+        language_id: String,
+        path: Option<PathBuf>,
+        document: TextDocumentItem,
+    },
+    DidCloseTextDocument {
+        path: Option<PathBuf>,
+        document: TextDocumentIdentifier,
+    },
     DidChangeTextDocument {
         language_id: String,
         document: VersionedTextDocumentIdentifier,
@@ -191,6 +201,17 @@ pub trait PluginServerHandler {
         path: PathBuf,
         text_document: TextDocumentIdentifier,
         text: Rope,
+    );
+    fn handle_did_open_text_document(
+        &self,
+        language_id: String,
+        path: Option<PathBuf>,
+        text: TextDocumentItem,
+    );
+    fn handle_did_close_text_document(
+        &self,
+        path: Option<PathBuf>,
+        text: TextDocumentIdentifier,
     );
     fn handle_did_change_text_document(
         &mut self,
@@ -443,6 +464,29 @@ impl PluginServerRpcHandler {
                         );
                     }
                 }
+                PluginServerRpc::DidOpenTextDocument {
+                    language_id,
+                    path,
+                    document: text,
+                } => {
+                    if handler.document_supported(
+                        Some(language_id.as_str()),
+                        path.as_ref().map(|p| p.as_path()),
+                    ) {
+                        handler.handle_did_open_text_document(
+                            language_id,
+                            path,
+                            text,
+                        );
+                    }
+                }
+                PluginServerRpc::DidCloseTextDocument { path, document } => {
+                    if handler
+                        .document_supported(None, path.as_ref().map(|p| p.as_path()))
+                    {
+                        handler.handle_did_close_text_document(path, document);
+                    }
+                }
                 PluginServerRpc::DidChangeTextDocument {
                     language_id,
                     document,
@@ -545,6 +589,7 @@ struct SaveRegistration {
 struct ServerRegistrations {
     save: Option<SaveRegistration>,
     did_change: Vec<(WatchKind, FileFilter)>,
+    open_close: Vec<FileFilter>,
 }
 
 pub struct PluginHostHandler {
@@ -614,14 +659,20 @@ impl PluginHostHandler {
                     Some(TextDocumentSyncCapability::Kind(kind)) => {
                         kind != &TextDocumentSyncKind::NONE
                     }
-                    Some(TextDocumentSyncCapability::Options(options)) => options
-                        .open_close
-                        .or_else(|| {
-                            options
-                                .change
-                                .map(|kind| kind != TextDocumentSyncKind::NONE)
-                        })
-                        .unwrap_or(false),
+                    Some(TextDocumentSyncCapability::Options(options)) => {
+                        options.open_close.unwrap_or(false)
+                    }
+                    None => false,
+                }
+            }
+            DidCloseTextDocument::METHOD => {
+                match &self.server_capabilities.text_document_sync {
+                    Some(TextDocumentSyncCapability::Kind(kind)) => {
+                        kind != &TextDocumentSyncKind::NONE
+                    }
+                    Some(TextDocumentSyncCapability::Options(options)) => {
+                        options.open_close.unwrap_or(false)
+                    }
                     None => false,
                 }
             }
@@ -734,6 +785,7 @@ impl PluginHostHandler {
                             }
                         }
                     }
+                    Tds::OpenClose => return o.open_close.unwrap_or(false),
                     Tds::Save => {
                         if let Some(o) = o.save.as_ref() {
                             match o {
@@ -779,6 +831,13 @@ impl PluginHostHandler {
                         .any(|d| d.matches_any(language_id, path));
                 }
             }
+            Tds::OpenClose => {
+                return self
+                    .server_registrations
+                    .open_close
+                    .iter()
+                    .any(|doc| doc.matches_any(language_id, path))
+            }
         }
 
         false
@@ -812,6 +871,58 @@ impl PluginHostHandler {
                         })
                         .unwrap_or_default(),
                 });
+            }
+            // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_didOpen
+            // Tells us that the LSP in the opening of the following set of files.
+            DidOpenTextDocument::METHOD => {
+                let options = registration
+                    .register_options
+                    .ok_or_else(|| anyhow!("don't have options"))?;
+                let options: TextDocumentRegistrationOptions =
+                    serde_json::from_value(options)?;
+                self.server_registrations.open_close.extend(
+                    options
+                        .document_selector
+                        .unwrap_or_default()
+                        .into_iter()
+                        .flat_map(|df| {
+                            let language =
+                                df.language.map(|s| FileFilter::Language(s));
+                            let pattern = df
+                                .pattern
+                                .map(|s| Glob::new(s.as_str()).ok())
+                                .flatten()
+                                .map(|s| FileFilter::Pattern(s.compile_matcher()));
+
+                            language.into_iter().chain(pattern.into_iter())
+                        }),
+                );
+            }
+            // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_didOpen
+            // Tells us that the LSP in the closing of the following set of files.
+            DidCloseTextDocument::METHOD => {
+                let options = registration
+                    .register_options
+                    .ok_or_else(|| anyhow!("don't have options"))?;
+                let options: TextDocumentRegistrationOptions =
+                    serde_json::from_value(options)?;
+                self.server_registrations.open_close.extend(
+                    options
+                        .document_selector
+                        .unwrap_or_default()
+                        .into_iter()
+                        .flat_map(|df| {
+                            let language =
+                                df.language.map(|s| FileFilter::Language(s));
+                            let pattern = df
+                                .pattern
+                                .map(|s| Glob::new(s.as_str()).ok())
+                                .flatten()
+                                .map(|s| FileFilter::Pattern(s.compile_matcher()));
+
+                            language.into_iter().chain(pattern.into_iter())
+                        }),
+                );
             }
             // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#workspace_didChangeWatchedFiles
             // Tells us that the LSP is interested in any changes to the files/folders that match
@@ -939,6 +1050,59 @@ impl PluginHostHandler {
             }
         }
         Ok(())
+    }
+
+    pub fn handle_did_open_text_document(
+        &self,
+        language_id: String,
+        path: Option<PathBuf>,
+        document: TextDocumentItem,
+    ) {
+        if !self.check_server_capability_for_text_document_sync(Tds::OpenClose)
+            || !self.check_server_file_filter(
+                Some(language_id.as_str()),
+                path.as_ref().map(|p| p.as_path()),
+                Tds::OpenClose,
+            )
+        {
+            return;
+        }
+
+        self.server_rpc.server_notification(
+            DidOpenTextDocument::METHOD,
+            DidOpenTextDocumentParams {
+                text_document: document,
+            },
+            Some(language_id),
+            path,
+            true,
+        );
+    }
+
+    pub fn handle_did_close_text_document(
+        &self,
+        path: Option<PathBuf>,
+        document: TextDocumentIdentifier,
+    ) {
+        if !self.check_server_capability_for_text_document_sync(Tds::OpenClose)
+            || !self.check_server_file_filter(
+                None,
+                path.as_ref().map(|p| p.as_path()),
+                Tds::OpenClose,
+            )
+        {
+            return;
+        }
+
+        self.server_rpc.server_notification(
+            DidCloseTextDocument::METHOD,
+            DidCloseTextDocumentParams {
+                text_document: document,
+            },
+            None,
+            path,
+            true,
+        );
     }
 
     pub fn handle_did_save_text_document(
@@ -1192,8 +1356,8 @@ fn semantic_tokens_legend(
 enum Tds {
     Change,
     Save,
+    OpenClose,
     // TODO: Implement the following
-    // OpenClose,
     // WillSave,
     // WillSaveWaitUntil,
 }

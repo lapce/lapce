@@ -24,7 +24,7 @@ use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::Initialized, request::Initialize, DocumentFilter,
     InitializeParams, InitializedParams, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, Url, VersionedTextDocumentIdentifier,
+    TextDocumentIdentifier, TextDocumentItem, Url, VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
@@ -147,6 +147,24 @@ impl PluginServerHandler for Plugin {
             text_document,
             text,
         );
+    }
+
+    fn handle_did_open_text_document(
+        &self,
+        language_id: String,
+        path: Option<PathBuf>,
+        document: TextDocumentItem,
+    ) {
+        self.host
+            .handle_did_open_text_document(language_id, path, document);
+    }
+
+    fn handle_did_close_text_document(
+        &self,
+        path: Option<PathBuf>,
+        document: TextDocumentIdentifier,
+    ) {
+        self.host.handle_did_close_text_document(path, document);
     }
 
     fn handle_did_change_text_document(

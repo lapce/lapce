@@ -21,8 +21,8 @@ use lsp_types::{
     request::{Initialize, Request},
     ClientInfo, DocumentFilter, DocumentSelector, InitializeParams,
     InitializeResult, InitializedParams, SemanticTokens,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentSyncKind,
-    TraceValue, Url, WorkspaceFolder,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentSyncKind, TraceValue, Url, WorkspaceFolder,
 };
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -126,6 +126,24 @@ impl PluginServerHandler for LspClient {
             text_document,
             text,
         );
+    }
+
+    fn handle_did_open_text_document(
+        &self,
+        language_id: String,
+        path: Option<PathBuf>,
+        text: TextDocumentItem,
+    ) {
+        self.host
+            .handle_did_open_text_document(language_id, path, text);
+    }
+
+    fn handle_did_close_text_document(
+        &self,
+        path: Option<PathBuf>,
+        text: TextDocumentIdentifier,
+    ) {
+        self.host.handle_did_close_text_document(path, text);
     }
 
     fn handle_did_change_text_document(

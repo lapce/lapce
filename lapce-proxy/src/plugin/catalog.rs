@@ -241,17 +241,24 @@ impl PluginCatalog {
             .collect();
         self.start_unactivated_volts(to_be_activated);
 
-        let path = document.uri.to_file_path().ok();
         for (_, plugin) in self.plugins.iter() {
-            plugin.server_notification(
-                DidOpenTextDocument::METHOD,
-                DidOpenTextDocumentParams {
-                    text_document: document.clone(),
-                },
-                Some(language_id.clone()),
-                path.clone(),
-                true,
-            );
+            plugin.handle_rpc(PluginServerRpc::DidOpenTextDocument {
+                language_id: language_id.clone(),
+                path: document.uri.to_file_path().ok(),
+                document: document.clone(),
+            });
+        }
+    }
+
+    pub fn handle_did_close_text_document(
+        &mut self,
+        document: TextDocumentIdentifier,
+    ) {
+        for (_, plugin) in self.plugins.iter() {
+            plugin.handle_rpc(PluginServerRpc::DidCloseTextDocument {
+                path: document.uri.to_file_path().ok(),
+                document: document.clone(),
+            });
         }
     }
 
