@@ -47,6 +47,7 @@ atomic-soft-tabs = false
 double-click = false
 move-focus-while-search = true
 diff-context-lines=3
+scroll-speed-modifier=1
 
 [terminal]
 font-family = ""
