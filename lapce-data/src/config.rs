@@ -475,6 +475,10 @@ pub struct EditorConfig {
         desc = "Set the default number of visible lines above and below the diff block (-1 for infinite)"
     )]
     pub diff_context_lines: i32,
+    #[field_names(
+        desc = "Scroll speed modifier. The scroll delta will be multiplied by whatever the value is povided here. Defaults to 1."
+    )]
+    pub scroll_speed_modifier: f64,
 }
 
 impl EditorConfig {
