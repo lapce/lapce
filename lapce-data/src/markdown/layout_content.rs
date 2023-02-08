@@ -119,6 +119,14 @@ impl LayoutContent {
         }
     }
 
+    pub fn needs_rebuild(&self) -> bool {
+        match self {
+            LayoutContent::Text(layout) => layout.needs_rebuild(),
+            LayoutContent::BrokenImage { text } => text.needs_rebuild(),
+            LayoutContent::Image { .. } | LayoutContent::Separator { .. } => false,
+        }
+    }
+
     pub fn rebuild_if_needed(&mut self, factory: &mut PietText, env: &Env) {
         match self {
             LayoutContent::Text(layout) => {

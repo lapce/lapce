@@ -1220,9 +1220,11 @@ impl Widget<LapceTabData> for PluginInfo {
             y += self.gap;
 
             for layout in &self.readme_layout {
-                let origin = Point::new(padding + self.padding, y);
-                layout.draw(ctx, &data.images, &data.config, origin);
-                y += layout.size(&data.images, &data.config).height;
+                if !layout.needs_rebuild() {
+                    let origin = Point::new(padding + self.padding, y);
+                    layout.draw(ctx, &data.images, &data.config, origin);
+                    y += layout.size(&data.images, &data.config).height;
+                }
             }
         }
     }
