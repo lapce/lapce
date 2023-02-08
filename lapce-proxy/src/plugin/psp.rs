@@ -471,7 +471,7 @@ impl PluginServerRpcHandler {
                 } => {
                     if handler.document_supported(
                         Some(language_id.as_str()),
-                        path.as_ref().map(|p| p.as_path()),
+                        path.as_deref(),
                     ) {
                         handler.handle_did_open_text_document(
                             language_id,
@@ -481,9 +481,7 @@ impl PluginServerRpcHandler {
                     }
                 }
                 PluginServerRpc::DidCloseTextDocument { path, document } => {
-                    if handler
-                        .document_supported(None, path.as_ref().map(|p| p.as_path()))
-                    {
+                    if handler.document_supported(None, path.as_deref()) {
                         handler.handle_did_close_text_document(path, document);
                     }
                 }
@@ -886,12 +884,10 @@ impl PluginHostHandler {
                         .unwrap_or_default()
                         .into_iter()
                         .flat_map(|df| {
-                            let language =
-                                df.language.map(|s| FileFilter::Language(s));
+                            let language = df.language.map(FileFilter::Language);
                             let pattern = df
                                 .pattern
-                                .map(|s| Glob::new(s.as_str()).ok())
-                                .flatten()
+                                .and_then(|s| Glob::new(s.as_str()).ok())
                                 .map(|s| FileFilter::Pattern(s.compile_matcher()));
 
                             language.into_iter().chain(pattern.into_iter())
@@ -912,12 +908,10 @@ impl PluginHostHandler {
                         .unwrap_or_default()
                         .into_iter()
                         .flat_map(|df| {
-                            let language =
-                                df.language.map(|s| FileFilter::Language(s));
+                            let language = df.language.map(FileFilter::Language);
                             let pattern = df
                                 .pattern
-                                .map(|s| Glob::new(s.as_str()).ok())
-                                .flatten()
+                                .and_then(|s| Glob::new(s.as_str()).ok())
                                 .map(|s| FileFilter::Pattern(s.compile_matcher()));
 
                             language.into_iter().chain(pattern.into_iter())
@@ -1061,7 +1055,7 @@ impl PluginHostHandler {
         if !self.check_server_capability_for_text_document_sync(Tds::OpenClose)
             || !self.check_server_file_filter(
                 Some(language_id.as_str()),
-                path.as_ref().map(|p| p.as_path()),
+                path.as_deref(),
                 Tds::OpenClose,
             )
         {
@@ -1085,11 +1079,7 @@ impl PluginHostHandler {
         document: TextDocumentIdentifier,
     ) {
         if !self.check_server_capability_for_text_document_sync(Tds::OpenClose)
-            || !self.check_server_file_filter(
-                None,
-                path.as_ref().map(|p| p.as_path()),
-                Tds::OpenClose,
-            )
+            || !self.check_server_file_filter(None, path.as_deref(), Tds::OpenClose)
         {
             return;
         }
