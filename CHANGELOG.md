@@ -25,6 +25,7 @@
 - [#2045](https://github.com/lapce/lapce/pull/2045): Add 'Rename Symbol' option on right-click
 - [#2071](https://github.com/lapce/lapce/pull/2071): Add command and keybinds to delete line
 - [#2073](https://github.com/lapce/lapce/pull/2073): Add Ctrl+{a,e,k} keybinds on macOS
+- [#2126](https://github.com/lapce/lapce/pull/2126) Reflect diagnostic issues in the file explorer
 
 ### Bug Fixes
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys
