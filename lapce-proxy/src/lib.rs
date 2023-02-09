@@ -18,6 +18,7 @@ use clap::Parser;
 use dispatch::Dispatcher;
 use lapce_core::{directory::Directory, meta};
 use lapce_rpc::{
+    canon_path::CanonPath,
     core::{CoreRpc, CoreRpcHandler},
     proxy::{ProxyMessage, ProxyNotification, ProxyRpcHandler},
     stdio::stdio_transport,
@@ -133,8 +134,18 @@ fn try_open_in_existing_process(paths: &[PathBuf]) -> Result<()> {
         .ok_or_else(|| anyhow!("can't get local socket folder"))?;
     let mut socket =
         interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
-    let folders: Vec<_> = paths.iter().filter(|p| p.is_dir()).cloned().collect();
-    let files: Vec<_> = paths.iter().filter(|p| p.is_file()).cloned().collect();
+    let folders: Vec<_> = paths
+        .iter()
+        .filter(|p| p.is_dir())
+        .cloned()
+        .map(CanonPath::from_pathbuf)
+        .collect();
+    let files: Vec<_> = paths
+        .iter()
+        .filter(|p| p.is_file())
+        .cloned()
+        .map(CanonPath::from_pathbuf)
+        .collect();
     let msg: ProxyMessage =
         RpcMessage::Notification(ProxyNotification::OpenPaths { folders, files });
     lapce_rpc::stdio::write_msg(&mut socket, msg)?;

@@ -1,6 +1,7 @@
 #![allow(clippy::manual_clamp)]
 
 pub mod buffer;
+pub mod canon_path;
 pub mod core;
 pub mod counter;
 pub mod file;

@@ -293,7 +293,10 @@ impl FileExplorerData {
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateExplorerItems {
                         path,
-                        items,
+                        items: items
+                            .into_iter()
+                            .map(|(k, v)| (k.to_pathbuf(), v))
+                            .collect(),
                         expand,
                     },
                     Target::Widget(tab_id),

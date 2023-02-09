@@ -19,6 +19,7 @@ use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{sinks::UTF8, SearcherBuilder};
 use indexmap::IndexMap;
 use lapce_rpc::{
+    canon_path::CanonPath,
     core::{CoreNotification, CoreRpcHandler},
     file::FileNodeItem,
     proxy::{
@@ -70,7 +71,7 @@ impl ProxyHandler for Dispatcher {
             } => {
                 self.window_id = window_id;
                 self.tab_id = tab_id;
-                self.workspace = workspace;
+                self.workspace = workspace.map(CanonPath::to_pathbuf);
                 self.file_watcher.notify(FileWatchNotifier::new(
                     self.workspace.clone(),
                     self.core_rpc.clone(),
@@ -102,6 +103,9 @@ impl ProxyHandler for Dispatcher {
                 }
             }
             OpenPaths { folders, files } => {
+                let folders =
+                    folders.into_iter().map(CanonPath::to_pathbuf).collect();
+                let files = files.into_iter().map(CanonPath::to_pathbuf).collect();
                 self.core_rpc.notification(CoreNotification::OpenPaths {
                     window_tab_id: Some((self.window_id, self.tab_id)),
                     folders,
@@ -109,12 +113,12 @@ impl ProxyHandler for Dispatcher {
                 });
             }
             OpenFileChanged { path } => {
-                if let Some(buffer) = self.buffers.get(&path) {
+                if let Some(buffer) = self.buffers.get(path.as_path()) {
                     if get_mod_time(&buffer.path) == buffer.mod_time {
                         return;
                     }
                     if let Ok(content) = load_file(&buffer.path) {
-                        self.core_rpc.open_file_changed(path, content);
+                        self.core_rpc.open_file_changed(path.to_pathbuf(), content);
                     }
                 }
             }
@@ -124,15 +128,23 @@ impl ProxyHandler for Dispatcher {
                 input,
                 position,
             } => {
-                self.catalog_rpc
-                    .completion(request_id, &path, input, position);
+                self.catalog_rpc.completion(
+                    request_id,
+                    path.as_path(),
+                    input,
+                    position,
+                );
             }
             SignatureHelp {
                 request_id,
                 path,
                 position,
             } => {
-                self.catalog_rpc.signature_help(request_id, &path, position);
+                self.catalog_rpc.signature_help(
+                    request_id,
+                    path.as_path(),
+                    position,
+                );
             }
             Shutdown {} => {
                 self.catalog_rpc.shutdown();
@@ -143,11 +155,11 @@ impl ProxyHandler for Dispatcher {
                 self.proxy_rpc.shutdown();
             }
             Update { path, delta, rev } => {
-                let buffer = self.buffers.get_mut(&path).unwrap();
+                let buffer = self.buffers.get_mut(path.as_path()).unwrap();
                 let old_text = buffer.rope.clone();
                 buffer.update(&delta, rev);
                 self.catalog_rpc.did_change_text_document(
-                    &path,
+                    path.as_path(),
                     rev,
                     delta,
                     old_text,
@@ -162,7 +174,13 @@ impl ProxyHandler for Dispatcher {
                 cwd,
                 shell,
             } => {
-                let mut terminal = Terminal::new(term_id, cwd, shell, 50, 10);
+                let mut terminal = Terminal::new(
+                    term_id,
+                    cwd.map(CanonPath::to_pathbuf),
+                    shell,
+                    50,
+                    10,
+                );
                 let tx = terminal.tx.clone();
                 self.terminals.insert(term_id, tx);
                 let rpc = self.core_rpc.clone();
@@ -269,16 +287,20 @@ impl ProxyHandler for Dispatcher {
         use ProxyRequest::*;
         match rpc {
             NewBuffer { buffer_id, path } => {
-                let buffer = Buffer::new(buffer_id, path.clone());
+                let buffer = Buffer::new(buffer_id, path.clone().to_pathbuf());
                 let content = buffer.rope.to_string();
                 self.catalog_rpc.did_open_document(
-                    &path,
+                    path.as_path(),
                     buffer.language_id.to_string(),
                     buffer.rev as i32,
                     content.clone(),
                 );
-                self.file_watcher.watch(&path, false, OPEN_FILE_EVENT_TOKEN);
-                self.buffers.insert(path, buffer);
+                self.file_watcher.watch(
+                    path.as_path(),
+                    false,
+                    OPEN_FILE_EVENT_TOKEN,
+                );
+                self.buffers.insert(path.to_pathbuf(), buffer);
                 self.respond_rpc(
                     id,
                     Ok(ProxyResponse::NewBufferResponse { content }),
@@ -286,7 +308,7 @@ impl ProxyHandler for Dispatcher {
             }
             BufferHead { path } => {
                 let result = if let Some(workspace) = self.workspace.as_ref() {
-                    let result = file_get_head(workspace, &path);
+                    let result = file_get_head(workspace, path.as_path());
                     if let Ok((_blob_id, content)) = result {
                         Ok(ProxyResponse::BufferHeadResponse {
                             version: "head".to_string(),
@@ -368,19 +390,22 @@ impl ProxyHandler for Dispatcher {
                 position,
             } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc.hover(&path, position, move |_, result| {
-                    let result = result.map(|hover| ProxyResponse::HoverResponse {
-                        request_id,
-                        hover,
-                    });
-                    proxy_rpc.handle_response(id, result);
-                });
+                self.catalog_rpc.hover(
+                    path.as_path(),
+                    position,
+                    move |_, result| {
+                        let result = result.map(|hover| {
+                            ProxyResponse::HoverResponse { request_id, hover }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
             }
             GetSignature { .. } => {}
             GetReferences { path, position } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc.get_references(
-                    &path,
+                    path.as_path(),
                     position,
                     move |_, result| {
                         let result = result.map(|references| {
@@ -392,7 +417,7 @@ impl ProxyHandler for Dispatcher {
             }
             GitGetRemoteFileUrl { file } => {
                 if let Some(workspace) = self.workspace.as_ref() {
-                    match git_get_remote_file_url(workspace, &file) {
+                    match git_get_remote_file_url(workspace, file.as_path()) {
                         Ok(s) => self.proxy_rpc.handle_response(
                             id,
                             Ok(ProxyResponse::GitGetRemoteFileUrl { file_url: s }),
@@ -408,7 +433,7 @@ impl ProxyHandler for Dispatcher {
             } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc.get_definition(
-                    &path,
+                    path.as_path(),
                     position,
                     move |_, result| {
                         let result = result.map(|definition| {
@@ -428,7 +453,7 @@ impl ProxyHandler for Dispatcher {
             } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc.get_type_definition(
-                    &path,
+                    path.as_path(),
                     position,
                     move |_, result| {
                         let result = result.map(|definition| {
@@ -443,20 +468,23 @@ impl ProxyHandler for Dispatcher {
             }
             GetInlayHints { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                let buffer = self.buffers.get(&path).unwrap();
+                let buffer = self.buffers.get(path.as_path()).unwrap();
                 let range = Range {
                     start: Position::new(0, 0),
                     end: buffer.offset_to_position(buffer.len()),
                 };
-                self.catalog_rpc
-                    .get_inlay_hints(&path, range, move |_, result| {
+                self.catalog_rpc.get_inlay_hints(
+                    path.as_path(),
+                    range,
+                    move |_, result| {
                         let result = result
                             .map(|hints| ProxyResponse::GetInlayHints { hints });
                         proxy_rpc.handle_response(id, result);
-                    });
+                    },
+                );
             }
             GetSemanticTokens { path } => {
-                let buffer = self.buffers.get(&path).unwrap();
+                let buffer = self.buffers.get(path.as_path()).unwrap();
                 let text = buffer.rope.clone();
                 let rev = buffer.rev;
                 let len = buffer.len();
@@ -472,7 +500,7 @@ impl ProxyHandler for Dispatcher {
                                 Ok(ProxyResponse::GetSemanticTokens {
                                     styles: SemanticStyles {
                                         rev,
-                                        path: local_path,
+                                        path: local_path.to_pathbuf(),
                                         styles,
                                         len,
                                     },
@@ -486,7 +514,7 @@ impl ProxyHandler for Dispatcher {
 
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc.get_semantic_tokens(
-                    &path,
+                    path.as_path(),
                     move |plugin_id, result| match result {
                         Ok(result) => {
                             catalog_rpc.format_semantic_tokens(
@@ -509,7 +537,7 @@ impl ProxyHandler for Dispatcher {
             } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc.get_code_actions(
-                    &path,
+                    path.as_path(),
                     position,
                     diagnostics,
                     move |plugin_id, result| {
@@ -522,12 +550,14 @@ impl ProxyHandler for Dispatcher {
             }
             GetDocumentSymbols { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc
-                    .get_document_symbols(&path, move |_, result| {
+                self.catalog_rpc.get_document_symbols(
+                    path.as_path(),
+                    move |_, result| {
                         let result = result
                             .map(|resp| ProxyResponse::GetDocumentSymbols { resp });
                         proxy_rpc.handle_response(id, result);
-                    });
+                    },
+                );
             }
             GetWorkspaceSymbols { query } => {
                 let proxy_rpc = self.proxy_rpc.clone();
@@ -541,18 +571,20 @@ impl ProxyHandler for Dispatcher {
             }
             GetDocumentFormatting { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc
-                    .get_document_formatting(&path, move |_, result| {
+                self.catalog_rpc.get_document_formatting(
+                    path.as_path(),
+                    move |_, result| {
                         let result = result.map(|edits| {
                             ProxyResponse::GetDocumentFormatting { edits }
                         });
                         proxy_rpc.handle_response(id, result);
-                    });
+                    },
+                );
             }
             PrepareRename { path, position } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc.prepare_rename(
-                    &path,
+                    path.as_path(),
                     position,
                     move |_, result| {
                         let result =
@@ -568,7 +600,7 @@ impl ProxyHandler for Dispatcher {
             } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc.rename(
-                    &path,
+                    path.as_path(),
                     position,
                     new_name,
                     move |_, result| {
@@ -607,7 +639,9 @@ impl ProxyHandler for Dispatcher {
                         for path in walker.flatten() {
                             if let Some(file_type) = path.file_type() {
                                 if file_type.is_file() {
-                                    items.push(path.into_path());
+                                    items.push(CanonPath::from_pathbuf(
+                                        path.into_path(),
+                                    ));
                                 }
                             }
                         }
@@ -646,7 +680,7 @@ impl ProxyHandler for Dispatcher {
                                     entry
                                         .map(|e| {
                                             (
-                                                e.path(),
+                                                CanonPath::from_pathbuf(e.path()),
                                                 FileNodeItem {
                                                     path_buf: e.path(),
                                                     is_dir: e.path().is_dir(),
@@ -659,7 +693,7 @@ impl ProxyHandler for Dispatcher {
                                         })
                                         .ok()
                                 })
-                                .collect::<HashMap<PathBuf, FileNodeItem>>();
+                                .collect::<HashMap<CanonPath, FileNodeItem>>();
 
                             ProxyResponse::ReadDirResponse { items }
                         })
@@ -671,12 +705,14 @@ impl ProxyHandler for Dispatcher {
                 });
             }
             Save { rev, path } => {
-                let buffer = self.buffers.get_mut(&path).unwrap();
+                let buffer = self.buffers.get_mut(path.as_path()).unwrap();
                 let result = buffer
                     .save(rev)
                     .map(|_r| {
-                        self.catalog_rpc
-                            .did_save_text_document(&path, buffer.rope.clone());
+                        self.catalog_rpc.did_save_text_document(
+                            path.as_path(),
+                            buffer.rope.clone(),
+                        );
                         ProxyResponse::SaveResponse {}
                     })
                     .map_err(|e| RpcError {
@@ -691,7 +727,7 @@ impl ProxyHandler for Dispatcher {
                 rev,
                 content,
             } => {
-                let mut buffer = Buffer::new(buffer_id, path.clone());
+                let mut buffer = Buffer::new(buffer_id, path.clone().to_pathbuf());
                 buffer.rope = Rope::from(content);
                 buffer.rev = rev;
                 let result = buffer
@@ -701,11 +737,12 @@ impl ProxyHandler for Dispatcher {
                         code: 0,
                         message: e.to_string(),
                     });
-                self.buffers.insert(path, buffer);
+                self.buffers.insert(path.to_pathbuf(), buffer);
                 self.respond_rpc(id, result);
             }
             CreateFile { path } => {
                 let result = path
+                    .as_pathbuf()
                     .parent()
                     .map_or(Ok(()), std::fs::create_dir_all)
                     .and_then(|()| {
@@ -751,7 +788,7 @@ impl ProxyHandler for Dispatcher {
                         message: format!("{new_path:?} already exists"),
                     })
                 } else {
-                    if let Some(parent) = new_path.parent() {
+                    if let Some(parent) = new_path.as_path().parent() {
                         if let Err(error) = std::fs::create_dir_all(parent) {
                             let result = Err(RpcError {
                                 code: 0,
@@ -904,7 +941,9 @@ impl FileWatchNotifier {
         if event.kind.is_modify() {
             for path in event.paths {
                 self.proxy_rpc
-                    .notification(ProxyNotification::OpenFileChanged { path });
+                    .notification(ProxyNotification::OpenFileChanged {
+                        path: CanonPath::from_pathbuf(path),
+                    });
             }
         }
     }
@@ -1295,7 +1334,7 @@ fn search_in_path(
                 }),
             );
             if !line_matches.is_empty() {
-                matches.insert(path.clone(), line_matches);
+                matches.insert(CanonPath::from_pathbuf(path.clone()), line_matches);
             }
         }
     }

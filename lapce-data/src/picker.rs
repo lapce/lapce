@@ -92,7 +92,13 @@ impl FilePickerData {
                 let path = path.clone();
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdatePickerItems(path, items),
+                    LapceUICommand::UpdatePickerItems(
+                        path,
+                        items
+                            .into_iter()
+                            .map(|(k, v)| (k.to_pathbuf(), v))
+                            .collect(),
+                    ),
                     Target::Widget(tab_id),
                 );
             }

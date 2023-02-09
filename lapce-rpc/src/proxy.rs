@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     buffer::BufferId,
+    canon_path::CanonPath,
     file::FileNodeItem,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
@@ -43,10 +44,10 @@ pub enum ProxyRpc {
 pub enum ProxyRequest {
     NewBuffer {
         buffer_id: BufferId,
-        path: PathBuf,
+        path: CanonPath,
     },
     BufferHead {
-        path: PathBuf,
+        path: CanonPath,
     },
     GlobalSearch {
         pattern: String,
@@ -62,7 +63,7 @@ pub enum ProxyRequest {
     },
     GetHover {
         request_id: usize,
-        path: PathBuf,
+        path: CanonPath,
         position: Position,
     },
     GetSignature {
@@ -70,89 +71,89 @@ pub enum ProxyRequest {
         position: Position,
     },
     GetSelectionRange {
-        path: PathBuf,
+        path: CanonPath,
         positions: Vec<Position>,
     },
     GitGetRemoteFileUrl {
-        file: PathBuf,
+        file: CanonPath,
     },
     GetReferences {
-        path: PathBuf,
+        path: CanonPath,
         position: Position,
     },
     GetDefinition {
         request_id: usize,
-        path: PathBuf,
+        path: CanonPath,
         position: Position,
     },
     GetTypeDefinition {
         request_id: usize,
-        path: PathBuf,
+        path: CanonPath,
         position: Position,
     },
     GetInlayHints {
-        path: PathBuf,
+        path: CanonPath,
     },
     GetSemanticTokens {
-        path: PathBuf,
+        path: CanonPath,
     },
     PrepareRename {
-        path: PathBuf,
+        path: CanonPath,
         position: Position,
     },
     Rename {
-        path: PathBuf,
+        path: CanonPath,
         position: Position,
         new_name: String,
     },
     GetCodeActions {
-        path: PathBuf,
+        path: CanonPath,
         position: Position,
         diagnostics: Vec<Diagnostic>,
     },
     GetDocumentSymbols {
-        path: PathBuf,
+        path: CanonPath,
     },
     GetWorkspaceSymbols {
         /// The search query
         query: String,
     },
     GetDocumentFormatting {
-        path: PathBuf,
+        path: CanonPath,
     },
     GetOpenFilesContent {},
     GetFiles {
         path: String,
     },
     ReadDir {
-        path: PathBuf,
+        path: CanonPath,
     },
     Save {
         rev: u64,
-        path: PathBuf,
+        path: CanonPath,
     },
     SaveBufferAs {
         buffer_id: BufferId,
-        path: PathBuf,
+        path: CanonPath,
         rev: u64,
         content: String,
     },
     CreateFile {
-        path: PathBuf,
+        path: CanonPath,
     },
     CreateDirectory {
-        path: PathBuf,
+        path: CanonPath,
     },
     TrashPath {
-        path: PathBuf,
+        path: CanonPath,
     },
     DuplicatePath {
-        existing_path: PathBuf,
-        new_path: PathBuf,
+        existing_path: CanonPath,
+        new_path: CanonPath,
     },
     RenamePath {
-        from: PathBuf,
-        to: PathBuf,
+        from: CanonPath,
+        to: CanonPath,
     },
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,33 +161,33 @@ pub enum ProxyRequest {
 #[serde(tag = "method", content = "params")]
 pub enum ProxyNotification {
     Initialize {
-        workspace: Option<PathBuf>,
+        workspace: Option<CanonPath>,
         disabled_volts: Vec<VoltID>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
     },
     OpenFileChanged {
-        path: PathBuf,
+        path: CanonPath,
     },
     OpenPaths {
-        folders: Vec<PathBuf>,
-        files: Vec<PathBuf>,
+        folders: Vec<CanonPath>,
+        files: Vec<CanonPath>,
     },
     Shutdown {},
     Completion {
         request_id: usize,
-        path: PathBuf,
+        path: CanonPath,
         input: String,
         position: Position,
     },
     SignatureHelp {
         request_id: usize,
-        path: PathBuf,
+        path: CanonPath,
         position: Position,
     },
     Update {
-        path: PathBuf,
+        path: CanonPath,
         delta: RopeDelta,
         rev: u64,
     },
@@ -195,7 +196,7 @@ pub enum ProxyNotification {
     },
     NewTerminal {
         term_id: TermId,
-        cwd: Option<PathBuf>,
+        cwd: Option<CanonPath>,
         shell: String,
     },
     InstallVolt {
@@ -221,7 +222,7 @@ pub enum ProxyNotification {
         branch: String,
     },
     GitDiscardFilesChanges {
-        files: Vec<PathBuf>,
+        files: Vec<CanonPath>,
     },
     GitDiscardWorkspaceChanges {},
     GitInit {},
@@ -254,7 +255,7 @@ pub enum ProxyResponse {
         content: String,
     },
     ReadDirResponse {
-        items: HashMap<PathBuf, FileNodeItem>,
+        items: HashMap<CanonPath, FileNodeItem>,
     },
     CompletionResolveResponse {
         item: Box<CompletionItem>,
@@ -282,7 +283,7 @@ pub enum ProxyResponse {
         resp: CodeActionResponse,
     },
     GetFilesResponse {
-        items: Vec<PathBuf>,
+        items: Vec<CanonPath>,
     },
     GetDocumentFormatting {
         edits: Vec<TextEdit>,
@@ -313,7 +314,7 @@ pub enum ProxyResponse {
     },
     GlobalSearchResponse {
         #[allow(clippy::type_complexity)]
-        matches: IndexMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
+        matches: IndexMap<CanonPath, Vec<(usize, (usize, usize), String)>>,
     },
     Success {},
     SaveResponse {},
@@ -323,7 +324,7 @@ pub type ProxyMessage = RpcMessage<ProxyRequest, ProxyNotification, ProxyRespons
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadDirResponse {
-    pub items: HashMap<PathBuf, FileNodeItem>,
+    pub items: HashMap<CanonPath, FileNodeItem>,
 }
 
 pub trait ProxyCallback: Send + FnOnce(Result<ProxyResponse, RpcError>) {}
@@ -482,7 +483,7 @@ impl ProxyRpcHandler {
         tab_id: usize,
     ) {
         self.notification(ProxyNotification::Initialize {
-            workspace,
+            workspace: workspace.map(CanonPath::from_pathbuf),
             disabled_volts,
             plugin_configurations,
             window_id,
@@ -499,7 +500,7 @@ impl ProxyRpcHandler {
     ) {
         self.notification(ProxyNotification::Completion {
             request_id,
-            path,
+            path: CanonPath::from_pathbuf(path),
             input,
             position,
         });
@@ -513,7 +514,7 @@ impl ProxyRpcHandler {
     ) {
         self.notification(ProxyNotification::SignatureHelp {
             request_id,
-            path,
+            path: CanonPath::from_pathbuf(path),
             position,
         });
     }
@@ -526,7 +527,7 @@ impl ProxyRpcHandler {
     ) {
         self.notification(ProxyNotification::NewTerminal {
             term_id,
-            cwd,
+            cwd: cwd.map(CanonPath::from_pathbuf),
             shell,
         })
     }
@@ -556,7 +557,13 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(ProxyRequest::NewBuffer { buffer_id, path }, f);
+        self.request_async(
+            ProxyRequest::NewBuffer {
+                buffer_id,
+                path: CanonPath::from_pathbuf(path),
+            },
+            f,
+        );
     }
 
     pub fn get_buffer_head(
@@ -565,19 +572,39 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(ProxyRequest::BufferHead { path }, f);
+        self.request_async(
+            ProxyRequest::BufferHead {
+                path: CanonPath::from_pathbuf(path),
+            },
+            f,
+        );
     }
 
     pub fn create_file(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(ProxyRequest::CreateFile { path }, f);
+        self.request_async(
+            ProxyRequest::CreateFile {
+                path: CanonPath::from_pathbuf(path),
+            },
+            f,
+        );
     }
 
     pub fn create_directory(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(ProxyRequest::CreateDirectory { path }, f);
+        self.request_async(
+            ProxyRequest::CreateDirectory {
+                path: CanonPath::from_pathbuf(path),
+            },
+            f,
+        );
     }
 
     pub fn trash_path(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(ProxyRequest::TrashPath { path }, f);
+        self.request_async(
+            ProxyRequest::TrashPath {
+                path: CanonPath::from_pathbuf(path),
+            },
+            f,
+        );
     }
 
     pub fn duplicate_path(
@@ -588,8 +615,8 @@ impl ProxyRpcHandler {
     ) {
         self.request_async(
             ProxyRequest::DuplicatePath {
-                existing_path,
-                new_path,
+                existing_path: CanonPath::from_pathbuf(existing_path),
+                new_path: CanonPath::from_pathbuf(new_path),
             },
             f,
         );
@@ -601,7 +628,13 @@ impl ProxyRpcHandler {
         to: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(ProxyRequest::RenamePath { from, to }, f);
+        self.request_async(
+            ProxyRequest::RenamePath {
+                from: CanonPath::from_pathbuf(from),
+                to: CanonPath::from_pathbuf(to),
+            },
+            f,
+        );
     }
 
     pub fn save_buffer_as(
@@ -615,7 +648,7 @@ impl ProxyRpcHandler {
         self.request_async(
             ProxyRequest::SaveBufferAs {
                 buffer_id,
-                path,
+                path: CanonPath::from_pathbuf(path),
                 rev,
                 content,
             },
@@ -639,7 +672,13 @@ impl ProxyRpcHandler {
     }
 
     pub fn save(&self, rev: u64, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(ProxyRequest::Save { rev, path }, f);
+        self.request_async(
+            ProxyRequest::Save {
+                rev,
+                path: CanonPath::from_pathbuf(path),
+            },
+            f,
+        );
     }
 
     pub fn get_files(&self, f: impl ProxyCallback + 'static) {
@@ -656,7 +695,12 @@ impl ProxyRpcHandler {
     }
 
     pub fn read_dir(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(ProxyRequest::ReadDir { path }, f);
+        self.request_async(
+            ProxyRequest::ReadDir {
+                path: CanonPath::from_pathbuf(path),
+            },
+            f,
+        );
     }
 
     pub fn completion_resolve(
@@ -699,7 +743,7 @@ impl ProxyRpcHandler {
         self.request_async(
             ProxyRequest::GetHover {
                 request_id,
-                path,
+                path: CanonPath::from_pathbuf(path),
                 position,
             },
             f,
@@ -716,7 +760,7 @@ impl ProxyRpcHandler {
         self.request_async(
             ProxyRequest::GetDefinition {
                 request_id,
-                path,
+                path: CanonPath::from_pathbuf(path),
                 position,
             },
             f,
@@ -733,7 +777,7 @@ impl ProxyRpcHandler {
         self.request_async(
             ProxyRequest::GetTypeDefinition {
                 request_id,
-                path,
+                path: CanonPath::from_pathbuf(path),
                 position,
             },
             f,
@@ -746,7 +790,13 @@ impl ProxyRpcHandler {
         position: Position,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(ProxyRequest::GetReferences { path, position }, f);
+        self.request_async(
+            ProxyRequest::GetReferences {
+                path: CanonPath::from_pathbuf(path),
+                position,
+            },
+            f,
+        );
     }
 
     pub fn get_code_actions(
@@ -758,7 +808,7 @@ impl ProxyRpcHandler {
     ) {
         self.request_async(
             ProxyRequest::GetCodeActions {
-                path,
+                path: CanonPath::from_pathbuf(path),
                 position,
                 diagnostics,
             },
@@ -771,7 +821,12 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(ProxyRequest::GetDocumentFormatting { path }, f);
+        self.request_async(
+            ProxyRequest::GetDocumentFormatting {
+                path: CanonPath::from_pathbuf(path),
+            },
+            f,
+        );
     }
 
     pub fn get_semantic_tokens(
@@ -779,7 +834,12 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(ProxyRequest::GetSemanticTokens { path }, f);
+        self.request_async(
+            ProxyRequest::GetSemanticTokens {
+                path: CanonPath::from_pathbuf(path),
+            },
+            f,
+        );
     }
 
     pub fn get_document_symbols(
@@ -787,7 +847,12 @@ impl ProxyRpcHandler {
         path: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(ProxyRequest::GetDocumentSymbols { path }, f);
+        self.request_async(
+            ProxyRequest::GetDocumentSymbols {
+                path: CanonPath::from_pathbuf(path),
+            },
+            f,
+        );
     }
 
     pub fn get_workspace_symbols(
@@ -804,7 +869,13 @@ impl ProxyRpcHandler {
         position: Position,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(ProxyRequest::PrepareRename { path, position }, f);
+        self.request_async(
+            ProxyRequest::PrepareRename {
+                path: CanonPath::from_pathbuf(path),
+                position,
+            },
+            f,
+        );
     }
 
     pub fn git_get_remote_file_url(
@@ -812,7 +883,12 @@ impl ProxyRpcHandler {
         file: PathBuf,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(ProxyRequest::GitGetRemoteFileUrl { file }, f);
+        self.request_async(
+            ProxyRequest::GitGetRemoteFileUrl {
+                file: CanonPath::from_pathbuf(file),
+            },
+            f,
+        );
     }
 
     pub fn rename(
@@ -824,7 +900,7 @@ impl ProxyRpcHandler {
     ) {
         self.request_async(
             ProxyRequest::Rename {
-                path,
+                path: CanonPath::from_pathbuf(path),
                 position,
                 new_name,
             },
@@ -833,11 +909,20 @@ impl ProxyRpcHandler {
     }
 
     pub fn get_inlay_hints(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(ProxyRequest::GetInlayHints { path }, f);
+        self.request_async(
+            ProxyRequest::GetInlayHints {
+                path: CanonPath::from_pathbuf(path),
+            },
+            f,
+        );
     }
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {
-        self.notification(ProxyNotification::Update { path, delta, rev });
+        self.notification(ProxyNotification::Update {
+            path: CanonPath::from_pathbuf(path),
+            delta,
+            rev,
+        });
     }
 
     pub fn update_plugin_configs(
@@ -848,7 +933,9 @@ impl ProxyRpcHandler {
     }
 
     pub fn git_discard_files_changes(&self, files: Vec<PathBuf>) {
-        self.notification(ProxyNotification::GitDiscardFilesChanges { files });
+        self.notification(ProxyNotification::GitDiscardFilesChanges {
+            files: files.into_iter().map(CanonPath::from_pathbuf).collect(),
+        });
     }
 
     pub fn git_discard_workspace_changes(&self) {
@@ -861,7 +948,13 @@ impl ProxyRpcHandler {
         positions: Vec<Position>,
         f: impl ProxyCallback + 'static,
     ) {
-        self.request_async(ProxyRequest::GetSelectionRange { path, positions }, f);
+        self.request_async(
+            ProxyRequest::GetSelectionRange {
+                path: CanonPath::from_pathbuf(path),
+                positions,
+            },
+            f,
+        );
     }
 }
 

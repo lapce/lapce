@@ -853,7 +853,14 @@ impl LapceTab {
                                             LAPCE_UI_COMMAND,
                                             LapceUICommand::GlobalSearchResult(
                                                 pattern,
-                                                Arc::new(matches),
+                                                Arc::new(
+                                                    matches
+                                                        .into_iter()
+                                                        .map(|(k, v)| {
+                                                            (k.to_pathbuf(), v)
+                                                        })
+                                                        .collect(),
+                                                ),
                                             ),
                                             Target::Widget(tab_id),
                                         );

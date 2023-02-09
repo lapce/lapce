@@ -875,8 +875,8 @@ impl PaletteViewData {
                     .iter()
                     .enumerate()
                     .map(|(_index, path)| {
-                        let full_path = path.clone();
-                        let mut path = path.clone();
+                        let full_path = path.clone().to_pathbuf();
+                        let mut path = path.clone().to_pathbuf();
                         if let Some(workspace_path) = workspace.path.as_ref() {
                             path = path
                                 .strip_prefix(workspace_path)
