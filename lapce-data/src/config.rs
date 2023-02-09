@@ -467,8 +467,10 @@ pub struct EditorConfig {
         desc = "If enabled the cursor treats leading soft tabs as if they are hard tabs."
     )]
     pub atomic_soft_tabs: bool,
-    #[field_names(desc = "Use double click to open interact with file explorer")]
-    pub double_click: bool,
+    #[field_names(
+        desc = "Use a double click to interact with the file explorer.\nOptions: file, all or Nothing (Default)."
+    )]
+    pub double_click: String,
     #[field_names(desc = "Move the focus as you type in the global search box")]
     pub move_focus_while_search: bool,
     #[field_names(

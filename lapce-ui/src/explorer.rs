@@ -654,6 +654,8 @@ impl Widget<LapceTabData> for FileExplorerFileList {
             return;
         }
 
+        let double_click_mode: i32;
+
         match event {
             Event::MouseMove(mouse_event) => {
                 if !ctx.is_hot() {
@@ -687,52 +689,72 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     return;
                 }
 
+                match data.config.editor.double_click.as_str() {
+                    "file" => {
+                        double_click_mode = 1;
+                    }
+                    "all" => {
+                        double_click_mode = 2;
+                    }
+                    _ => {
+                        double_click_mode = 0;
+                    }
+                }
+
                 let file_explorer = Arc::make_mut(&mut data.file_explorer);
                 let index = ((mouse_event.pos.y + self.line_height)
                     / self.line_height) as usize;
 
-                if mouse_event.button.is_left()
-                    && (!data.config.editor.double_click || mouse_event.count == 2)
-                {
+                if mouse_event.button.is_left() {
                     if let Some((_, node)) =
                         file_explorer.get_node_by_index_mut(index)
                     {
                         if node.is_dir {
-                            if node.read {
-                                node.open = !node.open;
-                            } else {
-                                let tab_id = data.id;
-                                let event_sink = ctx.get_external_handle();
-                                FileExplorerData::read_dir(
-                                    &node.path_buf,
-                                    true,
-                                    tab_id,
-                                    &data.proxy,
-                                    event_sink,
-                                );
-                            }
-                            let path = node.path_buf.clone();
-                            if let Some(paths) = file_explorer.node_tree(&path) {
-                                for path in paths.iter() {
-                                    file_explorer.update_node_count(path);
+                            let cont_open =
+                                !(double_click_mode == 2 && mouse_event.count < 2);
+                            if cont_open {
+                                if node.read {
+                                    node.open = !node.open;
+                                } else {
+                                    let tab_id = data.id;
+                                    let event_sink = ctx.get_external_handle();
+                                    FileExplorerData::read_dir(
+                                        &node.path_buf,
+                                        true,
+                                        tab_id,
+                                        &data.proxy,
+                                        event_sink,
+                                    );
+                                }
+                                let path = node.path_buf.clone();
+                                if let Some(paths) = file_explorer.node_tree(&path) {
+                                    for path in paths.iter() {
+                                        file_explorer.update_node_count(path);
+                                    }
                                 }
                             }
                         } else {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::OpenFile(
-                                    node.path_buf.clone(),
-                                    false,
-                                ),
-                                Target::Widget(data.id),
-                            ));
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::ActiveFileChanged {
-                                    path: Some(node.path_buf.clone()),
-                                },
-                                Target::Widget(file_explorer.widget_id),
-                            ));
+                            let mut cont_open: bool = true;
+                            if mouse_event.count < 2 {
+                                cont_open = !matches!(double_click_mode, 1 | 2);
+                            }
+                            if cont_open {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::OpenFile(
+                                        node.path_buf.clone(),
+                                        false,
+                                    ),
+                                    Target::Widget(data.id),
+                                ));
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::ActiveFileChanged {
+                                        path: Some(node.path_buf.clone()),
+                                    },
+                                    Target::Widget(file_explorer.widget_id),
+                                ));
+                            }
                         }
                     }
                 }
