@@ -49,7 +49,7 @@ jsonrpc-lite = "0.6.0"
 which = "4.2.5"
 
 # git
-git2 = { version = "0.14.4", features = ["vendored-openssl"] }
+git2 = { version = "0.16.1", features = ["vendored-openssl"] }
 
 # deleting files
 trash = "2.1.5"
