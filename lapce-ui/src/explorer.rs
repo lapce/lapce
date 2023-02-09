@@ -21,6 +21,7 @@ use lapce_data::{
     proxy::LapceProxy,
 };
 use lapce_rpc::{file::FileNodeItem, source_control::FileDiff};
+use lsp_types::DiagnosticSeverity;
 
 use crate::{
     editor::view::LapceEditorView,
@@ -42,13 +43,14 @@ fn paint_single_file_node_item(
     config: &LapceConfig,
     toggle_rects: &mut HashMap<usize, Rect>,
     file_diff: Option<FileDiff>,
+    worst_severity: Option<&str>,
 ) {
     let background = if Some(item.path_buf.as_ref()) == active {
         Some(LapceTheme::PANEL_CURRENT_BACKGROUND)
     } else if Some(current) == hovered {
         Some(LapceTheme::PANEL_HOVERED_BACKGROUND)
     } else {
-        None
+        worst_severity
     };
 
     if let Some(background) = background {
@@ -177,6 +179,18 @@ pub fn paint_file_node_item(
 
     let mut i = current;
 
+    let worst_severity_color = data
+        .main_split
+        .diagnostics
+        .get(&item.path_buf)
+        .map(|i| i.iter().filter_map(|d| d.diagnostic.severity).min())
+        .flatten()
+        .map(|severity| match severity {
+            DiagnosticSeverity::ERROR => LapceTheme::LAPCE_ERROR,
+            DiagnosticSeverity::WARNING => LapceTheme::LAPCE_WARN,
+            _ => LapceTheme::LAPCE_WARN,
+        });
+
     if current >= min {
         let mut should_paint_file_node = true;
         if !*drawn_name_input {
@@ -204,6 +218,7 @@ pub fn paint_file_node_item(
                 config,
                 toggle_rects,
                 get_item_diff(item, data),
+                worst_severity_color,
             );
         }
     }
@@ -245,16 +260,14 @@ fn draw_name_input(
     naming: &Naming,
     name_edit_input: &mut NameEditInput,
 ) {
+    name_edit_input.paint(ctx, data, env);
     match naming {
-        Naming::Renaming { .. } => {
-            name_edit_input.paint(ctx, data, env);
-        }
         Naming::Naming { .. } | Naming::Duplicating { .. } => {
-            name_edit_input.paint(ctx, data, env);
             // Skip forward by an entry
             // This is fine since we aren't using i as an index, but as an offset-multiple in painting
             *i += 1;
         }
+        _ => {}
     }
 }
 
