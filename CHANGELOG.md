@@ -34,6 +34,7 @@
 - [#2056](https://github.com/lapce/lapce/pull/2056): Fix default directory of remote session file picker
 - [#2072](https://github.com/lapce/lapce/pull/2072): Fix connection issues from Windows to lapce proxy
 - [#2069](https://github.com/lapce/lapce/pull/2045): Fix not finding git repositories in parent path
+- [#2131](https://github.com/lapce/lapce/pull/2131): Fix overwriting symlink
 
 ## 0.2.5
 
