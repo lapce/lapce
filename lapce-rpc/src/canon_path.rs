@@ -10,11 +10,7 @@ pub struct CanonPath(PathBuf);
 
 impl CanonPath {
     pub fn from_pathbuf(path: PathBuf) -> CanonPath {
-        CanonPath(
-            path.canonicalize()
-                .map_err(|e| format!("Cannot canonicalize '{path:?} because '{e}'"))
-                .unwrap(),
-        )
+        CanonPath(path.canonicalize().unwrap_or(path))
     }
 
     pub fn as_path(&self) -> &Path {
