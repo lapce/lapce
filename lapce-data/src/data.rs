@@ -3348,11 +3348,32 @@ impl LapceMainSplitData {
 
         // Whether we're swapping to a different file/kind-of-buffer
         let new_buffer = match doc.content() {
-            BufferContent::File(path) => path != &location.path,
+            BufferContent::File(path) => {
+                if path != &location.path {
+                    // different path
+                    true
+                } else {
+                    // same path, then check history version and EditorView change
+                    let editor = self.editors.get(&editor_view_id).unwrap();
+                    if let EditorView::Diff(old_version) = editor.view.clone() {
+                        if let Some(new_version) = location.history.clone() {
+                            // check history version
+                            new_version != old_version
+                        } else {
+                            // old editor is DiffView, but OpenFile without 'history version'
+                            true
+                        }
+                    } else {
+                        // check EditorView change
+                        location.history.is_some()
+                    }
+                }
+            }
             BufferContent::Local(_) => true,
             BufferContent::SettingsValue(..) => true,
             BufferContent::Scratch(..) => true,
         };
+
         if new_buffer {
             // Save the position in the document so that when the user reopens it, they'll
             // return to the same place
