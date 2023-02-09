@@ -654,8 +654,6 @@ impl Widget<LapceTabData> for FileExplorerFileList {
             return;
         }
 
-        let double_click_mode: i32;
-
         match event {
             Event::MouseMove(mouse_event) => {
                 if !ctx.is_hot() {
@@ -689,17 +687,23 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     return;
                 }
 
-                match data.config.editor.double_click.as_str() {
+                enum ClickModes {
+                    SingleClick,
+                    DoubleClickFile,
+                    DoubleClickAll,
+                }
+
+                let double_click_mode: ClickModes = match data.config.editor.double_click.as_str() {
                     "file" => {
-                        double_click_mode = 1;
+                        ClickModes::DoubleClickFile
                     }
                     "all" => {
-                        double_click_mode = 2;
+                        ClickModes::DoubleClickAll
                     }
                     _ => {
-                        double_click_mode = 0;
+                        ClickModes::SingleClick
                     }
-                }
+                };
 
                 let file_explorer = Arc::make_mut(&mut data.file_explorer);
                 let index = ((mouse_event.pos.y + self.line_height)
@@ -711,7 +715,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     {
                         if node.is_dir {
                             let cont_open =
-                                !(double_click_mode == 2 && mouse_event.count < 2);
+                                !(matches!(double_click_mode, ClickModes::DoubleClickAll) && mouse_event.count < 2);
                             if cont_open {
                                 if node.read {
                                     node.open = !node.open;
@@ -736,7 +740,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         } else {
                             let mut cont_open: bool = true;
                             if mouse_event.count < 2 {
-                                cont_open = !matches!(double_click_mode, 1 | 2);
+                                cont_open = !matches!(double_click_mode, ClickModes::DoubleClickFile | ClickModes::DoubleClickAll);
                             }
                             if cont_open {
                                 ctx.submit_command(Command::new(
