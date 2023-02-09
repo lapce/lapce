@@ -183,8 +183,7 @@ pub fn paint_file_node_item(
         .main_split
         .diagnostics
         .get(&item.path_buf)
-        .map(|i| i.iter().filter_map(|d| d.diagnostic.severity).min())
-        .flatten()
+        .and_then(|i| i.iter().filter_map(|d| d.diagnostic.severity).min())
         .map(|severity| match severity {
             DiagnosticSeverity::ERROR => LapceTheme::LAPCE_ERROR,
             DiagnosticSeverity::WARNING => LapceTheme::LAPCE_WARN,
