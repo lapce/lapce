@@ -967,7 +967,7 @@ pub struct LapceConfig {
     icon_theme_list: im::Vector<String>,
 }
 impl LapceConfig {
-    /// Get the dropdown information for the specific setting, used for the settings UI.  
+    /// Get the dropdown information for the specific setting, used for the settings UI.
     /// This should aim to efficiently return the data, because it is used to determine whether to
     /// update the dropdown items.
     pub fn get_dropdown_info(&self, kind: &str, key: &str) -> Option<DropdownInfo> {

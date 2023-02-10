@@ -723,14 +723,10 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                                 }
                             }
                         } else {
-                            let mut cont_open: bool = true;
-                            if mouse_event.count < 2 {
-                                cont_open = !matches!(
-                                    double_click_mode,
-                                    ClickMode::DoubleClickFile
-                                        | ClickMode::DoubleClickAll
-                                );
-                            }
+                            let cont_open = (matches!(
+                                double_click_mode,
+                                ClickMode::SingleClick
+                            )) || mouse_event.count > 1;
                             if cont_open {
                                 ctx.submit_command(Command::new(
                                     LAPCE_UI_COMMAND,
