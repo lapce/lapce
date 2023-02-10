@@ -318,7 +318,7 @@ impl LapceIcons {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub enum ClickModes {
+pub enum ClickMode {
     #[default]
     #[serde(rename = "single")]
     SingleClick,
@@ -481,7 +481,7 @@ pub struct EditorConfig {
     #[field_names(
         desc = "Use a double click to interact with the file explorer.\nOptions: single (default), file or all."
     )]
-    pub double_click: ClickModes,
+    pub double_click: ClickMode,
     #[field_names(desc = "Move the focus as you type in the global search box")]
     pub move_focus_while_search: bool,
     #[field_names(

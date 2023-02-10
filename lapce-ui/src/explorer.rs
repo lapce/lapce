@@ -13,7 +13,7 @@ use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{LapceConfig, LapceIcons, LapceTheme, ClickModes},
+    config::{ClickMode, LapceConfig, LapceIcons, LapceTheme},
     data::{EditorTabChild, LapceData, LapceEditorData, LapceTabData},
     document::{BufferContent, LocalBufferKind},
     explorer::{FileExplorerData, Naming},
@@ -697,8 +697,10 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         file_explorer.get_node_by_index_mut(index)
                     {
                         if node.is_dir {
-                            let cont_open =
-                                !(matches!(double_click_mode, ClickModes::DoubleClickAll) && mouse_event.count < 2);
+                            let cont_open = !(matches!(
+                                double_click_mode,
+                                ClickMode::DoubleClickAll
+                            ) && mouse_event.count < 2);
                             if cont_open {
                                 if node.read {
                                     node.open = !node.open;
@@ -723,7 +725,11 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         } else {
                             let mut cont_open: bool = true;
                             if mouse_event.count < 2 {
-                                cont_open = !matches!(double_click_mode, ClickModes::DoubleClickFile | ClickModes::DoubleClickAll);
+                                cont_open = !matches!(
+                                    double_click_mode,
+                                    ClickMode::DoubleClickFile
+                                        | ClickMode::DoubleClickAll
+                                );
                             }
                             if cont_open {
                                 ctx.submit_command(Command::new(
