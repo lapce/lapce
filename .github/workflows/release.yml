@@ -11,6 +11,10 @@ on:
         default: nightly
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  pull_request:
+    paths:
+      # trigger release workflow only if this file changed
+      - .github/workflows/release.yml
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -32,6 +36,9 @@ jobs:
         run: |
           TAG_NAME=${{ github.ref }}
           echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
+          
+      - if: github.event_name == 'pull_request'
+        run: echo 'TAG_NAME=debug' >> $GITHUB_ENV
 
       - id: vars
         shell: bash
@@ -284,6 +291,7 @@ jobs:
           retention-days: 1
 
   publish:
+    if: github.event_name != 'pull_request'
     needs: [linux, linux-musl, windows, macos]
     runs-on: ubuntu-latest
     env:
