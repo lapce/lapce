@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -13,7 +13,10 @@ use std::{
 use alacritty_terminal::{event::WindowSize, event_loop::Msg};
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
-use git2::{build::CheckoutBuilder, DiffOptions, Repository};
+use git2::{
+    build::CheckoutBuilder, Cred, DiffOptions, FetchOptions, RemoteCallbacks,
+    Repository,
+};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{sinks::UTF8, SearcherBuilder};
@@ -257,6 +260,14 @@ impl ProxyHandler for Dispatcher {
             GitInit {} => {
                 if let Some(workspace) = self.workspace.as_ref() {
                     match git_init(workspace) {
+                        Ok(()) => (),
+                        Err(e) => eprintln!("{e:?}"),
+                    }
+                }
+            }
+            GitFetch {} => {
+                if let Some(workspace) = self.workspace.as_ref() {
+                    match git_fetch(workspace) {
                         Ok(()) => (),
                         Err(e) => eprintln!("{e:?}"),
                     }
@@ -1225,6 +1236,34 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
     let url = format!("https://{host}{namespace}/blob/{commit}/{file_path}",);
 
     Ok(url)
+}
+
+fn git_fetch(workspace_path: &Path) -> Result<()> {
+    let repo = Repository::discover(workspace_path)?;
+
+    for remote in repo.remotes()?.iter().flatten() {
+        let mut remote = repo.find_remote(remote)?;
+        let refspecs: Vec<String> = remote
+            .refspecs()
+            .filter_map(|r| Some(r.str()?.to_string()))
+            .collect();
+        let mut callbacks = RemoteCallbacks::new();
+        callbacks.credentials(|_url, username_from_url, _allowed_types| {
+            Cred::ssh_key(
+                username_from_url.unwrap(),
+                None,
+                std::path::Path::new(&format!(
+                    "{}/.ssh/id_rsa",
+                    env::var("HOME").unwrap()
+                )),
+                None,
+            )
+        });
+        let mut opts = FetchOptions::new();
+        opts.remote_callbacks(callbacks);
+        remote.fetch(&refspecs, Some(&mut opts), None)?;
+    }
+    Ok(())
 }
 
 fn search_in_path(
