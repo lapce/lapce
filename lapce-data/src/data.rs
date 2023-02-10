@@ -3357,6 +3357,7 @@ impl LapceMainSplitData {
                     let editor = self.editors.get(&editor_view_id).unwrap();
                     if let EditorView::Diff(old_version) = editor.view.clone() {
                         if let Some(new_version) = location.history.clone() {
+                            // old editor is DiffView, and OpenFileDiff with 'history version'
                             // check history version
                             new_version != old_version
                         } else {
@@ -3364,7 +3365,7 @@ impl LapceMainSplitData {
                             true
                         }
                     } else {
-                        // check EditorView change
+                        // old editor is NormalView, but OpenFileDiff with 'history version'
                         location.history.is_some()
                     }
                 }
