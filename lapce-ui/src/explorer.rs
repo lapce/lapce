@@ -13,7 +13,7 @@ use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{LapceConfig, LapceIcons, LapceTheme},
+    config::{LapceConfig, LapceIcons, LapceTheme, ClickModes},
     data::{EditorTabChild, LapceData, LapceEditorData, LapceTabData},
     document::{BufferContent, LocalBufferKind},
     explorer::{FileExplorerData, Naming},
@@ -687,24 +687,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     return;
                 }
 
-                enum ClickModes {
-                    SingleClick,
-                    DoubleClickFile,
-                    DoubleClickAll,
-                }
-
-                let double_click_mode: ClickModes = match data.config.editor.double_click.as_str() {
-                    "file" => {
-                        ClickModes::DoubleClickFile
-                    }
-                    "all" => {
-                        ClickModes::DoubleClickAll
-                    }
-                    _ => {
-                        ClickModes::SingleClick
-                    }
-                };
-
+                let double_click_mode = data.config.editor.double_click.clone();
                 let file_explorer = Arc::make_mut(&mut data.file_explorer);
                 let index = ((mouse_event.pos.y + self.line_height)
                     / self.line_height) as usize;

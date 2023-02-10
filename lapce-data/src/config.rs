@@ -317,6 +317,17 @@ impl LapceIcons {
     pub const COMPLETION_ITEM_KIND_VARIABLE: &str = "completion_item_kind.variable";
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum ClickModes {
+    #[default]
+    #[serde(rename = "single")]
+    SingleClick,
+    #[serde(rename = "file")]
+    DoubleClickFile,
+    #[serde(rename = "all")]
+    DoubleClickAll,
+}
+
 pub trait GetConfig {
     fn get_config(&self) -> &LapceConfig;
 }
@@ -468,9 +479,9 @@ pub struct EditorConfig {
     )]
     pub atomic_soft_tabs: bool,
     #[field_names(
-        desc = "Use a double click to interact with the file explorer.\nOptions: file, all or Nothing (Default)."
+        desc = "Use a double click to interact with the file explorer.\nOptions: single (default), file or all."
     )]
-    pub double_click: String,
+    pub double_click: ClickModes,
     #[field_names(desc = "Move the focus as you type in the global search box")]
     pub move_focus_while_search: bool,
     #[field_names(
