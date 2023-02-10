@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient gradientUnits="userSpaceOnUse" x1="250" y1="60.691" x2="250" y2="439.31" id="gradient-1" gradientTransform="matrix(0.912777, 0.912777, -0.912777, 0.912777, 250.049508, -206.672811)" spreadMethod="pad">
+      <stop offset="0" style="stop-color: rgb(168, 204, 255);"/>
+      <stop offset="1" style="stop-color: rgb(250, 250, 250);"/>
+    </linearGradient>
+    <linearGradient gradientUnits="userSpaceOnUse" x1="10802.515" y1="7688.36" x2="10802.515" y2="13911.66" id="gradient-2" gradientTransform="matrix(-0.028, -0.028, 0.028, -0.028, 233.907039, 905.05849)">
+      <stop offset="0" style="stop-color: rgb(0, 62, 149);"/>
+      <stop offset="1" style="stop-color: rgb(70, 172, 255);"/>
+    </linearGradient>
+  </defs>
+  <g style="" transform="matrix(1.205162, 0, 0, 1.205162, -51.290611, -51.290611)">
+    <rect x="60.691" y="60.691" width="378.619" height="378.619" rx="40" ry="40" style="stroke: rgb(0, 0, 0); stroke-width: 0px; fill: url(#gradient-1); fill-rule: nonzero;"/>
+    <path d="M 171.945 127.03 L 146.511 112.346 L 146.511 112.729 C 146.511 204.245 146.511 295.758 146.511 387.272 L 146.511 387.655 L 146.843 387.463 C 171.219 373.391 195.594 359.317 219.97 345.243 L 220.08 345.18 L 220.08 315.683 L 172.056 343.411 L 172.056 343.257 C 172.056 271.245 172.057 199.414 172.056 127.221 L 172.056 127.094 L 171.945 127.03 Z M 220.329 184.461 C 258.277 206.37 295.767 228.015 333.714 249.924 L 333.846 250.001 L 333.714 250.077 C 303.976 267.246 274.704 284.147 244.967 301.316 L 244.856 301.379 L 244.856 330.876 L 245.188 330.684 C 283.291 308.684 321.398 286.685 359.5 264.685 L 384.738 250.116 L 384.937 250.001 L 359.5 235.317 C 313.028 208.486 266.559 181.655 220.085 154.824 L 219.969 154.758 L 194.536 140.074 L 194.536 140.457 C 194.536 193.902 194.536 247.346 194.536 300.792 L 194.536 301.175 L 220.086 286.424 L 220.196 286.36 L 220.196 184.384 L 220.329 184.461 Z M 244.856 272.123 L 284.445 249.266 L 244.856 226.406 L 244.856 272.123 Z" style="fill-opacity: 1; fill-rule: evenodd; stroke-width: 0px; fill: url(#gradient-2);" id="path14"/>
+  </g>
+</svg>
