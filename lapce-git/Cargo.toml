@@ -1,0 +1,16 @@
+[package]
+name = "lapce-git"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+
+lapce-rpc.workspace = true
+
+# lapce-git specific deps
+
+url = "2.3.1"
+git2 = { version = "0.16.1", features = ["vendored-openssl"] }
+

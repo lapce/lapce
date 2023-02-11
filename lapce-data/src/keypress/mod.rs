@@ -16,9 +16,8 @@ use lapce_core::mode::{Mode, Modes};
 mod keypress;
 mod loader;
 
-pub use keypress::KeyPress;
-
 use keypress::Key;
+pub use keypress::KeyPress;
 
 use crate::{
     command::{

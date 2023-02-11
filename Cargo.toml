@@ -19,7 +19,14 @@ name = "lapce-proxy"
 path = "lapce-proxy/src/bin/lapce-proxy.rs"
 
 [workspace]
-members = ["lapce-ui", "lapce-proxy", "lapce-rpc", "lapce-data", "lapce-core"]
+members = [
+    "lapce-core",
+    "lapce-data",
+    "lapce-git",
+    "lapce-proxy",
+    "lapce-rpc",
+    "lapce-ui",
+]
 
 [workspace.package]
 version = "0.2.5"
@@ -65,9 +72,10 @@ psp-types = { git = "https://github.com/lapce/psp-types" }
 lapce-xi-rope = { version = "0.3.1", features = ["serde"] }
 
 lapce-core = { path = "./lapce-core" }
-lapce-rpc = { path = "./lapce-rpc" }
 lapce-data = { path = "./lapce-data" }
+lapce-git = { path = "./lapce-git" }
 lapce-proxy = { path = "./lapce-proxy" }
+lapce-rpc = { path = "./lapce-rpc" }
 
 [workspace.dependencies.druid]
 git = "https://github.com/lapce/druid"

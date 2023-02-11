@@ -1,4 +1,3 @@
-use hashbrown::HashMap;
 use std::{fmt::Display, sync::Arc, time::Duration};
 
 use druid::{
@@ -12,6 +11,7 @@ use druid::{
     RenderContext, Size, Target, TimerToken, UpdateCtx, Widget, WidgetExt, WidgetId,
     WidgetPod,
 };
+use hashbrown::HashMap;
 use inflector::Inflector;
 use itertools::Itertools;
 use lapce_core::{

@@ -41,7 +41,9 @@ use lapce_rpc::{
     RpcMessage,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
-use lsp_types::{Diagnostic, DiagnosticSeverity, Position, ProgressToken, TextEdit};
+use lsp_types::{
+    Diagnostic, DiagnosticSeverity, MessageType, Position, ProgressToken, TextEdit,
+};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1685,141 +1687,153 @@ impl LapceTabData {
                     }
                 }
             }
-            LapceWorkbenchCommand::SourceControlInit => {
-                self.proxy.proxy_rpc.git_init();
-            }
-            LapceWorkbenchCommand::SourceControlCommit => {
-                let diffs: Vec<FileDiff> = self
-                    .source_control
-                    .file_diffs
-                    .iter()
-                    .filter_map(
-                        |(_, (diff, checked))| {
-                            if *checked {
-                                Some(diff)
-                            } else {
-                                None
-                            }
-                        },
-                    )
-                    .cloned()
-                    .collect();
-                if diffs.is_empty() {
-                    return;
+            LapceWorkbenchCommand::SourceControlCommand(cmd) => match cmd {
+                crate::command::LapceSourceControlCommand::Null => unreachable!(),
+                crate::command::LapceSourceControlCommand::Init => {
+                    self.proxy.proxy_rpc.git_init();
                 }
-                let doc = self
-                    .main_split
-                    .local_docs
-                    .get_mut(&LocalBufferKind::SourceControl)
-                    .unwrap();
-                let message = doc.buffer().to_string();
-                let message = message.trim();
-                if message.is_empty() {
-                    return;
-                }
-                self.proxy.proxy_rpc.git_commit(message.to_string(), diffs);
-                Arc::make_mut(doc).reload(Rope::from(""), true);
-                let editor = self
-                    .main_split
-                    .editors
-                    .get_mut(&self.source_control.editor_view_id)
-                    .unwrap();
-                Arc::make_mut(editor).cursor = if self.config.core.modal {
-                    Cursor::new(CursorMode::Normal(0), None, None)
-                } else {
-                    Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
-                };
-            }
-            LapceWorkbenchCommand::SourceControlCopyActiveFileRemoteUrl => {
-                if let Some(editor) = self.main_split.active_editor() {
-                    if let BufferContent::File(path) = &editor.content {
-                        let event_sink = ctx.get_external_handle();
-
-                        self.proxy.proxy_rpc.git_get_remote_file_url(
-                            path.clone(),
-                            move |result| {
-                                if let Ok(ProxyResponse::GitGetRemoteFileUrl {
-                                    file_url,
-                                }) = result
-                                {
-                                    let _ = event_sink.submit_command(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::PutToClipboard(file_url),
-                                        Target::Auto,
-                                    );
+                crate::command::LapceSourceControlCommand::Commit => {
+                    let diffs: Vec<FileDiff> = self
+                        .source_control
+                        .file_diffs
+                        .iter()
+                        .filter_map(
+                            |(_, (diff, checked))| {
+                                if *checked {
+                                    Some(diff)
+                                } else {
+                                    None
                                 }
                             },
                         )
+                        .cloned()
+                        .collect();
+                    if diffs.is_empty() {
+                        return;
                     }
-                }
-            }
-            LapceWorkbenchCommand::SourceControlDiscardActiveFileChanges => {
-                if let Some(editor) = self.main_split.active_editor() {
-                    if let BufferContent::File(path) = &editor.content {
-                        self.proxy
-                            .proxy_rpc
-                            .git_discard_files_changes(vec![path.clone()]);
+                    let doc = self
+                        .main_split
+                        .local_docs
+                        .get_mut(&LocalBufferKind::SourceControl)
+                        .unwrap();
+                    let message = doc.buffer().to_string();
+                    let message = message.trim();
+                    if message.is_empty() {
+                        return;
                     }
+                    self.proxy.proxy_rpc.git_commit(message.to_string(), diffs);
+                    Arc::make_mut(doc).reload(Rope::from(""), true);
+                    let editor = self
+                        .main_split
+                        .editors
+                        .get_mut(&self.source_control.editor_view_id)
+                        .unwrap();
+                    Arc::make_mut(editor).cursor = if self.config.core.modal {
+                        Cursor::new(CursorMode::Normal(0), None, None)
+                    } else {
+                        Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
+                    };
                 }
-            }
-            LapceWorkbenchCommand::SourceControlDiscardTargetFileChanges => {
-                if let Ok(v) = serde_json::from_value::<FileDiff>(data.unwrap()) {
-                    match v {
-                        FileDiff::Added(path) => {
-                            self.proxy.proxy_rpc.trash_path(
-                                path,
-                                Box::new(move |res| {
-                                    if let Err(err) = res {
-                                        log::warn!(
-                                            "Failed to trash path: {:?}",
-                                            err
+                crate::command::LapceSourceControlCommand::Checkout => match data {
+                    Some(Value::String(branch)) => {
+                        self.proxy.proxy_rpc.git_checkout(branch)
+                    }
+                    _ => {
+                        let event_sink = ctx.get_external_handle();
+                        let title = crate::command::LapceSourceControlCommand::Checkout.to_string();
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::NewMessage {
+                                kind: MessageType::ERROR,
+                                title,
+                                message: String::from("Failed to checkout"),
+                            },
+                            Target::Auto,
+                        );
+                    }
+                },
+                crate::command::LapceSourceControlCommand::CopyActiveFileRemoteUrl => {
+                    if let Some(editor) = self.main_split.active_editor() {
+                        if let BufferContent::File(path) = &editor.content {
+                            let event_sink = ctx.get_external_handle();
+                            self.proxy.proxy_rpc.git_get_remote_file_url(
+                                path.clone(),
+                                move |result| {
+                                    if let Ok(ProxyResponse::GitGetRemoteFileUrl {
+                                        file_url,
+                                    }) = result
+                                    {
+                                        let _ = event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::PutToClipboard(file_url),
+                                            Target::Auto,
                                         );
                                     }
-                                }),
-                            );
-                        }
-                        FileDiff::Deleted(path) => {
-                            self.proxy
-                                .proxy_rpc
-                                .git_discard_files_changes(vec![path]);
-                        }
-                        FileDiff::Modified(path) => {
-                            self.proxy
-                                .proxy_rpc
-                                .git_discard_files_changes(vec![path]);
-                        }
-                        FileDiff::Renamed(old_path, new_path) => {
-                            self.proxy
-                                .proxy_rpc
-                                .git_discard_files_changes(vec![old_path]);
-
-                            self.proxy.proxy_rpc.trash_path(
-                                new_path,
-                                Box::new(move |res| {
-                                    if let Err(err) = res {
-                                        log::warn!(
-                                            "Failed to trash path: {:?}",
-                                            err
-                                        );
-                                    }
-                                }),
-                            );
+                                },
+                            )
                         }
                     }
-                } else {
-                    log::error!("discard target file called without a target file");
-                }
+                },
+                crate::command::LapceSourceControlCommand::DiscardActiveFileChanges => {
+                    if let Some(editor) = self.main_split.active_editor() {
+                        if let BufferContent::File(path) = &editor.content {
+                            self.proxy
+                                .proxy_rpc
+                                .git_discard_files_changes(vec![path.clone()]);
+                        }
+                    }
+                },
+                crate::command::LapceSourceControlCommand::DiscardTargetFileChanges => {
+                    if let Ok(v) = serde_json::from_value::<FileDiff>(data.unwrap()) {
+                        match v {
+                            FileDiff::Added(path) => {
+                                self.proxy.proxy_rpc.trash_path(
+                                    path,
+                                    Box::new(move |res| {
+                                        if let Err(err) = res {
+                                            log::warn!(
+                                                "Failed to trash path: {:?}",
+                                                err
+                                            );
+                                        }
+                                    }),
+                                );
+                            }
+                            FileDiff::Deleted(path) => {
+                                self.proxy
+                                    .proxy_rpc
+                                    .git_discard_files_changes(vec![path]);
+                            }
+                            FileDiff::Modified(path) => {
+                                self.proxy
+                                    .proxy_rpc
+                                    .git_discard_files_changes(vec![path]);
+                            }
+                            FileDiff::Renamed(old_path, new_path) => {
+                                self.proxy
+                                    .proxy_rpc
+                                    .git_discard_files_changes(vec![old_path]);
+                                self.proxy.proxy_rpc.trash_path(
+                                    new_path,
+                                    Box::new(move |res| {
+                                        if let Err(err) = res {
+                                            log::warn!(
+                                                "Failed to trash path: {:?}",
+                                                err
+                                            );
+                                        }
+                                    }),
+                                );
+                            }
+                        }
+                    } else {
+                        log::error!("discard target file called without a target file");
+                    }
+                },
+                crate::command::LapceSourceControlCommand::DiscardWorkspaceChanges => {
+                    self.proxy.proxy_rpc.git_discard_workspace_changes();
+                },
             }
-            LapceWorkbenchCommand::SourceControlDiscardWorkspaceChanges => {
-                self.proxy.proxy_rpc.git_discard_workspace_changes();
-            }
-            LapceWorkbenchCommand::CheckoutBranch => match data {
-                Some(Value::String(branch)) => {
-                    self.proxy.proxy_rpc.git_checkout(branch)
-                }
-                _ => log::error!("checkout called without a branch"), // TODO: How do I show a result to the user here?
-            },
-
             LapceWorkbenchCommand::ConnectSshHost => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,

@@ -7,7 +7,6 @@ use std::{
     },
 };
 
-use super::plugin::VoltID;
 use crossbeam_channel::{Receiver, Sender};
 use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
@@ -20,6 +19,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
+use super::plugin::VoltID;
 use crate::{
     buffer::BufferId,
     file::FileNodeItem,

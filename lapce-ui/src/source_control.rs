@@ -43,7 +43,9 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
                 LAPCE_COMMAND,
                 LapceCommand {
                     kind: CommandKind::Workbench(
-                        LapceWorkbenchCommand::SourceControlCommit,
+                        LapceWorkbenchCommand::SourceControlCommand(
+                            lapce_data::command::LapceSourceControlCommand::Commit,
+                        ),
                     ),
                     data: None,
                 },
@@ -53,8 +55,6 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
         .expand_width()
         .with_id(data.source_control.commit_button_id)
         .padding((10.0, 0.0, 10.0, 10.0));
-
-    let content = SourceControlFileList::new(data.source_control.file_list_id);
 
     LapcePanel::new(
         PanelKind::SourceControl,
@@ -76,7 +76,59 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
             (
                 data.source_control.file_list_id,
                 PanelHeaderKind::Simple("Changes".into()),
-                content.boxed(),
+                SourceControlFileList::new(data.source_control.file_list_id).boxed(),
+                PanelSizing::Flex(false),
+            ),
+            (
+                data.source_control.commits_list_id,
+                PanelHeaderKind::Simple("Branches".into()),
+                SourceControlItemList::new(
+                    data.source_control.commits_list_id,
+                    ScmObjectType::Branches,
+                )
+                .boxed(),
+                PanelSizing::Flex(false),
+            ),
+            // (
+            //     data.source_control.,
+            //     PanelHeaderKind::Simple("Branches".into()),
+            //     SourceControlItemList::new(data.source_control.commits_list_id, ScmObjectType::Branches).boxed(),
+            //     PanelSizing::Flex(false),
+            // ),
+            // (
+            //     data.source_control.stashes_list_id,
+            //     PanelHeaderKind::Simple("Stashes".into()),
+            //     content.boxed(),
+            //     PanelSizing::Flex(false),
+            // ),
+            (
+                data.source_control.remotes_list_id,
+                PanelHeaderKind::Simple("Remotes".into()),
+                SourceControlItemList::new(
+                    data.source_control.commits_list_id,
+                    ScmObjectType::Remotes,
+                )
+                .boxed(),
+                PanelSizing::Flex(false),
+            ),
+            (
+                data.source_control.tags_list_id,
+                PanelHeaderKind::Simple("Tags".into()),
+                SourceControlItemList::new(
+                    data.source_control.commits_list_id,
+                    ScmObjectType::Tags,
+                )
+                .boxed(),
+                PanelSizing::Flex(false),
+            ),
+            (
+                data.source_control.worktress_list_id,
+                PanelHeaderKind::Simple("Worktrees".into()),
+                SourceControlItemList::new(
+                    data.source_control.commits_list_id,
+                    ScmObjectType::Worktrees,
+                )
+                .boxed(),
                 PanelSizing::Flex(false),
             ),
         ],
@@ -255,7 +307,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                                     LAPCE_COMMAND,
                                     LapceCommand {
                                         kind: CommandKind::Workbench(
-                                             LapceWorkbenchCommand::SourceControlDiscardTargetFileChanges
+                                            LapceWorkbenchCommand::SourceControlCommand(lapce_data::command::LapceSourceControlCommand::DiscardTargetFileChanges)
                                         ),
                                         data: Some(serde_json::json!(target_file_diff.clone()))
                                     },
@@ -518,6 +570,335 @@ impl Widget<LapceTabData> for SourceControlFileList {
                             + (self.line_height - svg_size) / 2.0,
                     ));
             ctx.draw_svg(&svg, rect, Some(color));
+        }
+    }
+}
+
+#[allow(unused)]
+enum ScmObjectType {
+    Branches,
+    Commits,
+    Remotes,
+    Stashes,
+    Worktrees,
+    Tags,
+}
+
+struct SourceControlItemList {
+    object_type: ScmObjectType,
+    widget_id: WidgetId,
+    mouse_pos: Option<Point>,
+    mouse_down: Option<usize>,
+    current_line: Option<usize>,
+    line_rects: Vec<Rect>,
+    line_height: f64,
+}
+
+impl SourceControlItemList {
+    pub fn new(widget_id: WidgetId, object_type: ScmObjectType) -> Self {
+        Self {
+            object_type,
+            widget_id,
+            mouse_pos: None,
+            mouse_down: None,
+            current_line: None,
+            line_rects: vec![],
+            line_height: 25.0,
+        }
+    }
+
+    pub fn request_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        ctx.request_focus();
+        let source_control = Arc::make_mut(&mut data.source_control);
+        source_control.active = self.widget_id;
+        data.focus_area = FocusArea::Panel(PanelKind::SourceControl);
+        data.focus = Arc::new(self.widget_id);
+    }
+
+    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> Option<usize> {
+        for (i, rect) in self.line_rects.iter().enumerate() {
+            if rect.contains(mouse_event.pos) {
+                return Some(i);
+            }
+        }
+        None
+    }
+
+    fn get_data_by_type(&self, data: &LapceTabData) -> im::Vector<String> {
+        match self.object_type {
+            ScmObjectType::Commits => data.source_control.commits.clone(),
+            ScmObjectType::Branches => data.source_control.branches.clone(),
+            ScmObjectType::Remotes => data.source_control.remotes.clone(),
+            ScmObjectType::Stashes => data.source_control.stashes.clone(),
+            ScmObjectType::Worktrees => data.source_control.worktrees.clone(),
+            ScmObjectType::Tags => data.source_control.tags.clone(),
+        }
+    }
+
+    fn get_mut_data_by_type(&self, data: &mut LapceTabData) -> im::Vector<String> {
+        match self.object_type {
+            ScmObjectType::Commits => data.source_control.commits.clone(),
+            ScmObjectType::Branches => data.source_control.branches.clone(),
+            ScmObjectType::Remotes => data.source_control.remotes.clone(),
+            ScmObjectType::Stashes => data.source_control.stashes.clone(),
+            ScmObjectType::Worktrees => data.source_control.worktrees.clone(),
+            ScmObjectType::Tags => data.source_control.tags.clone(),
+        }
+    }
+}
+
+impl Widget<LapceTabData> for SourceControlItemList {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.widget_id)
+    }
+
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        match event {
+            Event::MouseMove(mouse_event) => {
+                ctx.set_handled();
+                self.mouse_pos = Some(mouse_event.pos);
+                let current_line = self.icon_hit_test(mouse_event);
+                if current_line.is_some() {
+                    ctx.set_cursor(&druid::Cursor::Pointer);
+                } else {
+                    ctx.clear_cursor();
+                }
+                if current_line != self.current_line {
+                    ctx.request_paint();
+                    self.current_line = current_line;
+                }
+            }
+            Event::MouseUp(_) => {
+                self.mouse_down = None;
+                ctx.set_handled();
+            }
+            Event::MouseDown(mouse_event) => {
+                if mouse_event.pos.y < 0.0 {
+                    return;
+                }
+
+                let target_line =
+                    (mouse_event.pos.y / self.line_height).floor() as usize;
+
+                match mouse_event.button {
+                    MouseButton::Left => {
+                        self.mouse_down = None;
+
+                        if target_line < self.get_mut_data_by_type(data).len() {
+                            let source_control =
+                                Arc::make_mut(&mut data.source_control);
+                            source_control.list_index = target_line;
+                            if mouse_event.pos.x < self.line_height {
+                                self.mouse_down = Some(target_line);
+                            }
+                        }
+
+                        self.request_focus(ctx, data);
+                        ctx.set_handled();
+                    }
+                    MouseButton::Right => {
+                        // let source_control = data.source_control.clone();
+                        let item = self
+                            .get_data_by_type(data)
+                            .get(target_line)
+                            .cloned()
+                            .unwrap();
+
+                        let mut menu = druid::Menu::<LapceData>::new("");
+
+                        match self.object_type {
+                            ScmObjectType::Branches => {
+                                menu = menu.entry(druid::MenuItem::new("Switch to Branch").command(
+                                    Command::new(
+                                        LAPCE_COMMAND,
+                                        LapceCommand {
+                                            kind: CommandKind::Workbench(
+                                                LapceWorkbenchCommand::SourceControlCommand(lapce_data::command::LapceSourceControlCommand::Checkout),
+                                            ),
+                                            data: Some(serde_json::json!(item))
+                                        },
+                                        Target::Auto,
+                                    ),
+                                ));
+                                menu = menu.entry(druid::MenuItem::new("Rename Branch...").command(
+                                    Command::new(
+                                        LAPCE_COMMAND,
+                                        LapceCommand {
+                                            kind: CommandKind::Workbench(
+                                                LapceWorkbenchCommand::SourceControlCommand(lapce_data::command::LapceSourceControlCommand::Checkout),
+                                            ),
+                                            data: Some(serde_json::json!(item)),
+                                        },
+                                        Target::Auto,
+                                    ),
+                                ));
+                                menu = menu.entry(druid::MenuItem::new("Delete Branch...").command(
+                                    Command::new(
+                                        LAPCE_COMMAND,
+                                        LapceCommand {
+                                            kind: CommandKind::Workbench(
+                                                LapceWorkbenchCommand::SourceControlCommand(lapce_data::command::LapceSourceControlCommand::Checkout),
+                                            ),
+                                            data: Some(serde_json::json!(item)),
+                                        },
+                                        Target::Auto,
+                                    ),
+                                ));
+                                // menu = menu.entry(druid::MenuItem::new("Merge Branch into Current Branch").command(
+                                //     Command::new(
+                                //         LAPCE_COMMAND,
+                                //         LapceCommand {
+                                //             kind: CommandKind::Workbench(
+                                //                 LapceWorkbenchCommand::CheckoutBranch,
+                                //             ),
+                                //             data: Some(serde_json::json!(item.clone())),
+                                //         },
+                                //         Target::Auto,
+                                //     ),
+                                // ));
+                            }
+                            ScmObjectType::Commits => {}
+                            ScmObjectType::Remotes => {}
+                            ScmObjectType::Stashes => {}
+                            ScmObjectType::Worktrees => {}
+                            ScmObjectType::Tags => {}
+                        }
+
+                        ctx.show_context_menu(menu, mouse_event.window_pos)
+                    }
+                    _ => {}
+                }
+            }
+            Event::KeyDown(key_event) => {
+                let mut keypress = data.keypress.clone();
+                let mut source_control = data.source_control.clone();
+                Arc::make_mut(&mut keypress).key_down(
+                    ctx,
+                    key_event,
+                    Arc::make_mut(&mut source_control),
+                    env,
+                );
+
+                data.keypress = keypress.clone();
+                data.source_control = source_control.clone();
+                ctx.set_handled();
+            }
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                if let LapceUICommand::Focus = command {
+                    self.request_focus(ctx, data);
+                    ctx.set_handled();
+                }
+            }
+            _ => (),
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
+    ) {
+        if let LifeCycle::FocusChanged(_) = event {
+            ctx.request_paint();
+        }
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        _env: &Env,
+    ) {
+        if self.get_data_by_type(data).len() != self.get_data_by_type(old_data).len()
+        {
+            ctx.request_layout();
+        }
+    }
+
+    fn layout(
+        &mut self,
+        _ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        _env: &Env,
+    ) -> Size {
+        let height = self.line_height * self.get_data_by_type(data).len() as f64;
+        Size::new(bc.max().width, height)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+        if ctx.is_focused() && !self.get_data_by_type(data).is_empty() {
+            let rect = Size::new(ctx.size().width, self.line_height)
+                .to_rect()
+                .with_origin(Point::new(
+                    0.0,
+                    data.source_control.list_index as f64 * self.line_height,
+                ));
+            ctx.fill(
+                rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_CURRENT_BACKGROUND),
+            );
+        }
+
+        let rect = ctx.region().bounding_box();
+        let start_line = (rect.y0 / self.line_height).floor() as usize;
+        let end_line = (rect.y1 / self.line_height).ceil() as usize;
+        self.line_rects = vec![];
+        for line in start_line..end_line {
+            if line >= self.get_data_by_type(data).len() {
+                break;
+            }
+            let y = self.line_height * line as f64;
+
+            let current_line = Size::new(ctx.size().width, self.line_height)
+                .to_rect()
+                .with_origin(Point::new(0.0, y));
+            self.line_rects.push(current_line);
+            if let Some(mouse_pos) = self.mouse_pos {
+                if current_line.contains(mouse_pos) {
+                    ctx.fill(
+                        current_line,
+                        data.config.get_color_unchecked(
+                            LapceTheme::PANEL_CURRENT_BACKGROUND,
+                        ),
+                    );
+                }
+            }
+
+            let file_name = self.get_data_by_type(data).get(line).unwrap().clone();
+
+            let text_layout = ctx
+                .text()
+                .new_text_layout(file_name)
+                .font(
+                    data.config.ui.font_family(),
+                    data.config.ui.font_size() as f64,
+                )
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    (self.line_height - 13.0) / 2.0 + 5.0,
+                    y + text_layout.y_offset(self.line_height),
+                ),
+            );
         }
     }
 }

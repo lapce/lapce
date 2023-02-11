@@ -5,6 +5,7 @@ use lapce_core::{
     command::{EditCommand, FocusCommand, MoveCommand},
     mode::Mode,
 };
+use lapce_rpc::plugin::VoltID;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -15,7 +16,6 @@ use crate::{
     keypress::KeyPressFocus,
     split::SplitDirection,
 };
-use lapce_rpc::plugin::VoltID;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SettingsValueKind {

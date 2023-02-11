@@ -31,6 +31,7 @@ psp-types.workspace = true
 
 lapce-xi-rope.workspace = true
 
+lapce-git.workspace = true
 lapce-core.workspace = true
 lapce-rpc.workspace = true
 
@@ -47,9 +48,6 @@ jsonrpc-lite = "0.6.0"
 
 # finding terminal shell
 which = "4.2.5"
-
-# git
-git2 = { version = "0.16.1", features = ["vendored-openssl"] }
 
 # deleting files
 trash = "2.1.5"

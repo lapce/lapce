@@ -351,9 +351,6 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "palette.workspace")]
     PaletteWorkspace,
 
-    #[strum(serialize = "source_control.checkout_branch")]
-    CheckoutBranch,
-
     #[strum(serialize = "toggle_maximized_panel")]
     ToggleMaximizedPanel,
 
@@ -429,27 +426,8 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "focus_terminal")]
     FocusTerminal,
 
-    #[strum(message = "Source Control: Init")]
-    #[strum(serialize = "source_control_init")]
-    SourceControlInit,
-
-    #[strum(serialize = "source_control_commit")]
-    SourceControlCommit,
-
-    #[strum(message = "Source Control: Copy Remote File Url")]
-    #[strum(serialize = "source_control_copy_active_file_remote_url")]
-    SourceControlCopyActiveFileRemoteUrl,
-
-    #[strum(message = "Source Control: Discard File Changes")]
-    #[strum(serialize = "source_control_discard_active_file_changes")]
-    SourceControlDiscardActiveFileChanges,
-
-    #[strum(serialize = "source_control_discard_target_file_changes")]
-    SourceControlDiscardTargetFileChanges,
-
-    #[strum(message = "Source Control: Discard Workspace Changes")]
-    #[strum(serialize = "source_control_discard_workspace_changes")]
-    SourceControlDiscardWorkspaceChanges,
+    #[strum(serialize = "source_control_command")]
+    SourceControlCommand(LapceSourceControlCommand),
 
     #[strum(serialize = "export_current_theme_settings")]
     #[strum(message = "Export current settings to a theme file")]
@@ -499,6 +477,51 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "quit")]
     #[strum(message = "Quit Editor")]
     Quit,
+}
+
+#[derive(
+    Display,
+    EnumString,
+    EnumIter,
+    Clone,
+    PartialEq,
+    Eq,
+    Debug,
+    EnumMessage,
+    IntoStaticStr,
+    Default,
+)]
+pub enum LapceSourceControlCommand {
+    #[default]
+    Null,
+
+    #[strum(message = "Source Control: Init")]
+    #[strum(serialize = "source_control.init")]
+    Init,
+
+    #[strum(message = "Source Control: Commit")]
+    #[strum(serialize = "source_control.commit")]
+    Commit,
+
+    #[strum(message = "Source Control: Checkout")]
+    #[strum(serialize = "source_control.checkout")]
+    Checkout,
+
+    #[strum(message = "Source Control: Copy Remote File Url")]
+    #[strum(serialize = "source_control.copy_active_file_remote_url")]
+    CopyActiveFileRemoteUrl,
+
+    #[strum(message = "Source Control: Discard File Changes")]
+    #[strum(serialize = "source_control.discard_active_file_changes")]
+    DiscardActiveFileChanges,
+
+    #[strum(message = "Source Control: Discard Target File Changes")]
+    #[strum(serialize = "source_control.discard_target_file_changes")]
+    DiscardTargetFileChanges,
+
+    #[strum(message = "Source Control: Discard Workspace Changes")]
+    #[strum(serialize = "source_control.discard_workspace_changes")]
+    DiscardWorkspaceChanges,
 }
 
 #[derive(Debug)]

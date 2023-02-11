@@ -2688,6 +2688,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "lapce-git"
+version = "0.2.5"
+dependencies = [
+ "anyhow",
+ "git2",
+ "lapce-rpc",
+ "url",
+]
+
+[[package]]
 name = "lapce-proxy"
 version = "0.2.5"
 dependencies = [
@@ -2699,7 +2709,6 @@ dependencies = [
  "directories",
  "dyn-clone",
  "flate2",
- "git2",
  "globset",
  "grep-matcher",
  "grep-regex",
@@ -2709,6 +2718,7 @@ dependencies = [
  "interprocess",
  "jsonrpc-lite",
  "lapce-core",
+ "lapce-git",
  "lapce-rpc",
  "lapce-xi-rope",
  "libc",

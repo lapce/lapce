@@ -5,7 +5,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct DiffInfo {
     pub head: String,
+    pub commits: Vec<String>,
     pub branches: Vec<String>,
+    pub tags: Vec<String>,
+    pub remotes: Vec<String>,
+    pub worktrees: Vec<String>,
+    pub stashes: Vec<String>,
     pub diffs: Vec<FileDiff>,
 }
 

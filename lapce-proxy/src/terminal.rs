@@ -334,10 +334,8 @@ impl State {
 /// SPDX: MIT
 #[cfg(target_os = "macos")]
 fn set_locale_environment() {
-    use cocoa::base::id;
-    use cocoa::foundation::NSString;
-    use objc::runtime::Object;
-    use objc::*;
+    use cocoa::{base::id, foundation::NSString};
+    use objc::{runtime::Object, *};
 
     fn lang_is_set() -> bool {
         match std::env::var_os("LANG") {

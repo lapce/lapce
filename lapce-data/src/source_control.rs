@@ -24,32 +24,58 @@ pub struct SourceControlData {
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub split_direction: SplitDirection,
+    /// Changed files
     pub file_list_id: WidgetId,
     pub file_list_index: usize,
+    /// Branches
+    pub commits_list_id: WidgetId,
+    pub branches_list_id: WidgetId,
+    pub tags_list_id: WidgetId,
+    pub remotes_list_id: WidgetId,
+    pub worktress_list_id: WidgetId,
+    pub stashes_list_id: WidgetId,
+    pub list_index: usize,
+
     pub editor_view_id: WidgetId,
     pub commit_button_id: WidgetId,
     // VCS modified files & whether they should be included in the next commit
     pub file_diffs: IndexMap<PathBuf, (FileDiff, bool)>,
-    pub branch: String,
+    pub branch: Option<String>,
+    pub commits: im::Vector<String>,
     pub branches: im::Vector<String>,
+    pub tags: im::Vector<String>,
+    pub remotes: im::Vector<String>,
+    pub worktrees: im::Vector<String>,
+    pub stashes: im::Vector<String>,
 }
 
 impl SourceControlData {
     pub fn new() -> Self {
-        let file_list_id = WidgetId::next();
         let editor_view_id = WidgetId::next();
         Self {
             active: editor_view_id,
             widget_id: WidgetId::next(),
             editor_view_id,
-            file_list_id,
+            file_list_id: WidgetId::next(),
             file_list_index: 0,
+            commits_list_id: WidgetId::next(),
+            branches_list_id: WidgetId::next(),
+            tags_list_id: WidgetId::next(),
+            remotes_list_id: WidgetId::next(),
+            worktress_list_id: WidgetId::next(),
+            stashes_list_id: WidgetId::next(),
+            list_index: 0,
             commit_button_id: WidgetId::next(),
             split_id: WidgetId::next(),
             split_direction: SplitDirection::Horizontal,
             file_diffs: IndexMap::new(),
-            branch: "".to_string(),
+            branch: None,
+            commits: im::Vector::new(),
             branches: im::Vector::new(),
+            tags: im::Vector::new(),
+            remotes: im::Vector::new(),
+            worktrees: im::Vector::new(),
+            stashes: im::Vector::new(),
         }
     }
 }

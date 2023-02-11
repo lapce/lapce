@@ -1,5 +1,4 @@
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use druid::{
     kurbo::{Circle, Line},
@@ -25,10 +24,9 @@ use lapce_data::{
 };
 use lapce_xi_rope::Rope;
 
-use crate::editor::view::LapceEditorView;
 #[cfg(not(target_os = "macos"))]
 use crate::window::window_controls;
-use crate::{list::List, palette::Palette};
+use crate::{editor::view::LapceEditorView, list::List, palette::Palette};
 
 pub struct Title {
     widget_id: WidgetId,
@@ -260,7 +258,8 @@ impl Title {
         x: f64,
     ) -> f64 {
         let mut x = x;
-        if !data.source_control.branch.is_empty() {
+        if let Some(branch) = &data.source_control.branch {
+            let mut branch = branch.clone();
             let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
 
             x += 5.0;
@@ -280,7 +279,6 @@ impl Title {
             ));
             x += size.height;
 
-            let mut branch = data.source_control.branch.clone();
             if !data.source_control.file_diffs.is_empty() {
                 branch += "*";
             }
@@ -1145,7 +1143,10 @@ impl Widget<LapceTabData> for SourceControlBranches {
                             .items
                             .iter()
                             .enumerate()
-                            .find(|(_, branch)| *branch == current_branch)
+                            .find(|(_, branch)| {
+                                *branch
+                                    == current_branch.as_deref().unwrap_or_default()
+                            })
                             .map(|(i, _)| i);
                         title.branches.list.selected_index =
                             current_item_index.unwrap_or(0);
@@ -1164,7 +1165,7 @@ impl Widget<LapceTabData> for SourceControlBranches {
                                 LAPCE_COMMAND,
                                 LapceCommand {
                                     kind: CommandKind::Workbench(
-                                        LapceWorkbenchCommand::CheckoutBranch,
+                                        LapceWorkbenchCommand::SourceControlCommand(lapce_data::command::LapceSourceControlCommand::Checkout),
                                     ),
                                     data: Some(serde_json::json!(branch.clone())),
                                 },
