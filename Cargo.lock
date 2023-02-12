@@ -1582,6 +1582,7 @@ dependencies = [
  "educe",
  "futures",
  "glazier",
+ "im",
  "indexmap",
  "leptos_reactive",
  "once_cell",
