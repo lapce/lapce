@@ -41,7 +41,6 @@ fn paint_single_file_node_item(
     active: Option<&Path>,
     hovered: Option<usize>,
     config: &LapceConfig,
-    toggle_rects: &mut HashMap<usize, Rect>,
     file_diff: Option<FileDiff>,
     worst_severity: Option<&str>,
 ) {
@@ -100,7 +99,6 @@ fn paint_single_file_node_item(
             rect,
             Some(config.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)),
         );
-        toggle_rects.insert(current, rect);
 
         let (svg, svg_color) =
             if let Some((svg, svg_color)) = config.folder_svg(&item.path_buf) {
@@ -160,15 +158,13 @@ pub fn paint_file_node_item(
     line_height: f64,
     width: f64,
     level: usize,
-    current: usize,
+    mut current: usize,
     active: Option<&Path>,
     hovered: Option<usize>,
     naming: Option<&Naming>,
     name_edit_input: &mut NameEditInput,
-    drawn_name_input: &mut bool,
     data: &LapceTabData,
     config: &LapceConfig,
-    toggle_rects: &mut HashMap<usize, Rect>,
 ) -> usize {
     if current > max {
         return current;
@@ -177,47 +173,49 @@ pub fn paint_file_node_item(
         return current + item.children_open_count;
     }
 
-    let mut i = current;
+    let mut should_paint_file_node = true;
+    if let Some(naming) = naming {
+        if current == naming.list_index() {
+            name_edit_input.paint(ctx, data, env);
 
-    if current >= min {
-        let mut should_paint_file_node = true;
-        if let Some(naming) = naming {
-            if current == naming.list_index() {
-                draw_name_input(ctx, data, env, &mut i, naming, name_edit_input);
-                *drawn_name_input = true;
-                // If it is renaming then don't draw the underlying file node
-                should_paint_file_node = !matches!(naming, Naming::Renaming { .. })
+            match naming {
+                Naming::Naming { .. } | Naming::Duplicating { .. } => {
+                    // Skip forward by an entry
+                    // This is fine since we aren't using i as an index, but as an offset-multiple in painting
+                    current += 1;
+                    should_paint_file_node = false;
+                }
+                Naming::Renaming { .. } => {}
             }
         }
+    }
 
-        if should_paint_file_node {
-            let worst_severity_color = get_file_node_item_worst_severity(item, data)
-                .map(|severity| match severity {
-                    DiagnosticSeverity::ERROR => LapceTheme::LAPCE_ERROR,
-                    DiagnosticSeverity::WARNING => LapceTheme::LAPCE_WARN,
-                    _ => LapceTheme::LAPCE_WARN,
-                });
+    if should_paint_file_node {
+        let worst_severity_color = get_file_node_item_worst_severity(item, data)
+            .map(|severity| match severity {
+                DiagnosticSeverity::ERROR => LapceTheme::LAPCE_ERROR,
+                DiagnosticSeverity::WARNING => LapceTheme::LAPCE_WARN,
+                _ => LapceTheme::LAPCE_WARN,
+            });
 
-            paint_single_file_node_item(
-                ctx,
-                item,
-                line_height,
-                width,
-                level,
-                i,
-                active,
-                hovered,
-                config,
-                toggle_rects,
-                get_item_diff(item, data),
-                worst_severity_color,
-            );
-        }
+        paint_single_file_node_item(
+            ctx,
+            item,
+            line_height,
+            width,
+            level,
+            current,
+            active,
+            hovered,
+            config,
+            get_item_diff(item, data),
+            worst_severity_color,
+        );
     }
 
     if item.open {
         for item in item.sorted_children() {
-            i = paint_file_node_item(
+            current = paint_file_node_item(
                 ctx,
                 env,
                 item,
@@ -226,41 +224,20 @@ pub fn paint_file_node_item(
                 line_height,
                 width,
                 level + 1,
-                i + 1,
+                current + 1,
                 active,
                 hovered,
                 naming,
                 name_edit_input,
-                drawn_name_input,
                 data,
                 config,
-                toggle_rects,
             );
-            if i > max {
-                return i;
+            if current > max {
+                return current;
             }
         }
     }
-    i
-}
-
-fn draw_name_input(
-    ctx: &mut PaintCtx,
-    data: &LapceTabData,
-    env: &Env,
-    i: &mut usize,
-    naming: &Naming,
-    name_edit_input: &mut NameEditInput,
-) {
-    name_edit_input.paint(ctx, data, env);
-    match naming {
-        Naming::Naming { .. } | Naming::Duplicating { .. } => {
-            // Skip forward by an entry
-            // This is fine since we aren't using i as an index, but as an offset-multiple in painting
-            *i += 1;
-        }
-        Naming::Renaming { .. } => {}
-    }
+    current
 }
 
 pub fn get_item_children(
@@ -1031,13 +1008,11 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         let active = data.file_explorer.active_selected.as_deref();
         let min = (rect.y0 / self.line_height).floor() as usize;
         let max = (rect.y1 / self.line_height) as usize + 2;
-        let level = 0;
-        let mut drawn_name_input = false;
 
         if let Some(item) = data.file_explorer.workspace.as_ref() {
-            let mut i = 0;
+            let mut current = 0;
             for item in item.sorted_children() {
-                i = paint_file_node_item(
+                current = paint_file_node_item(
                     ctx,
                     env,
                     item,
@@ -1045,36 +1020,26 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     max,
                     self.line_height,
                     width,
-                    level + 1,
-                    i + 1,
+                    1,
+                    current + 1,
                     active,
                     self.hovered,
                     data.file_explorer.naming.as_ref(),
                     &mut self.name_edit_input,
-                    &mut drawn_name_input,
                     data,
                     &data.config,
-                    &mut HashMap::new(),
                 );
-                if i > max {
+                if current > max {
                     return;
                 }
             }
 
             // If we didn't draw the name input then we'll have to draw it here
             if let Some(naming) = &data.file_explorer.naming {
-                if i == 0
+                if current == 0
                     || (naming.list_index() >= min && naming.list_index() < max)
                 {
-                    draw_name_input(
-                        ctx,
-                        data,
-                        env,
-                        // This value does not matter here
-                        &mut 0,
-                        naming,
-                        &mut self.name_edit_input,
-                    );
+                    self.name_edit_input.paint(ctx, data, env);
                 }
             }
         }
