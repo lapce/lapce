@@ -704,12 +704,7 @@ impl LapceEditorGutter {
                 let line_no = if sequential_line_numbers || line == current_line {
                     line + 1
                 } else {
-                    // TODO: after Rust 1.60, this can be replaced with `line.abs_diff(current_line)`
-                    if line > current_line {
-                        line - current_line
-                    } else {
-                        current_line - line
-                    }
+                    line.abs_diff(current_line)
                 };
 
                 let content = line_no.to_string();
