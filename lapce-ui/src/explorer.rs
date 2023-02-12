@@ -179,32 +179,25 @@ pub fn paint_file_node_item(
 
     let mut i = current;
 
-    let worst_severity_color = data
-        .main_split
-        .diagnostics
-        .get(&item.path_buf)
-        .and_then(|i| i.iter().filter_map(|d| d.diagnostic.severity).min())
-        .map(|severity| match severity {
-            DiagnosticSeverity::ERROR => LapceTheme::LAPCE_ERROR,
-            DiagnosticSeverity::WARNING => LapceTheme::LAPCE_WARN,
-            _ => LapceTheme::LAPCE_WARN,
-        });
-
     if current >= min {
         let mut should_paint_file_node = true;
-        if !*drawn_name_input {
-            if let Some(naming) = naming {
-                if current == naming.list_index() {
-                    draw_name_input(ctx, data, env, &mut i, naming, name_edit_input);
-                    *drawn_name_input = true;
-                    // If it is renaming then don't draw the underlying file node
-                    should_paint_file_node =
-                        !matches!(naming, Naming::Renaming { .. })
-                }
+        if let Some(naming) = naming {
+            if current == naming.list_index() {
+                draw_name_input(ctx, data, env, &mut i, naming, name_edit_input);
+                *drawn_name_input = true;
+                // If it is renaming then don't draw the underlying file node
+                should_paint_file_node = !matches!(naming, Naming::Renaming { .. })
             }
         }
 
         if should_paint_file_node {
+            let worst_severity_color = get_file_node_item_worst_severity(item, data)
+                .map(|severity| match severity {
+                    DiagnosticSeverity::ERROR => LapceTheme::LAPCE_ERROR,
+                    DiagnosticSeverity::WARNING => LapceTheme::LAPCE_WARN,
+                    _ => LapceTheme::LAPCE_WARN,
+                });
+
             paint_single_file_node_item(
                 ctx,
                 item,
@@ -266,7 +259,7 @@ fn draw_name_input(
             // This is fine since we aren't using i as an index, but as an offset-multiple in painting
             *i += 1;
         }
-        _ => {}
+        Naming::Renaming { .. } => {}
     }
 }
 
@@ -1565,5 +1558,22 @@ impl Widget<LapceTabData> for OpenEditorList {
                 i += 1;
             }
         }
+    }
+}
+
+pub fn get_file_node_item_worst_severity(
+    node: &FileNodeItem,
+    data: &LapceTabData,
+) -> Option<DiagnosticSeverity> {
+    if node.is_dir {
+        node.children
+            .values()
+            .filter_map(|n| get_file_node_item_worst_severity(n, data))
+            .min()
+    } else {
+        data.main_split
+            .diagnostics
+            .get(&node.path_buf)
+            .and_then(|i| i.iter().filter_map(|d| d.diagnostic.severity).min())
     }
 }
