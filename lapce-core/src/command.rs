@@ -340,6 +340,8 @@ pub enum FocusCommand {
     SelectNextSyntaxItem,
     #[strum(serialize = "select_previous_syntax_item")]
     SelectPreviousSyntaxItem,
+    #[strum(serialize = "open_source_file")]
+    OpenSourceFile,
 }
 
 #[derive(

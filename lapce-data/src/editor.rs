@@ -2517,6 +2517,17 @@ impl LapceEditorBufferData {
             }
             SelectPreviousSyntaxItem => self
                 .run_selection_range_command(ctx, SelectionRangeDirection::Previous),
+            OpenSourceFile => {
+                if let BufferContent::File(path) = self.doc.content() {
+                    if let EditorView::Diff(_) = self.editor.view {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::OpenFile(path.clone(), true),
+                            Target::Auto,
+                        ));
+                    }
+                }
+            }
             _ => return CommandExecuted::No,
         }
         CommandExecuted::Yes
