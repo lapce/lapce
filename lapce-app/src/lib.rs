@@ -2,6 +2,7 @@ pub mod app;
 pub mod command;
 pub mod config;
 pub mod db;
+pub mod editor;
 pub mod keypress;
 pub mod palette;
 pub mod proxy;

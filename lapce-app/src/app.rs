@@ -4,6 +4,7 @@ use floem::{
     app::AppContext,
     button::button,
     event::{Event, EventListner},
+    peniko::Color,
     reactive::{
         create_effect, create_signal, provide_context, use_context, WriteSignal,
     },
@@ -13,8 +14,11 @@ use floem::{
         Position, Style,
     },
     view::View,
-    views::label,
-    views::{container, Decorators},
+    views::{
+        container, virtual_list, Decorators, VirtualListDirection,
+        VirtualListItemSize,
+    },
+    views::{label, scroll},
 };
 
 use crate::{
@@ -22,7 +26,10 @@ use crate::{
     config::LapceConfig,
     db::LapceDb,
     keypress::{condition::Condition, DefaultKeyPress, KeyPressData, KeyPressFocus},
-    palette::PaletteData,
+    palette::{
+        item::{PaletteItem, PaletteItemContent},
+        PaletteData,
+    },
     proxy::{start_proxy, ProxyData},
     title::title,
     window_tab::WindowTabData,
@@ -57,24 +64,94 @@ fn status(cx: AppContext) -> impl View {
     label(cx, move || "status".to_string())
 }
 
-fn palette(cx: AppContext) -> impl View {
-    container(cx, |cx| {
-        container(cx, |cx| {
+fn palette_item(cx: AppContext, item: PaletteItem) -> impl View {
+    match item.content {
+        PaletteItemContent::File { path, full_path } => {
+            let file_name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            let (file_name, _) = create_signal(cx.scope, file_name);
+            let folder = path
+                .parent()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            let (folder, _) = create_signal(cx.scope, folder);
+            stack(cx, |cx| {
+                (
+                    label(cx, move || file_name.get()).style(cx, || Style {
+                        max_width: Dimension::Percent(1.0),
+                        ..Default::default()
+                    }),
+                    label(cx, move || folder.get()).style(cx, || Style {
+                        margin_left: 6.0,
+                        min_width: Dimension::Points(0.0),
+                        ..Default::default()
+                    }),
+                )
+            })
+            .style(cx, || Style {
+                height: Dimension::Points(20.0),
+                padding_left: 10.0,
+                padding_right: 10.0,
+                ..Default::default()
+            })
+        }
+    }
+}
+
+fn palette_content(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+    let items = window_tab_data.palette.items.read_only();
+    scroll(cx, |cx| {
+        virtual_list(
+            cx,
+            VirtualListDirection::Vertical,
+            move || items.get(),
+            move |item| format!("{}", item.id),
+            palette_item,
+            VirtualListItemSize::Fixed(20.0),
+        )
+        .style(cx, || Style {
+            width: Dimension::Percent(1.0),
+            flex_direction: FlexDirection::Column,
+            ..Default::default()
+        })
+    })
+    .style(cx, || Style {
+        width: Dimension::Percent(1.0),
+        flex_grow: 1.0,
+        border: 1.0,
+        // height: Dimension::Points(900.0),
+        ..Default::default()
+    })
+}
+
+fn palette(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+    container(cx, move |cx| {
+        container(cx, move |cx| {
             stack(cx, move |cx| {
                 (
                     label(cx, move || "palette".to_string()),
-                    label(cx, move || "palette content".to_string()),
+                    palette_content(cx, window_tab_data),
                 )
             })
             .style(cx, || Style {
                 width: Dimension::Percent(1.0),
+                border: 1.0,
+                border_radius: 5.0,
                 flex_direction: FlexDirection::Column,
                 ..Default::default()
             })
         })
         .style(cx, || Style {
-            width: Dimension::Points(500.0),
-            border: 1.0,
+            width: Dimension::Points(200.0),
+            // min_height: Dimension::Points(0.0),
+            max_height: Dimension::Percent(0.5),
+            background: Some(Color::rgba8(0, 0, 0, 255)),
+            // border: 1.0,
+            // border_radius: 2.0,
             ..Default::default()
         })
     })
@@ -128,7 +205,10 @@ fn window_tab(cx: AppContext, workspace: Arc<LapceWorkspace>) -> impl View {
     }
 
     stack(cx, move |cx| {
-        (workbench(cx, window_tab_data.clone()), palette(cx))
+        (
+            workbench(cx, window_tab_data.clone()),
+            palette(cx, window_tab_data.clone()),
+        )
     })
     .style(cx, || Style {
         width: Dimension::Percent(1.0),
@@ -143,7 +223,7 @@ fn app_logic(cx: AppContext) -> impl View {
 
     let workspace = Arc::new(LapceWorkspace {
         kind: LapceWorkspaceType::Local,
-        path: Some(PathBuf::from("/Users/Lulu/lapce")),
+        path: Some(PathBuf::from("/Users/dz/lapce-rust")),
         last_open: 0,
     });
 

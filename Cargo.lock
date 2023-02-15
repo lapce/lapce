@@ -3051,6 +3051,7 @@ dependencies = [
  "directories",
  "floem",
  "futures",
+ "im",
  "indexmap",
  "lapce-core",
  "lapce-proxy",

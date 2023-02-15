@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PaletteItem {
+    pub id: usize,
     pub content: PaletteItemContent,
     pub filter_text: String,
     pub score: i64,

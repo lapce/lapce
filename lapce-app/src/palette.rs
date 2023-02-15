@@ -9,7 +9,7 @@ use floem::{
 };
 use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
 
-use crate::workspace::LapceWorkspace;
+use crate::{editor::EditorData, workspace::LapceWorkspace};
 
 use self::{
     item::{PaletteItem, PaletteItemContent},
@@ -31,8 +31,9 @@ pub struct PaletteData {
     pub workspace: Arc<LapceWorkspace>,
     pub status: RwSignal<PaletteStatus>,
     pub kind: RwSignal<PaletteKind>,
-    pub items: RwSignal<Vec<PaletteItem>>,
+    pub items: RwSignal<im::Vector<PaletteItem>>,
     pub proxy_rpc: ProxyRpcHandler,
+    pub editor: EditorData,
 }
 
 impl PaletteData {
@@ -43,12 +44,14 @@ impl PaletteData {
     ) -> Self {
         let status = create_rw_signal(cx.scope, PaletteStatus::Inactive);
         let kind = create_rw_signal(cx.scope, PaletteKind::File);
-        let items = create_rw_signal(cx.scope, Vec::new());
+        let items = create_rw_signal(cx.scope, im::Vector::new());
+        let editor = EditorData::new_local(cx);
         Self {
             workspace,
             status,
             kind,
             items,
+            editor,
             proxy_rpc,
         }
     }
@@ -68,7 +71,8 @@ impl PaletteData {
         let send = create_ext_action(cx, move |items: Vec<PathBuf>| {
             let items = items
                 .into_iter()
-                .map(|path| {
+                .enumerate()
+                .map(|(i, path)| {
                     let full_path = path.clone();
                     let mut path = path;
                     if let Some(workspace_path) = workspace.path.as_ref() {
@@ -79,13 +83,14 @@ impl PaletteData {
                     }
                     let filter_text = path.to_str().unwrap_or("").to_string();
                     PaletteItem {
+                        id: i,
                         content: PaletteItemContent::File { path, full_path },
                         filter_text,
                         score: 0,
                         indices: Vec::new(),
                     }
                 })
-                .collect::<Vec<_>>();
+                .collect::<im::Vector<_>>();
             println!("get files set items");
             set_items.set(items);
         });

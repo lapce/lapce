@@ -43,7 +43,7 @@ impl WindowTabData {
         );
         let (config, set_config) = create_signal(cx.scope, config);
 
-        let proxy = start_proxy(cx);
+        let proxy = start_proxy(cx, workspace.clone());
 
         let palette = PaletteData::new(cx, workspace, proxy.rpc.clone());
 

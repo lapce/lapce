@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use crossbeam_channel::Sender;
 use floem::{
@@ -13,6 +13,8 @@ use lapce_rpc::{
     source_control::DiffInfo,
 };
 
+use crate::workspace::LapceWorkspace;
+
 pub struct Proxy {
     pub tx: Sender<CoreNotification>,
 }
@@ -24,7 +26,7 @@ pub struct ProxyData {
     pub diff_info: ReadSignal<Option<DiffInfo>>,
 }
 
-pub fn start_proxy(cx: AppContext) -> ProxyData {
+pub fn start_proxy(cx: AppContext, workspace: Arc<LapceWorkspace>) -> ProxyData {
     let proxy_rpc = ProxyRpcHandler::new();
     let core_rpc = CoreRpcHandler::new();
 
@@ -38,13 +40,7 @@ pub fn start_proxy(cx: AppContext) -> ProxyData {
         });
     }
 
-    proxy_rpc.initialize(
-        Some(PathBuf::from("/Users/dz/lapce")),
-        Vec::new(),
-        HashMap::new(),
-        1,
-        1,
-    );
+    proxy_rpc.initialize(workspace.path.clone(), Vec::new(), HashMap::new(), 1, 1);
 
     let (tx, rx) = crossbeam_channel::unbounded();
     std::thread::spawn(move || {
