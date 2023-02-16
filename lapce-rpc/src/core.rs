@@ -14,6 +14,7 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{
     file::FileNodeItem,
@@ -62,6 +63,10 @@ pub enum CoreNotification {
     WorkspaceFileChange {},
     PublishDiagnostics {
         diagnostics: PublishDiagnosticsParams,
+    },
+    PublishLspStdio {
+        stdin: Option<Value>,
+        stdout: Option<Value>,
     },
     WorkDoneProgress {
         progress: ProgressParams,
@@ -303,6 +308,10 @@ impl CoreRpcHandler {
 
     pub fn home_dir(&self, path: PathBuf) {
         self.notification(CoreNotification::HomeDir { path });
+    }
+
+    pub fn publish_lsp_stdio(&self, stdin: Option<Value>, stdout: Option<Value>) {
+        self.notification(CoreNotification::PublishLspStdio { stdin, stdout });
     }
 }
 

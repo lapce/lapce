@@ -11,20 +11,14 @@ pub struct ProblemData {
     pub collapsed: HashMap<PathBuf, bool>,
 }
 
-impl ProblemData {
-    pub fn new() -> Self {
-        Self {
+impl Default for ProblemData {
+    fn default() -> ProblemData {
+        ProblemData {
             widget_id: WidgetId::next(),
             split_id: WidgetId::next(),
             error_widget_id: WidgetId::next(),
             warning_widget_id: WidgetId::next(),
             collapsed: HashMap::new(),
         }
-    }
-}
-
-impl Default for ProblemData {
-    fn default() -> Self {
-        Self::new()
     }
 }

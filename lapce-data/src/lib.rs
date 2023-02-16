@@ -19,6 +19,7 @@ pub mod hover;
 pub mod images;
 pub mod keypress;
 pub mod list;
+pub mod lsp_stdio;
 pub mod markdown;
 pub mod menu;
 pub mod palette;

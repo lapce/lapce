@@ -168,6 +168,13 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
+            PublishLspStdio { stdin, stdout } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::PublishLspStdio { stdin, stdout },
+                    Target::Widget(self.tab_id),
+                );
+            }
             WorkDoneProgress { progress } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,

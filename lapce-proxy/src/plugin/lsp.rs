@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
-use jsonrpc_lite::{Id, Params};
+use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::meta;
 use lapce_rpc::plugin::VoltID;
 use lapce_rpc::{style::LineStyle, RpcError};
@@ -193,35 +193,53 @@ impl LspClient {
         let mut writer = Box::new(BufWriter::new(stdin));
         let (io_tx, io_rx) = crossbeam_channel::unbounded();
         let server_rpc = PluginServerRpcHandler::new(volt_id.clone(), io_tx.clone());
+        let core_rpc = plugin_rpc.core_rpc.clone();
         thread::spawn(move || {
-            for msg in io_rx {
-                if let Ok(msg) = serde_json::to_string(&msg) {
-                    let msg =
+            for resp in io_rx {
+                if let Ok(msg) = serde_json::to_string(&resp) {
+                    let msg_format =
                         format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
-                    let _ = writer.write(msg.as_bytes());
+                    let _ = writer.write(msg_format.as_bytes());
                     let _ = writer.flush();
+                    core_rpc
+                        .publish_lsp_stdio(serde_json::to_value(&resp).ok(), None);
                 }
             }
         });
 
         let local_server_rpc = server_rpc.clone();
         let core_rpc = plugin_rpc.core_rpc.clone();
+        let local_display_name = volt_display_name.clone();
         thread::spawn(move || {
             let mut reader = Box::new(BufReader::new(stdout));
             loop {
-                match read_message(&mut reader) {
-                    Ok(message_str) => {
-                        if let Some(resp) = handle_plugin_server_message(
-                            &local_server_rpc,
-                            &message_str,
-                        ) {
-                            let _ = io_tx.send(resp);
+                match read_message(&mut reader).ok() {
+                    Some(msg) => match JsonRpc::parse(&msg) {
+                        Ok(req) => {
+                            core_rpc.publish_lsp_stdio(
+                                None,
+                                serde_json::to_value(&req).ok(),
+                            );
+
+                            if let Some(resp) =
+                                handle_plugin_server_message(&local_server_rpc, &req)
+                            {
+                                let _ = io_tx.send(resp);
+                            }
                         }
-                    }
-                    Err(_err) => {
+                        Err(err) => {
+                            core_rpc.log(
+                                log::Level::Debug,
+                                format!(
+                                    "received bad JSON-RPC stdout from LSP server '{local_display_name}' because '{err}'"
+                                ),
+                            );
+                        }
+                    },
+                    None => {
                         core_rpc.log(
                             log::Level::Error,
-                            format!("lsp server {server} stopped!"),
+                            format!("LSP server '{local_display_name}' stopped!"),
                         );
                         return;
                     }

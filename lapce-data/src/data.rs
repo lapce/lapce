@@ -67,6 +67,7 @@ use crate::{
     hover::HoverData,
     images::ImageCache,
     keypress::KeyPressData,
+    lsp_stdio::LspStdioData,
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::{
         PanelContainerPosition, PanelData, PanelKind, PanelOrder, PanelPosition,
@@ -288,7 +289,12 @@ impl LapceData {
         );
         order.insert(
             PanelPosition::BottomLeft,
-            im::vector![PanelKind::Terminal, PanelKind::Search, PanelKind::Problem,],
+            im::vector![
+                PanelKind::Terminal,
+                PanelKind::Search,
+                PanelKind::Problem,
+                PanelKind::LspStdio,
+            ],
         );
 
         order
@@ -625,6 +631,7 @@ pub struct LapceTabData {
     pub find: Arc<Find>,
     pub source_control: Arc<SourceControlData>,
     pub problem: Arc<ProblemData>,
+    pub lsp_stdio: Arc<LspStdioData>,
     pub search: Arc<SearchData>,
     pub plugin: Arc<PluginData>,
     pub picker: Arc<FilePickerData>,
@@ -825,7 +832,8 @@ impl LapceTabData {
             &config,
             event_sink.clone(),
         ));
-        let problem = Arc::new(ProblemData::new());
+        let problem = Arc::new(ProblemData::default());
+        let lsp_stdio = Arc::new(LspStdioData::default());
         let panel = workspace_info
             .map(|i| {
                 let mut panel = i.panel;
@@ -852,6 +860,7 @@ impl LapceTabData {
             terminal,
             plugin,
             problem,
+            lsp_stdio,
             search,
             find: Arc::new(Find::new(0)),
             picker: file_picker,
@@ -1626,6 +1635,9 @@ impl LapceTabData {
             LapceWorkbenchCommand::ToggleProblemVisual => {
                 self.toggle_panel_visual(ctx, PanelKind::Problem);
             }
+            LapceWorkbenchCommand::ToggleLspStdioVisual => {
+                self.toggle_panel_visual(ctx, PanelKind::LspStdio);
+            }
             LapceWorkbenchCommand::ToggleTerminalVisual => {
                 self.toggle_panel_visual(ctx, PanelKind::Terminal);
             }
@@ -1659,6 +1671,9 @@ impl LapceTabData {
             }
             LapceWorkbenchCommand::ToggleProblemFocus => {
                 self.toggle_panel_focus(ctx, PanelKind::Problem);
+            }
+            LapceWorkbenchCommand::ToggleLspStdioFocus => {
+                self.toggle_panel_focus(ctx, PanelKind::LspStdio);
             }
             LapceWorkbenchCommand::ToggleTerminalFocus => {
                 self.toggle_panel_focus(ctx, PanelKind::Terminal);
@@ -2152,6 +2167,7 @@ impl LapceTabData {
             PanelKind::Terminal => self.terminal.widget_id,
             PanelKind::Search => self.search.active,
             PanelKind::Problem => self.problem.widget_id,
+            PanelKind::LspStdio => self.lsp_stdio.widget_id,
         };
         if let PanelKind::Search = kind {
             ctx.submit_command(Command::new(
@@ -2182,7 +2198,10 @@ impl LapceTabData {
 
     fn toggle_panel_focus(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
         let should_hide = match kind {
-            PanelKind::FileExplorer | PanelKind::Plugin | PanelKind::Problem => {
+            PanelKind::FileExplorer
+            | PanelKind::Plugin
+            | PanelKind::Problem
+            | PanelKind::LspStdio => {
                 // Some panels don't accept focus (yet). Fall back to visibility check
                 // in those cases.
                 self.panel.is_panel_visible(&kind)
