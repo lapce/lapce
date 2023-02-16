@@ -40,7 +40,7 @@ pub trait KeyPressFocus {
     fn get_mode(&self) -> Mode;
     fn check_condition(&self, condition: Condition) -> bool;
     fn run_command(
-        &mut self,
+        &self,
         cx: AppContext,
         command: &LapceCommand,
         count: Option<usize>,
@@ -52,7 +52,7 @@ pub trait KeyPressFocus {
     fn focus_only(&self) -> bool {
         false
     }
-    fn receive_char(&mut self, cx: AppContext, c: &str);
+    fn receive_char(&self, cx: AppContext, c: &str);
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -85,7 +85,7 @@ impl KeyPressFocus for DefaultKeyPress {
     }
 
     fn run_command(
-        &mut self,
+        &self,
         cx: AppContext,
         command: &LapceCommand,
         count: Option<usize>,
@@ -94,7 +94,7 @@ impl KeyPressFocus for DefaultKeyPress {
         todo!()
     }
 
-    fn receive_char(&mut self, cx: AppContext, c: &str) {
+    fn receive_char(&self, cx: AppContext, c: &str) {
         todo!()
     }
 }
@@ -188,7 +188,7 @@ impl KeyPressData {
         command: &str,
         count: Option<usize>,
         mods: Modifiers,
-        focus: &mut T,
+        focus: &T,
     ) -> CommandExecuted {
         if let Some(cmd) = self.commands.get(command) {
             match &cmd.kind {
@@ -213,7 +213,7 @@ impl KeyPressData {
         &mut self,
         cx: AppContext,
         event: impl Into<EventRef<'a>>,
-        focus: &mut T,
+        focus: &T,
     ) -> bool {
         let event = event.into();
         log::info!(target: "lapce_data::keypress::key_down", "{event:?}");
@@ -297,19 +297,28 @@ impl KeyPressData {
 
         self.count = None;
 
+        let mut mods = keypress.mods;
+
         #[cfg(not(target_os = "macos"))]
-        if (keypress.mods ^ Modifiers::SHIFT).is_empty() {
-            if let Key::Keyboard(druid::KbKey::Character(c)) = &keypress.key {
-                focus.receive_char(cx, c);
-                return true;
+        {
+            mods.set(Modifiers::SHIFT, false);
+            if mods.is_empty() {
+                if let Key::Keyboard(druid::KbKey::Character(c)) = &keypress.key {
+                    focus.receive_char(cx, c);
+                    return true;
+                }
             }
         }
 
         #[cfg(target_os = "macos")]
-        if (keypress.mods ^ (Modifiers::SHIFT | Modifiers::ALT)).is_empty() {
-            if let Key::Keyboard(KbKey::Character(c)) = &keypress.key {
-                focus.receive_char(cx, c);
-                return true;
+        {
+            mods.set(Modifiers::SHIFT, false);
+            mods.set(Modifiers::ALT, false);
+            if mods.is_empty() {
+                if let Key::Keyboard(KbKey::Character(c)) = &keypress.key {
+                    focus.receive_char(cx, c);
+                    return true;
+                }
             }
         }
 

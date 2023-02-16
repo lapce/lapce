@@ -23,6 +23,9 @@ directories.workspace = true
 notify.workspace = true
 toml_edit.workspace = true
 im.workspace = true
+lapce-xi-rope.workspace = true
+smallvec.workspace = true
+fuzzy-matcher = "0.3.7"
 sled = "0.34.7"
 tokio = { version = "1.21", features = ["full"] }
 futures = "0.3.26"

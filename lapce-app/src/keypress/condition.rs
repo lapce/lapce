@@ -43,6 +43,8 @@ pub enum Condition {
     EditorFocus,
     #[strum(serialize = "list_focus")]
     ListFocus,
+    #[strum(serialize = "palette_focus")]
+    PaletteFocus,
 }
 
 #[cfg(test)]
@@ -68,7 +70,7 @@ mod test {
         }
 
         fn run_command(
-            &mut self,
+            &self,
             _ctx: AppContext,
             _command: &crate::command::LapceCommand,
             _count: Option<usize>,
@@ -77,7 +79,7 @@ mod test {
             unimplemented!()
         }
 
-        fn receive_char(&mut self, _ctx: AppContext, _c: &str) {
+        fn receive_char(&self, _ctx: AppContext, _c: &str) {
             unimplemented!()
         }
     }

@@ -4,13 +4,17 @@ use floem::{
     app::AppContext,
     button::button,
     event::{Event, EventListner},
-    peniko::Color,
+    peniko::{
+        kurbo::{Point, Rect, Size},
+        Color,
+    },
     reactive::{
-        create_effect, create_signal, provide_context, use_context, WriteSignal,
+        create_effect, create_signal, provide_context, use_context, ReadSignal,
+        WriteSignal,
     },
     stack::stack,
     style::{
-        AlignContent, AlignItems, Dimension, FlexDirection, JustifyContent,
+        AlignContent, AlignItems, Dimension, Display, FlexDirection, JustifyContent,
         Position, Style,
     },
     view::View,
@@ -32,7 +36,7 @@ use crate::{
     },
     proxy::{start_proxy, ProxyData},
     title::title,
-    window_tab::WindowTabData,
+    window_tab::{Focus, WindowTabData},
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
@@ -64,7 +68,11 @@ fn status(cx: AppContext) -> impl View {
     label(cx, move || "status".to_string())
 }
 
-fn palette_item(cx: AppContext, item: PaletteItem) -> impl View {
+fn palette_item(
+    cx: AppContext,
+    item: PaletteItem,
+    index: ReadSignal<usize>,
+) -> impl View {
     match item.content {
         PaletteItemContent::File { path, full_path } => {
             let file_name = path
@@ -79,6 +87,7 @@ fn palette_item(cx: AppContext, item: PaletteItem) -> impl View {
                 .unwrap_or("")
                 .to_string();
             let (folder, _) = create_signal(cx.scope, folder);
+            let id = item.id;
             stack(cx, |cx| {
                 (
                     label(cx, move || file_name.get()).style(cx, || Style {
@@ -92,66 +101,133 @@ fn palette_item(cx: AppContext, item: PaletteItem) -> impl View {
                     }),
                 )
             })
-            .style(cx, || Style {
+            .style(cx, move || Style {
                 height: Dimension::Points(20.0),
                 padding_left: 10.0,
                 padding_right: 10.0,
+                background: if index.get() == id {
+                    Some(Color::rgb8(180, 0, 0))
+                } else {
+                    None
+                },
                 ..Default::default()
             })
         }
     }
 }
 
-fn palette_content(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
-    let items = window_tab_data.palette.items.read_only();
-    scroll(cx, |cx| {
-        virtual_list(
-            cx,
-            VirtualListDirection::Vertical,
-            move || items.get(),
-            move |item| format!("{}", item.id),
-            palette_item,
-            VirtualListItemSize::Fixed(20.0),
-        )
+fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+    let doc = window_tab_data.palette.editor.doc.read_only();
+    let cursor = window_tab_data.palette.editor.cursor.read_only();
+    let config = window_tab_data.palette.config;
+    let cursor_x = move || {
+        let offset = cursor.get().offset();
+        let config = config.get();
+        doc.with(|doc| doc.line_point_of_offset(offset, 12, &config).x)
+    };
+    container(cx, |cx| {
+        container(cx, |cx| {
+            scroll(cx, |cx| {
+                stack(cx, |cx| {
+                    (
+                        label(cx, move || {
+                            doc.with(|doc| doc.buffer().text().to_string())
+                        }),
+                        label(cx, move || "".to_string()).style(cx, move || Style {
+                            position: Position::Absolute,
+                            margin_left: cursor_x() as f32 - 1.0,
+                            border_left: 2.0,
+                            ..Default::default()
+                        }),
+                    )
+                })
+            })
+            .style(cx, || Style {
+                flex_grow: 1.0,
+                min_width: Dimension::Points(0.0),
+                padding_top: 5.0,
+                padding_bottom: 5.0,
+                ..Default::default()
+            })
+        })
         .style(cx, || Style {
-            width: Dimension::Percent(1.0),
-            flex_direction: FlexDirection::Column,
+            flex_grow: 1.0,
+            min_width: Dimension::Points(0.0),
+            border: 1.0,
+            border_radius: 2.0,
+            padding_left: 5.0,
+            padding_right: 5.0,
             ..Default::default()
         })
     })
     .style(cx, || Style {
+        padding: 5.0,
+        ..Default::default()
+    })
+}
+
+fn palette_content(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+    let items = window_tab_data.palette.filtered_items;
+    let index = window_tab_data.palette.index.read_only();
+    container(cx, |cx| {
+        scroll(cx, |cx| {
+            virtual_list(
+                cx,
+                VirtualListDirection::Vertical,
+                move || items.get(),
+                move |item| format!("{}", item.id),
+                move |cx, item| palette_item(cx, item, index),
+                VirtualListItemSize::Fixed(20.0),
+            )
+            .style(cx, || Style {
+                width: Dimension::Percent(1.0),
+                flex_direction: FlexDirection::Column,
+                ..Default::default()
+            })
+        })
+        .on_ensure_visible(cx, move || {
+            Size::new(1.0, 20.0)
+                .to_rect()
+                .with_origin(Point::new(0.0, index.get() as f64 * 20.0))
+        })
+        .style(cx, || Style {
+            width: Dimension::Percent(1.0),
+            min_height: Dimension::Points(0.0),
+            ..Default::default()
+        })
+    })
+    .style(cx, move || Style {
+        display: if items.with(|items| items.is_empty()) {
+            Display::None
+        } else {
+            Display::Flex
+        },
         width: Dimension::Percent(1.0),
-        flex_grow: 1.0,
-        border: 1.0,
-        // height: Dimension::Points(900.0),
+        min_height: Dimension::Points(0.0),
+        padding_bottom: 5.0,
         ..Default::default()
     })
 }
 
 fn palette(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
-    container(cx, move |cx| {
-        container(cx, move |cx| {
-            stack(cx, move |cx| {
-                (
-                    label(cx, move || "palette".to_string()),
-                    palette_content(cx, window_tab_data),
-                )
-            })
-            .style(cx, || Style {
-                width: Dimension::Percent(1.0),
-                border: 1.0,
-                border_radius: 5.0,
-                flex_direction: FlexDirection::Column,
-                ..Default::default()
-            })
+    let keypress = window_tab_data.keypress.write_only();
+    let palette_data = window_tab_data.palette.clone();
+    let palette = container(cx, |cx| {
+        stack(cx, |cx| {
+            (
+                palette_input(cx, window_tab_data.clone()),
+                palette_content(cx, window_tab_data.clone()),
+            )
         })
         .style(cx, || Style {
-            width: Dimension::Points(200.0),
-            // min_height: Dimension::Points(0.0),
+            width: Dimension::Points(500.0),
+            max_width: Dimension::Percent(0.9),
+            min_height: Dimension::Points(0.0),
             max_height: Dimension::Percent(0.5),
-            background: Some(Color::rgba8(0, 0, 0, 255)),
-            // border: 1.0,
-            // border_radius: 2.0,
+            border: 1.0,
+            border_radius: 5.0,
+            flex_direction: FlexDirection::Column,
+            background: Some(Color::rgb8(0, 0, 0)),
             ..Default::default()
         })
     })
@@ -159,9 +235,28 @@ fn palette(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
         position: Position::Absolute,
         width: Dimension::Percent(1.0),
         height: Dimension::Percent(1.0),
-        justify_content: Some(AlignContent::Center),
+        flex_direction: FlexDirection::Column,
+        align_content: Some(AlignContent::Center),
         ..Default::default()
     })
+    .event(EventListner::KeyDown, move |event| {
+        if let Event::KeyDown(key_event) = event {
+            keypress.update(|keypress| {
+                keypress.key_down(cx, key_event, &palette_data);
+            });
+        }
+        true
+    });
+
+    let id = palette.id();
+    let focus = window_tab_data.focus.read_only();
+    create_effect(cx.scope, move |_| {
+        if let Focus::Palette = focus.get() {
+            cx.update_focus(id);
+        }
+    });
+
+    palette
 }
 
 fn workbench(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
@@ -181,7 +276,6 @@ fn workbench(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
             keypress.update(|keypress| {
                 keypress.key_down(cx, key_event, &mut DefaultKeyPress {});
             });
-            println!("got key event {key_event:?}");
         }
         true
     });

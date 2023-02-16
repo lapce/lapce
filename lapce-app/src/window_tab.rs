@@ -4,6 +4,7 @@ use floem::{
     app::AppContext,
     reactive::{create_rw_signal, create_signal, use_context, ReadSignal, RwSignal},
 };
+use lapce_core::register::Register;
 
 use crate::{
     command::LapceWorkbenchCommand,
@@ -16,10 +17,17 @@ use crate::{
 };
 
 #[derive(Clone)]
+pub enum Focus {
+    Workbench,
+    Palette,
+}
+
+#[derive(Clone)]
 pub struct WindowTabData {
     pub palette: PaletteData,
     pub proxy: ProxyData,
     pub keypress: RwSignal<KeyPressData>,
+    pub focus: RwSignal<Focus>,
     pub workbench_command: ReadSignal<Option<LapceWorkbenchCommand>>,
 }
 
@@ -41,16 +49,22 @@ impl WindowTabData {
             cx.scope,
             KeyPressData::new(&config, set_workbench_command),
         );
-        let (config, set_config) = create_signal(cx.scope, config);
+        let (config, set_config) = create_signal(cx.scope, Arc::new(config));
+
+        let focus = create_rw_signal(cx.scope, Focus::Workbench);
 
         let proxy = start_proxy(cx, workspace.clone());
 
-        let palette = PaletteData::new(cx, workspace, proxy.rpc.clone());
+        let register = create_rw_signal(cx.scope, Register::default());
+
+        let palette =
+            PaletteData::new(cx, workspace, proxy.rpc.clone(), register, config);
 
         Self {
             palette,
             proxy,
             keypress,
+            focus,
             workbench_command,
         }
     }
@@ -94,6 +108,7 @@ impl WindowTabData {
             PaletteLine => todo!(),
             Palette => {
                 self.palette.run(cx, PaletteKind::File);
+                self.focus.set(Focus::Palette);
             }
             PaletteSymbol => todo!(),
             PaletteWorkspaceSymbol => todo!(),
