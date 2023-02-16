@@ -1958,9 +1958,7 @@ impl LapceConfig {
             (
                 self.file_icon_theme
                     .resolve_path_to_icon(path)
-                    .and_then(|p| {
-                        Some(self.svg_store.write().get_default_file_svg(&p))
-                    })
+                    .map(|p| self.svg_store.write().get_default_file_svg(p))
                     .unwrap_or(self.ui_svg(LapceIcons::FILE)),
                 None,
             )
