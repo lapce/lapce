@@ -191,7 +191,7 @@ mod tests {
         // Mimicking load
         let workspace = LapceWorkspace::default();
 
-        let config = LapceConfig::merge_config(&workspace, None, None);
+        let config = LapceConfig::merge_config(&workspace, None, None, None);
         let mut lapce_config: LapceConfig = config.try_deserialize().unwrap();
 
         let test_theme_str = r##"

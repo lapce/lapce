@@ -395,8 +395,11 @@ impl PaletteData {
             PaletteKind::ColorTheme => {
                 self.get_color_themes();
             }
-            PaletteKind::IconTheme => {
-                self.get_icon_themes();
+            PaletteKind::FileIconTheme => {
+                self.get_file_icon_themes();
+            }
+            PaletteKind::UIIconTheme => {
+                self.get_ui_icon_themes();
             }
             PaletteKind::Language => {
                 self.get_languages();
@@ -987,13 +990,13 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_icon_themes(&self) {
+    fn get_file_icon_themes(&self) {
         let config = self.common.config.get_untracked();
         let items = config
-            .icon_theme_list()
+            .file_icon_theme_list()
             .iter()
             .map(|name| PaletteItem {
-                content: PaletteItemContent::IconTheme { name: name.clone() },
+                content: PaletteItemContent::FileIconTheme { name: name.clone() },
                 filter_text: name.clone(),
                 score: 0,
                 indices: Vec::new(),
@@ -1001,7 +1004,26 @@ impl PaletteData {
             .collect();
         self.preselect_matching(
             &items,
-            &self.common.config.get_untracked().icon_theme.name,
+            &self.common.config.get_untracked().file_icon_theme.name,
+        );
+        self.items.set(items);
+    }
+
+    fn get_ui_icon_themes(&self) {
+        let config = self.common.config.get_untracked();
+        let items = config
+            .ui_icon_theme_list()
+            .iter()
+            .map(|name| PaletteItem {
+                content: PaletteItemContent::UIIconTheme { name: name.clone() },
+                filter_text: name.clone(),
+                score: 0,
+                indices: Vec::new(),
+            })
+            .collect();
+        self.preselect_matching(
+            &items,
+            &self.common.config.get_untracked().file_icon_theme.name,
         );
         self.items.set(items);
     }
@@ -1297,10 +1319,17 @@ impl PaletteData {
                         name: name.clone(),
                         save: true,
                     }),
-                PaletteItemContent::IconTheme { name } => self
+                PaletteItemContent::FileIconTheme { name } => self
                     .common
                     .internal_command
-                    .send(InternalCommand::SetIconTheme {
+                    .send(InternalCommand::SetFileIconTheme {
+                        name: name.clone(),
+                        save: true,
+                    }),
+                PaletteItemContent::UIIconTheme { name } => self
+                    .common
+                    .internal_command
+                    .send(InternalCommand::SetUIIconTheme {
                         name: name.clone(),
                         save: true,
                     }),
@@ -1475,10 +1504,17 @@ impl PaletteData {
                         name: name.clone(),
                         save: false,
                     }),
-                PaletteItemContent::IconTheme { name } => self
+                PaletteItemContent::FileIconTheme { name } => self
                     .common
                     .internal_command
-                    .send(InternalCommand::SetIconTheme {
+                    .send(InternalCommand::SetFileIconTheme {
+                        name: name.clone(),
+                        save: false,
+                    }),
+                PaletteItemContent::UIIconTheme { name } => self
+                    .common
+                    .internal_command
+                    .send(InternalCommand::SetUIIconTheme {
                         name: name.clone(),
                         save: false,
                     }),
@@ -1490,8 +1526,9 @@ impl PaletteData {
 
     /// Cancel the palette, doing cleanup specific to the palette kind.
     fn cancel(&self) {
-        if let PaletteKind::ColorTheme | PaletteKind::IconTheme =
-            self.kind.get_untracked()
+        if let PaletteKind::ColorTheme
+        | PaletteKind::FileIconTheme
+        | PaletteKind::UIIconTheme = self.kind.get_untracked()
         {
             // TODO(minor): We don't really need to reload the *entire config* here!
             self.common

@@ -2448,7 +2448,8 @@ fn palette_item(
         | PaletteItemContent::ColorTheme { .. }
         | PaletteItemContent::SCMReference { .. }
         | PaletteItemContent::TerminalProfile { .. }
-        | PaletteItemContent::IconTheme { .. } => {
+        | PaletteItemContent::FileIconTheme { .. }
+        | PaletteItemContent::UIIconTheme { .. } => {
             let text = item.filter_text;
             let indices = item.indices;
             container(
