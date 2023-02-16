@@ -1066,8 +1066,11 @@ impl WindowTabData {
             ChangeColorTheme => {
                 self.palette.run(PaletteKind::ColorTheme);
             }
-            ChangeIconTheme => {
-                self.palette.run(PaletteKind::IconTheme);
+            ChangeFileIconTheme => {
+                self.palette.run(PaletteKind::FileIconTheme);
+            }
+            ChangeUIIconTheme => {
+                self.palette.run(PaletteKind::UIIconTheme);
             }
             ChangeFileLanguage => {
                 self.palette.run(PaletteKind::Language);
@@ -1718,18 +1721,33 @@ impl WindowTabData {
                     self.set_config.set(new_config);
                 }
             }
-            InternalCommand::SetIconTheme { name, save } => {
+            InternalCommand::SetFileIconTheme { name, save } => {
                 if save {
                     // The config file is watched
                     LapceConfig::update_file(
                         "core",
-                        "icon-theme",
+                        "file-icon-theme",
                         toml_edit::Value::from(name),
                     );
                 } else {
                     let mut new_config = self.common.config.get_untracked();
                     Arc::make_mut(&mut new_config)
-                        .set_icon_theme(&self.workspace, &name);
+                        .set_file_icon_theme(&self.workspace, &name);
+                    self.set_config.set(new_config);
+                }
+            }
+            InternalCommand::SetUIIconTheme { name, save } => {
+                if save {
+                    // The config file is watched
+                    LapceConfig::update_file(
+                        "core",
+                        "ui-icon-theme",
+                        toml_edit::Value::from(name),
+                    );
+                } else {
+                    let mut new_config = self.common.config.get_untracked();
+                    Arc::make_mut(&mut new_config)
+                        .set_ui_icon_theme(&self.workspace, &name);
                     self.set_config.set(new_config);
                 }
             }

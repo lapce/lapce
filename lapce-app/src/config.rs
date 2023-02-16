@@ -22,8 +22,8 @@ use self::{
     color_theme::{ColorThemeConfig, ThemeColor, ThemeColorPreference},
     core::CoreConfig,
     editor::{EditorConfig, WrapStyle, SCALE_OR_SIZE_LIMIT},
+    icon_theme::{file::FileIconThemeConfig, ui::UIIconThemeConfig},
     icon::LapceIcons,
-    icon_theme::IconThemeConfig,
     svg::SvgStore,
     terminal::TerminalConfig,
     ui::UIConfig,
@@ -45,7 +45,10 @@ pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
 const DEFAULT_LIGHT_THEME: &str = include_str!("../../defaults/light-theme.toml");
 const DEFAULT_DARK_THEME: &str = include_str!("../../defaults/dark-theme.toml");
-const DEFAULT_ICON_THEME: &str = include_str!("../../defaults/icon-theme.toml");
+const DEFAULT_FILE_ICON_THEME: &str =
+    include_str!("../../defaults/icon-theme-file.toml");
+const DEFAULT_UI_ICON_THEME: &str =
+    include_str!("../../defaults/icon-theme-ui.toml");
 
 static DEFAULT_CONFIG: Lazy<config::Config> = Lazy::new(LapceConfig::default_config);
 static DEFAULT_LAPCE_CONFIG: Lazy<LapceConfig> =
@@ -69,19 +72,39 @@ static DEFAULT_DARK_THEME_COLOR_CONFIG: Lazy<ColorThemeConfig> = Lazy::new(|| {
     .expect("Failed to load default dark theme. This is likely due to a missing or misnamed field in dark-theme.toml")
 });
 
-static DEFAULT_ICON_THEME_CONFIG: Lazy<config::Config> = Lazy::new(|| {
+/// Default icon theme for icons describing files
+static DEFAULT_FILE_ICON_THEME_CONFIG: Lazy<config::Config> = Lazy::new(|| {
     config::Config::builder()
         .add_source(config::File::from_str(
-            DEFAULT_ICON_THEME,
+            DEFAULT_FILE_ICON_THEME,
             config::FileFormat::Toml,
         ))
         .build()
         .unwrap()
 });
-static DEFAULT_ICON_THEME_ICON_CONFIG: Lazy<IconThemeConfig> = Lazy::new(|| {
-    DEFAULT_ICON_THEME_CONFIG.get::<IconThemeConfig>("icon-theme")
-    .expect("Failed to load default icon theme. This is likely due to a missing or misnamed field in icon-theme.toml")
+static DEFAULT_FILE_ICON_THEME_ICON_CONFIG: Lazy<FileIconThemeConfig> = Lazy::new(
+    || {
+        DEFAULT_FILE_ICON_THEME_CONFIG.get::<FileIconThemeConfig>("icon-theme")
+    .expect("Failed to load default file icon theme. This is likely due to a missing or misnamed field in file-icon-theme.toml")
+    },
+);
+
+/// Default icon theme for icons used in Lapce UI
+static DEFAULT_UI_ICON_THEME_CONFIG: Lazy<config::Config> = Lazy::new(|| {
+    config::Config::builder()
+        .add_source(config::File::from_str(
+            DEFAULT_UI_ICON_THEME,
+            config::FileFormat::Toml,
+        ))
+        .build()
+        .unwrap()
 });
+static DEFAULT_UI_ICON_THEME_ICON_CONFIG: Lazy<UIIconThemeConfig> = Lazy::new(
+    || {
+        DEFAULT_UI_ICON_THEME_CONFIG.get::<UIIconThemeConfig>("icon-theme")
+    .expect("Failed to load default ui icon theme. This is likely due to a missing or misnamed field in ui-icon-theme.toml")
+    },
+);
 
 /// Used for creating a `DropdownData` for a setting
 #[derive(Debug, Clone)]
@@ -100,18 +123,31 @@ pub struct LapceConfig {
     pub ui: UIConfig,
     pub editor: EditorConfig,
     pub terminal: TerminalConfig,
+    /// Current colour theme config
     #[serde(default)]
     pub color_theme: ColorThemeConfig,
+    /// Current file icon theme config
     #[serde(default)]
-    pub icon_theme: IconThemeConfig,
+    pub file_icon_theme: FileIconThemeConfig,
+    /// Current UI icon theme config
+    #[serde(default)]
+    pub ui_icon_theme: UIIconThemeConfig,
+    /// Installed plugins
     #[serde(flatten)]
     pub plugins: HashMap<String, HashMap<String, serde_json::Value>>,
+    /// Current colour scheme
     #[serde(skip)]
     pub color: ThemeColor,
+    /// List of available color themes
     #[serde(skip)]
     pub available_color_themes: HashMap<String, (String, config::Config)>,
+    /// List of available file icon themes
     #[serde(skip)]
-    pub available_icon_themes:
+    pub available_file_icon_themes:
+        HashMap<String, (String, config::Config, Option<PathBuf>)>,
+    /// List of available UI icon themes
+    #[serde(skip)]
+    pub available_ui_icon_themes:
         HashMap<String, (String, config::Config, Option<PathBuf>)>,
     // #[serde(skip)]
     // tab_layout_info: Arc<RwLock<HashMap<(FontFamily, usize), f64>>>,
@@ -121,8 +157,14 @@ pub struct LapceConfig {
     /// the theme picker, and serves as a cache.
     #[serde(skip)]
     color_theme_list: im::Vector<String>,
+    /// A list of the themes that are available. This is primarily for populating
+    /// the theme picker, and serves as a cache.
     #[serde(skip)]
-    icon_theme_list: im::Vector<String>,
+    file_icon_theme_list: im::Vector<String>,
+    /// A list of the themes that are available. This is primarily for populating
+    /// the theme picker, and serves as a cache.
+    #[serde(skip)]
+    ui_icon_theme_list: im::Vector<String>,
     /// The couple names for the wrap style
     #[serde(skip)]
     wrap_style_list: im::Vector<String>,
@@ -134,7 +176,7 @@ impl LapceConfig {
         disabled_volts: &[VoltID],
         extra_plugin_paths: &[PathBuf],
     ) -> Self {
-        let config = Self::merge_config(workspace, None, None);
+        let config = Self::merge_config(workspace, None, None, None);
         let mut lapce_config: LapceConfig = match config.try_deserialize() {
             Ok(config) => config,
             Err(error) => {
@@ -145,7 +187,9 @@ impl LapceConfig {
 
         lapce_config.available_color_themes =
             Self::load_color_themes(disabled_volts, extra_plugin_paths);
-        lapce_config.available_icon_themes =
+        lapce_config.available_file_icon_themes =
+            Self::load_icon_themes(disabled_volts, extra_plugin_paths);
+        lapce_config.available_ui_icon_themes =
             Self::load_icon_themes(disabled_volts, extra_plugin_paths);
         lapce_config.resolve_theme(workspace);
 
@@ -157,13 +201,21 @@ impl LapceConfig {
             .collect();
         lapce_config.color_theme_list.sort();
 
-        lapce_config.icon_theme_list = lapce_config
-            .available_icon_themes
+        lapce_config.file_icon_theme_list = lapce_config
+            .available_file_icon_themes
             .values()
             .map(|(name, _, _)| name.clone())
             .sorted()
             .collect();
-        lapce_config.icon_theme_list.sort();
+        lapce_config.file_icon_theme_list.sort();
+
+        lapce_config.ui_icon_theme_list = lapce_config
+            .available_ui_icon_themes
+            .values()
+            .map(|(name, _, _)| name.clone())
+            .sorted()
+            .collect();
+        lapce_config.ui_icon_theme_list.sort();
 
         lapce_config.wrap_style_list = im::vector![
             WrapStyle::None.to_string(),
@@ -180,7 +232,8 @@ impl LapceConfig {
     fn merge_config(
         workspace: &LapceWorkspace,
         color_theme_config: Option<config::Config>,
-        icon_theme_config: Option<config::Config>,
+        file_icon_theme_config: Option<config::Config>,
+        ui_icon_theme_config: Option<config::Config>,
     ) -> config::Config {
         let mut config = DEFAULT_CONFIG.clone();
 
@@ -195,7 +248,15 @@ impl LapceConfig {
                 .unwrap_or_else(|_| config.clone());
         }
 
-        if let Some(theme) = icon_theme_config {
+        if let Some(theme) = file_icon_theme_config {
+            config = config::Config::builder()
+                .add_source(config.clone())
+                .add_source(theme)
+                .build()
+                .unwrap_or_else(|_| config.clone());
+        }
+
+        if let Some(theme) = ui_icon_theme_config {
             config = config::Config::builder()
                 .add_source(config.clone())
                 .add_source(theme)
@@ -255,7 +316,10 @@ impl LapceConfig {
         let mut default_lapce_config: LapceConfig =
             DEFAULT_CONFIG.clone().try_deserialize().expect("Failed to deserialize default config, this likely indicates a missing or misnamed field in settings.toml");
         default_lapce_config.color_theme = DEFAULT_DARK_THEME_COLOR_CONFIG.clone();
-        default_lapce_config.icon_theme = DEFAULT_ICON_THEME_ICON_CONFIG.clone();
+        default_lapce_config.file_icon_theme =
+            DEFAULT_FILE_ICON_THEME_ICON_CONFIG.clone();
+        default_lapce_config.ui_icon_theme =
+            DEFAULT_UI_ICON_THEME_ICON_CONFIG.clone();
         default_lapce_config.resolve_colors(None);
         default_lapce_config
     }
@@ -269,21 +333,33 @@ impl LapceConfig {
             .map(|(_, config)| config)
             .unwrap_or(&DEFAULT_DARK_THEME_CONFIG);
 
-        let icon_theme_config = self
-            .available_icon_themes
-            .get(&self.core.icon_theme.to_lowercase())
+        let file_icon_theme_config = self
+            .available_file_icon_themes
+            .get(&self.core.file_icon_theme.to_lowercase())
             .map(|(_, config, _)| config)
-            .unwrap_or(&DEFAULT_ICON_THEME_CONFIG);
+            .unwrap_or(&DEFAULT_FILE_ICON_THEME_CONFIG);
 
-        let icon_theme_path = self
-            .available_icon_themes
-            .get(&self.core.icon_theme.to_lowercase())
+        let file_icon_theme_path = self
+            .available_file_icon_themes
+            .get(&self.core.file_icon_theme.to_lowercase())
+            .map(|(_, _, path)| path);
+
+        let ui_icon_theme_config = self
+            .available_file_icon_themes
+            .get(&self.core.ui_icon_theme.to_lowercase())
+            .map(|(_, config, _)| config)
+            .unwrap_or(&DEFAULT_FILE_ICON_THEME_CONFIG);
+
+        let ui_icon_theme_path = self
+            .available_file_icon_themes
+            .get(&self.core.ui_icon_theme.to_lowercase())
             .map(|(_, _, path)| path);
 
         if let Ok(new) = Self::merge_config(
             workspace,
             Some(color_theme_config.clone()),
-            Some(icon_theme_config.clone()),
+            Some(file_icon_theme_config.clone()),
+            Some(ui_icon_theme_config.clone()),
         )
         .try_deserialize::<LapceConfig>()
         {
@@ -294,9 +370,15 @@ impl LapceConfig {
             self.terminal.get_indexed_colors();
 
             self.color_theme = new.color_theme;
-            self.icon_theme = new.icon_theme;
-            if let Some(icon_theme_path) = icon_theme_path {
-                self.icon_theme.path = icon_theme_path.clone().unwrap_or_default();
+            self.file_icon_theme = new.file_icon_theme;
+            if let Some(icon_theme_path) = file_icon_theme_path {
+                self.file_icon_theme.path =
+                    icon_theme_path.clone().unwrap_or_default();
+            }
+            self.ui_icon_theme = new.ui_icon_theme;
+            if let Some(icon_theme_path) = ui_icon_theme_path {
+                self.ui_icon_theme.path =
+                    icon_theme_path.clone().unwrap_or_default();
             }
             self.plugins = new.plugins;
         }
@@ -337,10 +419,17 @@ impl LapceConfig {
         self.resolve_theme(workspace);
     }
 
-    /// Set the active icon theme.  
+    /// Set the active file icon theme.  
     /// Note that this does not save the config.
-    pub fn set_icon_theme(&mut self, workspace: &LapceWorkspace, theme: &str) {
-        self.core.icon_theme = theme.to_string();
+    pub fn set_file_icon_theme(&mut self, workspace: &LapceWorkspace, theme: &str) {
+        self.core.file_icon_theme = theme.to_string();
+        self.resolve_theme(workspace);
+    }
+
+    /// Set the active UI icon theme.  
+    /// Note that this does not save the config.
+    pub fn set_ui_icon_theme(&mut self, workspace: &LapceWorkspace, theme: &str) {
+        self.core.ui_icon_theme = theme.to_string();
         self.resolve_theme(workspace);
     }
 
@@ -472,7 +561,7 @@ impl LapceConfig {
         }
 
         let (name, theme) =
-            Self::load_icon_theme_from_str(DEFAULT_ICON_THEME).unwrap();
+            Self::load_icon_theme_from_str(DEFAULT_UI_ICON_THEME).unwrap();
         themes.insert(name.to_lowercase(), (name, theme, None));
 
         themes
@@ -543,7 +632,7 @@ impl LapceConfig {
             .add_source(config::File::from(path))
             .build()
             .ok()?;
-        let table = config.get_table("icon-theme").ok()?;
+        let table = config.get_table("file-icon-theme").ok()?;
         let name = table.get("name")?.to_string();
         Some((
             name.to_lowercase(),
@@ -591,25 +680,25 @@ impl LapceConfig {
     }
 
     pub fn ui_svg(&self, icon: &'static str) -> String {
-        let svg = self.icon_theme.ui.get(icon).and_then(|path| {
-            let path = self.icon_theme.path.join(path);
+        let svg = self.ui_icon_theme.icons.get(icon).and_then(|path| {
+            let path = self.ui_icon_theme.path.join(path);
             self.svg_store.write().get_svg_on_disk(&path)
         });
 
         svg.unwrap_or_else(|| {
-            let name = DEFAULT_ICON_THEME_ICON_CONFIG.ui.get(icon).unwrap();
-            self.svg_store.write().get_default_svg(name)
+            let name = DEFAULT_UI_ICON_THEME_ICON_CONFIG.icons.get(icon).unwrap();
+            self.svg_store.write().get_default_ui_svg(name)
         })
     }
 
     pub fn files_svg(&self, paths: &[&Path]) -> (String, Option<Color>) {
         let svg = self
-            .icon_theme
+            .file_icon_theme
             .resolve_path_to_icon(paths)
             .and_then(|p| self.svg_store.write().get_svg_on_disk(&p));
 
         if let Some(svg) = svg {
-            let color = if self.icon_theme.use_editor_color.unwrap_or(false) {
+            let color = if self.file_icon_theme.use_editor_color.unwrap_or(false) {
                 Some(self.color(LapceColor::LAPCE_ICON_ACTIVE))
             } else {
                 None
@@ -667,8 +756,13 @@ impl LapceConfig {
     }
 
     /// List of the icon themes that are available by their display names.
-    pub fn icon_theme_list(&self) -> im::Vector<String> {
-        self.icon_theme_list.clone()
+    pub fn file_icon_theme_list(&self) -> im::Vector<String> {
+        self.file_icon_theme_list.clone()
+    }
+
+    /// List of the icon themes that are available by their display names.
+    pub fn ui_icon_theme_list(&self) -> im::Vector<String> {
+        self.ui_icon_theme_list.clone()
     }
 
     pub fn terminal_font_family(&self) -> &str {
@@ -856,13 +950,21 @@ impl LapceConfig {
                     .unwrap_or(0),
                 items: self.color_theme_list.clone(),
             }),
-            ("core", "icon-theme") => Some(DropdownInfo {
+            ("core", "file-icon-theme") => Some(DropdownInfo {
                 active_index: self
-                    .icon_theme_list
+                    .file_icon_theme_list
                     .iter()
-                    .position(|s| s == &self.icon_theme.name)
+                    .position(|s| s == &self.file_icon_theme.name)
                     .unwrap_or(0),
-                items: self.icon_theme_list.clone(),
+                items: self.file_icon_theme_list.clone(),
+            }),
+            ("core", "ui-icon-theme") => Some(DropdownInfo {
+                active_index: self
+                    .ui_icon_theme_list
+                    .iter()
+                    .position(|s| s == &self.file_icon_theme.name)
+                    .unwrap_or(0),
+                items: self.ui_icon_theme_list.clone(),
             }),
             ("editor", "wrap-style") => Some(DropdownInfo {
                 // TODO: it would be better to have the text not be the default kebab-case when

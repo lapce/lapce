@@ -207,9 +207,13 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Change Color Theme")]
     ChangeColorTheme,
 
-    #[strum(serialize = "change_icon_theme")]
-    #[strum(message = "Change Icon Theme")]
-    ChangeIconTheme,
+    #[strum(serialize = "change_file_icon_theme")]
+    #[strum(message = "Change File Icon Theme")]
+    ChangeFileIconTheme,
+
+    #[strum(serialize = "change_ui_icon_theme")]
+    #[strum(message = "Change UI Icon Theme")]
+    ChangeUIIconTheme,
 
     #[strum(serialize = "open_settings")]
     #[strum(message = "Open Settings")]
@@ -704,7 +708,12 @@ pub enum InternalCommand {
         /// Whether to save the theme to the config file
         save: bool,
     },
-    SetIconTheme {
+    SetFileIconTheme {
+        name: String,
+        /// Whether to save the theme to the config file
+        save: bool,
+    },
+    SetUIIconTheme {
         name: String,
         /// Whether to save the theme to the config file
         save: bool,

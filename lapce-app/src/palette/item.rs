@@ -74,7 +74,10 @@ pub enum PaletteItemContent {
     ColorTheme {
         name: String,
     },
-    IconTheme {
+    FileIconTheme {
+        name: String,
+    },
+    UIIconTheme {
         name: String,
     },
     Language {

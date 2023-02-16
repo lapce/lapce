@@ -3,7 +3,8 @@
 [core]
 modal = false
 color-theme = "Lapce Dark"
-icon-theme = "Lapce Codicons"
+ui-icon-theme = "Lapce Codicons"
+file-icon-theme = "Lapce Seti"
 custom-titlebar = true
 log-level-filter = "lapce_app=proxy,lapce_core=debug,lapce_app=debug,lapce_app::keypress::loader=off"
 

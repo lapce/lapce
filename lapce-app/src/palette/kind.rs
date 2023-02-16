@@ -19,7 +19,8 @@ pub enum PaletteKind {
     WslHost,
     RunAndDebug,
     ColorTheme,
-    IconTheme,
+    FileIconTheme,
+    UIIconTheme,
     Language,
     LineEnding,
     SCMReferences,
@@ -46,7 +47,8 @@ impl PaletteKind {
             | PaletteKind::TsHost
             | PaletteKind::RunAndDebug
             | PaletteKind::ColorTheme
-            | PaletteKind::IconTheme
+            | PaletteKind::FileIconTheme
+            | PaletteKind::UIIconTheme
             | PaletteKind::Language
             | PaletteKind::LineEnding
             | PaletteKind::SCMReferences
@@ -94,7 +96,12 @@ impl PaletteKind {
                 Some(LapceWorkbenchCommand::PaletteRunAndDebug)
             }
             PaletteKind::ColorTheme => Some(LapceWorkbenchCommand::ChangeColorTheme),
-            PaletteKind::IconTheme => Some(LapceWorkbenchCommand::ChangeIconTheme),
+            PaletteKind::FileIconTheme => {
+                Some(LapceWorkbenchCommand::ChangeFileIconTheme)
+            }
+            PaletteKind::UIIconTheme => {
+                Some(LapceWorkbenchCommand::ChangeUIIconTheme)
+            }
             PaletteKind::Language => Some(LapceWorkbenchCommand::ChangeFileLanguage),
             PaletteKind::LineEnding => {
                 Some(LapceWorkbenchCommand::ChangeFileLineEnding)
@@ -129,7 +136,8 @@ impl PaletteKind {
             | PaletteKind::TsHost
             | PaletteKind::RunAndDebug
             | PaletteKind::ColorTheme
-            | PaletteKind::IconTheme
+            | PaletteKind::FileIconTheme
+            | PaletteKind::UIIconTheme
             | PaletteKind::Language
             | PaletteKind::LineEnding
             | PaletteKind::SCMReferences

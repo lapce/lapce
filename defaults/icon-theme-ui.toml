@@ -3,7 +3,7 @@
 [icon-theme]
 name = "Lapce Codicons"
 
-[icon-theme.ui]
+[icon-theme.icons]
 "logo" = "lapce_logo.svg"
 "menu" = "menu.svg"
 "link" = "link.svg"
@@ -141,9 +141,3 @@ name = "Lapce Codicons"
 "completion_item_kind.string" = "symbol-string.svg"
 "completion_item_kind.struct" = "symbol-structure.svg"
 "completion_item_kind.variable" = "symbol-variable.svg"
-
-[icon-theme.foldername]
-
-[icon-theme.filename]
-
-[icon-theme.extension]
