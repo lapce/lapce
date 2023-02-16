@@ -11,6 +11,7 @@ use include_dir::{include_dir, Dir};
 use crate::config::LOGO;
 
 const CODICONS_ICONS_DIR: Dir = include_dir!("../icons/codicons");
+const SETI_ICONS_DIR: Dir = include_dir!("../icons/seti-ui");
 const LAPCE_ICONS_DIR: Dir = include_dir!("../icons/lapce");
 
 pub struct SvgStore {
@@ -39,7 +40,7 @@ impl SvgStore {
         self.svgs.get("lapce_logo").unwrap().clone()
     }
 
-    pub fn get_default_svg(&mut self, name: &str) -> Svg {
+    pub fn get_default_ui_svg(&mut self, name: &str) -> Svg {
         if !self.svgs.contains_key(name) {
             let file = if name == "lapce_remote.svg" {
                 LAPCE_ICONS_DIR.get_file(name).unwrap()
@@ -48,6 +49,20 @@ impl SvgStore {
                     .get_file(name)
                     .unwrap_or_else(|| panic!("Failed to unwrap {name}"))
             };
+            dbg!(file.path());
+            let content = file.contents_utf8().unwrap();
+            let svg = Svg::from_str(content).unwrap();
+            self.svgs.insert(name.to_string(), svg);
+        }
+        self.svgs.get(name).unwrap().clone()
+    }
+
+    pub fn get_default_file_svg(&mut self, name: &str) -> Svg {
+        if !self.svgs.contains_key(name) {
+            let file = SETI_ICONS_DIR
+                .get_file(name)
+                .unwrap_or_else(|| panic!("Failed to unwrap {name}"));
+            dbg!(file.path());
             let content = file.contents_utf8().unwrap();
             let svg = Svg::from_str(content).unwrap();
             self.svgs.insert(name.to_string(), svg);

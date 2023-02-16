@@ -638,10 +638,18 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 theme.to_string(),
                 self.indices.to_vec(),
             ),
-            PaletteItemContent::IconTheme(theme) => PaletteItemPaintInfo::new_text(
-                theme.to_string(),
-                self.indices.to_vec(),
-            ),
+            PaletteItemContent::ProductIconTheme(theme) => {
+                PaletteItemPaintInfo::new_text(
+                    theme.to_string(),
+                    self.indices.to_vec(),
+                )
+            }
+            PaletteItemContent::FileIconTheme(theme) => {
+                PaletteItemPaintInfo::new_text(
+                    theme.to_string(),
+                    self.indices.to_vec(),
+                )
+            }
             PaletteItemContent::Language(name) => PaletteItemPaintInfo::new_text(
                 name.to_string(),
                 self.indices.to_vec(),

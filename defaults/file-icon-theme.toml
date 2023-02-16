@@ -1,0 +1,10 @@
+#:schema ../extra/schemas/icon-theme.json
+
+[file-icon-theme]
+name = "Lapce Seti"
+
+[file-icon-theme.foldername]
+
+[file-icon-theme.filename]
+
+[file-icon-theme.extension]

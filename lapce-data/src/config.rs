@@ -30,7 +30,10 @@ pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
 const DEFAULT_LIGHT_THEME: &str = include_str!("../../defaults/light-theme.toml");
 const DEFAULT_DARK_THEME: &str = include_str!("../../defaults/dark-theme.toml");
-const DEFAULT_ICON_THEME: &str = include_str!("../../defaults/icon-theme.toml");
+const DEFAULT_PRODUCT_ICON_THEME: &str =
+    include_str!("../../defaults/product-icon-theme.toml");
+const DEFAULT_FILE_ICON_THEME: &str =
+    include_str!("../../defaults/file-icon-theme.toml");
 
 static DEFAULT_CONFIG: Lazy<config::Config> = Lazy::new(LapceConfig::default_config);
 static DEFAULT_LAPCE_CONFIG: Lazy<LapceConfig> =
@@ -261,10 +264,10 @@ impl LapceIcons {
     pub const LAYOUT_PANEL: &str = "layout.panel.on";
     pub const LAYOUT_PANEL_OFF: &str = "layout.panel.off";
 
-    pub const SEARCH: &'static str = "search.icon";
-    pub const SEARCH_CLEAR: &'static str = "search.clear";
-    pub const SEARCH_FORWARD: &'static str = "search.forward";
-    pub const SEARCH_BACKWARD: &'static str = "search.backward";
+    pub const SEARCH: &str = "search.icon";
+    pub const SEARCH_CLEAR: &str = "search.clear";
+    pub const SEARCH_FORWARD: &str = "search.forward";
+    pub const SEARCH_BACKWARD: &str = "search.backward";
     pub const SEARCH_CASE_SENSITIVE: &'static str = "search.case_sensitive";
 
     pub const FILE_TYPE_CODE: &str = "file-code";
@@ -328,8 +331,14 @@ pub struct CoreConfig {
     pub modal: bool,
     #[field_names(desc = "Set the color theme of Lapce")]
     pub color_theme: String,
-    #[field_names(desc = "Set the icon theme of Lapce")]
-    pub icon_theme: String,
+    #[field_names(
+        desc = "Set the product icon theme of Lapce. This will change which theme to use for displaying UI icons."
+    )]
+    pub product_icon_theme: String,
+    #[field_names(
+        desc = "Set the file icon theme of Lapce. This will change which theme to use for displaying icons on file types."
+    )]
+    pub file_icon_theme: String,
     #[field_names(
         desc = "Enable customised titlebar and disable OS native one (Linux, BSD, Windows)"
     )]
@@ -801,19 +810,28 @@ impl ThemeBaseConfig {
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
-pub struct IconThemeConfig {
+pub struct ProductIconThemeConfig {
     #[serde(skip)]
     pub path: PathBuf,
     pub name: String,
     pub use_editor_color: Option<bool>,
     pub ui: IndexMap<String, String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct FileIconThemeConfig {
+    #[serde(skip)]
+    pub path: PathBuf,
+    pub name: String,
+    pub use_editor_color: Option<bool>,
     pub foldername: IndexMap<String, String>,
     pub filename: IndexMap<String, String>,
     pub extension: IndexMap<String, String>,
 }
 
-impl IconThemeConfig {
-    pub fn resolve_path_to_icon(&self, path: &Path) -> Option<PathBuf> {
+impl FileIconThemeConfig {
+    pub fn resolve_path_to_icon_path(&self, path: &Path) -> Option<PathBuf> {
         if let Some((_, icon)) = self.filename.get_key_value(
             path.file_name()
                 .unwrap_or_default()
@@ -828,6 +846,26 @@ impl IconThemeConfig {
                 .unwrap_or_default(),
         ) {
             Some(self.path.join(icon))
+        } else {
+            None
+        }
+    }
+
+    pub fn resolve_path_to_icon(&self, path: &Path) -> Option<&str> {
+        if let Some((_, icon)) = self.filename.get_key_value(
+            path.file_name()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default(),
+        ) {
+            Some(icon)
+        } else if let Some((_, icon)) = self.extension.get_key_value(
+            path.extension()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default(),
+        ) {
+            Some(icon)
         } else {
             None
         }
@@ -928,19 +966,25 @@ pub struct LapceConfig {
     pub editor: EditorConfig,
     pub terminal: TerminalConfig,
     pub color_theme: ColorThemeConfig,
-    pub icon_theme: IconThemeConfig,
+    pub product_icon_theme: ProductIconThemeConfig,
+    pub file_icon_theme: FileIconThemeConfig,
     #[serde(flatten)]
     pub plugins: HashMap<String, HashMap<String, serde_json::Value>>,
     #[serde(skip)]
     pub default_color_theme: ColorThemeConfig,
     #[serde(skip)]
-    pub default_icon_theme: IconThemeConfig,
+    pub default_product_icon_theme: ProductIconThemeConfig,
+    #[serde(skip)]
+    pub default_file_icon_theme: FileIconThemeConfig,
     #[serde(skip)]
     pub color: ThemeColor,
     #[serde(skip)]
     pub available_color_themes: HashMap<String, (String, config::Config)>,
     #[serde(skip)]
-    pub available_icon_themes:
+    pub available_product_icon_themes:
+        HashMap<String, (String, config::Config, Option<PathBuf>)>,
+    #[serde(skip)]
+    pub available_file_icon_themes:
         HashMap<String, (String, config::Config, Option<PathBuf>)>,
     #[serde(skip)]
     tab_layout_info: Arc<RwLock<HashMap<(FontFamily, usize), f64>>>,
@@ -951,7 +995,9 @@ pub struct LapceConfig {
     #[serde(skip)]
     color_theme_list: im::Vector<String>,
     #[serde(skip)]
-    icon_theme_list: im::Vector<String>,
+    product_icon_theme_list: im::Vector<String>,
+    #[serde(skip)]
+    file_icon_theme_list: im::Vector<String>,
 }
 impl LapceConfig {
     /// Get the dropdown information for the specific setting, used for the settings UI.  
@@ -966,12 +1012,19 @@ impl LapceConfig {
                     .unwrap_or(0),
                 items: self.color_theme_list.clone(),
             }),
-            ("core", "icon-theme") => Some(DropdownInfo {
+            ("core", "product-icon-theme") => Some(DropdownInfo {
                 active_index: self
-                    .icon_theme_list
-                    .index_of(&self.icon_theme.name)
+                    .product_icon_theme_list
+                    .index_of(&self.product_icon_theme.name)
                     .unwrap_or(0),
-                items: self.icon_theme_list.clone(),
+                items: self.product_icon_theme_list.clone(),
+            }),
+            ("core", "file-icon-theme") => Some(DropdownInfo {
+                active_index: self
+                    .file_icon_theme_list
+                    .index_of(&self.file_icon_theme.name)
+                    .unwrap_or(0),
+                items: self.file_icon_theme_list.clone(),
             }),
             _ => None,
         }
@@ -1033,14 +1086,17 @@ impl notify::EventHandler for ConfigWatcher {
 
 impl LapceConfig {
     pub fn load(workspace: &LapceWorkspace, disabled_volts: &[VoltID]) -> Self {
-        let config = Self::merge_config(workspace, None, None);
+        let config = Self::merge_config(workspace, None, None, None);
         let mut lapce_config: LapceConfig = config
             .try_deserialize()
             .unwrap_or_else(|_| DEFAULT_LAPCE_CONFIG.clone());
 
         lapce_config.available_color_themes =
             Self::load_color_themes(disabled_volts);
-        lapce_config.available_icon_themes = Self::load_icon_themes(disabled_volts);
+        lapce_config.available_product_icon_themes =
+            Self::load_product_icon_themes(disabled_volts);
+        lapce_config.available_file_icon_themes =
+            Self::load_file_icon_themes(disabled_volts);
         lapce_config.resolve_theme(workspace);
 
         lapce_config.color_theme_list = lapce_config
@@ -1050,12 +1106,19 @@ impl LapceConfig {
             .collect();
         lapce_config.color_theme_list.sort();
 
-        lapce_config.icon_theme_list = lapce_config
-            .available_icon_themes
+        lapce_config.product_icon_theme_list = lapce_config
+            .available_product_icon_themes
             .values()
             .map(|(name, _, _)| name.clone())
             .collect();
-        lapce_config.icon_theme_list.sort();
+        lapce_config.product_icon_theme_list.sort();
+
+        lapce_config.file_icon_theme_list = lapce_config
+            .available_file_icon_themes
+            .values()
+            .map(|(name, _, _)| name.clone())
+            .collect();
+        lapce_config.file_icon_theme_list.sort();
 
         lapce_config
     }
@@ -1082,21 +1145,35 @@ impl LapceConfig {
             .get(&self.core.color_theme.to_lowercase())
             .map(|(_, config)| config);
 
-        let icon_theme_config = self
-            .available_icon_themes
-            .get(&self.core.icon_theme.to_lowercase())
+        let product_icon_theme_config = self
+            .available_product_icon_themes
+            .get(&self.core.product_icon_theme.to_lowercase())
             .map(|(_, config, _)| config);
 
-        let icon_theme_path = self
-            .available_icon_themes
-            .get(&self.core.icon_theme.to_lowercase())
+        let product_icon_theme_path = self
+            .available_product_icon_themes
+            .get(&self.core.product_icon_theme.to_lowercase())
             .map(|(_, _, path)| path);
 
-        if color_theme_config.is_some() || icon_theme_config.is_some() {
+        let file_icon_theme_config = self
+            .available_file_icon_themes
+            .get(&self.core.file_icon_theme.to_lowercase())
+            .map(|(_, config, _)| config);
+
+        let file_icon_theme_path = self
+            .available_file_icon_themes
+            .get(&self.core.file_icon_theme.to_lowercase())
+            .map(|(_, _, path)| path);
+
+        if color_theme_config.is_some()
+            || product_icon_theme_config.is_some()
+            || file_icon_theme_config.is_some()
+        {
             if let Ok(new) = Self::merge_config(
                 workspace,
                 color_theme_config.cloned(),
-                icon_theme_config.cloned(),
+                product_icon_theme_config.cloned(),
+                file_icon_theme_config.cloned(),
             )
             .try_deserialize::<LapceConfig>()
             {
@@ -1105,24 +1182,34 @@ impl LapceConfig {
                 self.editor = new.editor;
                 self.terminal = new.terminal;
                 self.color_theme = new.color_theme;
-                self.icon_theme = new.icon_theme;
-                if let Some(icon_theme_path) = icon_theme_path {
-                    self.icon_theme.path =
-                        icon_theme_path.clone().unwrap_or_default();
+                //
+                self.product_icon_theme = new.product_icon_theme;
+                if let Some(product_icon_theme_path) = product_icon_theme_path {
+                    self.product_icon_theme.path =
+                        product_icon_theme_path.clone().unwrap_or_default();
+                }
+                //
+                self.file_icon_theme = new.file_icon_theme;
+                if let Some(file_icon_theme_path) = file_icon_theme_path {
+                    self.file_icon_theme.path =
+                        file_icon_theme_path.clone().unwrap_or_default();
                 }
                 self.plugins = new.plugins;
             }
         }
         self.resolve_colors(Some(&default_lapce_config));
         self.default_color_theme = default_lapce_config.color_theme.clone();
-        self.default_icon_theme = default_lapce_config.icon_theme.clone();
+        self.default_product_icon_theme =
+            default_lapce_config.product_icon_theme.clone();
+        self.default_file_icon_theme = default_lapce_config.file_icon_theme.clone();
         self.update_id();
     }
 
     fn merge_config(
         workspace: &LapceWorkspace,
         color_theme_config: Option<config::Config>,
-        icon_theme_config: Option<config::Config>,
+        product_icon_theme_config: Option<config::Config>,
+        file_icon_theme_config: Option<config::Config>,
     ) -> config::Config {
         let mut config = DEFAULT_CONFIG.clone();
         if let Some(theme) = color_theme_config {
@@ -1133,7 +1220,15 @@ impl LapceConfig {
                 .unwrap_or_else(|_| config.clone());
         }
 
-        if let Some(theme) = icon_theme_config {
+        if let Some(theme) = product_icon_theme_config {
+            config = config::Config::builder()
+                .add_source(config.clone())
+                .add_source(theme)
+                .build()
+                .unwrap_or_else(|_| config.clone());
+        }
+
+        if let Some(theme) = file_icon_theme_config {
             config = config::Config::builder()
                 .add_source(config.clone())
                 .add_source(theme)
@@ -1217,19 +1312,38 @@ impl LapceConfig {
         themes
     }
 
-    fn load_icon_themes(
+    fn load_product_icon_themes(
         disabled_volts: &[VoltID],
     ) -> HashMap<String, (String, config::Config, Option<PathBuf>)> {
         let mut themes = HashMap::new();
 
         for (key, (name, theme, path)) in
-            Self::load_plugin_icon_themes(disabled_volts)
+            Self::load_plugin_product_icon_themes(disabled_volts)
         {
             themes.insert(key, (name, theme, Some(path)));
         }
 
         let (name, theme) =
-            Self::load_icon_theme_from_str(DEFAULT_ICON_THEME).unwrap();
+            Self::load_product_icon_theme_from_str(DEFAULT_PRODUCT_ICON_THEME)
+                .unwrap();
+        themes.insert(name.to_lowercase(), (name, theme, None));
+
+        themes
+    }
+
+    fn load_file_icon_themes(
+        disabled_volts: &[VoltID],
+    ) -> HashMap<String, (String, config::Config, Option<PathBuf>)> {
+        let mut themes = HashMap::new();
+
+        for (key, (name, theme, path)) in
+            Self::load_plugin_file_icon_themes(disabled_volts)
+        {
+            themes.insert(key, (name, theme, Some(path)));
+        }
+
+        let (name, theme) =
+            Self::load_file_icon_theme_from_str(DEFAULT_FILE_ICON_THEME).unwrap();
         themes.insert(name.to_lowercase(), (name, theme, None));
 
         themes
@@ -1270,7 +1384,29 @@ impl LapceConfig {
         themes
     }
 
-    fn load_plugin_icon_themes(
+    fn load_plugin_product_icon_themes(
+        disabled_volts: &[VoltID],
+    ) -> HashMap<String, (String, config::Config, PathBuf)> {
+        let mut themes: HashMap<String, (String, config::Config, PathBuf)> =
+            HashMap::new();
+        for meta in find_all_volts() {
+            if disabled_volts.contains(&meta.id()) {
+                continue;
+            }
+            if let Some(plugin_themes) = meta.icon_themes.as_ref() {
+                for theme_path in plugin_themes {
+                    if let Some((key, theme)) =
+                        Self::load_icon_theme(&PathBuf::from(theme_path))
+                    {
+                        themes.insert(key, theme);
+                    }
+                }
+            }
+        }
+        themes
+    }
+
+    fn load_plugin_file_icon_themes(
         disabled_volts: &[VoltID],
     ) -> HashMap<String, (String, config::Config, PathBuf)> {
         let mut themes: HashMap<String, (String, config::Config, PathBuf)> =
@@ -1302,12 +1438,24 @@ impl LapceConfig {
         Some((name, config))
     }
 
-    fn load_icon_theme_from_str(s: &str) -> Option<(String, config::Config)> {
+    fn load_product_icon_theme_from_str(
+        s: &str,
+    ) -> Option<(String, config::Config)> {
         let config = config::Config::builder()
             .add_source(config::File::from_str(s, config::FileFormat::Toml))
             .build()
             .ok()?;
-        let table = config.get_table("icon-theme").ok()?;
+        let table = config.get_table("product-icon-theme").ok()?;
+        let name = table.get("name")?.to_string();
+        Some((name, config))
+    }
+
+    fn load_file_icon_theme_from_str(s: &str) -> Option<(String, config::Config)> {
+        let config = config::Config::builder()
+            .add_source(config::File::from_str(s, config::FileFormat::Toml))
+            .build()
+            .ok()?;
+        let table = config.get_table("file-icon-theme").ok()?;
         let name = table.get("name")?.to_string();
         Some((name, config))
     }
@@ -1502,18 +1650,35 @@ impl LapceConfig {
         }
     }
 
-    pub fn set_icon_theme(
+    pub fn set_product_icon_theme(
         &mut self,
         workspace: &LapceWorkspace,
         theme: &str,
         preview: bool,
     ) {
-        self.core.icon_theme = theme.to_string();
+        self.core.product_icon_theme = theme.to_string();
         self.resolve_theme(workspace);
         if !preview {
             LapceConfig::update_file(
                 "core",
-                "icon-theme",
+                "product-icon-theme",
+                toml_edit::Value::from(theme),
+            );
+        }
+    }
+
+    pub fn set_file_icon_theme(
+        &mut self,
+        workspace: &LapceWorkspace,
+        theme: &str,
+        preview: bool,
+    ) {
+        self.core.file_icon_theme = theme.to_string();
+        self.resolve_theme(workspace);
+        if !preview {
+            LapceConfig::update_file(
+                "core",
+                "file-icon-theme",
                 toml_edit::Value::from(theme),
             );
         }
@@ -1742,19 +1907,19 @@ impl LapceConfig {
     }
 
     pub fn ui_svg(&self, icon: &'static str) -> Svg {
-        let svg = self.icon_theme.ui.get(icon).and_then(|path| {
-            let path = self.icon_theme.path.join(path);
+        let svg = self.product_icon_theme.ui.get(icon).and_then(|path| {
+            let path = self.product_icon_theme.path.join(path);
             self.svg_store.write().get_svg_on_disk(&path)
         });
 
         svg.unwrap_or_else(|| {
-            let name = self.default_icon_theme.ui.get(icon).unwrap();
-            self.svg_store.write().get_default_svg(name)
+            let name = self.default_product_icon_theme.ui.get(icon).unwrap();
+            self.svg_store.write().get_default_ui_svg(name)
         })
     }
 
     pub fn folder_svg(&self, path: &Path) -> Option<(Svg, Option<&Color>)> {
-        self.icon_theme
+        self.file_icon_theme
             .foldername
             .get_key_value(
                 path.file_name()
@@ -1763,11 +1928,12 @@ impl LapceConfig {
                     .unwrap_or_default(),
             )
             .and_then(|(_, path)| {
-                let path = self.icon_theme.path.join(path);
+                let path = self.file_icon_theme.path.join(path);
                 self.svg_store.write().get_svg_on_disk(&path)
             })
             .map(|svg| {
-                let color = if self.icon_theme.use_editor_color.unwrap_or(false) {
+                let color = if self.file_icon_theme.use_editor_color.unwrap_or(false)
+                {
                     Some(self.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE))
                 } else {
                     None
@@ -1778,11 +1944,11 @@ impl LapceConfig {
 
     pub fn file_svg(&self, path: &Path) -> (Svg, Option<&Color>) {
         let svg = self
-            .icon_theme
-            .resolve_path_to_icon(path)
+            .file_icon_theme
+            .resolve_path_to_icon_path(path)
             .and_then(|p| self.svg_store.write().get_svg_on_disk(&p));
         if let Some(svg) = svg {
-            let color = if self.icon_theme.use_editor_color.unwrap_or(false) {
+            let color = if self.file_icon_theme.use_editor_color.unwrap_or(false) {
                 Some(self.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE))
             } else {
                 None
@@ -1790,8 +1956,13 @@ impl LapceConfig {
             (svg, color)
         } else {
             (
-                self.ui_svg(LapceIcons::FILE),
-                Some(self.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)),
+                self.file_icon_theme
+                    .resolve_path_to_icon(path)
+                    .and_then(|p| {
+                        Some(self.svg_store.write().get_default_file_svg(&p))
+                    })
+                    .unwrap_or(self.ui_svg(LapceIcons::FILE)),
+                None,
             )
         }
     }

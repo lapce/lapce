@@ -59,7 +59,8 @@ pub enum PaletteType {
     Command,
     Reference,
     ColorTheme,
-    IconTheme,
+    ProductIconTheme,
+    FileIconTheme,
     SshHost,
     Language,
 }
@@ -76,7 +77,8 @@ impl PaletteType {
             PaletteType::File
             | PaletteType::Reference
             | PaletteType::ColorTheme
-            | PaletteType::IconTheme
+            | PaletteType::ProductIconTheme
+            | PaletteType::FileIconTheme
             | PaletteType::SshHost
             | PaletteType::Language => "".to_string(),
         }
@@ -100,7 +102,8 @@ impl PaletteType {
             PaletteType::Reference
             | PaletteType::SshHost
             | PaletteType::ColorTheme
-            | PaletteType::IconTheme
+            | PaletteType::ProductIconTheme
+            | PaletteType::FileIconTheme
             | PaletteType::Language => {
                 return current_type.clone();
             }
@@ -157,7 +160,8 @@ pub enum PaletteItemContent {
     SshHost(SshHost),
     Command(LapceCommand),
     ColorTheme(String),
-    IconTheme(String),
+    ProductIconTheme(String),
+    FileIconTheme(String),
     Language(String),
 }
 
@@ -253,10 +257,20 @@ impl PaletteItemContent {
                     Target::Auto,
                 ));
             }
-            PaletteItemContent::IconTheme(theme) => {
+            PaletteItemContent::ProductIconTheme(theme) => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::SetIconTheme {
+                    LapceUICommand::SetProductIconTheme {
+                        theme: theme.to_string(),
+                        preview,
+                    },
+                    Target::Auto,
+                ));
+            }
+            PaletteItemContent::FileIconTheme(theme) => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SetFileIconTheme {
                         theme: theme.to_string(),
                         preview,
                     },
@@ -519,7 +533,8 @@ impl PaletteData {
             PaletteType::File
             | PaletteType::Reference
             | PaletteType::ColorTheme
-            | PaletteType::IconTheme
+            | PaletteType::ProductIconTheme
+            | PaletteType::FileIconTheme
             | PaletteType::Language
             | PaletteType::SshHost => &self.input,
             PaletteType::Line
@@ -535,7 +550,9 @@ impl PaletteData {
 impl PaletteViewData {
     pub fn cancel(&mut self, ctx: &mut EventCtx) {
         match self.palette.palette_type {
-            PaletteType::ColorTheme | PaletteType::IconTheme => {
+            PaletteType::ColorTheme
+            | PaletteType::ProductIconTheme
+            | PaletteType::FileIconTheme => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::ReloadConfig,
@@ -670,10 +687,15 @@ impl PaletteViewData {
                 self.get_color_themes(ctx, &config);
                 self.preselect_matching(ctx, &config.color_theme.name);
             }
-            PaletteType::IconTheme => {
+            PaletteType::ProductIconTheme => {
                 let config = self.config.clone();
-                self.get_icon_themes(ctx, &config);
-                self.preselect_matching(ctx, &config.icon_theme.name);
+                self.get_product_icon_themes(ctx, &config);
+                self.preselect_matching(ctx, &config.product_icon_theme.name);
+            }
+            PaletteType::FileIconTheme => {
+                let config = self.config.clone();
+                self.get_file_icon_themes(ctx, &config);
+                self.preselect_matching(ctx, &config.file_icon_theme.name);
             }
             PaletteType::Language => {
                 self.get_languages(ctx);
@@ -719,7 +741,8 @@ impl PaletteViewData {
             PaletteType::File
             | PaletteType::Reference
             | PaletteType::ColorTheme
-            | PaletteType::IconTheme
+            | PaletteType::ProductIconTheme
+            | PaletteType::FileIconTheme
             | PaletteType::Language
             | PaletteType::SshHost => 0,
             PaletteType::Line
@@ -968,14 +991,33 @@ impl PaletteViewData {
             .collect();
     }
 
-    fn get_icon_themes(&mut self, _ctx: &mut EventCtx, config: &LapceConfig) {
+    fn get_product_icon_themes(
+        &mut self,
+        _ctx: &mut EventCtx,
+        config: &LapceConfig,
+    ) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.total_items = config
-            .available_icon_themes
+            .available_product_icon_themes
             .values()
             .sorted_by_key(|(n, _, _)| n)
             .map(|(n, _, _)| PaletteItem {
-                content: PaletteItemContent::IconTheme(n.to_string()),
+                content: PaletteItemContent::ProductIconTheme(n.to_string()),
+                filter_text: n.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+    }
+
+    fn get_file_icon_themes(&mut self, _ctx: &mut EventCtx, config: &LapceConfig) {
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.total_items = config
+            .available_file_icon_themes
+            .values()
+            .sorted_by_key(|(n, _, _)| n)
+            .map(|(n, _, _)| PaletteItem {
+                content: PaletteItemContent::FileIconTheme(n.to_string()),
                 filter_text: n.to_string(),
                 score: 0,
                 indices: vec![],

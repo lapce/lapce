@@ -381,15 +381,31 @@ impl Widget<LapceWindowData> for LapceWindow {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::SetIconTheme { theme, preview } => {
+                    LapceUICommand::SetProductIconTheme { theme, preview } => {
                         let config = Arc::make_mut(&mut data.config);
-                        config.set_icon_theme(
+                        config.set_product_icon_theme(
                             &LapceWorkspace::default(),
                             theme,
                             *preview,
                         );
                         for (_, tab) in data.tabs.iter_mut() {
-                            Arc::make_mut(&mut tab.config).set_icon_theme(
+                            Arc::make_mut(&mut tab.config).set_product_icon_theme(
+                                &tab.workspace,
+                                theme,
+                                true,
+                            );
+                        }
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::SetFileIconTheme { theme, preview } => {
+                        let config = Arc::make_mut(&mut data.config);
+                        config.set_file_icon_theme(
+                            &LapceWorkspace::default(),
+                            theme,
+                            *preview,
+                        );
+                        for (_, tab) in data.tabs.iter_mut() {
+                            Arc::make_mut(&mut tab.config).set_file_icon_theme(
                                 &tab.workspace,
                                 theme,
                                 true,
