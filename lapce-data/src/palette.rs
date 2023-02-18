@@ -939,6 +939,7 @@ impl PaletteViewData {
                     LapceWorkspaceType::RemoteSSH(ssh) => {
                         format!("[{ssh}] {text}")
                     }
+                    #[cfg(windows)]
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")
                     }
