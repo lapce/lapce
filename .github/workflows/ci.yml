@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repo
@@ -36,7 +36,7 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
-        
+
       - name: Fetch dependencies
         run: cargo fetch --locked
 
@@ -48,7 +48,7 @@ jobs:
 
       - name: Run tests and coverage
         run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
-          
+
       - name: Run doc tests
         run: cargo test --doc --workspace
 
@@ -77,7 +77,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repo
@@ -94,7 +94,7 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
-        
+
       - name: Fetch dependencies
         run: cargo fetch --locked
 

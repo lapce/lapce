@@ -36,7 +36,7 @@ jobs:
         run: |
           TAG_NAME=${{ github.ref }}
           echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
-          
+
       - if: github.event_name == 'pull_request'
         run: echo 'TAG_NAME=debug' >> $GITHUB_ENV
 
@@ -49,7 +49,7 @@ jobs:
 
       - id: tag
         run: echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
-  
+
   windows:
     runs-on: windows-latest
     needs: tagname
@@ -65,7 +65,7 @@ jobs:
 
       - name: Update rust
         run: rustup update
-        
+
       - name: Fetch dependencies
         run: cargo fetch --locked
 
@@ -122,7 +122,7 @@ jobs:
         run: |
           apt-get -y update
           apt-get -y install cmake pkg-config libfontconfig-dev libgtk-3-dev
-      
+
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -304,8 +304,8 @@ jobs:
       # before running, and would therefore delete the downloaded artifacts
       - uses: actions/checkout@v3
 
-      - uses: actions/download-artifact@v3          
-      
+      - uses: actions/download-artifact@v3
+
       - if: github.event_name == 'workflow_dispatch'
         run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
 
