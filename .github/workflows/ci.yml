@@ -40,9 +40,6 @@ jobs:
       - name: Fetch dependencies
         run: cargo fetch --locked
 
-      - name: Build
-        run: cargo build --frozen
-
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
@@ -50,7 +47,7 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run tests and coverage
-        run: cargo llvm-cov nextest --all-features --workspace --lcov --output-path lcov.info
+        run: cargo llvm-cov nextest --frozen --all-features --workspace --lcov --output-path lcov.info
 
       - name: Run doc tests
         run: cargo test --doc --workspace
