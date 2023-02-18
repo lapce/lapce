@@ -602,6 +602,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     LapceWorkspaceType::RemoteSSH(ssh) => {
                         format!("[{ssh}] {text}")
                     }
+                    #[cfg(windows)]
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")
                     }

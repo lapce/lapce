@@ -106,6 +106,7 @@ fn workspace_title(workspace: &LapceWorkspace) -> Option<String> {
     Some(match &workspace.kind {
         LapceWorkspaceType::Local => format!("{dir}"),
         LapceWorkspaceType::RemoteSSH(ssh) => format!("{dir} [{ssh}]"),
+        #[cfg(windows)]
         LapceWorkspaceType::RemoteWSL => format!("{dir} [wsl]"),
     })
 }
