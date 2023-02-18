@@ -198,7 +198,6 @@ impl Widget<LapceTabData> for LspStdioContent {
                 };
                 text.set_text(text_str);
                 text.set_wrap_width(self.width - PADDING * 2.0);
-                text.rebuild_if_needed(ctx.text(), env);
 
                 let text_height = text.size().height;
                 total_height += text_height + PADDING;
@@ -206,6 +205,8 @@ impl Widget<LapceTabData> for LspStdioContent {
             } else {
                 total_height += text.size().height;
             }
+
+            text.rebuild_if_needed(ctx.text(), env);
         }
 
         Size::new(
@@ -219,7 +220,17 @@ impl Widget<LapceTabData> for LspStdioContent {
         let mut y_offset = 0.0;
         for (index, RowState { text, .. }) in self.lines.iter().enumerate() {
             let text_height = text.size().height;
-            if y_offset + text_height > rect.y0 || rect.y1 > y_offset {
+
+            // Checks if:
+            // 1. Bottom half is within bounding box
+            // 2. The whole thing within the bounding box
+            // 3. Top half is within the bounding box
+            // 4. Bounding box is within the thing
+            if (y_offset <= rect.y0 && y_offset + text_height >= rect.y0)
+                || (y_offset >= rect.y0 && y_offset + text_height <= rect.y1)
+                || (y_offset <= rect.y1 && y_offset + text_height >= rect.y1)
+                || (y_offset <= rect.y1 && y_offset + text_height >= rect.y1)
+            {
                 if Some(index) == self.mouse_index {
                     let width = ctx.size().width;
                     ctx.fill(
