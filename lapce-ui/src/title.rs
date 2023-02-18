@@ -409,7 +409,7 @@ impl Title {
                 desc: Some(if data.update_in_progress && latest_version.is_some() {
                     format!("Update in progress ({}) ", latest_version.unwrap())
                 } else if latest_version.is_some()
-                    && latest_version != Some(*meta::VERSION)
+                    && latest_version != Some(meta::VERSION)
                 {
                     format!("Restart to update ({})", latest_version.unwrap())
                 } else {
@@ -422,7 +422,7 @@ impl Title {
                     data: None,
                 },
                 enabled: latest_version.is_some()
-                    && latest_version != Some(*meta::VERSION)
+                    && latest_version != Some(meta::VERSION)
                     && !data.update_in_progress,
             }),
             MenuKind::Separator,
@@ -435,7 +435,7 @@ impl Title {
                 enabled: true,
             }),
         ];
-        if latest_version.is_some() && latest_version != Some(*meta::VERSION) {
+        if latest_version.is_some() && latest_version != Some(meta::VERSION) {
             let text_layout = piet_text
                 .new_text_layout("1")
                 .font(data.config.ui.font_family(), 10.0)
