@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use indexmap::IndexMap;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
@@ -434,4 +436,9 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "quit")]
     #[strum(message = "Quit Editor")]
     Quit,
+}
+
+#[derive(Clone)]
+pub enum InternalCommand {
+    OpenFile { path: PathBuf },
 }

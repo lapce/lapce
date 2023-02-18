@@ -27,6 +27,23 @@ pub struct EditorData {
 }
 
 impl EditorData {
+    pub fn new(
+        cx: AppContext,
+        doc: RwSignal<Document>,
+        register: RwSignal<Register>,
+        config: ReadSignal<Arc<LapceConfig>>,
+    ) -> Self {
+        let cursor =
+            Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None);
+        let cursor = create_rw_signal(cx.scope, cursor);
+        Self {
+            doc,
+            cursor,
+            register,
+            config,
+        }
+    }
+
     pub fn new_local(
         cx: AppContext,
         register: RwSignal<Register>,
@@ -136,6 +153,7 @@ impl KeyPressFocus for EditorData {
                 let deltas = doc.do_insert(&mut cursor, c, &config);
             });
             self.cursor.set(cursor);
+            println!("editor receive char");
         }
     }
 }

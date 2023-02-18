@@ -2,15 +2,20 @@ use std::sync::Arc;
 
 use floem::{
     app::AppContext,
-    reactive::{create_rw_signal, create_signal, use_context, ReadSignal, RwSignal},
+    glazier::KeyEvent,
+    reactive::{
+        create_rw_signal, create_signal, use_context, ReadSignal, RwSignal,
+        UntrackedGettableSignal,
+    },
 };
 use lapce_core::register::Register;
 
 use crate::{
-    command::LapceWorkbenchCommand,
+    command::{InternalCommand, LapceWorkbenchCommand},
     config::LapceConfig,
     db::LapceDb,
-    keypress::{KeyPressData, KeyPressFocus},
+    keypress::{DefaultKeyPress, KeyPressData, KeyPressFocus},
+    main_split::MainSplitData,
     palette::{kind::PaletteKind, PaletteData},
     proxy::{start_proxy, ProxyData},
     workspace::LapceWorkspace,
@@ -25,10 +30,12 @@ pub enum Focus {
 #[derive(Clone)]
 pub struct WindowTabData {
     pub palette: PaletteData,
+    pub main_split: MainSplitData,
     pub proxy: ProxyData,
     pub keypress: RwSignal<KeyPressData>,
     pub focus: RwSignal<Focus>,
     pub workbench_command: ReadSignal<Option<LapceWorkbenchCommand>>,
+    pub internal_command: ReadSignal<Option<InternalCommand>>,
 }
 
 impl WindowTabData {
@@ -44,6 +51,7 @@ impl WindowTabData {
 
         let (workbench_command, set_workbench_command) =
             create_signal(cx.scope, None);
+        let (internal_command, set_internal_command) = create_signal(cx.scope, None);
         let config = LapceConfig::load(&workspace, &all_disabled_volts);
         let keypress = create_rw_signal(
             cx.scope,
@@ -57,15 +65,26 @@ impl WindowTabData {
 
         let register = create_rw_signal(cx.scope, Register::default());
 
-        let palette =
-            PaletteData::new(cx, workspace, proxy.rpc.clone(), register, config);
+        let palette = PaletteData::new(
+            cx,
+            workspace,
+            proxy.rpc.clone(),
+            register,
+            set_internal_command,
+            focus,
+            config,
+        );
+
+        let main_split = MainSplitData::new(cx, proxy.rpc.clone(), register, config);
 
         Self {
             palette,
+            main_split,
             proxy,
             keypress,
             focus,
             workbench_command,
+            internal_command,
         }
     }
 
@@ -160,5 +179,32 @@ impl WindowTabData {
             UninstallFromPATH => todo!(),
             Quit => todo!(),
         }
+    }
+
+    pub fn run_internal_command(&self, cx: AppContext, cmd: InternalCommand) {
+        match cmd {
+            InternalCommand::OpenFile { path } => {
+                self.main_split.open_file(cx, path);
+            }
+        }
+    }
+
+    pub fn key_down(&self, cx: AppContext, key_event: &KeyEvent) {
+        let focus = self.focus.get_untracked();
+        self.keypress.update(|keypress| {
+            let executed = match focus {
+                Focus::Workbench => {
+                    self.main_split.key_down(cx, key_event, keypress).is_some()
+                }
+                Focus::Palette => {
+                    keypress.key_down(cx, key_event, &self.palette);
+                    true
+                }
+            };
+
+            if !executed {
+                keypress.key_down(cx, key_event, &DefaultKeyPress {});
+            }
+        });
     }
 }

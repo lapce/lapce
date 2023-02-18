@@ -45,6 +45,8 @@ pub enum Condition {
     ListFocus,
     #[strum(serialize = "palette_focus")]
     PaletteFocus,
+    #[strum(serialize = "modal_focus")]
+    ModalFocus,
 }
 
 #[cfg(test)]

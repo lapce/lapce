@@ -1,9 +1,10 @@
-use std::path::PathBuf;
+use std::{borrow::Cow, path::PathBuf};
 
 use floem::{
     app::AppContext,
     peniko::{kurbo::Point, Brush, Color},
     text::ParleyBrush,
+    views::VirtualListVector,
 };
 use lapce_core::{
     buffer::{Buffer, InvalLines},
@@ -19,7 +20,8 @@ use lapce_core::{
     syntax::{edit::SyntaxEdit, Syntax},
     word::WordCursor,
 };
-use lapce_xi_rope::RopeDelta;
+use lapce_rpc::buffer::BufferId;
+use lapce_xi_rope::{Rope, RopeDelta};
 use smallvec::SmallVec;
 
 use crate::config::LapceConfig;
@@ -42,6 +44,7 @@ impl Clipboard for SystemClipboard {
     }
 }
 
+#[derive(Clone)]
 pub enum DocContent {
     /// A file at some location. This can be a remote path.
     File(PathBuf),
@@ -59,23 +62,68 @@ impl DocContent {
     }
 }
 
+#[derive(Clone)]
 pub struct Document {
     pub content: DocContent,
+    pub buffer_id: BufferId,
     buffer: Buffer,
     syntax: Option<Syntax>,
+    /// Whether the buffer's content has been loaded/initialized into the buffer.
+    loaded: bool,
+}
+
+impl VirtualListVector<(usize, String)> for Document {
+    type ItemIterator = std::vec::IntoIter<(usize, String)>;
+
+    fn total_len(&self) -> usize {
+        self.buffer.num_lines()
+    }
+
+    fn slice(&mut self, range: std::ops::Range<usize>) -> Self::ItemIterator {
+        let lines = range
+            .into_iter()
+            .map(|line| (line, self.buffer.line_content(line).to_string()))
+            .collect::<Vec<_>>();
+        lines.into_iter()
+    }
 }
 
 impl Document {
+    pub fn new(path: PathBuf) -> Self {
+        Self {
+            buffer_id: BufferId::next(),
+            buffer: Buffer::new(""),
+            content: DocContent::File(path),
+            syntax: None,
+            loaded: false,
+        }
+    }
+
     pub fn new_local(cx: AppContext) -> Self {
         Self {
+            buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
             content: DocContent::Local,
             syntax: None,
+            loaded: true,
         }
     }
 
     pub fn buffer(&self) -> &Buffer {
         &self.buffer
+    }
+
+    /// Whether or not the underlying buffer is loaded
+    pub fn loaded(&self) -> bool {
+        self.loaded
+    }
+
+    //// Initialize the content with some text, this marks the document as loaded.
+    pub fn init_content(&mut self, content: Rope) {
+        self.buffer.init_content(content);
+        self.buffer.detect_indent(self.syntax.as_ref());
+        self.loaded = true;
+        self.on_update(None);
     }
 
     pub fn do_insert(

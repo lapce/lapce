@@ -16,7 +16,7 @@ use floem::{
     },
     reactive::{
         create_effect, create_memo, create_rw_signal, create_signal, ReadSignal,
-        RwSignal, WriteSignal,
+        RwSignal, UntrackedGettableSignal, WriteSignal,
     },
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
@@ -26,10 +26,11 @@ use lapce_core::{
 use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
 
 use crate::{
-    command::{CommandExecuted, CommandKind},
+    command::{CommandExecuted, CommandKind, InternalCommand},
     config::LapceConfig,
     editor::EditorData,
     keypress::{condition::Condition, KeyPressFocus},
+    window_tab::Focus,
     workspace::LapceWorkspace,
 };
 
@@ -52,6 +53,7 @@ pub enum PaletteStatus {
 pub struct PaletteData {
     run_id: Arc<AtomicU64>,
     run_tx: Sender<(u64, String, im::Vector<PaletteItem>)>,
+    internal_command: WriteSignal<Option<InternalCommand>>,
     pub workspace: Arc<LapceWorkspace>,
     pub status: RwSignal<PaletteStatus>,
     pub index: RwSignal<usize>,
@@ -60,6 +62,7 @@ pub struct PaletteData {
     pub filtered_items: ReadSignal<im::Vector<PaletteItem>>,
     pub proxy_rpc: ProxyRpcHandler,
     pub editor: EditorData,
+    pub focus: RwSignal<Focus>,
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
 
@@ -69,6 +72,8 @@ impl PaletteData {
         workspace: Arc<LapceWorkspace>,
         proxy_rpc: ProxyRpcHandler,
         register: RwSignal<Register>,
+        internal_command: WriteSignal<Option<InternalCommand>>,
+        focus: RwSignal<Focus>,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
         let status = create_rw_signal(cx.scope, PaletteStatus::Inactive);
@@ -121,6 +126,8 @@ impl PaletteData {
         Self {
             run_id,
             run_tx,
+            internal_command,
+            focus,
             workspace,
             status,
             kind,
@@ -134,6 +141,7 @@ impl PaletteData {
     }
 
     pub fn run(&self, cx: AppContext, kind: PaletteKind) {
+        self.status.set(PaletteStatus::Started);
         match kind {
             PaletteKind::File => {
                 self.get_files(cx);
@@ -161,6 +169,7 @@ impl PaletteData {
                     let filter_text = path.to_str().unwrap_or("").to_string();
                     PaletteItem {
                         id: i,
+                        index: i,
                         content: PaletteItemContent::File { path, full_path },
                         filter_text,
                         score: 0,
@@ -177,15 +186,35 @@ impl PaletteData {
         });
     }
 
+    fn select(&self) {
+        let index = self.index.get_untracked();
+        let items = self.filtered_items.get_untracked();
+        if let Some(item) = items.get(index) {
+            match &item.content {
+                PaletteItemContent::File { full_path, .. } => {
+                    self.internal_command.set(Some(InternalCommand::OpenFile {
+                        path: full_path.to_owned(),
+                    }));
+                }
+            }
+        }
+        self.cancel();
+    }
+
+    fn cancel(&self) {
+        self.status.set(PaletteStatus::Inactive);
+        self.focus.set(Focus::Workbench);
+    }
+
     fn next(&self) {
-        let index = self.index.get();
+        let index = self.index.get_untracked();
         let len = self.filtered_items.with(|i| i.len());
         let new_index = Movement::Down.update_index(index, len, 1, true);
         self.index.set(new_index);
     }
 
     fn previous(&self) {
-        let index = self.index.get();
+        let index = self.index.get_untracked();
         let len = self.filtered_items.with(|i| i.len());
         let new_index = Movement::Up.update_index(index, len, 1, true);
         self.index.set(new_index);
@@ -197,7 +226,9 @@ impl PaletteData {
 
     fn run_focus_command(&self, cmd: &FocusCommand) -> CommandExecuted {
         match cmd {
-            // ModalClose should be handled (if desired) by the containing widget
+            FocusCommand::ModalClose => {
+                self.cancel();
+            }
             FocusCommand::ListNext => {
                 self.next();
             }
@@ -211,7 +242,7 @@ impl PaletteData {
                 self.previous_page();
             }
             FocusCommand::ListSelect => {
-                // self.select(ctx);
+                self.select();
             }
             _ => return CommandExecuted::No,
         }
@@ -252,8 +283,8 @@ impl PaletteData {
                 .unwrap_or(std::cmp::Ordering::Less)
         });
 
-        for (i, item) in filtered_items.iter_mut().enumerate() {
-            item.id = i;
+        for (index, item) in filtered_items.iter_mut().enumerate() {
+            item.index = index;
         }
 
         if run_id.load(std::sync::atomic::Ordering::Acquire) != current_run_id {
@@ -313,7 +344,10 @@ impl KeyPressFocus for PaletteData {
         &self,
         condition: crate::keypress::condition::Condition,
     ) -> bool {
-        matches!(condition, Condition::ListFocus | Condition::PaletteFocus)
+        matches!(
+            condition,
+            Condition::ListFocus | Condition::PaletteFocus | Condition::ModalFocus
+        )
     }
 
     fn run_command(
