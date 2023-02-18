@@ -55,6 +55,9 @@ font-size = 0
 line-height = 0
 shell = ""
 
+[remote]
+[remote.entries]
+
 [ui]
 font-family = ""
 font-size = 13

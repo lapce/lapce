@@ -199,14 +199,28 @@ impl Title {
         let command_rect =
             command_rect.with_size(Size::new(x - command_rect.x0, size.height));
 
-        let mut menu_items = vec![MenuKind::Item(MenuItem {
-            desc: None,
-            command: LapceCommand {
-                kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectSshHost),
-                data: None,
-            },
-            enabled: true,
-        })];
+        let mut menu_items = vec![
+            MenuKind::Item(MenuItem {
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::ConnectSshHost,
+                    ),
+                    data: None,
+                },
+                enabled: true,
+            }),
+            MenuKind::Item(MenuItem {
+                desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::ConnectCustomHost,
+                    ),
+                    data: None,
+                },
+                enabled: true,
+            }),
+        ];
 
         #[cfg(target_os = "windows")]
         {
@@ -527,6 +541,9 @@ impl Title {
             LapceWorkspaceType::Local => "".to_string(),
             LapceWorkspaceType::RemoteSSH(ssh) => {
                 format!(" [SSH: {}]", ssh.host)
+            }
+            LapceWorkspaceType::RemoteCustom(custom) => {
+                format!(" [Custom: {custom}]")
             }
             #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL => " [WSL]".to_string(),
