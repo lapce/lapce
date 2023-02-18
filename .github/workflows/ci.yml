@@ -49,11 +49,9 @@ jobs:
       - name: Install nextest
         uses: taiki-e/install-action@nextest
 
+      # include doctests when resolved: https://github.com/taiki-e/cargo-llvm-cov/issues/2
       - name: Run tests and coverage
         run: cargo llvm-cov nextest --frozen --all-features --workspace --lcov --output-path lcov.info
-
-      - name: Run doc tests
-        run: cargo test --doc --workspace
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3
