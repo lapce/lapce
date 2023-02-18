@@ -1,11 +1,10 @@
 use druid::{
-    ArcStr, BoxConstraints, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    BoxConstraints, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, TextLayout, UpdateCtx,
     Widget, WidgetExt, WidgetId,
 };
-use lapce_data::{
-    config::LapceTheme, data::LapceTabData, panel::PanelKind, rich_text::RichText,
-};
+use lapce_data::{config::LapceTheme, data::LapceTabData, panel::PanelKind};
+use serde_json::Value;
 
 use crate::{
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
@@ -44,15 +43,22 @@ pub fn new_output_panel(data: &LapceTabData) -> LapcePanel {
     )
 }
 
+#[derive(Clone, Copy)]
 enum LspStdioKind {
     Request,
     Response,
 }
 
+struct RowState {
+    collapsed: bool,
+    needs_rebuild: bool,
+    text: TextLayout<String>,
+}
+
 struct LspStdioContent {
     kind: LspStdioKind,
     mouse_index: Option<usize>,
-    lines: Vec<(bool, TextLayout<RichText>, TextLayout<RichText>)>,
+    lines: Vec<RowState>,
     width: f64,
 }
 
@@ -67,6 +73,16 @@ impl LspStdioContent {
     }
 }
 
+fn get_data<'a>(
+    kind: LspStdioKind,
+    data: &'a LapceTabData,
+) -> impl Iterator<Item = &'a Value> {
+    match kind {
+        LspStdioKind::Request => data.lsp_stdio.lsp_request.iter(),
+        LspStdioKind::Response => data.lsp_stdio.lsp_response.iter(),
+    }
+}
+
 impl Widget<LapceTabData> for LspStdioContent {
     fn event(
         &mut self,
@@ -78,15 +94,12 @@ impl Widget<LapceTabData> for LspStdioContent {
         match event {
             Event::MouseMove(mouse_event) => {
                 self.mouse_index = None;
-                let mut y_offset = 0.0;
-                for (index, (collapsed, mini_text, pretty_text)) in
-                    self.lines.iter().enumerate()
-                {
-                    let text = if *collapsed { mini_text } else { pretty_text };
 
-                    let size = text.size();
+                let mut y_offset = 0.0;
+                for (index, RowState { text, .. }) in self.lines.iter().enumerate() {
+                    let text_height = text.size().height;
                     if y_offset < mouse_event.pos.y
-                        && mouse_event.pos.y < (y_offset + size.height)
+                        && mouse_event.pos.y < (y_offset + text_height)
                         && 0.0 < mouse_event.pos.x
                         && mouse_event.pos.x < self.width
                     {
@@ -96,14 +109,19 @@ impl Widget<LapceTabData> for LspStdioContent {
                         break;
                     }
 
-                    y_offset += size.height + PADDING;
+                    y_offset += text_height + PADDING;
                 }
             }
             Event::MouseDown(_) => {
                 if let Some(mouse_index) = self.mouse_index {
-                    if let Some((collapsed, _, _)) = self.lines.get_mut(mouse_index)
+                    if let Some(RowState {
+                        collapsed,
+                        needs_rebuild,
+                        ..
+                    }) = self.lines.get_mut(mouse_index)
                     {
                         *collapsed = !*collapsed;
+                        *needs_rebuild = true;
                         ctx.request_layout();
                     }
                 }
@@ -128,24 +146,27 @@ impl Widget<LapceTabData> for LspStdioContent {
         data: &LapceTabData,
         _env: &Env,
     ) {
-        let vec = match self.kind {
-            LspStdioKind::Request => &data.lsp_stdio.lsp_request,
-            LspStdioKind::Response => &data.lsp_stdio.lsp_response,
-        };
+        let old_length = self.lines.len();
 
-        if vec.len() > self.lines.len() {
-            self.lines
-                .extend(vec.iter().skip(self.lines.len()).map(|line| {
-                    let mut mini_text = TextLayout::new();
-                    mini_text.set_text(RichText::new(ArcStr::from(
-                        serde_json::to_string(line).unwrap(),
-                    )));
-                    let mut pretty_text = TextLayout::new();
-                    pretty_text.set_text(RichText::new(ArcStr::from(
-                        serde_json::to_string_pretty(line).unwrap(),
-                    )));
-                    (true, mini_text, pretty_text)
-                }));
+        self.lines
+            .extend(
+                get_data(self.kind, data)
+                    .skip(self.lines.len())
+                    .map(|line| {
+                        let mut text = TextLayout::new();
+                        text.set_text(serde_json::to_string(line).unwrap());
+                        text.set_wrap_width(self.width - PADDING * 2.0);
+                        RowState {
+                            collapsed: true,
+                            needs_rebuild: true,
+                            text,
+                        }
+                    }),
+            );
+
+        let new_length = self.lines.len();
+
+        if old_length != new_length {
             ctx.request_layout();
         }
     }
@@ -154,44 +175,64 @@ impl Widget<LapceTabData> for LspStdioContent {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        _data: &LapceTabData,
+        data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let mut height = 0.0;
-        let width = bc.max().width;
+        let mut total_height = 0.0;
+        self.width = bc.max().width;
 
-        for (collapsed, mini_text, pretty_text) in self.lines.iter_mut() {
-            let text = if *collapsed { mini_text } else { pretty_text };
-            text.set_wrap_width(width - PADDING * 2.0);
-            height += text.size().height + PADDING;
-            text.rebuild_if_needed(ctx.text(), env);
+        for (
+            RowState {
+                collapsed,
+                needs_rebuild,
+                text,
+            },
+            value,
+        ) in self.lines.iter_mut().zip(get_data(self.kind, data))
+        {
+            if *needs_rebuild {
+                let text_str = if *collapsed {
+                    serde_json::to_string(value).unwrap()
+                } else {
+                    serde_json::to_string_pretty(value).unwrap()
+                };
+                text.set_text(text_str);
+                text.set_wrap_width(self.width - PADDING * 2.0);
+                text.rebuild_if_needed(ctx.text(), env);
+
+                let text_height = text.size().height;
+                total_height += text_height + PADDING;
+                *needs_rebuild = false;
+            } else {
+                total_height += text.size().height;
+            }
         }
 
-        self.width = width;
         Size::new(
-            width,
-            height + 10.0, // Add some padding to the bottom
+            self.width,
+            total_height + 10.0, // Add some padding to the bottom
         )
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+        let rect = ctx.region().bounding_box();
         let mut y_offset = 0.0;
-        for (index, (collapsed, mini_text, pretty_text)) in
-            self.lines.iter().enumerate()
-        {
-            let text = if *collapsed { mini_text } else { pretty_text };
-            if Some(index) == self.mouse_index {
-                let width = ctx.size().width;
-                ctx.fill(
-                    Size::new(width - PADDING, text.size().height)
-                        .to_rect()
-                        .with_origin(Point::new(PADDING, y_offset)),
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
-                );
+        for (index, RowState { text, .. }) in self.lines.iter().enumerate() {
+            let text_height = text.size().height;
+            if y_offset + text_height > rect.y0 || rect.y1 > y_offset {
+                if Some(index) == self.mouse_index {
+                    let width = ctx.size().width;
+                    ctx.fill(
+                        Size::new(width - PADDING, text.size().height)
+                            .to_rect()
+                            .with_origin(Point::new(PADDING, y_offset)),
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
+                    );
+                }
+                text.draw(ctx, Point::new(0.0, y_offset));
             }
-            text.draw(ctx, Point::new(0.0, y_offset));
-            y_offset += text.size().height + PADDING;
+            y_offset += text_height + PADDING;
         }
     }
 }
