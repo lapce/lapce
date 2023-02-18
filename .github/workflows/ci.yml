@@ -36,6 +36,9 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: 'lapce-tests'
+          save-if: ${{ github.ref_name == 'master' }}
 
       - name: Fetch dependencies
         run: cargo fetch --locked
@@ -94,6 +97,9 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: 'lapce-clippy'
+          save-if: ${{ github.ref_name == 'master' }}
 
       - name: Fetch dependencies
         run: cargo fetch --locked
