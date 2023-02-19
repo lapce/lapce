@@ -1,5 +1,8 @@
 #![allow(clippy::manual_clamp)]
 
+#[cfg(windows)]
+extern crate windows_sys as windows;
+
 pub mod about;
 pub mod alert;
 pub mod app;

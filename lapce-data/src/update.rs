@@ -166,7 +166,6 @@ pub fn restart(path: &Path) -> Result<()> {
 #[cfg(all(target_os = "windows", feature = "portable"))]
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::windows::process::CommandExt;
-    const DETACHED_PROCESS: u32 = 0x00000008;
     let process_id = std::process::id();
     let path = path
         .to_str()
@@ -175,7 +174,7 @@ pub fn restart(path: &Path) -> Result<()> {
         .raw_arg(format!(
             r#"/C taskkill /PID {process_id} & start "" "{path}""#
         ))
-        .creation_flags(DETACHED_PROCESS)
+        .creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW)
         .spawn()?;
     Ok(())
 }

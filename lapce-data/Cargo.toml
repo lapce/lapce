@@ -59,8 +59,9 @@ url = "2.3.1"
 [target.'cfg(target_os="macos")'.dependencies]
 dmg = "0.1.1"
 
-[target.'cfg(target_os="windows")'.dependencies]
+[target.'cfg(windows)'.dependencies]
 zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
+windows-sys = { workspace = true, default-features = false, features = ["Win32_System_Threading"] }
 
 [features]
 updater = []

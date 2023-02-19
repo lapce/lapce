@@ -1,4 +1,4 @@
-#[cfg(target_os = "windows")]
+#[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use std::{path::PathBuf, process::Stdio, sync::Arc};
 
@@ -30,8 +30,8 @@ use crate::{
 };
 
 #[derive(Parser)]
-#[clap(name = *meta::NAME)]
-#[clap(version = *meta::VERSION)]
+#[clap(name = meta::NAME)]
+#[clap(version = meta::VERSION)]
 #[derive(Debug)]
 struct Cli {
     /// Launch new window even if Lapce is already running
@@ -61,8 +61,11 @@ pub fn launch() {
         let mut args = std::env::args().collect::<Vec<_>>();
         args.push("--wait".to_string());
         let mut cmd = std::process::Command::new(&args[0]);
-        #[cfg(target_os = "windows")]
-        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        #[cfg(windows)]
+        {
+            use windows::Win32::System::Threading::CREATE_NO_WINDOW;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
         if let Err(why) = cmd
             .args(&args[1..])
             .stderr(Stdio::null())
@@ -107,8 +110,25 @@ pub fn launch() {
                 .chain(std::io::stderr()),
         ));
 
-    let log_file = LapceConfig::log_file();
-    if let Some(log_file) = log_file.clone().and_then(|f| fern::log_file(f).ok()) {
+    let log_file = match LapceConfig::log_file() {
+        Ok(v) => v,
+
+        #[cfg(not(windows))]
+        Err(e) => {
+            eprintln!("Failed to obtained log file: {e}");
+            std::process::exit(1);
+        }
+
+        #[cfg(windows)]
+        Err(e) => {
+            std::process::exit(error_modal(
+                "Error",
+                &format!("Failed to obtain log file: {e}"),
+            ));
+        }
+    };
+
+    if let Ok(log_file) = fern::log_file(&log_file) {
         log_dispatch = log_dispatch.chain(
             fern::Dispatch::new()
                 .level(log::LevelFilter::Debug)
@@ -135,6 +155,14 @@ pub fn launch() {
         .backtrace_mode(log_panics::BacktraceMode::Resolved)
         .install_panic_hook();
 
+    let prev = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if cfg!(target_os = "windows") {
+            error_modal("Error", &info.to_string());
+        }
+        prev(info);
+    }));
+
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
     let mut data =
         LapceData::load(launcher.get_external_handle(), paths, Some(log_file));
@@ -153,7 +181,23 @@ pub fn launch() {
     }
 
     let launcher = launcher.configure_env(|env, data| data.reload_env(env));
-    launcher.launch(data).expect("launch failed");
+    match launcher.launch(data) {
+        Ok(_) => {}
+
+        #[cfg(not(windows))]
+        Err(e) => {
+            eprintln!("Failed to launch Lapce: {e}");
+            std::process::exit(1);
+        }
+
+        #[cfg(windows)]
+        Err(e) => {
+            std::process::exit(error_modal(
+                "Error",
+                &format!("Failed to launch Lapce: {e}"),
+            ));
+        }
+    };
 }
 
 fn new_window_desc<W, T: druid::Data>(
@@ -829,4 +873,35 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         _ctx: &mut druid::DelegateCtx,
     ) {
     }
+}
+
+#[cfg(windows)]
+fn error_modal(title: &str, msg: &str) -> i32 {
+    use std::iter::once;
+    use std::os::windows::prelude::OsStrExt;
+    use std::{ffi::OsStr, mem};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        MessageBoxW, MB_ICONERROR, MB_SYSTEMMODAL,
+    };
+
+    let result: i32;
+
+    let title = OsStr::new(title)
+        .encode_wide()
+        .chain(once(0u16))
+        .collect::<Vec<u16>>();
+    let msg = OsStr::new(msg)
+        .encode_wide()
+        .chain(once(0u16))
+        .collect::<Vec<u16>>();
+    unsafe {
+        result = MessageBoxW(
+            mem::zeroed(),
+            msg.as_ptr(),
+            title.as_ptr(),
+            MB_ICONERROR | MB_SYSTEMMODAL,
+        );
+    }
+
+    result
 }
