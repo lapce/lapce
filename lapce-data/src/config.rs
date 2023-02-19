@@ -4,6 +4,7 @@ use std::{
     sync::{atomic::AtomicBool, Arc},
 };
 
+use anyhow::{anyhow, Result};
 use druid::{
     piet::{PietText, Svg, Text, TextLayout, TextLayoutBuilder},
     Color, ExtEventSink, FontFamily, Size, Target,
@@ -1141,7 +1142,7 @@ impl LapceConfig {
                 .unwrap_or_else(|_| config.clone());
         }
 
-        if let Some(path) = Self::settings_file() {
+        if let Ok(path) = Self::settings_file() {
             config = config::Config::builder()
                 .add_source(config.clone())
                 .add_source(config::File::from(path.as_path()).required(false))
@@ -1236,18 +1237,13 @@ impl LapceConfig {
         themes
     }
 
-    fn load_local_themes() -> Option<HashMap<String, (String, config::Config)>> {
-        let themes_folder = Directory::themes_directory()?;
+    fn load_local_themes() -> Result<HashMap<String, (String, config::Config)>> {
+        let themes_folder = Directory::themes_directory();
         let themes: HashMap<String, (String, config::Config)> =
-            std::fs::read_dir(themes_folder)
-                .ok()?
-                .filter_map(|entry| {
-                    entry
-                        .ok()
-                        .and_then(|entry| Self::load_color_theme(&entry.path()))
-                })
+            std::fs::read_dir(themes_folder?)?
+                .filter_map(|entry| Self::load_color_theme(&entry.ok()?.path()))
                 .collect();
-        Some(themes)
+        Ok(themes)
     }
 
     fn load_plugin_color_themes(
@@ -1361,35 +1357,32 @@ impl LapceConfig {
         default_lapce_config
     }
 
-    pub fn export_theme(&self) -> String {
+    pub fn export_theme(&self) -> Result<String> {
         let mut table = toml::value::Table::new();
         let mut theme = self.color_theme.clone();
         theme.name = "".to_string();
         theme.syntax.sort_keys();
         theme.ui.sort_keys();
-        table.insert(
-            "color-theme".to_string(),
-            toml::Value::try_from(&theme).unwrap(),
-        );
-        table.insert("ui".to_string(), toml::Value::try_from(&self.ui).unwrap());
+        table.insert("color-theme".to_string(), toml::Value::try_from(&theme)?);
+        table.insert("ui".to_string(), toml::Value::try_from(&self.ui)?);
         let value = toml::Value::Table(table);
-        toml::to_string_pretty(&value).unwrap()
+        Ok(toml::to_string_pretty(&value)?)
     }
 
-    pub fn keymaps_file() -> Option<PathBuf> {
+    pub fn keymaps_file() -> Result<PathBuf> {
         let path = Directory::config_directory()?.join("keymaps.toml");
 
         if !path.exists() {
-            let _ = std::fs::OpenOptions::new()
+            std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
-                .open(&path);
+                .open(&path)?;
         }
 
-        Some(path)
+        Ok(path)
     }
 
-    pub fn log_file() -> Option<PathBuf> {
+    pub fn log_file() -> Result<PathBuf> {
         let time = chrono::Local::now().format("%Y%m%d-%H%M%S");
 
         let file_name = format!("{time}.log");
@@ -1397,33 +1390,33 @@ impl LapceConfig {
         let path = Directory::logs_directory()?.join(file_name);
 
         if !path.exists() {
-            let _ = std::fs::OpenOptions::new()
+            std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
-                .open(&path);
+                .open(&path)?;
         }
 
-        Some(path)
+        Ok(path)
     }
 
-    pub fn settings_file() -> Option<PathBuf> {
+    pub fn settings_file() -> Result<PathBuf> {
         let path = Directory::config_directory()?.join("settings.toml");
 
         if !path.exists() {
-            let _ = std::fs::OpenOptions::new()
+            std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
-                .open(&path);
+                .open(&path)?;
         }
 
-        Some(path)
+        Ok(path)
     }
 
-    fn get_file_table() -> Option<toml_edit::Document> {
+    fn get_file_table() -> Result<toml_edit::Document> {
         let path = Self::settings_file()?;
-        let content = std::fs::read_to_string(path).ok()?;
-        let document: toml_edit::Document = content.parse().ok()?;
-        Some(document)
+        let content = std::fs::read_to_string(path)?;
+        let document: toml_edit::Document = content.parse()?;
+        Ok(document)
     }
 
     pub fn reset_setting(parent: &str, key: &str) -> Option<()> {
@@ -1444,7 +1437,7 @@ impl LapceConfig {
         table.remove(key);
 
         // Store
-        let path = Self::settings_file()?;
+        let path = Self::settings_file().ok()?;
         std::fs::write(path, main_table.to_string().as_bytes()).ok()?;
 
         Some(())
@@ -1473,7 +1466,7 @@ impl LapceConfig {
         table.insert(key, toml_edit::Item::Value(value));
 
         // Store
-        let path = Self::settings_file()?;
+        let path = Self::settings_file().ok()?;
         std::fs::write(path, main_table.to_string().as_bytes()).ok()?;
 
         Some(())

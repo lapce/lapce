@@ -531,7 +531,7 @@ impl KeyPressData {
     }
 
     fn get_file_array() -> Option<toml_edit::ArrayOfTables> {
-        let path = Self::file()?;
+        let path = Self::file().ok()?;
         let content = std::fs::read_to_string(path).ok()?;
         let document: toml_edit::Document = content.parse().ok()?;
         document
@@ -665,12 +665,12 @@ impl KeyPressData {
 
         let mut table = toml_edit::Document::new();
         table.insert("keymaps", toml_edit::Item::ArrayOfTables(array));
-        let path = Self::file()?;
+        let path = Self::file().ok()?;
         std::fs::write(path, table.to_string().as_bytes()).ok()?;
         None
     }
 
-    pub fn file() -> Option<PathBuf> {
+    pub fn file() -> Result<PathBuf> {
         LapceConfig::keymaps_file()
     }
 
@@ -699,7 +699,7 @@ impl KeyPressData {
             log::error!("Failed to load OS defaults: {err}");
         }
 
-        if let Some(path) = Self::file() {
+        if let Ok(path) = Self::file() {
             if let Ok(content) = std::fs::read_to_string(&path) {
                 if let Err(err) = loader.load_from_str(&content, is_modal) {
                     log::error!("Failed to load from {path:?}: {err}");

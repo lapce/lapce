@@ -307,9 +307,8 @@ impl LapceData {
     }
 
     fn listen_local_socket(event_sink: ExtEventSink) -> Result<()> {
-        let local_socket = Directory::local_socket()
-            .ok_or_else(|| anyhow!("can't get local socket folder"))?;
-        let _ = std::fs::remove_file(&local_socket);
+        let local_socket = Directory::local_socket()?;
+        std::fs::remove_file(&local_socket)?;
         let socket =
             interprocess::local_socket::LocalSocketListener::bind(local_socket)?;
 
@@ -356,8 +355,7 @@ impl LapceData {
     }
 
     pub fn try_open_in_existing_process(paths: &[PathBuf]) -> Result<()> {
-        let local_socket = Directory::local_socket()
-            .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+        let local_socket = Directory::local_socket()?;
         let mut socket =
             interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
         let folders: Vec<_> = paths.iter().filter(|p| p.is_dir()).cloned().collect();
@@ -515,16 +513,16 @@ impl LapceWindowData {
 
         let mut watcher =
             notify::recommended_watcher(ConfigWatcher::new(event_sink)).unwrap();
-        if let Some(path) = LapceConfig::settings_file() {
+        if let Ok(path) = LapceConfig::settings_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-        if let Some(path) = Directory::themes_directory() {
+        if let Ok(path) = Directory::themes_directory() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-        if let Some(path) = LapceConfig::keymaps_file() {
+        if let Ok(path) = LapceConfig::keymaps_file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-        if let Some(path) = Directory::plugins_directory() {
+        if let Ok(path) = Directory::plugins_directory() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
 
@@ -1438,7 +1436,7 @@ impl LapceTabData {
                 self.main_split.open_settings(ctx, false, &self.config);
             }
             LapceWorkbenchCommand::OpenSettingsFile => {
-                if let Some(path) = LapceConfig::settings_file() {
+                if let Ok(path) = LapceConfig::settings_file() {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
@@ -1467,7 +1465,7 @@ impl LapceTabData {
                     OpenPluginsDirectory => Directory::plugins_directory(),
                     _ => return,
                 };
-                if let Some(dir) = dir {
+                if let Ok(dir) = dir {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::OpenURI(dir.to_string_lossy().to_string()),
@@ -1479,7 +1477,7 @@ impl LapceTabData {
                 self.main_split.open_settings(ctx, true, &self.config);
             }
             LapceWorkbenchCommand::OpenKeyboardShortcutsFile => {
-                if let Some(path) = LapceConfig::keymaps_file() {
+                if let Ok(path) = LapceConfig::keymaps_file() {
                     self.main_split.jump_to_location(
                         ctx,
                         None,
@@ -3254,7 +3252,7 @@ impl LapceMainSplitData {
                 EditorTabChild::Editor(view_id, _, _) => {
                     let editor = self.editors.get(&view_id).unwrap();
                     if let BufferContent::File(ref path) = editor.content {
-                        if let Some(folder) = Directory::themes_directory() {
+                        if let Ok(folder) = Directory::themes_directory() {
                             if let Some(file_name) = path.file_name() {
                                 let _ = std::fs::copy(path, folder.join(file_name));
                             }
@@ -3275,7 +3273,7 @@ impl LapceMainSplitData {
         #[cfg(feature = "lang-toml")]
         doc.set_language(lapce_core::language::LapceLanguage::Toml);
 
-        doc.reload(Rope::from(config.export_theme()), true);
+        doc.reload(Rope::from(config.export_theme().unwrap()), true);
     }
 
     pub fn new_file(

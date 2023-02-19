@@ -250,7 +250,7 @@ pub fn load_all_volts(
 
 pub fn find_all_volts() -> Vec<VoltMetadata> {
     Directory::plugins_directory()
-        .and_then(|d| {
+        .map(|d| {
             d.read_dir().ok().map(|dir| {
                 dir.filter_map(|result| {
                     let entry = result.ok()?;
@@ -266,6 +266,8 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
                 .collect()
             })
         })
+        .ok()
+        .flatten()
         .unwrap_or_default()
 }
 
@@ -349,9 +351,7 @@ pub fn enable_volt(
     plugin_rpc: PluginCatalogRpcHandler,
     volt: VoltInfo,
 ) -> Result<()> {
-    let path = Directory::plugins_directory()
-        .ok_or_else(|| anyhow!("can't get plugin directory"))?
-        .join(volt.id().to_string());
+    let path = Directory::plugins_directory()?.join(volt.id().to_string());
     let meta = load_volt(&path)?;
     plugin_rpc.unactivated_volts(vec![meta])?;
     Ok(())

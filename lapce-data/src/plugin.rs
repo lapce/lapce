@@ -244,28 +244,21 @@ impl PluginData {
             volt.author, volt.name, volt.version, volt.updated_at_ts
         );
 
-        let cache_file_path = Directory::cache_directory().map(|cache_dir| {
-            let mut hasher = Sha256::new();
-            hasher.update(url.as_bytes());
-            let filename = format!("{:x}", hasher.finalize());
-            cache_dir.join(filename)
-        });
+        let mut hasher = Sha256::new();
+        hasher.update(url.as_bytes());
+        let filename = format!("{:x}", hasher.finalize());
+        let cache_file_path = Directory::cache_directory()?.join(filename);
 
-        let cache_content =
-            cache_file_path.as_ref().and_then(|p| std::fs::read(p).ok());
-
-        let content = match cache_content {
-            Some(content) => content,
-            None => {
+        let content = match std::fs::read(&cache_file_path) {
+            Ok(content) => content,
+            Err(_) => {
                 let resp = reqwest::blocking::get(&url)?;
                 if !resp.status().is_success() {
                     return Err(anyhow::anyhow!("can't download icon"));
                 }
                 let buf = resp.bytes()?.to_vec();
 
-                if let Some(path) = cache_file_path.as_ref() {
-                    let _ = std::fs::write(path, &buf);
-                }
+                let _ = std::fs::write(cache_file_path, &buf);
 
                 buf
             }

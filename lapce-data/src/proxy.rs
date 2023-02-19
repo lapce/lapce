@@ -450,7 +450,7 @@ impl LapceProxy {
         let script_install = match platform {
             Windows => {
                 let local_proxy_script =
-                    Directory::proxy_directory().unwrap().join("proxy.ps1");
+                    Directory::proxy_directory()?.join("proxy.ps1");
 
                 let mut proxy_script = std::fs::OpenOptions::new()
                     .create(true)
@@ -480,7 +480,7 @@ impl LapceProxy {
             }
             _ => {
                 let local_proxy_script =
-                    Directory::proxy_directory().unwrap().join("proxy.sh");
+                    Directory::proxy_directory()?.join("proxy.sh");
 
                 let mut proxy_script = std::fs::OpenOptions::new()
                     .create(true)
@@ -532,9 +532,8 @@ impl LapceProxy {
                     .status()?,
             };
             if !cmd.success() {
-                let local_proxy_file = Directory::proxy_directory()
-                    .ok_or_else(|| anyhow!("can't find proxy directory"))?
-                    .join(&proxy_filename);
+                let local_proxy_file =
+                    Directory::proxy_directory()?.join(&proxy_filename);
                 // remove possibly outdated proxy
                 if local_proxy_file.exists() {
                     // TODO: add proper proxy version detection and update proxy

@@ -1017,10 +1017,8 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
         == Some("application/zstd");
 
     let id = volt.id();
-    let plugin_dir = Directory::plugins_directory()
-        .ok_or_else(|| anyhow!("can't get plugin directory"))?
-        .join(id.to_string());
-    let _ = fs::remove_dir_all(&plugin_dir);
+    let plugin_dir = Directory::plugins_directory()?.join(id.to_string());
+    fs::remove_dir_all(&plugin_dir)?;
     fs::create_dir_all(&plugin_dir)?;
 
     if is_zstd {

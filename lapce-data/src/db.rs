@@ -346,9 +346,7 @@ impl EditorInfo {
 
 impl LapceDb {
     pub fn new() -> Result<Self> {
-        let path = Directory::config_directory()
-            .ok_or_else(|| anyhow!("can't get config directory"))?
-            .join("lapce.db");
+        let path = Directory::config_directory()?.join("lapce.db");
         let (save_tx, save_rx) = unbounded();
 
         let sled_db = sled::Config::default()

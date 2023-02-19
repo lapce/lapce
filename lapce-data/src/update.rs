@@ -51,8 +51,7 @@ pub fn get_latest_release() -> Result<ReleaseInfo> {
 }
 
 pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
-    let dir =
-        Directory::updates_directory().ok_or_else(|| anyhow!("no directory"))?;
+    let dir = Directory::updates_directory()?;
     let name = match std::env::consts::OS {
         "macos" => "Lapce-macos.dmg",
         "linux" => "Lapce-linux.tar.gz",

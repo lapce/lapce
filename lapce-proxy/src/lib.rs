@@ -13,7 +13,7 @@ use std::{
     thread,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use clap::Parser;
 use dispatch::Dispatcher;
 use lapce_core::{directory::Directory, meta};
@@ -129,8 +129,7 @@ pub fn register_lapce_path() -> Result<()> {
 }
 
 fn try_open_in_existing_process(paths: &[PathBuf]) -> Result<()> {
-    let local_socket = Directory::local_socket()
-        .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+    let local_socket = Directory::local_socket()?;
     let mut socket =
         interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
     let folders: Vec<_> = paths.iter().filter(|p| p.is_dir()).cloned().collect();
@@ -142,8 +141,7 @@ fn try_open_in_existing_process(paths: &[PathBuf]) -> Result<()> {
 }
 
 fn listen_local_socket(proxy_rpc: ProxyRpcHandler) -> Result<()> {
-    let local_socket = Directory::local_socket()
-        .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+    let local_socket = Directory::local_socket()?;
     let _ = std::fs::remove_file(&local_socket);
     let socket =
         interprocess::local_socket::LocalSocketListener::bind(local_socket)?;

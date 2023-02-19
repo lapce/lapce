@@ -121,28 +121,21 @@ fn get_image(url: Url) -> Result<Image, anyhow::Error> {
         std::fs::read(path)?
     } else {
         // Hash the url to get a safe and basically-unique filename
-        let cache_file_path = Directory::cache_directory().map(|cache_dir| {
-            let mut hasher = Sha256::new();
-            hasher.update(url.as_str().as_bytes());
-            let filename = format!("{:x}", hasher.finalize());
-            cache_dir.join(filename)
-        });
+        let mut hasher = Sha256::new();
+        hasher.update(url.as_str().as_bytes());
+        let filename = format!("{:x}", hasher.finalize());
+        let cache_file_path = Directory::cache_directory()?.join(filename);
 
-        let cache_content =
-            cache_file_path.as_ref().and_then(|p| std::fs::read(p).ok());
-
-        match cache_content {
-            Some(content) => content,
-            None => {
+        match std::fs::read(&cache_file_path) {
+            Ok(content) => content,
+            Err(_) => {
                 let resp = reqwest::blocking::get(url.clone())?;
                 if !resp.status().is_success() {
                     return Err(anyhow::anyhow!("can't download icon"));
                 }
                 let buf = resp.bytes()?.to_vec();
 
-                if let Some(path) = cache_file_path.as_ref() {
-                    let _ = std::fs::write(path, &buf);
-                }
+                let _ = std::fs::write(cache_file_path, &buf);
 
                 buf
             }
