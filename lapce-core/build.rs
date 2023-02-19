@@ -11,7 +11,7 @@ fn main() -> Result<()> {
 
     let (release, version) = match tag.clone() {
         // Stable tag release
-        tag if tag.starts_with("v") => ("Stable", env::var("CARGO_PKG_VERSION")?),
+        tag if tag.starts_with('v') => ("Stable", env::var("CARGO_PKG_VERSION")?),
         // Nightly tag release
         tag if tag.starts_with("nightly") => ("Nightly", tag),
         // Non-CI release builds
@@ -32,7 +32,7 @@ fn main() -> Result<()> {
         pub const RELEASE: ReleaseType = ReleaseType::{release};
     "#);
 
-    fs::write(&meta_file, meta)?;
+    fs::write(meta_file, meta)?;
 
     Ok(())
 }
