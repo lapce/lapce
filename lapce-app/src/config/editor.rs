@@ -141,3 +141,18 @@ pub struct EditorConfig {
     )]
     pub diff_context_lines: i32,
 }
+
+impl EditorConfig {
+    pub fn line_height(&self) -> usize {
+        const SCALE_OR_SIZE_LIMIT: f64 = 5.0;
+
+        let line_height = if self.line_height < SCALE_OR_SIZE_LIMIT {
+            self.line_height * self.font_size as f64
+        } else {
+            self.line_height
+        };
+
+        // Prevent overlapping lines
+        (line_height.round() as usize).max(self.font_size)
+    }
+}

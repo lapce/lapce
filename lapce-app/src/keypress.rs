@@ -91,12 +91,10 @@ impl KeyPressFocus for DefaultKeyPress {
         count: Option<usize>,
         mods: Modifiers,
     ) -> CommandExecuted {
-        todo!()
+        CommandExecuted::No
     }
 
-    fn receive_char(&self, cx: AppContext, c: &str) {
-        todo!()
-    }
+    fn receive_char(&self, cx: AppContext, c: &str) {}
 }
 
 #[derive(Clone)]

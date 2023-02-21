@@ -24,7 +24,7 @@ use self::{
     ui::UIConfig,
 };
 
-mod color;
+pub mod color;
 mod color_theme;
 mod core;
 mod editor;

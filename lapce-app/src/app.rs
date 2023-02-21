@@ -1,4 +1,7 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::{atomic::AtomicU64, Arc},
+};
 
 use floem::{
     app::AppContext,
@@ -9,9 +12,8 @@ use floem::{
         Color,
     },
     reactive::{
-        create_effect, create_selector, create_selector_with_fn, create_signal,
-        provide_context, use_context, ReadSignal, RwSignal, UntrackedGettableSignal,
-        WriteSignal,
+        create_effect, create_signal, provide_context, use_context, ReadSignal,
+        RwSignal, UntrackedGettableSignal, WriteSignal,
     },
     stack::stack,
     style::{
@@ -23,14 +25,19 @@ use floem::{
         container, container_box, list, tab, virtual_list, Decorators,
         VirtualListDirection, VirtualListItemSize,
     },
-    views::{label, scroll},
+    views::{label, scroll, text_layout},
+};
+use lapce_core::{
+    cursor::{ColPosition, Cursor, CursorMode},
+    mode::{Mode, VisualMode},
+    selection::Selection,
 };
 
 use crate::{
     command::{CommandKind, LapceWorkbenchCommand},
-    config::LapceConfig,
+    config::{color::LapceColor, LapceConfig},
     db::LapceDb,
-    doc::DocContent,
+    doc::{DocContent, DocLine, Document, TextLayoutLine},
     editor::EditorData,
     editor_tab::{EditorTabChild, EditorTabData},
     id::{EditorId, EditorTabId, SplitId},
@@ -46,38 +53,424 @@ use crate::{
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
-fn editor(cx: AppContext, editor: ReadSignal<EditorData>) -> impl View {
-    let doc = move || editor.with(|editor| editor.doc).get();
-    let key_fn = |(line, content): &(usize, String)| format!("{line}{content}");
-    let view_fn = |cx, (line, line_content): (usize, String)| {
-        label(cx, move || line_content.clone()).style(cx, || Style {
-            height: Dimension::Points(20.0),
-            ..Default::default()
+#[derive(Clone, Debug)]
+enum CursorRender {
+    CurrentLine { line: usize },
+    Selection { x: f64, width: f64, line: usize },
+    Caret { x: f64, width: f64, line: usize },
+}
+
+fn cursor_caret(doc: &Document, offset: usize, block: bool) -> CursorRender {
+    let (line, col) = doc.buffer().offset_to_line_col(offset);
+    let x0 = doc.line_point_of_line_col(line, col, 12).x;
+    if block {
+        let right_offset = doc.buffer().move_right(offset, Mode::Insert, 1);
+        let (_, right_col) = doc.buffer().offset_to_line_col(right_offset);
+        let x1 = doc.line_point_of_line_col(line, right_col, 12).x;
+
+        let width = if x1 > x0 { x1 - x0 } else { 7.0 };
+        CursorRender::Caret { x: x0, width, line }
+    } else {
+        CursorRender::Caret {
+            x: x0 - 1.0,
+            width: 2.0,
+            line,
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn visual_cursor(
+    doc: &Document,
+    start: usize,
+    end: usize,
+    mode: &VisualMode,
+    horiz: Option<&ColPosition>,
+    min_line: usize,
+    max_line: usize,
+    char_width: f64,
+) -> Vec<CursorRender> {
+    let (start_line, start_col) = doc.buffer().offset_to_line_col(start.min(end));
+    let (end_line, end_col) = doc.buffer().offset_to_line_col(start.max(end));
+    let (cursor_line, _) = doc.buffer().offset_to_line_col(end);
+
+    let mut renders = Vec::new();
+
+    for line in min_line..max_line + 1 {
+        if line < start_line {
+            continue;
+        }
+
+        if line > end_line {
+            break;
+        }
+
+        let left_col = match mode {
+            VisualMode::Normal => {
+                if start_line == line {
+                    start_col
+                } else {
+                    0
+                }
+            }
+            VisualMode::Linewise => 0,
+            VisualMode::Blockwise => {
+                let max_col = doc.buffer().line_end_col(line, false);
+                let left = start_col.min(end_col);
+                if left > max_col {
+                    continue;
+                }
+                left
+            }
+        };
+
+        let (right_col, line_end) = match mode {
+            VisualMode::Normal => {
+                if line == end_line {
+                    let max_col = doc.buffer().line_end_col(line, true);
+
+                    let end_offset =
+                        doc.buffer().move_right(start.max(end), Mode::Visual, 1);
+                    let (_, end_col) = doc.buffer().offset_to_line_col(end_offset);
+
+                    (end_col.min(max_col), false)
+                } else {
+                    (doc.buffer().line_end_col(line, true), true)
+                }
+            }
+            VisualMode::Linewise => (doc.buffer().line_end_col(line, true), true),
+            VisualMode::Blockwise => {
+                let max_col = doc.buffer().line_end_col(line, true);
+                let right = match horiz.as_ref() {
+                    Some(&ColPosition::End) => max_col,
+                    _ => {
+                        let end_offset =
+                            doc.buffer().move_right(start.max(end), Mode::Visual, 1);
+                        let (_, end_col) =
+                            doc.buffer().offset_to_line_col(end_offset);
+                        end_col.max(start_col).min(max_col)
+                    }
+                };
+                (right, false)
+            }
+        };
+
+        let x0 = doc.line_point_of_line_col(line, left_col, 12).x;
+        let mut x1 = doc.line_point_of_line_col(line, right_col, 12).x;
+        if line_end {
+            x1 += char_width;
+        }
+
+        renders.push(CursorRender::Selection {
+            x: x0,
+            width: x1 - x0,
+            line,
+        });
+
+        if line == cursor_line {
+            let caret = cursor_caret(doc, end, true);
+            renders.push(caret);
+        }
+    }
+
+    renders
+}
+
+fn insert_cursor(
+    doc: &Document,
+    selection: &Selection,
+    min_line: usize,
+    max_line: usize,
+    char_width: f64,
+) -> Vec<CursorRender> {
+    let start = doc.buffer().offset_of_line(min_line);
+    let end = doc.buffer().offset_of_line(max_line + 1);
+    let regions = selection.regions_in_range(start, end);
+
+    let mut renders = Vec::new();
+
+    for region in regions {
+        let cursor_offset = region.end;
+        let (cursor_line, _) = doc.buffer().offset_to_line_col(cursor_offset);
+        let start = region.start;
+        let end = region.end;
+        let (start_line, start_col) =
+            doc.buffer().offset_to_line_col(start.min(end));
+        let (end_line, end_col) = doc.buffer().offset_to_line_col(start.max(end));
+        for line in min_line..max_line + 1 {
+            if line < start_line {
+                continue;
+            }
+
+            if line > end_line {
+                break;
+            }
+
+            let left_col = match line {
+                _ if line == start_line => start_col,
+                _ => 0,
+            };
+            let (right_col, line_end) = match line {
+                _ if line == end_line => {
+                    let max_col = doc.buffer().line_end_col(line, true);
+                    (end_col.min(max_col), false)
+                }
+                _ => (doc.buffer().line_end_col(line, true), true),
+            };
+
+            let x0 = doc.line_point_of_line_col(line, left_col, 12).x;
+            let mut x1 = doc.line_point_of_line_col(line, right_col, 12).x;
+            if line_end {
+                x1 += char_width;
+            }
+
+            if line == cursor_line {
+                renders.push(CursorRender::CurrentLine { line });
+            }
+
+            if start != end {
+                renders.push(CursorRender::Selection {
+                    x: x0,
+                    width: x1 - x0,
+                    line,
+                });
+            }
+
+            if line == cursor_line {
+                let caret = cursor_caret(doc, cursor_offset, false);
+                renders.push(caret);
+            }
+        }
+    }
+    renders
+}
+
+fn editor_cursor(
+    cx: AppContext,
+    doc: ReadSignal<Document>,
+    cursor: ReadSignal<Cursor>,
+    viewport: ReadSignal<Rect>,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    let cursor = move || {
+        let viewport = viewport.get();
+        let config = config.get();
+        let line_height = config.editor.line_height() as f64;
+
+        let min_line = (viewport.y0 / line_height).floor() as usize;
+        let max_line = (viewport.y1 / line_height).ceil() as usize;
+
+        doc.with_untracked(|doc| {
+            cursor.with(|cursor| match &cursor.mode {
+                CursorMode::Normal(offset) => {
+                    let line = doc.buffer().line_of_offset(*offset);
+                    let caret = cursor_caret(doc, *offset, true);
+                    vec![
+                        (viewport, CursorRender::CurrentLine { line }),
+                        (viewport, caret),
+                    ]
+                }
+                CursorMode::Visual { start, end, mode } => visual_cursor(
+                    doc, *start, *end, mode, None, min_line, max_line, 7.5,
+                )
+                .into_iter()
+                .map(|render| (viewport, render))
+                .collect(),
+                CursorMode::Insert(selection) => {
+                    insert_cursor(doc, selection, min_line, max_line, 7.5)
+                        .into_iter()
+                        .map(|render| (viewport, render))
+                        .collect()
+                }
+            })
         })
     };
-    scroll(cx, |cx| {
-        virtual_list(
-            cx,
-            VirtualListDirection::Vertical,
-            doc,
-            key_fn,
-            view_fn,
-            VirtualListItemSize::Fixed(20.0),
-        )
-        .style(cx, || Style {
-            flex_direction: FlexDirection::Column,
-            ..Default::default()
-        })
-    })
-    .style(cx, || Style {
+    let id = AtomicU64::new(0);
+    list(
+        cx,
+        move || cursor(),
+        move |(viewport, cursor)| {
+            id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        },
+        move |cx, (viewport, curosr)| {
+            label(cx, || "".to_string()).style(cx, move || {
+                let config = config.get_untracked();
+                let line_height = config.editor.line_height();
+
+                Style {
+                    width: match &curosr {
+                        CursorRender::CurrentLine { .. } => Dimension::Percent(1.0),
+                        CursorRender::Selection { width, .. } => {
+                            Dimension::Points(*width as f32)
+                        }
+                        CursorRender::Caret { width, .. } => {
+                            Dimension::Points(*width as f32)
+                        }
+                    },
+                    margin_left: Some(match &curosr {
+                        CursorRender::CurrentLine { .. } => 0.0,
+                        CursorRender::Selection { x, .. } => {
+                            (*x - viewport.x0) as f32
+                        }
+                        CursorRender::Caret { x, .. } => (*x - viewport.x0) as f32,
+                    }),
+                    margin_top: Some({
+                        let line = match &curosr {
+                            CursorRender::CurrentLine { line } => *line,
+                            CursorRender::Selection { line, .. } => *line,
+                            CursorRender::Caret { line, .. } => *line,
+                        };
+                        (line * line_height) as f32 - viewport.y0 as f32
+                    }),
+                    height: Dimension::Points(line_height as f32),
+                    position: Position::Absolute,
+                    background: match &curosr {
+                        CursorRender::CurrentLine { .. } => {
+                            Some(*config.get_color(LapceColor::EDITOR_CURRENT_LINE))
+                        }
+                        CursorRender::Selection { .. } => {
+                            Some(*config.get_color(LapceColor::EDITOR_SELECTION))
+                        }
+                        CursorRender::Caret { .. } => {
+                            Some(*config.get_color(LapceColor::EDITOR_CARET))
+                        }
+                    },
+                    ..Default::default()
+                }
+            })
+        },
+    )
+    .style(cx, move || Style {
         position: Position::Absolute,
-        border: 1.0,
-        border_radius: 10.0,
-        // flex_grow: 1.0,
         width: Dimension::Percent(1.0),
         height: Dimension::Percent(1.0),
         ..Default::default()
     })
+}
+
+fn editor(cx: AppContext, editor: ReadSignal<EditorData>) -> impl View {
+    let (doc, cursor, config) = editor.with(|editor| {
+        (
+            editor.doc.read_only(),
+            editor.cursor.read_only(),
+            editor.config,
+        )
+    });
+
+    let (viewport, set_viewport) = create_signal(cx.scope, Rect::ZERO);
+
+    let key_fn = |line: &DocLine| format!("{}{}", line.rev, line.line);
+    let view_fn =
+        move |cx, line: DocLine| {
+            stack(cx, move |cx| {
+                (text_layout(cx, move || line.text.text.clone()).style(
+                    cx,
+                    move || {
+                        let config = config.get_untracked();
+                        let line_height = config.editor.line_height();
+                        Style {
+                            height: Dimension::Points(line_height as f32),
+                            ..Default::default()
+                        }
+                    },
+                ),)
+            })
+        };
+
+    stack(cx, |cx| {
+        (
+            editor_cursor(cx, doc, cursor, viewport, config),
+            scroll(cx, |cx| {
+                let config = config.get_untracked();
+                let line_height = config.editor.line_height();
+                virtual_list(
+                    cx,
+                    VirtualListDirection::Vertical,
+                    move || doc.get(),
+                    key_fn,
+                    view_fn,
+                    VirtualListItemSize::Fixed(line_height as f64),
+                )
+                .style(cx, || Style {
+                    flex_direction: FlexDirection::Column,
+                    ..Default::default()
+                })
+            })
+            .onscroll(move |rect| {
+                set_viewport.set(rect);
+            })
+            .on_ensure_visible(cx, move || {
+                let cursor = cursor.get();
+                let offset = cursor.offset();
+                let caret = doc.with_untracked(|doc| {
+                    cursor_caret(doc, offset, !cursor.is_insert())
+                });
+                let config = config.get_untracked();
+                let line_height = config.editor.line_height();
+                if let CursorRender::Caret { x, width, line } = caret {
+                    Size::new(width, line_height as f64)
+                        .to_rect()
+                        .with_origin(Point::new(x, (line * line_height) as f64))
+                } else {
+                    Rect::ZERO
+                }
+            })
+            .style(cx, || Style {
+                position: Position::Absolute,
+                width: Dimension::Percent(1.0),
+                height: Dimension::Percent(1.0),
+                ..Default::default()
+            }),
+        )
+    })
+    .style(cx, || Style {
+        width: Dimension::Percent(1.0),
+        height: Dimension::Percent(1.0),
+        border: 1.0,
+        border_radius: 10.0,
+        ..Default::default()
+    })
+
+    // scroll(cx, |cx| {
+    //     stack(cx, |cx| {
+    //         (
+    //             editor_cursor(cx, doc, cursor, viewport, config),
+    //             virtual_list(
+    //                 cx,
+    //                 VirtualListDirection::Vertical,
+    //                 move || doc.get(),
+    //                 key_fn,
+    //                 view_fn,
+    //                 VirtualListItemSize::Fixed(20.0),
+    //             )
+    //             .style(cx, || Style {
+    //                 flex_direction: FlexDirection::Column,
+    //                 min_width: Dimension::Percent(1.0),
+    //                 min_height: Dimension::Percent(1.0),
+    //                 border: 1.0,
+    //                 ..Default::default()
+    //             }),
+    //         )
+    //     })
+    //     .style(cx, || Style {
+    //         min_width: Dimension::Percent(1.0),
+    //         min_height: Dimension::Percent(1.0),
+    //         flex_direction: FlexDirection::Column,
+    //         ..Default::default()
+    //     })
+    // })
+    // .onscroll(move |rect| {
+    //     set_viewport.set(rect);
+    // })
+    // .style(cx, || Style {
+    //     position: Position::Absolute,
+    //     border: 1.0,
+    //     border_radius: 10.0,
+    //     // flex_grow: 1.0,
+    //     width: Dimension::Percent(1.0),
+    //     height: Dimension::Percent(1.0),
+    //     ..Default::default()
+    // })
 }
 
 fn editor_tab_header(
@@ -241,7 +634,7 @@ fn split_list(
         };
         child.style(cx, || Style {
             height: Dimension::Percent(1.0),
-            border: 5.0,
+            border: 1.0,
             flex_grow: 1.0,
             ..Default::default()
         })
@@ -267,9 +660,13 @@ fn main_split(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     let splits = window_tab_data.main_split.splits.read_only();
     let editor_tabs = window_tab_data.main_split.editor_tabs.read_only();
     let editors = window_tab_data.main_split.editors.read_only();
-    split_list(cx, splits, root_split, editor_tabs, editors).style(cx, || Style {
-        flex_grow: 1.0,
-        ..Default::default()
+    let config = window_tab_data.main_split.config;
+    split_list(cx, splits, root_split, editor_tabs, editors).style(cx, move || {
+        Style {
+            background: Some(*config.get().get_color(LapceColor::EDITOR_BACKGROUND)),
+            flex_grow: 1.0,
+            ..Default::default()
+        }
     })
 }
 
@@ -348,7 +745,7 @@ fn palette_item(
                         ..Default::default()
                     }),
                     label(cx, move || folder.get()).style(cx, || Style {
-                        margin_left: 6.0,
+                        margin_left: Some(6.0),
                         min_width: Dimension::Points(0.0),
                         ..Default::default()
                     }),
@@ -376,7 +773,7 @@ fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     let cursor_x = move || {
         let offset = cursor.get().offset();
         let config = config.get();
-        doc.with(|doc| doc.line_point_of_offset(offset, 12, &config).x)
+        doc.with(|doc| doc.line_point_of_offset(offset, 12).x)
     };
     container(cx, |cx| {
         container(cx, |cx| {
@@ -388,7 +785,7 @@ fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
                         }),
                         label(cx, move || "".to_string()).style(cx, move || Style {
                             position: Position::Absolute,
-                            margin_left: cursor_x() as f32 - 1.0,
+                            margin_left: Some(cursor_x() as f32 - 1.0),
                             border_left: 2.0,
                             ..Default::default()
                         }),

@@ -1,8 +1,16 @@
-use std::{borrow::Cow, path::PathBuf};
+use std::{
+    borrow::Cow, cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc,
+    sync::Arc,
+};
 
 use floem::{
     app::AppContext,
+    parley::{
+        style::{FontFamily, FontStack, StyleProperty},
+        Layout,
+    },
     peniko::{kurbo::Point, Brush, Color},
+    reactive::{ReadSignal, UntrackedGettableSignal},
     text::ParleyBrush,
     views::VirtualListVector,
 };
@@ -24,7 +32,7 @@ use lapce_rpc::buffer::BufferId;
 use lapce_xi_rope::{Rope, RopeDelta};
 use smallvec::SmallVec;
 
-use crate::config::LapceConfig;
+use crate::config::{color::LapceColor, LapceConfig};
 
 pub struct SystemClipboard {}
 
@@ -41,6 +49,56 @@ impl Clipboard for SystemClipboard {
 
     fn put_string(&mut self, s: impl AsRef<str>) {
         Self::clipboard().put_string(s)
+    }
+}
+
+#[derive(Clone)]
+pub struct LineExtraStyle {
+    pub bg_color: Option<Color>,
+    pub under_line: Option<Color>,
+}
+
+#[derive(Clone)]
+pub struct TextLayoutLine {
+    /// Extra styling that should be applied to the text
+    /// (x0, x1 or line display end, style)
+    pub extra_style: Vec<(f64, Option<f64>, LineExtraStyle)>,
+    pub text: Layout<ParleyBrush>,
+    pub whitespaces: Option<Vec<(char, (f64, f64))>>,
+    pub indent: f64,
+}
+
+/// Keeps track of the text layouts so that we can efficiently reuse them.
+#[derive(Clone, Default)]
+pub struct TextLayoutCache {
+    /// The id of the last config, which lets us know when the config changes so we can update
+    /// the cache.
+    config_id: u64,
+    /// (Font Size -> (Line Number -> Text Layout))  
+    /// Different font-sizes are cached separately, which is useful for features like code lens
+    /// where the text becomes small but you may wish to revert quickly.
+    pub layouts: HashMap<usize, HashMap<usize, Arc<TextLayoutLine>>>,
+    pub max_width: f64,
+}
+
+impl TextLayoutCache {
+    pub fn new() -> Self {
+        Self {
+            config_id: 0,
+            layouts: HashMap::new(),
+            max_width: 0.0,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.layouts.clear();
+    }
+
+    pub fn check_attributes(&mut self, config_id: u64) {
+        if self.config_id != config_id {
+            self.clear();
+            self.config_id = config_id;
+        }
     }
 }
 
@@ -70,10 +128,22 @@ pub struct Document {
     syntax: Option<Syntax>,
     /// Whether the buffer's content has been loaded/initialized into the buffer.
     loaded: bool,
+
+    /// The ready-to-render text layouts for the document.  
+    /// This is an `Rc<RefCell<_>>` due to needing to access it even when the document is borrowed,
+    /// since we may need to fill it with constructed text layouts.
+    pub text_layouts: Rc<RefCell<TextLayoutCache>>,
+    config: ReadSignal<Arc<LapceConfig>>,
 }
 
-impl VirtualListVector<(usize, String)> for Document {
-    type ItemIterator = std::vec::IntoIter<(usize, String)>;
+pub struct DocLine {
+    pub rev: u64,
+    pub line: usize,
+    pub text: Arc<TextLayoutLine>,
+}
+
+impl VirtualListVector<DocLine> for Document {
+    type ItemIterator = std::vec::IntoIter<DocLine>;
 
     fn total_len(&self) -> usize {
         self.buffer.num_lines()
@@ -82,30 +152,38 @@ impl VirtualListVector<(usize, String)> for Document {
     fn slice(&mut self, range: std::ops::Range<usize>) -> Self::ItemIterator {
         let lines = range
             .into_iter()
-            .map(|line| (line, self.buffer.line_content(line).to_string()))
+            .map(|line| DocLine {
+                rev: self.buffer.rev(),
+                line,
+                text: self.get_text_layout(line, 12),
+            })
             .collect::<Vec<_>>();
         lines.into_iter()
     }
 }
 
 impl Document {
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new(path: PathBuf, config: ReadSignal<Arc<LapceConfig>>) -> Self {
         Self {
             buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
             content: DocContent::File(path),
             syntax: None,
             loaded: false,
+            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            config,
         }
     }
 
-    pub fn new_local(cx: AppContext) -> Self {
+    pub fn new_local(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> Self {
         Self {
             buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
             content: DocContent::Local,
             syntax: None,
             loaded: true,
+            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            config,
         }
     }
 
@@ -143,7 +221,7 @@ impl Document {
         // Keep track of the change in the cursor mode for undo/redo
         self.buffer.set_cursor_before(old_cursor);
         self.buffer.set_cursor_after(cursor.mode.clone());
-        // self.apply_deltas(&deltas);
+        self.apply_deltas(&deltas);
         deltas
     }
 
@@ -208,12 +286,21 @@ impl Document {
         // self.find.borrow_mut().unset();
         // *self.find_progress.borrow_mut() = FindProgress::Started;
         // self.get_inlay_hints();
-        // self.clear_style_cache();
+        self.clear_style_cache();
         // self.trigger_syntax_change(edits);
         // self.get_semantic_styles();
         // self.clear_sticky_headers_cache();
         // self.trigger_head_change();
         // self.notify_special();
+    }
+
+    fn clear_style_cache(&self) {
+        // self.line_styles.borrow_mut().clear();
+        self.clear_text_layout_cache();
+    }
+
+    fn clear_text_layout_cache(&self) {
+        self.text_layouts.borrow_mut().clear();
     }
 
     pub fn line_horiz_col(
@@ -222,23 +309,12 @@ impl Document {
         font_size: usize,
         horiz: &ColPosition,
         caret: bool,
-        config: &LapceConfig,
     ) -> usize {
         match *horiz {
             ColPosition::Col(x) => {
-                let line_content = self.buffer.line_content(line);
-                let mut text_layout_builder =
-                    floem::parley::LayoutContext::builder(&line_content[..], 1.0);
-                text_layout_builder.push_default(
-                    &floem::parley::style::StyleProperty::Brush(ParleyBrush(
-                        Brush::Solid(Color::rgb8(0xf0, 0xf0, 0xea)),
-                    )),
-                );
-                let mut text_layout = text_layout_builder.build();
-                text_layout
-                    .break_all_lines(None, floem::parley::layout::Alignment::Start);
+                let text_layout = self.get_text_layout(line, font_size);
                 let cursor = floem::parley::layout::Cursor::from_point(
-                    &text_layout,
+                    &text_layout.text,
                     x as f32,
                     0.0,
                 );
@@ -269,7 +345,6 @@ impl Document {
         modify: bool,
         movement: &Movement,
         mode: Mode,
-        config: &LapceConfig,
     ) -> SelRegion {
         let (count, region) = if count >= 1 && !modify && !region.is_caret() {
             // If we're not a caret, and we are moving left/up or right/down, we want to move
@@ -301,7 +376,6 @@ impl Document {
             count,
             movement,
             mode,
-            config,
         );
         let start = match modify {
             true => region.start,
@@ -317,13 +391,11 @@ impl Document {
         modify: bool,
         movement: &Movement,
         mode: Mode,
-        config: &LapceConfig,
     ) -> Selection {
         let mut new_selection = Selection::new();
         for region in selection.regions() {
-            new_selection.add_region(
-                self.move_region(region, count, modify, movement, mode, config),
-            );
+            new_selection
+                .add_region(self.move_region(region, count, modify, movement, mode));
         }
         new_selection
     }
@@ -335,8 +407,8 @@ impl Document {
         count: usize,
         movement: &Movement,
         mode: Mode,
-        config: &LapceConfig,
     ) -> (usize, Option<ColPosition>) {
+        let config = self.config.get_untracked();
         match movement {
             Movement::Left => {
                 let mut new_offset = self.buffer.move_left(offset, mode, count);
@@ -378,16 +450,13 @@ impl Document {
                 let font_size = config.editor.font_size;
 
                 let horiz = horiz.cloned().unwrap_or_else(|| {
-                    ColPosition::Col(
-                        self.line_point_of_offset(offset, font_size, config).x,
-                    )
+                    ColPosition::Col(self.line_point_of_offset(offset, font_size).x)
                 });
                 let col = self.line_horiz_col(
                     line,
                     font_size,
                     &horiz,
                     mode != Mode::Normal,
-                    config,
                 );
                 let new_offset = self.buffer.offset_of_line_col(line, col);
                 (new_offset, Some(horiz))
@@ -407,16 +476,13 @@ impl Document {
                 let line = line.min(last_line);
 
                 let horiz = horiz.cloned().unwrap_or_else(|| {
-                    ColPosition::Col(
-                        self.line_point_of_offset(offset, font_size, config).x,
-                    )
+                    ColPosition::Col(self.line_point_of_offset(offset, font_size).x)
                 });
                 let col = self.line_horiz_col(
                     line,
                     font_size,
                     &horiz,
                     mode != Mode::Normal,
-                    config,
                 );
                 let new_offset = self.buffer.offset_of_line_col(line, col);
                 (new_offset, Some(horiz))
@@ -466,16 +532,13 @@ impl Document {
                 };
                 let font_size = config.editor.font_size;
                 let horiz = horiz.cloned().unwrap_or_else(|| {
-                    ColPosition::Col(
-                        self.line_point_of_offset(offset, font_size, config).x,
-                    )
+                    ColPosition::Col(self.line_point_of_offset(offset, font_size).x)
                 });
                 let col = self.line_horiz_col(
                     line,
                     font_size,
                     &horiz,
                     mode != Mode::Normal,
-                    config,
                 );
                 let new_offset = self.buffer.offset_of_line_col(line, col);
                 (new_offset, Some(horiz))
@@ -574,7 +637,6 @@ impl Document {
                     count,
                     movement,
                     Mode::Normal,
-                    config,
                 );
                 if let Some(motion_mode) = cursor.motion_mode.clone() {
                     let (moved_new_offset, _) = self.move_offset(
@@ -583,7 +645,6 @@ impl Document {
                         1,
                         &Movement::Right,
                         Mode::Insert,
-                        config,
                     );
                     let (start, end) = match movement {
                         Movement::EndOfLine | Movement::WordEndForward => {
@@ -621,7 +682,6 @@ impl Document {
                     count,
                     movement,
                     Mode::Visual,
-                    config,
                 );
                 cursor.mode = CursorMode::Visual {
                     start,
@@ -637,7 +697,6 @@ impl Document {
                     modify,
                     movement,
                     Mode::Insert,
-                    config,
                 );
                 cursor.set_insert(selection);
             }
@@ -646,14 +705,9 @@ impl Document {
 
     /// Returns the point into the text layout of the line at the given offset.
     /// `x` being the leading edge of the character, and `y` being the baseline.
-    pub fn line_point_of_offset(
-        &self,
-        offset: usize,
-        font_size: usize,
-        config: &LapceConfig,
-    ) -> Point {
+    pub fn line_point_of_offset(&self, offset: usize, font_size: usize) -> Point {
         let (line, col) = self.buffer.offset_to_line_col(offset);
-        self.line_point_of_line_col(line, col, font_size, config)
+        self.line_point_of_line_col(line, col, font_size)
     }
 
     /// Returns the point into the text layout of the line at the given line and column.
@@ -663,20 +717,92 @@ impl Document {
         line: usize,
         col: usize,
         font_size: usize,
-        config: &LapceConfig,
     ) -> Point {
+        let text_layout = self.get_text_layout(line, font_size);
+        let cursor = floem::parley::layout::Cursor::from_position(
+            &text_layout.text,
+            col,
+            true,
+        );
+        Point::new(cursor.offset() as f64, cursor.baseline() as f64)
+    }
+
+    /// Create a new text layout for the given line.  
+    /// Typically you should use [`Document::get_text_layout`] instead.
+    fn new_text_layout(&self, line: usize, font_size: usize) -> TextLayoutLine {
+        let config = self.config.get_untracked();
         let line_content = self.buffer.line_content(line);
         let mut text_layout_builder =
-            floem::parley::LayoutContext::builder(&line_content[..col], 1.0);
+            floem::parley::LayoutContext::builder(&line_content[..], 1.0);
+        let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
         text_layout_builder.push_default(
             &floem::parley::style::StyleProperty::Brush(ParleyBrush(Brush::Solid(
-                Color::rgb8(0xf0, 0xf0, 0xea),
+                *color,
             ))),
         );
+        let families =
+            FontFamily::parse_list(&config.editor.font_family).collect::<Vec<_>>();
+        text_layout_builder
+            .push_default(&StyleProperty::FontStack(FontStack::List(&families)));
         let mut text_layout = text_layout_builder.build();
         text_layout.break_all_lines(None, floem::parley::layout::Alignment::Start);
-        let cursor =
-            floem::parley::layout::Cursor::from_position(&text_layout, col, true);
-        Point::new(cursor.offset() as f64, cursor.baseline() as f64)
+        TextLayoutLine {
+            text: text_layout,
+            extra_style: Vec::new(),
+            whitespaces: None,
+            indent: 0.0,
+        }
+    }
+
+    /// Get the text layout for the given line.  
+    /// If the text layout is not cached, it will be created and cached.
+    pub fn get_text_layout(
+        &self,
+        line: usize,
+        font_size: usize,
+    ) -> Arc<TextLayoutLine> {
+        let config = self.config.get_untracked();
+        // Check if the text layout needs to update due to the config being changed
+        self.text_layouts.borrow_mut().check_attributes(config.id);
+        // If we don't have a second layer of the hashmap initialized for this specific font size,
+        // do it now
+        if self.text_layouts.borrow().layouts.get(&font_size).is_none() {
+            let mut cache = self.text_layouts.borrow_mut();
+            cache.layouts.insert(font_size, HashMap::new());
+        }
+
+        // Get whether there's an entry for this specific font size and line
+        let cache_exists = self
+            .text_layouts
+            .borrow()
+            .layouts
+            .get(&font_size)
+            .unwrap()
+            .get(&line)
+            .is_some();
+        // If there isn't an entry then we actually have to create it
+        if !cache_exists {
+            let text_layout = Arc::new(self.new_text_layout(line, font_size));
+            let mut cache = self.text_layouts.borrow_mut();
+            let width = text_layout.text.width() as f64;
+            if width > cache.max_width {
+                cache.max_width = width;
+            }
+            cache
+                .layouts
+                .get_mut(&font_size)
+                .unwrap()
+                .insert(line, text_layout);
+        }
+
+        // Just get the entry, assuming it has been created because we initialize it above.
+        self.text_layouts
+            .borrow()
+            .layouts
+            .get(&font_size)
+            .unwrap()
+            .get(&line)
+            .cloned()
+            .unwrap()
     }
 }

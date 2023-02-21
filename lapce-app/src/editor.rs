@@ -23,7 +23,7 @@ pub struct EditorData {
     pub doc: RwSignal<Document>,
     pub cursor: RwSignal<Cursor>,
     register: RwSignal<Register>,
-    config: ReadSignal<Arc<LapceConfig>>,
+    pub config: ReadSignal<Arc<LapceConfig>>,
 }
 
 impl EditorData {
@@ -49,7 +49,7 @@ impl EditorData {
         register: RwSignal<Register>,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
-        let doc = Document::new_local(cx);
+        let doc = Document::new_local(cx, config);
         let doc = create_rw_signal(cx.scope, doc);
         let cursor =
             Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None);
@@ -122,7 +122,7 @@ impl KeyPressFocus for EditorData {
         &self,
         condition: crate::keypress::condition::Condition,
     ) -> bool {
-        todo!()
+        false
     }
 
     fn run_command(
@@ -153,7 +153,6 @@ impl KeyPressFocus for EditorData {
                 let deltas = doc.do_insert(&mut cursor, c, &config);
             });
             self.cursor.set(cursor);
-            println!("editor receive char");
         }
     }
 }

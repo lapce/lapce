@@ -62,7 +62,7 @@ pub struct MainSplitData {
     pub docs: RwSignal<im::HashMap<PathBuf, RwSignal<Document>>>,
     pub proxy_rpc: ProxyRpcHandler,
     register: RwSignal<Register>,
-    config: ReadSignal<Arc<LapceConfig>>,
+    pub config: ReadSignal<Arc<LapceConfig>>,
 }
 
 impl MainSplitData {
@@ -133,7 +133,7 @@ impl MainSplitData {
         let doc = if let Some(doc) = doc {
             doc
         } else {
-            let doc = Document::new(path.clone());
+            let doc = Document::new(path.clone(), self.config);
             let buffer_id = doc.buffer_id;
             let doc = create_rw_signal(cx.scope, doc);
             self.docs.update(|docs| {
