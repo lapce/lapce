@@ -809,8 +809,8 @@ fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
             .style(cx, || Style {
                 flex_grow: 1.0,
                 min_width: Dimension::Points(0.0),
-                padding_top: 5.0,
-                padding_bottom: 5.0,
+                height: Dimension::Points(24.0),
+                align_items: Some(AlignItems::Center),
                 ..Default::default()
             })
         })
@@ -888,10 +888,11 @@ fn palette(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
             )
         })
         .style(cx, move || Style {
-            width: Dimension::Points(500.0),
+            width: Dimension::Points(512.0),
             max_width: Dimension::Percent(0.9),
             min_height: Dimension::Points(0.0),
             max_height: Dimension::Percent(0.5),
+            margin_top: Some(-1.0),
             border: 1.0,
             border_radius: 5.0,
             flex_direction: FlexDirection::Column,
