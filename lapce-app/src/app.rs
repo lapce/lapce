@@ -965,9 +965,18 @@ fn app_logic(cx: AppContext) -> impl View {
     let db = Arc::new(LapceDb::new().unwrap());
     provide_context(cx.scope, db);
 
+    let mut args = std::env::args_os();
+    // Skip executable name
+    args.next();
+    let path = args
+        .next()
+        .map(|it| PathBuf::from(it).canonicalize().ok())
+        .flatten()
+        .or_else(|| Some(PathBuf::from("/Users/dz/lapce-rust")));
+
     let workspace = Arc::new(LapceWorkspace {
         kind: LapceWorkspaceType::Local,
-        path: Some(PathBuf::from("/Users/dz/lapce-rust")),
+        path,
         last_open: 0,
     });
 
