@@ -26,6 +26,7 @@
 - [#2071](https://github.com/lapce/lapce/pull/2071): Add command and keybinds to delete line
 - [#2073](https://github.com/lapce/lapce/pull/2073): Add Ctrl+{a,e,k} keybinds on macOS
 - [#2128](https://github.com/lapce/lapce/pull/2128): Add Lapce app icon to logo collection
+- [#2127](https://github.com/lapce/lapce/pull/2127): Extended double-click options with file-only and file + folders mode
 
 ### Bug Fixes
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys

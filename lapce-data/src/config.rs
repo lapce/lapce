@@ -317,6 +317,17 @@ impl LapceIcons {
     pub const COMPLETION_ITEM_KIND_VARIABLE: &str = "completion_item_kind.variable";
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum ClickMode {
+    #[default]
+    #[serde(rename = "single")]
+    SingleClick,
+    #[serde(rename = "file")]
+    DoubleClickFile,
+    #[serde(rename = "all")]
+    DoubleClickAll,
+}
+
 pub trait GetConfig {
     fn get_config(&self) -> &LapceConfig;
 }
@@ -467,8 +478,10 @@ pub struct EditorConfig {
         desc = "If enabled the cursor treats leading soft tabs as if they are hard tabs."
     )]
     pub atomic_soft_tabs: bool,
-    #[field_names(desc = "Use double click to open interact with file explorer")]
-    pub double_click: bool,
+    #[field_names(
+        desc = "Use a double click to interact with the file explorer.\nOptions: single (default), file or all."
+    )]
+    pub double_click: ClickMode,
     #[field_names(desc = "Move the focus as you type in the global search box")]
     pub move_focus_while_search: bool,
     #[field_names(
@@ -954,7 +967,7 @@ pub struct LapceConfig {
     icon_theme_list: im::Vector<String>,
 }
 impl LapceConfig {
-    /// Get the dropdown information for the specific setting, used for the settings UI.  
+    /// Get the dropdown information for the specific setting, used for the settings UI.
     /// This should aim to efficiently return the data, because it is used to determine whether to
     /// update the dropdown items.
     pub fn get_dropdown_info(&self, kind: &str, key: &str) -> Option<DropdownInfo> {
