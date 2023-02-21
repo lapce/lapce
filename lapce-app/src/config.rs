@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use floem::peniko::Color;
@@ -8,6 +9,7 @@ use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
 use lapce_rpc::plugin::VoltID;
 use once_cell::sync::Lazy;
+use parking_lot::RwLock;
 use serde::Deserialize;
 
 use crate::workspace::{LapceWorkspace, LapceWorkspaceType};
@@ -20,6 +22,7 @@ use self::{
     core::CoreConfig,
     editor::EditorConfig,
     icon_theme::IconThemeConfig,
+    svg::SvgStore,
     terminal::TerminalConfig,
     ui::UIConfig,
 };
@@ -28,12 +31,14 @@ pub mod color;
 mod color_theme;
 mod core;
 mod editor;
-mod icon;
+pub mod icon;
 mod icon_theme;
+pub mod svg;
 mod terminal;
 mod ui;
 mod watcher;
 
+pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
 const DEFAULT_LIGHT_THEME: &str = include_str!("../../defaults/light-theme.toml");
 const DEFAULT_DARK_THEME: &str = include_str!("../../defaults/dark-theme.toml");
@@ -69,8 +74,8 @@ pub struct LapceConfig {
         HashMap<String, (String, config::Config, Option<PathBuf>)>,
     // #[serde(skip)]
     // tab_layout_info: Arc<RwLock<HashMap<(FontFamily, usize), f64>>>,
-    // #[serde(skip)]
-    // svg_store: Arc<RwLock<SvgStore>>,
+    #[serde(skip)]
+    svg_store: Arc<RwLock<SvgStore>>,
     /// A list of the themes that are available. This is primarily for populating
     /// the theme picker, and serves as a cache.
     #[serde(skip)]
@@ -448,5 +453,17 @@ impl LapceConfig {
         }
 
         Some(path)
+    }
+
+    pub fn ui_svg(&self, icon: &'static str) -> String {
+        let svg = self.icon_theme.ui.get(icon).and_then(|path| {
+            let path = self.icon_theme.path.join(path);
+            self.svg_store.write().get_svg_on_disk(&path)
+        });
+
+        svg.unwrap_or_else(|| {
+            let name = self.default_icon_theme.ui.get(icon).unwrap();
+            self.svg_store.write().get_default_svg(name)
+        })
     }
 }

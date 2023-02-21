@@ -3053,6 +3053,7 @@ dependencies = [
  "futures",
  "fuzzy-matcher",
  "im",
+ "include_dir",
  "indexmap",
  "lapce-core",
  "lapce-proxy",

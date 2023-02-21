@@ -369,6 +369,7 @@ fn editor(cx: AppContext, editor: ReadSignal<EditorData>) -> impl View {
                         let config = config.get_untracked();
                         let line_height = config.editor.line_height();
                         Style {
+                            align_content: Some(AlignContent::Center),
                             height: Dimension::Points(line_height as f32),
                             ..Default::default()
                         }
@@ -671,11 +672,15 @@ fn main_split(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
 }
 
 fn workbench(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+    let config = window_tab_data.main_split.config;
     stack(cx, move |cx| {
         (
-            label(cx, move || "left".to_string()).style(cx, || Style {
+            label(cx, move || "left".to_string()).style(cx, move || Style {
                 padding: 20.0,
                 border_right: 1.0,
+                background: Some(
+                    *config.get().get_color(LapceColor::PANEL_BACKGROUND),
+                ),
                 ..Default::default()
             }),
             stack(cx, move |cx| {
@@ -695,10 +700,13 @@ fn workbench(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
                 min_width: Dimension::Points(0.0),
                 ..Default::default()
             }),
-            label(cx, move || "right".to_string()).style(cx, || Style {
+            label(cx, move || "right".to_string()).style(cx, move || Style {
                 padding: 20.0,
                 border_left: 1.0,
                 min_width: Dimension::Points(0.0),
+                background: Some(
+                    *config.get().get_color(LapceColor::PANEL_BACKGROUND),
+                ),
                 ..Default::default()
             }),
         )
@@ -711,9 +719,10 @@ fn workbench(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     })
 }
 
-fn status(cx: AppContext) -> impl View {
-    label(cx, move || "status".to_string()).style(cx, || Style {
+fn status(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
+    label(cx, move || "status".to_string()).style(cx, move || Style {
         border_top: 1.0,
+        background: Some(*config.get().get_color(LapceColor::STATUS_BACKGROUND)),
         ..Default::default()
     })
 }
@@ -722,6 +731,7 @@ fn palette_item(
     cx: AppContext,
     item: PaletteItem,
     index: ReadSignal<usize>,
+    config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     match item.content {
         PaletteItemContent::File { path, full_path } => {
@@ -756,7 +766,11 @@ fn palette_item(
                 padding_left: 10.0,
                 padding_right: 10.0,
                 background: if index.get() == item_index {
-                    Some(Color::rgb8(180, 0, 0))
+                    Some(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PALETTE_CURRENT_BACKGROUND),
+                    )
                 } else {
                     None
                 },
@@ -800,11 +814,12 @@ fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
                 ..Default::default()
             })
         })
-        .style(cx, || Style {
+        .style(cx, move || Style {
             flex_grow: 1.0,
             min_width: Dimension::Points(0.0),
             border: 1.0,
             border_radius: 2.0,
+            background: Some(*config.get().get_color(LapceColor::EDITOR_BACKGROUND)),
             padding_left: 5.0,
             padding_right: 5.0,
             ..Default::default()
@@ -819,6 +834,7 @@ fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
 fn palette_content(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     let items = window_tab_data.palette.filtered_items;
     let index = window_tab_data.palette.index.read_only();
+    let config = window_tab_data.palette.config;
     container(cx, |cx| {
         scroll(cx, |cx| {
             virtual_list(
@@ -826,7 +842,7 @@ fn palette_content(cx: AppContext, window_tab_data: WindowTabData) -> impl View 
                 VirtualListDirection::Vertical,
                 move || items.get(),
                 move |item| format!("{}{}", item.id, item.index),
-                move |cx, item| palette_item(cx, item, index),
+                move |cx, item| palette_item(cx, item, index, config),
                 VirtualListItemSize::Fixed(20.0),
             )
             .style(cx, || Style {
@@ -863,6 +879,7 @@ fn palette(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     let keypress = window_tab_data.keypress.write_only();
     let palette_data = window_tab_data.palette.clone();
     let status = palette_data.status.read_only();
+    let config = palette_data.config;
     container(cx, |cx| {
         stack(cx, |cx| {
             (
@@ -870,7 +887,7 @@ fn palette(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
                 palette_content(cx, window_tab_data.clone()),
             )
         })
-        .style(cx, || Style {
+        .style(cx, move || Style {
             width: Dimension::Points(500.0),
             max_width: Dimension::Percent(0.9),
             min_height: Dimension::Points(0.0),
@@ -878,7 +895,9 @@ fn palette(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
             border: 1.0,
             border_radius: 5.0,
             flex_direction: FlexDirection::Column,
-            background: Some(Color::rgb8(0, 0, 0)),
+            background: Some(
+                *config.get().get_color(LapceColor::PALETTE_BACKGROUND),
+            ),
             ..Default::default()
         })
     })
@@ -923,13 +942,14 @@ fn window_tab(cx: AppContext, workspace: Arc<LapceWorkspace>) -> impl View {
 
     let proxy_data = window_tab_data.proxy.clone();
     let keypress = window_tab_data.keypress;
+    let config = window_tab_data.main_split.config;
     let window_tab_view = stack(cx, |cx| {
         (
             stack(cx, |cx| {
                 (
-                    title(cx, &proxy_data),
+                    title(cx, &proxy_data, config),
                     workbench(cx, window_tab_data.clone()),
-                    status(cx),
+                    status(cx, window_tab_data.main_split.config),
                 )
             })
             .style(cx, || Style {
@@ -941,9 +961,12 @@ fn window_tab(cx: AppContext, workspace: Arc<LapceWorkspace>) -> impl View {
             palette(cx, window_tab_data.clone()),
         )
     })
-    .style(cx, || Style {
+    .style(cx, move || Style {
         width: Dimension::Percent(1.0),
         height: Dimension::Percent(1.0),
+        color: Some(*config.get().get_color(LapceColor::EDITOR_FOREGROUND)),
+        background: Some(*config.get().get_color(LapceColor::EDITOR_BACKGROUND)),
+        font_size: Some(config.get().ui.font_size() as f32),
         ..Default::default()
     })
     .event(EventListner::KeyDown, move |event| {

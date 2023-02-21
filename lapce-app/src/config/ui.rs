@@ -48,3 +48,17 @@ pub struct UIConfig {
     #[field_names(desc = "Set the line height for list items")]
     list_line_height: usize,
 }
+
+impl UIConfig {
+    pub fn font_size(&self) -> usize {
+        self.font_size.max(6).min(32)
+    }
+
+    pub fn icon_size(&self) -> usize {
+        if self.icon_size == 0 {
+            self.font_size() + 2
+        } else {
+            self.icon_size.max(6).min(32)
+        }
+    }
+}

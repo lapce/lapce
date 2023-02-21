@@ -734,6 +734,7 @@ impl Document {
         let line_content = self.buffer.line_content(line);
         let mut text_layout_builder =
             floem::parley::LayoutContext::builder(&line_content[..], 1.0);
+
         let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
         text_layout_builder.push_default(
             &floem::parley::style::StyleProperty::Brush(ParleyBrush(Brush::Solid(
@@ -744,6 +745,9 @@ impl Document {
             FontFamily::parse_list(&config.editor.font_family).collect::<Vec<_>>();
         text_layout_builder
             .push_default(&StyleProperty::FontStack(FontStack::List(&families)));
+        text_layout_builder
+            .push_default(&StyleProperty::FontSize(config.editor.font_size as f32));
+
         let mut text_layout = text_layout_builder.build();
         text_layout.break_all_lines(None, floem::parley::layout::Alignment::Start);
         TextLayoutLine {
