@@ -13,7 +13,6 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use lapce_rpc::{
-    core::CoreRpcHandler,
     dap_types::{
         self, ConfigurationDone, Continue, ContinueArguments, ContinueResponse,
         DapEvent, DapId, DapPayload, DapRequest, DapResponse, DapServer,
@@ -28,7 +27,6 @@ use lapce_rpc::{
     RpcError,
 };
 use parking_lot::Mutex;
-use serde::Serialize;
 use serde_json::Value;
 
 use super::{
@@ -168,8 +166,14 @@ impl DapClient {
 
         process.args(args);
 
+        // CREATE_NO_WINDOW
+        // (https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags)
+        // TODO: We set this because
         #[cfg(target_os = "windows")]
-        let process = process.creation_flags(0x08000000);
+        std::os::windows::process::CommandExt::creation_flags(
+            &mut process,
+            0x08000000,
+        );
         let child = process
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -300,6 +304,10 @@ impl DapClient {
             path_format: Some("path".to_owned()),
             supports_variable_type: Some(true),
             supports_variable_paging: Some(false),
+            // See comment on dispatch of `NewTerminal`
+            #[cfg(target_os = "windows")]
+            supports_run_in_terminal_request: Some(false),
+            #[cfg(not(target_os = "windows"))]
             supports_run_in_terminal_request: Some(true),
             supports_memory_references: Some(false),
             supports_progress_reporting: Some(false),

@@ -175,7 +175,9 @@ impl WindowTabData {
             RestartToUpdate => todo!(),
             ShowAbout => todo!(),
             SaveAll => todo!(),
+            #[cfg(target_os = "macos")]
             InstallToPATH => todo!(),
+            #[cfg(target_os = "macos")]
             UninstallFromPATH => todo!(),
             Quit => todo!(),
         }

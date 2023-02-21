@@ -163,6 +163,11 @@ impl ProxyHandler for Dispatcher {
                 shell,
             } => {
                 let mut terminal = Terminal::new(term_id, cwd, shell, 50, 10);
+                // Alacritty currently doesn't expose the child process ID on windows, so this won't compile
+                // Alacritty does acquire this information, but it is discarded
+                // This is currently only used for debug adapter protocol's RunInTerminal request, which we
+                // specify isn't supported on Windows at the moment
+                #[cfg(not(target_os = "windows"))]
                 self.core_rpc
                     .terminal_process_id(term_id, terminal.pty.child().id());
                 let tx = terminal.tx.clone();
