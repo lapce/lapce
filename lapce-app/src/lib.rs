@@ -10,6 +10,7 @@ pub mod keypress;
 pub mod main_split;
 pub mod palette;
 pub mod proxy;
+pub mod focus_text;
 pub mod title;
 pub mod window_tab;
 pub mod workspace;

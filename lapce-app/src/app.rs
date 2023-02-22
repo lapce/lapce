@@ -1,5 +1,6 @@
 use std::{
-    path::PathBuf,
+    ops::Range,
+    path::{Path, PathBuf},
     sync::{atomic::AtomicU64, Arc},
 };
 
@@ -7,19 +8,21 @@ use floem::{
     app::AppContext,
     button::button,
     event::{Event, EventListner},
+    parley::style::{FontFamily, FontStack, StyleProperty},
     peniko::{
         kurbo::{Point, Rect, Size},
-        Color,
+        Brush, Color,
     },
     reactive::{
-        create_effect, create_signal, provide_context, use_context, ReadSignal,
-        RwSignal, UntrackedGettableSignal, WriteSignal,
+        create_effect, create_memo, create_signal, provide_context, use_context,
+        ReadSignal, RwSignal, UntrackedGettableSignal, WriteSignal,
     },
     stack::stack,
     style::{
         AlignContent, AlignItems, Dimension, Display, FlexDirection, JustifyContent,
         Position, Style,
     },
+    text::ParleyBrush,
     view::View,
     views::{
         container, container_box, list, tab, virtual_list, Decorators,
@@ -40,6 +43,7 @@ use crate::{
     doc::{DocContent, DocLine, Document, TextLayoutLine},
     editor::EditorData,
     editor_tab::{EditorTabChild, EditorTabData},
+    focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
     keypress::{condition::Condition, DefaultKeyPress, KeyPressData, KeyPressFocus},
     main_split::{SplitContent, SplitData},
@@ -727,34 +731,173 @@ fn status(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
     })
 }
 
+fn text_to_spans<'a>(text: &'a str, indices: &[usize]) -> Vec<(&'a str, bool)> {
+    let mut spans = Vec::new();
+    let mut last_i: Option<usize> = None;
+    let mut last_batch_start: Option<usize> = None;
+    for i in indices {
+        let i = *i;
+
+        if let Some(last) = last_i {
+            if last + 1 == i {
+                last_i = Some(i);
+                continue;
+            } else {
+                spans.push((&text[last_batch_start.unwrap()..last + 1], true));
+                spans.push((&text[last + 1..i], false));
+                last_batch_start = Some(i);
+            }
+        } else {
+            if i > 0 {
+                spans.push((&text[..i], false));
+            }
+            last_batch_start = Some(i);
+        }
+
+        last_i = Some(i);
+    }
+
+    if let Some(last) = last_i {
+        if last < text.len() - 1 {
+            spans.push((&text[last_batch_start.unwrap()..last + 1], true));
+            spans.push((&text[last + 1..], false));
+        } else {
+            spans.push((&text[last_batch_start.unwrap()..last + 1], true));
+        }
+    } else {
+        spans.push((text, false));
+    }
+
+    spans
+}
+
+fn file_item(
+    cx: AppContext,
+    item: PaletteItem,
+    path: PathBuf,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    let file_name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string();
+
+    let folder = path.parent().and_then(|s| s.to_str()).unwrap_or("");
+    let folder_len = folder.len();
+
+    let text_indices: Vec<usize> = item
+        .indices
+        .iter()
+        .filter_map(|i| {
+            let i = *i;
+            if folder_len > 0 {
+                if i > folder_len {
+                    Some(i - folder_len - 1)
+                } else {
+                    None
+                }
+            } else {
+                Some(i)
+            }
+        })
+        .collect();
+
+    let hint_indices: Vec<usize> = item
+        .indices
+        .iter()
+        .filter_map(|i| {
+            let i = *i;
+            if i < folder_len {
+                Some(i)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    list(
+        cx,
+        move || {
+            text_to_spans(&file_name, &text_indices)
+                .into_iter()
+                .map(|(t, is)| (t.to_string(), is))
+                .collect::<Vec<_>>()
+        },
+        |(text, is_match)| format!("{text}{is_match}"),
+        move |cx, (text, is_match)| {
+            label(cx, move || text.clone()).style(cx, move || Style {
+                color: Some(*config.get().get_color(LapceColor::EDITOR_FOCUS)),
+                ..Default::default()
+            })
+        },
+    )
+}
+
 fn palette_item(
     cx: AppContext,
     item: PaletteItem,
     index: ReadSignal<usize>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    match item.content {
+    match &item.content {
         PaletteItemContent::File { path, full_path } => {
             let file_name = path
                 .file_name()
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            let (file_name, _) = create_signal(cx.scope, file_name);
+            // let (file_name, _) = create_signal(cx.scope, file_name);
             let folder = path
                 .parent()
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            let (folder, _) = create_signal(cx.scope, folder);
+            // let (folder, _) = create_signal(cx.scope, folder);
+            let folder_len = folder.len();
+
             let item_index = item.index;
-            stack(cx, |cx| {
+
+            let file_name_indices = item
+                .indices
+                .iter()
+                .filter_map(|&i| {
+                    if folder_len > 0 {
+                        if i > folder_len {
+                            Some(i - folder_len - 1)
+                        } else {
+                            None
+                        }
+                    } else {
+                        Some(i)
+                    }
+                })
+                .collect::<Vec<_>>();
+            let folder_indices = item
+                .indices
+                .iter()
+                .filter_map(|&i| if i < folder_len { Some(i) } else { None })
+                .collect::<Vec<_>>();
+
+            stack(cx, move |cx| {
                 (
-                    label(cx, move || file_name.get()).style(cx, || Style {
+                    focus_text(
+                        cx,
+                        move || file_name.clone(),
+                        move || file_name_indices.clone(),
+                        move || *config.get().get_color(LapceColor::EDITOR_FOCUS),
+                    )
+                    .style(cx, || Style {
                         max_width: Dimension::Percent(1.0),
                         ..Default::default()
                     }),
-                    label(cx, move || folder.get()).style(cx, || Style {
+                    focus_text(
+                        cx,
+                        move || folder.clone(),
+                        move || folder_indices.clone(),
+                        move || *config.get().get_color(LapceColor::EDITOR_FOCUS),
+                    )
+                    .style(cx, || Style {
                         margin_left: Some(6.0),
                         min_width: Dimension::Points(0.0),
                         ..Default::default()
@@ -784,27 +927,62 @@ fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     let doc = window_tab_data.palette.editor.doc.read_only();
     let cursor = window_tab_data.palette.editor.cursor.read_only();
     let config = window_tab_data.palette.config;
-    let cursor_x = move || {
+    let cursor_x = create_memo(cx.scope, move |_| {
         let offset = cursor.get().offset();
         let config = config.get();
-        doc.with(|doc| doc.line_point_of_offset(offset, 12).x)
-    };
-    container(cx, |cx| {
-        container(cx, |cx| {
-            scroll(cx, |cx| {
-                stack(cx, |cx| {
+        doc.with(|doc| {
+            let (_, col) = doc.buffer().offset_to_line_col(offset);
+
+            let line_content = doc.buffer().line_content(0);
+            let mut text_layout_builder =
+                floem::parley::LayoutContext::builder(&line_content[..col], 1.0);
+            text_layout_builder.push_default(
+                &floem::parley::style::StyleProperty::Brush(ParleyBrush(
+                    Brush::Solid(Color::rgb8(0, 0, 0)),
+                )),
+            );
+            text_layout_builder.push_default(&StyleProperty::FontSize(
+                config.ui.font_size() as f32,
+            ));
+            let families = config.ui.font_family();
+            text_layout_builder
+                .push_default(&StyleProperty::FontStack(FontStack::List(&families)));
+            let mut text_layout = text_layout_builder.build();
+            text_layout
+                .break_all_lines(None, floem::parley::layout::Alignment::Start);
+
+            text_layout.width()
+        })
+    });
+    container(cx, move |cx| {
+        container(cx, move |cx| {
+            scroll(cx, move |cx| {
+                stack(cx, move |cx| {
                     (
                         label(cx, move || {
                             doc.with(|doc| doc.buffer().text().to_string())
                         }),
-                        label(cx, move || "".to_string()).style(cx, move || Style {
-                            position: Position::Absolute,
-                            margin_left: Some(cursor_x() as f32 - 1.0),
-                            border_left: 2.0,
-                            ..Default::default()
+                        label(cx, move || "".to_string()).style(cx, move || {
+                            Style {
+                                position: Position::Absolute,
+                                margin_left: Some(cursor_x.get() - 1.0),
+                                width: Dimension::Points(2.0),
+                                background: Some(
+                                    *config
+                                        .get()
+                                        .get_color(LapceColor::EDITOR_CARET),
+                                ),
+                                // border_left: 2.0,
+                                ..Default::default()
+                            }
                         }),
                     )
                 })
+            })
+            .on_ensure_visible(cx, move || {
+                Size::new(20.0, 0.0)
+                    .to_rect()
+                    .with_origin(Point::new(cursor_x.get() as f64 - 10.0, 0.0))
             })
             .style(cx, || Style {
                 flex_grow: 1.0,
@@ -841,7 +1019,7 @@ fn palette_content(cx: AppContext, window_tab_data: WindowTabData) -> impl View 
                 cx,
                 VirtualListDirection::Vertical,
                 move || items.get(),
-                move |item| format!("{}{}", item.id, item.index),
+                move |item| (item.id, item.index, item.indices.clone()),
                 move |cx, item| palette_item(cx, item, index, config),
                 VirtualListItemSize::Fixed(20.0),
             )
@@ -1009,4 +1187,65 @@ fn app_logic(cx: AppContext) -> impl View {
 
 pub fn launch() {
     floem::launch(app_logic);
+}
+
+#[cfg(test)]
+mod test {
+    use super::text_to_spans;
+
+    #[test]
+    fn test_text_to_spans() {
+        let text = "abcdefghijk";
+
+        let indices = &[1, 2, 4, 5, 7, 8];
+        let spans = text_to_spans(text, indices);
+        assert_eq!(
+            spans,
+            vec![
+                ("a", false),
+                ("bc", true),
+                ("d", false),
+                ("ef", true),
+                ("g", false),
+                ("hi", true),
+                ("jk", false),
+            ]
+        );
+
+        let indices = &[];
+        let spans = text_to_spans(text, indices);
+        assert_eq!(spans, vec![("abcdefghijk", false)]);
+
+        let indices = &[0];
+        let spans = text_to_spans(text, indices);
+        assert_eq!(spans, vec![("a", true), ("bcdefghijk", false)]);
+
+        let indices = &[0, 1];
+        let spans = text_to_spans(text, indices);
+        assert_eq!(spans, vec![("ab", true), ("cdefghijk", false)]);
+
+        let indices = &[10];
+        let spans = text_to_spans(text, indices);
+        assert_eq!(spans, vec![("abcdefghij", false), ("k", true)]);
+
+        let indices = &[9, 10];
+        let spans = text_to_spans(text, indices);
+        assert_eq!(spans, vec![("abcdefghi", false), ("jk", true)]);
+
+        let indices = &[0, 9, 10];
+        let spans = text_to_spans(text, indices);
+        assert_eq!(spans, vec![("a", true), ("bcdefghi", false), ("jk", true)]);
+
+        let indices = &[0, 1, 9, 10];
+        let spans = text_to_spans(text, indices);
+        assert_eq!(spans, vec![("ab", true), ("cdefghi", false), ("jk", true)]);
+
+        let indices = &[0, 1, 10];
+        let spans = text_to_spans(text, indices);
+        assert_eq!(spans, vec![("ab", true), ("cdefghij", false), ("k", true)]);
+
+        let indices = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let spans = text_to_spans(text, indices);
+        assert_eq!(spans, vec![("abcdefghijk", true)]);
+    }
 }

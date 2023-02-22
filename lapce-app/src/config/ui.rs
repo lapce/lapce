@@ -1,3 +1,4 @@
+use floem::parley::style::FontFamily;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 
@@ -52,6 +53,10 @@ pub struct UIConfig {
 impl UIConfig {
     pub fn font_size(&self) -> usize {
         self.font_size.max(6).min(32)
+    }
+
+    pub fn font_family(&self) -> Vec<FontFamily> {
+        FontFamily::parse_list(&self.font_family).collect()
     }
 
     pub fn icon_size(&self) -> usize {

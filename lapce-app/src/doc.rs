@@ -204,6 +204,15 @@ impl Document {
         self.on_update(None);
     }
 
+    /// Reload the document's content, and is what you should typically use when you want to *set*
+    /// an existing document's content.
+    pub fn reload(&mut self, content: Rope, set_pristine: bool) {
+        // self.code_actions.clear();
+        // self.inlay_hints = None;
+        let delta = self.buffer.reload(content, set_pristine);
+        self.apply_deltas(&[delta]);
+    }
+
     pub fn do_insert(
         &mut self,
         cursor: &mut Cursor,

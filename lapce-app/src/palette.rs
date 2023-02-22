@@ -21,9 +21,15 @@ use floem::{
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use lapce_core::{
-    command::FocusCommand, mode::Mode, movement::Movement, register::Register,
+    command::FocusCommand,
+    cursor::{Cursor, CursorMode},
+    mode::Mode,
+    movement::Movement,
+    register::Register,
+    selection::Selection,
 };
 use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
+use lapce_xi_rope::Rope;
 
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
@@ -142,6 +148,12 @@ impl PaletteData {
 
     pub fn run(&self, cx: AppContext, kind: PaletteKind) {
         self.status.set(PaletteStatus::Started);
+        self.editor
+            .doc
+            .update(|doc| doc.reload(Rope::from(""), true));
+        self.editor
+            .cursor
+            .update(|cursor| cursor.set_insert(Selection::caret(0)));
         match kind {
             PaletteKind::File => {
                 self.get_files(cx);
