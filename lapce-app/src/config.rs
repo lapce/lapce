@@ -21,6 +21,7 @@ use self::{
     },
     core::CoreConfig,
     editor::EditorConfig,
+    icon::LapceIcons,
     icon_theme::IconThemeConfig,
     svg::SvgStore,
     terminal::TerminalConfig,
@@ -465,5 +466,25 @@ impl LapceConfig {
             let name = self.default_icon_theme.ui.get(icon).unwrap();
             self.svg_store.write().get_default_svg(name)
         })
+    }
+
+    pub fn file_svg(&self, path: &Path) -> (String, Option<&Color>) {
+        let svg = self
+            .icon_theme
+            .resolve_path_to_icon(path)
+            .and_then(|p| self.svg_store.write().get_svg_on_disk(&p));
+        if let Some(svg) = svg {
+            let color = if self.icon_theme.use_editor_color.unwrap_or(false) {
+                Some(self.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+            } else {
+                None
+            };
+            (svg, color)
+        } else {
+            (
+                self.ui_svg(LapceIcons::FILE),
+                Some(self.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+            )
+        }
     }
 }

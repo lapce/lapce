@@ -6,7 +6,6 @@ use std::{
 
 use floem::{
     app::AppContext,
-    button::button,
     event::{Event, EventListner},
     parley::style::{FontFamily, FontStack, StyleProperty},
     peniko::{
@@ -24,6 +23,7 @@ use floem::{
     },
     text::ParleyBrush,
     view::View,
+    views::{click, svg},
     views::{
         container, container_box, list, tab, virtual_list, Decorators,
         VirtualListDirection, VirtualListItemSize,
@@ -38,7 +38,7 @@ use lapce_core::{
 
 use crate::{
     command::{CommandKind, LapceWorkbenchCommand},
-    config::{color::LapceColor, LapceConfig},
+    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     db::LapceDb,
     doc::{DocContent, DocLine, Document, TextLayoutLine},
     editor::EditorData,
@@ -431,8 +431,6 @@ fn editor(cx: AppContext, editor: ReadSignal<EditorData>) -> impl View {
     .style(cx, || Style {
         width: Dimension::Percent(1.0),
         height: Dimension::Percent(1.0),
-        border: 1.0,
-        border_radius: 10.0,
         ..Default::default()
     })
 
@@ -482,65 +480,232 @@ fn editor_tab_header(
     cx: AppContext,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let items = move || editor_tab.get().children.into_iter().enumerate();
     let key = |(_, child): &(usize, EditorTabChild)| child.id();
+    let active = move || editor_tab.with(|editor_tab| editor_tab.active);
 
     let view_fn = move |cx, (i, child)| {
-        button(
-            cx,
-            |cx| match child {
-                EditorTabChild::Editor(editor_id) => {
-                    let editor_data =
-                        editors.with(|editors| editors.get(&editor_id).cloned());
-                    if let Some(editor_data) = editor_data {
-                        let content = editor_data.with(|editor_data| {
-                            editor_data.doc.with(|doc| doc.content.clone())
-                        });
-                        match content {
-                            DocContent::File(path) => {
-                                label(cx, move || path.to_str().unwrap().to_string())
-                            }
-                            DocContent::Local => {
-                                label(cx, || "local editor".to_string())
-                            }
-                        }
-                    } else {
-                        label(cx, || "emtpy editor".to_string())
+        let child = move |cx: AppContext| match child {
+            EditorTabChild::Editor(editor_id) => {
+                let editor_data =
+                    editors.with(|editors| editors.get(&editor_id).cloned());
+                let path = if let Some(editor_data) = editor_data {
+                    let content = editor_data.with(|editor_data| {
+                        editor_data.doc.with(|doc| doc.content.clone())
+                    });
+                    match content {
+                        DocContent::File(path) => Some(path),
+                        DocContent::Local => None,
                     }
-                }
-            },
-            move || {
-                editor_tab.update(|editor_tab| {
-                    editor_tab.active = i;
-                });
-            },
-        )
+                } else {
+                    None
+                };
+
+                let (icon, color, path) = {
+                    let config = config.get();
+                    match path {
+                        Some(path) => {
+                            let (svg, color) = config.file_svg(&path);
+                            (
+                                svg,
+                                color.cloned(),
+                                path.file_name()
+                                    .unwrap_or_default()
+                                    .to_str()
+                                    .unwrap_or_default()
+                                    .to_string(),
+                            )
+                        }
+                        None => (
+                            config.ui_svg(LapceIcons::FILE),
+                            Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                            "local".to_string(),
+                        ),
+                    }
+                };
+                stack(cx, |cx| {
+                    (
+                        container(cx, |cx| {
+                            svg(cx, move || icon.clone()).style(cx, move || {
+                                let size = config.get().ui.icon_size() as f32;
+                                Style {
+                                    width: Dimension::Points(size),
+                                    height: Dimension::Points(size),
+                                    ..Default::default()
+                                }
+                            })
+                        })
+                        .style(cx, || Style {
+                            padding_left: 5.0,
+                            padding_right: 5.0,
+                            ..Default::default()
+                        }),
+                        label(cx, move || path.clone()),
+                        container(cx, |cx| {
+                            svg(cx, move || config.get().ui_svg(LapceIcons::CLOSE))
+                                .style(cx, move || {
+                                    let size = config.get().ui.icon_size() as f32;
+                                    Style {
+                                        width: Dimension::Points(size),
+                                        height: Dimension::Points(size),
+                                        ..Default::default()
+                                    }
+                                })
+                        })
+                        .style(cx, || Style {
+                            padding_left: 5.0,
+                            padding_right: 5.0,
+                            ..Default::default()
+                        }),
+                    )
+                })
+                .style(cx, move || Style {
+                    border_left: if i == 0 { 1.0 } else { 0.0 },
+                    border_right: 1.0,
+                    ..Default::default()
+                })
+            }
+        };
+        stack(cx, |cx| {
+            (
+                click(cx, child, move || {
+                    editor_tab.update(|editor_tab| {
+                        editor_tab.active = i;
+                    });
+                })
+                .style(cx, move || Style {
+                    align_items: Some(AlignItems::Center),
+                    height: Dimension::Percent(1.0),
+                    ..Default::default()
+                }),
+                container(cx, |cx| {
+                    label(cx, || "".to_string()).style(cx, move || Style {
+                        width: Dimension::Percent(1.0),
+                        height: Dimension::Percent(1.0),
+                        border_bottom: if active() == i { 2.0 } else { 0.0 },
+                        ..Default::default()
+                    })
+                })
+                .style(cx, || Style {
+                    position: Position::Absolute,
+                    padding_left: 3.0,
+                    padding_right: 3.0,
+                    width: Dimension::Percent(1.0),
+                    height: Dimension::Percent(1.0),
+                    ..Default::default()
+                }),
+            )
+        })
         .style(cx, || Style {
-            border_radius: 10.0,
-            border: 1.0,
+            height: Dimension::Percent(1.0),
             ..Default::default()
         })
     };
 
-    container(cx, |cx| {
-        scroll(cx, |cx| {
-            list(cx, items, key, view_fn).style(cx, || Style {
-                height: Dimension::Percent(1.0),
-                align_content: Some(AlignContent::Center),
-                ..Default::default()
+    stack(cx, |cx| {
+        (
+            container(cx, |cx| {
+                svg(cx, move || config.get().ui_svg(LapceIcons::TAB_PREVIOUS)).style(
+                    cx,
+                    move || {
+                        let size = config.get().ui.icon_size() as f32;
+                        Style {
+                            width: Dimension::Points(size),
+                            height: Dimension::Points(size),
+                            ..Default::default()
+                        }
+                    },
+                )
             })
-        })
-        .style(cx, || Style {
-            position: Position::Absolute,
-            border: 1.0,
-            height: Dimension::Percent(1.0),
-            max_width: Dimension::Percent(1.0),
-            ..Default::default()
-        })
+            .style(cx, || Style {
+                padding_left: 5.0,
+                padding_right: 5.0,
+                ..Default::default()
+            }),
+            container(cx, |cx| {
+                svg(cx, move || config.get().ui_svg(LapceIcons::TAB_NEXT)).style(
+                    cx,
+                    move || {
+                        let size = config.get().ui.icon_size() as f32;
+                        Style {
+                            width: Dimension::Points(size),
+                            height: Dimension::Points(size),
+                            ..Default::default()
+                        }
+                    },
+                )
+            })
+            .style(cx, || Style {
+                padding_left: 5.0,
+                padding_right: 5.0,
+                ..Default::default()
+            }),
+            container(cx, |cx| {
+                scroll(cx, |cx| {
+                    list(cx, items, key, view_fn).style(cx, || Style {
+                        height: Dimension::Percent(1.0),
+                        align_content: Some(AlignContent::Center),
+                        ..Default::default()
+                    })
+                })
+                .hide_bar()
+                .style(cx, || Style {
+                    position: Position::Absolute,
+                    height: Dimension::Percent(1.0),
+                    max_width: Dimension::Percent(1.0),
+                    ..Default::default()
+                })
+            })
+            .style(cx, || Style {
+                height: Dimension::Percent(1.0),
+                flex_grow: 1.0,
+                ..Default::default()
+            }),
+            container(cx, |cx| {
+                svg(cx, move || {
+                    config.get().ui_svg(LapceIcons::SPLIT_HORIZONTAL)
+                })
+                .style(cx, move || {
+                    let size = config.get().ui.icon_size() as f32;
+                    Style {
+                        width: Dimension::Points(size),
+                        height: Dimension::Points(size),
+                        ..Default::default()
+                    }
+                })
+            })
+            .style(cx, || Style {
+                padding_left: 5.0,
+                padding_right: 5.0,
+                ..Default::default()
+            }),
+            container(cx, |cx| {
+                svg(cx, move || config.get().ui_svg(LapceIcons::CLOSE)).style(
+                    cx,
+                    move || {
+                        let size = config.get().ui.icon_size() as f32;
+                        Style {
+                            width: Dimension::Points(size),
+                            height: Dimension::Points(size),
+                            ..Default::default()
+                        }
+                    },
+                )
+            })
+            .style(cx, || Style {
+                padding_left: 5.0,
+                padding_right: 5.0,
+                ..Default::default()
+            }),
+        )
     })
-    .style(cx, || Style {
-        height: Dimension::Points(50.0),
+    .style(cx, move || Style {
+        height: Dimension::Points(config.get().ui.header_height() as f32),
+        align_items: Some(AlignItems::Center),
+        border_bottom: 1.0,
+        background: Some(*config.get().get_color(LapceColor::PANEL_BACKGROUND)),
         ..Default::default()
     })
 }
@@ -587,10 +752,11 @@ fn editor_tab(
     cx: AppContext,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     stack(cx, |cx| {
         (
-            editor_tab_header(cx, editor_tab, editors),
+            editor_tab_header(cx, editor_tab, editors, config),
             editor_tab_content(cx, editor_tab, editors),
         )
     })
@@ -607,6 +773,7 @@ fn split_list(
     split: ReadSignal<SplitData>,
     editor_tabs: ReadSignal<im::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let items = move || split.get().children;
     let key = |content: &SplitContent| content.id();
@@ -617,7 +784,7 @@ fn split_list(
                     editor_tabs.with(|tabs| tabs.get(&editor_tab_id).cloned());
                 if let Some(editor_tab_data) = editor_tab_data {
                     container_box(cx, |cx| {
-                        Box::new(editor_tab(cx, editor_tab_data, editors))
+                        Box::new(editor_tab(cx, editor_tab_data, editors, config))
                     })
                 } else {
                     container_box(cx, |cx| {
@@ -629,7 +796,14 @@ fn split_list(
                 if let Some(split) =
                     splits.with(|splits| splits.get(&split_id).cloned())
                 {
-                    split_list(cx, splits, split.read_only(), editor_tabs, editors)
+                    split_list(
+                        cx,
+                        splits,
+                        split.read_only(),
+                        editor_tabs,
+                        editors,
+                        config,
+                    )
                 } else {
                     container_box(cx, |cx| {
                         Box::new(label(cx, || "emtpy split".to_string()))
@@ -639,7 +813,6 @@ fn split_list(
         };
         child.style(cx, || Style {
             height: Dimension::Percent(1.0),
-            border: 1.0,
             flex_grow: 1.0,
             ..Default::default()
         })
@@ -666,13 +839,14 @@ fn main_split(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     let editor_tabs = window_tab_data.main_split.editor_tabs.read_only();
     let editors = window_tab_data.main_split.editors.read_only();
     let config = window_tab_data.main_split.config;
-    split_list(cx, splits, root_split, editor_tabs, editors).style(cx, move || {
-        Style {
+    split_list(cx, splits, root_split, editor_tabs, editors, config).style(
+        cx,
+        move || Style {
             background: Some(*config.get().get_color(LapceColor::EDITOR_BACKGROUND)),
             flex_grow: 1.0,
             ..Default::default()
-        }
-    })
+        },
+    )
 }
 
 fn workbench(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
@@ -729,109 +903,6 @@ fn status(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
         background: Some(*config.get().get_color(LapceColor::STATUS_BACKGROUND)),
         ..Default::default()
     })
-}
-
-fn text_to_spans<'a>(text: &'a str, indices: &[usize]) -> Vec<(&'a str, bool)> {
-    let mut spans = Vec::new();
-    let mut last_i: Option<usize> = None;
-    let mut last_batch_start: Option<usize> = None;
-    for i in indices {
-        let i = *i;
-
-        if let Some(last) = last_i {
-            if last + 1 == i {
-                last_i = Some(i);
-                continue;
-            } else {
-                spans.push((&text[last_batch_start.unwrap()..last + 1], true));
-                spans.push((&text[last + 1..i], false));
-                last_batch_start = Some(i);
-            }
-        } else {
-            if i > 0 {
-                spans.push((&text[..i], false));
-            }
-            last_batch_start = Some(i);
-        }
-
-        last_i = Some(i);
-    }
-
-    if let Some(last) = last_i {
-        if last < text.len() - 1 {
-            spans.push((&text[last_batch_start.unwrap()..last + 1], true));
-            spans.push((&text[last + 1..], false));
-        } else {
-            spans.push((&text[last_batch_start.unwrap()..last + 1], true));
-        }
-    } else {
-        spans.push((text, false));
-    }
-
-    spans
-}
-
-fn file_item(
-    cx: AppContext,
-    item: PaletteItem,
-    path: PathBuf,
-    config: ReadSignal<Arc<LapceConfig>>,
-) -> impl View {
-    let file_name = path
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_string();
-
-    let folder = path.parent().and_then(|s| s.to_str()).unwrap_or("");
-    let folder_len = folder.len();
-
-    let text_indices: Vec<usize> = item
-        .indices
-        .iter()
-        .filter_map(|i| {
-            let i = *i;
-            if folder_len > 0 {
-                if i > folder_len {
-                    Some(i - folder_len - 1)
-                } else {
-                    None
-                }
-            } else {
-                Some(i)
-            }
-        })
-        .collect();
-
-    let hint_indices: Vec<usize> = item
-        .indices
-        .iter()
-        .filter_map(|i| {
-            let i = *i;
-            if i < folder_len {
-                Some(i)
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    list(
-        cx,
-        move || {
-            text_to_spans(&file_name, &text_indices)
-                .into_iter()
-                .map(|(t, is)| (t.to_string(), is))
-                .collect::<Vec<_>>()
-        },
-        |(text, is_match)| format!("{text}{is_match}"),
-        move |cx, (text, is_match)| {
-            label(cx, move || text.clone()).style(cx, move || Style {
-                color: Some(*config.get().get_color(LapceColor::EDITOR_FOCUS)),
-                ..Default::default()
-            })
-        },
-    )
 }
 
 fn palette_item(
@@ -1187,65 +1258,4 @@ fn app_logic(cx: AppContext) -> impl View {
 
 pub fn launch() {
     floem::launch(app_logic);
-}
-
-#[cfg(test)]
-mod test {
-    use super::text_to_spans;
-
-    #[test]
-    fn test_text_to_spans() {
-        let text = "abcdefghijk";
-
-        let indices = &[1, 2, 4, 5, 7, 8];
-        let spans = text_to_spans(text, indices);
-        assert_eq!(
-            spans,
-            vec![
-                ("a", false),
-                ("bc", true),
-                ("d", false),
-                ("ef", true),
-                ("g", false),
-                ("hi", true),
-                ("jk", false),
-            ]
-        );
-
-        let indices = &[];
-        let spans = text_to_spans(text, indices);
-        assert_eq!(spans, vec![("abcdefghijk", false)]);
-
-        let indices = &[0];
-        let spans = text_to_spans(text, indices);
-        assert_eq!(spans, vec![("a", true), ("bcdefghijk", false)]);
-
-        let indices = &[0, 1];
-        let spans = text_to_spans(text, indices);
-        assert_eq!(spans, vec![("ab", true), ("cdefghijk", false)]);
-
-        let indices = &[10];
-        let spans = text_to_spans(text, indices);
-        assert_eq!(spans, vec![("abcdefghij", false), ("k", true)]);
-
-        let indices = &[9, 10];
-        let spans = text_to_spans(text, indices);
-        assert_eq!(spans, vec![("abcdefghi", false), ("jk", true)]);
-
-        let indices = &[0, 9, 10];
-        let spans = text_to_spans(text, indices);
-        assert_eq!(spans, vec![("a", true), ("bcdefghi", false), ("jk", true)]);
-
-        let indices = &[0, 1, 9, 10];
-        let spans = text_to_spans(text, indices);
-        assert_eq!(spans, vec![("ab", true), ("cdefghi", false), ("jk", true)]);
-
-        let indices = &[0, 1, 10];
-        let spans = text_to_spans(text, indices);
-        assert_eq!(spans, vec![("ab", true), ("cdefghij", false), ("k", true)]);
-
-        let indices = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let spans = text_to_spans(text, indices);
-        assert_eq!(spans, vec![("abcdefghijk", true)]);
-    }
 }

@@ -59,6 +59,11 @@ impl UIConfig {
         FontFamily::parse_list(&self.font_family).collect()
     }
 
+    pub fn header_height(&self) -> usize {
+        let font_size = self.font_size();
+        self.header_height.max(font_size)
+    }
+
     pub fn icon_size(&self) -> usize {
         if self.icon_size == 0 {
             self.font_size() + 2
