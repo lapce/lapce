@@ -75,7 +75,13 @@ impl WindowTabData {
             config,
         );
 
-        let main_split = MainSplitData::new(cx, proxy.rpc.clone(), register, config);
+        let main_split = MainSplitData::new(
+            cx,
+            proxy.rpc.clone(),
+            register,
+            set_internal_command,
+            config,
+        );
 
         Self {
             palette,
@@ -187,6 +193,28 @@ impl WindowTabData {
         match cmd {
             InternalCommand::OpenFile { path } => {
                 self.main_split.open_file(cx, path);
+            }
+            InternalCommand::Split {
+                direction,
+                editor_tab_id,
+            } => {
+                self.main_split.split(cx, direction, editor_tab_id);
+            }
+            InternalCommand::SplitMove {
+                direction,
+                editor_tab_id,
+            } => {
+                self.main_split.split_move(cx, direction, editor_tab_id);
+            }
+            InternalCommand::SplitExchange { editor_tab_id } => {
+                self.main_split.split_exchange(cx, editor_tab_id);
+            }
+            InternalCommand::EditorTabChildClose {
+                editor_tab_id,
+                child,
+            } => {
+                self.main_split
+                    .editor_tab_child_close(cx, editor_tab_id, child);
             }
         }
     }

@@ -8,6 +8,12 @@ use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 
+use crate::{
+    editor_tab::EditorTabChild,
+    id::EditorTabId,
+    main_split::{SplitDirection, SplitMoveDirection},
+};
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LapceCommand {
     pub kind: CommandKind,
@@ -440,5 +446,22 @@ pub enum LapceWorkbenchCommand {
 
 #[derive(Clone)]
 pub enum InternalCommand {
-    OpenFile { path: PathBuf },
+    OpenFile {
+        path: PathBuf,
+    },
+    Split {
+        direction: SplitDirection,
+        editor_tab_id: EditorTabId,
+    },
+    SplitMove {
+        direction: SplitMoveDirection,
+        editor_tab_id: EditorTabId,
+    },
+    SplitExchange {
+        editor_tab_id: EditorTabId,
+    },
+    EditorTabChildClose {
+        editor_tab_id: EditorTabId,
+        child: EditorTabChild,
+    },
 }

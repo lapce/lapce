@@ -3,10 +3,10 @@ use std::{path::PathBuf, sync::Arc};
 use floem::{
     app::AppContext,
     glazier::Modifiers,
-    reactive::{create_rw_signal, ReadSignal, RwSignal},
+    reactive::{create_rw_signal, ReadSignal, RwSignal, WriteSignal},
 };
 use lapce_core::{
-    command::EditCommand,
+    command::{EditCommand, FocusCommand},
     cursor::{Cursor, CursorMode},
     mode::Mode,
     register::Register,
@@ -14,39 +14,55 @@ use lapce_core::{
 };
 
 use crate::{
-    command::CommandExecuted, config::LapceConfig, doc::Document,
+    command::{CommandExecuted, InternalCommand},
+    config::LapceConfig,
+    doc::Document,
+    editor_tab::EditorTabChild,
+    id::{EditorId, EditorTabId},
     keypress::KeyPressFocus,
+    main_split::{SplitDirection, SplitMoveDirection},
 };
 
 #[derive(Clone)]
 pub struct EditorData {
+    pub editor_tab_id: Option<EditorTabId>,
+    pub editor_id: EditorId,
     pub doc: RwSignal<Document>,
     pub cursor: RwSignal<Cursor>,
     register: RwSignal<Register>,
+    internal_command: WriteSignal<Option<InternalCommand>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
 
 impl EditorData {
     pub fn new(
         cx: AppContext,
+        editor_tab_id: EditorTabId,
+        editor_id: EditorId,
         doc: RwSignal<Document>,
         register: RwSignal<Register>,
+        internal_command: WriteSignal<Option<InternalCommand>>,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
         let cursor =
             Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None);
         let cursor = create_rw_signal(cx.scope, cursor);
         Self {
+            editor_tab_id: Some(editor_tab_id),
+            editor_id,
             doc,
             cursor,
             register,
+            internal_command,
             config,
         }
     }
 
     pub fn new_local(
         cx: AppContext,
+        editor_id: EditorId,
         register: RwSignal<Register>,
+        internal_command: WriteSignal<Option<InternalCommand>>,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
         let doc = Document::new_local(cx, config);
@@ -55,9 +71,12 @@ impl EditorData {
             Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None);
         let cursor = create_rw_signal(cx.scope, cursor);
         Self {
+            editor_tab_id: None,
+            editor_id,
             doc,
             cursor,
             register,
+            internal_command,
             config,
         }
     }
@@ -111,6 +130,78 @@ impl EditorData {
         self.cursor.set(cursor);
         CommandExecuted::Yes
     }
+
+    fn run_focus_command(&self, cmd: &FocusCommand) -> CommandExecuted {
+        match cmd {
+            FocusCommand::SplitVertical => {
+                if let Some(editor_tab_id) = self.editor_tab_id {
+                    self.internal_command.set(Some(InternalCommand::Split {
+                        direction: SplitDirection::Vertical,
+                        editor_tab_id,
+                    }));
+                }
+            }
+            FocusCommand::SplitHorizontal => {
+                if let Some(editor_tab_id) = self.editor_tab_id {
+                    self.internal_command.set(Some(InternalCommand::Split {
+                        direction: SplitDirection::Horizontal,
+                        editor_tab_id,
+                    }));
+                }
+            }
+            FocusCommand::SplitRight => {
+                if let Some(editor_tab_id) = self.editor_tab_id {
+                    self.internal_command.set(Some(InternalCommand::SplitMove {
+                        direction: SplitMoveDirection::Right,
+                        editor_tab_id,
+                    }));
+                }
+            }
+            FocusCommand::SplitLeft => {
+                if let Some(editor_tab_id) = self.editor_tab_id {
+                    self.internal_command.set(Some(InternalCommand::SplitMove {
+                        direction: SplitMoveDirection::Left,
+                        editor_tab_id,
+                    }));
+                }
+            }
+            FocusCommand::SplitUp => {
+                if let Some(editor_tab_id) = self.editor_tab_id {
+                    self.internal_command.set(Some(InternalCommand::SplitMove {
+                        direction: SplitMoveDirection::Up,
+                        editor_tab_id,
+                    }));
+                }
+            }
+            FocusCommand::SplitDown => {
+                if let Some(editor_tab_id) = self.editor_tab_id {
+                    self.internal_command.set(Some(InternalCommand::SplitMove {
+                        direction: SplitMoveDirection::Down,
+                        editor_tab_id,
+                    }));
+                }
+            }
+            FocusCommand::SplitExchange => {
+                println!("split exchage");
+                if let Some(editor_tab_id) = self.editor_tab_id {
+                    self.internal_command
+                        .set(Some(InternalCommand::SplitExchange { editor_tab_id }));
+                }
+            }
+            FocusCommand::SplitClose => {
+                if let Some(editor_tab_id) = self.editor_tab_id {
+                    self.internal_command.set(Some(
+                        InternalCommand::EditorTabChildClose {
+                            editor_tab_id,
+                            child: EditorTabChild::Editor(self.editor_id),
+                        },
+                    ));
+                }
+            }
+            _ => {}
+        }
+        CommandExecuted::Yes
+    }
 }
 
 impl KeyPressFocus for EditorData {
@@ -139,7 +230,7 @@ impl KeyPressFocus for EditorData {
                 let movement = cmd.to_movement(count);
                 self.run_move_command(&movement, count, mods)
             }
-            crate::command::CommandKind::Focus(_) => CommandExecuted::No,
+            crate::command::CommandKind::Focus(cmd) => self.run_focus_command(cmd),
             crate::command::CommandKind::MotionMode(_) => CommandExecuted::No,
             crate::command::CommandKind::MultiSelection(_) => CommandExecuted::No,
         }

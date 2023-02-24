@@ -46,7 +46,7 @@ use crate::{
     focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
     keypress::{condition::Condition, DefaultKeyPress, KeyPressData, KeyPressFocus},
-    main_split::{SplitContent, SplitData},
+    main_split::{SplitContent, SplitData, SplitDirection},
     palette::{
         item::{PaletteItem, PaletteItemContent},
         PaletteData, PaletteStatus,
@@ -93,6 +93,7 @@ fn visual_cursor(
     min_line: usize,
     max_line: usize,
     char_width: f64,
+    is_active: bool,
 ) -> Vec<CursorRender> {
     let (start_line, start_col) = doc.buffer().offset_to_line_col(start.min(end));
     let (end_line, end_col) = doc.buffer().offset_to_line_col(start.max(end));
@@ -171,7 +172,7 @@ fn visual_cursor(
             line,
         });
 
-        if line == cursor_line {
+        if is_active && line == cursor_line {
             let caret = cursor_caret(doc, end, true);
             renders.push(caret);
         }
@@ -186,6 +187,7 @@ fn insert_cursor(
     min_line: usize,
     max_line: usize,
     char_width: f64,
+    is_active: bool,
 ) -> Vec<CursorRender> {
     let start = doc.buffer().offset_of_line(min_line);
     let end = doc.buffer().offset_of_line(max_line + 1);
@@ -240,7 +242,7 @@ fn insert_cursor(
                 });
             }
 
-            if line == cursor_line {
+            if is_active && line == cursor_line {
                 let caret = cursor_caret(doc, cursor_offset, false);
                 renders.push(caret);
             }
@@ -254,6 +256,7 @@ fn editor_cursor(
     doc: ReadSignal<Document>,
     cursor: ReadSignal<Cursor>,
     viewport: ReadSignal<Rect>,
+    is_active: impl Fn() -> bool + 'static,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let cursor = move || {
@@ -264,24 +267,29 @@ fn editor_cursor(
         let min_line = (viewport.y0 / line_height).floor() as usize;
         let max_line = (viewport.y1 / line_height).ceil() as usize;
 
+        let is_active = is_active();
+
         doc.with_untracked(|doc| {
             cursor.with(|cursor| match &cursor.mode {
                 CursorMode::Normal(offset) => {
                     let line = doc.buffer().line_of_offset(*offset);
-                    let caret = cursor_caret(doc, *offset, true);
-                    vec![
-                        (viewport, CursorRender::CurrentLine { line }),
-                        (viewport, caret),
-                    ]
+                    let mut renders =
+                        vec![(viewport, CursorRender::CurrentLine { line })];
+                    if is_active {
+                        let caret = cursor_caret(doc, *offset, true);
+                        renders.push((viewport, caret));
+                    }
+                    renders
                 }
                 CursorMode::Visual { start, end, mode } => visual_cursor(
                     doc, *start, *end, mode, None, min_line, max_line, 7.5,
+                    is_active,
                 )
                 .into_iter()
                 .map(|render| (viewport, render))
                 .collect(),
                 CursorMode::Insert(selection) => {
-                    insert_cursor(doc, selection, min_line, max_line, 7.5)
+                    insert_cursor(doc, selection, min_line, max_line, 7.5, is_active)
                         .into_iter()
                         .map(|render| (viewport, render))
                         .collect()
@@ -352,7 +360,11 @@ fn editor_cursor(
     })
 }
 
-fn editor(cx: AppContext, editor: ReadSignal<EditorData>) -> impl View {
+fn editor(
+    cx: AppContext,
+    active_editor_tab: ReadSignal<Option<EditorTabId>>,
+    editor: ReadSignal<EditorData>,
+) -> impl View {
     let (doc, cursor, config) = editor.with(|editor| {
         (
             editor.doc.read_only(),
@@ -360,6 +372,12 @@ fn editor(cx: AppContext, editor: ReadSignal<EditorData>) -> impl View {
             editor.config,
         )
     });
+
+    let is_active = move || {
+        let active_editor_tab = active_editor_tab.get();
+        let editor_tab = editor.with(|editor| editor.editor_tab_id);
+        editor_tab.is_some() && editor_tab == active_editor_tab
+    };
 
     let (viewport, set_viewport) = create_signal(cx.scope, Rect::ZERO);
 
@@ -384,7 +402,7 @@ fn editor(cx: AppContext, editor: ReadSignal<EditorData>) -> impl View {
 
     stack(cx, |cx| {
         (
-            editor_cursor(cx, doc, cursor, viewport, config),
+            editor_cursor(cx, doc, cursor, viewport, is_active, config),
             scroll(cx, |cx| {
                 let config = config.get_untracked();
                 let line_height = config.editor.line_height();
@@ -712,6 +730,7 @@ fn editor_tab_header(
 
 fn editor_tab_content(
     cx: AppContext,
+    active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
 ) -> impl View {
@@ -724,7 +743,11 @@ fn editor_tab_content(
                     editors.with(|editors| editors.get(&editor_id).cloned());
                 if let Some(editor_data) = editor_data {
                     container_box(cx, |cx| {
-                        Box::new(editor(cx, editor_data.read_only()))
+                        Box::new(editor(
+                            cx,
+                            active_editor_tab,
+                            editor_data.read_only(),
+                        ))
                     })
                 } else {
                     container_box(cx, |cx| {
@@ -750,6 +773,7 @@ fn editor_tab_content(
 
 fn editor_tab(
     cx: AppContext,
+    active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
     config: ReadSignal<Arc<LapceConfig>>,
@@ -757,7 +781,7 @@ fn editor_tab(
     stack(cx, |cx| {
         (
             editor_tab_header(cx, editor_tab, editors, config),
-            editor_tab_content(cx, editor_tab, editors),
+            editor_tab_content(cx, active_editor_tab, editor_tab, editors),
         )
     })
     .style(cx, || Style {
@@ -771,20 +795,28 @@ fn split_list(
     cx: AppContext,
     splits: ReadSignal<im::HashMap<SplitId, RwSignal<SplitData>>>,
     split: ReadSignal<SplitData>,
+    active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tabs: ReadSignal<im::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let items = move || split.get().children;
-    let key = |content: &SplitContent| content.id();
-    let view_fn = move |cx, content| {
-        let child = match content {
+    let direction = move || split.with(|split| split.direction);
+    let items = move || split.get().children.into_iter().enumerate();
+    let key = |(index, content): &(usize, SplitContent)| content.id();
+    let view_fn = move |cx, (index, content)| {
+        let child = match &content {
             SplitContent::EditorTab(editor_tab_id) => {
                 let editor_tab_data =
-                    editor_tabs.with(|tabs| tabs.get(&editor_tab_id).cloned());
+                    editor_tabs.with(|tabs| tabs.get(editor_tab_id).cloned());
                 if let Some(editor_tab_data) = editor_tab_data {
                     container_box(cx, |cx| {
-                        Box::new(editor_tab(cx, editor_tab_data, editors, config))
+                        Box::new(editor_tab(
+                            cx,
+                            active_editor_tab,
+                            editor_tab_data,
+                            editors,
+                            config,
+                        ))
                     })
                 } else {
                     container_box(cx, |cx| {
@@ -800,6 +832,7 @@ fn split_list(
                         cx,
                         splits,
                         split.read_only(),
+                        active_editor_tab,
                         editor_tabs,
                         editors,
                         config,
@@ -811,16 +844,46 @@ fn split_list(
                 }
             }
         };
-        child.style(cx, || Style {
-            height: Dimension::Percent(1.0),
-            flex_grow: 1.0,
-            ..Default::default()
-        })
+        child
+            .on_resize(move |window_origin, rect| match &content {
+                SplitContent::EditorTab(editor_tab_id) => {
+                    let editor_tab_data =
+                        editor_tabs.with(|tabs| tabs.get(editor_tab_id).cloned());
+                    if let Some(editor_tab) = editor_tab_data {
+                        println!("editor tab resize {window_origin} {rect}");
+                        editor_tab.update(|editor_tab| {
+                            editor_tab.layout_rect = rect.with_origin(window_origin);
+                        });
+                    }
+                }
+                SplitContent::Split(_) => {}
+            })
+            .style(cx, move || Style {
+                flex_grow: 1.0,
+                flex_basis: Dimension::Points(1.0),
+                border_left: if index > 0 && direction() == SplitDirection::Vertical
+                {
+                    1.0
+                } else {
+                    0.0
+                },
+                border_top: if index > 0 && direction() == SplitDirection::Horizontal
+                {
+                    1.0
+                } else {
+                    0.0
+                },
+                ..Default::default()
+            })
     };
     container_box(cx, |cx| {
-        Box::new(list(cx, items, key, view_fn).style(cx, || Style {
-            flex_direction: FlexDirection::Row,
+        Box::new(list(cx, items, key, view_fn).style(cx, move || Style {
+            flex_direction: match direction() {
+                SplitDirection::Vertical => FlexDirection::Row,
+                SplitDirection::Horizontal => FlexDirection::Column,
+            },
             flex_grow: 1.0,
+            flex_basis: Dimension::Points(1.0),
             ..Default::default()
         }))
     })
@@ -836,17 +899,24 @@ fn main_split(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
         .unwrap()
         .read_only();
     let splits = window_tab_data.main_split.splits.read_only();
+    let active_editor_tab = window_tab_data.main_split.active_editor_tab.read_only();
     let editor_tabs = window_tab_data.main_split.editor_tabs.read_only();
     let editors = window_tab_data.main_split.editors.read_only();
     let config = window_tab_data.main_split.config;
-    split_list(cx, splits, root_split, editor_tabs, editors, config).style(
+    split_list(
         cx,
-        move || Style {
-            background: Some(*config.get().get_color(LapceColor::EDITOR_BACKGROUND)),
-            flex_grow: 1.0,
-            ..Default::default()
-        },
+        splits,
+        root_split,
+        active_editor_tab,
+        editor_tabs,
+        editors,
+        config,
     )
+    .style(cx, move || Style {
+        background: Some(*config.get().get_color(LapceColor::EDITOR_BACKGROUND)),
+        flex_grow: 1.0,
+        ..Default::default()
+    })
 }
 
 fn workbench(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
@@ -1219,7 +1289,7 @@ fn window_tab(cx: AppContext, workspace: Arc<LapceWorkspace>) -> impl View {
         font_size: Some(config.get().ui.font_size() as f32),
         ..Default::default()
     })
-    .event(EventListner::KeyDown, move |event| {
+    .on_event(EventListner::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             window_tab_data.key_down(cx, key_event);
             true

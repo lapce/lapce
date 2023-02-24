@@ -35,6 +35,7 @@ use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
     config::LapceConfig,
     editor::EditorData,
+    id::EditorId,
     keypress::{condition::Condition, KeyPressFocus},
     window_tab::Focus,
     workspace::LapceWorkspace,
@@ -86,7 +87,13 @@ impl PaletteData {
         let kind = create_rw_signal(cx.scope, PaletteKind::File);
         let items = create_rw_signal(cx.scope, im::Vector::new());
         let index = create_rw_signal(cx.scope, 0);
-        let editor = EditorData::new_local(cx, register, config);
+        let editor = EditorData::new_local(
+            cx,
+            EditorId::next(),
+            register,
+            internal_command,
+            config,
+        );
         let run_id = Arc::new(AtomicU64::new(0));
 
         let (run_tx, run_rx) = crossbeam_channel::unbounded();
