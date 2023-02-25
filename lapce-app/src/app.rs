@@ -791,6 +791,96 @@ fn editor_tab(
     })
 }
 
+fn split_border(
+    cx: AppContext,
+    splits: ReadSignal<im::HashMap<SplitId, RwSignal<SplitData>>>,
+    editor_tabs: ReadSignal<im::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
+    split: ReadSignal<SplitData>,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    let direction = move || split.with(|split| split.direction);
+    list(
+        cx,
+        move || split.get().children.into_iter().skip(1),
+        |content| content.id(),
+        move |cx, content| {
+            container(cx, |cx| {
+                label(cx, || "".to_string()).style(cx, move || {
+                    let direction = direction();
+                    Style {
+                        width: match direction {
+                            SplitDirection::Vertical => Dimension::Points(1.0),
+                            SplitDirection::Horizontal => Dimension::Percent(1.0),
+                        },
+                        height: match direction {
+                            SplitDirection::Vertical => Dimension::Percent(1.0),
+                            SplitDirection::Horizontal => Dimension::Points(1.0),
+                        },
+                        background: Some(
+                            *config.get().get_color(LapceColor::LAPCE_BORDER),
+                        ),
+                        ..Default::default()
+                    }
+                })
+            })
+            .style(cx, move || {
+                let rect = match &content {
+                    SplitContent::EditorTab(editor_tab_id) => {
+                        let editor_tab_data = editor_tabs
+                            .with(|tabs| tabs.get(editor_tab_id).cloned());
+                        if let Some(editor_tab_data) = editor_tab_data {
+                            editor_tab_data.with(|editor_tab| editor_tab.layout_rect)
+                        } else {
+                            Rect::ZERO
+                        }
+                    }
+                    SplitContent::Split(split_id) => {
+                        if let Some(split) =
+                            splits.with(|splits| splits.get(split_id).cloned())
+                        {
+                            split.with(|split| split.layout_rect)
+                        } else {
+                            Rect::ZERO
+                        }
+                    }
+                };
+                let direction = direction();
+                Style {
+                    position: Position::Absolute,
+                    margin_left: match direction {
+                        SplitDirection::Vertical => Some(rect.x0 as f32 - 3.0),
+                        SplitDirection::Horizontal => None,
+                    },
+                    margin_top: match direction {
+                        SplitDirection::Vertical => None,
+                        SplitDirection::Horizontal => Some(rect.y0 as f32 - 3.0),
+                    },
+                    width: match direction {
+                        SplitDirection::Vertical => Dimension::Points(5.0),
+                        SplitDirection::Horizontal => Dimension::Percent(1.0),
+                    },
+                    height: match direction {
+                        SplitDirection::Vertical => Dimension::Percent(1.0),
+                        SplitDirection::Horizontal => Dimension::Points(5.0),
+                    },
+                    flex_direction: match direction {
+                        SplitDirection::Vertical => FlexDirection::Row,
+                        SplitDirection::Horizontal => FlexDirection::Column,
+                    },
+                    justify_content: Some(JustifyContent::Center),
+                    ..Default::default()
+                }
+            })
+        },
+    )
+    .style(cx, || Style {
+        position: Position::Absolute,
+        width: Dimension::Percent(1.0),
+        height: Dimension::Percent(1.0),
+        ..Default::default()
+    })
+}
+
 fn split_list(
     cx: AppContext,
     splits: ReadSignal<im::HashMap<SplitId, RwSignal<SplitData>>>,
@@ -852,40 +942,50 @@ fn split_list(
                     if let Some(editor_tab) = editor_tab_data {
                         println!("editor tab resize {window_origin} {rect}");
                         editor_tab.update(|editor_tab| {
-                            editor_tab.layout_rect = rect.with_origin(window_origin);
+                            editor_tab.window_origin = window_origin;
+                            editor_tab.layout_rect = rect;
                         });
                     }
                 }
-                SplitContent::Split(_) => {}
+                SplitContent::Split(split_id) => {
+                    let split_data =
+                        splits.with(|splits| splits.get(split_id).cloned());
+                    if let Some(split_data) = split_data {
+                        split_data.update(|split| {
+                            split.window_origin = window_origin;
+                            split.layout_rect = rect;
+                        });
+                    }
+                }
             })
             .style(cx, move || Style {
                 flex_grow: 1.0,
                 flex_basis: Dimension::Points(1.0),
-                border_left: if index > 0 && direction() == SplitDirection::Vertical
-                {
-                    1.0
-                } else {
-                    0.0
-                },
-                border_top: if index > 0 && direction() == SplitDirection::Horizontal
-                {
-                    1.0
-                } else {
-                    0.0
-                },
                 ..Default::default()
             })
     };
     container_box(cx, |cx| {
-        Box::new(list(cx, items, key, view_fn).style(cx, move || Style {
-            flex_direction: match direction() {
-                SplitDirection::Vertical => FlexDirection::Row,
-                SplitDirection::Horizontal => FlexDirection::Column,
-            },
-            flex_grow: 1.0,
-            flex_basis: Dimension::Points(1.0),
-            ..Default::default()
-        }))
+        Box::new(
+            stack(cx, |cx| {
+                (
+                    list(cx, items, key, view_fn).style(cx, move || Style {
+                        flex_direction: match direction() {
+                            SplitDirection::Vertical => FlexDirection::Row,
+                            SplitDirection::Horizontal => FlexDirection::Column,
+                        },
+                        flex_grow: 1.0,
+                        flex_basis: Dimension::Points(1.0),
+                        ..Default::default()
+                    }),
+                    split_border(cx, splits, editor_tabs, split, config),
+                )
+            })
+            .style(cx, || Style {
+                flex_grow: 1.0,
+                flex_basis: Dimension::Points(1.0),
+                ..Default::default()
+            }),
+        )
     })
 }
 

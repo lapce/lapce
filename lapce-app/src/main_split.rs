@@ -7,7 +7,7 @@ use floem::{
     app::AppContext,
     ext_event::create_ext_action,
     glazier::KeyEvent,
-    peniko::kurbo::Rect,
+    peniko::kurbo::{Point, Rect},
     reactive::{
         create_rw_signal, ReadSignal, RwSignal, UntrackedGettableSignal, WriteSignal,
     },
@@ -62,6 +62,8 @@ pub struct SplitData {
     pub split_id: SplitId,
     pub children: Vec<SplitContent>,
     pub direction: SplitDirection,
+    pub window_origin: Point,
+    pub layout_rect: Rect,
 }
 
 #[derive(Clone)]
@@ -92,6 +94,8 @@ impl MainSplitData {
             split_id: root_split,
             children: Vec::new(),
             direction: SplitDirection::Horizontal,
+            window_origin: Point::ZERO,
+            layout_rect: Rect::ZERO,
         };
 
         let mut splits = im::HashMap::new();
@@ -236,6 +240,7 @@ impl MainSplitData {
                 active: 0,
                 editor_tab_id,
                 children: vec![EditorTabChild::Editor(editor_id)],
+                window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
             };
             let editor_tab = create_rw_signal(cx.scope, editor_tab);
@@ -358,6 +363,8 @@ impl MainSplitData {
                     SplitContent::EditorTab(new_editor_tab_id),
                 ],
                 direction,
+                window_origin: Point::ZERO,
+                layout_rect: Rect::ZERO,
             };
             let new_split = create_rw_signal(cx.scope, new_split);
             self.splits.update(|splits| {
@@ -403,6 +410,7 @@ impl MainSplitData {
             editor_tab_id,
             active: 0,
             children: vec![new_child],
+            window_origin: Point::ZERO,
             layout_rect: Rect::ZERO,
         };
         let editor_tab = create_rw_signal(cx.scope, editor_tab);
@@ -421,12 +429,16 @@ impl MainSplitData {
         let editor_tabs = self.editor_tabs.get_untracked();
         let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
 
-        let rect = editor_tab.with_untracked(|editor_tab| editor_tab.layout_rect);
+        let rect = editor_tab.with_untracked(|editor_tab| {
+            editor_tab.layout_rect.with_origin(editor_tab.window_origin)
+        });
 
         match direction {
             SplitMoveDirection::Up => {
                 for (_, e) in editor_tabs.iter() {
-                    let current_rect = e.with_untracked(|e| e.layout_rect);
+                    let current_rect = e.with_untracked(|e| {
+                        e.layout_rect.with_origin(e.window_origin)
+                    });
                     if (current_rect.y1 - rect.y0).abs() < 3.0
                         && current_rect.x0 <= rect.x0
                         && rect.x0 < current_rect.x1
@@ -440,7 +452,9 @@ impl MainSplitData {
             }
             SplitMoveDirection::Down => {
                 for (_, e) in editor_tabs.iter() {
-                    let current_rect = e.with_untracked(|e| e.layout_rect);
+                    let current_rect = e.with_untracked(|e| {
+                        e.layout_rect.with_origin(e.window_origin)
+                    });
                     if (current_rect.y0 - rect.y1).abs() < 3.0
                         && current_rect.x0 <= rect.x0
                         && rect.x0 < current_rect.x1
@@ -454,7 +468,9 @@ impl MainSplitData {
             }
             SplitMoveDirection::Right => {
                 for (_, e) in editor_tabs.iter() {
-                    let current_rect = e.with_untracked(|e| e.layout_rect);
+                    let current_rect = e.with_untracked(|e| {
+                        e.layout_rect.with_origin(e.window_origin)
+                    });
                     if (rect.x1 - current_rect.x0).abs() < 3.0
                         && current_rect.y0 <= rect.y0
                         && rect.y0 < current_rect.y1
@@ -468,7 +484,9 @@ impl MainSplitData {
             }
             SplitMoveDirection::Left => {
                 for (_, e) in editor_tabs.iter() {
-                    let current_rect = e.with_untracked(|e| e.layout_rect);
+                    let current_rect = e.with_untracked(|e| {
+                        e.layout_rect.with_origin(e.window_origin)
+                    });
                     if (current_rect.x1 - rect.x0).abs() < 3.0
                         && current_rect.y0 <= rect.y0
                         && rect.y0 < current_rect.y1

@@ -1,6 +1,9 @@
 use std::path::Path;
 
-use floem::{peniko::kurbo::Rect, reactive::RwSignal};
+use floem::{
+    peniko::kurbo::{Point, Rect},
+    reactive::RwSignal,
+};
 
 use crate::{
     doc::DocContent,
@@ -27,6 +30,7 @@ pub struct EditorTabData {
     pub editor_tab_id: EditorTabId,
     pub active: usize,
     pub children: Vec<EditorTabChild>,
+    pub window_origin: Point,
     pub layout_rect: Rect,
 }
 
