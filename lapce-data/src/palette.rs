@@ -12,7 +12,7 @@ use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use druid::{
-    Command, Data, Env, EventCtx, ExtEventSink, Lens, Modifiers, Target, WidgetId,
+    Command, Data, Env, EventCtx, ExtEventSink, Modifiers, Target, WidgetId,
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use indexmap::IndexMap;
@@ -33,8 +33,7 @@ use crate::{
     },
     config::LapceConfig,
     data::{
-        FocusArea, LapceMainSplitData, LapceTabData, LapceWorkspace,
-        LapceWorkspaceType, SshHost,
+        FocusArea, LapceMainSplitData, LapceWorkspace, LapceWorkspaceType, SshHost,
     },
     db::LapceDb,
     document::BufferContent,
@@ -318,8 +317,6 @@ pub struct PaletteItem {
     pub indices: Vec<usize>,
 }
 
-pub struct PaletteViewLens;
-
 #[derive(Clone, Data)]
 pub struct PaletteViewData {
     pub palette: Arc<PaletteData>,
@@ -332,32 +329,6 @@ pub struct PaletteViewData {
     pub focus_area: FocusArea,
     pub terminal: Arc<TerminalPanelData>,
     pub source_control: Arc<SourceControlData>,
-}
-
-impl Lens<LapceTabData, PaletteViewData> for PaletteViewLens {
-    fn with<V, F: FnOnce(&PaletteViewData) -> V>(
-        &self,
-        data: &LapceTabData,
-        f: F,
-    ) -> V {
-        let palette_view = data.palette_view_data();
-        f(&palette_view)
-    }
-
-    fn with_mut<V, F: FnOnce(&mut PaletteViewData) -> V>(
-        &self,
-        data: &mut LapceTabData,
-        f: F,
-    ) -> V {
-        let mut palette_view = data.palette_view_data();
-        let result = f(&mut palette_view);
-        data.palette = palette_view.palette.clone();
-        data.workspace = palette_view.workspace.clone();
-        data.keypress = palette_view.keypress.clone();
-        data.main_split = palette_view.main_split.clone();
-        data.find = palette_view.find;
-        result
-    }
 }
 
 /// Data to be held by the palette list
