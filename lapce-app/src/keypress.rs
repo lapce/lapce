@@ -102,7 +102,7 @@ pub struct KeyPressData {
     count: Option<usize>,
     pending_keypress: Vec<KeyPress>,
     workbench_cmd: WriteSignal<Option<LapceWorkbenchCommand>>,
-    commands: IndexMap<String, LapceCommand>,
+    pub commands: IndexMap<String, LapceCommand>,
     keymaps: IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
     command_keymaps: IndexMap<String, Vec<KeyMap>>,
     commands_with_keymap: Vec<KeyMap>,

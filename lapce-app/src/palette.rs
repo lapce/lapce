@@ -1,9 +1,13 @@
 use std::{
+    cell::RefCell,
+    collections::HashMap,
     path::PathBuf,
+    rc::Rc,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
     },
+    time::Instant,
 };
 
 use anyhow::Result;
@@ -20,6 +24,7 @@ use floem::{
     },
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use itertools::Itertools;
 use lapce_core::{
     command::FocusCommand,
     cursor::{Cursor, CursorMode},
@@ -36,7 +41,7 @@ use crate::{
     config::LapceConfig,
     editor::EditorData,
     id::EditorId,
-    keypress::{condition::Condition, KeyPressFocus},
+    keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     window_tab::Focus,
     workspace::LapceWorkspace,
 };
@@ -58,9 +63,10 @@ pub enum PaletteStatus {
 
 #[derive(Clone)]
 pub struct PaletteData {
-    run_id: Arc<AtomicU64>,
+    run_id_counter: Arc<AtomicU64>,
     run_tx: Sender<(u64, String, im::Vector<PaletteItem>)>,
     internal_command: WriteSignal<Option<InternalCommand>>,
+    pub run_id: ReadSignal<u64>,
     pub workspace: Arc<LapceWorkspace>,
     pub status: RwSignal<PaletteStatus>,
     pub index: RwSignal<usize>,
@@ -70,7 +76,9 @@ pub struct PaletteData {
     pub proxy_rpc: ProxyRpcHandler,
     pub editor: EditorData,
     pub focus: RwSignal<Focus>,
+    pub keypress: ReadSignal<KeyPressData>,
     pub config: ReadSignal<Arc<LapceConfig>>,
+    pub executed_commands: Rc<RefCell<HashMap<String, Instant>>>,
 }
 
 impl PaletteData {
@@ -81,6 +89,7 @@ impl PaletteData {
         register: RwSignal<Register>,
         internal_command: WriteSignal<Option<InternalCommand>>,
         focus: RwSignal<Focus>,
+        keypress: ReadSignal<KeyPressData>,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
         let status = create_rw_signal(cx.scope, PaletteStatus::Inactive);
@@ -94,11 +103,11 @@ impl PaletteData {
             internal_command,
             config,
         );
-        let run_id = Arc::new(AtomicU64::new(0));
+        let run_id_counter = Arc::new(AtomicU64::new(0));
 
         let (run_tx, run_rx) = crossbeam_channel::unbounded();
         {
-            let run_id = run_id.clone();
+            let run_id = run_id_counter.clone();
             let doc = editor.doc.read_only();
             let items = items.read_only();
             let tx = run_tx.clone();
@@ -112,23 +121,26 @@ impl PaletteData {
 
         let (resp_tx, resp_rx) = crossbeam_channel::unbounded();
         {
-            let run_id = run_id.clone();
+            let run_id = run_id_counter.clone();
             std::thread::spawn(move || {
                 Self::update_process(run_id, run_rx, resp_tx);
             });
         }
 
+        let (run_id, set_run_id) = create_signal(cx.scope, 0);
+
         let (filtered_items, set_filtered_items) =
             create_signal(cx.scope, im::Vector::new());
         {
             let resp = create_signal_from_channel(cx, resp_rx);
-            let run_id = run_id.clone();
+            let run_id = run_id_counter.clone();
             let index = index.write_only();
             create_effect(cx.scope, move |_| {
                 if let Some((current_run_id, items)) = resp.get() {
                     if run_id.load(std::sync::atomic::Ordering::Acquire)
                         == current_run_id
                     {
+                        set_run_id.set(current_run_id);
                         set_filtered_items.set(items);
                         index.set(0);
                     }
@@ -137,9 +149,10 @@ impl PaletteData {
         }
 
         Self {
-            run_id,
+            run_id_counter,
             run_tx,
             internal_command,
+            run_id,
             focus,
             workspace,
             status,
@@ -149,7 +162,9 @@ impl PaletteData {
             filtered_items,
             editor,
             proxy_rpc,
+            keypress,
             config,
+            executed_commands: Rc::new(RefCell::new(HashMap::new())),
         }
     }
 
@@ -165,6 +180,9 @@ impl PaletteData {
             PaletteKind::File => {
                 self.get_files(cx);
             }
+            PaletteKind::Command => {
+                self.get_commands(cx);
+            }
         }
         self.kind.set(kind);
     }
@@ -175,8 +193,7 @@ impl PaletteData {
         let send = create_ext_action(cx, move |items: Vec<PathBuf>| {
             let items = items
                 .into_iter()
-                .enumerate()
-                .map(|(i, path)| {
+                .map(|path| {
                     let full_path = path.clone();
                     let mut path = path;
                     if let Some(workspace_path) = workspace.path.as_ref() {
@@ -187,8 +204,6 @@ impl PaletteData {
                     }
                     let filter_text = path.to_str().unwrap_or("").to_string();
                     PaletteItem {
-                        id: i,
-                        index: i,
                         content: PaletteItemContent::File { path, full_path },
                         filter_text,
                         score: 0,
@@ -205,6 +220,62 @@ impl PaletteData {
         });
     }
 
+    fn get_commands(&self, cx: AppContext) {
+        const EXCLUDED_ITEMS: &[&str] = &["palette.command"];
+
+        self.keypress.get_untracked();
+        let items = self.keypress.with_untracked(|keypress| {
+            let mut i = 0;
+            let mut items: im::Vector<PaletteItem> = self
+                .executed_commands
+                .borrow()
+                .iter()
+                .sorted_by_key(|(_, i)| *i)
+                .rev()
+                .filter_map(|(key, _)| {
+                    keypress.commands.get(key).and_then(|c| {
+                        c.kind.desc().as_ref().map(|m| {
+                            let item = PaletteItem {
+                                content: PaletteItemContent::Command {
+                                    cmd: c.clone(),
+                                },
+                                filter_text: m.to_string(),
+                                score: 0,
+                                indices: vec![],
+                            };
+                            i += 1;
+                            item
+                        })
+                    })
+                })
+                .collect();
+            items.extend(keypress.commands.iter().filter_map(|(_, c)| {
+                if EXCLUDED_ITEMS.contains(&c.kind.str()) {
+                    return None;
+                }
+
+                if self.executed_commands.borrow().contains_key(c.kind.str()) {
+                    return None;
+                }
+
+                c.kind.desc().as_ref().map(|m| {
+                    let item = PaletteItem {
+                        content: PaletteItemContent::Command { cmd: c.clone() },
+                        filter_text: m.to_string(),
+                        score: 0,
+                        indices: vec![],
+                    };
+                    i += 1;
+                    item
+                })
+            }));
+
+            items
+        });
+
+        self.items.set(items);
+    }
+
     fn select(&self) {
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
@@ -215,6 +286,7 @@ impl PaletteData {
                         path: full_path.to_owned(),
                     }));
                 }
+                PaletteItemContent::Command { cmd } => {}
             }
         }
         self.cancel();
@@ -223,6 +295,13 @@ impl PaletteData {
     fn cancel(&self) {
         self.status.set(PaletteStatus::Inactive);
         self.focus.set(Focus::Workbench);
+        self.editor
+            .doc
+            .update(|doc| doc.reload(Rope::from(""), true));
+        self.editor
+            .cursor
+            .update(|cursor| cursor.set_insert(Selection::caret(0)));
+        self.items.update(|items| items.clear());
     }
 
     fn next(&self) {
@@ -301,10 +380,6 @@ impl PaletteData {
                 .partial_cmp(&a.score)
                 .unwrap_or(std::cmp::Ordering::Less)
         });
-
-        for (index, item) in filtered_items.iter_mut().enumerate() {
-            item.index = index;
-        }
 
         if run_id.load(std::sync::atomic::Ordering::Acquire) != current_run_id {
             return None;

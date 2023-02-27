@@ -1,4 +1,5 @@
 use std::{
+    iter::Enumerate,
     ops::Range,
     path::{Path, PathBuf},
     sync::{atomic::AtomicU64, Arc},
@@ -23,7 +24,7 @@ use floem::{
     },
     text::ParleyBrush,
     view::View,
-    views::{click, svg},
+    views::{click, svg, VirtualListVector},
     views::{
         container, container_box, list, tab, virtual_list, Decorators,
         VirtualListDirection, VirtualListItemSize,
@@ -431,9 +432,15 @@ fn editor(
                 let config = config.get_untracked();
                 let line_height = config.editor.line_height();
                 if let CursorRender::Caret { x, width, line } = caret {
-                    Size::new(width, line_height as f64)
+                    let rect = Size::new(width, line_height as f64)
                         .to_rect()
-                        .with_origin(Point::new(x, (line * line_height) as f64))
+                        .with_origin(Point::new(x, (line * line_height) as f64));
+
+                    rect.inflate(
+                        0.0,
+                        (config.editor.cursor_surrounding_lines * line_height)
+                            as f64,
+                    )
                 } else {
                     Rect::ZERO
                 }
@@ -1077,8 +1084,10 @@ fn status(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
 
 fn palette_item(
     cx: AppContext,
+    i: usize,
     item: PaletteItem,
     index: ReadSignal<usize>,
+    palette_item_height: f64,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     match &item.content {
@@ -1096,8 +1105,6 @@ fn palette_item(
                 .to_string();
             // let (folder, _) = create_signal(cx.scope, folder);
             let folder_len = folder.len();
-
-            let item_index = item.index;
 
             let file_name_indices = item
                 .indices
@@ -1120,48 +1127,79 @@ fn palette_item(
                 .filter_map(|&i| if i < folder_len { Some(i) } else { None })
                 .collect::<Vec<_>>();
 
-            stack(cx, move |cx| {
-                (
-                    focus_text(
-                        cx,
-                        move || file_name.clone(),
-                        move || file_name_indices.clone(),
-                        move || *config.get().get_color(LapceColor::EDITOR_FOCUS),
-                    )
+            container_box(cx, move |cx| {
+                Box::new(
+                    stack(cx, move |cx| {
+                        (
+                            focus_text(
+                                cx,
+                                move || file_name.clone(),
+                                move || file_name_indices.clone(),
+                                move || {
+                                    *config.get().get_color(LapceColor::EDITOR_FOCUS)
+                                },
+                            )
+                            .style(cx, || Style {
+                                max_width: Dimension::Percent(1.0),
+                                ..Default::default()
+                            }),
+                            focus_text(
+                                cx,
+                                move || folder.clone(),
+                                move || folder_indices.clone(),
+                                move || {
+                                    *config.get().get_color(LapceColor::EDITOR_FOCUS)
+                                },
+                            )
+                            .style(cx, || Style {
+                                margin_left: Some(6.0),
+                                min_width: Dimension::Points(0.0),
+                                ..Default::default()
+                            }),
+                        )
+                    })
                     .style(cx, || Style {
-                        max_width: Dimension::Percent(1.0),
-                        ..Default::default()
-                    }),
-                    focus_text(
-                        cx,
-                        move || folder.clone(),
-                        move || folder_indices.clone(),
-                        move || *config.get().get_color(LapceColor::EDITOR_FOCUS),
-                    )
-                    .style(cx, || Style {
-                        margin_left: Some(6.0),
-                        min_width: Dimension::Points(0.0),
+                        align_items: Some(AlignItems::Center),
                         ..Default::default()
                     }),
                 )
             })
-            .style(cx, move || Style {
-                height: Dimension::Points(20.0),
-                padding_left: 10.0,
-                padding_right: 10.0,
-                background: if index.get() == item_index {
-                    Some(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PALETTE_CURRENT_BACKGROUND),
+        }
+        PaletteItemContent::Command { cmd } => {
+            let text = item.filter_text;
+            let indices = item.indices;
+            container_box(cx, move |cx| {
+                Box::new(
+                    focus_text(
+                        cx,
+                        move || text.clone(),
+                        move || indices.clone(),
+                        move || *config.get().get_color(LapceColor::EDITOR_FOCUS),
                     )
-                } else {
-                    None
-                },
-                ..Default::default()
+                    .style(cx, || Style {
+                        align_items: Some(AlignItems::Center),
+                        max_width: Dimension::Percent(1.0),
+                        ..Default::default()
+                    }),
+                )
             })
         }
     }
+    .style(cx, move || Style {
+        height: Dimension::Points(palette_item_height as f32),
+        padding_left: 10.0,
+        padding_right: 10.0,
+        background: if index.get() == i {
+            Some(
+                *config
+                    .get()
+                    .get_color(LapceColor::PALETTE_CURRENT_BACKGROUND),
+            )
+        } else {
+            None
+        },
+        ..Default::default()
+    })
 }
 
 fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
@@ -1250,19 +1288,44 @@ fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     })
 }
 
+struct PaletteItems(im::Vector<PaletteItem>);
+
+impl VirtualListVector<(usize, PaletteItem)> for PaletteItems {
+    type ItemIterator = Box<dyn Iterator<Item = (usize, PaletteItem)>>;
+
+    fn total_len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn slice(&mut self, range: Range<usize>) -> Self::ItemIterator {
+        let start = range.start;
+        Box::new(
+            self.0
+                .slice(range)
+                .into_iter()
+                .enumerate()
+                .map(move |(i, item)| (i + start, item)),
+        )
+    }
+}
+
 fn palette_content(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     let items = window_tab_data.palette.filtered_items;
     let index = window_tab_data.palette.index.read_only();
     let config = window_tab_data.palette.config;
+    let run_id = window_tab_data.palette.run_id;
+    let palette_item_height = 24.0;
     container(cx, |cx| {
         scroll(cx, |cx| {
             virtual_list(
                 cx,
                 VirtualListDirection::Vertical,
-                move || items.get(),
-                move |item| (item.id, item.index, item.indices.clone()),
-                move |cx, item| palette_item(cx, item, index, config),
-                VirtualListItemSize::Fixed(20.0),
+                move || PaletteItems(items.get()),
+                move |(i, _item)| (run_id.get_untracked(), *i),
+                move |cx, (i, item)| {
+                    palette_item(cx, i, item, index, palette_item_height, config)
+                },
+                VirtualListItemSize::Fixed(palette_item_height),
             )
             .style(cx, || Style {
                 width: Dimension::Percent(1.0),
@@ -1271,9 +1334,12 @@ fn palette_content(cx: AppContext, window_tab_data: WindowTabData) -> impl View 
             })
         })
         .on_ensure_visible(cx, move || {
-            Size::new(1.0, 20.0)
+            Size::new(1.0, palette_item_height)
                 .to_rect()
-                .with_origin(Point::new(0.0, index.get() as f64 * 20.0))
+                .with_origin(Point::new(
+                    0.0,
+                    index.get() as f64 * palette_item_height,
+                ))
         })
         .style(cx, || Style {
             width: Dimension::Percent(1.0),
@@ -1339,6 +1405,15 @@ fn palette(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
 fn window_tab(cx: AppContext, workspace: Arc<LapceWorkspace>) -> impl View {
     let window_tab_data = WindowTabData::new(cx, workspace);
     let workbench_command = window_tab_data.workbench_command;
+
+    {
+        let window_tab_data = window_tab_data.clone();
+        create_effect(cx.scope, move |_| {
+            if let Some(cmd) = window_tab_data.lapce_command.get() {
+                window_tab_data.run_lapce_command(cx, cmd);
+            }
+        });
+    }
 
     {
         let window_tab_data = window_tab_data.clone();

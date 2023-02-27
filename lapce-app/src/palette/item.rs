@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
+use crate::command::LapceCommand;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct PaletteItem {
-    pub id: usize,
-    pub index: usize,
     pub content: PaletteItemContent,
     pub filter_text: String,
     pub score: i64,
@@ -13,4 +13,5 @@ pub struct PaletteItem {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaletteItemContent {
     File { path: PathBuf, full_path: PathBuf },
+    Command { cmd: LapceCommand },
 }

@@ -23,6 +23,7 @@ directories.workspace = true
 notify.workspace = true
 toml_edit.workspace = true
 im.workspace = true
+itertools.workspace = true
 lapce-xi-rope.workspace = true
 smallvec.workspace = true
 include_dir.workspace = true

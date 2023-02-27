@@ -11,7 +11,7 @@ use floem::{
 use lapce_core::register::Register;
 
 use crate::{
-    command::{InternalCommand, LapceWorkbenchCommand},
+    command::{InternalCommand, LapceCommand, LapceWorkbenchCommand},
     config::LapceConfig,
     db::LapceDb,
     keypress::{DefaultKeyPress, KeyPressData, KeyPressFocus},
@@ -34,6 +34,7 @@ pub struct WindowTabData {
     pub proxy: ProxyData,
     pub keypress: RwSignal<KeyPressData>,
     pub focus: RwSignal<Focus>,
+    pub lapce_command: ReadSignal<Option<LapceCommand>>,
     pub workbench_command: ReadSignal<Option<LapceWorkbenchCommand>>,
     pub internal_command: ReadSignal<Option<InternalCommand>>,
 }
@@ -49,6 +50,7 @@ impl WindowTabData {
         let mut all_disabled_volts = disabled_volts;
         all_disabled_volts.extend(workspace_disabled_volts.into_iter());
 
+        let (lapce_command, set_lapce_command) = create_signal(cx.scope, None);
         let (workbench_command, set_workbench_command) =
             create_signal(cx.scope, None);
         let (internal_command, set_internal_command) = create_signal(cx.scope, None);
@@ -72,6 +74,7 @@ impl WindowTabData {
             register,
             set_internal_command,
             focus,
+            keypress.read_only(),
             config,
         );
 
@@ -89,10 +92,13 @@ impl WindowTabData {
             proxy,
             keypress,
             focus,
+            lapce_command,
             workbench_command,
             internal_command,
         }
     }
+
+    pub fn run_lapce_command(&self, cx: AppContext, cmd: LapceCommand) {}
 
     pub fn run_workbench_command(&self, cx: AppContext, cmd: LapceWorkbenchCommand) {
         use LapceWorkbenchCommand::*;
@@ -137,7 +143,10 @@ impl WindowTabData {
             }
             PaletteSymbol => todo!(),
             PaletteWorkspaceSymbol => todo!(),
-            PaletteCommand => todo!(),
+            PaletteCommand => {
+                self.palette.run(cx, PaletteKind::Command);
+                self.focus.set(Focus::Palette);
+            }
             PaletteWorkspace => todo!(),
             PaletteRunAndDebug => todo!(),
             RunAndDebugRestart => todo!(),
@@ -221,20 +230,38 @@ impl WindowTabData {
 
     pub fn key_down(&self, cx: AppContext, key_event: &KeyEvent) {
         let focus = self.focus.get_untracked();
-        self.keypress.update(|keypress| {
-            let executed = match focus {
-                Focus::Workbench => {
-                    self.main_split.key_down(cx, key_event, keypress).is_some()
-                }
-                Focus::Palette => {
-                    keypress.key_down(cx, key_event, &self.palette);
-                    true
-                }
-            };
-
-            if !executed {
-                keypress.key_down(cx, key_event, &DefaultKeyPress {});
+        let mut keypress = self.keypress.get_untracked();
+        let executed = match focus {
+            Focus::Workbench => self
+                .main_split
+                .key_down(cx, key_event, &mut keypress)
+                .is_some(),
+            Focus::Palette => {
+                keypress.key_down(cx, key_event, &self.palette);
+                true
             }
-        });
+        };
+
+        if !executed {
+            keypress.key_down(cx, key_event, &DefaultKeyPress {});
+        }
+
+        self.keypress.set(keypress);
+
+        // self.keypress.update(|keypress| {
+        //     let executed = match focus {
+        //         Focus::Workbench => {
+        //             self.main_split.key_down(cx, key_event, keypress).is_some()
+        //         }
+        //         Focus::Palette => {
+        //             keypress.key_down(cx, key_event, &self.palette);
+        //             true
+        //         }
+        //     };
+
+        //     if !executed {
+        //         keypress.key_down(cx, key_event, &DefaultKeyPress {});
+        //     }
+        // });
     }
 }

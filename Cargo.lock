@@ -3055,6 +3055,7 @@ dependencies = [
  "im",
  "include_dir",
  "indexmap",
+ "itertools",
  "lapce-core",
  "lapce-proxy",
  "lapce-rpc",
