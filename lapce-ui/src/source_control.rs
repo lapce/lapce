@@ -432,6 +432,13 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 .and_then(|s| s.to_str())
                 .unwrap_or("");
 
+            let folder = path
+                .parent()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+
+            // text_layout for the filename
             let text_layout = ctx
                 .text()
                 .new_text_layout(file_name.to_string())
@@ -447,28 +454,14 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 .build()
                 .unwrap();
 
-            let x = current_line.width() - self.line_height * 2.0 - svg_size * 2.0;
-
-            if text_layout.layout.width() > x as f32 {
-                let hit_point = text_layout.hit_test_point(
-                    Point::new(x, 0.0));
-
-                let end = file_name
-                    .char_indices()
-                    .filter(|(i,_)| hit_point.idx.overflowing_sub(*i).0 < 3)
-                    .collect::<Vec<(usize, char)>>();
-
-                let end = if end.is_empty() {
-                    file_name.len()
-                } else {
-                    end[0].0
-                };
-
-                let file_name = format!("{}...", &file_name[0..end]);
-
+            // the max_width is reduced by the size of the status svg to the rigth
+            let max_width = current_line.width() - self.line_height * 2.0 - svg_size * 2.0;
+            
+            if let Some(text) = add_ellipsis_if_necessary(&text_layout, max_width, file_name.to_string()) {
+                // filename is to long
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(file_name.to_string())
+                    .new_text_layout(text)
                     .font(
                         data.config.ui.font_family(),
                         data.config.ui.font_size() as f64,
@@ -481,6 +474,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     .build()
                     .unwrap();
 
+                // render new text_layout
                 ctx.draw_text(
                     &text_layout,
                     Point::new(
@@ -488,7 +482,9 @@ impl Widget<LapceTabData> for SourceControlFileList {
                         y + text_layout.y_offset(self.line_height),
                     ),
                 );
+                // since the filename overflows we do not need to render the path
             } else {
+                // filename is not to long. render the filename
                 ctx.draw_text(
                     &text_layout,
                     Point::new(
@@ -496,37 +492,65 @@ impl Widget<LapceTabData> for SourceControlFileList {
                         y + text_layout.y_offset(self.line_height),
                     ),
                 );
-            }
+                // if folder is not empty check if the path overflows
+                if !folder.is_empty() {
+                    let x = text_layout.size().width;
+                    
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout(folder.to_string())
+                        .font(
+                            data.config.ui.font_family(),
+                            data.config.ui.font_size() as f64,
+                        )
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
 
-            let folder = path
-                .parent()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
-            if !folder.is_empty() {
-                let x = text_layout.size().width;
+                    // the 5.0 is the space between the filename and path
+                    let max_width = current_line.width() - x - 5.0 - self.line_height * 2.0 - svg_size * 2.0;
 
-                let text_layout = ctx
-                    .text()
-                    .new_text_layout(folder)
-                    .font(
-                        data.config.ui.font_family(),
-                        data.config.ui.font_size() as f64,
-                    )
-                    .text_color(
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                            .clone(),
-                    )
-                    .build()
-                    .unwrap();
-                ctx.draw_text(
-                    &text_layout,
-                    Point::new(
-                        self.line_height * 2.0 + x + 5.0,
-                        y + text_layout.y_offset(self.line_height),
-                    ),
-                );
+                    if let Some(text) = add_ellipsis_if_necessary(&text_layout, max_width, folder) {
+                        // text of the folder overflows
+                        // create a new text_layout with the shortend folder name
+                        let text_layout = ctx
+                            .text()
+                            .new_text_layout(text)
+                            .font(
+                                data.config.ui.font_family(),
+                                data.config.ui.font_size() as f64,
+                            )
+                            .text_color(
+                                data.config
+                                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                                    .clone(),
+                            )
+                            .build()
+                            .unwrap();
+                        // render the new text_layout
+                        ctx.draw_text(
+                            &text_layout,
+                            Point::new(
+                                self.line_height * 2.0 + x + 5.0,
+                                y + text_layout.y_offset(self.line_height),
+                            ),
+                        );
+                    } else {
+                        // text of the folder does not overflow
+                        // render the text_layout
+                        ctx.draw_text(
+                            &text_layout,
+                            Point::new(
+                                self.line_height * 2.0 + x + 5.0,
+                                y + text_layout.y_offset(self.line_height),
+                            ),
+                        );
+                    }
+                }
             }
 
             let (svg, color) = match diff {
@@ -563,5 +587,31 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     ));
             ctx.draw_svg(&svg, rect, Some(color));
         }
+    }
+}
+
+fn add_ellipsis_if_necessary<T: PietTextLayout>(text_layout: &T, max_width: f64, text: String) -> Option<String> {
+    if text_layout.size().width > max_width {
+        let hit_point = text_layout.hit_test_point(
+            Point::new(max_width, 0.0));
+
+        let end = text
+            .char_indices()
+            .filter(|(i,_)| hit_point.idx.overflowing_sub(*i).0 < 3)
+            .collect::<Vec<(usize, char)>>();
+
+        let end = if end.is_empty() {
+            text.len()
+        } else {
+            end[0].0
+        };
+
+        if end == 0 {
+            Some("".to_string())
+        } else {
+            Some(format!("{}…", &text[0..end]))
+        }
+    } else {
+        None
     }
 }
