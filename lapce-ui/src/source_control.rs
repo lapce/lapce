@@ -430,12 +430,11 @@ impl Widget<LapceTabData> for SourceControlFileList {
             let file_name = path
                 .file_name()
                 .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
+                .unwrap_or("");
 
             let text_layout = ctx
                 .text()
-                .new_text_layout(file_name)
+                .new_text_layout(file_name.to_string())
                 .font(
                     data.config.ui.font_family(),
                     data.config.ui.font_size() as f64,
@@ -447,13 +446,58 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 )
                 .build()
                 .unwrap();
-            ctx.draw_text(
-                &text_layout,
-                Point::new(
-                    self.line_height * 2.0,
-                    y + text_layout.y_offset(self.line_height),
-                ),
-            );
+
+            let x = current_line.width() - self.line_height * 2.0 - svg_size * 2.0;
+
+            if text_layout.layout.width() > x as f32 {
+                let hit_point = text_layout.hit_test_point(
+                    Point::new(x, 0.0));
+
+                let end = file_name
+                    .char_indices()
+                    .filter(|(i,_)| hit_point.idx.overflowing_sub(*i).0 < 3)
+                    .collect::<Vec<(usize, char)>>();
+
+                let end = if end.is_empty() {
+                    file_name.len()
+                } else {
+                    end[0].0
+                };
+
+                let file_name = format!("{}...", &file_name[0..end]);
+
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(file_name.to_string())
+                    .font(
+                        data.config.ui.font_family(),
+                        data.config.ui.font_size() as f64,
+                    )
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(
+                        self.line_height * 2.0,
+                        y + text_layout.y_offset(self.line_height),
+                    ),
+                );
+            } else {
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(
+                        self.line_height * 2.0,
+                        y + text_layout.y_offset(self.line_height),
+                    ),
+                );
+            }
+
             let folder = path
                 .parent()
                 .and_then(|s| s.to_str())
