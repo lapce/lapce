@@ -37,6 +37,7 @@
 - [#2072](https://github.com/lapce/lapce/pull/2072): Fix connection issues from Windows to lapce proxy
 - [#2069](https://github.com/lapce/lapce/pull/2045): Fix not finding git repositories in parent path
 - [#2131](https://github.com/lapce/lapce/pull/2131): Fix overwriting symlink
+- [#2188](https://github.com/lapce/lapce/pull/2188): Fix auto closing matching pairs in inappropriate inputs
 
 ## 0.2.5
 
