@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Features/Changes
+
+### Bug Fixes
+
+## 0.2.6
+
 ### Breaking changes
 
 - [#1820](https://github.com/lapce/lapce/pull/1820): Add remote svg icon colour to theme, disable plugin settings when none are available
