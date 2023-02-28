@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use druid::{
     kurbo::BezPath,
-    piet::{Text, TextLayoutBuilder, TextAttribute},
+    piet::{Text, TextAttribute, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, Rect, RenderContext,
     Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
@@ -21,7 +21,8 @@ use lapce_rpc::source_control::FileDiff;
 use crate::{
     button::Button,
     editor::view::LapceEditorView,
-    panel::{LapcePanel, PanelHeaderKind, PanelSizing}, truncated_text::truncate_if_necessary,
+    panel::{LapcePanel, PanelHeaderKind, PanelSizing},
+    truncated_text::truncate_if_necessary,
 };
 
 pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
@@ -427,10 +428,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     ));
             ctx.draw_svg(&svg, rect, svg_color);
 
-            let file_name = path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("");
+            let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
 
             let folder = path
                 .parent()
@@ -475,7 +473,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
             if let Some(truncated) = truncate_if_necessary(
                 &text_layout,
                 current_line.width() - self.line_height * 2.0 - svg_size * 2.0,
-                text
+                text,
             ) {
                 let mut text_layout = ctx
                     .text()
@@ -490,19 +488,23 @@ impl Widget<LapceTabData> for SourceControlFileList {
                             .clone(),
                     );
                 // the second condition ensures that the 3 dots are all in the same color
-                if !folder.is_empty() && (truncated.len() - 3) > (total_len - folder.len()){
+                if !folder.is_empty()
+                    && (truncated.len() - 3) > (total_len - folder.len())
+                {
                     text_layout = text_layout.range_attribute(
                         total_len - folder.len()..(total_len + 2),
                         TextAttribute::TextColor(
                             data.config
-                                .get_color_unchecked(LapceTheme::PANEL_FOREGROUND_DIM)
+                                .get_color_unchecked(
+                                    LapceTheme::PANEL_FOREGROUND_DIM,
+                                )
                                 .clone(),
                         ),
                     );
                 }
 
                 let text_layout = text_layout.build().unwrap();
-    
+
                 ctx.draw_text(
                     &text_layout,
                     Point::new(
@@ -556,4 +558,3 @@ impl Widget<LapceTabData> for SourceControlFileList {
         }
     }
 }
-
