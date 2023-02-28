@@ -7,9 +7,10 @@ use floem::{
     app::AppContext,
     ext_event::create_ext_action,
     glazier::KeyEvent,
-    peniko::kurbo::{Point, Rect},
+    peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_rw_signal, ReadSignal, RwSignal, UntrackedGettableSignal, WriteSignal,
+        create_effect, create_rw_signal, ReadSignal, RwSignal,
+        UntrackedGettableSignal, WriteSignal,
     },
 };
 use lapce_core::register::Register;
@@ -152,12 +153,25 @@ impl MainSplitData {
         let doc = if let Some(doc) = doc {
             doc
         } else {
-            let doc = Document::new(path.clone(), self.config);
+            let doc =
+                Document::new(cx, path.clone(), self.proxy_rpc.clone(), self.config);
             let buffer_id = doc.buffer_id;
             let doc = create_rw_signal(cx.scope, doc);
             self.docs.update(|docs| {
                 docs.insert(path.clone(), doc);
             });
+
+            {
+                let proxy = self.proxy_rpc.clone();
+                create_effect(cx.scope, move |last| {
+                    let rev = doc.with(|doc| doc.buffer().rev());
+                    if last == Some(rev) {
+                        return rev;
+                    }
+                    Document::tigger_proxy_update(cx, doc, &proxy);
+                    rev
+                });
+            }
 
             let set_doc = doc.write_only();
             let send = create_ext_action(cx, move |content| {
@@ -395,6 +409,9 @@ impl MainSplitData {
                     self.editors.get_untracked().get(editor_id)?.get_untracked();
                 editor.cursor =
                     create_rw_signal(cx.scope, editor.cursor.get_untracked());
+                editor.viewport =
+                    create_rw_signal(cx.scope, editor.viewport.get_untracked());
+                editor.scroll = create_rw_signal(cx.scope, Vec2::ZERO);
                 editor.editor_tab_id = Some(editor_tab_id);
                 editor.editor_id = new_editor_id;
                 let editor = create_rw_signal(cx.scope, editor);
@@ -703,6 +720,21 @@ impl MainSplitData {
             self.editor_tab_remove(cx, editor_tab_id);
         }
 
+        Some(())
+    }
+
+    pub fn editor_tab_update_layout(
+        &self,
+        editor_tab_id: &EditorTabId,
+        window_origin: Point,
+        rect: Rect,
+    ) -> Option<()> {
+        let editor_tabs = self.editor_tabs.get_untracked();
+        let editor_tab = editor_tabs.get(editor_tab_id).copied()?;
+        editor_tab.update(|editor_tab| {
+            editor_tab.window_origin = window_origin;
+            editor_tab.layout_rect = rect;
+        });
         Some(())
     }
 }

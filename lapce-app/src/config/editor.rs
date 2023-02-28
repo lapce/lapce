@@ -155,4 +155,22 @@ impl EditorConfig {
         // Prevent overlapping lines
         (line_height.round() as usize).max(self.font_size)
     }
+
+    pub fn inlay_hint_font_size(&self) -> usize {
+        if self.inlay_hint_font_size < 5
+            || self.inlay_hint_font_size > self.font_size
+        {
+            self.font_size
+        } else {
+            self.inlay_hint_font_size
+        }
+    }
+
+    pub fn error_lens_font_size(&self) -> usize {
+        if self.error_lens_font_size == 0 {
+            self.inlay_hint_font_size()
+        } else {
+            self.error_lens_font_size
+        }
+    }
 }

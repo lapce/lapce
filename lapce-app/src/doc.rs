@@ -5,15 +5,17 @@ use std::{
 
 use floem::{
     app::AppContext,
+    ext_event::create_ext_action,
     parley::{
         style::{FontFamily, FontStack, StyleProperty},
         Layout,
     },
     peniko::{kurbo::Point, Brush, Color},
-    reactive::{ReadSignal, UntrackedGettableSignal},
+    reactive::{create_rw_signal, ReadSignal, RwSignal, UntrackedGettableSignal},
     text::ParleyBrush,
     views::VirtualListVector,
 };
+use itertools::Itertools;
 use lapce_core::{
     buffer::{Buffer, InvalLines},
     char_buffer::CharBuffer,
@@ -25,14 +27,30 @@ use lapce_core::{
     register::{Clipboard, Register},
     selection::{SelRegion, Selection},
     soft_tab::{snap_to_soft_tab, SnapDirection},
+    style::line_styles,
     syntax::{edit::SyntaxEdit, Syntax},
     word::WordCursor,
 };
-use lapce_rpc::buffer::BufferId;
-use lapce_xi_rope::{Rope, RopeDelta};
+use lapce_rpc::{
+    buffer::BufferId,
+    proxy::{ProxyResponse, ProxyRpcHandler},
+    style::{LineStyle, LineStyles, Style},
+};
+use lapce_xi_rope::{
+    spans::{Spans, SpansBuilder},
+    Interval, Rope, RopeDelta,
+};
+use lsp_types::{Diagnostic, DiagnosticSeverity, InlayHint, InlayHintLabel};
 use smallvec::SmallVec;
 
-use crate::config::{color::LapceColor, LapceConfig};
+use crate::{
+    config::{color::LapceColor, LapceConfig},
+    proxy::ProxyData,
+};
+
+use self::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine};
+
+mod phantom_text;
 
 pub struct SystemClipboard {}
 
@@ -52,8 +70,19 @@ impl Clipboard for SystemClipboard {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct EditorDiagnostic {
+    pub range: (usize, usize),
+    pub diagnostic: Diagnostic,
+    /// Line counter for the editor diagnostic.
+    /// Contains the total number of message lines and related information lines
+    pub lines: usize,
+}
+
 #[derive(Clone)]
 pub struct LineExtraStyle {
+    pub x: f64,
+    pub width: Option<f64>,
     pub bg_color: Option<Color>,
     pub under_line: Option<Color>,
 }
@@ -62,7 +91,7 @@ pub struct LineExtraStyle {
 pub struct TextLayoutLine {
     /// Extra styling that should be applied to the text
     /// (x0, x1 or line display end, style)
-    pub extra_style: Vec<(f64, Option<f64>, LineExtraStyle)>,
+    pub extra_style: Vec<LineExtraStyle>,
     pub text: Layout<ParleyBrush>,
     pub whitespaces: Option<Vec<(char, (f64, f64))>>,
     pub indent: f64,
@@ -112,11 +141,7 @@ pub enum DocContent {
 
 impl DocContent {
     pub fn is_local(&self) -> bool {
-        if let DocContent::Local = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, DocContent::Local)
     }
 }
 
@@ -124,8 +149,16 @@ impl DocContent {
 pub struct Document {
     pub content: DocContent,
     pub buffer_id: BufferId,
+    style_rev: u64,
     buffer: Buffer,
     syntax: Option<Syntax>,
+    line_styles: Rc<RefCell<LineStyles>>,
+    /// Semantic highlighting information (which is provided by the LSP)
+    semantic_styles: Option<Arc<Spans<Style>>>,
+    /// Inlay hints for the document
+    pub inlay_hints: Option<Spans<InlayHint>>,
+    /// The diagnostics for the document
+    pub diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
     /// Whether the buffer's content has been loaded/initialized into the buffer.
     loaded: bool,
 
@@ -133,11 +166,13 @@ pub struct Document {
     /// This is an `Rc<RefCell<_>>` due to needing to access it even when the document is borrowed,
     /// since we may need to fill it with constructed text layouts.
     pub text_layouts: Rc<RefCell<TextLayoutCache>>,
+    proxy: ProxyRpcHandler,
     config: ReadSignal<Arc<LapceConfig>>,
 }
 
 pub struct DocLine {
     pub rev: u64,
+    pub style_rev: u64,
     pub line: usize,
     pub text: Arc<TextLayoutLine>,
 }
@@ -154,6 +189,7 @@ impl VirtualListVector<DocLine> for Document {
             .into_iter()
             .map(|line| DocLine {
                 rev: self.buffer.rev(),
+                style_rev: self.style_rev,
                 line,
                 text: self.get_text_layout(line, 12),
             })
@@ -163,26 +199,48 @@ impl VirtualListVector<DocLine> for Document {
 }
 
 impl Document {
-    pub fn new(path: PathBuf, config: ReadSignal<Arc<LapceConfig>>) -> Self {
+    pub fn new(
+        cx: AppContext,
+        path: PathBuf,
+        proxy: ProxyRpcHandler,
+        config: ReadSignal<Arc<LapceConfig>>,
+    ) -> Self {
+        let syntax = Syntax::init(&path);
         Self {
             buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
+            style_rev: 0,
+            syntax: syntax.ok(),
+            line_styles: Rc::new(RefCell::new(HashMap::new())),
+            semantic_styles: None,
+            inlay_hints: None,
+            diagnostics: None,
             content: DocContent::File(path),
-            syntax: None,
             loaded: false,
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            proxy,
             config,
         }
     }
 
-    pub fn new_local(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> Self {
+    pub fn new_local(
+        cx: AppContext,
+        proxy: ProxyRpcHandler,
+        config: ReadSignal<Arc<LapceConfig>>,
+    ) -> Self {
         Self {
             buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
+            style_rev: 0,
             content: DocContent::Local,
             syntax: None,
+            line_styles: Rc::new(RefCell::new(HashMap::new())),
+            semantic_styles: None,
+            inlay_hints: None,
+            diagnostics: None,
             loaded: true,
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            proxy,
             config,
         }
     }
@@ -265,17 +323,14 @@ impl Document {
     fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
         let rev = self.rev() - deltas.len() as u64;
         for (i, (delta, _, _)) in deltas.iter().enumerate() {
-            // self.update_styles(delta);
-            // self.update_inlay_hints(delta);
+            self.update_styles(delta);
+            self.update_inlay_hints(delta);
             // self.update_diagnostics(delta);
             // self.update_completion(delta);
-            // if let BufferContent::File(path) = &self.content {
-            //     self.proxy.proxy_rpc.update(
-            //         path.clone(),
-            //         delta.clone(),
-            //         rev + i as u64 + 1,
-            //     );
-            // }
+            if let DocContent::File(path) = &self.content {
+                self.proxy
+                    .update(path.clone(), delta.clone(), rev + i as u64 + 1);
+            }
         }
 
         // TODO(minor): We could avoid this potential allocation since most apply_delta callers are actually using a Vec
@@ -296,20 +351,53 @@ impl Document {
         // *self.find_progress.borrow_mut() = FindProgress::Started;
         // self.get_inlay_hints();
         self.clear_style_cache();
-        // self.trigger_syntax_change(edits);
-        // self.get_semantic_styles();
+        self.trigger_syntax_change(edits);
         // self.clear_sticky_headers_cache();
         // self.trigger_head_change();
         // self.notify_special();
     }
 
-    fn clear_style_cache(&self) {
-        // self.line_styles.borrow_mut().clear();
+    /// Update the styles after an edit, so the highlights are at the correct positions.  
+    /// This does not do a reparse of the document itself.
+    fn update_styles(&mut self, delta: &RopeDelta) {
+        if let Some(styles) = self.semantic_styles.as_mut() {
+            Arc::make_mut(styles).apply_shape(delta);
+        }
+        if let Some(syntax) = self.syntax.as_mut() {
+            if let Some(styles) = syntax.styles.as_mut() {
+                Arc::make_mut(styles).apply_shape(delta);
+            }
+        }
+
+        if let Some(syntax) = self.syntax.as_mut() {
+            syntax.lens.apply_delta(delta);
+        }
+    }
+
+    /// Update the inlay hints so their positions are correct after an edit.
+    fn update_inlay_hints(&mut self, delta: &RopeDelta) {
+        if let Some(hints) = self.inlay_hints.as_mut() {
+            hints.apply_shape(delta);
+        }
+    }
+
+    fn trigger_syntax_change(&mut self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
+        let Some(syntax) = self.syntax.as_mut() else { return };
+
+        let rev = self.buffer.rev();
+        let text = self.buffer.text().clone();
+
+        syntax.parse(rev, text, edits.as_deref());
+    }
+
+    fn clear_style_cache(&mut self) {
+        self.line_styles.borrow_mut().clear();
         self.clear_text_layout_cache();
     }
 
-    fn clear_text_layout_cache(&self) {
+    fn clear_text_layout_cache(&mut self) {
         self.text_layouts.borrow_mut().clear();
+        self.style_rev += 1;
     }
 
     pub fn line_horiz_col(
@@ -741,27 +829,91 @@ impl Document {
     fn new_text_layout(&self, line: usize, font_size: usize) -> TextLayoutLine {
         let config = self.config.get_untracked();
         let line_content = self.buffer.line_content(line);
-        let mut text_layout_builder =
+
+        // Combine the phantom text with the line content
+        let phantom_text = self.line_phantom_text(line);
+        let line_content = phantom_text.combine_with_text(line_content.to_string());
+
+        let mut layout_builder =
             floem::parley::LayoutContext::builder(&line_content[..], 1.0);
 
         let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
-        text_layout_builder.push_default(
-            &floem::parley::style::StyleProperty::Brush(ParleyBrush(Brush::Solid(
-                *color,
-            ))),
-        );
+        layout_builder.push_default(&floem::parley::style::StyleProperty::Brush(
+            ParleyBrush(Brush::Solid(*color)),
+        ));
         let families =
             FontFamily::parse_list(&config.editor.font_family).collect::<Vec<_>>();
-        text_layout_builder
+        layout_builder
             .push_default(&StyleProperty::FontStack(FontStack::List(&families)));
-        text_layout_builder
+        layout_builder
             .push_default(&StyleProperty::FontSize(config.editor.font_size as f32));
 
-        let mut text_layout = text_layout_builder.build();
+        // Apply various styles to the line's text based on our semantic/syntax highlighting
+        let styles = self.line_style(line);
+        for line_style in styles.iter() {
+            if let Some(fg_color) = line_style.style.fg_color.as_ref() {
+                if let Some(fg_color) = config.get_style_color(fg_color) {
+                    let start = phantom_text.col_at(line_style.start);
+                    let end = phantom_text.col_at(line_style.end);
+                    layout_builder.push(
+                        &StyleProperty::Brush(ParleyBrush(Brush::Solid(*fg_color))),
+                        start..end,
+                    );
+                }
+            }
+        }
+
+        let font_size = config.editor.font_size;
+
+        // Apply phantom text specific styling
+        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
+            let start = col + offset;
+            let end = start + size;
+
+            if let Some(fg) = phantom.fg {
+                layout_builder.push(
+                    &StyleProperty::Brush(ParleyBrush(Brush::Solid(fg))),
+                    start..end,
+                );
+            }
+            if let Some(phantom_font_size) = phantom.font_size {
+                layout_builder.push(
+                    &StyleProperty::FontSize(phantom_font_size.min(font_size) as f32),
+                    start..end,
+                );
+            }
+            // if let Some(font_family) = phantom.font_family.clone() {
+            //     layout_builder = layout_builder.range_attribute(
+            //         start..end,
+            //         TextAttribute::FontFamily(font_family),
+            //     );
+            // }
+        }
+
+        let mut text_layout = layout_builder.build();
         text_layout.break_all_lines(None, floem::parley::layout::Alignment::Start);
+
+        // Keep track of background styling from phantom text, which is done separately
+        // from the text layout attributes
+        let mut extra_style = Vec::new();
+        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
+            if phantom.bg.is_some() || phantom.under_line.is_some() {
+                let start = col + offset;
+                let end = start + size;
+                let x0 = hit_test_text_position(&text_layout, start).point.x;
+                let x1 = hit_test_text_position(&text_layout, end).point.x;
+                extra_style.push(LineExtraStyle {
+                    x: x0,
+                    width: Some(x1 - x0),
+                    bg_color: phantom.bg,
+                    under_line: phantom.under_line,
+                });
+            }
+        }
+
         TextLayoutLine {
             text: text_layout,
-            extra_style: Vec::new(),
+            extra_style,
             whitespaces: None,
             indent: 0.0,
         }
@@ -818,4 +970,337 @@ impl Document {
             .cloned()
             .unwrap()
     }
+
+    /// Get the active style information, either the semantic styles or the
+    /// tree-sitter syntax styles.
+    fn styles(&self) -> Option<&Arc<Spans<Style>>> {
+        if let Some(semantic_styles) = self.semantic_styles.as_ref() {
+            Some(semantic_styles)
+        } else {
+            self.syntax.as_ref().and_then(|s| s.styles.as_ref())
+        }
+    }
+
+    /// Get the style information for the particular line from semantic/syntax highlighting.  
+    /// This caches the result if possible.
+    fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
+        if self.line_styles.borrow().get(&line).is_none() {
+            let styles = self.styles();
+
+            let line_styles = styles
+                .map(|styles| line_styles(self.buffer.text(), line, styles))
+                .unwrap_or_default();
+            self.line_styles
+                .borrow_mut()
+                .insert(line, Arc::new(line_styles));
+        }
+        self.line_styles.borrow().get(&line).cloned().unwrap()
+    }
+
+    pub fn tigger_proxy_update(
+        cx: AppContext,
+        doc: RwSignal<Document>,
+        proxy: &ProxyRpcHandler,
+    ) {
+        Self::get_inlay_hints(cx, doc, proxy);
+        Self::get_semantic_styles(cx, doc, proxy);
+    }
+
+    /// Request semantic styles for the buffer from the LSP through the proxy.
+    fn get_semantic_styles(
+        cx: AppContext,
+        doc: RwSignal<Document>,
+        proxy: &ProxyRpcHandler,
+    ) {
+        if !doc.with_untracked(|doc| doc.loaded) {
+            return;
+        }
+
+        let path = match doc.with_untracked(|doc| doc.content.clone()) {
+            DocContent::File(path) => path,
+            DocContent::Local => return,
+        };
+
+        let (rev, len) =
+            doc.with_untracked(|doc| (doc.buffer.rev(), doc.buffer.len()));
+
+        let syntactic_styles = doc.with_untracked(|doc| {
+            doc.syntax.as_ref().and_then(|s| s.styles.as_ref()).cloned()
+        });
+
+        let send = create_ext_action(cx, move |styles| {
+            doc.update(|doc| {
+                if doc.buffer.rev() == rev {
+                    doc.semantic_styles = Some(styles);
+                    doc.clear_style_cache();
+                }
+            })
+        });
+
+        proxy.get_semantic_tokens(path, move |result| {
+            if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
+                rayon::spawn(move || {
+                    let mut styles_span = SpansBuilder::new(len);
+                    for style in styles.styles {
+                        styles_span.add_span(
+                            Interval::new(style.start, style.end),
+                            style.style,
+                        );
+                    }
+
+                    let styles = styles_span.build();
+
+                    let styles = if let Some(syntactic_styles) = syntactic_styles {
+                        syntactic_styles.merge(&styles, |a, b| {
+                            if let Some(b) = b {
+                                return b.clone();
+                            }
+                            a.clone()
+                        })
+                    } else {
+                        styles
+                    };
+                    let styles = Arc::new(styles);
+
+                    send(styles);
+                });
+            }
+        });
+    }
+
+    /// Request inlay hints for the buffer from the LSP through the proxy.
+    fn get_inlay_hints(
+        cx: AppContext,
+        doc: RwSignal<Document>,
+        proxy: &ProxyRpcHandler,
+    ) {
+        if !doc.with_untracked(|doc| doc.loaded) {
+            return;
+        }
+
+        let path = match doc.with_untracked(|doc| doc.content.clone()) {
+            DocContent::File(path) => path,
+            DocContent::Local => return,
+        };
+
+        let (buffer, rev, len) = doc.with_untracked(|doc| {
+            (doc.buffer.clone(), doc.buffer.rev(), doc.buffer.len())
+        });
+
+        let send = create_ext_action(cx, move |hints| {
+            doc.update(|doc| {
+                if doc.buffer.rev() == rev {
+                    println!("update inlay hints");
+                    doc.inlay_hints = Some(hints);
+                    doc.clear_text_layout_cache();
+                }
+            })
+        });
+
+        proxy.get_inlay_hints(path, move |result| {
+            if let Ok(ProxyResponse::GetInlayHints { mut hints }) = result {
+                // Sort the inlay hints by their position, as the LSP does not guarantee that it will
+                // provide them in the order that they are in within the file
+                // as well, Spans does not iterate in the order that they appear
+                hints.sort_by(|left, right| left.position.cmp(&right.position));
+
+                let mut hints_span = SpansBuilder::new(len);
+                for hint in hints {
+                    let offset = buffer.offset_of_position(&hint.position).min(len);
+                    hints_span.add_span(
+                        Interval::new(offset, (offset + 1).min(len)),
+                        hint,
+                    );
+                }
+                let hints = hints_span.build();
+                send(hints);
+            }
+        });
+    }
+
+    /// Get the phantom text for a given line
+    pub fn line_phantom_text(&self, line: usize) -> PhantomTextLine {
+        let config = self.config.get_untracked();
+
+        let start_offset = self.buffer.offset_of_line(line);
+        let end_offset = self.buffer.offset_of_line(line + 1);
+
+        // If hints are enabled, and the hints field is filled, then get the hints for this line
+        // and convert them into PhantomText instances
+        let hints = config
+            .editor
+            .enable_inlay_hints
+            .then_some(())
+            .and(self.inlay_hints.as_ref())
+            .map(|hints| hints.iter_chunks(start_offset..end_offset))
+            .into_iter()
+            .flatten()
+            .filter(|(interval, _)| {
+                interval.start >= start_offset && interval.start < end_offset
+            })
+            .map(|(interval, inlay_hint)| {
+                let (_, col) = self.buffer.offset_to_line_col(interval.start);
+                let text = match &inlay_hint.label {
+                    InlayHintLabel::String(label) => label.to_string(),
+                    InlayHintLabel::LabelParts(parts) => {
+                        parts.iter().map(|p| &p.value).join("")
+                    }
+                };
+                PhantomText {
+                    kind: PhantomTextKind::InlayHint,
+                    col,
+                    text,
+                    fg: Some(*config.get_color(LapceColor::INLAY_HINT_FOREGROUND)),
+                    // font_family: Some(config.editor.inlay_hint_font_family()),
+                    font_size: Some(config.editor.inlay_hint_font_size()),
+                    bg: Some(*config.get_color(LapceColor::INLAY_HINT_BACKGROUND)),
+                    under_line: None,
+                }
+            });
+        // You're quite unlikely to have more than six hints on a single line
+        // this later has the diagnostics added onto it, but that's still likely to be below six
+        // overall.
+        let mut text: SmallVec<[PhantomText; 6]> = hints.collect();
+
+        // The max severity is used to determine the color given to the background of the line
+        let mut max_severity = None;
+        // If error lens is enabled, and the diagnostics field is filled, then get the diagnostics
+        // that end on this line which have a severity worse than HINT and convert them into
+        // PhantomText instances
+        let diag_text = config
+            .editor
+            .enable_error_lens
+            .then_some(())
+            .and(self.diagnostics.as_ref())
+            .map(|x| x.iter())
+            .into_iter()
+            .flatten()
+            .filter(|diag| {
+                diag.diagnostic.range.end.line as usize == line
+                    && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
+            })
+            .map(|diag| {
+                match (diag.diagnostic.severity, max_severity) {
+                    (Some(severity), Some(max)) => {
+                        if severity < max {
+                            max_severity = Some(severity);
+                        }
+                    }
+                    (Some(severity), None) => {
+                        max_severity = Some(severity);
+                    }
+                    _ => {}
+                }
+
+                let rope_text = self.buffer.rope_text();
+                let col = rope_text.offset_of_line(line + 1)
+                    - rope_text.offset_of_line(line);
+                let fg = {
+                    let severity = diag
+                        .diagnostic
+                        .severity
+                        .unwrap_or(DiagnosticSeverity::WARNING);
+                    let theme_prop = if severity == DiagnosticSeverity::ERROR {
+                        LapceColor::ERROR_LENS_ERROR_FOREGROUND
+                    } else if severity == DiagnosticSeverity::WARNING {
+                        LapceColor::ERROR_LENS_WARNING_FOREGROUND
+                    } else {
+                        // information + hint (if we keep that) + things without a severity
+                        LapceColor::ERROR_LENS_OTHER_FOREGROUND
+                    };
+
+                    *config.get_color(theme_prop)
+                };
+                let text =
+                    format!("    {}", diag.diagnostic.message.lines().join(" "));
+                PhantomText {
+                    kind: PhantomTextKind::Diagnostic,
+                    col,
+                    text,
+                    fg: Some(fg),
+                    font_size: Some(config.editor.error_lens_font_size()),
+                    // font_family: Some(config.editor.error_lens_font_family()),
+                    bg: None,
+                    under_line: None,
+                }
+            });
+        let mut diag_text: SmallVec<[PhantomText; 6]> = diag_text.collect();
+
+        text.append(&mut diag_text);
+
+        // let (completion_line, completion_col) = self.completion_pos;
+        // let completion_text = config
+        //     .editor
+        //     .enable_completion_lens
+        //     .then_some(())
+        //     .and(self.completion.as_ref())
+        //     // TODO: We're probably missing on various useful completion things to include here!
+        //     .filter(|_| line == completion_line)
+        //     .map(|completion| PhantomText {
+        //         kind: PhantomTextKind::Completion,
+        //         col: completion_col,
+        //         text: completion.to_string(),
+        //         fg: Some(
+        //             config
+        //                 .get_color_unchecked(LapceTheme::COMPLETION_LENS_FOREGROUND)
+        //                 .clone(),
+        //         ),
+        //         font_size: Some(config.editor.completion_lens_font_size()),
+        //         font_family: Some(config.editor.completion_lens_font_family()),
+        //         bg: None,
+        //         under_line: None,
+        //         // TODO: italics?
+        //     });
+        // if let Some(completion_text) = completion_text {
+        //     text.push(completion_text);
+        // }
+
+        // if let Some(ime_text) = self.ime_text.as_ref() {
+        //     let (ime_line, col, _) = self.ime_pos;
+        //     if line == ime_line {
+        //         text.push(PhantomText {
+        //             kind: PhantomTextKind::Ime,
+        //             text: ime_text.to_string(),
+        //             col,
+        //             font_size: None,
+        //             font_family: None,
+        //             fg: None,
+        //             bg: None,
+        //             under_line: Some(
+        //                 config
+        //                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+        //                     .clone(),
+        //             ),
+        //         });
+        //     }
+        // }
+
+        text.sort_by(|a, b| {
+            if a.col == b.col {
+                a.kind.cmp(&b.kind)
+            } else {
+                a.col.cmp(&b.col)
+            }
+        });
+
+        PhantomTextLine { text, max_severity }
+    }
+}
+
+#[derive(Default)]
+pub struct HitTestPosition {
+    pub point: Point,
+    pub line: usize,
+}
+
+fn hit_test_text_position(
+    text_layout: &Layout<ParleyBrush>,
+    idx: usize,
+) -> HitTestPosition {
+    let cursor =
+        floem::parley::layout::Cursor::from_position(text_layout, idx, true);
+    let mut result = HitTestPosition::default();
+    result.point = Point::new(cursor.offset() as f64, cursor.baseline() as f64);
+    result.line = cursor.path().line_index;
+    result
 }

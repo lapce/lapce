@@ -278,6 +278,11 @@ impl LapceConfig {
             .unwrap_or_else(|| panic!("Key not found: {name}"))
     }
 
+    /// Retrieve a color value whose key starts with "style."
+    pub fn get_style_color(&self, name: &str) -> Option<&Color> {
+        self.color.syntax.get(name)
+    }
+
     fn resolve_colors(&mut self, default_config: Option<&LapceConfig>) {
         self.color.base = self
             .color_theme

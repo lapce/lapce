@@ -101,6 +101,7 @@ impl PaletteData {
             EditorId::next(),
             register,
             internal_command,
+            proxy_rpc.clone(),
             config,
         );
         let run_id_counter = Arc::new(AtomicU64::new(0));
@@ -276,7 +277,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn select(&self) {
+    fn select(&self, cx: AppContext) {
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
         if let Some(item) = items.get(index) {
@@ -289,10 +290,10 @@ impl PaletteData {
                 PaletteItemContent::Command { cmd } => {}
             }
         }
-        self.cancel();
+        self.cancel(cx);
     }
 
-    fn cancel(&self) {
+    fn cancel(&self, cx: AppContext) {
         self.status.set(PaletteStatus::Inactive);
         self.focus.set(Focus::Workbench);
         self.editor
@@ -322,10 +323,14 @@ impl PaletteData {
 
     fn previous_page(&self) {}
 
-    fn run_focus_command(&self, cmd: &FocusCommand) -> CommandExecuted {
+    fn run_focus_command(
+        &self,
+        cx: AppContext,
+        cmd: &FocusCommand,
+    ) -> CommandExecuted {
         match cmd {
             FocusCommand::ModalClose => {
-                self.cancel();
+                self.cancel(cx);
             }
             FocusCommand::ListNext => {
                 self.next();
@@ -340,7 +345,7 @@ impl PaletteData {
                 self.previous_page();
             }
             FocusCommand::ListSelect => {
-                self.select();
+                self.select(cx);
             }
             _ => return CommandExecuted::No,
         }
@@ -459,7 +464,7 @@ impl KeyPressFocus for PaletteData {
             CommandKind::Move(_) => {
                 self.editor.run_command(cx, command, count, mods)
             }
-            CommandKind::Focus(cmd) => self.run_focus_command(cmd),
+            CommandKind::Focus(cmd) => self.run_focus_command(cx, cmd),
             CommandKind::MotionMode(_) => todo!(),
             CommandKind::MultiSelection(_) => todo!(),
         }
