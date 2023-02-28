@@ -143,7 +143,7 @@ impl LapceData {
                 .map(|i| (i.size, i.pos))
                 .unwrap_or_else(|_| (Size::new(800.0, 600.0), Point::new(0.0, 0.0)));
             for dir in dirs {
-                #[cfg(target_os = "windows")]
+                #[cfg(windows)]
                 let workspace_type =
                     if !env::var("WSL_DISTRO_NAME").unwrap_or_default().is_empty()
                         || !env::var("WSL_INTEROP").unwrap_or_default().is_empty()
@@ -153,7 +153,7 @@ impl LapceData {
                         LapceWorkspaceType::Local
                     };
 
-                #[cfg(not(target_os = "windows"))]
+                #[cfg(not(windows))]
                 let workspace_type = LapceWorkspaceType::Local;
 
                 let info = WindowInfo {
@@ -1880,6 +1880,7 @@ impl LapceTabData {
                     Target::Widget(self.palette.widget_id),
                 ));
             }
+            #[cfg(windows)]
             LapceWorkbenchCommand::ConnectWsl => ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::SetWorkspace(LapceWorkspace {
@@ -4714,15 +4715,22 @@ impl Display for SshHost {
 pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(SshHost),
+    #[cfg(windows)]
     RemoteWSL,
 }
 
 impl LapceWorkspaceType {
+    #[cfg(windows)]
     pub fn is_remote(&self) -> bool {
         matches!(
             self,
             LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL
         )
+    }
+
+    #[cfg(not(windows))]
+    pub fn is_remote(&self) -> bool {
+        matches!(self, LapceWorkspaceType::RemoteSSH(_))
     }
 }
 
@@ -4733,6 +4741,7 @@ impl std::fmt::Display for LapceWorkspaceType {
             LapceWorkspaceType::RemoteSSH(ssh) => {
                 write!(f, "ssh://{ssh}")
             }
+            #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
         }
     }

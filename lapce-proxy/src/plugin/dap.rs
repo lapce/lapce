@@ -13,6 +13,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use lapce_rpc::{
+    core::CoreRpcHandler,
     dap_types::{
         self, ConfigurationDone, Continue, ContinueArguments, ContinueResponse,
         DapEvent, DapId, DapPayload, DapRequest, DapResponse, DapServer,
@@ -27,6 +28,7 @@ use lapce_rpc::{
     RpcError,
 };
 use parking_lot::Mutex;
+use serde::Serialize;
 use serde_json::Value;
 
 use super::{

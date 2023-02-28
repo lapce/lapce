@@ -169,19 +169,18 @@ impl Title {
             LapceWorkspaceType::Local => data
                 .config
                 .get_color_unchecked(LapceTheme::LAPCE_REMOTE_LOCAL),
-            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL => {
-                match *data.proxy_status {
-                    ProxyStatus::Connecting => data
-                        .config
-                        .get_color_unchecked(LapceTheme::LAPCE_REMOTE_CONNECTING),
-                    ProxyStatus::Connected => data
-                        .config
-                        .get_color_unchecked(LapceTheme::LAPCE_REMOTE_CONNECTED),
-                    ProxyStatus::Disconnected => data
-                        .config
-                        .get_color_unchecked(LapceTheme::LAPCE_REMOTE_DISCONNECTED),
-                }
-            }
+            // LapceWorkspaceType::Remote*
+            _ => match *data.proxy_status {
+                ProxyStatus::Connecting => data
+                    .config
+                    .get_color_unchecked(LapceTheme::LAPCE_REMOTE_CONNECTING),
+                ProxyStatus::Connected => data
+                    .config
+                    .get_color_unchecked(LapceTheme::LAPCE_REMOTE_CONNECTED),
+                ProxyStatus::Disconnected => data
+                    .config
+                    .get_color_unchecked(LapceTheme::LAPCE_REMOTE_DISCONNECTED),
+            },
         };
         self.rects.push((remote_rect, color.clone()));
         let remote_svg = data.config.ui_svg(LapceIcons::REMOTE);
@@ -532,6 +531,7 @@ impl Title {
             LapceWorkspaceType::RemoteSSH(ssh) => {
                 format!(" [SSH: {}]", ssh.host)
             }
+            #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL => " [WSL]".to_string(),
         };
         let text = format!("{path}{remote}");
