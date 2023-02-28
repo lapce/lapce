@@ -25,7 +25,8 @@ use lapce_rpc::{file::FileNodeItem, source_control::FileDiff};
 use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
-    scroll::LapceScroll, truncated_text::truncate_if_necessary,
+    scroll::LapceScroll,
+    truncated_text::truncate_if_necessary,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -127,33 +128,29 @@ fn paint_single_file_node_item(
         ctx.draw_svg(&svg, rect, svg_color);
     }
 
-    let path = item.path_buf
-        .file_name()
-        .unwrap()
-        .to_str()
-        .unwrap();
+    let path = item.path_buf.file_name().unwrap().to_str().unwrap();
 
     let text_layout = ctx
         .text()
-        .new_text_layout(
-            path.to_string(),
-        )
+        .new_text_layout(path.to_string())
         .font(config.ui.font_family(), font_size)
         .text_color(config.get_color_unchecked(text_color).clone())
         .build()
         .unwrap();
-    
-    if let Some(text) = truncate_if_necessary(&text_layout, width - (38.0 + padding) - 5.0, path.to_string()) {
+
+    if let Some(text) = truncate_if_necessary(
+        &text_layout,
+        width - (38.0 + padding) - 5.0,
+        path.to_string(),
+    ) {
         let text_layout = ctx
             .text()
-            .new_text_layout(
-                text,
-            )
+            .new_text_layout(text)
             .font(config.ui.font_family(), font_size)
             .text_color(config.get_color_unchecked(text_color).clone())
             .build()
             .unwrap();
-        
+
         ctx.draw_text(
             &text_layout,
             Point::new(38.0 + padding, y + text_layout.y_offset(line_height)),
@@ -164,7 +161,6 @@ fn paint_single_file_node_item(
             Point::new(38.0 + padding, y + text_layout.y_offset(line_height)),
         );
     }
-
 }
 
 /// Paint the file node item, if it is in view, and its children
@@ -1391,7 +1387,11 @@ impl OpenEditorList {
         }
         let text_layout = text_layout.build().unwrap();
 
-        if let Some(truncated) = truncate_if_necessary(&text_layout, size.width - (svg_rect.x1 + 5.0) - 5.0, text) {
+        if let Some(truncated) = truncate_if_necessary(
+            &text_layout,
+            size.width - (svg_rect.x1 + 5.0) - 5.0,
+            text,
+        ) {
             let mut text_layout = ctx
                 .text()
                 .new_text_layout(truncated.to_string())
@@ -1418,7 +1418,8 @@ impl OpenEditorList {
                 &text_layout,
                 Point::new(
                     svg_rect.x1 + 5.0,
-                    i as f64 * self.line_height + text_layout.y_offset(self.line_height),
+                    i as f64 * self.line_height
+                        + text_layout.y_offset(self.line_height),
                 ),
             );
         } else {
@@ -1426,11 +1427,11 @@ impl OpenEditorList {
                 &text_layout,
                 Point::new(
                     svg_rect.x1 + 5.0,
-                    i as f64 * self.line_height + text_layout.y_offset(self.line_height),
+                    i as f64 * self.line_height
+                        + text_layout.y_offset(self.line_height),
                 ),
             );
         }
-
     }
 }
 

@@ -472,7 +472,11 @@ impl Widget<LapceTabData> for SourceControlFileList {
 
             let text_layout = text_layout.build().unwrap();
 
-            if let Some(truncated) = truncate_if_necessary(&text_layout, current_line.width() - self.line_height * 2.0 - svg_size * 2.0, text) {
+            if let Some(truncated) = truncate_if_necessary(
+                &text_layout,
+                current_line.width() - self.line_height * 2.0 - svg_size * 2.0,
+                text
+            ) {
                 let mut text_layout = ctx
                     .text()
                     .new_text_layout(truncated.to_string())
@@ -485,7 +489,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                             .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
                             .clone(),
                     );
-                // the second condition ensures that the 3 dots are als in the same color
+                // the second condition ensures that the 3 dots are all in the same color
                 if !folder.is_empty() && (truncated.len() - 3) > (total_len - folder.len()){
                     text_layout = text_layout.range_attribute(
                         total_len - folder.len()..(total_len + 2),
