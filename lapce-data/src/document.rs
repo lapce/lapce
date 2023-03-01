@@ -1373,7 +1373,7 @@ impl Document {
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let old_cursor = cursor.mode.clone();
         let auto_closing = config.editor.auto_closing_matching_pairs
-            & match self.content {
+            && match self.content {
                 BufferContent::File(_) => true,
                 BufferContent::Local(_) => false,
                 BufferContent::SettingsValue(_) => false,
