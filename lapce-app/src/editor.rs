@@ -36,6 +36,7 @@ pub struct EditorData {
     register: RwSignal<Register>,
     internal_command: WriteSignal<Option<InternalCommand>>,
     pub viewport: RwSignal<Rect>,
+    pub gutter_viewport: RwSignal<Rect>,
     pub scroll: RwSignal<Vec2>,
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
@@ -55,6 +56,7 @@ impl EditorData {
         let cursor = create_rw_signal(cx.scope, cursor);
         let scroll = create_rw_signal(cx.scope, Vec2::ZERO);
         let viewport = create_rw_signal(cx.scope, Rect::ZERO);
+        let gutter_viewport = create_rw_signal(cx.scope, Rect::ZERO);
         Self {
             editor_tab_id: Some(editor_tab_id),
             editor_id,
@@ -63,6 +65,7 @@ impl EditorData {
             register,
             internal_command,
             viewport,
+            gutter_viewport,
             scroll,
             config,
         }
@@ -83,6 +86,7 @@ impl EditorData {
         let cursor = create_rw_signal(cx.scope, cursor);
         let scroll = create_rw_signal(cx.scope, Vec2::ZERO);
         let viewport = create_rw_signal(cx.scope, Rect::ZERO);
+        let gutter_viewport = create_rw_signal(cx.scope, Rect::ZERO);
         Self {
             editor_tab_id: None,
             editor_id,
@@ -91,6 +95,7 @@ impl EditorData {
             register,
             internal_command,
             viewport,
+            gutter_viewport,
             scroll,
             config,
         }

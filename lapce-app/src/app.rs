@@ -262,6 +262,107 @@ fn insert_cursor(
     renders
 }
 
+fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
+    let (doc, cursor, scroll_delta, viewport, gutter_viewport, config) = editor
+        .with(|editor| {
+            (
+                editor.doc.read_only(),
+                editor.cursor.read_only(),
+                editor.scroll.read_only(),
+                editor.viewport,
+                editor.gutter_viewport,
+                editor.config,
+            )
+        });
+
+    stack(cx, |cx| {
+        (
+            stack(cx, |cx| {
+                (
+                    label(cx, || "".to_string()).style(cx, || Style {
+                        width: Dimension::Points(20.0),
+                        ..Default::default()
+                    }),
+                    label(cx, move || {
+                        doc.with(|doc| (doc.buffer().last_line() + 1).to_string())
+                    })
+                    .style(cx, || Style {
+                        ..Default::default()
+                    }),
+                    label(cx, || "".to_string()).style(cx, || Style {
+                        width: Dimension::Points(20.0),
+                        ..Default::default()
+                    }),
+                )
+            })
+            .style(cx, || Style {
+                height: Dimension::Percent(1.0),
+                ..Default::default()
+            }),
+            scroll(cx, |cx| {
+                virtual_list(
+                    cx,
+                    VirtualListDirection::Vertical,
+                    move || doc.get(),
+                    |line: &DocLine| (line.rev, line.style_rev, line.line),
+                    move |cx, line: DocLine| {
+                        stack(cx, move |cx| {
+                            (
+                                label(cx, || "".to_string()).style(cx, || Style {
+                                    width: Dimension::Points(20.0),
+                                    ..Default::default()
+                                }),
+                                label(cx, move || line.line.to_string()).style(
+                                    cx,
+                                    || Style {
+                                        flex_grow: 1.0,
+                                        justify_content: Some(JustifyContent::End),
+                                        ..Default::default()
+                                    },
+                                ),
+                                label(cx, || "".to_string()).style(cx, || Style {
+                                    width: Dimension::Points(20.0),
+                                    ..Default::default()
+                                }),
+                            )
+                        })
+                        .style(cx, move || {
+                            let config = config.get_untracked();
+                            let line_height = config.editor.line_height();
+                            Style {
+                                align_content: Some(AlignContent::Center),
+                                height: Dimension::Points(line_height as f32),
+                                ..Default::default()
+                            }
+                        })
+                    },
+                    VirtualListItemSize::Fixed(
+                        config.get_untracked().editor.line_height() as f64,
+                    ),
+                )
+                .style(cx, || Style {
+                    flex_direction: FlexDirection::Column,
+                    ..Default::default()
+                })
+            })
+            .hide_bar()
+            .on_scroll_to(cx, move || viewport.get().origin())
+            .onscroll(move |rect| {
+                gutter_viewport.set(rect);
+            })
+            .style(cx, move || Style {
+                position: Position::Absolute,
+                background: Some(
+                    *config.get().get_color(LapceColor::EDITOR_BACKGROUND),
+                ),
+                width: Dimension::Percent(1.0),
+                height: Dimension::Percent(1.0),
+                ..Default::default()
+            }),
+        )
+    })
+}
+
 fn editor_cursor(
     cx: AppContext,
     doc: ReadSignal<Document>,
@@ -376,15 +477,17 @@ fn editor(
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor: RwSignal<EditorData>,
 ) -> impl View {
-    let (doc, cursor, scroll_delta, viewport, config) = editor.with(|editor| {
-        (
-            editor.doc.read_only(),
-            editor.cursor.read_only(),
-            editor.scroll.read_only(),
-            editor.viewport,
-            editor.config,
-        )
-    });
+    let (doc, cursor, scroll_delta, viewport, gutter_viewport, config) = editor
+        .with(|editor| {
+            (
+                editor.doc.read_only(),
+                editor.cursor.read_only(),
+                editor.scroll.read_only(),
+                editor.viewport,
+                editor.gutter_viewport,
+                editor.config,
+            )
+        });
 
     let is_active = move || {
         let active_editor_tab = active_editor_tab.get();
@@ -444,52 +547,74 @@ fn editor(
 
     stack(cx, |cx| {
         (
-            editor_cursor(cx, doc, cursor, viewport.read_only(), is_active, config),
-            scroll(cx, |cx| {
-                let config = config.get_untracked();
-                let line_height = config.editor.line_height();
-                virtual_list(
-                    cx,
-                    VirtualListDirection::Vertical,
-                    move || doc.get(),
-                    key_fn,
-                    view_fn,
-                    VirtualListItemSize::Fixed(line_height as f64),
-                )
-                .style(cx, || Style {
-                    flex_direction: FlexDirection::Column,
-                    ..Default::default()
-                })
-            })
-            .onscroll(move |rect| {
-                viewport.set(rect);
-            })
-            .on_scroll_delta(cx, move || scroll_delta.get())
-            .on_ensure_visible(cx, move || {
-                let cursor = cursor.get();
-                let offset = cursor.offset();
-                let caret = doc.with_untracked(|doc| {
-                    cursor_caret(doc, offset, !cursor.is_insert())
-                });
-                let config = config.get_untracked();
-                let line_height = config.editor.line_height();
-                if let CursorRender::Caret { x, width, line } = caret {
-                    let rect = Size::new(width, line_height as f64)
-                        .to_rect()
-                        .with_origin(Point::new(x, (line * line_height) as f64));
+            editor_gutter(cx, editor),
+            stack(cx, |cx| {
+                (
+                    editor_cursor(
+                        cx,
+                        doc,
+                        cursor,
+                        viewport.read_only(),
+                        is_active,
+                        config,
+                    ),
+                    scroll(cx, |cx| {
+                        let config = config.get_untracked();
+                        let line_height = config.editor.line_height();
+                        virtual_list(
+                            cx,
+                            VirtualListDirection::Vertical,
+                            move || doc.get(),
+                            key_fn,
+                            view_fn,
+                            VirtualListItemSize::Fixed(line_height as f64),
+                        )
+                        .style(cx, || Style {
+                            flex_direction: FlexDirection::Column,
+                            ..Default::default()
+                        })
+                    })
+                    .onscroll(move |rect| {
+                        viewport.set(rect);
+                    })
+                    .on_scroll_to(cx, move || gutter_viewport.get().origin())
+                    .on_scroll_delta(cx, move || scroll_delta.get())
+                    .on_ensure_visible(cx, move || {
+                        let cursor = cursor.get();
+                        let offset = cursor.offset();
+                        let caret = doc.with_untracked(|doc| {
+                            cursor_caret(doc, offset, !cursor.is_insert())
+                        });
+                        let config = config.get_untracked();
+                        let line_height = config.editor.line_height();
+                        if let CursorRender::Caret { x, width, line } = caret {
+                            let rect = Size::new(width, line_height as f64)
+                                .to_rect()
+                                .with_origin(Point::new(
+                                    x,
+                                    (line * line_height) as f64,
+                                ));
 
-                    rect.inflate(
-                        0.0,
-                        (config.editor.cursor_surrounding_lines * line_height)
-                            as f64,
-                    )
-                } else {
-                    Rect::ZERO
-                }
+                            rect.inflate(
+                                0.0,
+                                (config.editor.cursor_surrounding_lines
+                                    * line_height)
+                                    as f64,
+                            )
+                        } else {
+                            Rect::ZERO
+                        }
+                    })
+                    .style(cx, || Style {
+                        position: Position::Absolute,
+                        width: Dimension::Percent(1.0),
+                        height: Dimension::Percent(1.0),
+                        ..Default::default()
+                    }),
+                )
             })
             .style(cx, || Style {
-                position: Position::Absolute,
-                width: Dimension::Percent(1.0),
+                flex_grow: 1.0,
                 height: Dimension::Percent(1.0),
                 ..Default::default()
             }),

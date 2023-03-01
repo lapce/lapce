@@ -1090,7 +1090,6 @@ impl Document {
         let send = create_ext_action(cx, move |hints| {
             doc.update(|doc| {
                 if doc.buffer.rev() == rev {
-                    println!("update inlay hints");
                     doc.inlay_hints = Some(hints);
                     doc.clear_text_layout_cache();
                 }

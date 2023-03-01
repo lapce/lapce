@@ -1,6 +1,17 @@
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum ClickMode {
+    #[default]
+    #[serde(rename = "single")]
+    SingleClick,
+    #[serde(rename = "file")]
+    DoubleClickFile,
+    #[serde(rename = "all")]
+    DoubleClickAll,
+}
+
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct EditorConfig {
@@ -132,8 +143,10 @@ pub struct EditorConfig {
         desc = "If enabled the cursor treats leading soft tabs as if they are hard tabs."
     )]
     pub atomic_soft_tabs: bool,
-    #[field_names(desc = "Use double click to open interact with file explorer")]
-    pub double_click: bool,
+    #[field_names(
+        desc = "Use a double click to interact with the file explorer.\nOptions: single (default), file or all."
+    )]
+    pub double_click: ClickMode,
     #[field_names(desc = "Move the focus as you type in the global search box")]
     pub move_focus_while_search: bool,
     #[field_names(

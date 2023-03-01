@@ -1592,7 +1592,7 @@ dependencies = [
  "smallvec",
  "taffy",
  "tokio",
- "vello",
+ "vello 0.0.1",
  "vello_svg",
  "wgpu",
 ]
@@ -3043,7 +3043,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-app"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "anyhow",
  "config",
@@ -6574,6 +6574,20 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "vello"
+version = "0.0.1"
+dependencies = [
+ "bytemuck",
+ "futures-intrusive",
+ "moscato",
+ "parking_lot 0.12.1",
+ "peniko",
+ "raw-window-handle",
+ "smallvec",
+ "wgpu",
+]
+
+[[package]]
+name = "vello"
 version = "0.1.0"
 source = "git+https://github.com/linebender/vello#020a7f5c016ab5c572cefbe169f19082a0e34ffe"
 dependencies = [
@@ -6593,7 +6607,7 @@ version = "0.1.0"
 source = "git+https://github.com/linebender/vello#020a7f5c016ab5c572cefbe169f19082a0e34ffe"
 dependencies = [
  "usvg 0.28.0",
- "vello",
+ "vello 0.1.0",
 ]
 
 [[package]]

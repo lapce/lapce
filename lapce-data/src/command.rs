@@ -118,11 +118,10 @@ impl LapceCommand {
                 | LapceWorkbenchCommand::ChangeColorTheme
                 | LapceWorkbenchCommand::ChangeIconTheme
                 | LapceWorkbenchCommand::ConnectSshHost
-                | LapceWorkbenchCommand::PaletteWorkspace => return true,
+                | LapceWorkbenchCommand::PaletteWorkspace
+                | LapceWorkbenchCommand::PaletteRunAndDebug => return true,
                 #[cfg(windows)]
                 LapceWorkbenchCommand::ConnectWsl => return true,
-                LapceWorkbenchCommand::PaletteWorkspace
-                | LapceWorkbenchCommand::PaletteRunConfig => return true,
                 _ => {}
             }
         }
