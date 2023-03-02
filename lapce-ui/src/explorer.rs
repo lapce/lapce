@@ -127,24 +127,37 @@ fn paint_single_file_node_item(
         ctx.draw_svg(&svg, rect, svg_color);
     }
 
+    let path = item.path_buf.file_name().unwrap().to_str().unwrap();
+    
     let text_layout = ctx
         .text()
-        .new_text_layout(
-            item.path_buf
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string(),
-        )
+        .new_text_layout(path.to_string())
         .font(config.ui.font_family(), font_size)
         .text_color(config.get_color_unchecked(text_color).clone())
         .build()
         .unwrap();
-    ctx.draw_text(
-        &text_layout,
-        Point::new(38.0 + padding, y + text_layout.y_offset(line_height)),
-    );
+
+    let max_width = width - (38.0 + padding) - 5.0;
+
+    if let Some(truncated) = truncate(&text_layout, max_width, path.to_string()) {
+        let text_layout = ctx
+            .text()
+            .new_text_layout(truncated)
+            .font(config.ui.font_family(), font_size)
+            .text_color(config.get_color_unchecked(text_color).clone())
+            .build()
+            .unwrap();
+
+        ctx.draw_text(
+            &text_layout,
+            Point::new(38.0 + padding, y + text_layout.y_offset(line_height)),
+        );
+    } else {
+        ctx.draw_text(
+            &text_layout,
+            Point::new(38.0 + padding, y + text_layout.y_offset(line_height)),
+        );
+    }
 }
 
 /// Paint the file node item, if it is in view, and its children
