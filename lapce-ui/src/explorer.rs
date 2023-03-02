@@ -25,7 +25,7 @@ use lapce_rpc::{file::FileNodeItem, source_control::FileDiff};
 use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
-    scroll::LapceScroll,
+    scroll::LapceScroll, text::truncate,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -1352,7 +1352,7 @@ impl OpenEditorList {
         let total_len = text.len();
         let mut text_layout = ctx
             .text()
-            .new_text_layout(text)
+            .new_text_layout(text.to_string())
             .font(data.config.ui.font_family(), font_size)
             .text_color(
                 data.config
@@ -1370,13 +1370,48 @@ impl OpenEditorList {
             );
         }
         let text_layout = text_layout.build().unwrap();
-        ctx.draw_text(
-            &text_layout,
-            Point::new(
-                svg_rect.x1 + 5.0,
-                i as f64 * self.line_height + text_layout.y_offset(self.line_height),
-            ),
-        );
+
+        let max_width = size.width - (svg_rect.x1 + 5.0) - 5.0;
+
+        if let Some(truncated) = truncate(&text_layout, max_width, text) {
+            let mut text_layout = ctx
+                .text()
+                .new_text_layout(truncated.to_string())
+                .font(data.config.ui.font_family(), font_size)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
+                        .clone(),
+                );
+            
+            // the second condition ensures that the 3 dots are als in the same color
+            if !hint.is_empty() && (truncated.len() - 3) > (total_len - hint.len()) {
+                text_layout = text_layout.range_attribute(
+                    total_len - hint.len()..total_len,
+                    TextAttribute::TextColor(
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_FOREGROUND_DIM)
+                            .clone(),
+                    ),
+                );
+            }
+            let text_layout = text_layout.build().unwrap();
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    svg_rect.x1 + 5.0,
+                    i as f64 * self.line_height + text_layout.y_offset(self.line_height),
+                ),
+            );
+        } else {
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    svg_rect.x1 + 5.0,
+                    i as f64 * self.line_height + text_layout.y_offset(self.line_height),
+                ),
+            );
+        }
     }
 }
 
