@@ -39,6 +39,7 @@ use lapce_core::{
 
 use crate::{
     command::{CommandKind, LapceWorkbenchCommand},
+    completion::{CompletionData, ScoredCompletionItem},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     db::LapceDb,
     doc::{DocContent, DocLine, Document, TextLayoutLine},
@@ -304,7 +305,7 @@ fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
                     cx,
                     VirtualListDirection::Vertical,
                     move || doc.get(),
-                    |line: &DocLine| (line.rev, line.style_rev, line.line),
+                    |line: &DocLine| line.line,
                     move |cx, line: DocLine| {
                         stack(cx, move |cx| {
                             (
@@ -312,14 +313,12 @@ fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
                                     width: Dimension::Points(20.0),
                                     ..Default::default()
                                 }),
-                                label(cx, move || line.line.to_string()).style(
-                                    cx,
-                                    || Style {
+                                label(cx, move || (line.line + 1).to_string())
+                                    .style(cx, || Style {
                                         flex_grow: 1.0,
                                         justify_content: Some(JustifyContent::End),
                                         ..Default::default()
-                                    },
-                                ),
+                                    }),
                                 label(cx, || "".to_string()).style(cx, || Style {
                                     width: Dimension::Points(20.0),
                                     ..Default::default()
@@ -342,13 +341,25 @@ fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
                 )
                 .style(cx, || Style {
                     flex_direction: FlexDirection::Column,
+                    width: Dimension::Percent(1.0),
                     ..Default::default()
                 })
             })
             .hide_bar()
-            .on_scroll_to(cx, move || viewport.get().origin())
             .onscroll(move |rect| {
                 gutter_viewport.set(rect);
+            })
+            .on_scroll_to(cx, move || {
+                let gutter_viewport = gutter_viewport.get_untracked();
+                let mut gutter_origin = gutter_viewport.origin();
+                let viewport = viewport.get();
+                let origin = viewport.origin();
+                if gutter_origin.y != origin.y {
+                    gutter_origin.y = origin.y;
+                    Some(gutter_origin)
+                } else {
+                    None
+                }
             })
             .style(cx, move || Style {
                 position: Position::Absolute,
@@ -477,17 +488,25 @@ fn editor(
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor: RwSignal<EditorData>,
 ) -> impl View {
-    let (doc, cursor, scroll_delta, viewport, gutter_viewport, config) = editor
-        .with(|editor| {
-            (
-                editor.doc.read_only(),
-                editor.cursor.read_only(),
-                editor.scroll.read_only(),
-                editor.viewport,
-                editor.gutter_viewport,
-                editor.config,
-            )
-        });
+    let (
+        doc,
+        cursor,
+        scroll_delta,
+        window_origin,
+        viewport,
+        gutter_viewport,
+        config,
+    ) = editor.with(|editor| {
+        (
+            editor.doc.read_only(),
+            editor.cursor.read_only(),
+            editor.scroll.read_only(),
+            editor.window_origin,
+            editor.viewport,
+            editor.gutter_viewport,
+            editor.config,
+        )
+    });
 
     let is_active = move || {
         let active_editor_tab = active_editor_tab.get();
@@ -574,10 +593,24 @@ fn editor(
                             ..Default::default()
                         })
                     })
+                    .on_resize(move |point, rect| {
+                        window_origin.set(point);
+                    })
                     .onscroll(move |rect| {
                         viewport.set(rect);
                     })
-                    .on_scroll_to(cx, move || gutter_viewport.get().origin())
+                    .on_scroll_to(cx, move || {
+                        let gutter_viewport = gutter_viewport.get();
+                        let gutter_origin = gutter_viewport.origin();
+                        let viewport = viewport.get_untracked();
+                        let mut origin = viewport.origin();
+                        if gutter_origin.y != origin.y {
+                            origin.y = gutter_origin.y;
+                            Some(origin)
+                        } else {
+                            None
+                        }
+                    })
                     .on_scroll_delta(cx, move || scroll_delta.get())
                     .on_ensure_visible(cx, move || {
                         let cursor = cursor.get();
@@ -1549,42 +1582,95 @@ fn palette(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     })
 }
 
+struct VectorItems<V>(im::Vector<V>);
+
+impl<V: Clone + 'static> VirtualListVector<(usize, V)> for VectorItems<V> {
+    type ItemIterator = Box<dyn Iterator<Item = (usize, V)>>;
+
+    fn total_len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn slice(&mut self, range: Range<usize>) -> Self::ItemIterator {
+        let start = range.start;
+        Box::new(
+            self.0
+                .slice(range)
+                .into_iter()
+                .enumerate()
+                .map(move |(i, item)| (i + start, item)),
+        )
+    }
+}
+
+fn completion(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+    let completion_data = window_tab_data.completion;
+    let config = window_tab_data.config;
+    let line_height = 20.0;
+    let request_id = create_memo(cx.scope, move |_| {
+        completion_data.with(|c| (c.request_id, c.input_id))
+    });
+    scroll(cx, move |cx| {
+        virtual_list(
+            cx,
+            VirtualListDirection::Vertical,
+            move || completion_data.with(|c| VectorItems(c.filtered_items.clone())),
+            move |(i, item)| (request_id.get_untracked(), *i),
+            move |cx, (i, item)| {
+                stack(cx, |cx| {
+                    (label(cx, move || item.item.label.clone()).style(
+                        cx,
+                        move || Style {
+                            min_width: Dimension::Points(0.0),
+                            ..Default::default()
+                        },
+                    ),)
+                })
+                .style(cx, move || Style {
+                    align_items: Some(AlignItems::Center),
+                    width: Dimension::Percent(1.0),
+                    height: Dimension::Points(
+                        config.get().editor.line_height() as f32
+                    ),
+                    ..Default::default()
+                })
+            },
+            VirtualListItemSize::Fixed(config.get().editor.line_height() as f64),
+        )
+        .style(cx, || Style {
+            align_items: Some(AlignItems::Center),
+            width: Dimension::Percent(1.0),
+            flex_direction: FlexDirection::Column,
+            ..Default::default()
+        })
+    })
+    .on_resize(move |_, rect| {
+        completion_data.update(|c| {
+            c.layout_rect = rect;
+        });
+    })
+    .style(cx, move || {
+        let config = config.get();
+        let origin = window_tab_data.completion_origin();
+        Style {
+            position: Position::Absolute,
+            width: Dimension::Points(400.0),
+            max_height: Dimension::Points(400.0),
+            margin_left: Some(origin.x as f32),
+            margin_top: Some(origin.y as f32),
+            background: Some(*config.get_color(LapceColor::COMPLETION_BACKGROUND)),
+            ..Default::default()
+        }
+    })
+}
+
 fn window_tab(cx: AppContext, workspace: Arc<LapceWorkspace>) -> impl View {
     let window_tab_data = WindowTabData::new(cx, workspace);
-    let workbench_command = window_tab_data.workbench_command;
-
-    {
-        let window_tab_data = window_tab_data.clone();
-        create_effect(cx.scope, move |_| {
-            if let Some(cmd) = window_tab_data.lapce_command.get() {
-                window_tab_data.run_lapce_command(cx, cmd);
-            }
-        });
-    }
-
-    {
-        let window_tab_data = window_tab_data.clone();
-        create_effect(cx.scope, move |_| {
-            if let Some(cmd) = workbench_command.get() {
-                window_tab_data.run_workbench_command(cx, cmd);
-            }
-        });
-    }
-
-    {
-        let window_tab_data = window_tab_data.clone();
-        let internal_command = window_tab_data.internal_command;
-        create_effect(cx.scope, move |_| {
-            if let Some(cmd) = internal_command.get() {
-                println!("get internal command");
-                window_tab_data.run_internal_command(cx, cmd);
-            }
-        });
-    }
-
     let proxy_data = window_tab_data.proxy.clone();
-    let keypress = window_tab_data.keypress;
+    let window_origin = window_tab_data.window_origin;
+    let layout_rect = window_tab_data.layout_rect;
     let config = window_tab_data.main_split.config;
+
     let window_tab_view = stack(cx, |cx| {
         (
             stack(cx, |cx| {
@@ -1594,12 +1680,17 @@ fn window_tab(cx: AppContext, workspace: Arc<LapceWorkspace>) -> impl View {
                     status(cx, window_tab_data.main_split.config),
                 )
             })
+            .on_resize(move |point, rect| {
+                window_origin.set(point);
+                layout_rect.set(rect);
+            })
             .style(cx, || Style {
                 width: Dimension::Percent(1.0),
                 height: Dimension::Percent(1.0),
                 flex_direction: FlexDirection::Column,
                 ..Default::default()
             }),
+            completion(cx, window_tab_data.clone()),
             palette(cx, window_tab_data.clone()),
         )
     })

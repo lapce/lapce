@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     command::InternalCommand,
+    completion::CompletionData,
     config::LapceConfig,
     doc::{DocContent, Document},
     editor::EditorData,
@@ -76,6 +77,7 @@ pub struct MainSplitData {
     pub editors: RwSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
     pub docs: RwSignal<im::HashMap<PathBuf, RwSignal<Document>>>,
     pub proxy_rpc: ProxyRpcHandler,
+    completion: RwSignal<CompletionData>,
     register: RwSignal<Register>,
     internal_command: WriteSignal<Option<InternalCommand>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
@@ -86,6 +88,7 @@ impl MainSplitData {
         cx: AppContext,
         proxy_rpc: ProxyRpcHandler,
         register: RwSignal<Register>,
+        completion: RwSignal<CompletionData>,
         internal_command: WriteSignal<Option<InternalCommand>>,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
@@ -117,6 +120,7 @@ impl MainSplitData {
             docs,
             proxy_rpc,
             register,
+            completion,
             internal_command,
             config,
         }
@@ -237,11 +241,13 @@ impl MainSplitData {
             let editor_id = EditorId::next();
             let editor = EditorData::new(
                 cx,
-                editor_tab_id,
+                Some(editor_tab_id),
                 editor_id,
                 doc,
                 self.register,
+                self.completion,
                 self.internal_command,
+                self.proxy_rpc.clone(),
                 self.config,
             );
             let editor = create_rw_signal(cx.scope, editor);
@@ -283,11 +289,13 @@ impl MainSplitData {
             let editor_id = EditorId::next();
             let editor = EditorData::new(
                 cx,
-                editor_tab_id,
+                Some(editor_tab_id),
                 editor_id,
                 doc,
                 self.register,
+                self.completion,
                 self.internal_command,
+                self.proxy_rpc.clone(),
                 self.config,
             );
             let editor = create_rw_signal(cx.scope, editor);
@@ -405,15 +413,10 @@ impl MainSplitData {
         let new_child = match child {
             EditorTabChild::Editor(editor_id) => {
                 let new_editor_id = EditorId::next();
-                let mut editor =
-                    self.editors.get_untracked().get(editor_id)?.get_untracked();
-                editor.cursor =
-                    create_rw_signal(cx.scope, editor.cursor.get_untracked());
-                editor.viewport =
-                    create_rw_signal(cx.scope, editor.viewport.get_untracked());
-                editor.scroll = create_rw_signal(cx.scope, Vec2::ZERO);
-                editor.editor_tab_id = Some(editor_tab_id);
-                editor.editor_id = new_editor_id;
+                let editor =
+                    self.editors.get_untracked().get(editor_id)?.with_untracked(
+                        |editor| editor.copy(cx, Some(editor_tab_id), new_editor_id),
+                    );
                 let editor = create_rw_signal(cx.scope, editor);
                 self.editors.update(|editors| {
                     editors.insert(new_editor_id, editor);
@@ -736,5 +739,23 @@ impl MainSplitData {
             editor_tab.layout_rect = rect;
         });
         Some(())
+    }
+
+    pub fn active_editor(&self) -> Option<RwSignal<EditorData>> {
+        let active_editor_tab = self.active_editor_tab.get_untracked()?;
+        let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
+            editor_tabs.get(&active_editor_tab).copied()
+        })?;
+        let child = editor_tab.with_untracked(|editor_tab| {
+            editor_tab.children.get(editor_tab.active).cloned()
+        })?;
+
+        let editor = match child {
+            EditorTabChild::Editor(editor_id) => self
+                .editors
+                .with_untracked(|editors| editors.get(&editor_id).copied())?,
+        };
+
+        Some(editor)
     }
 }

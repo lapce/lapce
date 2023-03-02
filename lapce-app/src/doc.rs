@@ -1,5 +1,9 @@
 use std::{
-    borrow::Cow, cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc,
+    borrow::Cow,
+    cell::RefCell,
+    collections::HashMap,
+    path::{Path, PathBuf},
+    rc::Rc,
     sync::Arc,
 };
 
@@ -142,6 +146,13 @@ pub enum DocContent {
 impl DocContent {
     pub fn is_local(&self) -> bool {
         matches!(self, DocContent::Local)
+    }
+
+    pub fn path(&self) -> Option<&PathBuf> {
+        match self {
+            DocContent::File(path) => Some(path),
+            DocContent::Local => None,
+        }
     }
 }
 
@@ -822,6 +833,56 @@ impl Document {
             true,
         );
         Point::new(cursor.offset() as f64, cursor.baseline() as f64)
+    }
+
+    /// Get the (point above, point below) of a particular offset within the editor.
+    pub fn points_of_offset(&self, offset: usize) -> (Point, Point) {
+        let (line, col) = self.buffer.offset_to_line_col(offset);
+        self.points_of_line_col(line, col)
+    }
+
+    /// Get the (point above, point below) of a particular (line, col) within the editor.
+    pub fn points_of_line_col(&self, line: usize, col: usize) -> (Point, Point) {
+        let config = self.config.get_untracked();
+        let (y, line_height, font_size) = (
+            config.editor.line_height() * line,
+            config.editor.line_height(),
+            config.editor.font_size,
+        );
+
+        let line = line.min(self.buffer.last_line());
+
+        let phantom_text = self.line_phantom_text(line);
+        let col = phantom_text.col_after(col, false);
+
+        let mut x_shift = 0.0;
+        if font_size < config.editor.font_size {
+            let line_content = self.buffer.line_content(line);
+            let mut col = 0usize;
+            for ch in line_content.chars() {
+                if ch == ' ' || ch == '\t' {
+                    col += 1;
+                } else {
+                    break;
+                }
+            }
+
+            if col > 0 {
+                let normal_text_layout =
+                    self.get_text_layout(line, config.editor.font_size);
+                let small_text_layout = self.get_text_layout(line, font_size);
+                x_shift = hit_test_text_position(&normal_text_layout.text, col)
+                    .point
+                    .x
+                    - hit_test_text_position(&small_text_layout.text, col).point.x;
+            }
+        }
+
+        let x = self.line_point_of_line_col(line, col, font_size).x + x_shift;
+        (
+            Point::new(x, y as f64),
+            Point::new(x, (y + line_height) as f64),
+        )
     }
 
     /// Create a new text layout for the given line.  

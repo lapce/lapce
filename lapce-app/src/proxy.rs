@@ -4,7 +4,7 @@ use crossbeam_channel::Sender;
 use floem::{
     app::AppContext,
     ext_event::create_signal_from_channel,
-    reactive::{create_effect, create_signal, ReadSignal},
+    reactive::{create_effect, create_signal, ReadSignal, WriteSignal},
 };
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::{
@@ -13,7 +13,7 @@ use lapce_rpc::{
     source_control::DiffInfo,
 };
 
-use crate::workspace::LapceWorkspace;
+use crate::{completion::CompletionData, workspace::LapceWorkspace};
 
 pub struct Proxy {
     pub tx: Sender<CoreNotification>,
@@ -26,7 +26,11 @@ pub struct ProxyData {
     pub diff_info: ReadSignal<Option<DiffInfo>>,
 }
 
-pub fn start_proxy(cx: AppContext, workspace: Arc<LapceWorkspace>) -> ProxyData {
+pub fn start_proxy(
+    cx: AppContext,
+    workspace: Arc<LapceWorkspace>,
+    completion: WriteSignal<CompletionData>,
+) -> ProxyData {
     let proxy_rpc = ProxyRpcHandler::new();
     let core_rpc = CoreRpcHandler::new();
 
@@ -69,6 +73,14 @@ pub fn start_proxy(cx: AppContext, workspace: Arc<LapceWorkspace>) -> ProxyData 
                     CoreNotification::DiffInfo { diff } => {
                         set_diff_info.set(Some(diff.clone()));
                     }
+                    CoreNotification::CompletionResponse {
+                        request_id,
+                        input,
+                        resp,
+                        plugin_id,
+                    } => completion.update(|completion| {
+                        completion.receive(*request_id, input, resp, *plugin_id);
+                    }),
                     _ => {}
                 }
             }

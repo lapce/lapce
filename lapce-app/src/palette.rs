@@ -38,6 +38,7 @@ use lapce_xi_rope::Rope;
 
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
+    completion::CompletionData,
     config::LapceConfig,
     editor::EditorData,
     id::EditorId,
@@ -87,6 +88,7 @@ impl PaletteData {
         workspace: Arc<LapceWorkspace>,
         proxy_rpc: ProxyRpcHandler,
         register: RwSignal<Register>,
+        completion: RwSignal<CompletionData>,
         internal_command: WriteSignal<Option<InternalCommand>>,
         focus: RwSignal<Focus>,
         keypress: ReadSignal<KeyPressData>,
@@ -100,6 +102,7 @@ impl PaletteData {
             cx,
             EditorId::next(),
             register,
+            completion,
             internal_command,
             proxy_rpc.clone(),
             config,

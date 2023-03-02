@@ -3,15 +3,17 @@ use std::sync::Arc;
 use floem::{
     app::AppContext,
     glazier::KeyEvent,
+    peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_rw_signal, create_signal, use_context, ReadSignal, RwSignal,
-        UntrackedGettableSignal,
+        create_effect, create_rw_signal, create_signal, use_context, ReadSignal,
+        RwSignal, UntrackedGettableSignal,
     },
 };
 use lapce_core::register::Register;
 
 use crate::{
     command::{InternalCommand, LapceCommand, LapceWorkbenchCommand},
+    completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
     keypress::{DefaultKeyPress, KeyPressData, KeyPressFocus},
@@ -33,10 +35,14 @@ pub struct WindowTabData {
     pub main_split: MainSplitData,
     pub proxy: ProxyData,
     pub keypress: RwSignal<KeyPressData>,
+    pub completion: RwSignal<CompletionData>,
     pub focus: RwSignal<Focus>,
     pub lapce_command: ReadSignal<Option<LapceCommand>>,
     pub workbench_command: ReadSignal<Option<LapceWorkbenchCommand>>,
     pub internal_command: ReadSignal<Option<InternalCommand>>,
+    pub window_origin: RwSignal<Point>,
+    pub layout_rect: RwSignal<Rect>,
+    pub config: ReadSignal<Arc<LapceConfig>>,
 }
 
 impl WindowTabData {
@@ -62,8 +68,9 @@ impl WindowTabData {
         let (config, set_config) = create_signal(cx.scope, Arc::new(config));
 
         let focus = create_rw_signal(cx.scope, Focus::Workbench);
+        let completion = create_rw_signal(cx.scope, CompletionData::new());
 
-        let proxy = start_proxy(cx, workspace.clone());
+        let proxy = start_proxy(cx, workspace.clone(), completion.write_only());
 
         let register = create_rw_signal(cx.scope, Register::default());
 
@@ -72,6 +79,7 @@ impl WindowTabData {
             workspace,
             proxy.rpc.clone(),
             register,
+            completion,
             set_internal_command,
             focus,
             keypress.read_only(),
@@ -82,20 +90,55 @@ impl WindowTabData {
             cx,
             proxy.rpc.clone(),
             register,
+            completion,
             set_internal_command,
             config,
         );
 
-        Self {
+        let window_tab_data = Self {
             palette,
             main_split,
             proxy,
             keypress,
+            completion,
             focus,
             lapce_command,
             workbench_command,
             internal_command,
+            window_origin: create_rw_signal(cx.scope, Point::ZERO),
+            layout_rect: create_rw_signal(cx.scope, Rect::ZERO),
+            config,
+        };
+
+        {
+            let window_tab_data = window_tab_data.clone();
+            create_effect(cx.scope, move |_| {
+                if let Some(cmd) = window_tab_data.lapce_command.get() {
+                    window_tab_data.run_lapce_command(cx, cmd);
+                }
+            });
         }
+
+        {
+            let window_tab_data = window_tab_data.clone();
+            create_effect(cx.scope, move |_| {
+                if let Some(cmd) = workbench_command.get() {
+                    window_tab_data.run_workbench_command(cx, cmd);
+                }
+            });
+        }
+
+        {
+            let window_tab_data = window_tab_data.clone();
+            let internal_command = window_tab_data.internal_command;
+            create_effect(cx.scope, move |_| {
+                if let Some(cmd) = internal_command.get() {
+                    window_tab_data.run_internal_command(cx, cmd);
+                }
+            });
+        }
+
+        window_tab_data
     }
 
     pub fn run_lapce_command(&self, cx: AppContext, cmd: LapceCommand) {}
@@ -263,5 +306,44 @@ impl WindowTabData {
         //         keypress.key_down(cx, key_event, &DefaultKeyPress {});
         //     }
         // });
+    }
+
+    pub fn completion_origin(&self) -> Point {
+        let completion = self.completion.get();
+        if completion.status == CompletionStatus::Inactive {
+            return Point::ZERO;
+        }
+
+        let editor = if let Some(editor) = self.main_split.active_editor() {
+            editor
+        } else {
+            return Point::ZERO;
+        };
+
+        let (window_origin, viewport, doc) =
+            editor.with_untracked(|e| (e.window_origin, e.viewport, e.doc));
+
+        let (point_above, point_below) =
+            doc.with_untracked(|doc| doc.points_of_offset(completion.offset));
+
+        let window_origin = window_origin.get();
+        let viewport = viewport.get();
+        let completion_size = completion.layout_rect.size();
+        let tab_size = self.layout_rect.get().size();
+
+        let mut origin = window_origin
+            + Vec2::new(point_below.x - viewport.x0, point_below.y - viewport.y0);
+        if origin.y + completion_size.height > tab_size.height {
+            origin.y = window_origin.y + (point_above.y - viewport.y0)
+                - completion_size.height;
+        }
+        if origin.x + completion_size.width + 1.0 > tab_size.width {
+            origin.x = tab_size.width - completion_size.width - 1.0;
+        }
+        if origin.x <= 0.0 {
+            origin.x = 0.0;
+        }
+
+        origin
     }
 }
