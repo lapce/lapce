@@ -31,6 +31,6 @@ pub mod status;
 pub mod svg;
 mod tab;
 pub mod terminal;
+pub mod text;
 pub mod title;
 pub mod window;
-pub mod text;

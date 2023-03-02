@@ -25,7 +25,8 @@ use lapce_rpc::{file::FileNodeItem, source_control::FileDiff};
 use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
-    scroll::LapceScroll, text::truncate,
+    scroll::LapceScroll,
+    text::truncate,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -128,7 +129,7 @@ fn paint_single_file_node_item(
     }
 
     let path = item.path_buf.file_name().unwrap().to_str().unwrap();
-    
+
     let text_layout = ctx
         .text()
         .new_text_layout(path.to_string())
@@ -1396,7 +1397,7 @@ impl OpenEditorList {
                         .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
                         .clone(),
                 );
-            
+
             // the second condition ensures that the 3 dots are als in the same color
             if !hint.is_empty() && (truncated.len() - 3) > (total_len - hint.len()) {
                 text_layout = text_layout.range_attribute(
@@ -1413,7 +1414,8 @@ impl OpenEditorList {
                 &text_layout,
                 Point::new(
                     svg_rect.x1 + 5.0,
-                    i as f64 * self.line_height + text_layout.y_offset(self.line_height),
+                    i as f64 * self.line_height
+                        + text_layout.y_offset(self.line_height),
                 ),
             );
         } else {
@@ -1421,7 +1423,8 @@ impl OpenEditorList {
                 &text_layout,
                 Point::new(
                     svg_rect.x1 + 5.0,
-                    i as f64 * self.line_height + text_layout.y_offset(self.line_height),
+                    i as f64 * self.line_height
+                        + text_layout.y_offset(self.line_height),
                 ),
             );
         }
