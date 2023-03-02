@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use druid::{
     kurbo::BezPath,
-    piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
+    piet::{Text, TextLayoutBuilder, TextAttribute},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, Rect, RenderContext,
     Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
@@ -21,7 +21,7 @@ use lapce_rpc::source_control::FileDiff;
 use crate::{
     button::Button,
     editor::view::LapceEditorView,
-    panel::{LapcePanel, PanelHeaderKind, PanelSizing},
+    panel::{LapcePanel, PanelHeaderKind, PanelSizing}, text::truncate,
 };
 
 pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
@@ -432,54 +432,78 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-
-            let text_layout = ctx
-                .text()
-                .new_text_layout(file_name)
-                .font(
-                    data.config.ui.font_family(),
-                    data.config.ui.font_size() as f64,
-                )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            ctx.draw_text(
-                &text_layout,
-                Point::new(
-                    self.line_height * 2.0,
-                    y + text_layout.y_offset(self.line_height),
-                ),
-            );
+            
             let folder = path
                 .parent()
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            if !folder.is_empty() {
-                let x = text_layout.size().width;
 
-                let text_layout = ctx
+            let text = if !folder.is_empty() {
+                format!("{file_name} {folder}")
+            } else {
+                file_name
+            };
+            
+            let total_len = text.len();
+            let mut text_layout = ctx
+                .text()
+                .new_text_layout(text.to_string())
+                .font(data.config.ui.font_family(), data.config.ui.font_size() as f64)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
+                        .clone(),
+                );
+            if !folder.is_empty() {
+                text_layout = text_layout.range_attribute(
+                    total_len - folder.len()..total_len,
+                    TextAttribute::TextColor(
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_FOREGROUND_DIM)
+                            .clone(),
+                    ),
+                );
+            }
+            let text_layout = text_layout.build().unwrap();
+
+            let max_width = current_line.width() - 2.0 * self.line_height - 2.0 * svg_size;
+
+            if let Some(truncated) = truncate(&text_layout, max_width, text) {
+                let mut text_layout = ctx
                     .text()
-                    .new_text_layout(folder)
-                    .font(
-                        data.config.ui.font_family(),
-                        data.config.ui.font_size() as f64,
-                    )
+                    .new_text_layout(truncated.to_string())
+                    .font(data.config.ui.font_family(), data.config.ui.font_size() as f64)
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
                             .clone(),
-                    )
-                    .build()
-                    .unwrap();
+                    );
+                // the second condition ensures that the 3 dots are all in the same color
+                if !folder.is_empty() && (truncated.len() - 3) > (total_len - folder.len()) {
+                    text_layout = text_layout.range_attribute(
+                        total_len - folder.len()..total_len,
+                        TextAttribute::TextColor(
+                            data.config
+                                .get_color_unchecked(LapceTheme::PANEL_FOREGROUND_DIM)
+                                .clone(),
+                        ),
+                    );
+                }
+                let text_layout = text_layout.build().unwrap();
+
                 ctx.draw_text(
                     &text_layout,
                     Point::new(
-                        self.line_height * 2.0 + x + 5.0,
+                        self.line_height * 2.0,
+                        y + text_layout.y_offset(self.line_height),
+                    ),
+                );
+            } else {
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(
+                        self.line_height * 2.0,
                         y + text_layout.y_offset(self.line_height),
                     ),
                 );
