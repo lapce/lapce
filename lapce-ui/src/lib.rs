@@ -32,4 +32,5 @@ pub mod svg;
 mod tab;
 pub mod terminal;
 pub mod title;
+mod truncated_text;
 pub mod window;

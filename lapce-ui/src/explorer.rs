@@ -26,6 +26,7 @@ use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},
     scroll::LapceScroll,
+    truncated_text::truncate_if_necessary,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -127,24 +128,39 @@ fn paint_single_file_node_item(
         ctx.draw_svg(&svg, rect, svg_color);
     }
 
+    let path = item.path_buf.file_name().unwrap().to_str().unwrap();
+
     let text_layout = ctx
         .text()
-        .new_text_layout(
-            item.path_buf
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string(),
-        )
+        .new_text_layout(path.to_string())
         .font(config.ui.font_family(), font_size)
         .text_color(config.get_color_unchecked(text_color).clone())
         .build()
         .unwrap();
-    ctx.draw_text(
+
+    if let Some(text) = truncate_if_necessary(
         &text_layout,
-        Point::new(38.0 + padding, y + text_layout.y_offset(line_height)),
-    );
+        width - (38.0 + padding) - 5.0,
+        path.to_string(),
+    ) {
+        let text_layout = ctx
+            .text()
+            .new_text_layout(text)
+            .font(config.ui.font_family(), font_size)
+            .text_color(config.get_color_unchecked(text_color).clone())
+            .build()
+            .unwrap();
+
+        ctx.draw_text(
+            &text_layout,
+            Point::new(38.0 + padding, y + text_layout.y_offset(line_height)),
+        );
+    } else {
+        ctx.draw_text(
+            &text_layout,
+            Point::new(38.0 + padding, y + text_layout.y_offset(line_height)),
+        );
+    }
 }
 
 /// Paint the file node item, if it is in view, and its children
@@ -1352,7 +1368,7 @@ impl OpenEditorList {
         let total_len = text.len();
         let mut text_layout = ctx
             .text()
-            .new_text_layout(text)
+            .new_text_layout(text.to_string())
             .font(data.config.ui.font_family(), font_size)
             .text_color(
                 data.config
@@ -1370,13 +1386,52 @@ impl OpenEditorList {
             );
         }
         let text_layout = text_layout.build().unwrap();
-        ctx.draw_text(
+
+        if let Some(truncated) = truncate_if_necessary(
             &text_layout,
-            Point::new(
-                svg_rect.x1 + 5.0,
-                i as f64 * self.line_height + text_layout.y_offset(self.line_height),
-            ),
-        );
+            size.width - (svg_rect.x1 + 5.0) - 5.0,
+            text,
+        ) {
+            let mut text_layout = ctx
+                .text()
+                .new_text_layout(truncated.to_string())
+                .font(data.config.ui.font_family(), font_size)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
+                        .clone(),
+                );
+            // the second condition ensures that the 3 dots are als in the same color
+            if !hint.is_empty() && (truncated.len() - 3) > (total_len - hint.len()) {
+                text_layout = text_layout.range_attribute(
+                    total_len - hint.len()..(total_len + 2),
+                    TextAttribute::TextColor(
+                        data.config
+                            .get_color_unchecked(LapceTheme::PANEL_FOREGROUND_DIM)
+                            .clone(),
+                    ),
+                );
+            }
+            let text_layout = text_layout.build().unwrap();
+
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    svg_rect.x1 + 5.0,
+                    i as f64 * self.line_height
+                        + text_layout.y_offset(self.line_height),
+                ),
+            );
+        } else {
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    svg_rect.x1 + 5.0,
+                    i as f64 * self.line_height
+                        + text_layout.y_offset(self.line_height),
+                ),
+            );
+        }
     }
 }
 
