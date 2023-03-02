@@ -482,7 +482,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 // the second condition ensures that the 3 dots are all in the same color
                 if !folder.is_empty() && (truncated.len() - 3) > (total_len - folder.len()) {
                     text_layout = text_layout.range_attribute(
-                        total_len - folder.len()..total_len,
+                        total_len - folder.len()..,
                         TextAttribute::TextColor(
                             data.config
                                 .get_color_unchecked(LapceTheme::PANEL_FOREGROUND_DIM)

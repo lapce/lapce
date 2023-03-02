@@ -1400,7 +1400,7 @@ impl OpenEditorList {
             // the second condition ensures that the 3 dots are als in the same color
             if !hint.is_empty() && (truncated.len() - 3) > (total_len - hint.len()) {
                 text_layout = text_layout.range_attribute(
-                    total_len - hint.len()..total_len,
+                    total_len - hint.len()..,
                     TextAttribute::TextColor(
                         data.config
                             .get_color_unchecked(LapceTheme::PANEL_FOREGROUND_DIM)
