@@ -328,69 +328,12 @@ impl State {
     }
 }
 
-/// Code taken (and slightly modified) from wezterm's env-bootstrap
-/// Source: https://github.com/wez/wezterm/blob/691ec187ba29fcae45ddf4e4f88fd02c49988c86/env-bootstrap/src/lib.rs#L86
-/// License: https://github.com/wez/wezterm/blob/691ec187ba29fcae45ddf4e4f88fd02c49988c86/LICENSE.md
-/// SPDX: MIT
 #[cfg(target_os = "macos")]
 fn set_locale_environment() {
-    use cocoa::base::id;
-    use cocoa::foundation::NSString;
-    use objc::runtime::Object;
-    use objc::*;
-
-    fn lang_is_set() -> bool {
-        match std::env::var_os("LANG") {
-            None => false,
-            Some(lang) => !lang.is_empty(),
-        }
-    }
-
-    if !lang_is_set() {
-        unsafe fn nsstring_to_str<'a>(ns: *mut Object) -> &'a str {
-            let data = NSString::UTF8String(ns as id) as *const u8;
-            let len = NSString::len(ns as id);
-            let bytes = std::slice::from_raw_parts(data, len);
-            std::str::from_utf8_unchecked(bytes)
-        }
-
-        unsafe {
-            let locale: *mut Object =
-                msg_send![class!(NSLocale), autoupdatingCurrentLocale];
-            let lang_code_obj: *mut Object = msg_send![locale, languageCode];
-            let country_code_obj: *mut Object = msg_send![locale, countryCode];
-
-            {
-                let lang_code = nsstring_to_str(lang_code_obj);
-                let country_code = nsstring_to_str(country_code_obj);
-
-                let candidate = format!("{lang_code}_{country_code}.UTF-8");
-                let candidate_cstr =
-                    std::ffi::CString::new(<&[u8]>::clone(&candidate.as_bytes()))
-                        .expect("make cstr from str");
-
-                // If this looks like a working locale then export it to
-                // the environment so that our child processes inherit it.
-                let old = libc::setlocale(libc::LC_CTYPE, std::ptr::null());
-                if !libc::setlocale(libc::LC_CTYPE, candidate_cstr.as_ptr())
-                    .is_null()
-                {
-                    std::env::set_var("LANG", &candidate);
-                } else {
-                    log::warn!(
-                        "setlocale({}) failed, fall back to en_US.UTF-8",
-                        candidate
-                    );
-                    std::env::set_var("LANG", "en_US.UTF-8");
-                }
-                libc::setlocale(libc::LC_CTYPE, old);
-            }
-
-            let _: () = msg_send![lang_code_obj, release];
-            let _: () = msg_send![country_code_obj, release];
-            let _: () = msg_send![locale, release];
-        }
-    }
+    let locale = locale_config::Locale::global_default()
+        .to_string()
+        .replace('-', "_");
+    std::env::set_var("LC_ALL", locale + ".UTF-8");
 }
 
 #[inline]
